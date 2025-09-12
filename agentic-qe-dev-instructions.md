@@ -727,7 +727,7 @@ const analyticsEvents = {
 - **Analytics**: Vercel Analytics + Custom
 
 ### Deployment
-- **Platform**: Vercel (seamless with Next.js)
+- **Platform**: Lovable.dev
 - **CDN**: Cloudflare
 - **Monitoring**: Sentry
 
