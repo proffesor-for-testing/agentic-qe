@@ -76,7 +76,7 @@ The agent didn't replace our thinking. It **amplified** it.
 
 ## Production Monitoring: From Watching to Understanding
 
-Here's a confession: I used to have 47 dashboards. I watched none of them.
+Here's a confession: I used to have 47 dashboards. I stopped watching them.
 
 The shift happened when we stopped monitoring metrics and started monitoring behaviors. Enter the analytical ensemble:
 
@@ -131,7 +131,7 @@ def investigate():
         "Browser RUM data",
         "CDN logs",
         "Database slow query logs",
-        "Third-party API response times",
+        "Services API response times",
         "User session recordings",
         "Feature flag evaluations",
         "Cache hit rates"
@@ -153,7 +153,7 @@ def investigate():
     """
 ```
 
-No human would have found that combination manually. The agent found it in 3 minutes.
+A human would have found that combination manually after several hours of investigation, maybe... The agent found it in 3 minutes.
 
 ## Exploring the Unknown Unknowns
 
@@ -184,7 +184,7 @@ exploration_session:
   human_decision: "Which findings to act on"
 ```
 
-Real finding from last month: ExplorerAgent discovered that entering emoji in the search box caused a 10x increase in database CPU. Why? Unicode normalization in a hot path we'd never optimized. 
+Example finding from a session: ExplorerAgent discovered that entering emoji in the search box caused a 10x increase in database CPU. Why? Unicode normalization in a hot path we'd never optimized. 
 
 In production? 0.01% of searches. 
 Business impact? Those searches were from our biggest B2B client's automated system. 💀
@@ -196,6 +196,7 @@ My favorite debugging story from this year:
 **The Mystery**: Memory leak in production. Slow, subtle, deadly.
 
 **Traditional Approach** (2 days):
+- Logs, metrics
 - Heap dumps
 - Code review  
 - More heap dumps
@@ -205,7 +206,7 @@ My favorite debugging story from this year:
 ```python
 # The Debugging Ensemble
 debug_session = DebugEnsemble(
-    humans=["Dragan", "Ana"],
+    humans=["Dragan", "Andrej"],
     agents=[
         MemoryPatternAnalyzer(),
         CodePathTracer(),
@@ -231,7 +232,7 @@ The agents didn't solve it. But they made the invisible visible.
 
 ## Real User Monitoring: The Truth Detector
 
-RUM data is gold, but it's also noise. Here's our ensemble approach:
+RUM data is gold, but it's also noise. Here's an ensemble approach:
 
 ```javascript
 // Frontend RUM collector
@@ -271,7 +272,7 @@ class RUMEnsemble {
 }
 ```
 
-Last week's discovery: 3% of users rage-clicking our submit button. Not because it was broken—because our loading spinner was transparent on dark mode. Agents found it. Humans understood why it mattered.
+A discovery: 3% of users rage-clicking our submit button. Not because it was broken—because our loading spinner was transparent on dark mode. Agents found it. Humans understood why it mattered.
 
 ## The Integration Points
 
@@ -313,7 +314,7 @@ Here's where ensemble programming with agents shines:
 
 ## The Failures (Because Honesty Matters)
 
-Not everything works. Here's what failed:
+Not everything works. Here's what could fail:
 
 1. **Autonomous Debugging**: Agents can trace but can't understand business logic
 2. **Risk Prioritization**: Agents find risks but don't understand company politics

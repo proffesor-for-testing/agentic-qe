@@ -79,7 +79,7 @@ Now when the agent says "trouble ahead," we know why, what, and when.
 
 Autonomous doesn't mean unaccountable. Every decision needs a trail.
 
-Real example from our payment flow testing:
+Example from a payment flow testing:
 
 ```yaml
 # Agent Decision Log - Test Session 2024-10-03-14:23:17
@@ -100,7 +100,7 @@ decision_trail:
   - timestamp: 14:23:47
     decision: "Escalate finding"
     reasoning: "No length validation on user.name field, potential DoS vector"
-    action: "Alert human, pause autonomous exploration"
+    action: "Alert DevOps team, pause autonomous exploration"
     severity: "HIGH"
     evidence:
       - "Successfully created user with 1MB name"
@@ -127,7 +127,7 @@ Agent: "Undefined behavioral parameters outside training distribution"
 Human: *closes laptop*
 ```
 
-### PACT Collaboration (What We Built):
+### PACT Collaboration (What To Build):
 ```python
 class CollaborativeAgent:
     def communicate_finding(self, technical_finding):
@@ -141,7 +141,7 @@ class CollaborativeAgent:
         }
     
     def translate_to_human(self, finding):
-        # Real example from production
+        # An example from production
         if finding.type == "gradient_anomaly":
             return (
                 "The AI model is behaving unexpectedly. "
@@ -151,7 +151,7 @@ class CollaborativeAgent:
             )
 ```
 
-Real conversation from last week:
+A conversation from last week:
 
 ```
 Agent: "Hey Dragan, I found something weird in the checkout flow."
@@ -198,7 +198,7 @@ class TargetedTestingAgent:
         """
 ```
 
-Real targeting decision from our B2B platform:
+A targeting decision from a B2B platform:
 
 ```yaml
 context: "Enterprise Customer Onboarding"
@@ -222,7 +222,7 @@ agent_decision:
 
 ## The Explainability Architecture
 
-Here's how we built explainability into every layer:
+Here's an example on how to build explainability into every layer:
 
 ```python
 class ExplainableAgentSystem:
@@ -268,9 +268,9 @@ class ExplainableAgentSystem:
         }
 ```
 
-## Real Implementation: The Payment Validation Agent
+## Example Implementation: The Payment Validation Agent
 
-Let me show you PACT in action with our payment validation agent:
+Let me show you PACT in action with a payment validation agent:
 
 ```python
 class PaymentValidationAgent:
@@ -350,9 +350,9 @@ After 6 months of PACT implementation:
 - Rollback rate: 12%
 - Human override rate: 23% (and we know why for each)
 
-## The Failure Modes (And How We Handle Them)
+## The Failure Modes (And How To Handle Them)
 
-Even PACT systems fail. Here's how we handle it:
+Even PACT systems fail. Here's an example on how to handle it:
 
 ```python
 class PACTFailureHandler:
@@ -381,7 +381,7 @@ class PACTFailureHandler:
         }
 ```
 
-Real failure from last month:
+Example failure:
 
 ```yaml
 failure_event: "Agent incorrectly marked 200 tests as passing"
@@ -435,9 +435,9 @@ That's the difference between a tool and a teammate.
 
 ## Looking Forward
 
-We're six months into our PACT journey. The agents aren't perfect, but they're explainable. They're not infallible, but they're accountable. They're not human, but they're humane.
+We're four months into our PACT journey. The agents aren't perfect, but they're explainable. They're not infallible, but they're accountable. They're not human, but they're humane.
 
-And that's enough to trust them.
+That's enough to trust them more, but we still need to verify.
 
 ## Your Turn
 

@@ -6,7 +6,7 @@
 
 ## The Dashboard Graveyard
 
-I counted them last week. 247 dashboards. We created them, celebrated them, then forgot them.
+I counted them last month. 47 dashboards. We created them, celebrated them, then forgot them.
 
 The average dashboard lifespan in our company? 3 weeks of active use, then eternal digital purgatory.
 
@@ -33,7 +33,7 @@ The gap between metrics and meaning is where agents shine.
 
 ## The Evolution Story
 
-Let me walk you through our journey from dashboard paralysis to decision clarity:
+Let me walk you through a journey from dashboard paralysis to decision clarity:
 
 ### Phase 1: The Metric Explosion (2023)
 ```yaml
@@ -65,7 +65,7 @@ def correlate_metrics(cpu, memory, requests, errors):
 
 Spoiler: It didn't work.
 
-### Phase 3: The Agent Revolution (Mid 2024)
+### Phase 3: The Agent Revolution (Early 2025)
 ```python
 class ProductionMonitoringAgent:
     def __init__(self):
@@ -131,7 +131,7 @@ class RUMAnalysisAgent:
         }
 ```
 
-Real finding from last Tuesday:
+Finding from a session:
 
 ```yaml
 agent_alert: "Unusual user behavior pattern detected"
@@ -270,7 +270,7 @@ That's not an alert. That's a decision package.
 
 ## The Production Insights Engine
 
-Here's our current setup that replaced those 247 dashboards:
+Here's a setup that replaces those 47 dashboards:
 
 ```python
 class ProductionInsightsEngine:
@@ -327,7 +327,7 @@ class ProductionInsightsEngine:
 - False positive rate: 12%
 - Engineer satisfaction: "😊"
 
-But the real win? We prevented 17 outages that would have happened. The agents saw them coming.
+But the real win? Prevented 17 outages that would have happened. The agents saw them coming.
 
 ## Your Migration Path
 

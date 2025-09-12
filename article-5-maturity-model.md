@@ -18,7 +18,7 @@ Let's fix that.
 
 ## The Five Levels of Agentic QE Maturity
 
-After assessing 47 organizations and failing spectacularly at my own transformation twice, here's the maturity model that actually works:
+After assessing a number of organizations and failing spectacularly at my own transformation twice, here's the maturity model that actually works:
 
 ### Level 0: Classical Excellence (Foundation)
 *You can't orchestrate chaos*
@@ -49,7 +49,7 @@ ready_for_next_when:
   - Context-driven approach adopted
 ```
 
-**Real Example**: Where we were in 2023. Solid practices, good team, but every test was scripted, every decision manual.
+**Real Example**: Where we were in 2016. Solid practices, good team, but every test was scripted, every decision manual.
 
 ### Level 1: Assisted Intelligence (Augmentation)
 *Agents as smart assistants*
@@ -86,7 +86,7 @@ success_metrics:
   - False positives reduced 30%
 ```
 
-**Our Story**: Started with GitHub Copilot. First week: "This is just autocomplete." Week 3: "How did we live without this?"
+**Our Story**: Started with Cline & Github Copilot in VS Code. First week: "This is just autocomplete." Week 3: "How did we live without this?"
 
 ### Level 2: Intelligent Automation (Orchestration)
 *Agents working together*
@@ -160,7 +160,7 @@ trust_requirements:
 current_state: "Where we are today (October 2025)"
 ```
 
-**Today's Reality**: Our agents run 24/7, finding issues we'd never think to look for. But humans still hold the kill switch.
+**Today's Reality**: Agents run 24/7, finding issues we'd never think to look for. But humans still hold the kill switch.
 
 ### Level 4: Cognitive Collaboration (Partnership)
 *Agents as partners*
