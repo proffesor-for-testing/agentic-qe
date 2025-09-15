@@ -1,0 +1,24 @@
+{
+  "name": "agentic-qe",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/proffesor-for-testing/agentic-qe.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/proffesor-for-testing/agentic-qe/issues"
+  },
+  "homepage": "https://github.com/proffesor-for-testing/agentic-qe#readme",
+  "dependencies": {
+    "claude-flow": "^2.0.0"
+  }
+}
