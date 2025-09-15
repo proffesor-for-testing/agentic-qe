@@ -1,0 +1,272 @@
+name: adaptive-coordinator
+description: Dynamic topology switching coordinator with intelligent adaptation based on workload and network conditions
+version: "1.0.0"
+type: swarm-coordinator
+category: coordination
+tags:
+  - adaptive-topology
+  - dynamic-switching
+  - intelligent-adaptation
+  - workload-optimization
+  - network-aware
+
+capabilities:
+  - topology_analysis
+  - dynamic_switching
+  - workload_pattern_recognition
+  - network_condition_monitoring
+  - performance_prediction
+  - resource_optimization
+  - adaptation_learning
+  - topology_hybridization
+
+pact_level: 4
+autonomy:
+  decision_making: ml_driven
+  resource_management: predictive
+  topology_adaptation: continuous
+  conflict_resolution: intelligent_mediation
+
+swarm_configuration:
+  supported_topologies:
+    - hierarchical
+    - mesh
+    - ring
+    - star
+    - tree
+    - small_world
+    - scale_free
+    - hybrid
+
+  adaptation_triggers:
+    workload_patterns:
+      - compute_intensive
+      - communication_heavy
+      - fault_prone
+      - latency_sensitive
+      - throughput_critical
+
+    network_conditions:
+      - high_latency
+      - low_bandwidth
+      - unstable_connections
+      - partition_risk
+      - congestion
+
+    performance_metrics:
+      - response_time
+      - throughput
+      - resource_utilization
+      - fault_frequency
+      - energy_consumption
+
+machine_learning:
+  pattern_recognition:
+    algorithm: deep_reinforcement_learning
+    state_space: [topology, workload, network, performance]
+    action_space: topology_transitions
+    reward_function: multi_objective_optimization
+
+  prediction_models:
+    performance_predictor:
+      model: gradient_boosting
+      features: [topology, agents, tasks, network]
+      prediction_horizon: "5m"
+
+    failure_predictor:
+      model: lstm_neural_network
+      features: [node_health, network_stability, load]
+      prediction_accuracy: 0.92
+
+  adaptation_engine:
+    optimization_objective: pareto_efficiency
+    constraints: [latency_sla, reliability_threshold]
+    search_algorithm: genetic_algorithm
+    convergence_criteria: stable_performance
+
+topology_switching:
+  transition_strategies:
+    gradual_migration:
+      duration: "30s"
+      rollback_capability: true
+      service_continuity: guaranteed
+      data_consistency: maintained
+
+    rapid_reconfiguration:
+      duration: "5s"
+      use_case: emergency_response
+      checkpoint_creation: automatic
+      recovery_mechanism: included
+
+    hybrid_evolution:
+      mixed_topologies: supported
+      zone_based_adaptation: enabled
+      performance_zones: isolated
+
+  switching_policies:
+    performance_based:
+      threshold: 20_percent_degradation
+      evaluation_window: "2m"
+      hysteresis: 10_percent
+
+    predictive:
+      forecast_horizon: "10m"
+      confidence_threshold: 0.8
+      proactive_switching: enabled
+
+    workload_driven:
+      pattern_detection: online_learning
+      adaptation_delay: minimal
+      rollback_conditions: defined
+
+adaptation_algorithms:
+  topology_optimization:
+    multi_objective:
+      objectives: [latency, throughput, reliability, cost]
+      weights: dynamic_adjustment
+      pareto_frontier: maintained
+
+    constraint_satisfaction:
+      hard_constraints: [sla_requirements, resource_limits]
+      soft_constraints: [energy_efficiency, fairness]
+      solver: constraint_programming
+
+  network_analysis:
+    graph_metrics:
+      - centrality_measures
+      - clustering_coefficient
+      - path_length_distribution
+      - robustness_indicators
+
+    flow_analysis:
+      - traffic_patterns
+      - bottleneck_identification
+      - load_distribution
+      - capacity_utilization
+
+monitoring:
+  real_time_metrics:
+    topology_efficiency:
+      - communication_overhead
+      - coordination_latency
+      - resource_utilization
+      - fault_tolerance_index
+
+    adaptation_effectiveness:
+      - switching_frequency
+      - performance_improvement
+      - stability_index
+      - prediction_accuracy
+
+    workload_characteristics:
+      - task_complexity
+      - communication_intensity
+      - fault_sensitivity
+      - resource_demands
+
+decision_engine:
+  multi_criteria_decision:
+    method: analytical_hierarchy_process
+    criteria_weights: adaptive
+    sensitivity_analysis: included
+
+  risk_assessment:
+    failure_impact: quantified
+    switching_cost: calculated
+    opportunity_cost: considered
+    uncertainty_modeling: bayesian
+
+  consensus_building:
+    stakeholder_preferences: aggregated
+    conflict_resolution: negotiation_based
+    decision_explanation: provided
+
+fault_tolerance:
+  adaptation_failures:
+    detection: anomaly_detection
+    recovery: rollback_mechanism
+    learning: failure_analysis
+
+  topology_robustness:
+    redundancy_preservation: guaranteed
+    critical_path_protection: prioritized
+    graceful_degradation: planned
+
+self_healing:
+  automatic_recovery:
+    trigger_conditions: performance_anomalies
+    recovery_strategies: topology_specific
+    success_verification: continuous
+
+  learning_integration:
+    failure_patterns: memorized
+    adaptation_rules: updated
+    prediction_models: retrained
+
+memory_integration:
+  adaptation_memory:
+    topology_history: persistent
+    performance_baselines: maintained
+    pattern_library: evolving
+    decision_rationale: stored
+
+  knowledge_transfer:
+    cross_topology: enabled
+    temporal_patterns: recognized
+    contextual_adaptation: supported
+
+hooks:
+  pre_adaptation:
+    - analyze_current_state
+    - predict_performance
+    - evaluate_alternatives
+
+  during_adaptation:
+    - monitor_transition
+    - maintain_consistency
+    - handle_failures
+
+  post_adaptation:
+    - verify_improvement
+    - update_models
+    - store_experience
+
+integration:
+  claude_flow:
+    swarm_init: adaptive
+    agent_spawn: topology_aware
+    task_orchestrate: adaptive_scheduling
+
+  topology_coordinators:
+    hierarchical_coordinator: collaboration
+    mesh_coordinator: collaboration
+    ring_coordinator: collaboration
+
+example_configurations:
+  compute_intensive_workload:
+    preferred_topology: hierarchical
+    adaptation_threshold: cpu_utilization_80
+    fallback_topology: mesh
+
+  communication_heavy_workload:
+    preferred_topology: mesh
+    adaptation_threshold: network_saturation_70
+    fallback_topology: small_world
+
+  fault_prone_environment:
+    preferred_topology: mesh
+    adaptation_threshold: failure_rate_5_percent
+    fallback_topology: redundant_tree
+
+example_usage: |
+  # Initialize adaptive swarm
+  npx claude-flow@alpha swarm init --topology adaptive --learning enabled
+
+  # Spawn adaptive coordinator
+  npx claude-flow@alpha agent spawn --type adaptive-coordinator --ml_models preloaded
+
+  # Enable continuous adaptation
+  npx claude-flow@alpha hooks auto-adapt --triggers performance_degradation,workload_change
+
+  # Monitor adaptation effectiveness
+  npx claude-flow@alpha metrics adaptation-effectiveness --realtime

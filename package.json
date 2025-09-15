@@ -1,24 +1,86 @@
 {
   "name": "agentic-qe",
   "version": "1.0.0",
-  "description": "",
+  "description": "Multi-agent Quality Engineering framework with advanced GitHub automation",
   "main": "index.js",
+  "bin": {
+    "aqe": "./cli/bin/aqe-simple.ts"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc && tsc -p tsconfig.cli.json",
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:performance": "jest tests/performance --testTimeout=120000",
+    "test:runner": "ts-node tests/test-runner.ts",
+    "test:all": "npm run test:runner all",
+    "test:check": "npm run test:runner check",
+    "lint": "eslint src/ --ext .ts,.js",
+    "lint:fix": "eslint src/ --ext .ts,.js --fix",
+    "typecheck": "tsc --noEmit",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "github:agents": "ts-node examples/github-automation/basic-workflow.ts",
+    "agents:list": "find agents/ -name 'agent.yaml' -exec echo {} \\;",
+    "agents:validate": "ts-node src/validation/agent-validator.ts",
+    "agents:deploy": "ts-node scripts/deploy-agents.ts",
+    "cli:dev": "ts-node cli/bin/aqe.ts",
+    "example:quick": "ts-node examples/quick-test.ts",
+    "example:basic": "ts-node examples/basic-usage.ts",
+    "example:sparc": "ts-node examples/sparc-workflow.ts",
+    "example:swarm": "ts-node examples/swarm-coordination.ts",
+    "example:consensus": "ts-node examples/consensus-protocols.ts",
+    "example:github": "ts-node examples/github-integration.ts",
+    "example:test-all": "ts-node examples/test-all-agents.ts",
+    "examples:all": "npm run example:quick && npm run example:basic && npm run example:sparc",
+    "verify": "ts-node tests/verify-implementation.ts"
+  },
+  "keywords": [
+    "quality-engineering",
+    "automation",
+    "testing",
+    "github",
+    "multi-agent",
+    "ai",
+    "claude-flow",
+    "sparc"
+  ],
+  "author": "Agentic QE Team",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "chalk": "^4.1.2",
+    "commander": "^14.0.1",
+    "inquirer": "^12.9.6",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/commander": "^2.12.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
+    "@types/jest": "^29.5.8",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.9.0",
+    "@typescript-eslint/eslint-plugin": "^6.11.0",
+    "@typescript-eslint/parser": "^6.11.0",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/proffesor-for-testing/agentic-qe.git"
+    "url": "https://github.com/your-org/agentic-qe.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/proffesor-for-testing/agentic-qe/issues"
+    "url": "https://github.com/your-org/agentic-qe/issues"
   },
-  "homepage": "https://github.com/proffesor-for-testing/agentic-qe#readme",
-  "dependencies": {
-    "claude-flow": "^2.0.0"
-  }
+  "homepage": "https://github.com/your-org/agentic-qe#readme"
 }

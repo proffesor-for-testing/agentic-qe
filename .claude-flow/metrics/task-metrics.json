@@ -1,10 +1,10 @@
 [
   {
-    "id": "cmd-init-1757920598534",
-    "type": "init",
+    "id": "cmd-agent-1757938756235",
+    "type": "agent",
     "success": true,
-    "duration": 4585.1735419999995,
-    "timestamp": 1757920603120,
+    "duration": 0.6133750000000191,
+    "timestamp": 1757938756235,
     "metadata": {}
   }
 ]

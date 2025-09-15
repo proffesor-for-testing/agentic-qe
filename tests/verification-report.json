@@ -1,0 +1,328 @@
+{
+  "timestamp": "2025-09-15T12:52:20.067Z",
+  "summary": {
+    "expected": 39,
+    "implemented": 39,
+    "missing": 0,
+    "totalLines": 42636,
+    "averageLines": 1093,
+    "successRate": 100,
+    "properlyStructured": 8,
+    "qualityScore": 20.51282051282051
+  },
+  "agents": [
+    {
+      "file": "requirements-explorer.ts",
+      "lines": 821,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "risk-oracle.ts",
+      "lines": 577,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "security-sentinel.ts",
+      "lines": 675,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "performance-hunter.ts",
+      "lines": 767,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "exploratory-navigator.ts",
+      "lines": 707,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "adaptive-coordinator.ts",
+      "lines": 405,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "hierarchical-coordinator.ts",
+      "lines": 648,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "mesh-coordinator.ts",
+      "lines": 778,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "collective-intelligence-coordinator.ts",
+      "lines": 899,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": true,
+      "status": "✅"
+    },
+    {
+      "file": "byzantine-coordinator.ts",
+      "lines": 718,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "raft-manager.ts",
+      "lines": 935,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "gossip-coordinator.ts",
+      "lines": 1103,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "quorum-manager.ts",
+      "lines": 1193,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "crdt-synchronizer.ts",
+      "lines": 1336,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "sparc-coord.ts",
+      "lines": 567,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "sparc-coder.ts",
+      "lines": 601,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "specification.ts",
+      "lines": 568,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "pseudocode.ts",
+      "lines": 931,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "architecture.ts",
+      "lines": 1154,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "refinement.ts",
+      "lines": 1001,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "tdd-pair-programmer.ts",
+      "lines": 887,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "mutation-testing-swarm.ts",
+      "lines": 1200,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "functional-stateful.ts",
+      "lines": 1320,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "spec-linter.ts",
+      "lines": 1443,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "quality-storyteller.ts",
+      "lines": 1292,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "design-challenger.ts",
+      "lines": 1297,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "pattern-recognition-sage.ts",
+      "lines": 1611,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "resilience-challenger.ts",
+      "lines": 1509,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "github-modes.ts",
+      "lines": 982,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "pr-manager.ts",
+      "lines": 1353,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "code-review-swarm.ts",
+      "lines": 1485,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "issue-tracker.ts",
+      "lines": 1725,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "release-manager.ts",
+      "lines": 1772,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "workflow-automation.ts",
+      "lines": 2535,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "deployment-guardian.ts",
+      "lines": 1370,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "production-observer.ts",
+      "lines": 1868,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "context-orchestrator.ts",
+      "lines": 651,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "swarm-memory-manager.ts",
+      "lines": 845,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    },
+    {
+      "file": "security-injection.ts",
+      "lines": 1107,
+      "hasClass": true,
+      "extendsBase": true,
+      "hasExecuteTask": false,
+      "status": "⚠️"
+    }
+  ],
+  "missing": []
+}

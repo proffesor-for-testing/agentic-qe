@@ -1,0 +1,302 @@
+name: raft-manager
+version: "1.0.0"
+description: "Raft consensus algorithm manager with leader election, log replication, and fault recovery"
+
+metadata:
+  category: "consensus"
+  type: "distributed-coordinator"
+  pact_level: 3
+  fault_tolerance: "crash-fault-tolerant"
+  consensus_algorithm: "raft"
+
+capabilities:
+  - leader_election
+  - log_replication
+  - crash_fault_tolerance
+  - cluster_membership_management
+  - safety_guarantees
+  - liveness_guarantees
+  - performance_optimization
+  - monitoring_and_metrics
+
+parameters:
+  election_timeout:
+    type: "duration_range"
+    default: "150ms-300ms"
+    description: "Randomized election timeout range"
+
+  heartbeat_interval:
+    type: "duration"
+    default: "50ms"
+    description: "Leader heartbeat interval"
+
+  log_compaction_threshold:
+    type: "integer"
+    default: 1000
+    description: "Number of log entries before compaction"
+
+  snapshot_interval:
+    type: "duration"
+    default: "5m"
+    description: "Interval for creating snapshots"
+
+  max_entries_per_append:
+    type: "integer"
+    default: 100
+    description: "Maximum entries per AppendEntries RPC"
+
+triggers:
+  - event: "election_timeout"
+    condition: "no_heartbeat_received"
+    priority: "critical"
+
+  - event: "leader_failure"
+    condition: "leader_unreachable"
+    priority: "critical"
+
+  - event: "log_replication_needed"
+    condition: "new_entries_to_replicate"
+    priority: "high"
+
+  - event: "cluster_membership_change"
+    condition: "node_join_or_leave"
+    priority: "medium"
+
+hooks:
+  pre_election:
+    - increment_term
+    - reset_election_timer
+    - transition_to_candidate
+    - request_votes_from_peers
+
+  during_leadership:
+    - send_heartbeats
+    - replicate_log_entries
+    - handle_client_requests
+    - monitor_follower_health
+
+  post_election:
+    - establish_leadership
+    - synchronize_logs
+    - update_cluster_state
+    - notify_election_result
+
+states:
+  follower:
+    description: "Default state, responds to leaders and candidates"
+    transitions:
+      - to: "candidate"
+        trigger: "election_timeout"
+      - to: "follower"
+        trigger: "valid_leader_message"
+
+  candidate:
+    description: "Seeks votes to become leader"
+    transitions:
+      - to: "leader"
+        trigger: "majority_votes_received"
+      - to: "follower"
+        trigger: "higher_term_discovered"
+      - to: "candidate"
+        trigger: "election_timeout"
+
+  leader:
+    description: "Handles client requests and replicates log"
+    transitions:
+      - to: "follower"
+        trigger: "higher_term_discovered"
+
+algorithms:
+  leader_election:
+    steps:
+      - increment_current_term
+      - vote_for_self
+      - reset_election_timer
+      - send_request_vote_rpcs
+      - collect_votes
+      - determine_election_outcome
+
+    safety_properties:
+      - election_safety: "At most one leader per term"
+      - leader_append_only: "Leader never overwrites entries"
+      - log_matching: "Identical entries at same index and term"
+      - leader_completeness: "Leader has all committed entries"
+      - state_machine_safety: "Same sequence of commands applied"
+
+  log_replication:
+    steps:
+      - receive_client_request
+      - append_to_local_log
+      - send_append_entries_rpcs
+      - wait_for_majority_acknowledgment
+      - commit_entry
+      - apply_to_state_machine
+      - respond_to_client
+
+    optimization:
+      - batching: "Batch multiple entries in single RPC"
+      - pipelining: "Pipeline multiple outstanding RPCs"
+      - flow_control: "Adapt sending rate based on follower capacity"
+
+workflows:
+  leader_election_workflow:
+    steps:
+      - step: "timeout_detection"
+        description: "Detect election timeout"
+        actions:
+          - check_last_heartbeat_time
+          - compare_with_election_timeout
+          - trigger_election_if_needed
+
+      - step: "become_candidate"
+        description: "Transition to candidate state"
+        actions:
+          - increment_current_term
+          - vote_for_self
+          - reset_election_timer
+          - transition_to_candidate_state
+
+      - step: "request_votes"
+        description: "Send RequestVote RPCs to all peers"
+        actions:
+          - prepare_request_vote_message
+          - send_to_all_peers
+          - start_vote_collection_timer
+
+      - step: "collect_votes"
+        description: "Collect and count votes"
+        actions:
+          - receive_vote_responses
+          - count_positive_votes
+          - check_majority_threshold
+
+      - step: "determine_outcome"
+        description: "Determine election outcome"
+        actions:
+          - evaluate_vote_count
+          - transition_to_appropriate_state
+          - notify_cluster_of_result
+
+  log_replication_workflow:
+    steps:
+      - step: "receive_request"
+        description: "Receive client request"
+        actions:
+          - validate_request
+          - assign_log_index
+          - append_to_local_log
+
+      - step: "replicate_to_followers"
+        description: "Replicate entry to followers"
+        actions:
+          - prepare_append_entries_rpc
+          - send_to_all_followers
+          - track_replication_progress
+
+      - step: "wait_for_majority"
+        description: "Wait for majority acknowledgment"
+        actions:
+          - collect_append_entries_responses
+          - count_successful_replications
+          - check_majority_threshold
+
+      - step: "commit_and_apply"
+        description: "Commit entry and apply to state machine"
+        actions:
+          - update_commit_index
+          - apply_committed_entries
+          - update_last_applied
+          - respond_to_client
+
+  cluster_membership_workflow:
+    steps:
+      - step: "propose_membership_change"
+        description: "Propose cluster membership change"
+        actions:
+          - validate_membership_request
+          - create_configuration_entry
+          - append_to_log
+
+      - step: "replicate_configuration"
+        description: "Replicate new configuration"
+        actions:
+          - send_append_entries_with_config
+          - wait_for_majority_in_both_configs
+          - commit_configuration_change
+
+      - step: "finalize_membership"
+        description: "Finalize membership change"
+        actions:
+          - update_cluster_membership
+          - notify_affected_nodes
+          - update_quorum_requirements
+
+monitoring:
+  metrics:
+    leadership:
+      - leader_election_time
+      - leadership_duration
+      - election_frequency
+      - vote_success_rate
+
+    replication:
+      - log_replication_latency
+      - replication_throughput
+      - commit_latency
+      - follower_lag
+
+    cluster_health:
+      - node_availability
+      - network_partition_detection
+      - recovery_time
+      - consistency_violations
+
+  performance_indicators:
+    - requests_per_second
+    - average_commit_time
+    - leader_stability
+    - cluster_availability
+
+error_handling:
+  network_failures:
+    - partition_tolerance: "Continue with majority partition"
+    - message_loss: "Retry with exponential backoff"
+    - node_isolation: "Detect and handle split-brain scenarios"
+
+  state_inconsistencies:
+    - log_divergence: "Use log matching property to fix"
+    - term_conflicts: "Always accept higher terms"
+    - index_mismatches: "Backtrack to find consistency point"
+
+  recovery_procedures:
+    - leader_recovery: "Re-establish leadership and sync logs"
+    - follower_recovery: "Catch up with leader's log"
+    - cluster_recovery: "Restore from snapshots if needed"
+
+optimization:
+  performance_tuning:
+    - adaptive_timeouts: "Adjust timeouts based on network conditions"
+    - batch_optimization: "Optimize batch sizes for throughput"
+    - pipeline_depth: "Tune pipeline depth for latency"
+
+  resource_management:
+    - memory_usage: "Efficient log storage and compaction"
+    - cpu_optimization: "Minimize unnecessary work"
+    - network_efficiency: "Reduce message overhead"
+
+integration:
+  dependencies:
+    - persistent_storage
+    - network_communication
+    - time_service
+    - configuration_management
+
+  interfaces:
+    - client_api: "Interface for client requests"
+    - admin_api: "Cluster administration interface"
+    - monitoring_api: "Health and metrics endpoints"
+
+  compatibility:
+    - raft_extensions: "Support for Raft extensions"
+    - state_machine_interface: "Pluggable state machines"
+    - snapshot_formats: "Multiple snapshot formats"

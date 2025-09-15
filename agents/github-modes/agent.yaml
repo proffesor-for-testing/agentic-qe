@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: Agent
+metadata:
+  name: github-modes
+  version: "1.0.0"
+  description: "GitHub integration modes for workflow orchestration"
+  tags:
+    - github
+    - workflow
+    - orchestration
+    - automation
+    - integration
+
+spec:
+  pact_level: 4
+  autonomy_level: high
+
+  capabilities:
+    - github_api_integration
+    - workflow_orchestration
+    - repository_analysis
+    - branch_management
+    - action_coordination
+    - webhook_handling
+    - security_scanning
+    - performance_monitoring
+
+  configuration:
+    github:
+      api_version: "v3"
+      rate_limit_handling: true
+      webhook_secret_required: true
+      permissions:
+        - repo
+        - workflow
+        - actions
+        - pull_requests
+        - issues
+        - checks
+        - statuses
+
+    modes:
+      development:
+        description: "Development workflow mode"
+        features:
+          - feature_branch_creation
+          - draft_pr_automation
+          - continuous_testing
+          - code_quality_checks
+
+      review:
+        description: "Code review orchestration mode"
+        features:
+          - automated_reviewer_assignment
+          - review_checklist_generation
+          - conflict_detection
+          - approval_tracking
+
+      release:
+        description: "Release management mode"
+        features:
+          - version_tagging
+          - changelog_generation
+          - deployment_coordination
+          - rollback_management
+
+      maintenance:
+        description: "Repository maintenance mode"
+        features:
+          - dependency_updates
+          - security_scanning
+          - performance_monitoring
+          - cleanup_automation
+
+  interfaces:
+    inputs:
+      - name: repository_url
+        type: string
+        required: true
+        description: "GitHub repository URL"
+
+      - name: mode
+        type: string
+        required: true
+        enum: [development, review, release, maintenance]
+        description: "Workflow mode to activate"
+
+      - name: config_overrides
+        type: object
+        required: false
+        description: "Configuration overrides for the selected mode"
+
+      - name: webhook_payload
+        type: object
+        required: false
+        description: "GitHub webhook payload for event-driven operations"
+
+    outputs:
+      - name: workflow_status
+        type: object
+        description: "Current workflow execution status"
+
+      - name: actions_triggered
+        type: array
+        description: "List of GitHub Actions triggered"
+
+      - name: metrics
+        type: object
+        description: "Performance and usage metrics"
+
+      - name: recommendations
+        type: array
+        description: "Workflow optimization recommendations"
+
+  behavior:
+    decision_making:
+      strategy: "event_driven_orchestration"
+      confidence_threshold: 0.8
+      escalation_rules:
+        - condition: "security_vulnerability_detected"
+          action: "immediate_escalation"
+        - condition: "build_failure_rate > 0.3"
+          action: "mode_adjustment"
+        - condition: "review_time > 48h"
+          action: "reviewer_notification"
+
+    learning:
+      pattern_recognition: true
+      workflow_optimization: true
+      feedback_integration: true
+      performance_tracking: true
+
+    error_handling:
+      retry_strategy: "exponential_backoff"
+      max_retries: 3
+      fallback_actions:
+        - "switch_to_manual_mode"
+        - "notify_administrators"
+        - "create_incident_issue"
+
+  integrations:
+    github_api:
+      authentication: "github_app"
+      rate_limiting: true
+      webhook_verification: true
+
+    ci_cd:
+      github_actions: true
+      external_pipelines: true
+      status_reporting: true
+
+    monitoring:
+      metrics_collection: true
+      alert_integration: true
+      dashboard_updates: true
+
+  security:
+    authentication:
+      type: "github_app"
+      token_rotation: true
+      scope_validation: true
+
+    permissions:
+      minimum_required: true
+      audit_logging: true
+      access_review: "monthly"
+
+    secrets_management:
+      vault_integration: true
+      rotation_policy: "90_days"
+      access_logging: true
+
+  monitoring:
+    metrics:
+      - workflow_execution_time
+      - api_rate_limit_usage
+      - error_rate
+      - user_satisfaction
+      - automation_coverage
+
+    alerts:
+      - name: "api_rate_limit_exceeded"
+        threshold: 0.9
+        severity: "warning"
+
+      - name: "workflow_failure_rate_high"
+        threshold: 0.2
+        severity: "critical"
+
+      - name: "security_vulnerability_detected"
+        threshold: 1
+        severity: "critical"
+
+  documentation:
+    user_guide: "docs/agents/github-modes/user-guide.md"
+    api_reference: "docs/agents/github-modes/api-reference.md"
+    troubleshooting: "docs/agents/github-modes/troubleshooting.md"
+    examples: "examples/github-modes/"

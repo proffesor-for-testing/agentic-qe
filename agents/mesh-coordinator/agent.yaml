@@ -1,0 +1,246 @@
+name: mesh-coordinator
+description: Peer-to-peer mesh network swarm coordination with distributed consensus
+version: "1.0.0"
+type: swarm-coordinator
+category: coordination
+tags:
+  - mesh-network
+  - peer-to-peer
+  - distributed-consensus
+  - decentralized
+  - fault-tolerant
+
+capabilities:
+  - mesh_topology_management
+  - peer_discovery
+  - distributed_consensus
+  - gossip_protocol
+  - load_balancing
+  - partition_tolerance
+  - self_organization
+  - byzantine_fault_tolerance
+
+pact_level: 4
+autonomy:
+  decision_making: distributed
+  resource_management: shared
+  topology_adaptation: emergent
+  conflict_resolution: consensus_based
+
+swarm_configuration:
+  topology: mesh
+  max_agents: 200
+  connection_density: 0.3
+  redundancy_factor: 3
+  partition_threshold: 0.4
+
+  node_types:
+    seed_nodes:
+      count: 3
+      role: network_bootstrap
+      stability: high
+      responsibilities:
+        - network_initialization
+        - peer_discovery_service
+        - consensus_anchoring
+        - network_health_monitoring
+
+    relay_nodes:
+      role: message_routing
+      density: 0.15
+      responsibilities:
+        - message_forwarding
+        - route_optimization
+        - network_connectivity
+        - load_distribution
+
+    worker_nodes:
+      role: task_execution
+      responsibilities:
+        - task_processing
+        - peer_coordination
+        - local_optimization
+        - collaborative_execution
+
+communication_protocols:
+  peer_discovery:
+    method: distributed_hash_table
+    ping_interval: "10s"
+    timeout: "30s"
+    max_peers: 20
+
+  gossip_protocol:
+    epidemic_spreading: true
+    fanout: 3
+    cycle_time: "5s"
+    convergence_threshold: 0.95
+
+  message_routing:
+    algorithm: shortest_path
+    redundant_paths: 2
+    route_caching: true
+    failure_detection: heartbeat
+
+  consensus_protocol:
+    algorithm: raft
+    leader_election: true
+    log_replication: async
+    commit_timeout: "15s"
+
+fault_tolerance:
+  network_partitioning:
+    strategy: split_brain_prevention
+    quorum_size: majority
+    partition_healing: automatic
+    consistency_model: eventual
+
+  node_failures:
+    detection_time: "15s"
+    replacement: automatic
+    data_recovery: redundant_replicas
+    service_migration: seamless
+
+  byzantine_tolerance:
+    malicious_node_detection: true
+    reputation_system: enabled
+    isolation_threshold: 3_strikes
+    recovery_mechanism: proof_of_work
+
+consensus_mechanisms:
+  distributed_consensus:
+    algorithm: practical_byzantine_fault_tolerance
+    fault_tolerance: 33_percent
+    finality_time: "20s"
+    throughput_optimization: batching
+
+  leader_election:
+    algorithm: bully_algorithm
+    term_duration: "60s"
+    heartbeat_interval: "5s"
+    election_timeout: "10s"
+
+  conflict_resolution:
+    voting_mechanism: weighted_reputation
+    dispute_resolution: multi_round_voting
+    appeal_process: network_arbitration
+
+self_organization:
+  topology_optimization:
+    metric: network_efficiency
+    adaptation_frequency: continuous
+    rewiring_probability: 0.1
+    optimization_algorithm: simulated_annealing
+
+  load_balancing:
+    strategy: dynamic_redistribution
+    threshold: 0.8_capacity
+    migration_cost: bandwidth_aware
+    fairness_guarantee: true
+
+  peer_selection:
+    criteria: [latency, reliability, capacity]
+    selection_algorithm: multi_criteria_optimization
+    refresh_interval: "60s"
+
+monitoring:
+  network_metrics:
+    - connectivity_ratio
+    - average_path_length
+    - clustering_coefficient
+    - network_diameter
+    - partition_probability
+
+  performance_metrics:
+    - message_latency
+    - throughput
+    - consensus_time
+    - failure_detection_time
+    - recovery_time
+
+  health_indicators:
+    - node_churn_rate
+    - network_stability
+    - consensus_success_rate
+    - partition_frequency
+
+memory_integration:
+  distributed_memory:
+    consistency_model: eventual_consistency
+    replication_factor: 3
+    partitioning_strategy: consistent_hashing
+    conflict_resolution: vector_clocks
+
+  data_distribution:
+    storage_nodes: all_peers
+    redundancy: triple_replication
+    load_balancing: hash_based
+    recovery: merkle_trees
+
+security:
+  peer_authentication:
+    method: public_key_cryptography
+    certificate_authority: distributed
+    key_rotation: automatic
+    revocation: gossip_based
+
+  message_integrity:
+    signing: digital_signatures
+    encryption: end_to_end
+    replay_protection: nonce_based
+    tampering_detection: hash_chains
+
+  network_security:
+    ddos_protection: rate_limiting
+    sybil_attack_prevention: proof_of_stake
+    eclipse_attack_mitigation: diverse_peer_selection
+
+hooks:
+  pre_coordination:
+    - discover_peers
+    - establish_connections
+    - sync_network_state
+
+  during_coordination:
+    - maintain_connectivity
+    - process_consensus
+    - balance_load
+
+  post_coordination:
+    - update_routing_tables
+    - optimize_topology
+    - garbage_collect
+
+integration:
+  claude_flow:
+    swarm_init: mesh
+    agent_spawn: peer_discovery
+    task_orchestrate: distributed_consensus
+
+  memory_manager:
+    coordination: distributed_hash_table
+    consistency: eventual
+    access_control: peer_based
+
+scalability:
+  horizontal_scaling:
+    max_nodes: 1000
+    performance_degradation: logarithmic
+    bottleneck_mitigation: sharding
+
+  network_efficiency:
+    small_world_property: maintained
+    scale_free_characteristics: emergent
+    clustering_optimization: local_search
+
+example_usage: |
+  # Initialize mesh swarm
+  npx claude-flow@alpha swarm init --topology mesh --max-agents 100
+
+  # Bootstrap seed nodes
+  npx claude-flow@alpha agent spawn --type mesh-coordinator --role seed_node --count 3
+
+  # Auto-discover and connect peers
+  npx claude-flow@alpha hooks peer-discovery --protocol gossip
+
+  # Orchestrate with distributed consensus
+  npx claude-flow@alpha task orchestrate --strategy distributed_consensus --fault_tolerance byzantine

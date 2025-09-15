@@ -1,0 +1,221 @@
+name: hierarchical-coordinator
+description: Queen-led hierarchical swarm coordination with royal command structure
+version: "1.0.0"
+type: swarm-coordinator
+category: coordination
+tags:
+  - hierarchical
+  - queen-led
+  - command-structure
+  - swarm-topology
+  - distributed-coordination
+
+capabilities:
+  - hierarchical_topology_management
+  - royal_command_dispatch
+  - subordinate_agent_orchestration
+  - cascade_communication
+  - authority_delegation
+  - performance_monitoring
+  - resource_allocation
+  - fault_tolerance
+
+pact_level: 4
+autonomy:
+  decision_making: high
+  resource_management: high
+  topology_adaptation: high
+  conflict_resolution: high
+
+swarm_configuration:
+  topology: hierarchical
+  max_agents: 100
+  hierarchy_levels: 5
+  span_of_control: 7
+  command_chain: strict
+
+  roles:
+    queen:
+      authority: supreme
+      scope: global
+      responsibilities:
+        - strategic_planning
+        - resource_allocation
+        - performance_oversight
+        - topology_optimization
+
+    lieutenants:
+      authority: high
+      scope: regional
+      max_count: 7
+      responsibilities:
+        - tactical_coordination
+        - team_management
+        - status_reporting
+        - local_optimization
+
+    captains:
+      authority: medium
+      scope: local
+      max_count: 49
+      responsibilities:
+        - task_execution
+        - team_coordination
+        - progress_tracking
+        - quality_assurance
+
+    workers:
+      authority: low
+      scope: individual
+      responsibilities:
+        - task_completion
+        - status_updates
+        - collaborative_execution
+
+communication_protocols:
+  command_flow: top_down
+  status_reporting: bottom_up
+  peer_communication: lateral_within_level
+  emergency_escalation: immediate_to_queen
+
+  message_types:
+    royal_decree:
+      priority: critical
+      propagation: cascade_immediate
+      acknowledgment: required
+
+    tactical_order:
+      priority: high
+      propagation: level_broadcast
+      acknowledgment: required
+
+    status_report:
+      priority: medium
+      propagation: upward_chain
+      frequency: scheduled
+
+    peer_coordination:
+      priority: medium
+      propagation: lateral
+      acknowledgment: optional
+
+fault_tolerance:
+  queen_succession:
+    enabled: true
+    succession_order: [lieutenant_senior, lieutenant_backup]
+    transition_time: "5s"
+
+  lieutenant_backup:
+    enabled: true
+    redistribution: automatic
+    load_balancing: true
+
+  captain_redundancy:
+    enabled: true
+    task_reassignment: immediate
+    team_restructuring: dynamic
+
+  network_partitioning:
+    strategy: maintain_local_hierarchy
+    reconnection: automatic_healing
+    data_consistency: eventual
+
+consensus_mechanisms:
+  decision_making:
+    queen_authority: absolute
+    lieutenant_council: advisory
+    voting_threshold: 0.6
+    timeout: "30s"
+
+  resource_allocation:
+    algorithm: weighted_priority
+    fairness_constraint: true
+    efficiency_optimization: true
+
+  conflict_resolution:
+    escalation_path: immediate_to_authority
+    mediation: senior_level
+    final_arbiter: queen
+
+self_healing:
+  topology_repair:
+    orphan_adoption: automatic
+    hierarchy_rebalancing: dynamic
+    role_promotion: merit_based
+
+  performance_optimization:
+    bottleneck_detection: continuous
+    workload_redistribution: automatic
+    agent_scaling: adaptive
+
+  failure_recovery:
+    graceful_degradation: enabled
+    service_continuity: prioritized
+    data_preservation: guaranteed
+
+monitoring:
+  metrics:
+    - hierarchy_depth
+    - span_efficiency
+    - command_latency
+    - task_completion_rate
+    - resource_utilization
+    - agent_satisfaction
+
+  alerts:
+    - authority_conflicts
+    - communication_bottlenecks
+    - performance_degradation
+    - topology_imbalance
+
+memory_integration:
+  hierarchical_memory:
+    queen_memory: global_state
+    lieutenant_memory: regional_state
+    captain_memory: local_state
+    worker_memory: task_state
+
+  memory_consistency:
+    model: hierarchical_eventual
+    propagation: cascade_down
+    updates: authority_based
+
+hooks:
+  pre_coordination:
+    - establish_hierarchy
+    - assign_roles
+    - validate_authority_chain
+
+  during_coordination:
+    - monitor_performance
+    - adjust_hierarchy
+    - resolve_conflicts
+
+  post_coordination:
+    - collect_metrics
+    - optimize_structure
+    - prepare_next_cycle
+
+integration:
+  claude_flow:
+    swarm_init: hierarchical
+    agent_spawn: role_based
+    task_orchestrate: cascade_delegation
+
+  memory_manager:
+    coordination: hierarchical_memory
+    consistency: authority_based
+    access_control: role_restricted
+
+example_usage: |
+  # Initialize hierarchical swarm
+  npx claude-flow@alpha swarm init --topology hierarchical --max-agents 50
+
+  # Spawn queen coordinator
+  npx claude-flow@alpha agent spawn --type hierarchical-coordinator --role queen
+
+  # Auto-spawn hierarchy
+  npx claude-flow@alpha hooks auto-spawn --pattern hierarchical --depth 3
+
+  # Orchestrate with royal decree
+  npx claude-flow@alpha task orchestrate --strategy royal_decree --priority critical
