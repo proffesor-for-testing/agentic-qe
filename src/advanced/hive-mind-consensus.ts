@@ -240,7 +240,7 @@ export class HiveMindConsensusEngine extends EventEmitter {
   private activeSessions: Map<string, HiveMindSession> = new Map();
   private globalKnowledgeBase: KnowledgeBase;
   private globalIntelligence: CollectiveIntelligence;
-  private syncInterval?: NodeJS.Timer;
+  private consensusTimer: NodeJS.Timeout | null = null;
   private isInitialized: boolean = false;
 
   constructor(
@@ -314,8 +314,8 @@ export class HiveMindConsensusEngine extends EventEmitter {
 
     try {
       // Stop synchronization
-      if (this.syncInterval) {
-        clearInterval(this.syncInterval);
+      if (this.consensusTimer) {
+        clearInterval(this.consensusTimer as NodeJS.Timeout);
       }
 
       // Save current state
@@ -928,7 +928,7 @@ export class HiveMindConsensusEngine extends EventEmitter {
   }
 
   private startPeriodicSync(): void {
-    this.syncInterval = setInterval(() => {
+    this.consensusTimer = setInterval(() => {
       this.performSync();
     }, this.config.syncInterval);
 

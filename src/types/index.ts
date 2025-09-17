@@ -240,6 +240,8 @@ export interface TestResult {
   error?: TestError;
   artifacts?: TestArtifact[];
   metrics?: TestMetrics;
+  agentId?: string;
+  sessionId?: string;
   // assertions?: Assertion[];
 }
 
@@ -432,6 +434,43 @@ export const TestCaseSchema = z.object({
   dependencies: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 });
+
+// ============================================================================
+// Agent and Memory Types for Enhanced Components
+// ============================================================================
+
+export interface QEAgent {
+  id: string;
+  name: string;
+  type: AgentType;
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'paused';
+  capabilities: AgentCapability[];
+  metrics?: AgentMetrics;
+  startTime?: Date;
+  endTime?: Date;
+  lastActivity?: Date;
+}
+
+export interface AgentMetrics {
+  tasksCompleted: number;
+  tasksFailed: number;
+  averageExecutionTime: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  successRate: number;
+  lastUpdated: Date;
+}
+
+export interface QEContext {
+  sessionId: string;
+  testSuiteId?: string;
+  environment: string;
+  variables: Record<string, any>;
+  agents: QEAgent[];
+  sharedMemory: Record<string, any>;
+  startTime: Date;
+  metadata?: Record<string, any>;
+}
 
 // ============================================================================
 // Utility Types

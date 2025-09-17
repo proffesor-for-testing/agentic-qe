@@ -1,9 +1,15 @@
 /**
- * Mock Factories for Agentic QE Framework Tests
- * Provides reusable mocks for all major components
+ * Comprehensive Mocking Utilities for Claude Flow Integration Tests
+ * Provides mock implementations for agents, memory, task execution,
+ * and external services with realistic behavior simulation
  */
 
 import { jest } from '@jest/globals';
+import { EventEmitter } from 'events';
+import { QEAgent, QEMemoryEntry, MemoryType, TestResult, TestCase, AgentType, AgentMetrics } from '../../src/types';
+import { TaskDefinition, ExecutionResult, ResourceMetrics } from '../../src/advanced/task-executor';
+import { QEMemoryConfig, MemoryQueryOptions } from '../../src/memory/QEMemory';
+import { Logger } from '../../src/utils/Logger';
 
 /**
  * Create a mocked QEMemory instance

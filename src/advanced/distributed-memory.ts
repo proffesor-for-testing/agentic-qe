@@ -128,7 +128,7 @@ export class DistributedMemorySystem extends EventEmitter {
   private replicationMap = new Map<string, string[]>();
 
   // Synchronization
-  private syncInterval?: NodeJS.Timer;
+  private syncTimer: NodeJS.Timeout | null = null;
   private vectorClock = new Map<string, number>();
   private conflictResolver?: (local: MemoryEntry, remote: MemoryEntry) => MemoryEntry;
 
@@ -197,8 +197,8 @@ export class DistributedMemorySystem extends EventEmitter {
     console.log('Shutting down distributed memory system');
 
     // Stop synchronization
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer as NodeJS.Timeout);
     }
 
     // Complete pending sync operations
@@ -516,7 +516,7 @@ export class DistributedMemorySystem extends EventEmitter {
   // === SYNCHRONIZATION ===
 
   private startSynchronization(): void {
-    this.syncInterval = setInterval(() => {
+    this.syncTimer = setInterval(() => {
       this.performSync();
     }, this.config.syncInterval);
 

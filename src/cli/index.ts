@@ -11,7 +11,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { CLICommand } from '../types';
 import { Logger } from '../utils/Logger';
-import { QEFramework } from '../index';
+import QEFramework from '../index';
 
 /**
  * CLI Application class

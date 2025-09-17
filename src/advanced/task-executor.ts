@@ -368,7 +368,7 @@ class ResourceMonitor {
   stopMonitoring(taskId: string): void {
     const interval = this.intervals.get(taskId);
     if (interval) {
-      clearInterval(interval);
+      clearInterval(interval as NodeJS.Timeout);
       this.intervals.delete(taskId);
     }
   }
