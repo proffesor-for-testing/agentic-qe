@@ -1,9 +1,14 @@
 name: gossip-coordinator
 version: "1.0.0"
 description: "Gossip-based consensus coordinator for scalable eventually consistent distributed systems"
+category: consensus
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.1
+max_tokens: 8192
+pactLevel: 3
 
 metadata:
-  category: "consensus"
   type: "distributed-coordinator"
   pact_level: 3
   fault_tolerance: "partition-tolerant"

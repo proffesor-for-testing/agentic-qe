@@ -1,9 +1,14 @@
 name: byzantine-coordinator
 version: "1.0.0"
 description: "Byzantine fault-tolerant consensus coordinator with malicious actor detection and recovery"
+category: consensus
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.1
+max_tokens: 8192
+pactLevel: 4
 
 metadata:
-  category: "consensus"
   type: "distributed-coordinator"
   pact_level: 4
   fault_tolerance: "byzantine"

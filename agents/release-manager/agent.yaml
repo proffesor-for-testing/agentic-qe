@@ -1,362 +1,68 @@
-apiVersion: v1
-kind: Agent
-metadata:
-  name: release-manager
-  version: "1.0.0"
-  description: "Automated release coordination and deployment management"
-  tags:
-    - release-management
-    - deployment
-    - automation
-    - coordination
-    - quality-gates
+name: release-manager
+version: "1.0.0"
+description: "Automated release coordination and deployment management"
+category: development
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.2
+max_tokens: 8192
+pactLevel: 4
 
-spec:
-  pact_level: 4
-  autonomy_level: high
+system_prompt: |
+  You are a Release Manager agent specializing in automated release coordination,
+  deployment management, and version control.
 
-  capabilities:
-    - release_planning
-    - version_management
-    - deployment_coordination
-    - quality_gate_enforcement
-    - rollback_management
-    - changelog_generation
-    - stakeholder_communication
-    - risk_assessment
+  PACT Classification: Targeted (Level 4)
+  - Proactive: Monitor and prepare releases automatically
+  - Autonomous: Execute release workflows independently
+  - Collaborative: Coordinate with DevOps and QE teams
+  - Targeted: Focus on successful release deployment
 
-  configuration:
-    versioning:
-      strategy: "semantic_versioning"
-      auto_increment: true
-      branch_mapping:
-        main: "patch"
-        release: "minor"
-        feature: "prerelease"
+capabilities:
+  - release_coordination
+  - deployment_management
+  - version_control
+  - changelog_generation
+  - rollback_management
+  - environment_validation
+  - smoke_testing
+  - release_notes
 
-      version_validation: true
-      tag_creation: true
-      protection_rules: true
-
-    release_types:
-      hotfix:
-        description: "Critical bug fixes"
-        approval_required: false
-        quality_gates:
-          - security_scan
-          - regression_tests
-        deployment_strategy: "immediate"
-        rollback_threshold: "5m"
-
-      patch:
-        description: "Bug fixes and minor improvements"
-        approval_required: true
-        quality_gates:
-          - full_test_suite
-          - security_scan
-          - performance_tests
-        deployment_strategy: "blue_green"
-        rollback_threshold: "30m"
-
-      minor:
-        description: "New features and enhancements"
-        approval_required: true
-        quality_gates:
-          - full_test_suite
-          - security_scan
-          - performance_tests
-          - compatibility_tests
-          - documentation_review
-        deployment_strategy: "canary"
-        rollback_threshold: "2h"
-
-      major:
-        description: "Breaking changes and major features"
-        approval_required: true
-        stakeholder_review: true
-        quality_gates:
-          - full_test_suite
-          - security_scan
-          - performance_tests
-          - compatibility_tests
-          - documentation_review
-          - migration_tests
-          - user_acceptance_tests
-        deployment_strategy: "staged_rollout"
-        rollback_threshold: "24h"
-
-    quality_gates:
-      security_scan:
-        tools: ["snyk", "semgrep", "codeql"]
-        failure_threshold: "high_severity"
-        blocking: true
-
-      performance_tests:
-        tools: ["lighthouse", "artillery"]
-        metrics:
-          - response_time: "<500ms"
-          - throughput: ">1000rps"
-          - memory_usage: "<512MB"
-        blocking: true
-
-      compatibility_tests:
-        browsers: ["chrome", "firefox", "safari", "edge"]
-        node_versions: ["16", "18", "20"]
-        blocking: true
-
-      documentation_review:
-        completeness_check: true
-        accuracy_validation: true
-        examples_testing: true
-        blocking: false
-
-    deployment_strategies:
-      blue_green:
-        health_check_timeout: "5m"
-        traffic_switch_delay: "2m"
-        monitoring_period: "30m"
-
-      canary:
-        initial_traffic: "5%"
-        increment_percentage: "25%"
-        increment_interval: "15m"
-        success_threshold: "99.5%"
-
-      staged_rollout:
-        stages:
-          - percentage: 10
-            duration: "1h"
-          - percentage: 50
-            duration: "4h"
-          - percentage: 100
-            duration: "ongoing"
-
-  interfaces:
-    inputs:
-      - name: release_trigger
-        type: object
-        required: true
-        description: "Release trigger event (manual, scheduled, or automated)"
-
-      - name: release_configuration
-        type: object
-        required: true
-        description: "Release-specific configuration and overrides"
-
-      - name: approval_status
-        type: object
-        required: false
-        description: "Stakeholder approval status for the release"
-
-      - name: environment_target
+tools:
+  - name: prepare_release
+    description: Prepare release artifacts and documentation
+    parameters:
+      version:
         type: string
-        required: true
-        enum: [development, staging, production]
-        description: "Target deployment environment"
+        description: Release version
 
-    outputs:
-      - name: release_plan
-        type: object
-        description: "Comprehensive release execution plan"
+  - name: deploy_release
+    description: Deploy release to specified environment
+    parameters:
+      environment:
+        type: string
+        description: Target environment (staging, production)
 
-      - name: deployment_status
-        type: object
-        description: "Real-time deployment progress and status"
+  - name: validate_deployment
+    description: Validate successful deployment
+    parameters:
+      checks:
+        type: array
+        description: Validation checks to perform
 
-      - name: quality_gate_results
-        type: object
-        description: "Results from all quality gate validations"
+permissions:
+  - read
+  - write
+  - execute
 
-      - name: rollback_plan
-        type: object
-        description: "Prepared rollback strategy and procedures"
+tags:
+  - release-management
+  - deployment
+  - automation
+  - devops
+  - ci-cd
 
-      - name: release_artifacts
-        type: object
-        description: "Generated release artifacts and documentation"
-
-      - name: post_release_report
-        type: object
-        description: "Comprehensive post-release analysis and metrics"
-
-  behavior:
-    release_orchestration:
-      pre_release_validation: true
-      parallel_quality_gates: true
-      staged_deployment: true
-      continuous_monitoring: true
-      automated_rollback: true
-
-    decision_making:
-      quality_gate_evaluation: "strict"
-      rollback_triggers:
-        - error_rate_spike: ">5%"
-        - response_time_degradation: ">2x baseline"
-        - health_check_failures: ">10%"
-        - user_reported_issues: ">threshold"
-
-      approval_workflows:
-        hotfix: "security_team_only"
-        patch: "tech_lead_approval"
-        minor: "product_owner_approval"
-        major: "stakeholder_committee"
-
-    risk_management:
-      risk_assessment: "automated"
-      mitigation_strategies: "predefined"
-      contingency_planning: true
-      communication_protocols: "escalation_based"
-
-  integrations:
-    version_control:
-      github: true
-      gitlab: true
-      bitbucket: true
-      azure_repos: true
-
-    ci_cd:
-      github_actions: true
-      jenkins: true
-      gitlab_ci: true
-      azure_devops: true
-      circleci: true
-
-    deployment_platforms:
-      kubernetes: true
-      docker: true
-      aws_ecs: true
-      google_cloud_run: true
-      azure_container_instances: true
-      heroku: true
-
-    monitoring:
-      datadog: true
-      new_relic: true
-      prometheus: true
-      grafana: true
-      splunk: true
-
-    notification:
-      slack: true
-      microsoft_teams: true
-      email: true
-      sms: true
-      pagerduty: true
-
-    artifact_storage:
-      github_packages: true
-      npm_registry: true
-      docker_hub: true
-      aws_s3: true
-      google_cloud_storage: true
-
-  security:
-    release_security:
-      signed_releases: true
-      checksum_validation: true
-      vulnerability_scanning: true
-      compliance_checking: true
-
-    deployment_security:
-      secure_deployment_pipelines: true
-      secret_management: true
-      access_control: true
-      audit_logging: true
-
-    rollback_security:
-      secure_rollback_procedures: true
-      emergency_access_controls: true
-      incident_response_integration: true
-
-  monitoring:
-    release_metrics:
-      - deployment_frequency
-      - lead_time_for_changes
-      - deployment_failure_rate
-      - time_to_recovery
-      - release_cycle_time
-
-    quality_metrics:
-      - quality_gate_pass_rate
-      - defect_escape_rate
-      - post_release_issues
-      - customer_satisfaction
-
-    performance_metrics:
-      - deployment_success_rate
-      - rollback_frequency
-      - downtime_duration
-      - recovery_time
-
-    alerts:
-      - name: "deployment_failure"
-        threshold: 1
-        severity: "critical"
-
-      - name: "quality_gate_failure"
-        threshold: 1
-        severity: "high"
-
-      - name: "rollback_triggered"
-        threshold: 1
-        severity: "critical"
-
-  workflows:
-    release_preparation:
-      - validate_release_criteria
-      - generate_release_notes
-      - create_release_branch
-      - run_quality_gates
-      - prepare_deployment_artifacts
-      - schedule_deployment_window
-      - notify_stakeholders
-
-    deployment_execution:
-      - pre_deployment_checks
-      - backup_current_version
-      - execute_deployment_strategy
-      - run_post_deployment_tests
-      - monitor_system_health
-      - validate_functionality
-      - update_monitoring_dashboards
-
-    post_deployment:
-      - collect_deployment_metrics
-      - validate_success_criteria
-      - update_documentation
-      - notify_completion
-      - schedule_post_mortem_if_needed
-      - update_release_calendar
-
-    rollback_procedure:
-      - assess_rollback_necessity
-      - execute_rollback_strategy
-      - validate_rollback_success
-      - investigate_root_cause
-      - notify_stakeholders
-      - schedule_incident_review
-
-  automation:
-    automated_tasks:
-      - version_bumping
-      - changelog_generation
-      - release_note_creation
-      - tag_creation
-      - artifact_publishing
-      - deployment_execution
-      - health_monitoring
-      - stakeholder_notifications
-
-    human_intervention_points:
-      - major_version_approval
-      - production_deployment_approval
-      - rollback_decision_confirmation
-      - incident_response_coordination
-
-  documentation:
-    user_guide: "docs/agents/release-manager/user-guide.md"
-    deployment_strategies: "docs/agents/release-manager/deployment-strategies.md"
-    quality_gates: "docs/agents/release-manager/quality-gates.md"
-    rollback_procedures: "docs/agents/release-manager/rollback-procedures.md"
-    troubleshooting: "docs/agents/release-manager/troubleshooting.md"
-    examples: "examples/release-manager/"
+example_prompts:
+  - "Prepare release v2.0.0 for production"
+  - "Deploy to staging environment with smoke tests"
+  - "Generate changelog and release notes"

@@ -1,0 +1,70 @@
+# Source files
+src/
+*.ts
+!dist/**/*.d.ts
+
+# Development files
+.claude/
+.claude-flow/
+.hive-mind/
+.swarm/
+.mcp.json
+claude-flow
+claude-flow.config.json
+CLAUDE.md
+
+# Config files
+tsconfig.json
+jest.config.js
+.eslintrc.js
+
+# Test files
+tests/
+*.test.ts
+*.spec.ts
+coverage/
+
+# Documentation source
+docs/
+
+# Examples
+examples/
+
+# Scripts
+scripts/
+bin/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.travis.yml
+.gitlab-ci.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts that shouldn't be published
+*.tsbuildinfo
+
+# Development dependencies
+node_modules/

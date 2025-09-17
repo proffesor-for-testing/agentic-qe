@@ -1,0 +1,302 @@
+# QE (Quality Engineering) Commands Registry
+# Integrates with Claude Code's command system for SPARC methodology
+
+name: qe
+description: Quality Engineering commands for test automation, SPARC methodology, and parallel agent execution
+version: 1.0.0
+
+commands:
+  # Core QE Commands
+  init:
+    description: Initialize QE environment with SPARC methodology
+    file: init.js
+    args:
+      - name: project-type
+        type: string
+        description: Project type (web, api, mobile, desktop)
+        required: false
+        default: web
+      - name: framework
+        type: string
+        description: Testing framework (jest, playwright, cypress, selenium)
+        required: false
+        default: jest
+      - name: sparc-mode
+        type: boolean
+        description: Enable SPARC methodology integration
+        required: false
+        default: true
+    examples:
+      - "qe init --project-type=api --framework=jest"
+      - "qe init --sparc-mode=true"
+
+  spawn:
+    description: Spawn specialized QE agents for parallel execution
+    file: spawn.js
+    args:
+      - name: agent-type
+        type: string
+        description: Agent type (test-engineer, qa-analyst, automation-engineer, performance-tester, security-tester)
+        required: true
+      - name: count
+        type: number
+        description: Number of agents to spawn
+        required: false
+        default: 1
+      - name: parallel
+        type: boolean
+        description: Execute agents in parallel
+        required: false
+        default: true
+      - name: sparc-phase
+        type: string
+        description: SPARC phase (specification, pseudocode, architecture, refinement, completion)
+        required: false
+    examples:
+      - "qe spawn test-engineer --count=3 --parallel=true"
+      - "qe spawn qa-analyst --sparc-phase=specification"
+
+  orchestrate:
+    description: Orchestrate QE swarm with SPARC workflow
+    file: orchestrate.js
+    args:
+      - name: task
+        type: string
+        description: QE task description
+        required: true
+      - name: topology
+        type: string
+        description: Swarm topology (mesh, hierarchical, ring, star)
+        required: false
+        default: mesh
+      - name: strategy
+        type: string
+        description: Execution strategy (parallel, sequential, adaptive)
+        required: false
+        default: adaptive
+      - name: sparc-full
+        type: boolean
+        description: Run complete SPARC workflow
+        required: false
+        default: false
+      - name: max-agents
+        type: number
+        description: Maximum number of agents
+        required: false
+        default: 8
+    examples:
+      - "qe orchestrate 'Create comprehensive test suite for API endpoints' --topology=mesh"
+      - "qe orchestrate 'Performance testing for checkout flow' --sparc-full=true"
+
+  monitor:
+    description: Monitor QE swarm execution and test results
+    file: monitor.js
+    args:
+      - name: swarm-id
+        type: string
+        description: Swarm ID to monitor
+        required: false
+      - name: real-time
+        type: boolean
+        description: Enable real-time monitoring
+        required: false
+        default: true
+      - name: metrics
+        type: boolean
+        description: Include performance metrics
+        required: false
+        default: true
+      - name: duration
+        type: number
+        description: Monitoring duration in seconds
+        required: false
+        default: 60
+    examples:
+      - "qe monitor --real-time=true --metrics=true"
+      - "qe monitor swarm-123 --duration=120"
+
+  # SPARC Integration Commands
+  sparc:
+    description: Execute SPARC methodology phases for QE
+    file: sparc.js
+    args:
+      - name: phase
+        type: string
+        description: SPARC phase (spec, pseudocode, architecture, refinement, completion, full)
+        required: true
+      - name: feature
+        type: string
+        description: Feature or test scenario description
+        required: true
+      - name: parallel-agents
+        type: boolean
+        description: Use parallel agent execution
+        required: false
+        default: true
+    examples:
+      - "qe sparc spec 'User authentication flow testing'"
+      - "qe sparc full 'E2E checkout process validation'"
+
+  # Test Automation Commands
+  test-suite:
+    description: Generate comprehensive test suites
+    file: test-suite.js
+    args:
+      - name: type
+        type: string
+        description: Test type (unit, integration, e2e, performance, security)
+        required: true
+      - name: target
+        type: string
+        description: Target system or component
+        required: true
+      - name: coverage-target
+        type: number
+        description: Target code coverage percentage
+        required: false
+        default: 90
+      - name: parallel-execution
+        type: boolean
+        description: Enable parallel test execution
+        required: false
+        default: true
+    examples:
+      - "qe test-suite e2e 'shopping cart' --coverage-target=95"
+      - "qe test-suite performance 'API endpoints'"
+
+  # Analysis Commands
+  analyze:
+    description: Analyze test results and quality metrics
+    file: analyze.js
+    args:
+      - name: report-path
+        type: string
+        description: Path to test reports
+        required: false
+        default: "./test-results"
+      - name: metrics
+        type: array
+        description: Metrics to analyze (coverage, performance, reliability, security)
+        required: false
+        default: ["coverage", "performance"]
+      - name: ai-insights
+        type: boolean
+        description: Generate AI-powered insights
+        required: false
+        default: true
+    examples:
+      - "qe analyze --report-path=./reports --ai-insights=true"
+      - "qe analyze --metrics=coverage,performance,security"
+
+# Agent Types Registry
+agents:
+  # Core QE Agents
+  test-engineer:
+    description: Designs and implements comprehensive test strategies
+    capabilities:
+      - test-planning
+      - test-case-design
+      - automation-framework-setup
+      - test-execution
+      - defect-analysis
+    sparc-phases: [specification, architecture, refinement]
+
+  qa-analyst:
+    description: Analyzes requirements and creates test specifications
+    capabilities:
+      - requirement-analysis
+      - test-specification
+      - risk-assessment
+      - acceptance-criteria
+      - quality-metrics
+    sparc-phases: [specification, pseudocode]
+
+  automation-engineer:
+    description: Builds and maintains test automation frameworks
+    capabilities:
+      - framework-development
+      - ci-cd-integration
+      - parallel-execution
+      - test-maintenance
+      - tool-integration
+    sparc-phases: [architecture, refinement, completion]
+
+  performance-tester:
+    description: Specializes in performance and load testing
+    capabilities:
+      - load-testing
+      - stress-testing
+      - performance-analysis
+      - bottleneck-identification
+      - scalability-testing
+    sparc-phases: [specification, architecture, refinement]
+
+  security-tester:
+    description: Focuses on security testing and vulnerability assessment
+    capabilities:
+      - security-scanning
+      - penetration-testing
+      - vulnerability-assessment
+      - compliance-testing
+      - threat-modeling
+    sparc-phases: [specification, architecture, refinement]
+
+  mobile-tester:
+    description: Specialized in mobile application testing
+    capabilities:
+      - device-testing
+      - os-compatibility
+      - mobile-automation
+      - app-store-compliance
+      - usability-testing
+    sparc-phases: [specification, architecture, refinement]
+
+  accessibility-tester:
+    description: Ensures applications meet accessibility standards
+    capabilities:
+      - wcag-compliance
+      - screen-reader-testing
+      - keyboard-navigation
+      - color-contrast
+      - accessibility-automation
+    sparc-phases: [specification, refinement]
+
+# Framework Integrations
+frameworks:
+  jest:
+    setup_command: "npm install --save-dev jest @types/jest"
+    config_file: "jest.config.js"
+    parallel_support: true
+
+  playwright:
+    setup_command: "npm install --save-dev @playwright/test"
+    config_file: "playwright.config.ts"
+    parallel_support: true
+    browsers: [chromium, firefox, webkit]
+
+  cypress:
+    setup_command: "npm install --save-dev cypress"
+    config_file: "cypress.config.js"
+    parallel_support: true
+
+  selenium:
+    setup_command: "npm install --save-dev selenium-webdriver"
+    config_file: "selenium.config.js"
+    parallel_support: true
+
+# SPARC Integration Settings
+sparc:
+  methodology_enabled: true
+  default_phases: [specification, pseudocode, architecture, refinement, completion]
+  parallel_agents_per_phase: 2
+  cross_phase_coordination: true
+  memory_persistence: true
+
+# Coordination Settings
+coordination:
+  default_topology: mesh
+  max_parallel_agents: 12
+  memory_namespace: "qe-swarm"
+  hooks_enabled: true
+  session_persistence: true
+  real_time_monitoring: true

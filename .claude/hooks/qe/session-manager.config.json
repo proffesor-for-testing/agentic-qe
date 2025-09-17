@@ -1,0 +1,28 @@
+{
+  "maxSessions": 10,
+  "sessionTimeout": 3600000,
+  "persistenceEnabled": true,
+  "cleanupInterval": 300000,
+  "memoryNamespace": "qe/sessions",
+  "retention": {
+    "maxAge": 86400000,
+    "maxCount": 100
+  },
+  "notifications": {
+    "enabled": true,
+    "events": [
+      "session-start",
+      "session-end",
+      "session-timeout",
+      "session-error"
+    ]
+  },
+  "agents": {
+    "autoSpawn": true,
+    "defaultAgents": [
+      "tester",
+      "reviewer",
+      "analyst"
+    ]
+  }
+}

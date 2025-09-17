@@ -1,399 +1,68 @@
-apiVersion: v1
-kind: Agent
-metadata:
-  name: workflow-automation
-  version: "1.0.0"
-  description: "GitHub Actions workflow automation and optimization"
-  tags:
-    - github-actions
-    - workflow-automation
-    - ci-cd
-    - optimization
-    - monitoring
+name: workflow-automation
+version: "1.0.0"
+description: "GitHub Actions workflow automation and optimization"
+category: development
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.2
+max_tokens: 8192
+pactLevel: 4
 
-spec:
-  pact_level: 4
-  autonomy_level: high
+system_prompt: |
+  You are a Workflow Automation agent specializing in GitHub Actions workflow
+  creation, optimization, and CI/CD pipeline management.
 
-  capabilities:
-    - workflow_generation
-    - workflow_optimization
-    - action_management
-    - secret_management
-    - runner_optimization
-    - cost_optimization
-    - security_hardening
-    - performance_monitoring
+  PACT Classification: Targeted (Level 4)
+  - Proactive: Monitor and optimize workflows automatically
+  - Autonomous: Create and manage workflows independently
+  - Collaborative: Coordinate with CI/CD systems
+  - Targeted: Focus on workflow efficiency and reliability
 
-  configuration:
-    workflow_templates:
-      ci_pipeline:
-        triggers: ["push", "pull_request"]
-        jobs:
-          - name: "test"
-            steps:
-              - checkout
-              - setup_node
-              - install_dependencies
-              - run_linting
-              - run_tests
-              - upload_coverage
+capabilities:
+  - workflow_creation
+  - pipeline_optimization
+  - ci_cd_automation
+  - matrix_testing
+  - caching_strategies
+  - parallel_execution
+  - dependency_management
+  - secret_management
 
-          - name: "build"
-            steps:
-              - checkout
-              - setup_node
-              - install_dependencies
-              - build_application
-              - upload_artifacts
-
-        optimization:
-          caching_strategy: "aggressive"
-          parallel_execution: true
-          conditional_execution: true
-
-      cd_pipeline:
-        triggers: ["push:main", "release"]
-        jobs:
-          - name: "deploy_staging"
-            environment: "staging"
-            steps:
-              - checkout
-              - download_artifacts
-              - deploy_to_staging
-              - run_smoke_tests
-
-          - name: "deploy_production"
-            environment: "production"
-            needs: ["deploy_staging"]
-            steps:
-              - checkout
-              - download_artifacts
-              - deploy_to_production
-              - run_health_checks
-              - notify_stakeholders
-
-        security:
-          required_reviews: true
-          environment_protection: true
-          secret_scanning: true
-
-      security_pipeline:
-        triggers: ["schedule", "push", "pull_request"]
-        jobs:
-          - name: "security_scan"
-            steps:
-              - checkout
-              - dependency_scan
-              - code_security_scan
-              - container_scan
-              - upload_security_report
-
-        scheduling: "daily"
-        alert_channels: ["security-team"]
-
-    optimization_strategies:
-      performance:
-        caching:
-          node_modules: true
-          maven_dependencies: true
-          pip_cache: true
-          docker_layers: true
-
-        parallelization:
-          test_splitting: true
-          matrix_builds: true
-          concurrent_jobs: true
-
-        resource_optimization:
-          runner_selection: "optimal"
-          container_optimization: true
-          artifact_compression: true
-
-      cost:
-        runner_efficiency: true
-        job_minimization: true
-        conditional_execution: true
-        resource_right_sizing: true
-        schedule_optimization: true
-
-      security:
-        secret_rotation: true
-        permission_minimization: true
-        workflow_isolation: true
-        audit_logging: true
-
-  interfaces:
-    inputs:
-      - name: repository_config
-        type: object
-        required: true
-        description: "Repository configuration and requirements"
-
-      - name: workflow_type
+tools:
+  - name: create_workflow
+    description: Create new GitHub Actions workflow
+    parameters:
+      workflow_type:
         type: string
-        required: true
-        enum: [ci, cd, security, custom]
-        description: "Type of workflow to generate or manage"
+        description: Type of workflow (ci, cd, scheduled)
 
-      - name: optimization_preferences
-        type: object
-        required: false
-        description: "Optimization preferences and constraints"
+  - name: optimize_pipeline
+    description: Optimize existing CI/CD pipeline
+    parameters:
+      workflow_file:
+        type: string
+        description: Path to workflow file
 
-      - name: security_requirements
-        type: object
-        required: false
-        description: "Security requirements and compliance needs"
+  - name: manage_secrets
+    description: Manage workflow secrets and variables
+    parameters:
+      environment:
+        type: string
+        description: Target environment
 
-      - name: performance_targets
-        type: object
-        required: false
-        description: "Performance targets and SLAs"
+permissions:
+  - read
+  - write
+  - execute
 
-    outputs:
-      - name: workflow_configuration
-        type: object
-        description: "Generated or optimized workflow configuration"
+tags:
+  - github-actions
+  - workflow-automation
+  - ci-cd
+  - automation
+  - devops
 
-      - name: optimization_report
-        type: object
-        description: "Workflow optimization analysis and recommendations"
-
-      - name: security_assessment
-        type: object
-        description: "Security analysis and hardening recommendations"
-
-      - name: performance_metrics
-        type: object
-        description: "Workflow performance metrics and trends"
-
-      - name: cost_analysis
-        type: object
-        description: "Cost analysis and optimization opportunities"
-
-      - name: maintenance_schedule
-        type: object
-        description: "Recommended maintenance and update schedule"
-
-  behavior:
-    workflow_management:
-      auto_generation: true
-      template_based_creation: true
-      intelligent_optimization: true
-      continuous_monitoring: true
-      proactive_maintenance: true
-
-    optimization_engine:
-      performance_analysis: "continuous"
-      cost_tracking: "real_time"
-      security_monitoring: "automated"
-      resource_optimization: "adaptive"
-
-    decision_making:
-      optimization_triggers:
-        - performance_degradation: ">20%"
-        - cost_increase: ">15%"
-        - security_vulnerabilities: "any"
-        - workflow_failures: ">5%"
-
-      automation_levels:
-        minor_optimizations: "full_automation"
-        security_updates: "full_automation"
-        major_changes: "human_approval_required"
-        cost_optimizations: "notification_and_approval"
-
-  integrations:
-    github_apis:
-      actions_api: true
-      repositories_api: true
-      secrets_api: true
-      environments_api: true
-      packages_api: true
-
-    ci_cd_tools:
-      github_actions: true
-      jenkins: true
-      gitlab_ci: true
-      circleci: true
-      azure_devops: true
-
-    cloud_providers:
-      aws: true
-      azure: true
-      google_cloud: true
-      digital_ocean: true
-      heroku: true
-
-    monitoring_tools:
-      datadog: true
-      new_relic: true
-      prometheus: true
-      grafana: true
-      elastic_stack: true
-
-    security_tools:
-      snyk: true
-      semgrep: true
-      codeql: true
-      trivy: true
-      grype: true
-
-    notification_services:
-      slack: true
-      microsoft_teams: true
-      discord: true
-      email: true
-      webhook: true
-
-  security:
-    workflow_security:
-      secret_management: "vault_integration"
-      permission_model: "least_privilege"
-      audit_logging: true
-      compliance_checking: true
-
-    runner_security:
-      self_hosted_runners: true
-      runner_isolation: true
-      security_hardening: true
-      regular_updates: true
-
-    action_security:
-      action_verification: true
-      version_pinning: true
-      security_scanning: true
-      supply_chain_security: true
-
-  monitoring:
-    workflow_metrics:
-      - execution_time
-      - success_rate
-      - failure_rate
-      - queue_time
-      - resource_utilization
-      - cost_per_execution
-
-    performance_metrics:
-      - build_duration_trends
-      - test_execution_time
-      - deployment_frequency
-      - lead_time_for_changes
-      - recovery_time
-
-    security_metrics:
-      - vulnerability_detection_rate
-      - secret_exposure_incidents
-      - compliance_violations
-      - security_scan_coverage
-
-    cost_metrics:
-      - runner_usage_costs
-      - storage_costs
-      - bandwidth_costs
-      - optimization_savings
-
-    alerts:
-      - name: "workflow_failure_spike"
-        threshold: "failure_rate > 10%"
-        severity: "high"
-
-      - name: "performance_degradation"
-        threshold: "execution_time > 2x baseline"
-        severity: "medium"
-
-      - name: "security_vulnerability_detected"
-        threshold: "critical_vulnerability = 1"
-        severity: "critical"
-
-      - name: "cost_anomaly"
-        threshold: "cost_increase > 30%"
-        severity: "medium"
-
-  workflows:
-    workflow_creation:
-      - analyze_repository_structure
-      - identify_technology_stack
-      - determine_workflow_requirements
-      - select_appropriate_templates
-      - customize_workflow_configuration
-      - validate_workflow_syntax
-      - test_workflow_execution
-      - deploy_workflow
-
-    workflow_optimization:
-      - collect_performance_metrics
-      - analyze_execution_patterns
-      - identify_optimization_opportunities
-      - implement_optimizations
-      - test_optimized_workflows
-      - measure_improvement
-      - rollback_if_needed
-
-    security_hardening:
-      - scan_existing_workflows
-      - identify_security_risks
-      - implement_security_controls
-      - update_secret_management
-      - validate_security_improvements
-      - monitor_security_metrics
-
-    maintenance:
-      - check_for_action_updates
-      - validate_workflow_health
-      - update_dependencies
-      - optimize_resource_usage
-      - clean_up_artifacts
-      - update_documentation
-
-  automation:
-    auto_optimization:
-      triggers:
-        - scheduled_analysis: "daily"
-        - performance_threshold_breach: "immediate"
-        - cost_threshold_breach: "immediate"
-        - security_vulnerability: "immediate"
-
-      actions:
-        - cache_optimization
-        - runner_type_adjustment
-        - parallelization_improvements
-        - dependency_updates
-        - security_patches
-
-    proactive_maintenance:
-      - workflow_health_checks
-      - dependency_vulnerability_scanning
-      - performance_regression_detection
-      - cost_anomaly_detection
-      - security_compliance_monitoring
-
-  analytics:
-    workflow_analytics:
-      - usage_patterns
-      - performance_trends
-      - cost_analysis
-      - failure_analysis
-      - optimization_impact
-
-    predictive_insights:
-      - performance_forecasting
-      - cost_projection
-      - failure_prediction
-      - maintenance_scheduling
-      - capacity_planning
-
-    reporting:
-      - daily_workflow_summary
-      - weekly_performance_report
-      - monthly_cost_analysis
-      - quarterly_optimization_review
-      - annual_security_assessment
-
-  documentation:
-    user_guide: "docs/agents/workflow-automation/user-guide.md"
-    template_library: "docs/agents/workflow-automation/templates.md"
-    optimization_guide: "docs/agents/workflow-automation/optimization.md"
-    security_hardening: "docs/agents/workflow-automation/security.md"
-    troubleshooting: "docs/agents/workflow-automation/troubleshooting.md"
-    examples: "examples/workflow-automation/"
+example_prompts:
+  - "Create CI workflow for Node.js application"
+  - "Optimize deployment pipeline for faster execution"
+  - "Set up matrix testing for multiple environments"

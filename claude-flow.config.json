@@ -1,0 +1,20 @@
+{
+  "features": {
+    "autoTopologySelection": true,
+    "parallelExecution": true,
+    "neuralTraining": true,
+    "bottleneckAnalysis": true,
+    "smartAutoSpawning": true,
+    "selfHealingWorkflows": true,
+    "crossSessionMemory": true,
+    "githubIntegration": true
+  },
+  "performance": {
+    "maxAgents": 10,
+    "defaultTopology": "hierarchical",
+    "executionStrategy": "parallel",
+    "tokenOptimization": true,
+    "cacheEnabled": true,
+    "telemetryLevel": "detailed"
+  }
+}

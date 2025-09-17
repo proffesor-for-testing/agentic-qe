@@ -47,7 +47,9 @@
 
 ## Project Overview
 
-This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) methodology with Claude-Flow orchestration for systematic Test-Driven Development.
+This project combines two powerful frameworks:
+1. **SPARC Methodology**: Specification, Pseudocode, Architecture, Refinement, Completion with Claude-Flow orchestration
+2. **AQE Framework**: 48 specialized Quality Engineering agents using Anthropic API for real AI-powered testing and analysis
 
 ## SPARC Commands
 
@@ -67,6 +69,16 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 - `npm run test` - Run tests
 - `npm run lint` - Linting
 - `npm run typecheck` - Type checking
+
+## AQE Framework Commands
+
+### Core QE Commands
+- `aqe spawn <agent> --task "<description>"` - Spawn a single QE agent
+- `aqe spawn --agents <agent1> <agent2> --task "<description>"` - Spawn multiple agents
+- `aqe spawn --interactive` - Interactive agent selection
+- `aqe list` - List all 48 available QE agents
+- `aqe status` - Check swarm status
+- `aqe init` - Initialize QE framework
 
 ## SPARC Workflow Phases
 
@@ -112,6 +124,23 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 
 ### Migration & Planning
 `migration-planner`, `swarm-init`
+
+## 🤖 Quality Engineering Agents (48 Total)
+
+### Testing Agents (15)
+`exploratory-tester`, `functional-tester`, `integration-tester`, `performance-tester`, `regression-guardian`, `risk-oracle`, `security-sentinel`, `test-architect`, `test-cartographer`, `test-orchestrator`, `test-strategist`, `tdd-pair-programmer`, `usability-advocate`, `validation-synthesizer`, `verification-virtuoso`
+
+### Requirements & Analysis (9)
+`requirements-explorer`, `story-weaver`, `boundary-explorer`, `oracle-builder`, `invariant-detector`, `data-flow-analyst`, `state-explorer`, `contract-guardian`, `specification-validator`
+
+### Specialized Testing (9)
+`accessibility-champion`, `api-contract-tester`, `chaos-engineer`, `compatibility-scanner`, `compliance-auditor`, `localization-validator`, `mobile-maestro`, `visual-regression-detective`, `voice-interface-tester`
+
+### Advanced Capabilities (9)
+`ai-test-generator`, `bug-predictor`, `continuous-improver`, `production-observer`, `quality-gatekeeper`, `test-data-architect`, `test-efficiency-optimizer`, `test-knowledge-curator`, `test-metrics-analyst`
+
+### Collaborative Agents (6)
+`collaborative-reviewer`, `documentation-guardian`, `feedback-synthesizer`, `knowledge-bridge`, `quality-storyteller`, `team-synchronizer`
 
 ## 🎯 Claude Code vs MCP Tools
 
@@ -233,6 +262,30 @@ npx claude-flow@alpha hooks post-task --task-id "[task]"
 npx claude-flow@alpha hooks session-end --export-metrics true
 ```
 
+## 🎯 QE Agent Examples
+
+### Risk Analysis with Risk Oracle
+```bash
+aqe spawn risk-oracle --task "Analyze authentication system for security vulnerabilities"
+```
+
+### TDD Development with Pair Programmer
+```bash
+aqe spawn tdd-pair-programmer --task "Implement user registration with full test coverage"
+```
+
+### Multi-Agent Quality Assessment
+```bash
+aqe spawn --agents risk-oracle test-architect security-sentinel \
+  --task "Comprehensive security and quality assessment" \
+  --parallel
+```
+
+### Exploratory Testing
+```bash
+aqe spawn exploratory-tester --task "Explore edge cases in payment processing flow"
+```
+
 ## 🎯 Concurrent Execution Examples
 
 ### ✅ CORRECT WORKFLOW: MCP Coordinates, Claude Code Executes
@@ -334,11 +387,69 @@ Message 4: Write "file.js"
 6. Enable hooks automation
 7. Use GitHub tools first
 
+## 🚀 NEW: MCP Server for Deep Project Analysis
+
+The AQE Framework now includes an MCP (Model Context Protocol) server that gives QE agents **full access to analyze your project files and structure**. This solves the shallow analysis problem!
+
+### Setting Up MCP Server
+
+1. **Add QE MCP Server to Claude Code (Global - Works in ALL Projects):**
+```bash
+claude mcp add qe-framework "cd /Users/profa/coding/agentic-qe && npm run mcp"
+```
+
+2. **Start the MCP Server:**
+```bash
+npm run mcp:start
+```
+
+3. **Available MCP Tools in Claude Code:**
+- `qe_risk_oracle` - Risk and vulnerability assessment with file access
+- `qe_test_architect` - Design test strategies based on actual code
+- `qe_tdd_pair_programmer` - TDD guidance with code analysis
+- `qe_analyze_project` - Multi-agent comprehensive analysis
+- `qe_swarm` - Coordinate multiple agents for deep testing
+- ... and 45+ more specialized QE agent tools!
+
+### Using QE Agents via MCP
+
+When the MCP server is running, Claude Code can call QE agents with full project context:
+
+```javascript
+// In Claude Code, use the MCP tools:
+qe_risk_oracle({
+  task: "Analyze authentication system",
+  projectPath: "/path/to/project",
+  analysisDepth: "deep"
+})
+
+qe_swarm({
+  objective: "Comprehensive security audit",
+  strategy: "risk-based",
+  maxAgents: 5
+})
+```
+
+## Environment Setup for QE Agents
+
+### Required: Anthropic API Key (for direct CLI usage)
+```bash
+export ANTHROPIC_API_KEY=your-api-key-here
+```
+
+### Optional: Additional Configuration
+```bash
+export QE_LOG_LEVEL=info  # Logging verbosity
+export QE_AGENTS_PATH=agents  # Custom agents directory
+export QE_MAX_AGENTS=10  # Max concurrent agents
+```
+
 ## Support
 
-- Documentation: https://github.com/ruvnet/claude-flow
-- Issues: https://github.com/ruvnet/claude-flow/issues
+- Claude-Flow Documentation: https://github.com/ruvnet/claude-flow
+- Claude-Flow Issues: https://github.com/ruvnet/claude-flow/issues
 - Flow-Nexus Platform: https://flow-nexus.ruv.io (registration required for cloud features)
+- AQE Framework: See local `docs/` directory
 
 ---
 

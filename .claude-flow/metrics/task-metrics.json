@@ -1,10 +1,10 @@
 [
   {
-    "id": "cmd-agent-1757938756235",
-    "type": "agent",
+    "id": "cmd-hooks-1758054459188",
+    "type": "hooks",
     "success": true,
-    "duration": 0.6133750000000191,
-    "timestamp": 1757938756235,
+    "duration": 6.9878750000000025,
+    "timestamp": 1758054459195,
     "metadata": {}
   }
 ]

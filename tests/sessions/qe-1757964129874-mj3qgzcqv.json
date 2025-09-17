@@ -1,0 +1,51 @@
+{
+  "sessionId": "qe-1757964129874-mj3qgzcqv",
+  "createdAt": "2025-09-15T19:22:09.874Z",
+  "updatedAt": "2025-09-15T19:22:09.874Z",
+  "status": "active",
+  "type": "unit",
+  "suite": "demo",
+  "environment": "test",
+  "agents": [
+    {
+      "type": "tester",
+      "agentId": "tester-qe-1757964129874-mj3qgzcqv",
+      "status": "active",
+      "spawnedAt": "2025-09-15T19:22:10.741Z"
+    },
+    {
+      "type": "reviewer",
+      "agentId": "reviewer-qe-1757964129874-mj3qgzcqv",
+      "status": "active",
+      "spawnedAt": "2025-09-15T19:22:10.741Z"
+    },
+    {
+      "type": "analyst",
+      "agentId": "analyst-qe-1757964129874-mj3qgzcqv",
+      "status": "active",
+      "spawnedAt": "2025-09-15T19:22:10.741Z"
+    }
+  ],
+  "metrics": {
+    "testsRun": 0,
+    "testsPassed": 0,
+    "testsFailed": 0,
+    "coverage": 0,
+    "duration": 0
+  },
+  "hooks": {
+    "preTest": [],
+    "postTest": [],
+    "qualityGates": []
+  },
+  "coordination": {
+    "swarmId": null,
+    "topology": "mesh",
+    "agentCount": 0
+  },
+  "data": {
+    "type": "unit",
+    "suite": "demo"
+  },
+  "events": []
+}

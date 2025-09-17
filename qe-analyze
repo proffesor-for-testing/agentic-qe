@@ -1,0 +1,30 @@
+#!/bin/bash
+# QE Framework Cross-Project Analysis Script
+# Usage: qe-analyze [project-path] [task]
+
+PROJECT_PATH="${1:-$(pwd)}"
+TASK="${2:-Comprehensive quality analysis}"
+QE_HOME="/Users/profa/coding/agentic-qe"
+
+echo "🔍 QE Framework Analysis"
+echo "📁 Project: $PROJECT_PATH"
+echo "📋 Task: $TASK"
+echo ""
+
+# Check if MCP server is running
+if ! pgrep -f "mcp-server.js" > /dev/null; then
+    echo "⚡ Starting QE MCP server..."
+    cd "$QE_HOME"
+    npm run mcp:start &
+    sleep 3
+fi
+
+# Run analysis using the CLI with project context
+cd "$PROJECT_PATH"
+node "$QE_HOME/dist/cli/aqe.js" spawn \
+    --agent risk-oracle \
+    --task "$TASK in $PROJECT_PATH" \
+    --force-anthropic
+
+echo ""
+echo "✅ Analysis complete. Check reports in: $QE_HOME/reports/agents/"

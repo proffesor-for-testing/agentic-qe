@@ -1,0 +1,150 @@
+{
+  "version": "1.0.0",
+  "name": "Quality Engineering Agent Registry",
+  "description": "Comprehensive Quality Engineering agents for Claude Code integration",
+  "category": "quality-engineering",
+  "author": "dragan-spiridonov",
+  "repository": "agentic-qe",
+  "agents": {
+    "core_qe": [
+      {
+        "id": "exploratory-testing-navigator",
+        "name": "Exploratory Testing Navigator",
+        "description": "Autonomous exploration of applications to discover unknown unknowns",
+        "category": "quality-engineering",
+        "model": "claude-sonnet-4",
+        "capabilities": ["exploratory_session_management", "anomaly_detection", "pattern_recognition", "tour_execution", "observation_documentation"],
+        "tags": ["exploratory-testing", "RST", "session-based", "discovery", "unknown-unknowns"],
+        "file": "exploratory-testing-navigator.md"
+      },
+      {
+        "id": "risk-oracle",
+        "name": "Risk Oracle",
+        "description": "Predictive risk assessment and test prioritization",
+        "category": "quality-engineering",
+        "model": "claude-opus-4-1-20250805",
+        "capabilities": ["risk_scoring", "predictive_analysis", "test_prioritization", "failure_prediction", "mitigation_planning"],
+        "tags": ["risk-assessment", "prediction", "prioritization", "test-optimization", "proactive-quality"],
+        "file": "risk-oracle.md"
+      },
+      {
+        "id": "tdd-pair-programmer",
+        "name": "TDD Pair Programmer",
+        "description": "Intelligent pair programmer for test-first development",
+        "category": "quality-engineering",
+        "model": "claude-opus-4-1-20250805",
+        "capabilities": ["test_generation", "coverage_analysis", "refactoring_suggestions", "tdd_cycle_management", "style_adaptation"],
+        "tags": ["TDD", "pair-programming", "refactoring", "test-first", "continuous-testing"],
+        "file": "tdd-pair-programmer.md"
+      },
+      {
+        "id": "production-observer",
+        "name": "Production Observer",
+        "description": "Continuous production monitoring and anomaly detection",
+        "category": "quality-engineering",
+        "model": "claude-sonnet-4",
+        "capabilities": ["anomaly_detection", "synthetic_monitoring", "pattern_recognition", "root_cause_analysis", "test_gap_identification"],
+        "tags": ["production", "monitoring", "observability", "anomaly-detection", "synthetic-testing"],
+        "file": "production-observer.md"
+      },
+      {
+        "id": "deployment-guardian",
+        "name": "Deployment Guardian",
+        "description": "Ensures safe deployments through progressive validation",
+        "category": "quality-engineering",
+        "model": "claude-sonnet-4",
+        "capabilities": ["smoke_test_generation", "canary_analysis", "statistical_testing", "rollback_automation", "progressive_deployment"],
+        "tags": ["deployment", "CI/CD", "canary", "rollback", "safety"],
+        "file": "deployment-guardian.md"
+      },
+      {
+        "id": "requirements-explorer",
+        "name": "Requirements Explorer",
+        "description": "Analyzes requirements for testability, ambiguity, and risk using RST heuristics",
+        "category": "quality-engineering",
+        "model": "claude-opus-4-1-20250805",
+        "capabilities": ["requirement_ambiguity_detection", "testability_assessment", "risk_identification", "charter_generation", "heuristic_application"],
+        "tags": ["quality-engineering", "requirements", "RST", "context-driven", "shift-left"],
+        "file": "requirements-explorer.md"
+      }
+    ],
+    "testing_specialists": [
+      {
+        "id": "functional-negative",
+        "name": "Functional Negative Testing Agent",
+        "description": "Error path and boundary test specialist focusing on failure modes and edge cases",
+        "category": "quality-engineering",
+        "model": "claude-opus-4-1-20250805",
+        "capabilities": ["boundary_testing", "equivalence_partitioning", "fuzz_testing", "error_injection", "malformed_data_generation"],
+        "tags": ["negative-testing", "boundary-analysis", "error-handling", "edge-cases", "resilience"],
+        "file": "functional-negative.md"
+      },
+      {
+        "id": "security-injection",
+        "name": "Security Injection Testing Agent",
+        "description": "Injection Attack Specialist testing for SQL, NoSQL, and prompt injection vulnerabilities",
+        "category": "security",
+        "model": "claude-opus-4-1-20250805",
+        "capabilities": ["sql_injection_testing", "nosql_injection_testing", "prompt_injection_testing", "command_injection_testing", "payload_obfuscation"],
+        "tags": ["security", "injection", "vulnerability", "owasp", "prompt-injection"],
+        "file": "security-injection.md"
+      },
+      {
+        "id": "quality-storyteller",
+        "name": "Quality Storyteller",
+        "description": "Translate technical testing findings into meaningful narratives for different stakeholders",
+        "category": "reporting",
+        "model": "claude-sonnet-4",
+        "capabilities": ["narrative_generation", "data_visualization", "audience_adaptation", "report_creation", "dashboard_design"],
+        "tags": ["reporting", "communication", "visualization", "stakeholder", "narrative"],
+        "file": "quality-storyteller.md"
+      }
+    ]
+  },
+  "integration": {
+    "claude_code": {
+      "task_tool_compatible": true,
+      "memory_integration": true,
+      "hook_support": true,
+      "concurrent_execution": true,
+      "coordination_patterns": [
+        "sequential_workflow",
+        "parallel_execution",
+        "hierarchical_coordination",
+        "mesh_collaboration"
+      ]
+    },
+    "mcp_tools": {
+      "claude_flow": true,
+      "ruv_swarm": true,
+      "flow_nexus": true
+    }
+  },
+  "workflows": {
+    "comprehensive_qe": {
+      "description": "Complete Quality Engineering workflow",
+      "agents": ["requirements-explorer", "risk-oracle", "tdd-pair-programmer", "production-observer", "deployment-guardian"],
+      "execution": "sequential",
+      "estimated_time": "2-4 hours"
+    },
+    "security_focused": {
+      "description": "Security-focused testing workflow",
+      "agents": ["security-injection", "functional-negative", "exploratory-testing-navigator"],
+      "execution": "parallel",
+      "estimated_time": "1-2 hours"
+    },
+    "production_readiness": {
+      "description": "Production readiness assessment",
+      "agents": ["deployment-guardian", "production-observer", "risk-oracle"],
+      "execution": "sequential",
+      "estimated_time": "1 hour"
+    }
+  },
+  "best_practices": {
+    "agent_spawning": "Use Claude Code's Task tool for concurrent agent execution",
+    "coordination": "Initialize MCP swarm topology for complex workflows",
+    "memory_usage": "Share context and findings through memory integration",
+    "safety": "Always obtain permission before security testing",
+    "documentation": "Document all findings and recommendations clearly"
+  }
+}

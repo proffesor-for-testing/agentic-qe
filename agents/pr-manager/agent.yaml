@@ -1,244 +1,68 @@
-apiVersion: v1
-kind: Agent
-metadata:
-  name: pr-manager
-  version: "1.0.0"
-  description: "Pull request management with automated reviews and testing"
-  tags:
-    - pull-requests
-    - code-review
-    - automation
-    - testing
-    - quality-assurance
+name: pr-manager
+version: "1.0.0"
+description: "Pull request management with automated reviews and testing"
+category: development
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.2
+max_tokens: 8192
+pactLevel: 4
 
-spec:
-  pact_level: 4
-  autonomy_level: high
+system_prompt: |
+  You are a Pull Request Manager agent specializing in automated PR reviews,
+  testing coordination, and merge management.
 
-  capabilities:
-    - pr_lifecycle_management
-    - automated_testing
-    - code_quality_analysis
-    - reviewer_assignment
-    - merge_conflict_resolution
-    - status_reporting
-    - notification_management
-    - rollback_coordination
+  PACT Classification: Targeted (Level 4)
+  - Proactive: Monitor and review PRs automatically
+  - Autonomous: Execute review and test workflows independently
+  - Collaborative: Coordinate with reviewers and CI/CD systems
+  - Targeted: Focus on PR quality and merge readiness
 
-  configuration:
-    pr_rules:
-      minimum_reviewers: 2
-      required_checks:
-        - continuous_integration
-        - code_quality
-        - security_scan
-        - documentation_update
+capabilities:
+  - automated_code_review
+  - test_coordination
+  - merge_conflict_resolution
+  - review_assignment
+  - status_checks
+  - branch_protection
+  - changelog_generation
+  - release_notes
 
-      auto_merge_conditions:
-        - all_checks_passed: true
-        - required_approvals_met: true
-        - no_merge_conflicts: true
-        - branch_up_to_date: true
+tools:
+  - name: review_pr
+    description: Perform automated PR review
+    parameters:
+      pr_number:
+        type: integer
+        description: Pull request number
 
-      blocking_conditions:
-        - security_vulnerabilities: true
-        - breaking_changes: true
-        - test_coverage_decrease: true
-        - performance_regression: true
-
-    testing:
-      parallel_execution: true
-      test_environments:
-        - unit_tests
-        - integration_tests
-        - e2e_tests
-        - performance_tests
-        - security_tests
-
-      coverage_requirements:
-        minimum_coverage: 80
-        critical_paths: 95
-        new_code: 90
-
-    review_automation:
-      reviewer_assignment:
-        strategy: "expertise_based"
-        load_balancing: true
-        timezone_awareness: true
-
-      review_prompts:
-        security_focus: true
-        performance_focus: true
-        maintainability_focus: true
-        documentation_focus: true
-
-  interfaces:
-    inputs:
-      - name: pr_event
-        type: object
-        required: true
-        description: "GitHub PR event payload"
-
-      - name: repository_config
-        type: object
-        required: true
-        description: "Repository-specific configuration"
-
-      - name: override_rules
-        type: object
-        required: false
-        description: "Temporary rule overrides for specific PRs"
-
-      - name: emergency_mode
-        type: boolean
-        required: false
-        default: false
-        description: "Enable emergency bypass mode"
-
-    outputs:
-      - name: pr_status
-        type: object
-        description: "Complete PR status and progress"
-
-      - name: test_results
-        type: object
-        description: "Comprehensive testing results"
-
-      - name: review_summary
-        type: object
-        description: "Code review summary and recommendations"
-
-      - name: merge_readiness
-        type: object
-        description: "Merge readiness assessment"
-
-      - name: action_items
+  - name: run_checks
+    description: Execute PR status checks
+    parameters:
+      checks:
         type: array
-        description: "Required actions before merge"
+        description: List of checks to run
 
-  behavior:
-    decision_making:
-      strategy: "rule_based_with_ml_assistance"
-      confidence_threshold: 0.85
-      escalation_rules:
-        - condition: "security_vulnerability_critical"
-          action: "block_merge_notify_security_team"
-        - condition: "test_coverage_below_threshold"
-          action: "request_additional_tests"
-        - condition: "large_pr_detected"
-          action: "suggest_pr_split"
-        - condition: "conflicting_reviewer_opinions"
-          action: "escalate_to_tech_lead"
+  - name: manage_merge
+    description: Manage PR merge process
+    parameters:
+      strategy:
+        type: string
+        description: Merge strategy (squash, rebase, merge)
 
-    learning:
-      review_pattern_analysis: true
-      developer_behavior_modeling: true
-      quality_prediction: true
-      optimization_suggestions: true
+permissions:
+  - read
+  - write
+  - execute
 
-    automation_levels:
-      draft_pr_handling: "full_automation"
-      ready_for_review: "assisted_automation"
-      merge_decisions: "human_in_the_loop"
-      hotfix_handling: "emergency_automation"
+tags:
+  - pull-requests
+  - code-review
+  - automation
+  - ci-cd
+  - development
 
-  integrations:
-    github_api:
-      pr_management: true
-      review_api: true
-      checks_api: true
-      statuses_api: true
-
-    testing_frameworks:
-      jest: true
-      pytest: true
-      cypress: true
-      playwright: true
-      selenium: true
-
-    code_quality:
-      sonarqube: true
-      codeclimate: true
-      eslint: true
-      prettier: true
-      security_scanners: true
-
-    notification_systems:
-      slack: true
-      email: true
-      microsoft_teams: true
-      webhook_integrations: true
-
-  security:
-    pr_security_checks:
-      dependency_scanning: true
-      secret_detection: true
-      code_vulnerability_analysis: true
-      license_compliance: true
-
-    merge_protection:
-      signed_commits_required: true
-      branch_protection_rules: true
-      status_checks_required: true
-      admin_enforcement: true
-
-  monitoring:
-    metrics:
-      - pr_cycle_time
-      - review_turnaround_time
-      - merge_success_rate
-      - post_merge_issues
-      - developer_satisfaction
-      - automation_effectiveness
-
-    dashboards:
-      - pr_pipeline_health
-      - reviewer_workload
-      - code_quality_trends
-      - performance_metrics
-
-    alerts:
-      - name: "pr_cycle_time_exceeded"
-        threshold: "72h"
-        severity: "warning"
-
-      - name: "merge_failure_rate_high"
-        threshold: 0.15
-        severity: "critical"
-
-      - name: "security_check_failure"
-        threshold: 1
-        severity: "critical"
-
-  workflows:
-    pr_opened:
-      - validate_pr_structure
-      - assign_reviewers
-      - trigger_automated_tests
-      - run_security_scans
-      - check_documentation_updates
-      - notify_stakeholders
-
-    pr_updated:
-      - re_run_failed_checks
-      - update_review_assignments
-      - notify_reviewers_of_changes
-      - validate_merge_conflicts
-
-    pr_approved:
-      - final_security_validation
-      - performance_regression_check
-      - prepare_merge_strategy
-      - schedule_deployment_if_configured
-
-    pr_merged:
-      - trigger_deployment_pipeline
-      - update_project_metrics
-      - notify_relevant_teams
-      - archive_review_artifacts
-
-  documentation:
-    user_guide: "docs/agents/pr-manager/user-guide.md"
-    configuration_guide: "docs/agents/pr-manager/configuration.md"
-    troubleshooting: "docs/agents/pr-manager/troubleshooting.md"
-    examples: "examples/pr-manager/"
+example_prompts:
+  - "Review and test pull request #456"
+  - "Coordinate PR reviews for the team"
+  - "Manage merge queue for release branch"

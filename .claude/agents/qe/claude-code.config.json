@@ -1,0 +1,176 @@
+{
+  "agent_registry": {
+    "name": "Quality Engineering Agents",
+    "version": "1.0.0",
+    "description": "Comprehensive Quality Engineering agent collection for Claude Code",
+    "registry_type": "local",
+    "base_path": ".claude/agents/qe",
+    "discovery": {
+      "auto_load": true,
+      "scan_patterns": ["*.md", "!index.md", "!README.md"],
+      "metadata_file": ".metadata.json"
+    }
+  },
+  "agent_categories": {
+    "core_qe": {
+      "display_name": "Core Quality Engineering",
+      "description": "Essential QE agents for comprehensive testing workflows",
+      "priority": 1,
+      "agents": [
+        "exploratory-testing-navigator",
+        "risk-oracle",
+        "tdd-pair-programmer",
+        "production-observer",
+        "deployment-guardian",
+        "requirements-explorer"
+      ]
+    },
+    "testing_specialists": {
+      "display_name": "Testing Specialists",
+      "description": "Specialized testing agents for specific domains",
+      "priority": 2,
+      "agents": [
+        "functional-negative",
+        "security-injection",
+        "quality-storyteller"
+      ]
+    }
+  },
+  "workflows": {
+    "qe_comprehensive": {
+      "name": "Comprehensive QE Workflow",
+      "description": "Complete quality engineering workflow from requirements to production",
+      "agents": [
+        {
+          "agent": "requirements-explorer",
+          "phase": "analysis",
+          "parallel": false,
+          "timeout": 600,
+          "description": "Analyze requirements for testability and risks"
+        },
+        {
+          "agent": "risk-oracle",
+          "phase": "planning",
+          "parallel": false,
+          "timeout": 300,
+          "description": "Calculate risk scores and prioritize testing"
+        },
+        {
+          "agent": "tdd-pair-programmer",
+          "phase": "implementation",
+          "parallel": true,
+          "timeout": 1800,
+          "description": "Guide test-first development"
+        },
+        {
+          "agent": "functional-negative",
+          "phase": "implementation",
+          "parallel": true,
+          "timeout": 900,
+          "description": "Test error paths and edge cases"
+        },
+        {
+          "agent": "production-observer",
+          "phase": "validation",
+          "parallel": false,
+          "timeout": 600,
+          "description": "Monitor production deployment"
+        },
+        {
+          "agent": "deployment-guardian",
+          "phase": "deployment",
+          "parallel": false,
+          "timeout": 300,
+          "description": "Ensure safe deployment"
+        }
+      ]
+    },
+    "security_audit": {
+      "name": "Security Testing Audit",
+      "description": "Comprehensive security testing workflow",
+      "agents": [
+        {
+          "agent": "security-injection",
+          "phase": "security",
+          "parallel": true,
+          "timeout": 1200,
+          "description": "Test injection vulnerabilities"
+        },
+        {
+          "agent": "functional-negative",
+          "phase": "security",
+          "parallel": true,
+          "timeout": 900,
+          "description": "Test security boundaries"
+        },
+        {
+          "agent": "exploratory-testing-navigator",
+          "phase": "security",
+          "parallel": true,
+          "timeout": 1800,
+          "description": "Explore with security mindset"
+        }
+      ]
+    },
+    "quick_validation": {
+      "name": "Quick Quality Validation",
+      "description": "Fast quality check for time-constrained scenarios",
+      "agents": [
+        {
+          "agent": "risk-oracle",
+          "phase": "assessment",
+          "parallel": false,
+          "timeout": 180,
+          "description": "Quick risk assessment"
+        },
+        {
+          "agent": "deployment-guardian",
+          "phase": "validation",
+          "parallel": false,
+          "timeout": 300,
+          "description": "Deployment safety check"
+        }
+      ]
+    }
+  },
+  "integration": {
+    "task_tool": {
+      "enabled": true,
+      "concurrent_limit": 6,
+      "memory_sharing": true,
+      "coordination_hooks": true
+    },
+    "mcp_coordination": {
+      "claude_flow": {
+        "enabled": true,
+        "swarm_init": true,
+        "task_orchestration": true
+      },
+      "ruv_swarm": {
+        "enabled": false,
+        "neural_features": true
+      },
+      "flow_nexus": {
+        "enabled": false,
+        "cloud_features": true
+      }
+    }
+  },
+  "templates": {
+    "spawn_agents": {
+      "concurrent": "Task(\"${agent.name}\", \"${agent.description}\", \"${agent.id}\")",
+      "sequential": "Task(\"${agent.name}\", \"${agent.description}\", \"${agent.id}\")",
+      "with_memory": "Task(\"${agent.name}\", \"${agent.description}. Store findings in memory key: qe/${agent.id}/${timestamp}\", \"${agent.id}\")"
+    },
+    "coordination": {
+      "mcp_init": "mcp__claude-flow__swarm_init { topology: \"${topology}\", maxAgents: ${agent_count} }",
+      "task_orchestrate": "mcp__claude-flow__task_orchestrate { task: \"${workflow.description}\", strategy: \"${strategy}\", priority: \"${priority}\" }"
+    }
+  },
+  "documentation": {
+    "index_file": "index.md",
+    "agent_format": "markdown",
+    "examples_included": true,
+    "integration_guides": true
+  }
+}

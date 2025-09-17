@@ -1,9 +1,14 @@
 name: quorum-manager
 version: "1.0.0"
 description: "Dynamic quorum adjustment and membership management for distributed consensus systems"
+category: consensus
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.1
+max_tokens: 8192
+pactLevel: 4
 
 metadata:
-  category: "consensus"
   type: "membership-coordinator"
   pact_level: 4
   fault_tolerance: "adaptive-quorum-based"

@@ -1,336 +1,68 @@
-apiVersion: v1
-kind: Agent
-metadata:
-  name: issue-tracker
-  version: "1.0.0"
-  description: "Intelligent issue management and project coordination"
-  tags:
-    - issue-management
-    - project-coordination
-    - automation
-    - triage
-    - analytics
+name: issue-tracker
+version: "1.0.0"
+description: "Intelligent issue management and project coordination"
+category: development
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.2
+max_tokens: 8192
+pactLevel: 3
 
-spec:
-  pact_level: 3
-  autonomy_level: high
+system_prompt: |
+  You are an Issue Tracker agent specializing in intelligent issue management
+  and project coordination.
 
-  capabilities:
-    - intelligent_triage
-    - automated_labeling
-    - priority_assignment
-    - duplicate_detection
-    - stakeholder_notification
-    - project_coordination
-    - sla_monitoring
-    - predictive_analytics
+  PACT Classification: Collaborative (Level 3)
+  - Proactive: Monitor and triage issues automatically
+  - Autonomous: Assign and manage issues independently
+  - Collaborative: Coordinate with development teams
+  - Targeted: Focus on issue resolution and tracking
 
-  configuration:
-    triage_rules:
-      auto_labeling:
-        bug_detection:
-          keywords: ["bug", "error", "crash", "broken", "fail"]
-          patterns: ["stack trace", "exception", "null pointer"]
-          confidence_threshold: 0.8
+capabilities:
+  - issue_management
+  - project_coordination
+  - automated_triage
+  - priority_assignment
+  - dependency_tracking
+  - milestone_management
+  - sprint_planning
+  - progress_reporting
 
-        feature_request:
-          keywords: ["feature", "enhancement", "improvement", "add"]
-          patterns: ["would like", "could we", "suggestion"]
-          confidence_threshold: 0.7
+tools:
+  - name: triage_issues
+    description: Automatically triage and categorize issues
+    parameters:
+      repository:
+        type: string
+        description: Repository name
 
-        documentation:
-          keywords: ["docs", "documentation", "readme", "guide"]
-          patterns: ["unclear", "missing docs", "explain"]
-          confidence_threshold: 0.8
+  - name: assign_issues
+    description: Intelligently assign issues to developers
+    parameters:
+      issue_id:
+        type: string
+        description: Issue identifier
 
-        security:
-          keywords: ["security", "vulnerability", "exploit", "cve"]
-          patterns: ["potential security", "security issue"]
-          confidence_threshold: 0.9
-          priority_override: "critical"
+  - name: track_progress
+    description: Track issue resolution progress
+    parameters:
+      milestone:
+        type: string
+        description: Milestone name
 
-      priority_matrix:
-        critical:
-          conditions:
-            - security_vulnerability: true
-            - production_down: true
-            - data_loss_risk: true
-          sla: "2h"
+permissions:
+  - read
+  - write
+  - execute
 
-        high:
-          conditions:
-            - customer_facing_bug: true
-            - performance_regression: true
-            - api_breaking_change: true
-          sla: "24h"
+tags:
+  - issue-management
+  - project-coordination
+  - automation
+  - tracking
+  - development
 
-        medium:
-          conditions:
-            - feature_request: true
-            - minor_bug: true
-            - improvement: true
-          sla: "7d"
-
-        low:
-          conditions:
-            - documentation: true
-            - code_cleanup: true
-            - nice_to_have: true
-          sla: "30d"
-
-    duplicate_detection:
-      similarity_threshold: 0.85
-      analysis_methods:
-        - title_similarity
-        - description_similarity
-        - stack_trace_comparison
-        - user_behavior_patterns
-
-      auto_link_duplicates: true
-      confidence_threshold: 0.9
-
-    assignment_strategy:
-      load_balancing: true
-      expertise_matching: true
-      timezone_awareness: true
-      workload_consideration: true
-
-      assignment_factors:
-        - previous_issue_history
-        - code_ownership
-        - component_expertise
-        - current_workload
-        - availability_status
-
-  interfaces:
-    inputs:
-      - name: issue_data
-        type: object
-        required: true
-        description: "GitHub issue data"
-
-      - name: repository_context
-        type: object
-        required: true
-        description: "Repository configuration and context"
-
-      - name: project_settings
-        type: object
-        required: false
-        description: "Project-specific settings and overrides"
-
-      - name: team_configuration
-        type: object
-        required: false
-        description: "Team structure and availability"
-
-    outputs:
-      - name: triage_result
-        type: object
-        description: "Complete triage analysis and recommendations"
-
-      - name: suggested_labels
-        type: array
-        description: "Recommended labels for the issue"
-
-      - name: priority_assessment
-        type: object
-        description: "Priority level with reasoning"
-
-      - name: assignment_recommendation
-        type: object
-        description: "Suggested assignee with confidence score"
-
-      - name: similar_issues
-        type: array
-        description: "Related or duplicate issues"
-
-      - name: project_impact
-        type: object
-        description: "Impact on project timelines and milestones"
-
-  behavior:
-    triage_workflow:
-      automated_steps:
-        - content_analysis
-        - sentiment_analysis
-        - duplicate_detection
-        - priority_calculation
-        - label_suggestion
-        - assignee_recommendation
-        - sla_determination
-
-      human_validation_required:
-        - critical_priority_issues
-        - security_vulnerabilities
-        - breaking_changes
-        - customer_escalations
-
-    decision_making:
-      ml_models:
-        - issue_classification
-        - priority_prediction
-        - assignee_matching
-        - resolution_time_estimation
-
-      confidence_thresholds:
-        auto_triage: 0.8
-        auto_assign: 0.7
-        auto_close_duplicate: 0.9
-
-      escalation_rules:
-        - condition: "security_issue_detected"
-          action: "immediate_security_team_notification"
-        - condition: "customer_escalation"
-          action: "priority_boost_and_manager_notification"
-        - condition: "sla_breach_imminent"
-          action: "team_lead_escalation"
-
-    learning_mechanisms:
-      feedback_integration: true
-      resolution_pattern_analysis: true
-      team_performance_modeling: true
-      continuous_model_improvement: true
-
-  integrations:
-    github_api:
-      issues_api: true
-      projects_api: true
-      milestones_api: true
-      labels_api: true
-      assignees_api: true
-
-    project_management:
-      jira: true
-      asana: true
-      trello: true
-      linear: true
-      azure_devops: true
-
-    communication:
-      slack: true
-      microsoft_teams: true
-      discord: true
-      email_notifications: true
-      webhook_integrations: true
-
-    analytics:
-      google_analytics: true
-      mixpanel: true
-      amplitude: true
-      custom_dashboards: true
-
-    ai_services:
-      natural_language_processing: true
-      sentiment_analysis: true
-      machine_learning_models: true
-
-  security:
-    access_control:
-      role_based_permissions: true
-      team_visibility_rules: true
-      sensitive_issue_handling: true
-
-    data_protection:
-      pii_detection: true
-      sensitive_data_masking: true
-      audit_logging: true
-
-    integration_security:
-      api_key_management: true
-      webhook_verification: true
-      secure_communication: true
-
-  monitoring:
-    issue_metrics:
-      - time_to_triage
-      - time_to_first_response
-      - time_to_resolution
-      - issue_backlog_size
-      - priority_distribution
-      - label_accuracy
-      - assignment_accuracy
-
-    team_metrics:
-      - workload_distribution
-      - response_times
-      - resolution_rates
-      - satisfaction_scores
-
-    system_metrics:
-      - triage_accuracy
-      - duplicate_detection_rate
-      - false_positive_rate
-      - automation_effectiveness
-
-    alerts:
-      - name: "sla_breach_warning"
-        threshold: "80% of SLA time"
-        severity: "warning"
-
-      - name: "critical_issue_unassigned"
-        threshold: "15 minutes"
-        severity: "critical"
-
-      - name: "backlog_overflow"
-        threshold: "100 untriaged issues"
-        severity: "warning"
-
-  workflows:
-    issue_opened:
-      - extract_issue_metadata
-      - perform_content_analysis
-      - detect_issue_type
-      - check_for_duplicates
-      - calculate_priority
-      - suggest_labels
-      - recommend_assignee
-      - send_notifications
-      - update_project_metrics
-
-    issue_updated:
-      - analyze_changes
-      - re_evaluate_priority
-      - update_assignments_if_needed
-      - notify_watchers
-      - update_project_timeline
-
-    issue_commented:
-      - analyze_comment_sentiment
-      - extract_additional_context
-      - update_priority_if_needed
-      - notify_relevant_parties
-
-    issue_closed:
-      - update_resolution_metrics
-      - analyze_resolution_patterns
-      - update_team_performance_data
-      - close_related_issues_if_applicable
-      - generate_closure_notifications
-
-  analytics:
-    reporting:
-      - daily_triage_summary
-      - weekly_team_performance
-      - monthly_trend_analysis
-      - quarterly_predictive_insights
-
-    predictive_models:
-      - resolution_time_prediction
-      - workload_forecasting
-      - priority_trend_analysis
-      - team_capacity_planning
-
-    dashboards:
-      - real_time_issue_flow
-      - team_performance_overview
-      - project_health_metrics
-      - automation_effectiveness
-
-  documentation:
-    user_guide: "docs/agents/issue-tracker/user-guide.md"
-    configuration_guide: "docs/agents/issue-tracker/configuration.md"
-    triage_rules: "docs/agents/issue-tracker/triage-rules.md"
-    analytics_guide: "docs/agents/issue-tracker/analytics.md"
-    troubleshooting: "docs/agents/issue-tracker/troubleshooting.md"
-    examples: "examples/issue-tracker/"
+example_prompts:
+  - "Triage all open issues for the current sprint"
+  - "Track progress on critical bugs"
+  - "Coordinate issue assignments for the team"

@@ -1,0 +1,416 @@
+name: "Agentic QE Commands"
+version: "1.0.0"
+description: "Quality Engineering command suite for intelligent test automation"
+
+commands:
+  # Test Planning Commands
+  test-plan:
+    description: "Generate comprehensive test plans"
+    executable: "npx agentic-qe test-plan"
+    category: "planning"
+    agent: "test-planner"
+    options:
+      - name: "feature"
+        description: "Feature or component to plan tests for"
+        type: "string"
+        required: true
+      - name: "levels"
+        description: "Test levels (unit,integration,e2e,performance)"
+        type: "array"
+        default: ["unit", "integration"]
+      - name: "risk-level"
+        description: "Risk assessment level"
+        type: "enum"
+        values: ["low", "medium", "high", "critical"]
+        default: "medium"
+      - name: "coverage-target"
+        description: "Target code coverage percentage"
+        type: "number"
+        default: 80
+      - name: "platforms"
+        description: "Target platforms"
+        type: "array"
+        values: ["web", "mobile", "api", "desktop"]
+
+  risk-analysis:
+    description: "Perform risk-based testing analysis"
+    executable: "npx agentic-qe risk-analysis"
+    category: "planning"
+    agent: "test-planner"
+    options:
+      - name: "component"
+        description: "Component or system to analyze"
+        type: "string"
+        required: true
+      - name: "impact"
+        description: "Business impact level"
+        type: "enum"
+        values: ["low", "medium", "high", "critical"]
+        required: true
+
+  # Test Generation Commands
+  generate-tests:
+    description: "Generate test files from specifications"
+    executable: "npx agentic-qe generate-tests"
+    category: "generation"
+    agent: "test-generator"
+    options:
+      - name: "spec"
+        description: "Test specification file or inline spec"
+        type: "string"
+        required: true
+      - name: "framework"
+        description: "Testing framework"
+        type: "enum"
+        values: ["jest", "mocha", "cypress", "playwright", "vitest", "pytest"]
+        default: "jest"
+      - name: "type"
+        description: "Test type"
+        type: "enum"
+        values: ["unit", "integration", "e2e", "performance", "security", "api"]
+        default: "unit"
+      - name: "output"
+        description: "Output directory"
+        type: "string"
+        default: "./tests"
+      - name: "coverage"
+        description: "Generate coverage-focused tests"
+        type: "boolean"
+        default: false
+      - name: "mocks"
+        description: "Auto-generate mocks and stubs"
+        type: "boolean"
+        default: true
+
+  generate-data:
+    description: "Generate test data and fixtures"
+    executable: "npx agentic-qe generate-data"
+    category: "generation"
+    agent: "test-generator"
+    options:
+      - name: "schema"
+        description: "Data schema definition file"
+        type: "string"
+        required: true
+      - name: "count"
+        description: "Number of test records"
+        type: "number"
+        default: 10
+      - name: "format"
+        description: "Output format"
+        type: "enum"
+        values: ["json", "csv", "sql", "yaml"]
+        default: "json"
+      - name: "realistic"
+        description: "Use realistic data patterns"
+        type: "boolean"
+        default: true
+
+  generate-mocks:
+    description: "Create mock objects and API responses"
+    executable: "npx agentic-qe generate-mocks"
+    category: "generation"
+    agent: "test-generator"
+    options:
+      - name: "api"
+        description: "API specification file"
+        type: "string"
+        required: true
+      - name: "framework"
+        description: "Mocking framework"
+        type: "enum"
+        values: ["jest", "sinon", "nock", "msw"]
+        default: "jest"
+      - name: "type"
+        description: "Mock type"
+        type: "enum"
+        values: ["service", "api", "database", "external"]
+        default: "service"
+
+  # Test Execution Commands
+  run-tests:
+    description: "Execute tests with intelligent orchestration"
+    executable: "npx agentic-qe run-tests"
+    category: "execution"
+    agent: "test-runner"
+    options:
+      - name: "suite"
+        description: "Test suite to run"
+        type: "enum"
+        values: ["unit", "integration", "e2e", "regression", "smoke", "performance"]
+        default: "unit"
+      - name: "parallel"
+        description: "Enable parallel execution"
+        type: "boolean"
+        default: false
+      - name: "retry-flaky"
+        description: "Auto-retry flaky tests"
+        type: "boolean"
+        default: true
+      - name: "environments"
+        description: "Target environments"
+        type: "array"
+        values: ["dev", "staging", "prod", "local"]
+        default: ["dev"]
+      - name: "coverage"
+        description: "Generate coverage reports"
+        type: "boolean"
+        default: true
+      - name: "tags"
+        description: "Run tests with specific tags"
+        type: "array"
+      - name: "changed-only"
+        description: "Run only tests for changed files"
+        type: "boolean"
+        default: false
+      - name: "performance"
+        description: "Include performance benchmarks"
+        type: "boolean"
+        default: false
+
+  watch-tests:
+    description: "Continuous test monitoring and execution"
+    executable: "npx agentic-qe watch-tests"
+    category: "execution"
+    agent: "test-runner"
+    options:
+      - name: "mode"
+        description: "Watch mode"
+        type: "enum"
+        values: ["development", "ci", "debug"]
+        default: "development"
+      - name: "auto-retry"
+        description: "Automatically retry failed tests"
+        type: "boolean"
+        default: true
+      - name: "notify"
+        description: "Send notifications on status changes"
+        type: "boolean"
+        default: false
+      - name: "debounce"
+        description: "Debounce time for file changes (ms)"
+        type: "number"
+        default: 1000
+
+  test-health:
+    description: "Monitor test suite health and performance"
+    executable: "npx agentic-qe test-health"
+    category: "execution"
+    agent: "test-runner"
+    options:
+      - name: "analyze-flaky"
+        description: "Analyze flaky test patterns"
+        type: "boolean"
+        default: true
+      - name: "performance-trends"
+        description: "Generate performance trend analysis"
+        type: "boolean"
+        default: true
+      - name: "coverage-drift"
+        description: "Detect coverage drift"
+        type: "boolean"
+        default: true
+
+  # Test Analysis Commands
+  analyze-coverage:
+    description: "Comprehensive coverage analysis"
+    executable: "npx agentic-qe analyze-coverage"
+    category: "analysis"
+    agent: "test-analyzer"
+    options:
+      - name: "project"
+        description: "Project or component to analyze"
+        type: "string"
+        required: true
+      - name: "threshold"
+        description: "Coverage threshold percentage"
+        type: "number"
+        default: 80
+      - name: "report-gaps"
+        description: "Generate detailed gap reports"
+        type: "boolean"
+        default: true
+      - name: "suggest-tests"
+        description: "AI-powered test suggestions"
+        type: "boolean"
+        default: true
+      - name: "exclude"
+        description: "Exclude patterns from analysis"
+        type: "array"
+      - name: "format"
+        description: "Report format"
+        type: "enum"
+        values: ["html", "json", "text", "pdf"]
+        default: "html"
+
+  analyze-performance:
+    description: "Test execution performance analysis"
+    executable: "npx agentic-qe analyze-performance"
+    category: "analysis"
+    agent: "test-analyzer"
+    options:
+      - name: "suite"
+        description: "Test suite to analyze"
+        type: "string"
+      - name: "period"
+        description: "Analysis time period"
+        type: "enum"
+        values: ["7d", "30d", "90d"]
+        default: "30d"
+      - name: "trends"
+        description: "Generate trend analysis"
+        type: "boolean"
+        default: true
+      - name: "bottlenecks"
+        description: "Identify performance bottlenecks"
+        type: "boolean"
+        default: true
+      - name: "compare"
+        description: "Compare with baseline performance"
+        type: "boolean"
+        default: false
+
+  analyze-quality:
+    description: "Test suite quality and health metrics"
+    executable: "npx agentic-qe analyze-quality"
+    category: "analysis"
+    agent: "test-analyzer"
+    options:
+      - name: "comprehensive"
+        description: "Full quality analysis"
+        type: "boolean"
+        default: true
+      - name: "flaky-detection"
+        description: "Detect and analyze flaky tests"
+        type: "boolean"
+        default: true
+      - name: "redundancy-check"
+        description: "Find redundant test cases"
+        type: "boolean"
+        default: true
+      - name: "maintainability"
+        description: "Assess test maintainability"
+        type: "boolean"
+        default: true
+      - name: "effectiveness"
+        description: "Measure test effectiveness"
+        type: "boolean"
+        default: true
+
+  analyze-risks:
+    description: "Risk-based analysis and prioritization"
+    executable: "npx agentic-qe analyze-risks"
+    category: "analysis"
+    agent: "test-analyzer"
+    options:
+      - name: "component"
+        description: "Component to analyze"
+        type: "string"
+        required: true
+      - name: "impact-analysis"
+        description: "Perform business impact analysis"
+        type: "boolean"
+        default: true
+      - name: "recommendations"
+        description: "Generate improvement recommendations"
+        type: "boolean"
+        default: true
+
+  # Orchestration Commands
+  orchestrate:
+    description: "Orchestrate complete QE workflows"
+    executable: "npx agentic-qe orchestrate"
+    category: "coordination"
+    agent: "qe-coordinator"
+    options:
+      - name: "workflow"
+        description: "Workflow type"
+        type: "enum"
+        values: ["full-cycle", "regression", "release", "hotfix"]
+        required: true
+      - name: "feature"
+        description: "Feature or component scope"
+        type: "string"
+        required: true
+      - name: "priority"
+        description: "Execution priority"
+        type: "enum"
+        values: ["low", "medium", "high", "critical"]
+        default: "medium"
+      - name: "agents"
+        description: "Specific agents to coordinate"
+        type: "array"
+        values: ["test-planner", "test-generator", "test-runner", "test-analyzer"]
+      - name: "parallel"
+        description: "Enable parallel agent execution"
+        type: "boolean"
+        default: true
+      - name: "quality-gates"
+        description: "Enforce quality gates"
+        type: "boolean"
+        default: true
+
+  coordinate-release:
+    description: "Coordinate QE activities for release cycles"
+    executable: "npx agentic-qe coordinate-release"
+    category: "coordination"
+    agent: "qe-coordinator"
+    options:
+      - name: "version"
+        description: "Release version"
+        type: "string"
+        required: true
+      - name: "environments"
+        description: "Target environments"
+        type: "array"
+        values: ["dev", "staging", "prod"]
+        default: ["staging"]
+      - name: "full-regression"
+        description: "Run complete regression suite"
+        type: "boolean"
+        default: true
+      - name: "performance-baseline"
+        description: "Update performance baselines"
+        type: "boolean"
+        default: false
+      - name: "security-scan"
+        description: "Include security testing"
+        type: "boolean"
+        default: true
+
+  manage-quality-gates:
+    description: "Manage and enforce quality gates"
+    executable: "npx agentic-qe manage-quality-gates"
+    category: "coordination"
+    agent: "qe-coordinator"
+    options:
+      - name: "pipeline"
+        description: "Target pipeline"
+        type: "enum"
+        values: ["ci/cd", "release", "hotfix"]
+        required: true
+      - name: "enforce"
+        description: "Strictly enforce quality gates"
+        type: "boolean"
+        default: true
+      - name: "thresholds"
+        description: "Quality thresholds (coverage:90,performance:95)"
+        type: "string"
+      - name: "auto-fix"
+        description: "Auto-trigger fixes for failed gates"
+        type: "boolean"
+        default: false
+
+categories:
+  planning: "Test planning and strategy"
+  generation: "Test code and data generation"
+  execution: "Test execution and monitoring"
+  analysis: "Test analysis and optimization"
+  coordination: "Workflow orchestration and coordination"
+
+agent_mapping:
+  test-planner: ["test-plan", "risk-analysis"]
+  test-generator: ["generate-tests", "generate-data", "generate-mocks"]
+  test-runner: ["run-tests", "watch-tests", "test-health"]
+  test-analyzer: ["analyze-coverage", "analyze-performance", "analyze-quality", "analyze-risks"]
+  qe-coordinator: ["orchestrate", "coordinate-release", "manage-quality-gates"]

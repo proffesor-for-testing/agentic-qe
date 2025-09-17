@@ -1,0 +1,326 @@
+name: "QE Hooks Registry"
+version: "1.0.0"
+description: "Registry of Quality Engineering hooks for test lifecycle management"
+
+# Hook Definitions
+hooks:
+  pre-test:
+    description: "Pre-test validation and environment preparation"
+    executable: "node .claude/hooks/qe/pre-test.js"
+    trigger: "before_test_execution"
+    timeout: 60000
+    critical: true
+    parameters:
+      - name: "environment"
+        description: "Target test environment"
+        type: "string"
+        default: "local"
+      - name: "backup_baselines"
+        description: "Backup performance baselines"
+        type: "boolean"
+        default: false
+      - name: "performance_monitoring"
+        description: "Enable performance monitoring"
+        type: "boolean"
+        default: true
+
+  post-test:
+    description: "Post-test analysis, reporting, and cleanup"
+    executable: "node .claude/hooks/qe/post-test.js"
+    trigger: "after_test_execution"
+    timeout: 120000
+    critical: true
+    parameters:
+      - name: "generate_reports"
+        description: "Generate test reports"
+        type: "boolean"
+        default: true
+      - name: "cleanup_temp"
+        description: "Cleanup temporary files"
+        type: "boolean"
+        default: true
+      - name: "notify_stakeholders"
+        description: "Send notifications"
+        type: "boolean"
+        default: true
+
+  on-test-failure:
+    description: "Test failure analysis and recovery"
+    executable: "node .claude/hooks/qe/on-test-failure.js"
+    trigger: "test_failure"
+    timeout: 90000
+    critical: false
+    parameters:
+      - name: "auto_recovery"
+        description: "Attempt automatic recovery"
+        type: "boolean"
+        default: true
+      - name: "immediate_notification"
+        description: "Send immediate failure notifications"
+        type: "boolean"
+        default: true
+      - name: "generate_failure_report"
+        description: "Generate detailed failure report"
+        type: "boolean"
+        default: true
+
+# Trigger Configurations
+triggers:
+  before_test_execution:
+    description: "Triggered before any test suite execution"
+    hooks: ["pre-test"]
+    order: ["pre-test"]
+    continue_on_failure: false
+
+  after_test_execution:
+    description: "Triggered after test suite execution completes"
+    hooks: ["post-test"]
+    order: ["post-test"]
+    continue_on_failure: true
+
+  test_failure:
+    description: "Triggered when individual tests fail"
+    hooks: ["on-test-failure"]
+    order: ["on-test-failure"]
+    continue_on_failure: true
+    immediate: true
+
+  test_success:
+    description: "Triggered when tests pass successfully"
+    hooks: []
+    order: []
+    continue_on_failure: true
+
+  quality_gate_failure:
+    description: "Triggered when quality gates fail"
+    hooks: ["on-test-failure"]
+    order: ["on-test-failure"]
+    continue_on_failure: true
+
+  performance_regression:
+    description: "Triggered when performance regression is detected"
+    hooks: ["on-test-failure"]
+    order: ["on-test-failure"]
+    continue_on_failure: true
+
+# Integration Settings
+integration:
+  claude_code:
+    enabled: true
+    auto_register: true
+    memory_integration: true
+    task_coordination: true
+
+  claude_flow:
+    enabled: true
+    swarm_hooks: true
+    neural_training: true
+    performance_tracking: true
+
+  agentic_qe:
+    enabled: true
+    agent_coordination: true
+    workflow_integration: true
+    quality_gates: true
+
+# Hook Execution Configuration
+execution:
+  parallel_hooks: false
+  max_concurrent: 3
+  retry_on_failure: true
+  max_retries: 2
+  retry_delay: 5000
+  timeout_action: "warn"  # or "fail"
+
+# Memory and State Management
+memory:
+  enabled: true
+  persistence: true
+  keys:
+    pre_test: "qe/hooks/pre-test"
+    post_test: "qe/hooks/post-test"
+    failures: "qe/hooks/failures"
+    metrics: "qe/hooks/metrics"
+
+# Logging Configuration
+logging:
+  enabled: true
+  level: "info"
+  format: "json"
+  destinations:
+    - "console"
+    - "file"
+  file_path: "logs/qe-hooks.log"
+  rotation: "daily"
+
+# Notification Configuration
+notifications:
+  enabled: true
+  immediate_failures: true
+  summary_reports: true
+  channels:
+    - "console"
+    - "file"
+    - "claude_flow"
+  templates:
+    failure: "Test failure detected: {{testName}} - {{errorType}}"
+    success: "Test execution completed: {{passed}}/{{total}} passed"
+    quality_gate: "Quality gate {{gateName}}: {{status}}"
+
+# Quality Gates Integration
+quality_gates:
+  enabled: true
+  hooks:
+    - trigger: "quality_gate_failure"
+      action: "execute_hook"
+      hook: "on-test-failure"
+  thresholds:
+    coverage: 80
+    performance: 95
+    security: "medium"
+
+# Environment-Specific Configurations
+environments:
+  local:
+    hooks:
+      pre-test:
+        enabled: true
+        parameters:
+          backup_baselines: false
+      post-test:
+        enabled: true
+        parameters:
+          cleanup_temp: true
+      on-test-failure:
+        enabled: true
+        parameters:
+          auto_recovery: true
+
+  dev:
+    hooks:
+      pre-test:
+        enabled: true
+        parameters:
+          backup_baselines: false
+          performance_monitoring: true
+      post-test:
+        enabled: true
+        parameters:
+          notify_stakeholders: false
+      on-test-failure:
+        enabled: true
+        parameters:
+          immediate_notification: false
+
+  staging:
+    hooks:
+      pre-test:
+        enabled: true
+        parameters:
+          backup_baselines: true
+          performance_monitoring: true
+      post-test:
+        enabled: true
+        parameters:
+          notify_stakeholders: true
+      on-test-failure:
+        enabled: true
+        parameters:
+          immediate_notification: true
+
+  prod:
+    hooks:
+      pre-test:
+        enabled: true
+        parameters:
+          backup_baselines: true
+          performance_monitoring: true
+      post-test:
+        enabled: true
+        parameters:
+          notify_stakeholders: true
+          cleanup_temp: false
+      on-test-failure:
+        enabled: true
+        parameters:
+          auto_recovery: false
+          immediate_notification: true
+
+# Agent-Specific Hook Configurations
+agents:
+  test-planner:
+    hooks:
+      - "pre-test"
+    parameters:
+      environment: "local"
+      backup_baselines: false
+
+  test-generator:
+    hooks:
+      - "pre-test"
+    parameters:
+      environment: "local"
+
+  test-runner:
+    hooks:
+      - "pre-test"
+      - "post-test"
+      - "on-test-failure"
+    parameters:
+      environment: "dev"
+      performance_monitoring: true
+
+  test-analyzer:
+    hooks:
+      - "post-test"
+    parameters:
+      generate_reports: true
+
+  qe-coordinator:
+    hooks:
+      - "pre-test"
+      - "post-test"
+      - "on-test-failure"
+    parameters:
+      notify_stakeholders: true
+      auto_recovery: true
+
+# Hook Dependencies
+dependencies:
+  pre-test:
+    requires: []
+    provides: ["environment_ready", "resources_prepared"]
+
+  post-test:
+    requires: ["test_execution_complete"]
+    provides: ["reports_generated", "cleanup_complete"]
+
+  on-test-failure:
+    requires: ["test_failure_detected"]
+    provides: ["failure_analyzed", "recovery_attempted"]
+
+# Metrics and Monitoring
+metrics:
+  enabled: true
+  collect:
+    - "hook_execution_time"
+    - "hook_success_rate"
+    - "failure_recovery_rate"
+    - "quality_gate_compliance"
+  storage: "memory"
+  retention: "30d"
+
+# Security Configuration
+security:
+  enabled: true
+  validate_hooks: true
+  sandbox_execution: false
+  allowed_operations:
+    - "file_read"
+    - "file_write"
+    - "process_execute"
+    - "network_request"
+  restricted_paths:
+    - "/etc"
+    - "/usr"
+    - "/sys"

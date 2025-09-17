@@ -1,326 +1,68 @@
-apiVersion: v1
-kind: Agent
-metadata:
-  name: code-review-swarm
-  version: "1.0.0"
-  description: "Deploy specialized AI agents for comprehensive code reviews"
-  tags:
-    - code-review
-    - ai-agents
-    - swarm-intelligence
-    - quality-assurance
-    - automated-analysis
+name: code-review-swarm
+version: "1.0.0"
+description: "Deploy specialized AI agents for comprehensive code reviews"
+category: development
+author: aqe-framework
+model: claude-sonnet-4
+temperature: 0.2
+max_tokens: 8192
+pactLevel: 4
 
-spec:
-  pact_level: 4
-  autonomy_level: high
+system_prompt: |
+  You are a Code Review Swarm Coordinator agent specializing in deploying and coordinating
+  multiple AI agents for comprehensive code reviews.
 
-  capabilities:
-    - multi_agent_coordination
-    - specialized_code_analysis
-    - pattern_recognition
-    - vulnerability_detection
-    - performance_optimization
-    - maintainability_assessment
-    - architectural_review
-    - documentation_analysis
+  PACT Classification: Targeted (Level 4)
+  - Proactive: Deploy agents before issues arise
+  - Autonomous: Agents work independently on assigned areas
+  - Collaborative: Coordinate multiple agents for complete coverage
+  - Targeted: Focus on code quality, security, and best practices
 
-  configuration:
-    swarm_topology:
-      type: "hierarchical"
-      coordinator_agent: "review_coordinator"
-      specialist_agents:
-        - security_specialist
-        - performance_specialist
-        - architecture_specialist
-        - maintainability_specialist
-        - documentation_specialist
-        - testing_specialist
+capabilities:
+  - multi_agent_coordination
+  - code_quality_analysis
+  - security_scanning
+  - performance_review
+  - architecture_assessment
+  - test_coverage_analysis
+  - documentation_review
+  - dependency_analysis
 
-      coordination_strategy: "consensus_based"
-      conflict_resolution: "weighted_voting"
-
-    review_specializations:
-      security_specialist:
-        focus_areas:
-          - sql_injection_detection
-          - xss_vulnerability_scanning
-          - authentication_flaws
-          - authorization_bypass
-          - sensitive_data_exposure
-          - cryptography_misuse
-
-        tools:
-          - static_analysis_security_testing
-          - dependency_vulnerability_scanning
-          - secrets_detection
-
-        severity_classification: true
-        auto_fix_suggestions: true
-
-      performance_specialist:
-        focus_areas:
-          - algorithmic_complexity
-          - memory_usage_patterns
-          - database_query_optimization
-          - caching_strategies
-          - concurrent_programming
-          - resource_leak_detection
-
-        tools:
-          - performance_profiling
-          - memory_analysis
-          - query_plan_analysis
-
-        benchmark_integration: true
-        regression_detection: true
-
-      architecture_specialist:
-        focus_areas:
-          - design_pattern_compliance
-          - solid_principles_adherence
-          - coupling_and_cohesion
-          - dependency_management
-          - api_design_quality
-          - scalability_considerations
-
-        tools:
-          - dependency_graph_analysis
-          - architecture_visualization
-          - anti_pattern_detection
-
-        refactoring_suggestions: true
-        architectural_debt_tracking: true
-
-      maintainability_specialist:
-        focus_areas:
-          - code_readability
-          - naming_conventions
-          - comment_quality
-          - function_complexity
-          - duplication_detection
-          - technical_debt_assessment
-
-        tools:
-          - complexity_metrics
-          - duplication_analysis
-          - readability_scoring
-
-        refactoring_priorities: true
-        maintainability_scoring: true
-
-      documentation_specialist:
-        focus_areas:
-          - api_documentation_completeness
-          - inline_comment_quality
-          - readme_accuracy
-          - change_documentation
-          - user_guide_updates
-          - architectural_decision_records
-
-        tools:
-          - documentation_coverage_analysis
-          - link_validation
-          - example_code_testing
-
-        auto_documentation_generation: true
-        consistency_checking: true
-
-      testing_specialist:
-        focus_areas:
-          - test_coverage_analysis
-          - test_quality_assessment
-          - testing_strategy_review
-          - mock_usage_evaluation
-          - integration_test_gaps
-          - performance_test_coverage
-
-        tools:
-          - coverage_analysis
-          - test_smell_detection
-          - mutation_testing
-
-        test_generation_suggestions: true
-        quality_metrics: true
-
-  interfaces:
-    inputs:
-      - name: code_changes
-        type: object
-        required: true
-        description: "Git diff or file changes to review"
-
-      - name: review_scope
-        type: string
-        required: false
-        enum: [full, security_only, performance_only, custom]
-        default: full
-        description: "Scope of the review"
-
-      - name: priority_level
-        type: string
-        required: false
-        enum: [low, medium, high, critical]
-        default: medium
-        description: "Review priority level"
-
-      - name: specialist_preferences
+tools:
+  - name: deploy_review_agents
+    description: Deploy specialized review agents
+    parameters:
+      agents:
         type: array
-        required: false
-        description: "Preferred specialist agents for this review"
+        description: List of agent types to deploy
 
-      - name: context_information
-        type: object
-        required: false
-        description: "Additional context about the changes"
+  - name: coordinate_reviews
+    description: Coordinate multi-agent review process
+    parameters:
+      pull_request:
+        type: string
+        description: PR identifier
 
-    outputs:
-      - name: comprehensive_review
-        type: object
-        description: "Aggregated review from all specialists"
-
-      - name: specialist_reports
-        type: object
-        description: "Individual reports from each specialist"
-
-      - name: action_items
+  - name: aggregate_findings
+    description: Aggregate findings from all agents
+    parameters:
+      review_results:
         type: array
-        description: "Prioritized list of issues to address"
+        description: Results from individual agents
 
-      - name: approval_recommendation
-        type: object
-        description: "Overall approval recommendation with confidence"
+permissions:
+  - read
+  - write
+  - execute
 
-      - name: learning_insights
-        type: object
-        description: "Insights for improving future reviews"
+tags:
+  - code-review
+  - ai-agents
+  - swarm-intelligence
+  - quality-assurance
+  - development
 
-  behavior:
-    coordination_protocol:
-      review_assignment: "expertise_based"
-      parallel_execution: true
-      consensus_building: "weighted_voting"
-      conflict_resolution: "human_escalation"
-
-    decision_making:
-      aggregation_strategy: "weighted_consensus"
-      confidence_thresholds:
-        approve: 0.9
-        request_changes: 0.7
-        neutral: 0.5
-
-      escalation_conditions:
-        - conflicting_specialist_opinions
-        - low_confidence_scores
-        - critical_security_findings
-        - significant_performance_regressions
-
-    learning_mechanisms:
-      pattern_learning: true
-      feedback_integration: true
-      historical_analysis: true
-      continuous_improvement: true
-
-    quality_gates:
-      security_gate: "mandatory"
-      performance_gate: "conditional"
-      maintainability_gate: "advisory"
-      documentation_gate: "conditional"
-
-  integrations:
-    code_analysis_tools:
-      sonarqube: true
-      codeclimate: true
-      snyk: true
-      semgrep: true
-      bandit: true
-      eslint: true
-      pylint: true
-
-    performance_tools:
-      lighthouse: true
-      webpagetest: true
-      jmeter: true
-      artillery: true
-      memory_profilers: true
-
-    documentation_tools:
-      swagger: true
-      jsdoc: true
-      sphinx: true
-      gitbook: true
-      confluence: true
-
-    ai_services:
-      openai_codex: true
-      github_copilot: true
-      amazon_codewhisperer: true
-      custom_ml_models: true
-
-  security:
-    secure_code_analysis:
-      static_analysis: true
-      dynamic_analysis: true
-      dependency_scanning: true
-      secrets_scanning: true
-
-    ai_model_security:
-      model_validation: true
-      input_sanitization: true
-      output_filtering: true
-      bias_detection: true
-
-  monitoring:
-    review_metrics:
-      - review_completion_time
-      - specialist_agreement_rate
-      - issue_detection_accuracy
-      - false_positive_rate
-      - developer_satisfaction
-      - code_quality_improvement
-
-    swarm_metrics:
-      - agent_coordination_efficiency
-      - load_distribution
-      - consensus_building_time
-      - conflict_resolution_rate
-
-    quality_metrics:
-      - bug_prevention_rate
-      - security_vulnerability_detection
-      - performance_improvement_suggestions
-      - maintainability_score_changes
-
-  workflows:
-    review_initialization:
-      - analyze_code_changes
-      - determine_required_specialists
-      - assign_review_priorities
-      - initialize_specialist_agents
-
-    parallel_analysis:
-      - security_analysis
-      - performance_analysis
-      - architecture_review
-      - maintainability_assessment
-      - documentation_review
-      - testing_evaluation
-
-    consensus_building:
-      - aggregate_specialist_findings
-      - resolve_conflicting_opinions
-      - calculate_confidence_scores
-      - generate_unified_recommendations
-
-    review_completion:
-      - compile_comprehensive_report
-      - prioritize_action_items
-      - update_learning_models
-      - notify_stakeholders
-
-  documentation:
-    user_guide: "docs/agents/code-review-swarm/user-guide.md"
-    specialist_configurations: "docs/agents/code-review-swarm/specialists.md"
-    coordination_protocols: "docs/agents/code-review-swarm/coordination.md"
-    troubleshooting: "docs/agents/code-review-swarm/troubleshooting.md"
-    examples: "examples/code-review-swarm/"
+example_prompts:
+  - "Deploy review swarm for pull request #123"
+  - "Coordinate comprehensive code review with security focus"
+  - "Analyze architecture changes and impacts"
