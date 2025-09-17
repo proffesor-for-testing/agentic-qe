@@ -1,0 +1,594 @@
+{
+  "version": "2.0.0",
+  "agents": [
+    {
+      "name": "exploratory-testing-navigator",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/exploratory-testing-navigator.md",
+      "capabilities": [
+        "exploratory_testing",
+        "edge_case_discovery",
+        "usability_testing",
+        "user_journey_mapping"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "e2e-journey"
+      ]
+    },
+    {
+      "name": "functional-flow-validator",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/functional-flow-validator.md",
+      "capabilities": [
+        "flow_validation",
+        "integration_testing",
+        "workflow_testing",
+        "state_verification"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "integration-api",
+        "e2e-journey"
+      ]
+    },
+    {
+      "name": "test-analyzer",
+      "type": "analyzer",
+      "category": "core-testing",
+      "path": "core-testing/test-analyzer.md",
+      "capabilities": [
+        "coverage_analysis",
+        "test_quality",
+        "gap_identification",
+        "metrics_analysis"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "continuous-quality",
+        "e2e-journey"
+      ]
+    },
+    {
+      "name": "test-generator",
+      "type": "generator",
+      "category": "core-testing",
+      "path": "core-testing/test-generator.md",
+      "capabilities": [
+        "test_generation",
+        "data_generation",
+        "scenario_creation",
+        "boundary_testing"
+      ],
+      "sdlc_phase": "development",
+      "swarms": [
+        "development-tdd"
+      ]
+    },
+    {
+      "name": "test-planner",
+      "type": "planner",
+      "category": "core-testing",
+      "path": "core-testing/test-planner.md",
+      "capabilities": [
+        "test_planning",
+        "strategy_design",
+        "resource_planning",
+        "risk_assessment"
+      ],
+      "sdlc_phase": "planning",
+      "swarms": [
+        "requirements-design"
+      ]
+    },
+    {
+      "name": "test-runner",
+      "type": "executor",
+      "category": "core-testing",
+      "path": "core-testing/test-runner.md",
+      "capabilities": [
+        "test_execution",
+        "parallel_testing",
+        "result_collection",
+        "retry_logic"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "integration-api"
+      ]
+    },
+    {
+      "name": "tdd-pair-programmer",
+      "type": "developer",
+      "category": "core-testing",
+      "path": "core-testing/tdd-pair-programmer.md",
+      "capabilities": [
+        "tdd_guidance",
+        "pair_programming",
+        "test_writing",
+        "refactoring"
+      ],
+      "sdlc_phase": "development",
+      "swarms": [
+        "development-tdd"
+      ]
+    },
+    {
+      "name": "regression-guardian",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/regression-guardian.md",
+      "capabilities": [
+        "regression_testing",
+        "test_maintenance",
+        "stability_monitoring",
+        "change_impact_analysis"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "production-readiness"
+      ]
+    },
+    {
+      "name": "mutation-testing-swarm",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/mutation-testing-swarm.md",
+      "capabilities": [
+        "mutation_testing",
+        "test_quality",
+        "coverage_validation",
+        "defect_prediction"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "continuous-quality"
+      ]
+    },
+    {
+      "name": "functional-negative",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/functional-negative.md",
+      "capabilities": [
+        "negative_testing",
+        "error_handling",
+        "boundary_testing",
+        "failure_scenarios"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "e2e-journey"
+      ]
+    },
+    {
+      "name": "functional-positive",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/functional-positive.md",
+      "capabilities": [
+        "positive_testing",
+        "happy_path",
+        "acceptance_testing",
+        "smoke_testing"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "development-tdd"
+      ]
+    },
+    {
+      "name": "functional-stateful",
+      "type": "tester",
+      "category": "core-testing",
+      "path": "core-testing/functional-stateful.md",
+      "capabilities": [
+        "state_testing",
+        "session_management",
+        "persistence_testing",
+        "transaction_testing"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "e2e-journey"
+      ]
+    },
+    {
+      "name": "requirements-explorer",
+      "type": "analyst",
+      "category": "requirements-design",
+      "path": "requirements-design/requirements-explorer.md",
+      "capabilities": [
+        "requirements_analysis",
+        "ambiguity_detection",
+        "testability_assessment",
+        "acceptance_criteria"
+      ],
+      "sdlc_phase": "requirements",
+      "swarms": [
+        "requirements-design"
+      ]
+    },
+    {
+      "name": "design-challenger",
+      "type": "architect",
+      "category": "requirements-design",
+      "path": "requirements-design/design-challenger.md",
+      "capabilities": [
+        "design_review",
+        "architecture_analysis",
+        "pattern_detection",
+        "scalability_assessment"
+      ],
+      "sdlc_phase": "design",
+      "swarms": [
+        "requirements-design"
+      ]
+    },
+    {
+      "name": "spec-linter",
+      "type": "validator",
+      "category": "requirements-design",
+      "path": "requirements-design/spec-linter.md",
+      "capabilities": [
+        "spec_validation",
+        "consistency_checking",
+        "standard_compliance",
+        "documentation_review"
+      ],
+      "sdlc_phase": "requirements",
+      "swarms": [
+        "requirements-design"
+      ]
+    },
+    {
+      "name": "accessibility-advocate",
+      "type": "specialist",
+      "category": "requirements-design",
+      "path": "requirements-design/accessibility-advocate.md",
+      "capabilities": [
+        "accessibility_testing",
+        "wcag_compliance",
+        "screen_reader_testing",
+        "keyboard_navigation"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "security-compliance"
+      ]
+    },
+    {
+      "name": "risk-oracle",
+      "type": "analyst",
+      "category": "risk-security",
+      "path": "risk-security/risk-oracle.md",
+      "capabilities": [
+        "risk_assessment",
+        "test_prioritization",
+        "failure_prediction",
+        "mitigation_planning"
+      ],
+      "sdlc_phase": "planning",
+      "swarms": [
+        "security-compliance",
+        "requirements-design"
+      ]
+    },
+    {
+      "name": "security-sentinel",
+      "type": "security",
+      "category": "risk-security",
+      "path": "risk-security/security-sentinel.md",
+      "capabilities": [
+        "security_testing",
+        "penetration_testing",
+        "vulnerability_scanning",
+        "compliance_checking"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "security-compliance"
+      ]
+    },
+    {
+      "name": "security-injection",
+      "type": "security",
+      "category": "risk-security",
+      "path": "risk-security/security-injection.md",
+      "capabilities": [
+        "injection_testing",
+        "input_validation",
+        "xss_testing",
+        "sql_injection"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "security-compliance"
+      ]
+    },
+    {
+      "name": "security-auth",
+      "type": "security",
+      "category": "risk-security",
+      "path": "risk-security/security-auth.md",
+      "capabilities": [
+        "auth_testing",
+        "session_security",
+        "token_validation",
+        "permission_testing"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "security-compliance",
+        "integration-api"
+      ]
+    },
+    {
+      "name": "performance-analyzer",
+      "type": "performance",
+      "category": "performance-reliability",
+      "path": "performance-reliability/performance-analyzer.md",
+      "capabilities": [
+        "performance_profiling",
+        "bottleneck_detection",
+        "resource_monitoring",
+        "optimization"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "performance-scalability",
+        "integration-api"
+      ]
+    },
+    {
+      "name": "performance-hunter",
+      "type": "performance",
+      "category": "performance-reliability",
+      "path": "performance-reliability/performance-hunter.md",
+      "capabilities": [
+        "load_testing",
+        "stress_testing",
+        "memory_leaks",
+        "performance_regression"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "performance-scalability"
+      ]
+    },
+    {
+      "name": "performance-planner",
+      "type": "planner",
+      "category": "performance-reliability",
+      "path": "performance-reliability/performance-planner.md",
+      "capabilities": [
+        "capacity_planning",
+        "load_modeling",
+        "performance_requirements",
+        "sla_definition"
+      ],
+      "sdlc_phase": "planning",
+      "swarms": [
+        "performance-scalability"
+      ]
+    },
+    {
+      "name": "resilience-challenger",
+      "type": "reliability",
+      "category": "performance-reliability",
+      "path": "performance-reliability/resilience-challenger.md",
+      "capabilities": [
+        "resilience_testing",
+        "failover_testing",
+        "recovery_testing",
+        "circuit_breaker_testing"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "performance-scalability"
+      ]
+    },
+    {
+      "name": "production-observer",
+      "type": "monitor",
+      "category": "production-monitoring",
+      "path": "production-monitoring/production-observer.md",
+      "capabilities": [
+        "production_monitoring",
+        "anomaly_detection",
+        "observability",
+        "incident_analysis"
+      ],
+      "sdlc_phase": "production",
+      "swarms": [
+        "production-readiness"
+      ]
+    },
+    {
+      "name": "deployment-guardian",
+      "type": "validator",
+      "category": "production-monitoring",
+      "path": "production-monitoring/deployment-guardian.md",
+      "capabilities": [
+        "deployment_validation",
+        "smoke_testing",
+        "rollback_testing",
+        "canary_analysis"
+      ],
+      "sdlc_phase": "deployment",
+      "swarms": [
+        "production-readiness"
+      ]
+    },
+    {
+      "name": "chaos-engineer",
+      "type": "engineer",
+      "category": "production-monitoring",
+      "path": "production-monitoring/chaos-engineer.md",
+      "capabilities": [
+        "chaos_testing",
+        "fault_injection",
+        "disaster_recovery",
+        "game_days"
+      ],
+      "sdlc_phase": "testing",
+      "swarms": [
+        "performance-scalability"
+      ]
+    },
+    {
+      "name": "hierarchical-coordinator",
+      "type": "coordinator",
+      "category": "coordination",
+      "path": "coordination/hierarchical-coordinator.md",
+      "capabilities": [
+        "hierarchical_coordination",
+        "task_delegation",
+        "result_aggregation",
+        "priority_management"
+      ],
+      "sdlc_phase": "orchestration",
+      "swarms": [
+        "production-readiness",
+        "integration-api"
+      ]
+    },
+    {
+      "name": "mesh-coordinator",
+      "type": "coordinator",
+      "category": "coordination",
+      "path": "coordination/mesh-coordinator.md",
+      "capabilities": [
+        "mesh_coordination",
+        "peer_collaboration",
+        "distributed_decisions",
+        "consensus_building"
+      ],
+      "sdlc_phase": "orchestration",
+      "swarms": [
+        "security-compliance",
+        "performance-scalability"
+      ]
+    },
+    {
+      "name": "adaptive-coordinator",
+      "type": "coordinator",
+      "category": "coordination",
+      "path": "coordination/adaptive-coordinator.md",
+      "capabilities": [
+        "adaptive_coordination",
+        "dynamic_topology",
+        "performance_optimization",
+        "context_awareness"
+      ],
+      "sdlc_phase": "orchestration",
+      "swarms": [
+        "continuous-quality",
+        "performance-scalability"
+      ]
+    },
+    {
+      "name": "context-orchestrator",
+      "type": "orchestrator",
+      "category": "coordination",
+      "path": "coordination/context-orchestrator.md",
+      "capabilities": [
+        "workflow_orchestration",
+        "context_management",
+        "dependency_resolution",
+        "pipeline_coordination"
+      ],
+      "sdlc_phase": "orchestration",
+      "swarms": [
+        "requirements-design",
+        "e2e-journey"
+      ]
+    },
+    {
+      "name": "knowledge-curator",
+      "type": "knowledge",
+      "category": "knowledge-reporting",
+      "path": "knowledge-reporting/knowledge-curator.md",
+      "capabilities": [
+        "knowledge_management",
+        "pattern_extraction",
+        "best_practices",
+        "lesson_learned"
+      ],
+      "sdlc_phase": "continuous",
+      "swarms": [
+        "continuous-quality"
+      ]
+    },
+    {
+      "name": "quality-storyteller",
+      "type": "reporter",
+      "category": "knowledge-reporting",
+      "path": "knowledge-reporting/quality-storyteller.md",
+      "capabilities": [
+        "quality_reporting",
+        "metrics_visualization",
+        "stakeholder_communication",
+        "trend_analysis"
+      ],
+      "sdlc_phase": "reporting",
+      "swarms": [
+        "production-readiness"
+      ]
+    },
+    {
+      "name": "test-strategist",
+      "type": "strategist",
+      "category": "knowledge-reporting",
+      "path": "knowledge-reporting/test-strategist.md",
+      "capabilities": [
+        "strategy_planning",
+        "process_improvement",
+        "tool_selection",
+        "maturity_assessment"
+      ],
+      "sdlc_phase": "planning",
+      "swarms": [
+        "continuous-quality"
+      ]
+    },
+    {
+      "name": "mocking-agent",
+      "type": "developer",
+      "category": "knowledge-reporting",
+      "path": "knowledge-reporting/mocking-agent.md",
+      "capabilities": [
+        "mock_creation",
+        "stub_generation",
+        "fake_services",
+        "virtualization"
+      ],
+      "sdlc_phase": "development",
+      "swarms": [
+        "development-tdd"
+      ]
+    }
+  ],
+  "categories": [
+    "core-testing",
+    "requirements-design",
+    "risk-security",
+    "performance-reliability",
+    "production-monitoring",
+    "coordination",
+    "knowledge-reporting"
+  ],
+  "swarms": [
+    "requirements-design",
+    "development-tdd",
+    "integration-api",
+    "security-compliance",
+    "performance-scalability",
+    "e2e-journey",
+    "production-readiness",
+    "continuous-quality"
+  ],
+  "total": 35
+}

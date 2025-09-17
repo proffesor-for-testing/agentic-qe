@@ -1,0 +1,10 @@
+name: security-compliance
+description: Security assessment, compliance validation, accessibility
+agents:
+  - security-sentinel
+  - security-injection
+  - accessibility-advocate
+  - risk-oracle
+strategy: parallel
+priority: critical
+phase: testing

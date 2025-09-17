@@ -31,8 +31,14 @@
     "cli": "ts-node src/cli/aqe.ts",
     "mcp": "node mcp-server.js",
     "mcp:start": "node mcp-server.js",
+    "mcp:config": "node scripts/configure-mcp.js",
+    "mcp:restart": "pkill -f mcp-server.js 2>/dev/null; node mcp-server.js",
+    "mcp:test": "QE_MCP_SUMMARY_MODE=true node mcp-server.js",
+    "init:agents": "node scripts/init-agents.js",
+    "benchmark": "node benchmark/qe-benchmark.js",
+    "benchmark:full": "node benchmark/qe-benchmark.js --iterations 10 --warmup 3",
     "check": "./scripts/check-prerequisites.sh",
-    "postinstall": "npm run build && echo '\n✅ Run npm run check to verify prerequisites'"
+    "postinstall": "npm run build && node scripts/init-agents.js 2>/dev/null && echo '\n✅ Run npm run check to verify prerequisites'"
   },
   "keywords": [
     "quality-engineering",

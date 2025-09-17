@@ -24,6 +24,8 @@ export type AgentType =
   | 'test-planner'
   | 'test-executor'
   | 'test-analyzer'
+  | 'test-generator'
+  | 'test-runner'
   | 'performance-tester'
   | 'security-tester'
   | 'accessibility-tester'

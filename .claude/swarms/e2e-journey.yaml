@@ -1,0 +1,10 @@
+name: e2e-journey
+description: End-to-end testing, user journey validation, edge cases
+agents:
+  - exploratory-testing-navigator
+  - functional-stateful
+  - functional-negative
+  - test-analyzer
+strategy: sequential
+priority: critical
+phase: testing

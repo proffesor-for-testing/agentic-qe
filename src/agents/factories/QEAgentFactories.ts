@@ -16,6 +16,10 @@ import { TDDPairProgrammer } from '../tdd-pair-programmer/TDDPairProgrammer';
 import { ProductionObserver } from '../production-observer/ProductionObserver';
 import { DeploymentGuardian } from '../deployment-guardian/DeploymentGuardian';
 import { RequirementsExplorer } from '../requirements-explorer/RequirementsExplorer';
+import { TestAnalyzer } from '../test-analyzer/TestAnalyzer';
+import { TestGenerator } from '../test-generator/TestGenerator';
+import { TestPlanner } from '../test-planner/TestPlanner';
+import { TestRunner } from '../test-runner/TestRunner';
 
 /**
  * Factory for Exploratory Testing Navigator
@@ -180,6 +184,122 @@ export class RequirementsExplorerFactory implements AgentFactory {
 }
 
 /**
+ * Factory for Test Analyzer
+ */
+export class TestAnalyzerFactory implements AgentFactory {
+  create(config: QEAgentConfig, memory: QEMemory, hooks: HookManager): QEAgent {
+    const enhancedConfig = {
+      ...config,
+      type: 'test-analyzer' as AgentType,
+      capabilities: [
+        'coverage-analysis' as AgentCapability,
+        'test-analysis' as AgentCapability,
+        'test-gap-identification' as AgentCapability,
+        'metrics-collection' as AgentCapability,
+        'anomaly-detection' as AgentCapability,
+        'pattern-recognition' as AgentCapability,
+        'performance-monitoring' as AgentCapability,
+        ...config.capabilities
+      ]
+    };
+
+    return new TestAnalyzer(
+      enhancedConfig,
+      memory,
+      hooks,
+      new Logger(`TestAnalyzer:${config.name}`)
+    );
+  }
+}
+
+/**
+ * Factory for Test Generator
+ */
+export class TestGeneratorFactory implements AgentFactory {
+  create(config: QEAgentConfig, memory: QEMemory, hooks: HookManager): QEAgent {
+    const enhancedConfig = {
+      ...config,
+      type: 'test-generator' as AgentType,
+      capabilities: [
+        'test-generation' as AgentCapability,
+        'test-analysis' as AgentCapability,
+        'risk-assessment' as AgentCapability,
+        'test-optimization' as AgentCapability,
+        'coverage-analysis' as AgentCapability,
+        'pattern-recognition' as AgentCapability,
+        'bug-detection' as AgentCapability,
+        ...config.capabilities
+      ]
+    };
+
+    return new TestGenerator(
+      enhancedConfig,
+      memory,
+      hooks,
+      new Logger(`TestGenerator:${config.name}`)
+    );
+  }
+}
+
+/**
+ * Factory for Test Planner
+ */
+export class TestPlannerFactory implements AgentFactory {
+  create(config: QEAgentConfig, memory: QEMemory, hooks: HookManager): QEAgent {
+    const enhancedConfig = {
+      ...config,
+      type: 'test-planner' as AgentType,
+      capabilities: [
+        'test-generation' as AgentCapability,
+        'test-analysis' as AgentCapability,
+        'risk-assessment' as AgentCapability,
+        'test-optimization' as AgentCapability,
+        'coverage-analysis' as AgentCapability,
+        'pattern-recognition' as AgentCapability,
+        'bug-detection' as AgentCapability,
+        ...config.capabilities
+      ]
+    };
+
+    return new TestPlanner(
+      enhancedConfig,
+      memory,
+      hooks,
+      new Logger(`TestPlanner:${config.name}`)
+    );
+  }
+}
+
+/**
+ * Factory for Test Runner
+ */
+export class TestRunnerFactory implements AgentFactory {
+  create(config: QEAgentConfig, memory: QEMemory, hooks: HookManager): QEAgent {
+    const enhancedConfig = {
+      ...config,
+      type: 'test-runner' as AgentType,
+      capabilities: [
+        'test-generation' as AgentCapability,
+        'test-analysis' as AgentCapability,
+        'risk-assessment' as AgentCapability,
+        'test-optimization' as AgentCapability,
+        'coverage-analysis' as AgentCapability,
+        'pattern-recognition' as AgentCapability,
+        'bug-detection' as AgentCapability,
+        ...config.capabilities
+      ]
+    };
+
+    return new TestRunner(
+      enhancedConfig,
+      memory,
+      hooks,
+      new Logger(`TestRunner:${config.name}`)
+    );
+  }
+}
+
+/**
  * Register all QE agent factories
  */
 export function registerQEAgents(): void {
@@ -189,6 +309,10 @@ export function registerQEAgents(): void {
   AgentRegistry.register('production-observer', new ProductionObserverFactory());
   AgentRegistry.register('deployment-guardian', new DeploymentGuardianFactory());
   AgentRegistry.register('requirements-explorer', new RequirementsExplorerFactory());
+  AgentRegistry.register('test-analyzer', new TestAnalyzerFactory());
+  AgentRegistry.register('test-generator', new TestGeneratorFactory());
+  AgentRegistry.register('test-planner', new TestPlannerFactory());
+  AgentRegistry.register('test-runner', new TestRunnerFactory());
 }
 
 /**
@@ -264,6 +388,42 @@ export function getDefaultQEAgentConfig(
       ],
       timeout: 600000, // 10 minutes for requirements analysis
       priority: 7
+    },
+    'test-analyzer': {
+      capabilities: [
+        'coverage-analysis' as AgentCapability,
+        'test-analysis' as AgentCapability,
+        'test-gap-identification' as AgentCapability
+      ],
+      timeout: 600000, // 10 minutes for test analysis
+      priority: 6
+    },
+    'test-generator': {
+      capabilities: [
+        'test-generation' as AgentCapability,
+        'test-analysis' as AgentCapability,
+        'test-optimization' as AgentCapability
+      ],
+      timeout: 900000, // 15 minutes for test generation
+      priority: 5
+    },
+    'test-planner': {
+      capabilities: [
+        'test-generation' as AgentCapability,
+        'risk-assessment' as AgentCapability,
+        'test-optimization' as AgentCapability
+      ],
+      timeout: 600000, // 10 minutes for test planning
+      priority: 7
+    },
+    'test-runner': {
+      capabilities: [
+        'test-analysis' as AgentCapability,
+        'coverage-analysis' as AgentCapability,
+        'performance-monitoring' as AgentCapability
+      ],
+      timeout: 1800000, // 30 minutes for test execution
+      priority: 8
     }
   };
 
@@ -314,7 +474,11 @@ export function getQEAgentTypes(): AgentType[] {
     'tdd-pair-programmer',
     'production-observer',
     'deployment-guardian',
-    'requirements-explorer'
+    'requirements-explorer',
+    'test-analyzer',
+    'test-generator',
+    'test-planner',
+    'test-runner'
   ];
 }
 

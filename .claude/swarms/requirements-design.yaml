@@ -1,0 +1,10 @@
+name: requirements-design
+description: Early quality gates, testability assessment, design validation
+agents:
+  - requirements-explorer
+  - design-challenger
+  - spec-linter
+  - test-planner
+strategy: sequential
+priority: critical
+phase: requirements

@@ -1,0 +1,165 @@
+name: test-runner
+type: executor
+category: core-testing
+description: Test execution and orchestration specialist
+version: 1.0.0
+author: AQE Framework
+
+capabilities:
+  - test_execution
+  - parallel_execution
+  - test_orchestration
+  - result_collection
+  - coverage_collection
+  - artifact_management
+  - retry_handling
+
+tools:
+  - name: execute_suite
+    description: Execute test suite
+    parameters:
+      - name: suite
+        type: string
+        required: true
+        description: Test suite to execute
+      - name: configuration
+        type: object
+        required: false
+        description: Execution configuration
+
+  - name: run_parallel
+    description: Run tests in parallel
+    parameters:
+      - name: tests
+        type: array
+        required: true
+        description: Tests to run in parallel
+      - name: workers
+        type: number
+        required: false
+        description: Number of parallel workers
+
+  - name: collect_coverage
+    description: Collect test coverage
+    parameters:
+      - name: suite
+        type: string
+        required: true
+        description: Test suite for coverage
+      - name: format
+        type: string
+        required: false
+        description: Coverage report format
+
+  - name: manage_artifacts
+    description: Manage test artifacts
+    parameters:
+      - name: run_id
+        type: string
+        required: true
+        description: Test run ID
+      - name: action
+        type: string
+        required: true
+        description: Action to perform (collect, store, clean)
+
+prompts:
+  execute_tests: |
+    Execute test suite: {{suite}}
+    Configuration: {{config}}
+
+    Steps:
+    1. Initialize test environment
+    2. Load test cases
+    3. Execute tests (parallel/sequential)
+    4. Collect results
+    5. Generate reports
+    6. Store artifacts
+
+  parallel_execution: |
+    Run tests in parallel:
+    Tests: {{test_count}}
+    Workers: {{workers}}
+
+    Strategy:
+    - Distribute tests evenly
+    - Handle worker failures
+    - Aggregate results
+    - Maintain test isolation
+
+  coverage_collection: |
+    Collect coverage for: {{suite}}
+
+    Metrics to collect:
+    - Line coverage
+    - Branch coverage
+    - Function coverage
+    - Statement coverage
+
+    Generate report in format: {{format}}
+
+  artifact_management: |
+    Manage artifacts for run: {{run_id}}
+
+    Collect:
+    - Test logs
+    - Screenshots
+    - Videos
+    - Coverage reports
+    - Performance metrics
+
+examples:
+  - input: "Run unit tests with coverage"
+    output: |
+      Executed 150 unit tests:
+      - Passed: 145
+      - Failed: 3
+      - Skipped: 2
+      - Coverage: 85.3%
+      - Duration: 12.5s
+
+  - input: "Execute e2e tests in parallel"
+    output: |
+      Running 50 e2e tests with 4 workers:
+      - Worker 1: 13 tests (12 passed, 1 failed)
+      - Worker 2: 12 tests (all passed)
+      - Worker 3: 13 tests (all passed)
+      - Worker 4: 12 tests (11 passed, 1 skipped)
+      - Total time: 45s (vs 180s sequential)
+
+  - input: "Run integration tests with retry"
+    output: |
+      Executed 30 integration tests:
+      - First run: 27 passed, 3 failed
+      - Retry 1: 2 tests passed
+      - Final: 29 passed, 1 failed
+      - Total duration: 60s
+
+parameters:
+  default_timeout: 30000
+  max_retries: 3
+  max_parallel_workers: 8
+  coverage_thresholds:
+    lines: 80
+    branches: 70
+    functions: 80
+    statements: 80
+  artifact_types:
+    - logs
+    - screenshots
+    - videos
+    - reports
+    - coverage
+
+metadata:
+  tags:
+    - execution
+    - runner
+    - orchestration
+    - parallel
+    - coverage
+  sdlc_phase: testing
+  swarms:
+    - integration-api
+    - e2e-journey
+    - continuous-quality

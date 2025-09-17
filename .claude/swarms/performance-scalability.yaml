@@ -1,0 +1,10 @@
+name: performance-scalability
+description: Performance testing, load testing, chaos engineering
+agents:
+  - performance-hunter
+  - performance-planner
+  - resilience-challenger
+  - chaos-engineer
+strategy: adaptive
+priority: high
+phase: testing

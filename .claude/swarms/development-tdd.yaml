@@ -1,0 +1,10 @@
+name: development-tdd
+description: Test-first development, unit testing, mocking support
+agents:
+  - tdd-pair-programmer
+  - test-generator
+  - mocking-agent
+  - functional-positive
+strategy: parallel
+priority: high
+phase: development

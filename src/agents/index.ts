@@ -67,6 +67,10 @@ export * from './tdd-pair-programmer';
 export * from './production-observer';
 export * from './deployment-guardian';
 export * from './requirements-explorer';
+export * from './test-analyzer';
+export * from './test-generator';
+export * from './test-planner';
+export * from './test-runner';
 export * from './factories/QEAgentFactories';
 
 // Default export for convenience

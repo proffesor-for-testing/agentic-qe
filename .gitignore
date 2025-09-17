@@ -59,6 +59,7 @@ temp/
 .roo/
 .swarm/
 bin/
+.claude/cache/
 
 # Package manager locks (keep yarn.lock if using yarn)
 package-lock.json

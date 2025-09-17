@@ -96,51 +96,62 @@ This project combines two powerful frameworks:
 - **Clean Architecture**: Separate concerns
 - **Documentation**: Keep updated
 
-## 🚀 Available Agents (54 Total)
+## 🚀 Optimized QE Framework Agents (35 Total)
 
-### Core Development
-`coder`, `reviewer`, `tester`, `planner`, `researcher`
+### Core QE Testing (12 agents)
+`exploratory-testing-navigator`, `functional-flow-validator`, `functional-negative`, `functional-positive`, `functional-stateful`, `mutation-testing-swarm`, `regression-guardian`, `test-analyzer`, `test-generator`, `test-planner`, `test-runner`, `tdd-pair-programmer`
 
-### Swarm Coordination
-`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`
+### Requirements & Design (4 agents)
+`requirements-explorer`, `design-challenger`, `spec-linter`, `accessibility-advocate`
 
-### Consensus & Distributed
-`byzantine-coordinator`, `raft-manager`, `gossip-coordinator`, `consensus-builder`, `crdt-synchronizer`, `quorum-manager`, `security-manager`
+### Risk & Security (4 agents)
+`risk-oracle`, `security-sentinel`, `security-injection`, `security-auth`
 
-### Performance & Optimization
-`perf-analyzer`, `performance-benchmarker`, `task-orchestrator`, `memory-coordinator`, `smart-agent`
+### Performance & Reliability (4 agents)
+`performance-analyzer`, `performance-hunter`, `performance-planner`, `resilience-challenger`
 
-### GitHub & Repository
-`github-modes`, `pr-manager`, `code-review-swarm`, `issue-tracker`, `release-manager`, `workflow-automation`, `project-board-sync`, `repo-architect`, `multi-repo-swarm`
+### Production & Monitoring (3 agents)
+`production-observer`, `deployment-guardian`, `chaos-engineer`
 
-### SPARC Methodology
-`sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`, `refinement`
+### Coordination & Orchestration (4 agents)
+`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `context-orchestrator`
 
-### Specialized Development
-`backend-dev`, `mobile-dev`, `ml-developer`, `cicd-engineer`, `api-docs`, `system-architect`, `code-analyzer`, `base-template-generator`
+### Knowledge & Reporting (4 agents)
+`knowledge-curator`, `quality-storyteller`, `test-strategist`, `mocking-agent`
 
-### Testing & Validation
-`tdd-london-swarm`, `production-validator`
+## 🎯 SDLC-Aligned Testing Swarms (8 Pre-configured)
 
-### Migration & Planning
-`migration-planner`, `swarm-init`
+### 1. Requirements & Design Phase (`requirements-design`)
+**Agents**: requirements-explorer, design-challenger, spec-linter, test-planner
+**Purpose**: Early quality gates, testability assessment
 
-## 🤖 Quality Engineering Agents (48 Total)
+### 2. Development & TDD (`development-tdd`)
+**Agents**: tdd-pair-programmer, test-generator, mocking-agent, functional-positive
+**Purpose**: Test-first development, unit testing
 
-### Testing Agents (15)
-`exploratory-tester`, `functional-tester`, `integration-tester`, `performance-tester`, `regression-guardian`, `risk-oracle`, `security-sentinel`, `test-architect`, `test-cartographer`, `test-orchestrator`, `test-strategist`, `tdd-pair-programmer`, `usability-advocate`, `validation-synthesizer`, `verification-virtuoso`
+### 3. Integration & API Testing (`integration-api`)
+**Agents**: functional-flow-validator, test-runner, security-auth, performance-analyzer
+**Purpose**: Integration testing, API validation
 
-### Requirements & Analysis (9)
-`requirements-explorer`, `story-weaver`, `boundary-explorer`, `oracle-builder`, `invariant-detector`, `data-flow-analyst`, `state-explorer`, `contract-guardian`, `specification-validator`
+### 4. Security & Compliance (`security-compliance`)
+**Agents**: security-sentinel, security-injection, accessibility-advocate, risk-oracle
+**Purpose**: Security assessment, compliance validation
 
-### Specialized Testing (9)
-`accessibility-champion`, `api-contract-tester`, `chaos-engineer`, `compatibility-scanner`, `compliance-auditor`, `localization-validator`, `mobile-maestro`, `visual-regression-detective`, `voice-interface-tester`
+### 5. Performance & Scalability (`performance-scalability`)
+**Agents**: performance-hunter, performance-planner, resilience-challenger, chaos-engineer
+**Purpose**: Performance testing, chaos engineering
 
-### Advanced Capabilities (9)
-`ai-test-generator`, `bug-predictor`, `continuous-improver`, `production-observer`, `quality-gatekeeper`, `test-data-architect`, `test-efficiency-optimizer`, `test-knowledge-curator`, `test-metrics-analyst`
+### 6. E2E & User Journey (`e2e-journey`)
+**Agents**: exploratory-testing-navigator, functional-stateful, functional-negative, test-analyzer
+**Purpose**: End-to-end testing, edge cases
 
-### Collaborative Agents (6)
-`collaborative-reviewer`, `documentation-guardian`, `feedback-synthesizer`, `knowledge-bridge`, `quality-storyteller`, `team-synchronizer`
+### 7. Production Readiness (`production-readiness`)
+**Agents**: deployment-guardian, production-observer, regression-guardian, quality-storyteller
+**Purpose**: Pre-production validation, monitoring
+
+### 8. Continuous Quality (`continuous-quality`)
+**Agents**: test-strategist, knowledge-curator, mutation-testing-swarm, test-analyzer
+**Purpose**: Continuous improvement, knowledge management
 
 ## 🎯 Claude Code vs MCP Tools
 
@@ -261,6 +272,53 @@ npx claude-flow@alpha hooks notify --message "[what was done]"
 npx claude-flow@alpha hooks post-task --task-id "[task]"
 npx claude-flow@alpha hooks session-end --export-metrics true
 ```
+
+## 📋 QE Framework Agent Rules
+
+### Agent Selection Guidelines
+1. **Start with swarms, not individual agents** - Use pre-configured swarms for common scenarios
+2. **Follow SDLC phases** - Select agents based on current development phase
+3. **Risk-based prioritization** - Always run risk-oracle early to prioritize testing
+4. **Parallel execution preferred** - Run independent agents concurrently
+5. **Memory sharing mandatory** - All agents must share findings via EnhancedQEMemory
+
+### Agent Coordination Protocol
+1. **Phase-based execution** - Follow QECoordinator's 5-phase workflow
+2. **Quality gates** - Each phase must pass quality gates before proceeding
+3. **Cross-agent communication** - Use mesh coordination for peer collaboration
+4. **Result aggregation** - Hierarchical coordinators aggregate swarm results
+5. **Continuous feedback** - Knowledge-curator captures learnings
+
+### Swarm Execution Patterns
+```bash
+# Pattern 1: Phase-based testing
+aqe orchestrate --phase requirements  # Start with requirements
+aqe orchestrate --phase development   # Move to dev/TDD
+aqe orchestrate --phase testing      # Comprehensive testing
+aqe orchestrate --phase deployment   # Production readiness
+
+# Pattern 2: Risk-driven testing
+aqe spawn risk-oracle --task "Assess system risks"
+aqe orchestrate --swarm <high-risk-swarm> --priority critical
+
+# Pattern 3: Continuous quality
+aqe spawn --swarm continuous-quality --mode background
+```
+
+### Memory Keys Convention
+- `{agent}_context_{timestamp}` - Agent task context
+- `{agent}_findings_{phase}` - Agent findings by phase
+- `{agent}_metrics_{date}` - Daily metrics
+- `swarm_{name}_results` - Swarm aggregated results
+- `session_{id}_state` - Session state persistence
+
+### Quality Gate Criteria
+- **Requirements Phase**: 100% testable requirements
+- **Development Phase**: 80% unit test coverage
+- **Integration Phase**: All APIs contract tested
+- **Testing Phase**: Zero critical bugs
+- **Deployment Phase**: All smoke tests pass
+- **Production Phase**: Monitoring configured
 
 ## 🎯 QE Agent Examples
 

@@ -1,0 +1,10 @@
+name: continuous-quality
+description: Continuous improvement, knowledge management, mutation testing
+agents:
+  - test-strategist
+  - knowledge-curator
+  - mutation-testing-swarm
+  - test-analyzer
+strategy: adaptive
+priority: medium
+phase: continuous

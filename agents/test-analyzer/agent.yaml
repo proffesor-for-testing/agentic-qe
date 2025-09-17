@@ -1,0 +1,115 @@
+name: test-analyzer
+type: analyzer
+category: core-testing
+description: Test suite analysis and improvement specialist
+version: 1.0.0
+author: AQE Framework
+
+capabilities:
+  - coverage_analysis
+  - test_quality
+  - gap_identification
+  - metrics_analysis
+  - redundancy_detection
+  - flaky_test_detection
+  - performance_profiling
+
+tools:
+  - name: analyze_coverage
+    description: Analyze test coverage metrics
+    parameters:
+      - name: project_path
+        type: string
+        required: true
+        description: Path to project for coverage analysis
+      - name: report_format
+        type: string
+        required: false
+        description: Coverage report format (lcov, cobertura, json)
+
+  - name: identify_gaps
+    description: Identify missing test scenarios
+    parameters:
+      - name: requirements
+        type: array
+        required: true
+        description: List of requirements to check
+      - name: existing_tests
+        type: array
+        required: true
+        description: List of existing test files
+
+  - name: detect_flaky_tests
+    description: Identify unreliable tests
+    parameters:
+      - name: test_history
+        type: array
+        required: true
+        description: Historical test execution results
+
+  - name: analyze_quality
+    description: Assess test quality metrics
+    parameters:
+      - name: test_files
+        type: array
+        required: true
+        description: Test files to analyze
+
+prompts:
+  analyze_task: |
+    Analyze the test suite for the following aspects:
+    1. Code coverage metrics and gaps
+    2. Test quality and maintainability
+    3. Missing test scenarios
+    4. Test redundancy and duplication
+    5. Performance bottlenecks in tests
+    Task: {{task}}
+
+  coverage_report: |
+    Generate a detailed coverage report including:
+    - Line, branch, function, and statement coverage
+    - Uncovered code paths
+    - Critical areas lacking tests
+    Project: {{project_path}}
+
+  gap_analysis: |
+    Identify testing gaps by comparing:
+    - Requirements: {{requirements}}
+    - Existing tests: {{existing_tests}}
+    Provide recommendations for missing scenarios.
+
+  quality_assessment: |
+    Evaluate test quality based on:
+    - Maintainability and readability
+    - Test effectiveness
+    - Assertion quality
+    - Setup/teardown complexity
+    Files: {{test_files}}
+
+examples:
+  - input: "Analyze test coverage for authentication module"
+    output: "Coverage analysis shows 72% line coverage with gaps in error handling paths"
+
+  - input: "Identify missing test scenarios for API endpoints"
+    output: "Found 5 endpoints without integration tests and 3 missing edge cases"
+
+  - input: "Detect flaky tests in the test suite"
+    output: "Identified 3 flaky tests with 40% failure rate in CI environment"
+
+parameters:
+  min_coverage_threshold: 80
+  quality_threshold: 70
+  max_test_duration_ms: 5000
+  flaky_test_threshold: 0.3
+
+metadata:
+  tags:
+    - testing
+    - analysis
+    - coverage
+    - quality
+    - metrics
+  sdlc_phase: testing
+  swarms:
+    - continuous-quality
+    - e2e-journey

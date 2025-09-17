@@ -1,0 +1,10 @@
+name: production-readiness
+description: Pre-production validation, deployment verification, monitoring
+agents:
+  - deployment-guardian
+  - production-observer
+  - regression-guardian
+  - quality-storyteller
+strategy: hierarchical
+priority: critical
+phase: deployment

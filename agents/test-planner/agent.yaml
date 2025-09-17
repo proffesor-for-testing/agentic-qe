@@ -1,0 +1,172 @@
+name: test-planner
+type: planner
+category: core-testing
+description: Comprehensive test plan and strategy creator
+version: 1.0.0
+author: AQE Framework
+
+capabilities:
+  - test_planning
+  - strategy_design
+  - resource_allocation
+  - risk_assessment
+  - schedule_creation
+  - effort_estimation
+  - test_prioritization
+
+tools:
+  - name: create_test_plan
+    description: Create comprehensive test plan
+    parameters:
+      - name: project_info
+        type: object
+        required: true
+        description: Project information and requirements
+      - name: timeline
+        type: number
+        required: false
+        description: Project timeline in days
+
+  - name: assess_risks
+    description: Identify and assess testing risks
+    parameters:
+      - name: project_scope
+        type: object
+        required: true
+        description: Project scope and complexity
+      - name: constraints
+        type: array
+        required: false
+        description: Project constraints
+
+  - name: allocate_resources
+    description: Plan resource allocation
+    parameters:
+      - name: team_size
+        type: number
+        required: true
+        description: Available team size
+      - name: budget
+        type: number
+        required: false
+        description: Testing budget
+
+  - name: design_strategy
+    description: Design test strategy
+    parameters:
+      - name: approach
+        type: string
+        required: true
+        description: Testing approach (risk-based, requirements-based, etc.)
+      - name: automation_scope
+        type: number
+        required: false
+        description: Automation percentage target
+
+prompts:
+  create_plan: |
+    Create a comprehensive test plan for:
+    Project: {{project_name}}
+    Description: {{description}}
+
+    Include:
+    1. Test objectives and success criteria
+    2. Scope (in/out)
+    3. Test strategy and approach
+    4. Resource requirements
+    5. Schedule and milestones
+    6. Risk assessment
+    7. Deliverables
+
+  strategy_design: |
+    Design test strategy for:
+    Project Type: {{project_type}}
+    Complexity: {{complexity}}
+    Timeline: {{timeline}}
+
+    Consider:
+    - Test levels (unit, integration, system, acceptance)
+    - Testing techniques
+    - Automation approach
+    - Tools and frameworks
+
+  risk_assessment: |
+    Assess testing risks for:
+    Scope: {{scope}}
+    Dependencies: {{dependencies}}
+    Constraints: {{constraints}}
+
+    Identify:
+    - Technical risks
+    - Resource risks
+    - Schedule risks
+    - Quality risks
+
+    Provide mitigation strategies.
+
+  resource_planning: |
+    Plan resource allocation:
+    Team Size: {{team_size}}
+    Skills Available: {{skills}}
+    Timeline: {{timeline}}
+
+    Determine:
+    - Role distribution
+    - Skill gaps
+    - Training needs
+    - Tool requirements
+
+examples:
+  - input: "Create test plan for e-commerce platform launch"
+    output: |
+      Test Plan: E-Commerce Platform
+      - Objectives: Ensure functionality, performance, security
+      - Scope: Shopping cart, payment, user management
+      - Strategy: Risk-based with 70% automation
+      - Timeline: 8 weeks
+      - Team: 5 QE engineers
+      - Key Risks: Payment integration, peak load handling
+
+  - input: "Design strategy for API testing"
+    output: |
+      API Test Strategy:
+      - Approach: Contract-first testing
+      - Levels: Unit (80%), Integration (100%), E2E (60%)
+      - Tools: Postman, REST Assured, Newman
+      - Automation: 90% coverage
+      - Techniques: Schema validation, response verification
+
+  - input: "Assess risks for mobile app testing"
+    output: |
+      Risk Assessment:
+      - Device fragmentation (High/High) - Use device cloud
+      - Network conditions (Medium/High) - Test on various networks
+      - OS updates (Medium/Medium) - Maintain device lab
+      - App store approval (Low/High) - Early compliance testing
+
+parameters:
+  default_test_levels:
+    - unit
+    - integration
+    - system
+    - acceptance
+  risk_categories:
+    - technical
+    - resource
+    - schedule
+    - quality
+  estimation_techniques:
+    - wideband_delphi
+    - three_point
+    - analogy_based
+
+metadata:
+  tags:
+    - planning
+    - strategy
+    - management
+    - risk
+    - resource
+  sdlc_phase: planning
+  swarms:
+    - requirements-design

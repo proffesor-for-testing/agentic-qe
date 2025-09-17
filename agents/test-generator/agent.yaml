@@ -1,0 +1,146 @@
+name: test-generator
+type: generator
+category: core-testing
+description: Automated test case generation specialist
+version: 1.0.0
+author: AQE Framework
+
+capabilities:
+  - test_generation
+  - data_generation
+  - scenario_creation
+  - boundary_testing
+  - parameterized_tests
+  - property_based_testing
+  - mutation_testing
+
+tools:
+  - name: generate_from_requirements
+    description: Generate test cases from requirements
+    parameters:
+      - name: requirements
+        type: array
+        required: true
+        description: List of requirements to generate tests for
+      - name: test_types
+        type: array
+        required: false
+        description: Types of tests to generate (unit, integration, e2e)
+
+  - name: generate_test_data
+    description: Generate test data sets
+    parameters:
+      - name: schema
+        type: object
+        required: true
+        description: Data schema for generation
+      - name: count
+        type: number
+        required: false
+        description: Number of data items to generate
+
+  - name: generate_boundary_tests
+    description: Generate boundary value tests
+    parameters:
+      - name: input_ranges
+        type: object
+        required: true
+        description: Input field ranges for boundary testing
+
+  - name: generate_property_tests
+    description: Generate property-based tests
+    parameters:
+      - name: properties
+        type: array
+        required: true
+        description: Properties to test
+
+prompts:
+  generate_tests: |
+    Generate comprehensive test cases for the following:
+    Task: {{task}}
+
+    Include:
+    1. Positive test cases
+    2. Negative test cases
+    3. Edge cases
+    4. Boundary conditions
+    5. Error scenarios
+
+  data_generation: |
+    Generate test data for schema: {{schema}}
+
+    Create datasets for:
+    - Valid inputs
+    - Invalid inputs
+    - Boundary values
+    - Edge cases
+    - Performance testing
+
+  requirement_analysis: |
+    Analyze requirement: {{requirement}}
+
+    Generate test cases covering:
+    - Happy path scenarios
+    - Error conditions
+    - Security considerations
+    - Performance requirements
+    - Compatibility tests
+
+  mutation_testing: |
+    Generate mutation tests for code: {{code}}
+
+    Apply mutations:
+    - Operator replacement
+    - Constant modification
+    - Statement deletion
+    - Condition negation
+
+examples:
+  - input: "Generate tests for user authentication flow"
+    output: |
+      Generated 12 test cases:
+      - Valid login with correct credentials
+      - Invalid login with wrong password
+      - Account lockout after failed attempts
+      - Session timeout handling
+      - Password reset flow
+
+  - input: "Generate boundary tests for age field (0-120)"
+    output: |
+      Generated 6 boundary tests:
+      - Age = 0 (min boundary)
+      - Age = -1 (below min)
+      - Age = 120 (max boundary)
+      - Age = 121 (above max)
+      - Age = 60 (mid-range)
+      - Age = null (missing value)
+
+  - input: "Generate test data for user profile"
+    output: |
+      Generated 50 data sets:
+      - 20 valid profiles
+      - 10 invalid profiles
+      - 10 boundary cases
+      - 10 edge cases
+
+parameters:
+  default_test_count: 10
+  max_test_data_size: 1000
+  boundary_precision: 0.001
+  mutation_operators:
+    - arithmetic
+    - relational
+    - logical
+    - assignment
+
+metadata:
+  tags:
+    - testing
+    - generation
+    - automation
+    - test-data
+    - boundary
+  sdlc_phase: development
+  swarms:
+    - development-tdd

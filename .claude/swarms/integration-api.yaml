@@ -1,0 +1,10 @@
+name: integration-api
+description: Integration testing, API validation, contract testing
+agents:
+  - functional-flow-validator
+  - test-runner
+  - security-auth
+  - performance-analyzer
+strategy: hierarchical
+priority: high
+phase: integration
