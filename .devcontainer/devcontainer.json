@@ -1,0 +1,59 @@
+{
+  "name": "Basic Development DevPod",
+  "image": "mcr.microsoft.com/devcontainers/base:debian12",
+  "runArgs": [
+    "--privileged",
+    "--memory=8g",
+    "--memory-swap=12g",
+    "--memory-reservation=4g",
+    "--cpus=2",
+    "--oom-kill-disable=false",
+    "--memory-swappiness=60"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=2048 --expose-gc",
+    "CLAUDE_FLOW_MAX_AGENTS": "3",
+    "CLAUDE_FLOW_MEMORY_LIMIT": "512",
+    "CLAUDE_FLOW_TOPOLOGY": "sequential",
+    "ENABLE_MEMORY_MONITORING": "true",
+    "MEMORY_CHECK_INTERVAL": "5000",
+    "AGENT_MEMORY_LIMIT_MB": "512",
+    "MAX_CONCURRENT_AGENTS": "3",
+    "ENABLE_AGENT_QUEUE": "true",
+    "MEMORY_PRESSURE_THRESHOLD": "0.85",
+    "FORCE_GC_INTERVAL": "60000"
+  },
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/python:1": {}
+  },
+  "hostRequirements": {
+    "memory": "8gb",
+    "cpus": 2,
+    "storage": "32gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rooveterinaryinc.roo-cline",
+        "vsls-contrib.gistfs",
+        "github.copilot",
+        "github.copilot-chat",
+        "anthropic.claude-code",
+        "codeflow-studio.claude-code-extension",
+        "suzuki0430.ccusage-vscode"
+      ]
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup-memory.sh && bash .devcontainer/install-tools.sh",
+  "shutdownAction": "none",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "capAdd": [
+    "SYS_ADMIN",
+    "SYS_PTRACE"
+  ]
+}

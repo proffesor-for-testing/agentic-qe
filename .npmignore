@@ -1,0 +1,65 @@
+# Development files
+src/
+tests/
+*.test.ts
+*.spec.ts
+*.test.js
+*.spec.js
+
+# Build configuration
+tsconfig.json
+jest.config.js
+.eslintrc.js
+.prettierrc
+typedoc.json
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Documentation source (include only built docs)
+docs/development/
+docs/architecture/DEEP-DIVE.md
+
+# Examples and demos
+examples/
+demos/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+coverage/
+
+# System files
+.DS_Store
+Thumbs.db
+.swarm/
+
+# Environment files
+.env
+.env.local
+.env.test
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Node modules
+node_modules/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Scripts that are only for development
+scripts/check-memory-before-test.js
+scripts/verifyComplexity.ts

@@ -1,0 +1,14 @@
+{
+  "fleetId": "aqe-fleet-1759055557274",
+  "topology": "hierarchical",
+  "agents": [
+    "qe-test-generator",
+    "qe-test-executor",
+    "qe-coverage-analyzer",
+    "qe-quality-gate",
+    "qe-performance-tester",
+    "qe-security-scanner"
+  ],
+  "created": "2025-09-28T10:32:37.274Z",
+  "status": "active"
+}

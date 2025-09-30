@@ -1,0 +1,50 @@
+# Agentic QE Fleet Configuration
+
+fleet:
+  id: "agentic-qe-fleet"
+  name: "Autonomous Quality Engineering Fleet"
+  maxAgents: 20
+  heartbeatInterval: 30000  # 30 seconds
+  taskTimeout: 600000       # 10 minutes
+
+agents:
+  - type: "test-executor"
+    count: 3
+    config:
+      frameworks: ["jest", "cypress", "playwright"]
+      maxParallelTests: 4
+      timeout: 300000
+      reportFormat: "json"
+
+  - type: "quality-analyzer"
+    count: 2
+    config:
+      tools: ["eslint", "sonarqube", "codecov"]
+      thresholds:
+        coverage: 80
+        complexity: 10
+        maintainability: 70
+        security: 90
+      reportFormat: "json"
+
+database:
+  type: "sqlite"
+  filename: "./data/fleet.db"
+
+logging:
+  level: "info"
+  format: "json"
+  outputs: ["console", "file"]
+
+api:
+  port: 3000
+  host: "0.0.0.0"
+  cors: true
+  rateLimit:
+    windowMs: 900000  # 15 minutes
+    max: 100
+
+security:
+  encryption:
+    algorithm: "aes-256-gcm"
+    keyLength: 32
