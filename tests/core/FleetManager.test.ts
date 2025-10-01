@@ -4,10 +4,12 @@
 
 import { FleetManager } from '../../src/core/FleetManager';
 import { Config } from '../../src/utils/Config';
+import { createResourceCleanup } from '../helpers/cleanup';
 
 describe('FleetManager', () => {
   let fleetManager: FleetManager;
   let mockConfig: any;
+  const cleanup = createResourceCleanup();
 
   beforeEach(async () => {
     mockConfig = {
@@ -43,7 +45,7 @@ describe('FleetManager', () => {
   });
 
   afterEach(async () => {
-    // Stop fleet manager gracefully
+    // Stop fleet manager gracefully (includes agent cleanup)
     if (fleetManager) {
       try {
         await fleetManager.stop();
@@ -52,11 +54,8 @@ describe('FleetManager', () => {
       }
     }
 
-    // Wait for all async operations
-    await new Promise(resolve => setImmediate(resolve));
-
-    // Clear all mocks
-    jest.clearAllMocks();
+    // Comprehensive cleanup using helper utilities
+    await cleanup.afterEach();
 
     // Clear references
     fleetManager = null as any;
