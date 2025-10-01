@@ -147,18 +147,33 @@ describe('Fleet Coordination Integration Tests', () => {
   });
 
   afterEach(async () => {
+    // Stop fleet manager gracefully
     if (fleetManager) {
-      await fleetManager.stop();
-      // Explicitly null references to help GC
+      try {
+        await fleetManager.stop();
+      } catch (error) {
+        // Ignore cleanup errors
+      }
       fleetManager = null as any;
     }
+
+    // Clean up event bus
     if (eventBus) {
       eventBus.removeAllListeners();
-      // Explicitly null reference to help GC
       eventBus = null as any;
     }
+
+    // Wait for all pending async operations
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Restore and clear mocks
     jest.restoreAllMocks();
     jest.clearAllMocks();
+
+    // Clear mock implementations
+    mockDatabase = null as any;
+    mockLogger = null as any;
 
     // Force garbage collection if available
     if (global.gc) {

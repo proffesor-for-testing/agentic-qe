@@ -1,0 +1,46 @@
+{
+  "version": "1.0.0",
+  "hooks": {
+    "enabled": true,
+    "preToolUse": {
+      "enabled": true,
+      "commands": [
+        "npx claude-flow@alpha hooks pre-task --description \"{{description}}\" --agent \"{{agent}}\""
+      ]
+    },
+    "postToolUse": {
+      "enabled": true,
+      "commands": [
+        "npx claude-flow@alpha hooks post-task --task-id \"{{task_id}}\" --results \"{{results}}\""
+      ]
+    },
+    "postEdit": {
+      "enabled": true,
+      "commands": [
+        "npx claude-flow@alpha hooks post-edit --file \"{{file}}\" --memory-key \"aqe/files/{{file_name}}\""
+      ]
+    }
+  },
+  "environment": {
+    "CLAUDE_FLOW_HOOKS_ENABLED": "true",
+    "AQE_FLEET_ENABLED": "true",
+    "AQE_MEMORY_NAMESPACE": "aqe"
+  },
+  "permissions": {
+    "allowedCommands": [
+      "aqe-generate",
+      "aqe-execute",
+      "aqe-analyze",
+      "aqe-optimize",
+      "aqe-report",
+      "aqe-fleet-status",
+      "aqe-chaos",
+      "aqe-benchmark"
+    ]
+  },
+  "customPrompts": {
+    "testGeneration": "Generate comprehensive tests following TDD best practices",
+    "coverageAnalysis": "Use sublinear algorithms for efficient coverage analysis",
+    "qualityGate": "Enforce quality thresholds: 95% coverage, <15 complexity"
+  }
+}

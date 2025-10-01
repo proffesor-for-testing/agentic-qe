@@ -21,3 +21,25 @@ jest.mock('../src/utils/Database', () => {
 
 // Global test timeout
 jest.setTimeout(10000);
+
+// Global teardown - clear all timers and async operations
+afterEach(() => {
+  // Clear all timers
+  jest.clearAllTimers();
+  // Clear all mocks
+  jest.clearAllMocks();
+});
+
+// Force cleanup at the end of all tests
+afterAll(async () => {
+  // Wait for pending promises
+  await new Promise(resolve => setImmediate(resolve));
+
+  // Clear all timers
+  jest.clearAllTimers();
+
+  // Force garbage collection if available
+  if (global.gc) {
+    global.gc();
+  }
+});

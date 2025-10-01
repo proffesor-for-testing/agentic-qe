@@ -43,9 +43,24 @@ describe('FleetManager', () => {
   });
 
   afterEach(async () => {
+    // Stop fleet manager gracefully
     if (fleetManager) {
-      await fleetManager.stop();
+      try {
+        await fleetManager.stop();
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
     }
+
+    // Wait for all async operations
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    // Clear references
+    fleetManager = null as any;
+    mockConfig = null as any;
   });
 
   describe('initialization', () => {

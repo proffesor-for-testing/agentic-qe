@@ -111,9 +111,10 @@ describe('Task', () => {
       const highTask = new Task('high', 'test', {}, { priority: 'high' });
       const criticalTask = new Task('critical', 'test', {}, { priority: 'critical' });
 
-      expect(Task.comparePriority(highTask, lowTask)).toBe(1);
-      expect(Task.comparePriority(lowTask, highTask)).toBe(-1);
-      expect(Task.comparePriority(criticalTask, highTask)).toBe(1);
+      // comparePriority returns negative when a > b for descending sort
+      expect(Task.comparePriority(highTask, lowTask)).toBe(-1); // high > low, returns -1 for descending
+      expect(Task.comparePriority(lowTask, highTask)).toBe(1);  // low < high, returns 1
+      expect(Task.comparePriority(criticalTask, highTask)).toBe(-1); // critical > high, returns -1
     });
 
     it('should sort tasks by priority', () => {

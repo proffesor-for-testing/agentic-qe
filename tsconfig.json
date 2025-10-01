@@ -10,6 +10,7 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
+    "downlevelIteration": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "declaration": true,
@@ -26,7 +27,9 @@
       "@core/*": ["src/core/*"],
       "@agents/*": ["src/agents/*"],
       "@cli/*": ["src/cli/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+      "@types/*": ["src/types/*"],
+      "@mcp/*": ["src/mcp/*"]
     }
   },
   "include": [

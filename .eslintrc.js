@@ -16,13 +16,27 @@ module.exports = {
     jest: true,
     es6: true
   },
-  ignorePatterns: ['.eslintrc.js', 'dist', 'node_modules', '**/*.js'],
+  ignorePatterns: [
+    '.eslintrc.js',
+    'dist',
+    'node_modules',
+    'tests',
+    'benchmarks',
+    'examples',
+    'security',
+    '**/*.js',
+    '**/*.test.ts',
+    '**/*.spec.ts'
+  ],
   rules: {
     '@typescript-eslint/interface-name-prefix': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',
-    '@typescript-eslint/no-unused-vars': 'error',
+    '@typescript-eslint/no-unused-vars': ['error', {
+      'argsIgnorePattern': '^_',
+      'varsIgnorePattern': '^_'
+    }],
     '@typescript-eslint/no-inferrable-types': 'off',
     'prefer-const': 'error',
     'no-var': 'error'

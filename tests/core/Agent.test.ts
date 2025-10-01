@@ -8,15 +8,87 @@ import { Task } from '../../src/core/Task';
 import { EventBus } from '../../src/core/EventBus';
 
 class TestAgent extends Agent {
+  private timers: NodeJS.Timeout[] = [];
+
   constructor(id: string, type: string, eventBus: EventBus) {
     super(id, type, eventBus);
   }
 
-  async executeTask(task: Task): Promise<any> {
+  protected async onInitialize(): Promise<void> {
+    // Test agent doesn't need special initialization
+  }
+
+  protected async onStart(): Promise<void> {
+    // Test agent doesn't need special start logic
+  }
+
+  protected async onStop(): Promise<void> {
+    // Test agent doesn't need special stop logic
+    this.cleanup();
+  }
+
+  protected async executeTaskLogic(task: Task): Promise<any> {
     this.updateStatus('busy');
-    await new Promise(resolve => setTimeout(resolve, 10)); // Simulate work
-    this.updateStatus('idle');
-    return { status: 'completed', result: `Executed ${task.getType()}` };
+    const startTime = Date.now();
+
+    try {
+      await new Promise(resolve => {
+        const timer = setTimeout(resolve, 10);
+        this.timers.push(timer);
+      }); // Simulate work
+
+      this.updateStatus('idle');
+
+      // Update metrics for success
+      const executionTime = Date.now() - startTime;
+      (this as any).updateMetrics(executionTime, true);
+
+      return { status: 'completed', result: `Executed ${task.getType()}` };
+    } catch (error) {
+      // Update metrics for failure
+      const executionTime = Date.now() - startTime;
+      (this as any).updateMetrics(executionTime, false);
+      throw error;
+    }
+  }
+
+  protected async initializeCapabilities(): Promise<void> {
+    // Test agent doesn't need capabilities setup
+  }
+
+  async executeTask(task: Task): Promise<any> {
+    if (!this.isRunning()) {
+      throw new Error(`Agent ${this.getId()} is not running`);
+    }
+
+    // Emit task started event
+    const eventBus = (this as any).eventBus;
+    eventBus.emit('agent:task-started', { agentId: this.getId(), taskId: task.getId() });
+
+    const startTime = Date.now();
+
+    try {
+      const result = await this.executeTaskLogic(task);
+
+      // Emit task completed event
+      eventBus.emit('agent:task-completed', { agentId: this.getId(), taskId: task.getId(), result });
+
+      return result;
+    } catch (error) {
+      // Update metrics for failure (in case subclass override throws before executeTaskLogic)
+      const executionTime = Date.now() - startTime;
+      (this as any).updateMetrics(executionTime, false);
+
+      // Emit task failed event
+      eventBus.emit('agent:task-failed', { agentId: this.getId(), taskId: task.getId(), error });
+      throw error;
+    }
+  }
+
+  cleanup() {
+    // Clear all timers
+    this.timers.forEach(timer => clearTimeout(timer));
+    this.timers = [];
   }
 }
 
@@ -25,14 +97,36 @@ describe('Agent', () => {
   let eventBus: EventBus;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     eventBus = new EventBus();
     agent = new TestAgent('test-agent-1', 'test-agent', eventBus);
   });
 
   afterEach(async () => {
-    if (agent.isRunning()) {
+    // Stop agent if running
+    if (agent && agent.isRunning()) {
       await agent.stop();
     }
+
+    // Clean up agent timers
+    if (agent && (agent as any).cleanup) {
+      (agent as any).cleanup();
+    }
+
+    // Wait for all async operations
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Clean up event listeners
+    if (eventBus) {
+      eventBus.removeAllListeners();
+    }
+
+    // Clear all timers
+    jest.clearAllTimers();
+
+    // Clear references
+    agent = null as any;
+    eventBus = null as any;
   });
 
   describe('initialization', () => {
@@ -80,20 +174,18 @@ describe('Agent', () => {
     it('should update status during task execution', async () => {
       const task = new Task('test-task', 'test-type', { data: 'test' });
 
-      const statusPromise = new Promise(resolve => {
-        const checkStatus = () => {
-          if (agent.getStatus() === 'busy') {
-            resolve(true);
-          } else {
-            setTimeout(checkStatus, 1);
-          }
-        };
-        checkStatus();
-      });
+      let statusWasBusy = false;
+      const checkTimer = setInterval(() => {
+        if (agent.getStatus() === 'busy') {
+          statusWasBusy = true;
+          clearInterval(checkTimer);
+        }
+      }, 1);
 
-      agent.executeTask(task);
-      await statusPromise;
-      expect(true).toBe(true); // Status was busy during execution
+      await agent.executeTask(task);
+      clearInterval(checkTimer);
+
+      expect(statusWasBusy).toBe(true); // Status was busy during execution
     });
 
     it('should handle task execution errors', async () => {
@@ -172,12 +264,12 @@ describe('Agent', () => {
       const failingAgent = new class extends TestAgent {
         private shouldFail = true;
 
-        async executeTask(task: Task): Promise<any> {
+        protected async executeTaskLogic(task: Task): Promise<any> {
           if (this.shouldFail) {
             this.shouldFail = false;
             throw new Error('Simulated failure');
           }
-          return super.executeTask(task);
+          return super.executeTaskLogic(task);
         }
       }('failing-agent', 'test-agent', eventBus);
 
