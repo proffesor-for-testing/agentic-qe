@@ -16,6 +16,7 @@ describe('TestGeneratorAgent', () => {
   let agent: TestGeneratorAgent;
   let mockEventBus: jest.Mocked<EventBus>;
   let mockLogger: jest.Mocked<Logger>;
+  let mockMemoryStore: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -46,6 +47,15 @@ describe('TestGeneratorAgent', () => {
       mocking: { strategy: 'auto' }
     };
 
+    mockMemoryStore = {
+      store: jest.fn().mockResolvedValue(undefined),
+      retrieve: jest.fn().mockResolvedValue(null),
+      delete: jest.fn().mockResolvedValue(undefined),
+      clear: jest.fn().mockResolvedValue(undefined),
+      has: jest.fn().mockResolvedValue(false),
+      keys: jest.fn().mockResolvedValue([])
+    };
+
     const agentConfig = {
       id: 'test-gen-123',
       type: 'test-generator' as any,
@@ -56,7 +66,7 @@ describe('TestGeneratorAgent', () => {
         status: 'ACTIVE' as any,
         metadata: { environment: 'test' }
       },
-      memoryStore: {} as any,
+      memoryStore: mockMemoryStore as any,
       eventBus: mockEventBus
     };
 
@@ -505,7 +515,7 @@ describe('TestGeneratorAgent', () => {
           status: 'ACTIVE' as any,
           metadata: { environment: 'test' }
         },
-        memoryStore: {} as any,
+        memoryStore: mockMemoryStore as any,
         eventBus: mockEventBus
       };
 
@@ -538,7 +548,7 @@ describe('TestGeneratorAgent', () => {
           status: 'ACTIVE' as any,
           metadata: { environment: 'test' }
         },
-        memoryStore: {} as any,
+        memoryStore: mockMemoryStore as any,
         eventBus: mockEventBus
       };
 
