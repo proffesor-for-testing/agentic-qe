@@ -55,12 +55,30 @@ describe('Week 1 Full Fleet Integration', () => {
   });
 
   afterEach(async () => {
+    // Clean up event bus
     if (eventBus) {
       eventBus.removeAllListeners();
+      eventBus = null as any;
     }
+
+    // Clean up memory manager
+    if (memoryManager) {
+      memoryManager = null as any;
+    }
+
+    // Wait for all pending async operations
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Restore and clear mocks
     jest.restoreAllMocks();
     jest.clearAllMocks();
 
+    // Clear mock references
+    mockDatabase = null as any;
+    mockLogger = null as any;
+
+    // Force garbage collection if available
     if (global.gc) {
       global.gc();
     }

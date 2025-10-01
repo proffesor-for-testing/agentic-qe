@@ -28,6 +28,7 @@ import { MemoryManager } from '../../src/core/MemoryManager';
 import { Database } from '../../src/utils/Database';
 import { Logger } from '../../src/utils/Logger';
 import { QEAgentType, AgentStatus, WEEK2_EVENT_TYPES } from '../../src/types';
+import { createResourceCleanup } from '../helpers/cleanup';
 
 // Mock external dependencies
 jest.mock('../../src/utils/Database');

@@ -9,11 +9,21 @@ describe('EventBus', () => {
   let eventBus: EventBus;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     eventBus = new EventBus();
   });
 
-  afterEach(() => {
-    eventBus.removeAllListeners();
+  afterEach(async () => {
+    // Wait for all async operations to complete
+    await new Promise(resolve => setImmediate(resolve));
+
+    // Remove all listeners to prevent memory leaks
+    if (eventBus) {
+      eventBus.removeAllListeners();
+    }
+
+    // Clear references
+    eventBus = null as any;
   });
 
   describe('basic event operations', () => {

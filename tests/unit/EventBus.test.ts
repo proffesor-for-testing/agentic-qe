@@ -5,6 +5,7 @@
 
 import { EventBus, FleetEvent } from '../../src/core/EventBus';
 import { Logger } from '../../src/utils/Logger';
+import { createResourceCleanup } from '../helpers/cleanup';
 
 // Mock Logger
 jest.mock('../../src/utils/Logger');
@@ -12,6 +13,7 @@ jest.mock('../../src/utils/Logger');
 describe('EventBus', () => {
   let eventBus: EventBus;
   let mockLogger: jest.Mocked<Logger>;
+  const cleanup = createResourceCleanup();
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -29,10 +31,20 @@ describe('EventBus', () => {
 
     eventBus = new EventBus();
     await eventBus.initialize();
+
+    // Track EventBus for cleanup
+    cleanup.trackEmitter(eventBus);
   });
 
-  afterEach(() => {
-    eventBus.removeAllListeners();
+  afterEach(async () => {
+    // Comprehensive cleanup using helper utilities
+    await cleanup.afterEach();
+
+    // Additional EventBus-specific cleanup
+    if (eventBus) {
+      eventBus.removeAllListeners();
+      eventBus = null as any;
+    }
   });
 
   describe('Initialization', () => {

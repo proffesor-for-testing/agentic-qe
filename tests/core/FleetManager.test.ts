@@ -4,10 +4,12 @@
 
 import { FleetManager } from '../../src/core/FleetManager';
 import { Config } from '../../src/utils/Config';
+import { createResourceCleanup } from '../helpers/cleanup';
 
 describe('FleetManager', () => {
   let fleetManager: FleetManager;
   let mockConfig: any;
+  const cleanup = createResourceCleanup();
 
   beforeEach(async () => {
     mockConfig = {
@@ -43,9 +45,21 @@ describe('FleetManager', () => {
   });
 
   afterEach(async () => {
+    // Stop fleet manager gracefully (includes agent cleanup)
     if (fleetManager) {
-      await fleetManager.stop();
+      try {
+        await fleetManager.stop();
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
     }
+
+    // Comprehensive cleanup using helper utilities
+    await cleanup.afterEach();
+
+    // Clear references
+    fleetManager = null as any;
+    mockConfig = null as any;
   });
 
   describe('initialization', () => {

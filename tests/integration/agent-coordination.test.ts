@@ -2,10 +2,10 @@ import { jest } from '@jest/globals';
 import { AgentCoordinator, CoordinationTopology } from '../../src/coordination/agent-coordinator';
 import { MessageBus } from '../../src/communication/message-bus';
 import { FleetManager } from '../../src/core/fleet-manager';
-import { TestGenerator } from '../../src/core/test-generator';
-import { TestExecutor } from '../../src/core/test-executor';
-import { CoverageAnalyzer } from '../../src/core/coverage-analyzer';
-import { QualityGate } from '../../src/core/quality-gate';
+import { TestGeneratorAgent } from '../../src/agents/TestGeneratorAgent';
+import { TestExecutorAgent } from '../../src/agents/TestExecutorAgent';
+import { CoverageAnalyzerAgent } from '../../src/agents/CoverageAnalyzerAgent';
+import { QualityGateAgent } from '../../src/agents/QualityGateAgent';
 
 // Integration tests for multi-agent coordination - London School TDD
 // Mock the communication layer but test real agent interactions
@@ -32,10 +32,10 @@ const mockMetrics = {
 
 // Real agent instances for integration testing
 let fleetManager: FleetManager;
-let testGenerator: TestGenerator;
-let testExecutor: TestExecutor;
-let coverageAnalyzer: CoverageAnalyzer;
-let qualityGate: QualityGate;
+let testGenerator: TestGeneratorAgent;
+let testExecutor: TestExecutorAgent;
+let coverageAnalyzer: CoverageAnalyzerAgent;
+let qualityGate: QualityGateAgent;
 let agentCoordinator: AgentCoordinator;
 
 describe('Agent Coordination Integration Tests - London School TDD', () => {
@@ -49,24 +49,24 @@ describe('Agent Coordination Integration Tests - London School TDD', () => {
       metrics: mockMetrics
     });
     
-    testGenerator = new TestGenerator({
+    testGenerator = new TestGeneratorAgent({
       logger: mockLogger,
       messageBus: mockMessageBus
     });
-    
-    testExecutor = new TestExecutor({
+
+    testExecutor = new TestExecutorAgent({
       logger: mockLogger,
       messageBus: mockMessageBus,
       metrics: mockMetrics
     });
-    
-    coverageAnalyzer = new CoverageAnalyzer({
+
+    coverageAnalyzer = new CoverageAnalyzerAgent({
       logger: mockLogger,
       messageBus: mockMessageBus,
       metrics: mockMetrics
     });
-    
-    qualityGate = new QualityGate({
+
+    qualityGate = new QualityGateAgent({
       logger: mockLogger,
       messageBus: mockMessageBus,
       metrics: mockMetrics

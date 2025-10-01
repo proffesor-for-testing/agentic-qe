@@ -120,15 +120,29 @@ if (process.env.NODE_OPTIONS?.includes('--max-old-space-size') === false) {
   process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --max-old-space-size=4096';
 }
 
-// Clean up after each test
-afterEach(() => {
+// Enhanced cleanup after each test
+afterEach(async () => {
+  // Wait for async operations to complete
+  await new Promise(resolve => setImmediate(resolve));
+
   // Clear all mocks
   jest.clearAllMocks();
-  
-  // Clean up any test data
+
+  // Run registered cleanups (supports async)
   if (global.testCleanup) {
-    global.testCleanup.forEach(cleanup => cleanup());
+    await Promise.all(
+      global.testCleanup.map(cleanup =>
+        Promise.resolve(cleanup()).catch(err => {
+          console.warn('Cleanup error:', err);
+        })
+      )
+    );
     global.testCleanup = [];
+  }
+
+  // Force garbage collection if available
+  if (global.gc) {
+    global.gc();
   }
 });
 
