@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals';
-import { FleetManager, AgentType, TopologyType } from '../../src/core/fleet-manager';
-import { Agent } from '../../src/core/agent';
-import { Logger } from '../../src/utils/logger';
-import { MetricsCollector } from '../../src/utils/metrics';
+import { FleetManager } from '../../src/core/FleetManager';
+import { Agent } from '../../src/core/Agent';
+import { Logger } from '../../src/utils/Logger';
+import { QEAgentType } from '../../src/types';
 
 // London School TDD: Mock all dependencies
 const mockLogger = {
@@ -20,7 +20,7 @@ const mockMetricsCollector = {
 
 const mockAgent = {
   id: 'test-agent-123',
-  type: AgentType.UNIT_TEST_GENERATOR,
+  type: QEAgentType.TEST_GENERATOR,
   status: 'idle',
   capabilities: ['jest', 'typescript'],
   start: jest.fn().mockResolvedValue(true),
@@ -49,7 +49,7 @@ describe('FleetManager - London School TDD', () => {
   describe('Fleet Initialization', () => {
     it('should initialize fleet with hierarchical topology', async () => {
       const initConfig = {
-        topology: TopologyType.HIERARCHICAL,
+        topology: 'hierarchical' as const,
         maxAgents: 8,
         strategy: 'balanced'
       };
@@ -64,15 +64,15 @@ describe('FleetManager - London School TDD', () => {
         'fleet.initialization',
         expect.objectContaining({ topology: 'hierarchical' })
       );
-      
+
       // Verify state change through behavior
-      expect(fleetManager.getTopology()).toBe(TopologyType.HIERARCHICAL);
+      expect(fleetManager.getTopology()).toBe('hierarchical');
       expect(fleetManager.getMaxAgents()).toBe(8);
     });
 
     it('should initialize fleet with mesh topology for complex integration', async () => {
       const initConfig = {
-        topology: TopologyType.MESH,
+        topology: 'mesh' as const,
         maxAgents: 12,
         strategy: 'specialized'
       };
@@ -82,19 +82,19 @@ describe('FleetManager - London School TDD', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Initializing QE fleet with mesh topology'
       );
-      expect(fleetManager.getTopology()).toBe(TopologyType.MESH);
+      expect(fleetManager.getTopology()).toBe('mesh');
     });
 
     it('should reject initialization with invalid configuration', async () => {
       const invalidConfig = {
-        topology: 'invalid' as TopologyType,
+        topology: 'invalid' as any,
         maxAgents: -1,
         strategy: 'unknown'
       };
 
       await expect(fleetManager.initialize(invalidConfig))
         .rejects.toThrow('Invalid fleet configuration');
-      
+
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Fleet initialization failed: Invalid configuration'
       );
@@ -104,7 +104,7 @@ describe('FleetManager - London School TDD', () => {
   describe('Agent Spawning', () => {
     beforeEach(async () => {
       await fleetManager.initialize({
-        topology: TopologyType.HIERARCHICAL,
+        topology: 'hierarchical' as const,
         maxAgents: 8,
         strategy: 'balanced'
       });
@@ -112,7 +112,7 @@ describe('FleetManager - London School TDD', () => {
 
     it('should spawn unit test generator agent with jest specialization', async () => {
       const agentConfig = {
-        type: AgentType.UNIT_TEST_GENERATOR,
+        type: QEAgentType.TEST_GENERATOR,
         specialization: 'jest',
         capabilities: ['typescript', 'mocking', 'coverage'],
         resources: { cpu: 2, memory: 1024 }
@@ -123,7 +123,7 @@ describe('FleetManager - London School TDD', () => {
       // Verify agent creation collaboration
       expect(mockAgentFactory.createAgent).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: AgentType.UNIT_TEST_GENERATOR,
+          type: QEAgentType.TEST_GENERATOR,
           specialization: 'jest'
         })
       );
