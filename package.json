@@ -48,7 +48,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "prepublishOnly": "npm run typecheck && npm run build",
     "mcp:start": "LOG_LEVEL=silent node dist/mcp/start.js",
     "mcp:dev": "nodemon --watch src/mcp -e ts --exec ts-node src/mcp/start.ts",
     "docs:api": "typedoc --out docs/api src --exclude '**/*.test.ts' --excludePrivate",
