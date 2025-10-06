@@ -396,67 +396,73 @@ export class TestExecuteHandler extends BaseHandler {
 
     this.log('info', 'Executing test suite', { suite: suiteName, environment });
 
-    // Simulate test execution
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+    // Use real test execution via TestFrameworkExecutor
+    try {
+      const { TestFrameworkExecutor } = await import('../../utils/TestFrameworkExecutor.js');
+      const executor = new TestFrameworkExecutor();
 
-    // Generate mock test results
-    const tests = this.generateMockTestResults(suiteName, spec);
-    const duration = Date.now() - startTime;
-
-    const suiteResult: SuiteResult = {
-      name: suiteName,
-      environment,
-      status: tests.every(t => t.status === 'passed') ? 'passed' :
-             tests.some(t => t.status === 'passed') ? 'partial' : 'failed',
-      tests,
-      duration
-    };
-
-    return suiteResult;
-  }
-
-  private generateMockTestResults(suiteName: string, spec: TestExecutionSpec): TestResult[] {
-    const testCount = Math.floor(Math.random() * 20) + 5; // 5-25 tests
-    const tests: TestResult[] = [];
-
-    for (let i = 0; i < testCount; i++) {
-      const shouldPass = Math.random() > 0.1; // 90% pass rate
-      const needsRetry = !shouldPass && Math.random() < 0.3; // 30% of failures get retried
-
-      const test: TestResult = {
-        name: `test_${suiteName.replace(/[^a-zA-Z0-9]/g, '_')}_${i + 1}`,
-        status: shouldPass ? 'passed' : (needsRetry && Math.random() > 0.5 ? 'passed' : 'failed'),
-        duration: Math.random() * 5000 + 100, // 100ms to 5s
-        retryCount: needsRetry ? Math.floor(Math.random() * spec.retryCount) + 1 : 0,
-        assertions: this.generateMockAssertions(shouldPass)
-      };
-
-      if (!shouldPass && test.status === 'failed') {
-        test.error = `Assertion failed in ${test.name}`;
+      // Detect framework or use Jest as default
+      const workingDir = process.cwd();
+      let framework = await executor.detectFramework(workingDir);
+      if (!framework) {
+        this.log('warn', 'Could not detect test framework, defaulting to Jest');
+        framework = 'jest';
       }
 
-      tests.push(test);
-    }
-
-    return tests;
-  }
-
-  private generateMockAssertions(shouldPass: boolean): AssertionResult[] {
-    const assertionCount = Math.floor(Math.random() * 5) + 1; // 1-5 assertions
-    const assertions: AssertionResult[] = [];
-
-    for (let i = 0; i < assertionCount; i++) {
-      const passed = shouldPass ? true : (i === 0 ? false : Math.random() > 0.2); // First assertion fails if test fails
-
-      assertions.push({
-        description: `Assertion ${i + 1}`,
-        passed,
-        expected: passed ? 'expected_value' : 'expected_value',
-        actual: passed ? 'expected_value' : 'actual_value'
+      // Execute real tests
+      const result = await executor.execute({
+        framework,
+        testPattern: suiteName,
+        workingDir,
+        timeout: spec.timeoutSeconds * 1000,
+        coverage: false,
+        environment
       });
-    }
 
-    return assertions;
+      // Convert TestFrameworkExecutor results to SuiteResult format
+      const tests: TestResult[] = result.tests.map(test => ({
+        name: test.name,
+        status: test.status === 'pending' ? 'skipped' : test.status,
+        duration: test.duration,
+        error: test.failureMessages?.join('\n'),
+        retryCount: 0, // Retry logic handled by executor
+        assertions: test.failureMessages?.map((msg, i) => ({
+          description: `Assertion ${i + 1}`,
+          passed: false,
+          expected: 'See error message',
+          actual: msg
+        })) || []
+      }));
+
+      const duration = Date.now() - startTime;
+
+      return {
+        name: suiteName,
+        environment,
+        status: result.status === 'passed' ? 'passed' :
+                result.status === 'failed' ? 'failed' : 'partial',
+        tests,
+        duration
+      };
+    } catch (error) {
+      this.log('error', 'Test suite execution failed', { error: (error as Error).message });
+
+      // Return failed suite result
+      return {
+        name: suiteName,
+        environment,
+        status: 'failed',
+        tests: [{
+          name: suiteName,
+          status: 'failed',
+          duration: Date.now() - startTime,
+          error: (error as Error).message,
+          retryCount: 0,
+          assertions: []
+        }],
+        duration: Date.now() - startTime
+      };
+    }
   }
 
   private calculateFinalResults(execution: TestExecution): void {

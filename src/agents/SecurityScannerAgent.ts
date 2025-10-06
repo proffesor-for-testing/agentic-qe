@@ -13,6 +13,7 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QEAgentType, QETask } from '../types';
+import { RealSecurityScanner } from '../utils/SecurityScanner';
 
 export interface SecurityScannerConfig extends BaseAgentConfig {
   tools?: {
@@ -98,6 +99,7 @@ export class SecurityScannerAgent extends BaseAgent {
   private cveDatabase: Map<string, CVERecord> = new Map();
   private scanHistory: SecurityScanResult[] = [];
   private baselineFindings: Map<string, VulnerabilityFinding> = new Map();
+  private realScanner: RealSecurityScanner;
 
   constructor(config: SecurityScannerConfig) {
     super({
@@ -174,6 +176,9 @@ export class SecurityScannerAgent extends BaseAgent {
       },
       ...config
     };
+
+    // Initialize real security scanner
+    this.realScanner = new RealSecurityScanner(process.cwd());
   }
 
   // ============================================================================
@@ -381,34 +386,34 @@ export class SecurityScannerAgent extends BaseAgent {
   private async runSASTScan(metadata: any): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Running SAST scan with ${this.config.tools?.sast}`);
 
-    // Mock SAST scan implementation
-    // In production, this would integrate with actual SAST tools
+    const startTime = Date.now();
     const findings: VulnerabilityFinding[] = [];
 
-    // Simulate scanning for common vulnerabilities
-    const commonVulnerabilities = [
-      { type: 'SQL Injection', severity: 'high', cwe: 'CWE-89' },
-      { type: 'XSS', severity: 'high', cwe: 'CWE-79' },
-      { type: 'Path Traversal', severity: 'medium', cwe: 'CWE-22' },
-      { type: 'Hardcoded Secrets', severity: 'critical', cwe: 'CWE-798' }
-    ];
+    try {
+      // Determine scan target
+      const target = metadata.path || metadata.target || 'src';
 
-    // Mock: Find random vulnerabilities for testing
-    if (metadata.includeFindings !== false) {
-      const randomCount = Math.floor(Math.random() * 3);
-      for (let i = 0; i < randomCount; i++) {
-        const vuln = commonVulnerabilities[Math.floor(Math.random() * commonVulnerabilities.length)];
-        findings.push({
-          id: `sast-${Date.now()}-${i}`,
-          type: 'sast',
-          severity: vuln.severity as any,
-          title: vuln.type,
-          description: `Potential ${vuln.type} vulnerability detected`,
-          location: metadata.path || 'src/unknown.ts',
-          cwe: vuln.cwe,
-          remediation: `Review and sanitize input for ${vuln.type}`
-        });
+      // Run ESLint security scan
+      console.log(`[SecurityScanner] Running ESLint security scan on ${target}`);
+      const eslintResult = await this.realScanner.runESLintScan(target);
+      if (eslintResult.success) {
+        findings.push(...eslintResult.findings);
+        console.log(`[SecurityScanner] ESLint found ${eslintResult.findings.length} issues`);
+      } else {
+        console.warn(`[SecurityScanner] ESLint scan failed: ${eslintResult.error}`);
       }
+
+      // Run Semgrep scan if available
+      console.log(`[SecurityScanner] Running Semgrep SAST scan on ${target}`);
+      const semgrepResult = await this.realScanner.runSemgrepScan(target);
+      if (semgrepResult.success) {
+        findings.push(...semgrepResult.findings);
+        console.log(`[SecurityScanner] Semgrep found ${semgrepResult.findings.length} issues`);
+      } else if (semgrepResult.error) {
+        console.warn(`[SecurityScanner] Semgrep scan failed: ${semgrepResult.error}`);
+      }
+    } catch (error) {
+      console.error('[SecurityScanner] SAST scan error:', error);
     }
 
     const summary = this.calculateSummary(findings);
@@ -421,7 +426,7 @@ export class SecurityScannerAgent extends BaseAgent {
       summary,
       securityScore: this.calculateSecurityScore(summary),
       passed: summary.critical === 0,
-      duration: 1000
+      duration: Date.now() - startTime
     };
   }
 
@@ -462,23 +467,22 @@ export class SecurityScannerAgent extends BaseAgent {
   private async scanDependencies(metadata: any): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Scanning dependencies with ${this.config.tools?.dependencies}`);
 
+    const startTime = Date.now();
     const findings: VulnerabilityFinding[] = [];
 
-    // Mock dependency scan
-    // In production, integrate with npm audit, Snyk, etc.
-    if (metadata.includeFindings !== false) {
-      findings.push({
-        id: `dep-${Date.now()}-1`,
-        type: 'dependency',
-        severity: 'high',
-        title: 'Vulnerable Package: lodash',
-        description: 'Prototype pollution vulnerability in lodash < 4.17.21',
-        location: 'package.json',
-        cve: 'CVE-2020-8203',
-        cvss: 7.4,
-        remediation: 'Update lodash to version 4.17.21 or higher',
-        references: ['https://nvd.nist.gov/vuln/detail/CVE-2020-8203']
-      });
+    try {
+      // Run NPM audit
+      console.log('[SecurityScanner] Running NPM audit scan');
+      const auditResult = await this.realScanner.runNPMAuditScan();
+
+      if (auditResult.success) {
+        findings.push(...auditResult.findings);
+        console.log(`[SecurityScanner] NPM audit found ${auditResult.findings.length} vulnerabilities`);
+      } else {
+        console.warn(`[SecurityScanner] NPM audit failed: ${auditResult.error}`);
+      }
+    } catch (error) {
+      console.error('[SecurityScanner] Dependency scan error:', error);
     }
 
     const summary = this.calculateSummary(findings);
@@ -498,7 +502,7 @@ export class SecurityScannerAgent extends BaseAgent {
       summary,
       securityScore: this.calculateSecurityScore(summary),
       passed: summary.critical === 0 && summary.high <= this.config.thresholds!.maxHighVulnerabilities,
-      duration: 500
+      duration: Date.now() - startTime
     };
   }
 

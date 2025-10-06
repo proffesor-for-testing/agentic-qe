@@ -14,18 +14,21 @@ import { Logger } from '../../utils/Logger';
 
 const execAsync = promisify(exec);
 
-export type HookType = 'pre_task' | 'post_task' | 'post_edit' | 'session_start' | 'session_end' | 'notify';
+export type HookType = 'pre_task' | 'post_task' | 'post_edit' | 'session_start' | 'session_end' | 'notify' | 'pre-task' | 'post-task';
 
 export interface HookParams {
   // Pre-task parameters
   description?: string;
   agentType?: string;
   agentId?: string;
+  taskType?: string;
 
   // Post-task parameters
   taskId?: string;
   results?: any;
   status?: string;
+  result?: any;
+  metadata?: any;
 
   // Post-edit parameters
   file?: string;

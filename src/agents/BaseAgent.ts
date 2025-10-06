@@ -343,6 +343,10 @@ export abstract class BaseAgent extends EventEmitter {
    * Store data in memory with automatic namespacing
    */
   protected async storeMemory(key: string, value: any, ttl?: number): Promise<void> {
+    if (!this.memoryStore) {
+      console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
+      return;
+    }
     const namespacedKey = `agent:${this.agentId.id}:${key}`;
     await this.memoryStore.store(namespacedKey, value, ttl);
   }
@@ -351,6 +355,10 @@ export abstract class BaseAgent extends EventEmitter {
    * Retrieve data from memory
    */
   protected async retrieveMemory(key: string): Promise<any> {
+    if (!this.memoryStore) {
+      console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
+      return null;
+    }
     const namespacedKey = `agent:${this.agentId.id}:${key}`;
     return await this.memoryStore.retrieve(namespacedKey);
   }

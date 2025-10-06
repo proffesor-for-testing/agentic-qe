@@ -2,6 +2,45 @@
  * Test setup configuration
  */
 
+// CRITICAL FIX: Cache working directory before graceful-fs patches it
+// This prevents ENOENT: uv_cwd errors during parallel test loading
+const CACHED_CWD = (() => {
+  try {
+    // Get original process.cwd before any patching
+    const originalCwd = process.cwd.bind(process);
+    const cwd = originalCwd();
+
+    if (!cwd || cwd === '') {
+      throw new Error('Working directory is not accessible');
+    }
+
+    // Cache it and create a stable wrapper
+    const cachedCwd = cwd;
+
+    // Override process.cwd with cached version to prevent race conditions
+    const originalProcessCwd = process.cwd;
+    process.cwd = function() {
+      try {
+        return originalProcessCwd.call(this);
+      } catch (err) {
+        // Fallback to cached value if graceful-fs fails
+        return cachedCwd;
+      }
+    };
+
+    return cachedCwd;
+  } catch (error) {
+    console.error('CRITICAL: Cannot access working directory:', error);
+    process.exit(1);
+  }
+})();
+
+// Verify working directory is accessible
+if (!CACHED_CWD || CACHED_CWD === '') {
+  console.error('CRITICAL: Working directory cache failed');
+  process.exit(1);
+}
+
 // Setup test environment
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'error';

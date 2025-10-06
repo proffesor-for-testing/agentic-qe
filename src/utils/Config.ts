@@ -264,6 +264,15 @@ export class Config {
   }
 
   /**
+   * Save configuration to file
+   */
+  public static async save(config: Partial<FleetConfig>, filePath: string): Promise<void> {
+    const fs = await import('fs-extra');
+    await fs.ensureDir(require('path').dirname(filePath));
+    await fs.writeJson(filePath, config, { spaces: 2 });
+  }
+
+  /**
    * Validate configuration
    */
   private static validateConfig(config: FleetConfig): void {

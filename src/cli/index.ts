@@ -14,6 +14,17 @@ import { FleetManager } from '../core/FleetManager';
 import { Task, TaskPriority } from '../core/Task';
 import { Config } from '../utils/Config';
 import { Logger } from '../utils/Logger';
+import {
+  listWorkflows,
+  displayWorkflows,
+  pauseWorkflow,
+  displayPauseResult,
+  cancelWorkflow,
+  displayCancelResult
+} from './commands/workflow/index.js';
+import * as configCommands from './commands/config/index.js';
+import * as debugCommands from './commands/debug/index.js';
+import * as memoryCommands from './commands/memory/index.js';
 
 const program = new Command();
 const logger = Logger.getInstance();
@@ -186,6 +197,307 @@ function formatUptime(ms: number): string {
   if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
   return `${seconds}s`;
 }
+
+/**
+ * Workflow commands
+ */
+const workflowCommand = program
+  .command('workflow')
+  .description('Manage QE workflows');
+
+workflowCommand
+  .command('list')
+  .description('List all workflows')
+  .option('-s, --status <status>', 'Filter by status (running, paused, completed, failed, cancelled)')
+  .option('-n, --name <pattern>', 'Filter by name pattern')
+  .option('-l, --limit <number>', 'Limit number of results', parseInt)
+  .option('--sort <field>', 'Sort by field (startTime, name, status)', 'startTime')
+  .option('-f, --format <format>', 'Output format (json, table)', 'table')
+  .option('-d, --detailed', 'Show detailed information')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue('📋 Listing workflows...\n'));
+
+      const result = await listWorkflows(options);
+      displayWorkflows(result);
+
+    } catch (error) {
+      console.error(chalk.red('❌ Failed to list workflows:'), error);
+      process.exit(1);
+    }
+  });
+
+workflowCommand
+  .command('pause')
+  .description('Pause a running workflow')
+  .argument('<workflow-id>', 'Workflow ID to pause')
+  .option('-g, --graceful', 'Graceful pause (wait for current step)', true)
+  .option('-i, --immediate', 'Immediate pause')
+  .option('-r, --reason <reason>', 'Reason for pausing')
+  .option('-t, --timeout <ms>', 'Timeout for graceful pause', parseInt, 30000)
+  .action(async (workflowId, options) => {
+    try {
+      console.log(chalk.blue(`⏸️  Pausing workflow ${workflowId}...\n`));
+
+      const result = await pauseWorkflow({
+        workflowId,
+        graceful: options.graceful && !options.immediate,
+        immediate: options.immediate,
+        reason: options.reason,
+        timeout: options.timeout
+      });
+
+      displayPauseResult(result);
+
+    } catch (error) {
+      console.error(chalk.red('❌ Failed to pause workflow:'), error);
+      process.exit(1);
+    }
+  });
+
+workflowCommand
+  .command('cancel')
+  .description('Cancel a workflow')
+  .argument('<workflow-id>', 'Workflow ID to cancel')
+  .option('-g, --graceful', 'Graceful cancellation (wait for current step)', true)
+  .option('-f, --force', 'Force immediate cancellation')
+  .option('-c, --confirm', 'Confirm forced cancellation', false)
+  .option('-r, --reason <reason>', 'Reason for cancellation')
+  .option('--cleanup', 'Clean up workflow resources', true)
+  .option('--preserve-results', 'Preserve partial results')
+  .option('--clean-memory', 'Clean up workflow memory')
+  .option('--retry', 'Retry on failure', false)
+  .action(async (workflowId, options) => {
+    try {
+      // Confirmation prompt for force cancel
+      if (options.force && !options.confirm) {
+        const { confirmed } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirmed',
+            message: chalk.yellow('⚠️  Force cancel will immediately stop all workflow operations. Continue?'),
+            default: false
+          }
+        ]);
+
+        if (!confirmed) {
+          console.log(chalk.gray('Cancellation aborted.'));
+          return;
+        }
+
+        options.confirm = true;
+      }
+
+      console.log(chalk.blue(`🛑 Cancelling workflow ${workflowId}...\n`));
+
+      const result = await cancelWorkflow({
+        workflowId,
+        graceful: options.graceful && !options.force,
+        force: options.force,
+        confirm: options.confirm,
+        reason: options.reason,
+        cleanup: options.cleanup,
+        preserveResults: options.preserveResults,
+        cleanMemory: options.cleanMemory,
+        retryOnFailure: options.retry
+      });
+
+      displayCancelResult(result);
+
+    } catch (error) {
+      console.error(chalk.red('❌ Failed to cancel workflow:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Config commands
+ */
+const configCommand = program
+  .command('config')
+  .description('Manage AQE configuration');
+
+configCommand
+  .command('init')
+  .description('Initialize configuration file')
+  .option('-o, --output <path>', 'Output file path', '.aqe/config.json')
+  .action(async (options) => {
+    try {
+      await configCommands.configInit(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Config init failed:'), error);
+      process.exit(1);
+    }
+  });
+
+configCommand
+  .command('validate')
+  .description('Validate configuration file')
+  .option('-f, --file <path>', 'Config file path', '.aqe/config.json')
+  .action(async (options) => {
+    try {
+      await configCommands.configValidate(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Config validation failed:'), error);
+      process.exit(1);
+    }
+  });
+
+configCommand
+  .command('get')
+  .description('Get configuration value')
+  .argument('<key>', 'Configuration key (dot notation supported)')
+  .option('-f, --file <path>', 'Config file path', '.aqe/config.json')
+  .option('--json', 'Output as JSON')
+  .action(async (key, options) => {
+    try {
+      await configCommands.configGet({ key, config: options.file });
+    } catch (error) {
+      console.error(chalk.red('❌ Config get failed:'), error);
+      process.exit(1);
+    }
+  });
+
+configCommand
+  .command('set')
+  .description('Set configuration value')
+  .argument('<key>', 'Configuration key (dot notation supported)')
+  .argument('<value>', 'Value to set')
+  .option('-f, --file <path>', 'Config file path', '.aqe/config.json')
+  .action(async (key, value, options) => {
+    try {
+      await configCommands.configSet({ key, value, config: options.file });
+    } catch (error) {
+      console.error(chalk.red('❌ Config set failed:'), error);
+      process.exit(1);
+    }
+  });
+
+configCommand
+  .command('list')
+  .description('List all configuration values')
+  .option('-f, --file <path>', 'Config file path', '.aqe/config.json')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await configCommands.configList(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Config list failed:'), error);
+      process.exit(1);
+    }
+  });
+
+configCommand
+  .command('reset')
+  .description('Reset configuration to defaults')
+  .option('-f, --file <path>', 'Config file path', '.aqe/config.json')
+  .option('--force', 'Skip confirmation prompt')
+  .action(async (options) => {
+    try {
+      await configCommands.configReset(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Config reset failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Debug commands
+ */
+const debugCommand = program
+  .command('debug')
+  .description('Debug and troubleshoot AQE fleet');
+
+debugCommand
+  .command('agent')
+  .description('Debug specific agent')
+  .argument('<agent-id>', 'Agent ID to debug')
+  .option('-v, --verbose', 'Verbose output')
+  .action(async (agentId, options) => {
+    try {
+      console.log(chalk.blue(`🐛 Debugging agent ${agentId}...`));
+      // Implementation would be in debug/agent.ts
+    } catch (error) {
+      console.error(chalk.red('❌ Agent debug failed:'), error);
+      process.exit(1);
+    }
+  });
+
+debugCommand
+  .command('diagnostics')
+  .description('Run comprehensive diagnostics')
+  .option('--full', 'Run full diagnostic suite')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue('🔍 Running diagnostics...'));
+      // Implementation would be in debug/diagnostics.ts
+    } catch (error) {
+      console.error(chalk.red('❌ Diagnostics failed:'), error);
+      process.exit(1);
+    }
+  });
+
+debugCommand
+  .command('health-check')
+  .description('Check system health')
+  .option('--export-report', 'Export health report')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue('💚 Running health check...'));
+      // Implementation would be in debug/health-check.ts
+    } catch (error) {
+      console.error(chalk.red('❌ Health check failed:'), error);
+      process.exit(1);
+    }
+  });
+
+debugCommand
+  .command('troubleshoot')
+  .description('Troubleshoot specific issue')
+  .argument('<issue>', 'Issue to troubleshoot')
+  .action(async (issue, options) => {
+    try {
+      console.log(chalk.blue(`🔧 Troubleshooting ${issue}...`));
+      // Implementation would be in debug/troubleshoot.ts
+    } catch (error) {
+      console.error(chalk.red('❌ Troubleshooting failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Memory commands
+ */
+const memoryCommand = program
+  .command('memory')
+  .description('Manage AQE memory and coordination state');
+
+memoryCommand
+  .command('stats')
+  .description('Show memory statistics')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue('📊 Memory Statistics...'));
+      // Implementation would be in memory/stats.ts
+    } catch (error) {
+      console.error(chalk.red('❌ Memory stats failed:'), error);
+      process.exit(1);
+    }
+  });
+
+memoryCommand
+  .command('compact')
+  .description('Compact memory database')
+  .option('--aggressive', 'Aggressive compaction')
+  .action(async (options) => {
+    try {
+      console.log(chalk.blue('🗜️  Compacting memory...'));
+      // Implementation would be in memory/compact.ts
+    } catch (error) {
+      console.error(chalk.red('❌ Memory compaction failed:'), error);
+      process.exit(1);
+    }
+  });
 
 // Parse command line arguments
 program.parse();

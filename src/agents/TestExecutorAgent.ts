@@ -874,27 +874,56 @@ export class TestExecutorAgent extends BaseAgent {
   }
 
   /**
-   * Run tests using a specific framework
+   * Run tests using a specific framework - REAL IMPLEMENTATION
    */
   private async runTestFramework(framework: string, options: any): Promise<any> {
     this.logger.info(`Running tests with ${framework}`, options);
 
-    // Simulate framework-specific test execution
-    const mockResults = {
-      total: Math.floor(Math.random() * 50) + 10,
-      passed: 0,
-      failed: 0,
-      skipped: Math.floor(Math.random() * 3),
-      duration: Math.floor(Math.random() * 5000) + 1000
+    // Import TestFrameworkExecutor dynamically
+    const { TestFrameworkExecutor } = await import('../utils/TestFrameworkExecutor.js');
+    const executor = new TestFrameworkExecutor();
+
+    // Map framework names
+    const frameworkMap: Record<string, 'jest' | 'mocha' | 'playwright' | 'cypress'> = {
+      jest: 'jest',
+      mocha: 'mocha',
+      cypress: 'cypress',
+      playwright: 'playwright',
+      selenium: 'playwright', // Use playwright for selenium
+      artillery: 'jest', // Use jest for artillery
+      zap: 'jest' // Use jest for security tests
     };
 
-    mockResults.passed = Math.floor(mockResults.total * (0.8 + Math.random() * 0.15));
-    mockResults.failed = mockResults.total - mockResults.passed - mockResults.skipped;
+    const mappedFramework = frameworkMap[framework] || 'jest';
 
-    // Simulate execution delay
-    await new Promise(resolve => setTimeout(resolve, mockResults.duration));
+    try {
+      const result = await executor.execute({
+        framework: mappedFramework,
+        testPattern: options.pattern || options.testPath,
+        workingDir: options.testPath || process.cwd(),
+        timeout: options.timeout || 300000,
+        coverage: options.coverage || false,
+        environment: options.environment || 'test',
+        config: options.config
+      });
 
-    return mockResults;
+      this.logger.info(`Test execution completed: ${result.passedTests}/${result.totalTests} passed`);
+
+      return {
+        total: result.totalTests,
+        passed: result.passedTests,
+        failed: result.failedTests,
+        skipped: result.skippedTests,
+        duration: result.duration,
+        tests: result.tests,
+        coverage: result.coverage,
+        exitCode: result.exitCode,
+        status: result.status
+      };
+    } catch (error) {
+      this.logger.error('Test execution failed:', error);
+      throw error;
+    }
   }
 
   private async validateFramework(framework: string): Promise<void> {
