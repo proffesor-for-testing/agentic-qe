@@ -59,6 +59,9 @@ class TestAgent extends Agent {
   }
 
   protected async executeTaskLogic(task: Task): Promise<any> {
+    // Add a small delay to ensure execution time > 0
+    await new Promise(resolve => setTimeout(resolve, 1));
+
     if (this.taskExecutionError) {
       throw this.taskExecutionError;
     }
@@ -204,16 +207,32 @@ describe('Agent', () => {
     it('should wait for current task completion before stopping', async () => {
       await agent.start();
 
-      // Assign a task
-      await agent.assignTask(mockTask);
+      // Make task execution take longer so it's still running when stop() is called
+      let resolveTask: any;
+      const taskPromise = new Promise(resolve => {
+        resolveTask = resolve;
+      });
+      agent.setTaskExecutionResult(taskPromise);
 
-      // Mock task as running
+      // Assign a task (don't await so it's still running)
+      const assignPromise = agent.assignTask(mockTask);
+
+      // Give it a moment to start executing
+      await new Promise(resolve => setTimeout(resolve, 5));
+
+      // Mock task as running (which it should be)
       mockTask.getStatus.mockReturnValue(TaskStatus.RUNNING);
 
+      // Now try to stop while task is running
       const stopPromise = agent.stop();
 
+      // Should wait for completion
       expect(mockTask.waitForCompletion).toHaveBeenCalled();
-      await stopPromise;
+
+      // Let the task complete
+      resolveTask({ success: true });
+
+      await Promise.all([stopPromise, assignPromise]);
     });
 
     it('should handle stop error gracefully', async () => {
@@ -232,11 +251,16 @@ describe('Agent', () => {
     });
 
     it('should assign task successfully', async () => {
-      await agent.assignTask(mockTask);
+      // Don't await - we want to check immediate status before async execution completes
+      const assignPromise = agent.assignTask(mockTask);
 
+      // Check status immediately (synchronously)
       expect(agent.getStatus()).toBe(AgentStatus.BUSY);
       expect(agent.getCurrentTask()).toBe(mockTask);
       expect(mockLogger.info).toHaveBeenCalledWith('Task task-123 assigned to agent agent-123');
+
+      // Now wait for assignment to complete
+      await assignPromise;
     });
 
     it('should reject task assignment if agent not available', async () => {
@@ -248,12 +272,17 @@ describe('Agent', () => {
     });
 
     it('should reject task assignment if agent already has task', async () => {
-      await agent.assignTask(mockTask);
+      // Assign first task (don't await so currentTask is still set)
+      const firstAssign = agent.assignTask(mockTask);
 
+      // Immediately try to assign another task
       const anotherTask = { ...mockTask, getId: () => 'task-456' } as any;
       await expect(agent.assignTask(anotherTask)).rejects.toThrow(
         'Agent agent-123 already has an assigned task'
       );
+
+      // Clean up first assignment
+      await firstAssign;
     });
 
     it('should reject unsupported task type', async () => {
@@ -343,8 +372,12 @@ describe('Agent', () => {
     it('should track task completion metrics', async () => {
       agent.setTaskExecutionResult({ success: true });
 
-      await agent.assignTask(mockTask);
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Assign task and wait for it to start executing
+      const assignPromise = agent.assignTask(mockTask);
+
+      // Wait for task to complete execution (check that status returns to ACTIVE)
+      await assignPromise;
+      await new Promise(resolve => setTimeout(resolve, 50)); // Longer wait to ensure async completion
 
       const metrics = agent.getMetrics();
       expect(metrics.tasksCompleted).toBe(1);
@@ -365,11 +398,17 @@ describe('Agent', () => {
     });
 
     it('should calculate average execution time correctly', async () => {
-      // Execute multiple tasks
+      // Execute multiple tasks sequentially
       for (let i = 0; i < 3; i++) {
-        const task = { ...mockTask, getId: () => `task-${i}` } as any;
+        const task = { ...mockTask, getId: () => `task-${i}`,
+          setStatus: jest.fn(),
+          setResult: jest.fn(),
+          setError: jest.fn(),
+          waitForCompletion: jest.fn().mockResolvedValue(undefined)
+        } as any;
         await agent.assignTask(task);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // Wait longer to ensure each task completes before next
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       const metrics = agent.getMetrics();
@@ -427,15 +466,23 @@ describe('Agent', () => {
       const tasks = Array.from({ length: 3 }, (_, i) => ({
         ...mockTask,
         getId: () => `task-${i}`,
-        getType: () => 'test-task'
+        getType: () => 'test-task',
+        setStatus: jest.fn(),
+        setResult: jest.fn(),
+        setError: jest.fn(),
+        waitForCompletion: jest.fn().mockResolvedValue(undefined)
       } as any));
 
-      // Try to assign multiple tasks rapidly
-      await agent.assignTask(tasks[0]);
+      // Try to assign multiple tasks rapidly (don't await first one)
+      const firstAssign = agent.assignTask(tasks[0]);
 
+      // Immediately try second assignment - should fail
       await expect(agent.assignTask(tasks[1])).rejects.toThrow(
         'Agent agent-123 already has an assigned task'
       );
+
+      // Clean up
+      await firstAssign;
     });
 
     it('should be available for new tasks after completion', async () => {

@@ -23,7 +23,6 @@ import {
   QEAgentType,
   QETask,
   ApiContractValidatorConfig,
-  AQE_MEMORY_NAMESPACES,
   WEEK3_EVENT_TYPES
 } from '../types';
 
@@ -757,7 +756,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
       const candidateTypes = candidateSchema.getTypeMap();
 
       // Check for removed types and fields
-      for (const [typeName, type] of Object.entries(baselineTypes)) {
+      for (const [typeName, _type] of Object.entries(baselineTypes)) {
         if (!typeName.startsWith('__') && !candidateTypes[typeName]) {
           breaking.push({
             type: 'TYPE_REMOVED',

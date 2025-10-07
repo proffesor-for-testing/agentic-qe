@@ -80,13 +80,8 @@ claude-flow.config.json
 memory/
 coordination/
 memory/claude-flow-data.json
-memory/sessions/*
-!memory/sessions/README.md
-memory/agents/*
-!memory/agents/README.md
-coordination/memory_bank/*
-coordination/subtasks/*
-coordination/orchestration/*
+
+
 *.db
 *.db-journal
 *.db-wal
@@ -96,3 +91,8 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+!src/core/coordination/
+!src/core/memory/
+!src/coverage/
+!src/memory/
+!tests/memory/

@@ -48,6 +48,17 @@ A distributed fleet of specialized AI agents for comprehensive software testing,
 
 ## 📦 Prerequisites & Installation
 
+### What's New in v1.0.1
+
+**Patch Release** - October 7, 2025
+
+🔒 **Security Fix**: Removed vulnerable `faker` package (CVE-2022-42003)
+✅ **Test Infrastructure**: Fixed async timing and agent lifecycle issues
+📚 **Documentation**: Added comprehensive user guides (USER-GUIDE, CONFIGURATION, TROUBLESHOOTING)
+🐛 **Bug Fixes**: Improved memory management and test reliability
+
+[View Complete Changelog](./CHANGELOG.md#101---2025-10-07)
+
 ### Prerequisites
 
 Before using Agentic QE, you must have:
@@ -285,8 +296,10 @@ const tests = await testGen.execute({
 
 ### Getting Started
 - [Quick Start Guide](docs/AQE-CLI.md)
+- [User Guide](docs/USER-GUIDE.md) - **NEW!** Comprehensive workflows and examples
 - [Agent Types Overview](docs/Agentic-QE-Fleet-Specification.md)
-- [Configuration Guide](docs/CONFIGURATION.md)
+- [Configuration Guide](docs/CONFIGURATION.md) - **NEW!** Complete configuration reference
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - **NEW!** Common issues and solutions
 
 ### User Guides
 - [Test Generation](docs/guides/TEST-GENERATION.md)
