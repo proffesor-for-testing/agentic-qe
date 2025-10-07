@@ -70,14 +70,19 @@ export class EventBus extends EventEmitter {
     // Store event
     this.events.set(event.id, event);
 
-    // Emit to listeners
-    this.emit(type, {
-      eventId: event.id,
-      source,
-      target,
-      data,
-      timestamp: event.timestamp
-    });
+    // Emit to listeners with error handling
+    try {
+      this.emit(type, {
+        eventId: event.id,
+        source,
+        target,
+        data,
+        timestamp: event.timestamp
+      });
+    } catch (error) {
+      // Log listener errors but don't throw - allow other listeners to continue
+      this.logger.error(`Error in event listener for ${type}:`, error);
+    }
 
     // Log the event
     this.logger.debug(`Event emitted: ${type} from ${source}`, {
@@ -101,12 +106,12 @@ export class EventBus extends EventEmitter {
    */
   private setupInternalHandlers(): void {
     // Fleet coordination events
-    this.on('fleet:started', (data) => {
-      this.logger.info('Fleet started', data);
+    this.on('fleet:started', (eventData) => {
+      this.logger.info('Fleet started', eventData.data);
     });
 
-    this.on('fleet:stopped', (data) => {
-      this.logger.info('Fleet stopped', data);
+    this.on('fleet:stopped', (eventData) => {
+      this.logger.info('Fleet stopped', eventData.data);
     });
 
     // Agent lifecycle events

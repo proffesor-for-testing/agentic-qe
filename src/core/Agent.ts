@@ -200,12 +200,14 @@ export abstract class Agent extends EventEmitter {
    * @public
    */
   async assignTask(task: Task): Promise<void> {
-    if (this.status !== AgentStatus.ACTIVE && this.status !== AgentStatus.IDLE) {
-      throw new Error(`Agent ${this.id} is not available for task assignment`);
-    }
-
+    // Check if agent already has a task first (more specific error)
     if (this.currentTask) {
       throw new Error(`Agent ${this.id} already has an assigned task`);
+    }
+
+    // Then check if agent is in correct status
+    if (this.status !== AgentStatus.ACTIVE && this.status !== AgentStatus.IDLE && this.status !== AgentStatus.BUSY) {
+      throw new Error(`Agent ${this.id} is not available for task assignment`);
     }
 
     if (!this.canHandleTaskType(task.getType())) {
@@ -213,14 +215,16 @@ export abstract class Agent extends EventEmitter {
     }
 
     this.currentTask = task;
-    this.status = AgentStatus.BUSY;
+    this.status = AgentStatus.BUSY; // Set BUSY immediately to prevent race conditions
     this.metrics.lastActivity = new Date();
 
     this.logger.info(`Task ${task.getId()} assigned to agent ${this.id}`);
     this.emit('task:assigned', { agentId: this.id, taskId: task.getId() });
 
-    // Execute the task
-    this.executeTask(task);
+    // Execute the task asynchronously but don't await it
+    this.executeTask(task).catch(error => {
+      this.logger.error(`Unhandled error in task execution for ${task.getId()}:`, error);
+    });
   }
 
   /**
@@ -230,6 +234,7 @@ export abstract class Agent extends EventEmitter {
     const startTime = Date.now();
 
     try {
+      // Status already set to BUSY in assignTask
       task.setStatus(TaskStatus.RUNNING);
       this.eventBus.emit('task:started', { agentId: this.id, taskId: task.getId() });
 
@@ -358,8 +363,12 @@ export abstract class Agent extends EventEmitter {
 
     // Update average execution time
     const totalTasks = this.metrics.tasksCompleted + this.metrics.tasksFailured;
-    this.metrics.averageExecutionTime =
-      (this.metrics.averageExecutionTime * (totalTasks - 1) + executionTime) / totalTasks;
+    if (totalTasks > 0) {
+      this.metrics.averageExecutionTime =
+        (this.metrics.averageExecutionTime * (totalTasks - 1) + executionTime) / totalTasks;
+    } else {
+      this.metrics.averageExecutionTime = executionTime;
+    }
 
     this.metrics.lastActivity = new Date();
   }

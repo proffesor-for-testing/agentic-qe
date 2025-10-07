@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
@@ -85,7 +85,6 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^10.0.0",
-    "@types/faker": "^6.6.8",
     "@types/fs-extra": "^11.0.4",
     "@types/graphql": "^14.2.3",
     "@types/inquirer": "^8.2.10",
@@ -132,6 +131,7 @@
     "config",
     "LICENSE",
     "README.md",
+    "CHANGELOG.md",
     "CONTRIBUTING.md"
   ],
   "publishConfig": {

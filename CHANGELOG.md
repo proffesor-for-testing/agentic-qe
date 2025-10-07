@@ -5,6 +5,77 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-10-07
+
+### Fixed
+
+#### Test Infrastructure
+- Fixed agent lifecycle synchronization issues in unit tests
+- Resolved async timing problems in test execution
+- Corrected status management in agent state machine
+- Fixed task rejection handling with proper error propagation
+- Improved metrics tracking timing accuracy
+
+#### Security
+- **CRITICAL**: Removed vulnerable `faker` package (CVE-2022-42003)
+- Upgraded to `@faker-js/faker@^10.0.0` for secure fake data generation
+- Updated all imports to use new faker package
+- Verified zero high-severity vulnerabilities with `npm audit`
+
+#### Memory Management
+- Enhanced garbage collection in test execution
+- Optimized memory usage in parallel test workers
+- Fixed memory leaks in long-running agent processes
+- Added memory monitoring and cleanup mechanisms
+
+### Added
+
+#### Documentation
+- Created comprehensive USER-GUIDE.md with workflows and examples
+- Added CONFIGURATION.md with complete configuration reference
+- Created TROUBLESHOOTING.md with common issues and solutions
+- Updated README.md with v1.0.1 changes
+- Added missing documentation files identified in assessment
+
+### Changed
+
+#### Test Configuration
+- Updated Jest configuration for better memory management
+- Improved test isolation with proper cleanup
+- Enhanced test execution reliability
+- Optimized worker configuration for CI/CD environments
+
+#### Dependencies
+- Removed deprecated `faker` package
+- Added `@faker-js/faker@^10.0.0`
+- Updated test dependencies for security compliance
+
+### Breaking Changes
+
+None. This is a patch release with backward-compatible fixes.
+
+### Migration Guide
+
+If you were using the old `faker` package in custom tests:
+
+```typescript
+// Before (v1.0.0)
+import faker from 'faker';
+const name = faker.name.findName();
+
+// After (v1.0.1)
+import { faker } from '@faker-js/faker';
+const name = faker.person.fullName();  // API changed
+```
+
+### Known Issues
+
+- Coverage baseline establishment in progress (blocked by test fixes in v1.0.0)
+- Some integration tests may require environment-specific configuration
+- Performance benchmarks pending validation
+
+---
+
 ## [1.0.0] - 2025-01-XX
 
 ### 🎉 Initial Release

@@ -367,6 +367,10 @@ export abstract class BaseAgent extends EventEmitter {
    * Store shared data accessible by other agents
    */
   protected async storeSharedMemory(key: string, value: any, ttl?: number): Promise<void> {
+    if (!this.memoryStore) {
+      console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
+      return;
+    }
     const sharedKey = `shared:${this.agentId.type}:${key}`;
     await this.memoryStore.store(sharedKey, value, ttl);
   }
@@ -375,6 +379,10 @@ export abstract class BaseAgent extends EventEmitter {
    * Retrieve shared data from other agents
    */
   protected async retrieveSharedMemory(agentType: AgentType, key: string): Promise<any> {
+    if (!this.memoryStore) {
+      console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
+      return null;
+    }
     const sharedKey = `shared:${agentType}:${key}`;
     return await this.memoryStore.retrieve(sharedKey);
   }
