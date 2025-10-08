@@ -200,20 +200,16 @@ export class FleetCommand {
 # Fleet Destruction Script
 echo "Stopping Agentic QE Fleet..."
 
-# Stop coordination
-npx claude-flow@alpha hooks notify --message "Fleet destruction initiated"
-
 # Archive current state
 mkdir -p .agentic-qe/archive/$(date +%Y%m%d-%H%M%S)
-cp -r .agentic-qe/data/* .agentic-qe/archive/$(date +%Y%m%d-%H%M%S)/
-cp -r .agentic-qe/reports/* .agentic-qe/archive/$(date +%Y%m%d-%H%M%S)/
+cp -r .agentic-qe/data/* .agentic-qe/archive/$(date +%Y%m%d-%H%M%S)/ 2>/dev/null || true
+cp -r .agentic-qe/reports/* .agentic-qe/archive/$(date +%Y%m%d-%H%M%S)/ 2>/dev/null || true
 
 # Clear runtime data
 rm -rf .agentic-qe/data/registry.json
 rm -rf .agentic-qe/executions/*
 
 echo "Fleet destroyed successfully"
-npx claude-flow@alpha hooks notify --message "Fleet destruction completed"
 `;
 
     await fs.writeFile('.agentic-qe/scripts/destroy-fleet.sh', destructionScript);
@@ -633,9 +629,6 @@ npx claude-flow@alpha hooks notify --message "Fleet destruction completed"
 # Deployment script for ${options.env} environment
 echo "Deploying Agentic QE Fleet to ${options.env}..."
 
-# Pre-deployment hooks
-npx claude-flow@alpha hooks pre-task --description "Fleet deployment to ${options.env}"
-
 # Deploy components
 echo "Deploying ${config.agentCount} agents..."
 
@@ -643,9 +636,6 @@ echo "Deploying ${config.agentCount} agents..."
 echo "Validating deployment..."
 
 # Store deployment status
-npx claude-flow@alpha memory store --key "agentic-qe/deployment/status" --value "deployed"
-npx claude-flow@alpha hooks notify --message "Fleet deployed to ${options.env}"
-
 echo "Deployment completed successfully!"
 `;
 
@@ -685,9 +675,6 @@ echo "Deployment completed successfully!"
 # Fleet scaling script: ${operation}
 echo "Scaling fleet from ${current} to ${target} agents..."
 
-# Pre-scaling coordination
-npx claude-flow@alpha hooks pre-task --description "Fleet scaling: ${operation}"
-
 # Update agent configurations
 echo "Updating agent configurations..."
 
@@ -700,10 +687,6 @@ fi
 
 # Post-scaling validation
 echo "Validating scaled fleet..."
-
-# Store scaling results
-npx claude-flow@alpha memory store --key "agentic-qe/scaling/latest" --value '{"from":${current},"to":${target},"operation":"${operation}"}'
-npx claude-flow@alpha hooks notify --message "Fleet scaled: ${operation} from ${current} to ${target} agents"
 
 echo "Scaling completed successfully!"
 `;
@@ -816,25 +799,33 @@ echo "Scaling completed successfully!"
     return recommendations;
   }
 
-  // Coordination storage methods
+  // Storage methods
   private static async storeStatusCheck(): Promise<void> {
-    const script = `npx claude-flow@alpha hooks notify --message "Fleet status check completed"`;
-    await this.executeCoordinationScript(script);
+    // Status check completed - native hooks will handle coordination
   }
 
   private static async storeScalingOperation(current: number, target: number): Promise<void> {
-    const script = `npx claude-flow@alpha memory store --key "agentic-qe/fleet/scaling" --value '{"from":${current},"to":${target},"timestamp":"${new Date().toISOString()}"}'`;
-    await this.executeCoordinationScript(script);
+    // Store scaling operation in fleet data
+    const scalingRecord = {
+      from: current,
+      to: target,
+      timestamp: new Date().toISOString()
+    };
+
+    await fs.ensureDir('.agentic-qe/data');
+    await fs.writeJson('.agentic-qe/data/scaling-latest.json', scalingRecord, { spaces: 2 });
   }
 
   private static async storeDeploymentOperation(config: any): Promise<void> {
-    const script = `npx claude-flow@alpha memory store --key "agentic-qe/fleet/deployment" --value '${JSON.stringify(config)}'`;
-    await this.executeCoordinationScript(script);
+    // Store deployment operation in fleet data
+    await fs.ensureDir('.agentic-qe/data');
+    await fs.writeJson('.agentic-qe/data/deployment-latest.json', config, { spaces: 2 });
   }
 
   private static async storeDestructionOperation(record: any): Promise<void> {
-    const script = `npx claude-flow@alpha memory store --key "agentic-qe/fleet/destruction" --value '${JSON.stringify(record)}'`;
-    await this.executeCoordinationScript(script);
+    // Store destruction operation in fleet data
+    await fs.ensureDir('.agentic-qe/data');
+    await fs.writeJson('.agentic-qe/data/destruction-record.json', record, { spaces: 2 });
   }
 
   private static async storeHealthCheck(healthReport: any): Promise<void> {
@@ -845,32 +836,5 @@ echo "Scaling completed successfully!"
     const timestamp = new Date().toISOString().replace(/:/g, '-');
     const reportFile = `${reportsDir}/health-check-${timestamp}.json`;
     await fs.writeJson(reportFile, healthReport, { spaces: 2 });
-
-    // Store in coordination
-    const script = `npx claude-flow@alpha memory store --key "agentic-qe/fleet/health" --value '{"status":"${healthReport.overall}","timestamp":"${healthReport.timestamp}"}'`;
-    await this.executeCoordinationScript(script);
-  }
-
-  private static async executeCoordinationScript(script: string): Promise<void> {
-    try {
-      const { execSecure } = require('../../../security/secure-command-executor');
-
-      // Validate the script contains only safe coordination commands
-      const allowedCommands = ['npx claude-flow@alpha memory store', 'npx claude-flow@alpha hooks'];
-      const isAllowedScript = allowedCommands.some(cmd => script.startsWith(cmd));
-
-      if (!isAllowedScript) {
-        console.warn(chalk.yellow(`⚠️  Script not allowed: ${script}`));
-        return;
-      }
-
-      execSecure(script, (error: any) => {
-        if (error) {
-          console.warn(chalk.yellow(`⚠️  Coordination warning: ${error.message}`));
-        }
-      });
-    } catch (error) {
-      // Silently handle coordination errors
-    }
   }
 }

@@ -13,17 +13,8 @@ capabilities:
   - fault-tolerance
   - scaling-orchestration
   - performance-monitoring
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Fleet Commander: Initializing fleet coordination'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/fleet/topology'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/fleet/agents/active'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/fleet/coordination/results' --value '${COORDINATION_RESULTS}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/fleet/metrics/performance' --value '${FLEET_METRICS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/fleet/config/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "2.0.0"
   max_agents: 50
@@ -139,18 +130,29 @@ await fleetCommander.rebalanceLoad(rebalancingStrategy);
 ## Integration Points
 
 ### Memory Coordination
-```bash
-# Store fleet topology and configuration
-npx claude-flow@alpha memory store --key "aqe/fleet/topology" --value '{"mode":"hierarchical","agents":50}'
+```typescript
+// Store fleet topology and configuration
+await this.memoryStore.store('aqe/fleet/topology', {
+  mode: 'hierarchical',
+  agents: 50
+}, {
+  partition: 'coordination'
+});
 
-# Store agent lifecycle status
-npx claude-flow@alpha memory store --key "aqe/fleet/agents/active" --value "${ACTIVE_AGENTS_JSON}"
+// Store agent lifecycle status
+await this.memoryStore.store('aqe/fleet/agents/active', activeAgentsJson, {
+  partition: 'coordination'
+});
 
-# Store resource allocation matrix
-npx claude-flow@alpha memory store --key "aqe/fleet/resources/allocation" --value "${RESOURCE_MATRIX}"
+// Store resource allocation matrix
+await this.memoryStore.store('aqe/fleet/resources/allocation', resourceMatrix, {
+  partition: 'coordination'
+});
 
-# Store coordination metrics
-npx claude-flow@alpha memory store --key "aqe/fleet/metrics/coordination" --value "${COORDINATION_METRICS}"
+// Store coordination metrics
+await this.memoryStore.store('aqe/fleet/metrics/coordination', coordinationMetrics, {
+  partition: 'coordination'
+});
 ```
 
 ### EventBus Integration
@@ -184,6 +186,53 @@ eventBus.publish('fleet:topology-changed', {
 - **QE Performance Tester**: Orchestrates performance testing workflows
 - **QE Security Scanner**: Coordinates security scanning tasks
 
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load fleet topology and active agents
+  const topology = await this.memoryStore.retrieve('aqe/fleet/topology');
+  const activeAgents = await this.memoryStore.retrieve('aqe/fleet/agents/active');
+
+  this.logger.info('Fleet coordination initialized', {
+    topology: topology?.mode || 'hierarchical',
+    activeAgents: activeAgents?.length || 0,
+    maxAgents: 50
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store coordination results and fleet metrics
+  await this.memoryStore.store('aqe/fleet/coordination/results', data.result.coordinationOutcomes);
+  await this.memoryStore.store('aqe/fleet/metrics/performance', data.result.fleetMetrics);
+  await this.memoryStore.store('aqe/fleet/agents/active', data.result.activeAgents);
+
+  // Emit fleet coordination event
+  this.eventBus.emit('fleet-commander:coordinated', {
+    agentsOrchestrated: data.result.activeAgents.length,
+    throughput: data.result.fleetMetrics.throughput,
+    efficiency: data.result.fleetMetrics.efficiency
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'fleet-orchestration',
+  context: {
+    requiredVars: ['FLEET_MODE', 'MAX_AGENTS'],
+    minMemoryMB: 2048,
+    requiredKeys: ['aqe/fleet/topology']
+  }
+});
+```
+
 ## Memory Keys
 
 ### Input Keys
@@ -210,38 +259,46 @@ eventBus.publish('fleet:topology-changed', {
 ## Coordination Protocol
 
 ### Swarm Integration
-```bash
-# Initialize fleet with hierarchical topology
-npx claude-flow@alpha swarm init \
-  --topology "hierarchical" \
-  --max-agents 50 \
-  --coordinator "qe-fleet-commander"
+```typescript
+// Initialize fleet with hierarchical topology
+await this.swarmManager.initialize({
+  topology: 'hierarchical',
+  maxAgents: 50,
+  coordinator: 'qe-fleet-commander'
+});
 
-# Spawn specialized agent pool
-npx claude-flow@alpha agent spawn \
-  --type "test-executor" \
-  --pool-size 10 \
-  --priority "critical"
+// Spawn specialized agent pool via EventBus
+this.eventBus.emit('fleet:spawn-pool', {
+  type: 'test-executor',
+  poolSize: 10,
+  priority: 'critical'
+});
 
-# Orchestrate distributed testing workflow
-npx claude-flow@alpha task orchestrate \
-  --task "Execute 5000 tests across frameworks" \
-  --agents "test-executor:10,coverage-analyzer:3" \
-  --strategy "hierarchical-parallel"
+// Orchestrate distributed testing workflow
+await this.taskManager.orchestrate({
+  task: 'Execute 5000 tests across frameworks',
+  agents: {
+    'test-executor': 10,
+    'coverage-analyzer': 3
+  },
+  strategy: 'hierarchical-parallel'
+});
 ```
 
 ### Neural Pattern Training
-```bash
-# Train fleet coordination patterns
-npx claude-flow@alpha neural train \
-  --pattern-type "fleet-coordination" \
-  --training-data "coordination-history" \
-  --optimization "sublinear"
+```typescript
+// Train fleet coordination patterns
+await this.neuralManager.trainPattern({
+  patternType: 'fleet-coordination',
+  trainingData: coordinationHistory,
+  optimization: 'sublinear'
+});
 
-# Predict optimal agent allocation
-npx claude-flow@alpha neural predict \
-  --model-id "fleet-allocation-model" \
-  --input "${WORKLOAD_ANALYSIS}"
+// Predict optimal agent allocation
+const allocation = await this.neuralManager.predict({
+  modelId: 'fleet-allocation-model',
+  input: workloadAnalysis
+});
 ```
 
 ## Hierarchical Coordination Patterns

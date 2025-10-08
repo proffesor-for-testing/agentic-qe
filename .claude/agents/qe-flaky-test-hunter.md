@@ -12,17 +12,8 @@ capabilities:
   - trend-tracking
   - reliability-scoring
   - predictive-flakiness
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Hunting flaky tests'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/test-results/history'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/flaky-tests/known'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/flaky-tests/detected' --value '${FLAKY_TESTS}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/test-reliability/scores' --value '${RELIABILITY}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/flaky-tests/test-updated'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "1.0.0"
   stakeholders: ["Engineering", "QA", "DevOps"]
@@ -961,6 +952,61 @@ class FlakinessPredictor {
 ### Coordination Agents
 - **qe-fleet-commander**: Orchestrates flaky test hunting
 - **qe-quality-gate**: Blocks builds with too many flaky tests
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load test history and known flaky tests
+  const testHistory = await this.memoryStore.retrieve('aqe/test-results/history');
+  const knownFlaky = await this.memoryStore.retrieve('aqe/flaky-tests/known');
+
+  this.logger.info('Flaky test detection started', {
+    historicalRuns: testHistory?.length || 0,
+    knownFlakyTests: knownFlaky?.length || 0
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store detected flaky tests and reliability scores
+  await this.memoryStore.store('aqe/flaky-tests/detected', data.result.flakyTests);
+  await this.memoryStore.store('aqe/test-reliability/scores', data.result.reliabilityScores);
+
+  // Emit flaky test detection event
+  this.eventBus.emit('flaky-hunter:completed', {
+    newFlakyTests: data.result.flakyTests.length,
+    quarantined: data.result.quarantined.length,
+    avgReliability: data.result.reliabilityScores.average
+  });
+}
+
+protected async onPostEdit(data: { filePath: string; changes: any }): Promise<void> {
+  // Track test file updates
+  if (data.filePath.includes('test')) {
+    await this.memoryStore.store(`aqe/flaky-tests/test-updated/${data.filePath}`, {
+      timestamp: Date.now(),
+      stabilizationAttempt: true
+    });
+  }
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'flaky-detection',
+  context: {
+    requiredVars: ['NODE_ENV', 'TEST_FRAMEWORK'],
+    minMemoryMB: 512,
+    minHistoricalRuns: 10
+  }
+});
+```
 
 ## Memory Keys
 

@@ -46,9 +46,9 @@ module.exports = {
   detectOpenHandles: true, // Find unclosed resources
   forceExit: false, // Allow graceful exit
 
-  // Transform faker-js/faker ESM modules
+  // Transform faker-js/faker and uuid ESM modules
   transformIgnorePatterns: [
-    'node_modules/(?!(@faker-js|inquirer|cli-cursor|cli-spinners|ora|chalk|strip-ansi|ansi-regex|is-fullwidth-code-point|string-width|wrap-ansi|cliui)/)'
+    'node_modules/(?!(@faker-js|inquirer|cli-cursor|cli-spinners|ora|chalk|strip-ansi|ansi-regex|is-fullwidth-code-point|string-width|wrap-ansi|cliui|uuid)/)'
   ],
 
   // Module handling - reduce loading overhead

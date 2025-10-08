@@ -12,17 +12,8 @@ capabilities:
   - historical-pattern-learning
   - blast-radius-calculation
   - ci-optimization
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Analyzing regression risk'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/regression/history'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/code-changes/current'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/regression/risk-score' --value '${RISK_SCORE}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/regression/test-selection' --value '${SELECTED_TESTS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/regression/file-tracked'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "1.0.0"
   stakeholders: ["Engineering", "QA", "DevOps"]
@@ -743,6 +734,57 @@ ci_optimization:
     only_run_affected_tests: true
     fallback_to_full_suite: "On main branch or release tags"
     avg_reduction: "96.3%"
+```
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Retrieve regression history
+  const history = await this.memoryStore.retrieve('aqe/regression/history', {
+    partition: 'historical_data'
+  });
+
+  // Retrieve current code changes
+  const codeChanges = await this.memoryStore.retrieve('aqe/code-changes/current', {
+    partition: 'code_analysis'
+  });
+
+  this.eventBus.emit('regression-analyzer:starting', {
+    agentId: this.agentId,
+    changesDetected: codeChanges?.files?.length || 0
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store risk score
+  await this.memoryStore.store('aqe/regression/risk-score', data.result.riskScore, {
+    partition: 'risk_analysis'
+  });
+
+  // Store selected tests
+  await this.memoryStore.store('aqe/regression/test-selection', data.result.selectedTests, {
+    partition: 'test_selection'
+  });
+
+  this.eventBus.emit('regression-analyzer:completed', {
+    agentId: this.agentId,
+    riskScore: data.result.riskScore,
+    testsSelected: data.result.selectedTests.length
+  });
+}
+```
+
+**Advanced Verification:**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'regression-risk-analysis',
+  context: { requiredVars: ['GIT_COMMIT'], minMemoryMB: 256 }
+});
 ```
 
 ## Integration Points

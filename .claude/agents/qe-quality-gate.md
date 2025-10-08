@@ -14,15 +14,8 @@ capabilities:
   - decision-trees
   - threshold-management
   - automated-decisions
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Starting quality gate validation'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/quality/thresholds'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/quality/decisions' --value '${GATE_DECISIONS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/quality/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   decision_tree_capabilities: true
   temporal_prediction: enabled
@@ -57,6 +50,164 @@ integration_points:
 - Psycho-symbolic reasoning for complex quality scenarios
 - Risk-based override mechanisms with audit trails
 - Real-time policy compliance monitoring
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Called automatically by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load quality thresholds from memory
+  const thresholds = await this.memoryStore.retrieve('aqe/quality/thresholds', {
+    partition: 'configuration'
+  });
+
+  // Retrieve decision context
+  const context = await this.memoryStore.retrieve('aqe/context', {
+    partition: 'coordination'
+  });
+
+  // Verify environment for quality gate execution
+  const verification = await this.hookManager.executePreTaskVerification({
+    task: 'quality-gate-evaluation',
+    context: {
+      requiredVars: ['NODE_ENV', 'QUALITY_PROFILE'],
+      minMemoryMB: 512,
+      requiredModules: ['jest', 'eslint']
+    }
+  });
+
+  // Emit quality gate starting event
+  this.eventBus.emit('quality-gate:starting', {
+    agentId: this.agentId,
+    thresholds: thresholds,
+    context: context
+  });
+
+  this.logger.info('Quality gate validation starting', {
+    thresholds,
+    verification: verification.passed
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store quality gate decisions in swarm memory
+  await this.memoryStore.store('aqe/quality/decisions', data.result, {
+    partition: 'decisions',
+    ttl: 86400 // 24 hours
+  });
+
+  // Store decision metrics for trend analysis
+  await this.memoryStore.store('aqe/quality/metrics', {
+    timestamp: Date.now(),
+    decision: data.result.decision,
+    score: data.result.score,
+    riskLevel: data.result.riskLevel,
+    policyViolations: data.result.policyViolations
+  }, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit completion event with decision outcome
+  this.eventBus.emit('quality-gate:completed', {
+    agentId: this.agentId,
+    decision: data.result.decision,
+    score: data.result.score,
+    goPassed: data.result.decision === 'GO'
+  });
+
+  // Validate quality gate results
+  const validation = await this.hookManager.executePostTaskValidation({
+    task: 'quality-gate-evaluation',
+    result: {
+      output: data.result,
+      coverage: data.result.coverageScore,
+      metrics: {
+        qualityScore: data.result.score,
+        riskLevel: data.result.riskLevel
+      }
+    }
+  });
+
+  this.logger.info('Quality gate evaluation completed', {
+    decision: data.result.decision,
+    score: data.result.score,
+    validated: validation.passed
+  });
+}
+
+protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
+  // Store error for fleet analysis
+  await this.memoryStore.store(`aqe/errors/${data.assignment.task.id}`, {
+    error: data.error.message,
+    timestamp: Date.now(),
+    agent: this.agentId,
+    taskType: 'quality-gate-evaluation'
+  }, {
+    partition: 'errors',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit error event for fleet coordination
+  this.eventBus.emit('quality-gate:error', {
+    agentId: this.agentId,
+    error: data.error.message,
+    taskId: data.assignment.task.id
+  });
+
+  this.logger.error('Quality gate evaluation failed', {
+    error: data.error.message,
+    stack: data.error.stack
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+// Use VerificationHookManager for comprehensive validation
+const hookManager = new VerificationHookManager(this.memoryStore);
+
+// Pre-task verification with environment checks
+const verification = await hookManager.executePreTaskVerification({
+  task: 'quality-gate-evaluation',
+  context: {
+    requiredVars: ['NODE_ENV', 'QUALITY_PROFILE', 'THRESHOLD_CONFIG'],
+    minMemoryMB: 512,
+    requiredModules: ['jest', 'eslint', '@typescript-eslint/parser']
+  }
+});
+
+// Post-task validation with result verification
+const validation = await hookManager.executePostTaskValidation({
+  task: 'quality-gate-evaluation',
+  result: {
+    output: gateDecision,
+    coverage: coverageScore,
+    metrics: {
+      qualityScore: qualityScore,
+      riskLevel: riskLevel,
+      policyCompliance: complianceScore
+    }
+  }
+});
+
+// Pre-edit verification before modifying quality configurations
+const editCheck = await hookManager.executePreEditVerification({
+  filePath: 'config/quality-thresholds.json',
+  operation: 'write',
+  content: JSON.stringify(newThresholds)
+});
+
+// Session finalization with quality gate audit export
+const finalization = await hookManager.executeSessionEndFinalization({
+  sessionId: 'quality-gate-v2.0.0',
+  exportMetrics: true,
+  exportArtifacts: true
+});
+```
 
 ## Decision Workflow
 
@@ -249,25 +400,6 @@ agentic-qe agent status --name qe-quality-gate
 agentic-qe agent history qe-quality-gate --decisions --limit 50
 ```
 
-## Coordination Hooks
-
-### Pre-Task Hooks
-```bash
-# Validate quality thresholds before evaluation
-npx claude-flow@alpha hooks pre-task --agent qe-quality-gate --action validate_thresholds
-
-# Load decision context
-npx claude-flow@alpha hooks pre-task --agent qe-quality-gate --action load_context
-```
-
-### Post-Task Hooks
-```bash
-# Update quality metrics after decision
-npx claude-flow@alpha hooks post-task --agent qe-quality-gate --action update_metrics
-
-# Store decision outcomes
-npx claude-flow@alpha hooks post-task --agent qe-quality-gate --action store_outcomes
-```
 
 ## Fleet Integration
 

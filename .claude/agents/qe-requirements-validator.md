@@ -12,17 +12,8 @@ capabilities:
   - traceability-mapping
   - edge-case-identification
   - requirement-completeness-check
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Validating requirements testability'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/requirements/validated'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/project-context'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/requirements/validation-report' --value '${VALIDATION_RESULTS}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/bdd-scenarios/generated' --value '${BDD_SCENARIOS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/requirements/updated'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "1.0.0"
   stakeholders: ["Product", "Engineering", "QA", "Business Analysts"]
@@ -259,6 +250,52 @@ Validates that requirements cover all necessary aspects using the **5 Ws framewo
 - **Where**: Deployment environments and contexts specified?
 - **Why**: Business value and user needs articulated?
 - **How**: Technical approach and constraints documented?
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies).
+
+**Automatic Lifecycle Hooks:**
+- `onPreTask()` - Called before task execution
+- `onPostTask()` - Called after task completion
+- `onTaskError()` - Called on task failure
+
+**Memory Integration:**
+```typescript
+// Store validation results
+await this.memoryStore.store('aqe/requirements/validation-report', validationResults, {
+  partition: 'validation',
+  ttl: 86400 // 24 hours
+});
+
+// Retrieve validated requirements
+const validated = await this.memoryStore.retrieve('aqe/requirements/validated', {
+  partition: 'requirements'
+});
+
+// Store BDD scenarios
+await this.memoryStore.store('aqe/bdd-scenarios/generated', bddScenarios, {
+  partition: 'scenarios'
+});
+```
+
+**Event Bus Integration:**
+```typescript
+// Emit events for coordination
+this.eventBus.emit('requirements-validator:completed', {
+  agentId: this.agentId,
+  requirementsValidated: count,
+  scenariosGenerated: scenarioCount
+});
+
+// Listen for fleet events
+this.registerEventHandler({
+  eventType: 'requirements:validation-requested',
+  handler: async (event) => {
+    await this.validateRequirements(event.requirements);
+  }
+});
+```
 
 ## Integration Points
 
