@@ -2,7 +2,7 @@
  * RollbackManager - Manages snapshots and automatic rollback on errors/regressions
  */
 
-import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
+import { ISwarmMemoryManager } from '../../types/memory-interfaces';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -56,7 +56,7 @@ export interface CleanupOptions {
 export class RollbackManager {
   private snapshots: Map<string, Snapshot> = new Map();
 
-  constructor(private memory: SwarmMemoryManager) {}
+  constructor(private memory: ISwarmMemoryManager) {}
 
   /**
    * Create a snapshot of specified files

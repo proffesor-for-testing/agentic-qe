@@ -749,7 +749,7 @@ echo "Scaling completed successfully!"
   private static async checkCoordinationHealth(): Promise<any> {
     const health: any = { status: 'healthy', issues: [] };
 
-    // Check if coordination scripts exist
+    // Check if coordination scripts exist (created by init.ts)
     const coordinationScripts = [
       '.agentic-qe/scripts/pre-execution.sh',
       '.agentic-qe/scripts/post-execution.sh'
@@ -786,7 +786,7 @@ echo "Scaling completed successfully!"
             recommendations.push('Run agentic-qe run tests to generate execution history');
             break;
           case 'coordination':
-            recommendations.push('Check Claude Flow integration and coordination scripts');
+            recommendations.push('Check AQE coordination scripts in .agentic-qe/scripts/');
             break;
         }
       }

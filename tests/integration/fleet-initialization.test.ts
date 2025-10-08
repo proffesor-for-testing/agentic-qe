@@ -482,22 +482,37 @@ describe('Fleet Initialization Integration Tests', () => {
 
       await InitCommand.execute(options);
 
-      // Verify coordination script creation
-      const scriptCall = mockFs.writeFile.mock.calls.find(
-        call => call[0] === '.agentic-qe/scripts/setup-coordination.sh'
+      // Verify pre-execution coordination script creation (AQE native)
+      const preScriptCall = mockFs.writeFile.mock.calls.find(
+        call => call[0] === '.agentic-qe/scripts/pre-execution.sh'
       );
-      
-      expect(scriptCall).toBeDefined();
-      const script = scriptCall![1];
-      
-      expect(script).toContain('npx claude-flow@alpha hooks pre-task');
-      expect(script).toContain('npx claude-flow@alpha memory store');
-      expect(script).toContain('agentic-qe/fleet/config');
-      expect(script).toContain('Fleet initialized with adaptive topology');
 
-      // Verify script permissions
+      expect(preScriptCall).toBeDefined();
+      const preScript = preScriptCall![1];
+
+      expect(preScript).toContain('agentic-qe fleet status --json');
+      expect(preScript).toContain('.agentic-qe/state/coordination/fleet-config.json');
+      expect(preScript).toContain('Pre-execution coordination complete');
+
+      // Verify post-execution coordination script creation (AQE native)
+      const postScriptCall = mockFs.writeFile.mock.calls.find(
+        call => call[0] === '.agentic-qe/scripts/post-execution.sh'
+      );
+
+      expect(postScriptCall).toBeDefined();
+      const postScript = postScriptCall![1];
+
+      expect(postScript).toContain('agentic-qe fleet status --json');
+      expect(postScript).toContain('.agentic-qe/state/coordination/last-execution.json');
+      expect(postScript).toContain('Post-execution coordination complete');
+
+      // Verify script permissions for both scripts
       expect(mockFs.chmod).toHaveBeenCalledWith(
-        '.agentic-qe/scripts/setup-coordination.sh',
+        '.agentic-qe/scripts/pre-execution.sh',
+        '755'
+      );
+      expect(mockFs.chmod).toHaveBeenCalledWith(
+        '.agentic-qe/scripts/post-execution.sh',
         '755'
       );
     });

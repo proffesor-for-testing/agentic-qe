@@ -2,7 +2,7 @@
  * ConfigurationChecker - Validates configuration schema and values
  */
 
-import { SwarmMemoryManager } from '../../memory/SwarmMemoryManager';
+import { ISwarmMemoryManager } from '../../../types/memory-interfaces';
 
 export interface ConfigurationCheckOptions {
   config: Record<string, any>;
@@ -23,7 +23,7 @@ export interface ConfigurationCheckResult {
 }
 
 export class ConfigurationChecker {
-  constructor(private memory?: SwarmMemoryManager) {}
+  constructor(private memory?: ISwarmMemoryManager) {}
 
   async check(options: ConfigurationCheckOptions): Promise<ConfigurationCheckResult> {
     const checks: string[] = [];

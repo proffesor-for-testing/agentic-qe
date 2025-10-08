@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
+import { ISwarmMemoryManager } from '../../types/memory-interfaces';
 import { EnvironmentChecker, ResourceChecker, PermissionChecker, ConfigurationChecker } from './checkers';
 import { OutputValidator, QualityValidator, CoverageValidator, PerformanceValidator } from './validators';
 import { RollbackManager } from './RollbackManager';
@@ -69,7 +69,7 @@ export class VerificationHookManager extends EventEmitter {
   private performanceValidator: PerformanceValidator;
   private rollbackManager: RollbackManager;
 
-  constructor(private memory: SwarmMemoryManager) {
+  constructor(private memory: ISwarmMemoryManager) {
     super();
     this.environmentChecker = new EnvironmentChecker();
     this.resourceChecker = new ResourceChecker();

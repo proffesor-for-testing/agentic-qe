@@ -23,6 +23,7 @@ import {
   TaskErrorData
 } from '../types';
 import { VerificationHookManager } from '../core/hooks';
+import { MemoryStoreAdapter } from '../adapters/MemoryStoreAdapter';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -72,10 +73,11 @@ export abstract class BaseAgent extends EventEmitter {
     this.memoryStore = config.memoryStore;
     this.eventBus = config.eventBus;
 
-    // Initialize verification hook manager
-    // Note: VerificationHookManager expects SwarmMemoryManager interface
-    // BaseAgent memoryStore provides compatible interface through duck typing
-    this.hookManager = new VerificationHookManager(this.memoryStore as any);
+    // Initialize verification hook manager with type-safe adapter
+    // MemoryStoreAdapter bridges MemoryStore interface to SwarmMemoryManager
+    // Provides runtime validation and clear error messages for incompatible implementations
+    const memoryAdapter = new MemoryStoreAdapter(this.memoryStore);
+    this.hookManager = new VerificationHookManager(memoryAdapter);
 
     this.setupEventHandlers();
     this.setupLifecycleHooks();
