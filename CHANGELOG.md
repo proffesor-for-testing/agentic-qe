@@ -5,6 +5,50 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2025-10-08
+
+### Fixed
+
+#### Dependency Management
+- **Eliminated deprecated npm warnings**: Migrated from `sqlite3@5.1.7` to `better-sqlite3@12.4.1`
+  - Removed 86 packages including deprecated dependencies:
+    - `inflight@1.0.6` (memory leak warning)
+    - `rimraf@3.0.2` (deprecated, use v4+)
+    - `glob@7.2.3` (deprecated, use v9+)
+    - `@npmcli/move-file@1.1.2` (moved to @npmcli/fs)
+    - `npmlog@6.0.2` (no longer supported)
+    - `are-we-there-yet@3.0.1` (no longer supported)
+    - `gauge@4.0.4` (no longer supported)
+  - Zero npm install warnings after migration
+  - Professional package installation experience
+
+#### Performance Improvements
+- **better-sqlite3 benefits**:
+  - Synchronous API (simpler, more reliable)
+  - Better performance for SQLite operations
+  - Actively maintained with modern Node.js support
+  - No deprecated transitive dependencies
+
+### Changed
+
+#### Database Layer
+- Migrated `Database` class to use `better-sqlite3` instead of `sqlite3`
+  - Import alias `BetterSqlite3` to avoid naming conflicts
+  - Simplified synchronous API (removed Promise wrappers)
+  - Updated `run()`, `get()`, `all()` methods to use prepared statements
+  - Streamlined `close()` method (no callbacks needed)
+
+- Migrated `SwarmMemoryManager` to use `better-sqlite3`
+  - Updated internal `run()`, `get()`, `all()` methods
+  - Synchronous database operations for better reliability
+  - Maintained async API for compatibility with calling code
+
+#### Test Updates
+- Updated test mocks to include `set()` and `get()` methods
+  - Fixed MemoryStoreAdapter validation errors
+  - Updated 2 test files with proper mock methods
+  - Maintained test coverage and compatibility
+
 ## [1.0.3] - 2025-10-08
 
 ### Fixed

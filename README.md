@@ -50,16 +50,16 @@ A distributed fleet of specialized AI agents for comprehensive software testing,
 
 ## 📦 Prerequisites & Installation
 
-### What's New in v1.0.1
+### What's New in v1.0.4
 
-**Patch Release** - October 7, 2025
+**Patch Release** - October 8, 2025
 
-🔒 **Security Fix**: Removed vulnerable `faker` package (CVE-2022-42003)
-✅ **Test Infrastructure**: Fixed async timing and agent lifecycle issues
-📚 **Documentation**: Added comprehensive user guides (USER-GUIDE, CONFIGURATION, TROUBLESHOOTING)
-🐛 **Bug Fixes**: Improved memory management and test reliability
+🎯 **Zero Warnings**: Eliminated all deprecated npm dependency warnings
+⚡ **Better Performance**: Migrated to `better-sqlite3` for improved reliability
+🏗️ **Simplified Architecture**: Synchronous database API, no callbacks needed
+✨ **Professional Experience**: Clean npm install with zero deprecation warnings
 
-[View Complete Changelog](./CHANGELOG.md#101---2025-10-07)
+[View Complete Changelog](./CHANGELOG.md#104---2025-10-08)
 
 ### Prerequisites
 
@@ -629,7 +629,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with TypeScript, Node.js, and SQLite
+- Built with TypeScript, Node.js, and better-sqlite3
 - Inspired by autonomous agent architectures and swarm intelligence
 - Integrates with Jest, Cypress, Playwright, k6, SonarQube, and more
 - Compatible with Claude Code via Model Context Protocol (MCP)

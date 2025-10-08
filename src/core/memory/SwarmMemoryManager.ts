@@ -1,4 +1,4 @@
-import sqlite3 from 'sqlite3';
+import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import {
@@ -211,7 +211,7 @@ export interface OODACycle {
  * - Agent lifecycle management
  */
 export class SwarmMemoryManager {
-  private db: sqlite3.Database | null = null;
+  private db: BetterSqlite3.Database | null = null;
   private dbPath: string;
   private initialized = false;
   private accessControl: AccessControl;
@@ -233,31 +233,25 @@ export class SwarmMemoryManager {
     this.aclCache = new Map();
   }
 
-  private run(sql: string, params: any[] = []): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db!.run(sql, params, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+  private run(sql: string, params: any[] = []): void {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    this.db.prepare(sql).run(...params);
   }
 
-  private get<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {
-    return new Promise((resolve, reject) => {
-      this.db!.get(sql, params, (err, row) => {
-        if (err) reject(err);
-        else resolve(row as T);
-      });
-    });
+  private get<T = any>(sql: string, params: any[] = []): T | undefined {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    return this.db.prepare(sql).get(...params) as T | undefined;
   }
 
-  private all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      this.db!.all(sql, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve((rows || []) as T[]);
-      });
-    });
+  private all<T = any>(sql: string, params: any[] = []): T[] {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    return this.db.prepare(sql).all(...params) as T[];
   }
 
   async initialize(): Promise<void> {
@@ -270,7 +264,7 @@ export class SwarmMemoryManager {
       await fs.ensureDir(path.dirname(this.dbPath));
     }
 
-    this.db = new sqlite3.Database(this.dbPath);
+    this.db = new BetterSqlite3(this.dbPath);
 
     // Create memory entries table with access control fields
     await this.run(`
@@ -770,16 +764,9 @@ export class SwarmMemoryManager {
 
   async close(): Promise<void> {
     if (this.db) {
-      return new Promise((resolve, reject) => {
-        this.db!.close((err) => {
-          if (err) reject(err);
-          else {
-            this.db = null;
-            this.initialized = false;
-            resolve();
-          }
-        });
-      });
+      this.db.close();
+      this.db = null;
+      this.initialized = false;
     }
   }
 

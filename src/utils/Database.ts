@@ -2,11 +2,11 @@
  * Database - SQLite database management for the AQE Fleet
  *
  * Provides persistent storage for fleet state, agent metrics, task history,
- * and configuration data using SQLite for the MVP implementation.
+ * and configuration data using better-sqlite3 for improved performance and reliability.
  */
 
-import sqlite3 from 'sqlite3';
-import { join, dirname } from 'path';
+import BetterSqlite3 from 'better-sqlite3';
+import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { Logger } from './Logger';
 
@@ -15,7 +15,7 @@ export interface DatabaseRow {
 }
 
 export class Database {
-  private db: sqlite3.Database | null = null;
+  private db: BetterSqlite3.Database | null = null;
   private readonly logger: Logger;
   private readonly dbPath: string;
   private isInitialized: boolean = false;
@@ -40,11 +40,11 @@ export class Database {
         mkdirSync(dbDir, { recursive: true });
       }
 
-      // Create database connection
-      this.db = new sqlite3.Database(this.dbPath);
+      // Create database connection (better-sqlite3 is synchronous)
+      this.db = new BetterSqlite3(this.dbPath);
 
       // Enable foreign keys
-      await this.exec('PRAGMA foreign_keys = ON');
+      this.exec('PRAGMA foreign_keys = ON');
 
       // Create tables
       await this.createTables();
@@ -62,105 +62,87 @@ export class Database {
    * Close database connection
    */
   async close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        resolve();
-        return;
-      }
+    if (!this.db) {
+      return;
+    }
 
-      this.db.close((err) => {
-        if (err) {
-          this.logger.error('Error closing database:', err);
-          reject(err);
-        } else {
-          this.logger.info('Database connection closed');
-          this.db = null;
-          this.isInitialized = false;
-          resolve();
-        }
-      });
-    });
+    try {
+      this.db.close();
+      this.logger.info('Database connection closed');
+      this.db = null;
+      this.isInitialized = false;
+    } catch (error) {
+      this.logger.error('Error closing database:', error);
+      throw error;
+    }
   }
 
   /**
    * Execute SQL query
    */
-  async exec(sql: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error('Database not initialized'));
-        return;
-      }
+  exec(sql: string): void {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
 
-      this.db.exec(sql, (err) => {
-        if (err) {
-          this.logger.error('SQL exec error:', err);
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+    try {
+      this.db.exec(sql);
+    } catch (error) {
+      this.logger.error('SQL exec error:', error);
+      throw error;
+    }
   }
 
   /**
    * Run SQL query with parameters
    */
   async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error('Database not initialized'));
-        return;
-      }
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
 
-      this.db.run(sql, params, function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve({ lastID: this.lastID, changes: this.changes });
-        }
-      });
-    });
+    try {
+      const info = this.db.prepare(sql).run(...params);
+      return {
+        lastID: Number(info.lastInsertRowid),
+        changes: info.changes
+      };
+    } catch (error) {
+      this.logger.error('SQL run error:', error);
+      throw error;
+    }
   }
 
   /**
    * Get single row from database
    */
   async get(sql: string, params: any[] = []): Promise<DatabaseRow | undefined> {
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error('Database not initialized'));
-        return;
-      }
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
 
-      this.db.get(sql, params, (err, row) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(row as DatabaseRow | undefined);
-        }
-      });
-    });
+    try {
+      return this.db.prepare(sql).get(...params) as DatabaseRow | undefined;
+    } catch (error) {
+      this.logger.error('SQL get error:', error);
+      throw error;
+    }
   }
 
   /**
    * Get all rows from database
    */
   async all(sql: string, params: any[] = []): Promise<DatabaseRow[]> {
-    return new Promise((resolve, reject) => {
-      if (!this.db) {
-        reject(new Error('Database not initialized'));
-        return;
-      }
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
 
-      this.db.all(sql, params, (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve((rows || []) as DatabaseRow[]);
-        }
-      });
-    });
+    try {
+      return this.db.prepare(sql).all(...params) as DatabaseRow[];
+    } catch (error) {
+      this.logger.error('SQL all error:', error);
+      throw error;
+    }
   }
 
   /**
