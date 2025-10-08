@@ -50,6 +50,8 @@ describe('TestGeneratorAgent', () => {
     mockMemoryStore = {
       store: jest.fn().mockResolvedValue(undefined),
       retrieve: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn().mockResolvedValue(null),
       delete: jest.fn().mockResolvedValue(undefined),
       clear: jest.fn().mockResolvedValue(undefined),
       has: jest.fn().mockResolvedValue(false),

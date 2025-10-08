@@ -37,6 +37,8 @@ describe('QualityAnalyzerAgent', () => {
     mockMemoryStore = {
       store: jest.fn().mockResolvedValue(undefined),
       retrieve: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      get: jest.fn().mockResolvedValue(null),
       retrieveShared: jest.fn().mockResolvedValue(null),
       delete: jest.fn().mockResolvedValue(true),
       exists: jest.fn().mockResolvedValue(false),
