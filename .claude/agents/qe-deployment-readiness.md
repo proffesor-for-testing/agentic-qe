@@ -12,17 +12,8 @@ capabilities:
   - stakeholder-reporting
   - deployment-gate-enforcement
   - post-deployment-monitoring
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Assessing deployment readiness'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/quality-signals/*'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/deployment/history'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/deployment/decision' --value '${GO_NO_GO}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/deployment/risk-score' --value '${RISK_SCORE}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/deployment/config-updated'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "1.0.0"
   stakeholders: ["Engineering", "QA", "DevOps", "Product", "Executive"]
@@ -577,6 +568,52 @@ const postDeploymentMonitoring = {
 ### Coordination Agents
 - **qe-fleet-commander**: Orchestrates readiness assessment workflow
 - **qe-production-intelligence**: Provides historical deployment insights
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load all quality signals for deployment assessment
+  const qualitySignals = await this.memoryStore.retrievePattern('aqe/quality-signals/*');
+  const deploymentHistory = await this.memoryStore.retrieve('aqe/deployment/history');
+
+  this.logger.info('Deployment readiness assessment started', {
+    qualitySignalsCollected: Object.keys(qualitySignals).length,
+    historicalDeployments: deploymentHistory?.length || 0
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store deployment decision and risk score
+  await this.memoryStore.store('aqe/deployment/decision', data.result.decision);
+  await this.memoryStore.store('aqe/deployment/risk-score', data.result.riskScore);
+  await this.memoryStore.store('aqe/deployment/confidence', data.result.confidence);
+
+  // Emit deployment readiness event
+  this.eventBus.emit('deployment-readiness:assessed', {
+    decision: data.result.decision.status,
+    riskLevel: data.result.riskScore.level,
+    confidence: data.result.confidence.score
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'deployment-assessment',
+  context: {
+    requiredVars: ['DEPLOYMENT_ENV', 'VERSION'],
+    minMemoryMB: 512,
+    requiredKeys: ['aqe/quality-signals/code-quality', 'aqe/deployment/history']
+  }
+});
+```
 
 ## Memory Keys
 

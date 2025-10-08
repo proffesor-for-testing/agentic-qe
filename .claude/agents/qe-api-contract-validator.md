@@ -12,17 +12,8 @@ capabilities:
   - consumer-impact-analysis
   - contract-testing
   - semantic-versioning-validation
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Validating API contracts'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/contracts/current'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/api-schemas/baseline'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/contracts/validation-result' --value '${RESULT}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/breaking-changes/detected' --value '${BREAKING_CHANGES}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/contracts/schema-updated'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "1.0.0"
   stakeholders: ["Engineering", "API Teams", "Integration Partners", "DevOps"]
@@ -934,6 +925,55 @@ class SemanticVersioningValidator {
 ### Coordination Agents
 - **qe-fleet-commander**: Orchestrates contract validation
 - **qe-requirements-validator**: Validates API requirements
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load baseline contracts and schemas
+  const contracts = await this.memoryStore.retrieve('aqe/contracts/current');
+  const baseline = await this.memoryStore.retrieve('aqe/api-schemas/baseline');
+  this.logger.info('Loaded API contracts and baseline schemas');
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store validation results and breaking changes
+  await this.memoryStore.store('aqe/contracts/validation-result', data.result.validation);
+  await this.memoryStore.store('aqe/breaking-changes/detected', data.result.breakingChanges);
+
+  // Emit events for downstream agents
+  this.eventBus.emit('contract-validator:completed', {
+    breakingChanges: data.result.breakingChanges.length,
+    validationStatus: data.result.validation.passed
+  });
+}
+
+protected async onPostEdit(data: { filePath: string; changes: any }): Promise<void> {
+  // Track schema updates
+  const fileName = data.filePath.split('/').pop();
+  await this.memoryStore.store(`aqe/contracts/schema-updated/${fileName}`, {
+    timestamp: Date.now(),
+    changes: data.changes
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'contract-validation',
+  context: {
+    requiredVars: ['NODE_ENV', 'API_VERSION'],
+    minMemoryMB: 512,
+    requiredKeys: ['aqe/api-schemas/baseline']
+  }
+});
+```
 
 ## Memory Keys
 

@@ -17,8 +17,12 @@ import {
   QETask,
   TaskAssignment,
   AgentMessage,
-  MessageType
+  MessageType,
+  PreTaskData,
+  PostTaskData,
+  TaskErrorData
 } from '../types';
+import { VerificationHookManager } from '../core/hooks';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -38,6 +42,7 @@ export abstract class BaseAgent extends EventEmitter {
   protected readonly eventBus: EventEmitter;
   protected readonly eventHandlers: Map<string, EventHandler[]> = new Map();
   protected currentTask?: TaskAssignment;
+  protected hookManager: VerificationHookManager;
   protected performanceMetrics: {
     tasksCompleted: number;
     averageExecutionTime: number;
@@ -66,6 +71,11 @@ export abstract class BaseAgent extends EventEmitter {
     this.context = config.context;
     this.memoryStore = config.memoryStore;
     this.eventBus = config.eventBus;
+
+    // Initialize verification hook manager
+    // Note: VerificationHookManager expects SwarmMemoryManager interface
+    // BaseAgent memoryStore provides compatible interface through duck typing
+    this.hookManager = new VerificationHookManager(this.memoryStore as any);
 
     this.setupEventHandlers();
     this.setupLifecycleHooks();
@@ -109,7 +119,7 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
-   * Execute a task assignment
+   * Execute a task assignment with integrated verification hooks
    */
   public async executeTask(assignment: TaskAssignment): Promise<any> {
     const startTime = Date.now();
@@ -121,8 +131,10 @@ export abstract class BaseAgent extends EventEmitter {
       this.currentTask = assignment;
       this.status = AgentStatus.ACTIVE;
 
-      // Execute pre-task hooks
-      await this.executeHook('pre-task', { assignment });
+      // Execute pre-task hooks with verification
+      const preTaskData: PreTaskData = { assignment };
+      await this.onPreTask(preTaskData);
+      await this.executeHook('pre-task', preTaskData);
 
       // Broadcast task start
       await this.broadcastMessage('task-start', assignment);
@@ -130,8 +142,10 @@ export abstract class BaseAgent extends EventEmitter {
       // Execute the actual task
       const result = await this.performTask(assignment.task);
 
-      // Execute post-task hooks
-      await this.executeHook('post-task', { assignment, result });
+      // Execute post-task hooks with validation
+      const postTaskData: PostTaskData = { assignment, result };
+      await this.onPostTask(postTaskData);
+      await this.executeHook('post-task', postTaskData);
 
       // Update performance metrics
       this.updatePerformanceMetrics(startTime, true);
@@ -150,7 +164,12 @@ export abstract class BaseAgent extends EventEmitter {
       this.status = AgentStatus.ERROR;
 
       // Execute error hooks
-      await this.executeHook('task-error', { assignment, error });
+      const errorData: TaskErrorData = {
+        assignment,
+        error: error as Error
+      };
+      await this.onTaskError(errorData);
+      await this.executeHook('task-error', errorData);
 
       throw error;
     }
@@ -390,6 +409,107 @@ export abstract class BaseAgent extends EventEmitter {
   // ============================================================================
   // Lifecycle Hooks
   // ============================================================================
+
+  /**
+   * Pre-task hook - called before task execution
+   * Runs verification checks using VerificationHookManager
+   * @param data Pre-task hook data including task assignment
+   */
+  protected async onPreTask(data: PreTaskData): Promise<void> {
+    try {
+      const verificationResult = await this.hookManager.executePreTaskVerification({
+        task: data.assignment.task.type,
+        context: data.context
+      });
+
+      if (!verificationResult.passed) {
+        throw new Error(
+          `Pre-task verification failed with score ${verificationResult.score}. ` +
+          `Checks: ${verificationResult.checks.join(', ')}`
+        );
+      }
+
+      this.emitEvent('hook.pre-task.completed', {
+        agentId: this.agentId,
+        result: verificationResult
+      });
+    } catch (error) {
+      console.error(`Pre-task hook failed for agent ${this.agentId.id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Post-task hook - called after task execution
+   * Runs validation checks using VerificationHookManager
+   * @param data Post-task hook data including result
+   */
+  protected async onPostTask(data: PostTaskData): Promise<void> {
+    try {
+      const validationResult = await this.hookManager.executePostTaskValidation({
+        task: data.assignment.task.type,
+        result: data.result
+      });
+
+      if (!validationResult.valid) {
+        console.warn(
+          `Post-task validation warning with accuracy ${validationResult.accuracy}. ` +
+          `Validations: ${validationResult.validations.join(', ')}`
+        );
+      }
+
+      this.emitEvent('hook.post-task.completed', {
+        agentId: this.agentId,
+        result: validationResult
+      });
+    } catch (error) {
+      console.error(`Post-task hook failed for agent ${this.agentId.id}:`, error);
+      // Don't throw - allow task to complete even if validation has issues
+    }
+  }
+
+  /**
+   * Task error hook - called when task execution fails
+   * Handles error recovery and reporting
+   * @param data Error hook data including error details
+   */
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
+    try {
+      // Log error details
+      console.error(
+        `Task error for agent ${this.agentId.id}:`,
+        {
+          taskId: data.assignment.id,
+          taskType: data.assignment.task.type,
+          error: data.error.message,
+          stack: data.error.stack
+        }
+      );
+
+      // Store error in memory for analysis
+      await this.storeMemory(`error:${data.assignment.id}`, {
+        error: {
+          message: data.error.message,
+          stack: data.error.stack,
+          name: data.error.name
+        },
+        assignment: {
+          id: data.assignment.id,
+          taskType: data.assignment.task.type
+        },
+        timestamp: new Date(),
+        agentId: this.agentId.id
+      });
+
+      this.emitEvent('hook.task-error.completed', {
+        agentId: this.agentId,
+        error: data.error
+      }, 'high');
+    } catch (error) {
+      console.error(`Task error hook failed for agent ${this.agentId.id}:`, error);
+      // Swallow this error to prevent recursive error handling
+    }
+  }
 
   private async executeHook(hookName: string, data?: any): Promise<void> {
     try {

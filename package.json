@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
   "version": "1.0.2",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with native TypeScript hooks and optional Claude Flow MCP integration",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
@@ -60,7 +60,12 @@
     "automation",
     "ai-agents",
     "distributed-systems",
-    "swarm-intelligence"
+    "swarm-intelligence",
+    "typescript-hooks",
+    "native-hooks",
+    "lifecycle-management",
+    "mcp-integration",
+    "agent-coordination"
   ],
   "author": "AQE Development Team",
   "license": "MIT",

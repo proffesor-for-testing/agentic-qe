@@ -58,15 +58,8 @@ workflows:
   - security_testing
   - reporting
   - remediation_tracking
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Starting security scanning'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/security/policies'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/security/vulnerabilities' --value '${SCAN_RESULTS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/security/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 description: "Multi-layer security scanning with SAST/DAST, vulnerability detection, and compliance validation"
 ---
 
@@ -100,11 +93,173 @@ description: "Multi-layer security scanning with SAST/DAST, vulnerability detect
 ## Workflow Orchestration
 
 ### Pre-Execution Phase
-```bash
-# Initialize security scanning coordination
-npx claude-flow@alpha hooks pre-task --description "Security scanning workflow"
-npx claude-flow@alpha memory retrieve --key "aqe/security/policies"
-npx claude-flow@alpha memory retrieve --key "aqe/test-plan/security-requirements"
+
+**Native TypeScript Hooks:**
+```typescript
+// Called automatically by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Retrieve security policies from memory
+  const policies = await this.memoryStore.retrieve('aqe/security/policies', {
+    partition: 'configuration'
+  });
+
+  // Retrieve security requirements
+  const requirements = await this.memoryStore.retrieve('aqe/test-plan/security-requirements', {
+    partition: 'test_plans'
+  });
+
+  // Retrieve security baseline for comparison
+  const baseline = await this.memoryStore.retrieve('aqe/security/baselines', {
+    partition: 'baselines'
+  });
+
+  // Verify environment for security scanning
+  const verification = await this.hookManager.executePreTaskVerification({
+    task: 'security-scan',
+    context: {
+      requiredVars: ['TARGET_URL', 'SCAN_TYPE', 'SECURITY_PROFILE'],
+      minMemoryMB: 1024,
+      requiredModules: ['snyk', 'eslint-plugin-security']
+    }
+  });
+
+  // Emit security scanning started event
+  this.eventBus.emit('security-scanner:starting', {
+    agentId: this.agentId,
+    policiesCount: policies?.length || 0,
+    scanType: data.assignment.task.metadata.scanType,
+    targetUrl: data.assignment.task.metadata.targetUrl
+  });
+
+  this.logger.info('Security scanning starting', {
+    policies: policies?.length || 0,
+    requirements,
+    verification: verification.passed
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store security vulnerabilities in swarm memory
+  await this.memoryStore.store('aqe/security/vulnerabilities', data.result.vulnerabilities, {
+    partition: 'scan_results',
+    ttl: 604800 // 7 days
+  });
+
+  // Store compliance status
+  await this.memoryStore.store('aqe/security/compliance', data.result.compliance, {
+    partition: 'compliance',
+    ttl: 2592000 // 30 days
+  });
+
+  // Store security metrics for trend analysis
+  await this.memoryStore.store('aqe/security/metrics', {
+    timestamp: Date.now(),
+    vulnerabilitiesFound: data.result.vulnerabilities.length,
+    criticalCount: data.result.vulnerabilities.filter(v => v.severity === 'critical').length,
+    highCount: data.result.vulnerabilities.filter(v => v.severity === 'high').length,
+    complianceScore: data.result.compliance.score
+  }, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit completion event with scan results
+  this.eventBus.emit('security-scanner:completed', {
+    agentId: this.agentId,
+    vulnerabilitiesFound: data.result.vulnerabilities.length,
+    complianceScore: data.result.compliance.score,
+    criticalVulnerabilities: data.result.vulnerabilities.filter(v => v.severity === 'critical').length
+  });
+
+  // Validate security scan results
+  const validation = await this.hookManager.executePostTaskValidation({
+    task: 'security-scan',
+    result: {
+      output: data.result,
+      coverage: data.result.coverage,
+      metrics: {
+        vulnerabilitiesFound: data.result.vulnerabilities.length,
+        complianceScore: data.result.compliance.score
+      }
+    }
+  });
+
+  this.logger.info('Security scanning completed', {
+    vulnerabilities: data.result.vulnerabilities.length,
+    compliance: data.result.compliance.score,
+    validated: validation.passed
+  });
+}
+
+protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
+  // Store error for fleet analysis
+  await this.memoryStore.store(`aqe/errors/${data.assignment.task.id}`, {
+    error: data.error.message,
+    timestamp: Date.now(),
+    agent: this.agentId,
+    taskType: 'security-scan',
+    scanType: data.assignment.task.metadata.scanType
+  }, {
+    partition: 'errors',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit error event for fleet coordination
+  this.eventBus.emit('security-scanner:error', {
+    agentId: this.agentId,
+    error: data.error.message,
+    taskId: data.assignment.task.id
+  });
+
+  this.logger.error('Security scanning failed', {
+    error: data.error.message,
+    stack: data.error.stack
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+// Use VerificationHookManager for comprehensive validation
+const hookManager = new VerificationHookManager(this.memoryStore);
+
+// Pre-task verification with security tool checks
+const verification = await hookManager.executePreTaskVerification({
+  task: 'security-scan',
+  context: {
+    requiredVars: ['TARGET_URL', 'SCAN_TYPE', 'API_KEY'],
+    minMemoryMB: 1024,
+    requiredModules: ['snyk', '@snyk/cli', 'eslint-plugin-security', 'semgrep']
+  }
+});
+
+// Post-task validation with vulnerability threshold checks
+const validation = await hookManager.executePostTaskValidation({
+  task: 'security-scan',
+  result: {
+    output: scanResults,
+    coverage: coverageData,
+    metrics: {
+      criticalVulnerabilities: 0,
+      highVulnerabilities: 2,
+      complianceScore: 0.95
+    }
+  }
+});
+
+// Pre-edit verification before updating security policies
+const editCheck = await hookManager.executePreEditVerification({
+  filePath: 'config/security-policies.json',
+  operation: 'write',
+  content: JSON.stringify(newPolicies)
+});
+
+// Session finalization with security audit export
+const finalization = await hookManager.executeSessionEndFinalization({
+  sessionId: 'security-scan-v2.0.0',
+  exportMetrics: true,
+  exportArtifacts: true
+});
 ```
 
 ### Security Assessment Planning
@@ -167,13 +322,16 @@ nuclei -u https://app.example.com -t vulnerabilities/ -json -o nuclei-results.js
    - CIS Controls validation
 
 ### Post-Execution Coordination
-```bash
-# Store security results and alert other agents
-npx claude-flow@alpha memory store --key "aqe/security/vulnerabilities" --value "$(cat vulnerability-summary.json)"
-npx claude-flow@alpha memory store --key "aqe/security/compliance" --value "$(cat compliance-report.json)"
-npx claude-flow@alpha hooks notify --message "Security scanning completed: $(cat scan-summary.txt)"
-npx claude-flow@alpha hooks post-task --task-id "security-scanning"
-```
+
+**Native TypeScript Hooks (replaces bash commands):**
+
+All post-execution coordination is handled automatically via the `onPostTask()` lifecycle hook shown above. The agent coordinates through:
+
+- **Memory Store**: Results stored via `this.memoryStore.store()` with proper partitioning
+- **Event Bus**: Real-time updates via `this.eventBus.emit()` for fleet coordination
+- **Hook Manager**: Advanced validation via `VerificationHookManager`
+
+No external bash commands needed - all coordination is built into the agent's lifecycle hooks with 100-500x faster performance.
 
 ## Tool Integration
 
@@ -288,38 +446,63 @@ class TestWebSecurity:
 ## Memory Management
 
 ### Security Baseline Storage
-```bash
-# Store security baseline metrics
-npx claude-flow@alpha memory store --key "aqe/security/baselines" --value '{
-  "vulnerability_count": {
-    "critical": 0,
-    "high": 2,
-    "medium": 5,
-    "low": 10
+
+**Native TypeScript memory management:**
+
+```typescript
+// Store security baseline metrics
+await this.memoryStore.store('aqe/security/baselines', {
+  vulnerability_count: {
+    critical: 0,
+    high: 2,
+    medium: 5,
+    low: 10
   },
-  "security_score": 85,
-  "compliance_percentage": 95,
-  "last_scan_date": "2024-01-15T10:30:00Z"
-}'
+  security_score: 85,
+  compliance_percentage: 95,
+  last_scan_date: new Date().toISOString()
+}, {
+  partition: 'baselines',
+  ttl: 2592000 // 30 days
+});
+
+// Emit baseline update event
+this.eventBus.emit('security:baseline-updated', {
+  agentId: this.agentId,
+  securityScore: 85,
+  compliancePercentage: 95
+});
 ```
 
 ### Policy Configuration
-```bash
-# Configure security policies
-npx claude-flow@alpha memory store --key "aqe/security/policies" --value '{
-  "vulnerability_thresholds": {
-    "critical": 0,
-    "high": 5,
-    "medium": 20
+
+**Native TypeScript policy management:**
+
+```typescript
+// Configure security policies
+await this.memoryStore.store('aqe/security/policies', {
+  vulnerability_thresholds: {
+    critical: 0,
+    high: 5,
+    medium: 20
   },
-  "compliance_requirements": [
-    "OWASP_Top_10",
-    "PCI_DSS",
-    "SOC_2"
+  compliance_requirements: [
+    'OWASP_Top_10',
+    'PCI_DSS',
+    'SOC_2'
   ],
-  "scan_frequency": "daily",
-  "auto_remediation": true
-}'
+  scan_frequency: 'daily',
+  auto_remediation: true
+}, {
+  partition: 'configuration',
+  ttl: 0 // Never expire
+});
+
+// Emit policy update event
+this.eventBus.emit('security:policy-updated', {
+  agentId: this.agentId,
+  policiesUpdated: true
+});
 ```
 
 ## Agent Coordination

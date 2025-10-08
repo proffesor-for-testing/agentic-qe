@@ -633,3 +633,6 @@ export const WEEK3_EVENT_TYPES = {
   TEST_QUARANTINED: 'test.quarantined',
   TEST_STABILIZED: 'test.stabilized'
 } as const;
+
+// Re-export hook types
+export * from './hook.types';
