@@ -45,7 +45,7 @@ export interface TestGenerationSpec {
 
 export interface TestExecutionSpec {
   testSuites: string[];
-  environments: string[];
+  environments?: string[];  // Made optional for streaming compatibility
   parallelExecution: boolean;
   retryCount: number;
   timeoutSeconds: number;
@@ -1765,6 +1765,111 @@ export const agenticQETools: Tool[] = [
       },
       required: ['sourceCode', 'testCode']
     }
+  },
+
+  // Streaming Tools (v1.0.5)
+  {
+    name: 'mcp__agentic_qe__test_execute_stream',
+    description: 'Execute tests with real-time streaming progress updates (recommended for long-running tests >30s)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spec: {
+          type: 'object',
+          properties: {
+            testSuites: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Test suites to execute'
+            },
+            environments: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Target environments'
+            },
+            parallelExecution: {
+              type: 'boolean',
+              default: true,
+              description: 'Enable parallel test execution'
+            },
+            retryCount: {
+              type: 'number',
+              minimum: 0,
+              maximum: 5,
+              default: 3,
+              description: 'Number of retries for flaky tests'
+            },
+            timeoutSeconds: {
+              type: 'number',
+              minimum: 10,
+              default: 300,
+              description: 'Timeout for test execution'
+            },
+            reportFormat: {
+              type: 'string',
+              enum: ['junit', 'tap', 'json', 'html'],
+              default: 'json',
+              description: 'Test report format'
+            }
+          },
+          required: ['testSuites']
+        },
+        fleetId: {
+          type: 'string',
+          description: 'Fleet ID for coordinated execution'
+        },
+        enableRealtimeUpdates: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable real-time progress streaming'
+        }
+      },
+      required: ['spec']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_analyze_stream',
+    description: 'Analyze coverage with real-time streaming progress (recommended for large codebases)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceFiles: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Source files to analyze'
+        },
+        coverageThreshold: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          default: 0.8,
+          description: 'Coverage threshold (0-1)'
+        },
+        useJohnsonLindenstrauss: {
+          type: 'boolean',
+          default: true,
+          description: 'Apply O(log n) dimension reduction for faster analysis'
+        },
+        targetDimension: {
+          type: 'number',
+          minimum: 2,
+          description: 'Target dimension for JL reduction (defaults to log(n))'
+        },
+        includeUncoveredLines: {
+          type: 'boolean',
+          default: true,
+          description: 'Include specific uncovered line numbers'
+        },
+        analysisDepth: {
+          type: 'string',
+          enum: ['basic', 'detailed', 'comprehensive'],
+          default: 'detailed',
+          description: 'Depth of coverage analysis'
+        }
+      },
+      required: ['sourceFiles']
+    }
   }
 ];
 
@@ -1830,7 +1935,10 @@ export const TOOL_NAMES = {
   PRODUCTION_INCIDENT_REPLAY: 'mcp__agentic_qe__production_incident_replay',
   PRODUCTION_RUM_ANALYZE: 'mcp__agentic_qe__production_rum_analyze',
   API_BREAKING_CHANGES: 'mcp__agentic_qe__api_breaking_changes',
-  MUTATION_TEST_EXECUTE: 'mcp__agentic_qe__mutation_test_execute'
+  MUTATION_TEST_EXECUTE: 'mcp__agentic_qe__mutation_test_execute',
+  // Streaming tools (v1.0.5)
+  TEST_EXECUTE_STREAM: 'mcp__agentic_qe__test_execute_stream',
+  COVERAGE_ANALYZE_STREAM: 'mcp__agentic_qe__coverage_analyze_stream'
 } as const;
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];

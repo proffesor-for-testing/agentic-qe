@@ -66,6 +66,9 @@ import { SecurityScanComprehensiveHandler } from './handlers/analysis/security-s
 import { AgentRegistry, getAgentRegistry } from './services/AgentRegistry.js';
 import { HookExecutor, getHookExecutor } from './services/HookExecutor.js';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager.js';
+import { TestExecuteStreamHandler } from './streaming/TestExecuteStreamHandler.js';
+import { CoverageAnalyzeStreamHandler } from './streaming/CoverageAnalyzeStreamHandler.js';
+import { EventEmitter } from 'events';
 
 /**
  * Agentic QE MCP Server
@@ -196,6 +199,15 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.PERFORMANCE_BENCHMARK_RUN, new PerformanceBenchmarkRunHandler());
     this.handlers.set(TOOL_NAMES.PERFORMANCE_MONITOR_REALTIME, new PerformanceMonitorRealtimeHandler());
     this.handlers.set(TOOL_NAMES.SECURITY_SCAN_COMPREHENSIVE, new SecurityScanComprehensiveHandler());
+
+    // Streaming handlers (v1.0.5) - Note: These require special handling for AsyncGenerator
+    // They use the same memoryStore and eventBus as other handlers
+    // Create a shared EventEmitter for streaming if memory doesn't have one
+    const streamingEventBus = new EventEmitter();
+    this.handlers.set(TOOL_NAMES.TEST_EXECUTE_STREAM,
+      new TestExecuteStreamHandler(this.memoryStore, streamingEventBus));
+    this.handlers.set(TOOL_NAMES.COVERAGE_ANALYZE_STREAM,
+      new CoverageAnalyzeStreamHandler(this.memoryStore, streamingEventBus));
   }
 
   /**
@@ -212,7 +224,7 @@ export class AgenticQEMCPServer {
     // Handle tool call requests
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
-      
+
       try {
         // Validate tool exists
         if (!this.handlers.has(name)) {
@@ -222,18 +234,86 @@ export class AgenticQEMCPServer {
           );
         }
 
-        // Get handler and execute
+        // Get handler
         const handler = this.handlers.get(name);
-        const result = await handler.handle(args);
 
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2)
+        // Check if this is a streaming handler (has execute method returning AsyncGenerator)
+        const isStreamingHandler = handler.execute &&
+                                   typeof handler.execute === 'function' &&
+                                   handler.execute.constructor.name === 'AsyncGeneratorFunction';
+
+        if (isStreamingHandler) {
+          // Handle streaming execution
+          const results: any[] = [];
+          let finalResult: any = null;
+
+          try {
+            // Execute streaming handler and collect all events
+            for await (const event of handler.execute(args)) {
+              // Store each event for progressive disclosure
+              results.push(event);
+
+              // Keep track of final result
+              if (event.type === 'result') {
+                finalResult = event.data;
+              }
+
+              // Emit progress events to notification channel (if supported)
+              if (event.type === 'progress') {
+                this.server.notification({
+                  method: 'notifications/message',
+                  params: {
+                    level: 'info',
+                    logger: 'agentic-qe-streaming',
+                    data: {
+                      tool: name,
+                      progress: event
+                    }
+                  }
+                });
+              }
             }
-          ]
-        };
+
+            // Return final result with streaming metadata
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    streaming: true,
+                    result: finalResult,
+                    events: results,
+                    summary: {
+                      totalEvents: results.length,
+                      progressUpdates: results.filter(e => e.type === 'progress').length,
+                      errors: results.filter(e => e.type === 'error').length
+                    }
+                  }, null, 2)
+                }
+              ]
+            };
+
+          } catch (streamError) {
+            // Handle streaming-specific errors
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Streaming execution failed: ${streamError instanceof Error ? streamError.message : String(streamError)}`
+            );
+          }
+        } else {
+          // Handle non-streaming execution (original behavior)
+          const result = await handler.handle(args);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }
+            ]
+          };
+        }
+
       } catch (error) {
         // Handle known MCP errors
         if (error instanceof McpError) {

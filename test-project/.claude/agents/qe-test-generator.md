@@ -13,15 +13,8 @@ capabilities:
   - mutation-testing
   - performance-testing
   - api-testing
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Starting test generation'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/test-requirements'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/test-generation/results' --value '${TEST_RESULTS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/test-files/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "2.0.0"
   frameworks: ["jest", "mocha", "cypress", "playwright", "vitest"]
@@ -76,18 +69,178 @@ Generate tests using AI-powered templates and patterns:
 - State transition testing
 - Error condition testing
 
-## Integration Points
+## Coordination Protocol
 
-### Memory Coordination
-```bash
-# Store test generation context
-npx claude-flow@alpha memory store --key "aqe/test-context/${MODULE}" --value "${CONTEXT}"
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
 
-# Retrieve coverage requirements
-npx claude-flow@alpha memory retrieve --key "aqe/coverage-requirements"
+**Automatic Lifecycle Hooks:**
+```typescript
+// Called automatically by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load test requirements from memory
+  const requirements = await this.memoryStore.retrieve('aqe/test-requirements', {
+    partition: 'coordination'
+  });
 
-# Share test results with QE fleet
-npx claude-flow@alpha memory store --key "aqe/test-results/${SUITE}" --value "${RESULTS}"
+  // Retrieve code analysis data
+  const codeAnalysis = await this.memoryStore.retrieve(`aqe/code-analysis/${data.assignment.task.metadata.module}`, {
+    partition: 'analysis'
+  });
+
+  // Verify environment for test generation
+  const verification = await this.hookManager.executePreTaskVerification({
+    task: 'test-generation',
+    context: {
+      requiredVars: ['NODE_ENV', 'TEST_FRAMEWORK'],
+      minMemoryMB: 512,
+      requiredModules: ['jest', '@types/jest', 'fast-check']
+    }
+  });
+
+  // Emit test generation starting event
+  this.eventBus.emit('test-generator:starting', {
+    agentId: this.agentId,
+    module: data.assignment.task.metadata.module,
+    framework: requirements?.framework || 'jest'
+  });
+
+  this.logger.info('Test generation starting', {
+    requirements,
+    verification: verification.passed
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store test generation results in swarm memory
+  await this.memoryStore.store('aqe/test-generation/results', data.result, {
+    partition: 'agent_results',
+    ttl: 86400 // 24 hours
+  });
+
+  // Store generated test files
+  for (const testFile of data.result.generatedFiles) {
+    await this.memoryStore.store(`aqe/test-files/${testFile.name}`, testFile.content, {
+      partition: 'test_artifacts',
+      ttl: 604800 // 7 days
+    });
+  }
+
+  // Store coverage analysis
+  await this.memoryStore.store('aqe/coverage-analysis', {
+    timestamp: Date.now(),
+    coverage: data.result.coverage,
+    testsGenerated: data.result.testsGenerated,
+    framework: data.result.framework
+  }, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit completion event with test generation stats
+  this.eventBus.emit('test-generator:completed', {
+    agentId: this.agentId,
+    testsGenerated: data.result.testsGenerated,
+    coverage: data.result.coverage,
+    framework: data.result.framework
+  });
+
+  // Validate test generation results
+  const validation = await this.hookManager.executePostTaskValidation({
+    task: 'test-generation',
+    result: {
+      output: data.result,
+      coverage: data.result.coverage,
+      metrics: {
+        testsGenerated: data.result.testsGenerated,
+        executionTime: data.result.executionTime
+      }
+    }
+  });
+
+  this.logger.info('Test generation completed', {
+    testsGenerated: data.result.testsGenerated,
+    coverage: data.result.coverage,
+    validated: validation.passed
+  });
+}
+
+protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
+  // Store error for fleet analysis
+  await this.memoryStore.store(`aqe/errors/${data.assignment.task.id}`, {
+    error: data.error.message,
+    timestamp: Date.now(),
+    agent: this.agentId,
+    taskType: 'test-generation',
+    module: data.assignment.task.metadata.module
+  }, {
+    partition: 'errors',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit error event for fleet coordination
+  this.eventBus.emit('test-generator:error', {
+    agentId: this.agentId,
+    error: data.error.message,
+    taskId: data.assignment.task.id
+  });
+
+  this.logger.error('Test generation failed', {
+    error: data.error.message,
+    stack: data.error.stack
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+// Use VerificationHookManager for comprehensive validation
+const hookManager = new VerificationHookManager(this.memoryStore);
+
+// Pre-task verification with environment checks
+const verification = await hookManager.executePreTaskVerification({
+  task: 'test-generation',
+  context: {
+    requiredVars: ['NODE_ENV', 'TEST_FRAMEWORK'],
+    minMemoryMB: 512,
+    requiredModules: ['jest', '@types/jest', 'fast-check', '@testing-library/react']
+  }
+});
+
+// Post-task validation with result verification
+const validation = await hookManager.executePostTaskValidation({
+  task: 'test-generation',
+  result: {
+    output: generatedTests,
+    coverage: 0.95,
+    metrics: {
+      testsGenerated: 50,
+      propertyTests: 10,
+      boundaryTests: 15,
+      integrationTests: 25
+    }
+  }
+});
+
+// Pre-edit verification before writing test files
+const editCheck = await hookManager.executePreEditVerification({
+  filePath: 'tests/generated/user.test.ts',
+  operation: 'write',
+  content: testFileContent
+});
+
+// Post-edit update after test file creation
+const editUpdate = await hookManager.executePostEditUpdate({
+  filePath: 'tests/generated/user.test.ts',
+  operation: 'write',
+  success: true
+});
+
+// Session finalization with test suite export
+const finalization = await hookManager.executeSessionEndFinalization({
+  sessionId: 'test-generation-v2.0.0',
+  exportMetrics: true,
+  exportArtifacts: true
+});
 ```
 
 ### Agent Collaboration
@@ -118,26 +271,16 @@ npx claude-flow@alpha memory store --key "aqe/test-results/${SUITE}" --value "${
 ## Coordination Protocol
 
 ### Swarm Integration
-```bash
-# Initialize test generation workflow
-npx claude-flow@alpha task orchestrate \
-  --task "Generate comprehensive test suite for ${MODULE}" \
-  --agents "qe-test-generator,qe-analyzer,qe-validator" \
-  --strategy "parallel"
 
-# Coordinate with neural training
-npx claude-flow@alpha neural train \
-  --pattern-type "optimization" \
-  --training-data "test-generation-patterns"
-```
+**Native TypeScript coordination (replaces bash commands):**
 
-### Agent Spawning Protocol
-```bash
-# Spawn test generator with specific capabilities
-npx claude-flow@alpha agent spawn \
-  --type "test-generator" \
-  --capabilities "property-testing,boundary-analysis,sublinear-optimization"
-```
+All swarm integration is handled automatically via AQE hooks (Agentic QE native hooks) shown above. The agent coordinates through:
+
+- **Memory Store**: Shared context via `this.memoryStore.store()` and `this.memoryStore.retrieve()`
+- **Event Bus**: Real-time coordination via `this.eventBus.emit()` and event handlers
+- **Hook Manager**: Advanced verification via `VerificationHookManager`
+
+No external bash commands needed - all coordination is built into the agent's lifecycle hooks.
 
 ## Framework Integration
 
@@ -272,20 +415,51 @@ describe('API Contract Tests', () => {
 ## Neural Pattern Integration
 
 ### Learning from Test Results
-```bash
-# Train neural patterns from test execution data
-npx claude-flow@alpha neural patterns \
-  --action "learn" \
-  --operation "test-generation" \
-  --outcome "${TEST_RESULTS}"
+
+**Native TypeScript neural integration:**
+
+```typescript
+// Store neural patterns from test results
+await this.memoryStore.store('aqe/neural/patterns/test-generation', {
+  operation: 'test-generation',
+  outcome: testResults,
+  patterns: identifiedPatterns,
+  confidence: 0.95,
+  timestamp: Date.now()
+}, {
+  partition: 'neural',
+  ttl: 2592000 // 30 days
+});
+
+// Emit neural learning event
+this.eventBus.emit('neural:pattern-learned', {
+  agentId: this.agentId,
+  operation: 'test-generation',
+  confidence: 0.95
+});
 ```
 
 ### Predictive Test Generation
-```bash
-# Use neural patterns to predict optimal test strategies
-npx claude-flow@alpha neural predict \
-  --model-id "test-generation-model" \
-  --input "${CODE_ANALYSIS}"
+
+**Native TypeScript prediction:**
+
+```typescript
+// Retrieve neural patterns for prediction
+const patterns = await this.memoryStore.retrieve('aqe/neural/patterns/test-generation', {
+  partition: 'neural'
+});
+
+// Use patterns for intelligent test strategy selection
+const predictedStrategy = this.predictOptimalStrategy(codeAnalysis, patterns);
+
+// Store prediction outcome
+await this.memoryStore.store('aqe/neural/predictions', {
+  input: codeAnalysis,
+  strategy: predictedStrategy,
+  timestamp: Date.now()
+}, {
+  partition: 'neural'
+});
 ```
 
 ## Commands

@@ -46,10 +46,25 @@ export interface FleetConfig {
   };
   topology?: 'hierarchical' | 'mesh' | 'ring' | 'adaptive';
   maxAgents?: number;
-  project?: string;
+  project?: any;
   testingFocus?: string[];
   environments?: string[];
   frameworks?: string[];
+  routing?: {
+    enabled?: boolean;
+    defaultModel?: string;
+    enableCostTracking?: boolean;
+    enableFallback?: boolean;
+    maxRetries?: number;
+    costThreshold?: number;
+    modelPreferences?: Record<string, any>;
+  };
+  streaming?: {
+    enabled?: boolean;
+    progressInterval?: number;
+    bufferEvents?: boolean;
+    timeout?: number;
+  };
 }
 
 export interface TaskSpec {

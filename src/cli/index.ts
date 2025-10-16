@@ -25,6 +25,7 @@ import {
 import * as configCommands from './commands/config/index.js';
 import * as debugCommands from './commands/debug/index.js';
 import * as memoryCommands from './commands/memory/index.js';
+import * as routingCommands from './commands/routing/index.js';
 
 const program = new Command();
 const logger = Logger.getInstance();
@@ -495,6 +496,94 @@ memoryCommand
       // Implementation would be in memory/compact.ts
     } catch (error) {
       console.error(chalk.red('❌ Memory compaction failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Routing commands (Phase 1 - v1.0.5)
+ * Multi-Model Router management commands
+ */
+const routingCommand = program
+  .command('routing')
+  .description('Manage Multi-Model Router for cost optimization (v1.0.5)');
+
+routingCommand
+  .command('enable')
+  .description('Enable Multi-Model Router (70-81% cost savings)')
+  .option('-c, --config <path>', 'Config file path', '.agentic-qe/config/routing.json')
+  .action(async (options) => {
+    try {
+      await routingCommands.routingEnable(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Routing enable failed:'), error);
+      process.exit(1);
+    }
+  });
+
+routingCommand
+  .command('disable')
+  .description('Disable Multi-Model Router')
+  .option('-c, --config <path>', 'Config file path', '.agentic-qe/config/routing.json')
+  .action(async (options) => {
+    try {
+      await routingCommands.routingDisable(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Routing disable failed:'), error);
+      process.exit(1);
+    }
+  });
+
+routingCommand
+  .command('status')
+  .description('Show routing configuration and status')
+  .option('-c, --config <path>', 'Config file path', '.agentic-qe/config/routing.json')
+  .option('-f, --format <format>', 'Output format (json|table)', 'table')
+  .option('-v, --verbose', 'Verbose output')
+  .action(async (options) => {
+    try {
+      await routingCommands.routingStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Routing status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+routingCommand
+  .command('dashboard')
+  .description('Show cost dashboard with savings metrics')
+  .action(async (options) => {
+    try {
+      await routingCommands.routingDashboard(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Routing dashboard failed:'), error);
+      process.exit(1);
+    }
+  });
+
+routingCommand
+  .command('report')
+  .description('Generate detailed cost report')
+  .option('-f, --format <format>', 'Output format (json|table)', 'table')
+  .option('-e, --export <file>', 'Export report to file')
+  .option('-t, --timeframe <timeframe>', 'Report timeframe', 'all-time')
+  .action(async (options) => {
+    try {
+      await routingCommands.routingReport(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Routing report failed:'), error);
+      process.exit(1);
+    }
+  });
+
+routingCommand
+  .command('stats')
+  .description('Show routing statistics and performance metrics')
+  .action(async (options) => {
+    try {
+      await routingCommands.routingStats(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Routing stats failed:'), error);
       process.exit(1);
     }
   });

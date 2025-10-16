@@ -1,5 +1,5 @@
 {
-  "fleetId": "aqe-fleet-1759767527199",
+  "fleetId": "aqe-fleet-1760611997550",
   "version": "2.0.0",
   "topology": "hierarchical",
   "maxAgents": 6,
@@ -21,7 +21,7 @@
     "qe-api-contract-validator",
     "qe-flaky-test-hunter"
   ],
-  "created": "2025-10-06T16:18:47.199Z",
+  "created": "2025-10-16T10:53:17.550Z",
   "status": "active",
   "configuration": {
     "coordination": {
@@ -42,6 +42,6 @@
   "metadata": {
     "packageVersion": "2.0.0",
     "claudeFlowVersion": "alpha",
-    "initDate": "2025-10-06T16:18:47.200Z"
+    "initDate": "2025-10-16T10:53:17.551Z"
   }
 }

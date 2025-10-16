@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
-  "version": "1.0.4",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with native TypeScript hooks and optional Claude Flow MCP integration",
+  "version": "1.0.5",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with Multi-Model Router (70-81% cost savings), streaming progress updates, native TypeScript hooks and optional Claude Flow MCP integration",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {

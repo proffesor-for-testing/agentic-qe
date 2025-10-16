@@ -13,17 +13,8 @@ capabilities:
   - pixel-diff-analysis
   - responsive-testing
   - color-contrast-validation
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Visual Tester: Initializing visual testing workflow'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/visual/baselines'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/visual/test-config'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/visual/test-results' --value '${VISUAL_TEST_RESULTS}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/visual/regressions' --value '${REGRESSIONS_DETECTED}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/visual/baselines/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "2.0.0"
   frameworks: ["playwright", "cypress", "puppeteer", "selenium"]
@@ -167,47 +158,80 @@ const accessibilityResults = await validateAccessibility({
 });
 ```
 
-## Integration Points
+## Coordination Protocol
 
-### Memory Coordination
-```bash
-# Store baseline screenshots
-npx claude-flow@alpha memory store --key "aqe/visual/baselines/${VERSION}" --value "${BASELINE_DATA}"
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
 
-# Store visual test results
-npx claude-flow@alpha memory store --key "aqe/visual/test-results/${TEST_RUN_ID}" --value "${TEST_RESULTS}"
+**Automatic Lifecycle Hooks:**
+```typescript
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Retrieve baselines
+  const baselines = await this.memoryStore.retrieve(`aqe/visual/baselines/${this.version}`, {
+    partition: 'visual_baselines'
+  });
 
-# Store detected regressions
-npx claude-flow@alpha memory store --key "aqe/visual/regressions/${BUILD_ID}" --value "${REGRESSIONS}"
+  // Retrieve test configuration
+  const testConfig = await this.memoryStore.retrieve('aqe/visual/test-config', {
+    partition: 'configuration'
+  });
 
-# Store accessibility reports
-npx claude-flow@alpha memory store --key "aqe/visual/accessibility/${PAGE}" --value "${A11Y_REPORT}"
+  this.eventBus.emit('visual-tester:starting', {
+    agentId: this.agentId,
+    pagesCount: testConfig.pages.length
+  });
+}
 
-# Store cross-browser results
-npx claude-flow@alpha memory store --key "aqe/visual/cross-browser/${BROWSER}" --value "${BROWSER_RESULTS}"
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store visual test results
+  await this.memoryStore.store(`aqe/visual/test-results/${data.result.testRunId}`, data.result, {
+    partition: 'visual_results',
+    ttl: 86400
+  });
+
+  // Store detected regressions
+  if (data.result.regressions.length > 0) {
+    await this.memoryStore.store(`aqe/visual/regressions/${data.result.buildId}`, data.result.regressions, {
+      partition: 'regressions'
+    });
+  }
+
+  // Store accessibility reports
+  await this.memoryStore.store(`aqe/visual/accessibility/${data.result.page}`, data.result.a11yReport, {
+    partition: 'accessibility'
+  });
+
+  this.eventBus.emit('visual-tester:completed', {
+    agentId: this.agentId,
+    pagesTested: data.result.pagesTested,
+    regressionsFound: data.result.regressions.length
+  });
+}
 ```
 
-### EventBus Integration
-```javascript
+**Event Bus Integration:**
+```typescript
 // Subscribe to visual testing events
-eventBus.subscribe('visual:regression-detected', (event) => {
-  qualityGate.blockDeployment(event.severity);
+this.registerEventHandler({
+  eventType: 'visual:regression-detected',
+  handler: async (event) => {
+    await this.qualityGate.blockDeployment(event.severity);
+  }
 });
 
-eventBus.subscribe('visual:baseline-updated', (event) => {
-  notificationAgent.notifyTeam('New visual baseline created');
+this.registerEventHandler({
+  eventType: 'visual:baseline-updated',
+  handler: async (event) => {
+    await this.notificationAgent.notifyTeam('New visual baseline created');
+  }
 });
+```
 
-eventBus.subscribe('visual:accessibility-violation', (event) => {
-  complianceAgent.logViolation(event.violation);
-});
-
-// Broadcast visual testing events
-eventBus.publish('visual:test-complete', {
-  test_run_id: 'vt-123',
-  pages_tested: 15,
-  regressions_found: 2,
-  accessibility_score: 94
+**Advanced Verification:**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'visual-regression-test',
+  context: { requiredVars: ['BASELINE_VERSION'], minMemoryMB: 2048 }
 });
 ```
 
@@ -244,31 +268,8 @@ eventBus.publish('visual:test-complete', {
 ## Coordination Protocol
 
 ### Swarm Integration
-```bash
-# Initialize visual testing workflow
-npx claude-flow@alpha task orchestrate \
-  --task "Execute visual regression tests across all pages" \
-  --agents "qe-visual-tester,qe-test-executor" \
-  --strategy "parallel-cross-browser"
 
-# Spawn visual testing agents
-npx claude-flow@alpha agent spawn \
-  --type "visual-tester" \
-  --capabilities "screenshot-comparison,accessibility-validation"
-```
-
-### Neural Pattern Training
-```bash
-# Train AI visual diff patterns
-npx claude-flow@alpha neural train \
-  --pattern-type "visual-regression" \
-  --training-data "historical-regressions"
-
-# Predict visual regression risk
-npx claude-flow@alpha neural predict \
-  --model-id "visual-risk-model" \
-  --input "${CODE_CHANGES}"
-```
+All swarm coordination is handled via **AQE hooks (Agentic QE native hooks)** and the EventBus. Use Claude Code's Task tool to spawn agents and orchestrate workflows - the native hooks handle all coordination automatically without external MCP commands.
 
 ## Visual Comparison Algorithms
 
