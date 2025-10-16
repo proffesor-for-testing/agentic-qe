@@ -53,15 +53,8 @@ workflows:
   - regression_detection
   - reporting
   - optimization_recommendations
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Starting performance testing'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/performance/baselines'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/performance/results' --value '${PERF_RESULTS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/performance/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 description: "Multi-tool performance testing with load orchestration, bottleneck detection, and SLA validation"
 ---
 
@@ -93,11 +86,18 @@ description: "Multi-tool performance testing with load orchestration, bottleneck
 ## Workflow Orchestration
 
 ### Pre-Execution Phase
-```bash
-# Initialize coordination
-npx claude-flow@alpha hooks pre-task --description "Performance testing workflow"
-npx claude-flow@alpha memory retrieve --key "aqe/performance/baselines"
-npx claude-flow@alpha memory retrieve --key "aqe/test-plan/requirements"
+```typescript
+// Initialize coordination via native hooks
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load baselines and requirements
+  const baselines = await this.memoryStore.retrieve('aqe/performance/baselines');
+  const requirements = await this.memoryStore.retrieve('aqe/test-plan/requirements');
+
+  this.logger.info('Performance testing workflow initialized', {
+    hasBaselines: !!baselines,
+    requirements: requirements?.performance || {}
+  });
+}
 ```
 
 ### Test Planning & Baseline Establishment
@@ -145,12 +145,25 @@ gatling.sh -s LoadTestSimulation -rf results/
    - Provide optimization recommendations
 
 ### Post-Execution Coordination
-```bash
-# Store results and notify other agents
-npx claude-flow@alpha memory store --key "aqe/performance/results" --value "$(cat results.json)"
-npx claude-flow@alpha memory store --key "aqe/performance/regressions" --value "$(cat regressions.json)"
-npx claude-flow@alpha hooks notify --message "Performance testing completed with $(cat summary.txt)"
-npx claude-flow@alpha hooks post-task --task-id "performance-testing"
+```typescript
+// Store results and notify other agents via native hooks
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store performance results
+  await this.memoryStore.store('aqe/performance/results', data.result.metrics, {
+    partition: 'coordination'
+  });
+
+  await this.memoryStore.store('aqe/performance/regressions', data.result.regressions, {
+    partition: 'coordination'
+  });
+
+  // Notify other agents via EventBus
+  this.eventBus.emit('performance:completed', {
+    summary: data.result.summary,
+    metrics: data.result.metrics,
+    regressions: data.result.regressions.length
+  });
+}
 ```
 
 ## Tool Integration
@@ -223,37 +236,77 @@ class LoadTestSimulation extends Simulation {
 }
 ```
 
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load performance baselines and thresholds
+  const baselines = await this.memoryStore.retrieve('aqe/performance/baselines');
+  const thresholds = await this.memoryStore.retrieve('aqe/performance/thresholds');
+
+  this.logger.info('Performance testing initialized', {
+    hasBaselines: !!baselines,
+    thresholds: thresholds?.response_time?.p95 || 500
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store performance test results
+  await this.memoryStore.store('aqe/performance/results', data.result.metrics);
+  await this.memoryStore.store('aqe/performance/regressions', data.result.regressions);
+
+  // Emit performance test completion
+  this.eventBus.emit('performance-tester:completed', {
+    p95Latency: data.result.metrics.latency.p95,
+    throughput: data.result.metrics.throughput,
+    regressions: data.result.regressions.length
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'performance-testing',
+  context: {
+    requiredVars: ['TARGET_URL', 'LOAD_PATTERN'],
+    minMemoryMB: 1024,
+    requiredKeys: ['aqe/performance/baselines']
+  }
+});
+```
+
 ## Memory Management
 
 ### Baseline Storage
-```bash
-# Store performance baselines
-npx claude-flow@alpha memory store --key "aqe/performance/baselines" --value '{
-  "api_response_time_p95": 200,
-  "page_load_time_p95": 2000,
-  "throughput_rps": 1000,
-  "error_rate_threshold": 0.01
-}'
+```typescript
+// Store performance baselines via memory
+await this.memoryStore.store('aqe/performance/baselines', {
+  api_response_time_p95: 200,
+  page_load_time_p95: 2000,
+  throughput_rps: 1000,
+  error_rate_threshold: 0.01
+}, {
+  partition: 'coordination',
+  ttl: 86400 // 24 hours
+});
 ```
 
 ### Threshold Configuration
-```bash
-# Configure performance thresholds
-npx claude-flow@alpha memory store --key "aqe/performance/thresholds" --value '{
-  "response_time": {
-    "p50": 100,
-    "p95": 500,
-    "p99": 1000
-  },
-  "throughput": {
-    "min_rps": 100,
-    "target_rps": 1000
-  },
-  "availability": {
-    "uptime_percentage": 99.9,
-    "error_rate_max": 0.01
-  }
-}'
+```typescript
+// Configure performance thresholds via memory
+await this.memoryStore.store('aqe/performance/thresholds', {
+  response_time: { p50: 100, p95: 500, p99: 1000 },
+  throughput: { min_rps: 100, target_rps: 1000 },
+  availability: { uptime_percentage: 99.9, error_rate_max: 0.01 }
+}, {
+  partition: 'coordination'
+});
 ```
 
 ## Agent Coordination

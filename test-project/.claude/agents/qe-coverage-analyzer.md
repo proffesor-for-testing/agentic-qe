@@ -11,15 +11,8 @@ capabilities:
   - multi-framework-support
   - sublinear-optimization
   - temporal-prediction
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Starting coverage analysis'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/coverage/gaps'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/coverage/results' --value '${COVERAGE_RESULTS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/coverage/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "2.0.0"
   optimization: "O(log n)"
@@ -52,39 +45,64 @@ Specialized agent for intelligent test coverage analysis and optimization using 
 ## Analysis Workflow
 
 ### Phase 1: Pre-Execution Analysis
-```bash
-# Coverage matrix initialization
-npx claude-flow@alpha memory store --key "aqe/coverage/matrix-init" --value "$(coverage-matrix-sparse)"
+```typescript
+// Coverage matrix initialization
+await this.memoryStore.store('aqe/coverage/matrix-init', coverageMatrixSparse, {
+  partition: 'coordination'
+});
 
-# Gap prediction using sublinear algorithms
-sublinear-predict --input coverage-history.json --output predicted-gaps.json
+// Gap prediction using sublinear algorithms
+const predictedGaps = await this.sublinearPredictor.predict({
+  input: coverageHistory,
+  output: 'predicted-gaps'
+});
 
-# Critical path identification
-coverage-paths --algorithm johnson-lindenstrauss --target-dim log(n)
+// Critical path identification
+const criticalPaths = await this.coverageAnalyzer.identifyPaths({
+  algorithm: 'johnson-lindenstrauss',
+  targetDimension: Math.log(n)
+});
 ```
 
 ### Phase 2: Real-time Monitoring
-```bash
-# Live coverage tracking
-coverage-monitor --mode real-time --optimization sublinear
+```typescript
+// Live coverage tracking
+await this.coverageMonitor.track({
+  mode: 'real-time',
+  optimization: 'sublinear'
+});
 
-# Gap detection during execution
-gap-detect --threshold 0.85 --algorithm spectral-sparse
+// Gap detection during execution
+const gaps = await this.gapDetector.detect({
+  threshold: 0.85,
+  algorithm: 'spectral-sparse'
+});
 
-# Memory coordination
-npx claude-flow@alpha memory store --key "aqe/coverage/live-gaps" --value "$(current-gaps)"
+// Memory coordination
+await this.memoryStore.store('aqe/coverage/live-gaps', currentGaps, {
+  partition: 'coordination'
+});
 ```
 
 ### Phase 3: Post-Execution Optimization
-```bash
-# Coverage trend analysis
-trend-analyze --history 30d --predict-next-run
+```typescript
+// Coverage trend analysis
+const trends = await this.trendAnalyzer.analyze({
+  history: '30d',
+  predictNextRun: true
+});
 
-# Optimization recommendations
-optimize-suggest --algorithm sublinear --target-coverage 95%
+// Optimization recommendations
+const suggestions = await this.optimizer.suggest({
+  algorithm: 'sublinear',
+  targetCoverage: 0.95
+});
 
-# Report generation
-coverage-report --format enhanced --include-predictions
+// Report generation
+await this.reportGenerator.generate({
+  format: 'enhanced',
+  includePredictions: true
+});
 ```
 
 ## Sublinear Algorithm Features
@@ -110,30 +128,44 @@ coverage-report --format enhanced --include-predictions
 ## Memory Management
 
 ### Coverage Data Patterns
-```bash
-# Store coverage matrices (sparse format)
-npx claude-flow@alpha memory store --key "aqe/coverage/matrix-sparse" --value "$(sparse-matrix-json)"
+```typescript
+// Store coverage matrices (sparse format)
+await this.memoryStore.store('aqe/coverage/matrix-sparse', sparseMatrixJson, {
+  partition: 'coordination'
+});
 
-# Store gap detection results
-npx claude-flow@alpha memory store --key "aqe/coverage/gaps-detected" --value "$(gap-analysis-json)"
+// Store gap detection results
+await this.memoryStore.store('aqe/coverage/gaps-detected', gapAnalysisJson, {
+  partition: 'coordination'
+});
 
-# Store optimization recommendations
-npx claude-flow@alpha memory store --key "aqe/coverage/optimizations" --value "$(optimization-suggestions)"
+// Store optimization recommendations
+await this.memoryStore.store('aqe/coverage/optimizations', optimizationSuggestions, {
+  partition: 'coordination'
+});
 
-# Store trend analysis
-npx claude-flow@alpha memory store --key "aqe/coverage/trends" --value "$(trend-data-json)"
+// Store trend analysis
+await this.memoryStore.store('aqe/coverage/trends', trendDataJson, {
+  partition: 'coordination'
+});
 ```
 
 ### Cross-Agent Coordination
-```bash
-# Share findings with test execution agents
-npx claude-flow@alpha memory store --key "aqe/shared/critical-paths" --value "$(critical-paths-json)"
+```typescript
+// Share findings with test execution agents
+await this.memoryStore.store('aqe/shared/critical-paths', criticalPathsJson, {
+  partition: 'coordination'
+});
 
-# Coordinate with performance analyzer
-npx claude-flow@alpha memory store --key "aqe/shared/hotspots" --value "$(performance-hotspots)"
+// Coordinate with performance analyzer via EventBus
+this.eventBus.emit('coverage:hotspots-detected', {
+  hotspots: performanceHotspots
+});
 
-# Update test prioritization
-npx claude-flow@alpha memory store --key "aqe/shared/test-priority" --value "$(priority-matrix)"
+// Update test prioritization
+await this.memoryStore.store('aqe/shared/test-priority', priorityMatrix, {
+  partition: 'coordination'
+});
 ```
 
 ## Integration with Test Execution
@@ -259,6 +291,51 @@ agentic-qe agent optimize --name qe-coverage-analyzer --target 95% --time-budget
 
 # Multi-framework analysis
 agentic-qe agent analyze-multi --name qe-coverage-analyzer --frameworks "jest,pytest,junit"
+```
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load existing coverage gaps and baseline data
+  const gaps = await this.memoryStore.retrieve('aqe/coverage/gaps');
+  const trends = await this.memoryStore.retrieve('aqe/coverage/trends');
+
+  this.logger.info('Coverage analysis initialized', {
+    knownGaps: gaps?.length || 0,
+    algorithm: 'johnson-lindenstrauss'
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store coverage results and detected gaps
+  await this.memoryStore.store('aqe/coverage/results', data.result.coverageData);
+  await this.memoryStore.store('aqe/coverage/gaps', data.result.gaps);
+
+  // Emit coverage analysis completion
+  this.eventBus.emit('coverage-analyzer:completed', {
+    totalCoverage: data.result.coverageData.overallPercentage,
+    gapsDetected: data.result.gaps.length,
+    optimizationTime: data.result.executionTime
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'coverage-analysis',
+  context: {
+    requiredVars: ['NODE_ENV'],
+    minMemoryMB: 1024,
+    algorithm: 'sublinear'
+  }
+});
 ```
 
 ## Fleet Integration

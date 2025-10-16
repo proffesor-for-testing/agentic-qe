@@ -13,17 +13,8 @@ capabilities:
   - hypothesis-testing
   - rollback-automation
   - observability-integration
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Chaos Engineer: Initializing chaos experiment'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/chaos/experiments/queue'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/chaos/safety/constraints'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/chaos/experiments/results' --value '${EXPERIMENT_RESULTS}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/chaos/metrics/resilience' --value '${RESILIENCE_METRICS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/chaos/config/${FILE_NAME}'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "2.0.0"
   frameworks: ["chaos-mesh", "gremlin", "litmus", "toxiproxy"]
@@ -176,21 +167,32 @@ const insights = generateResilience Insights({
 ## Integration Points
 
 ### Memory Coordination
-```bash
-# Store experiment configuration
-npx claude-flow@alpha memory store --key "aqe/chaos/experiments/${EXPERIMENT_ID}" --value "${EXPERIMENT_CONFIG}"
+```typescript
+// Store experiment configuration
+await this.memoryStore.store(`aqe/chaos/experiments/${experimentId}`, experimentConfig, {
+  partition: 'coordination',
+  ttl: 86400 // 24 hours
+});
 
-# Store safety constraints
-npx claude-flow@alpha memory store --key "aqe/chaos/safety/constraints" --value "${SAFETY_RULES}"
+// Store safety constraints
+await this.memoryStore.store('aqe/chaos/safety/constraints', safetyRules, {
+  partition: 'coordination'
+});
 
-# Store experiment results
-npx claude-flow@alpha memory store --key "aqe/chaos/results/${EXPERIMENT_ID}" --value "${RESULTS}"
+// Store experiment results
+await this.memoryStore.store(`aqe/chaos/results/${experimentId}`, results, {
+  partition: 'coordination'
+});
 
-# Store resilience metrics
-npx claude-flow@alpha memory store --key "aqe/chaos/metrics/resilience" --value "${RESILIENCE_METRICS}"
+// Store resilience metrics
+await this.memoryStore.store('aqe/chaos/metrics/resilience', resilienceMetrics, {
+  partition: 'coordination'
+});
 
-# Store rollback history
-npx claude-flow@alpha memory store --key "aqe/chaos/rollbacks/${EXPERIMENT_ID}" --value "${ROLLBACK_DATA}"
+// Store rollback history
+await this.memoryStore.store(`aqe/chaos/rollbacks/${experimentId}`, rollbackData, {
+  partition: 'coordination'
+});
 ```
 
 ### EventBus Integration
@@ -225,6 +227,52 @@ eventBus.publish('chaos:steady-state-violated', {
 - **QE Coverage Analyzer**: Measures chaos experiment coverage
 - **Fleet Commander**: Reports chaos experiment impact on fleet health
 
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load experiment queue and safety constraints
+  const experiments = await this.memoryStore.retrieve('aqe/chaos/experiments/queue');
+  const safetyRules = await this.memoryStore.retrieve('aqe/chaos/safety/constraints');
+  const systemHealth = await this.memoryStore.retrieve('aqe/system/health');
+
+  this.logger.info('Chaos experiment initialized', {
+    pendingExperiments: experiments?.length || 0,
+    systemHealthy: systemHealth?.healthy || false
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store experiment results and resilience metrics
+  await this.memoryStore.store('aqe/chaos/experiments/results', data.result.experimentOutcomes);
+  await this.memoryStore.store('aqe/chaos/metrics/resilience', data.result.resilienceMetrics);
+
+  // Emit chaos completion event
+  this.eventBus.emit('chaos:experiment-completed', {
+    experimentId: data.assignment.id,
+    passed: data.result.steadyStateValidated,
+    rollbackTriggered: data.result.rollbackTriggered
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'chaos-experiment',
+  context: {
+    requiredVars: ['CHAOS_ENABLED', 'BLAST_RADIUS_MAX'],
+    minMemoryMB: 1024,
+    requiredKeys: ['aqe/chaos/safety/constraints', 'aqe/system/health']
+  }
+});
+```
+
 ## Memory Keys
 
 ### Input Keys
@@ -250,30 +298,34 @@ eventBus.publish('chaos:steady-state-violated', {
 ## Coordination Protocol
 
 ### Swarm Integration
-```bash
-# Initialize chaos engineering workflow
-npx claude-flow@alpha task orchestrate \
-  --task "Execute chaos experiment: database failure" \
-  --agents "qe-chaos-engineer,qe-performance-tester,qe-test-executor" \
-  --strategy "sequential-with-monitoring"
+```typescript
+// Initialize chaos engineering workflow via task manager
+await this.taskManager.orchestrate({
+  task: 'Execute chaos experiment: database failure',
+  agents: ['qe-chaos-engineer', 'qe-performance-tester', 'qe-test-executor'],
+  strategy: 'sequential-with-monitoring'
+});
 
-# Coordinate with monitoring agents
-npx claude-flow@alpha agent spawn \
-  --type "monitoring-agent" \
-  --capabilities "metrics-collection,alerting"
+// Coordinate with monitoring agents via EventBus
+this.eventBus.emit('chaos:spawn-monitor', {
+  agentType: 'monitoring-agent',
+  capabilities: ['metrics-collection', 'alerting']
+});
 ```
 
 ### Neural Pattern Training
-```bash
-# Train chaos patterns from experiment results
-npx claude-flow@alpha neural train \
-  --pattern-type "chaos-resilience" \
-  --training-data "experiment-outcomes"
+```typescript
+// Train chaos patterns from experiment results via neural manager
+await this.neuralManager.trainPattern({
+  patternType: 'chaos-resilience',
+  trainingData: experimentOutcomes
+});
 
-# Predict failure modes
-npx claude-flow@alpha neural predict \
-  --model-id "failure-prediction-model" \
-  --input "${SYSTEM_ARCHITECTURE}"
+// Predict failure modes
+const prediction = await this.neuralManager.predict({
+  modelId: 'failure-prediction-model',
+  input: systemArchitecture
+});
 ```
 
 ## Fault Injection Techniques

@@ -12,17 +12,8 @@ capabilities:
   - feature-usage-analytics
   - error-pattern-mining
   - user-journey-reconstruction
-hooks:
-  pre_task:
-    - "npx claude-flow@alpha hooks pre-task --description 'Analyzing production intelligence'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/production/incidents'"
-    - "npx claude-flow@alpha memory retrieve --key 'aqe/production/rum-data'"
-  post_task:
-    - "npx claude-flow@alpha hooks post-task --task-id '${TASK_ID}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/production/test-scenarios' --value '${SCENARIOS}'"
-    - "npx claude-flow@alpha memory store --key 'aqe/production/insights' --value '${INSIGHTS}'"
-  post_edit:
-    - "npx claude-flow@alpha hooks post-edit --file '${FILE_PATH}' --memory-key 'aqe/production/updated'"
+coordination:
+  protocol: aqe-hooks
 metadata:
   version: "1.0.0"
   stakeholders: ["Engineering", "QA", "SRE", "Product", "Customer Success"]
@@ -1069,6 +1060,52 @@ describe('Real User Journey: Successful Purchase with Coupon', () => {
 ### Coordination Agents
 - **qe-fleet-commander**: Orchestrates production intelligence workflow
 - **qe-deployment-readiness**: Uses production insights for risk assessment
+
+## Coordination Protocol
+
+This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero external dependencies, 100-500x faster).
+
+**Automatic Lifecycle Hooks:**
+```typescript
+// Automatically called by BaseAgent
+protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
+  // Load production incidents and RUM data
+  const incidents = await this.memoryStore.retrieve('aqe/production/incidents');
+  const rumData = await this.memoryStore.retrieve('aqe/production/rum-data');
+
+  this.logger.info('Production intelligence analysis started', {
+    recentIncidents: incidents?.length || 0,
+    rumSessions: rumData?.totalSessions || 0
+  });
+}
+
+protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
+  // Store generated test scenarios and insights
+  await this.memoryStore.store('aqe/production/test-scenarios', data.result.scenarios);
+  await this.memoryStore.store('aqe/production/insights', data.result.insights);
+  await this.memoryStore.store('aqe/production/anomalies', data.result.anomalies);
+
+  // Emit production intelligence event
+  this.eventBus.emit('production-intelligence:analyzed', {
+    scenariosGenerated: data.result.scenarios.length,
+    anomaliesDetected: data.result.anomalies.length,
+    highPriorityInsights: data.result.insights.filter(i => i.priority === 'HIGH').length
+  });
+}
+```
+
+**Advanced Verification (Optional):**
+```typescript
+const hookManager = new VerificationHookManager(this.memoryStore);
+const verification = await hookManager.executePreTaskVerification({
+  task: 'production-analysis',
+  context: {
+    requiredVars: ['PROD_ENV', 'MONITORING_PLATFORM'],
+    minMemoryMB: 1024,
+    requiredKeys: ['aqe/production/incidents', 'aqe/production/rum-data']
+  }
+});
+```
 
 ## Memory Keys
 
