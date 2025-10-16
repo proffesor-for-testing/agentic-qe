@@ -113,7 +113,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 ### Core Features
 
 #### 🤖 Autonomous Agent Fleet
-- **16 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
+- **18 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -227,7 +227,7 @@ aqe init
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Improvement Loop (A/B testing)
-- ✅ 16 Specialized QE agent definitions
+- ✅ 18 Specialized QE agent definitions
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -1107,7 +1107,7 @@ npm test
 ```
 agentic-qe/
 ├── src/
-│   ├── agents/          # 16 agent implementations
+│   ├── agents/          # 18 agent implementations
 │   ├── core/            # Core fleet management
 │   │   ├── FleetManager.ts
 │   │   ├── Agent.ts
@@ -1137,7 +1137,7 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 16 QE agent definitions
+│   ├── agents/          # 18 QE agent definitions
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -1200,7 +1200,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ Pattern Bank with cross-project sharing
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Continuous Improvement Loop
-- ✅ 16 specialized QE agents
+- ✅ 18 specialized QE agents
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis
 - ✅ MCP integration
