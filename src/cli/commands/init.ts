@@ -261,7 +261,7 @@ export class InitCommand {
 
     if (!sourcePath) {
       console.warn(chalk.yellow('  ⚠️  No agent templates found in package paths'));
-      console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 17 agents)'));
+      console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 18 agents)'));
       await this.createBasicAgents();
       return;
     }
@@ -293,8 +293,8 @@ export class InitCommand {
     const copiedCount = await this.countAgentFiles(targetPath);
     console.log(chalk.cyan(`  📋 Total agents in target: ${copiedCount}`));
 
-    // Verify all 17 agents exist
-    const expectedAgents = 17;
+    // Verify all 18 agents exist (17 QE agents + 1 base template generator)
+    const expectedAgents = 18;
     if (copiedCount < expectedAgents) {
       console.warn(chalk.yellow(`  ⚠️  Expected ${expectedAgents} agents, found ${copiedCount}`));
       console.warn(chalk.yellow(`  ℹ️  Creating missing agents programmatically...`));
@@ -313,7 +313,7 @@ export class InitCommand {
     try {
       console.log(chalk.cyan('  🛠️  Creating all agent definitions programmatically...'));
 
-      // ALL 17 AGENTS (not just 6!)
+      // ALL 18 AGENTS (17 QE agents + 1 base template generator)
       const allAgents = [
         // Core Testing (5)
         'qe-test-generator',
@@ -1578,8 +1578,8 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
   ): Promise<void> {
     console.log(chalk.yellow('\n📊 Initialization Summary:\n'));
 
-    // Phase 1 Summary
-    console.log(chalk.cyan('Phase 1: Multi-Model Router'));
+    // Multi-Model Router Summary
+    console.log(chalk.cyan('Multi-Model Router'));
     console.log(chalk.gray(`  Status: ${fleetConfig.routing?.enabled ? '✅ Enabled' : '⚠️  Disabled (opt-in)'}`));
     if (fleetConfig.routing?.enabled) {
       console.log(chalk.gray('  • Cost optimization: 70-81% savings'));
@@ -1587,13 +1587,13 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
       console.log(chalk.gray('  • Budget tracking: daily $50, monthly $1000'));
     }
 
-    console.log(chalk.cyan('\nPhase 1: Streaming'));
+    console.log(chalk.cyan('\nStreaming'));
     console.log(chalk.gray(`  Status: ${fleetConfig.streaming?.enabled !== false ? '✅ Enabled' : '⚠️  Disabled'}`));
     console.log(chalk.gray('  • Real-time progress updates'));
     console.log(chalk.gray('  • for-await-of compatible'));
 
-    // Phase 2 Summary
-    console.log(chalk.cyan('\nPhase 2: Learning System'));
+    // Learning System Summary
+    console.log(chalk.cyan('\nLearning System'));
     console.log(chalk.gray(`  Status: ${options.enableLearning ? '✅ Enabled' : '⚠️  Disabled'}`));
     if (options.enableLearning) {
       console.log(chalk.gray('  • Q-learning (lr=0.1, γ=0.95)'));
@@ -1601,7 +1601,7 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
       console.log(chalk.gray('  • Target: 20% improvement'));
     }
 
-    console.log(chalk.cyan('\nPhase 2: Pattern Bank'));
+    console.log(chalk.cyan('\nPattern Bank'));
     console.log(chalk.gray(`  Status: ${options.enablePatterns ? '✅ Enabled' : '⚠️  Disabled'}`));
     if (options.enablePatterns) {
       console.log(chalk.gray('  • Pattern extraction: enabled'));
@@ -1609,7 +1609,7 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
       console.log(chalk.gray('  • Template generation: enabled'));
     }
 
-    console.log(chalk.cyan('\nPhase 2: Improvement Loop'));
+    console.log(chalk.cyan('\nImprovement Loop'));
     console.log(chalk.gray(`  Status: ${options.enableImprovement ? '✅ Enabled' : '⚠️  Disabled'}`));
     if (options.enableImprovement) {
       console.log(chalk.gray('  • Cycle: 1 hour intervals'));
