@@ -98,6 +98,18 @@ export * from './agents';
  */
 export * from './utils';
 
+/**
+ * Phase 2: Learning System (Milestone 2.2)
+ * @module Learning
+ */
+export * from './learning';
+
+/**
+ * Phase 2: Reasoning Bank (Milestone 2.1)
+ * @module Reasoning
+ */
+export * from './reasoning';
+
 const logger = Logger.getInstance();
 
 /**

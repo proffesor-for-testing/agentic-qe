@@ -68,6 +68,7 @@ import { HookExecutor, getHookExecutor } from './services/HookExecutor.js';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager.js';
 import { TestExecuteStreamHandler } from './streaming/TestExecuteStreamHandler.js';
 import { CoverageAnalyzeStreamHandler } from './streaming/CoverageAnalyzeStreamHandler.js';
+import { Phase2ToolsHandler } from './handlers/phase2/Phase2Tools.js';
 import { EventEmitter } from 'events';
 
 /**
@@ -208,6 +209,24 @@ export class AgenticQEMCPServer {
       new TestExecuteStreamHandler(this.memoryStore, streamingEventBus));
     this.handlers.set(TOOL_NAMES.COVERAGE_ANALYZE_STREAM,
       new CoverageAnalyzeStreamHandler(this.memoryStore, streamingEventBus));
+
+    // Phase 2 Management Tools Handler
+    const phase2Handler = new Phase2ToolsHandler(this.registry, this.hookExecutor, this.memory);
+    this.handlers.set(TOOL_NAMES.LEARNING_STATUS, phase2Handler);
+    this.handlers.set(TOOL_NAMES.LEARNING_TRAIN, phase2Handler);
+    this.handlers.set(TOOL_NAMES.LEARNING_HISTORY, phase2Handler);
+    this.handlers.set(TOOL_NAMES.LEARNING_RESET, phase2Handler);
+    this.handlers.set(TOOL_NAMES.LEARNING_EXPORT, phase2Handler);
+    this.handlers.set(TOOL_NAMES.PATTERN_STORE, phase2Handler);
+    this.handlers.set(TOOL_NAMES.PATTERN_FIND, phase2Handler);
+    this.handlers.set(TOOL_NAMES.PATTERN_EXTRACT, phase2Handler);
+    this.handlers.set(TOOL_NAMES.PATTERN_SHARE, phase2Handler);
+    this.handlers.set(TOOL_NAMES.PATTERN_STATS, phase2Handler);
+    this.handlers.set(TOOL_NAMES.IMPROVEMENT_STATUS, phase2Handler);
+    this.handlers.set(TOOL_NAMES.IMPROVEMENT_CYCLE, phase2Handler);
+    this.handlers.set(TOOL_NAMES.IMPROVEMENT_AB_TEST, phase2Handler);
+    this.handlers.set(TOOL_NAMES.IMPROVEMENT_FAILURES, phase2Handler);
+    this.handlers.set(TOOL_NAMES.PERFORMANCE_TRACK, phase2Handler);
   }
 
   /**
@@ -236,6 +255,85 @@ export class AgenticQEMCPServer {
 
         // Get handler
         const handler = this.handlers.get(name);
+
+        // Special handling for Phase 2 tools - route to specific methods
+        if (name.startsWith('mcp__agentic_qe__learning_')) {
+          const phase2Handler = handler as Phase2ToolsHandler;
+          const safeArgs = args || {};
+          let result;
+          switch (name) {
+            case TOOL_NAMES.LEARNING_STATUS:
+              result = await phase2Handler.handleLearningStatus(safeArgs as any);
+              break;
+            case TOOL_NAMES.LEARNING_TRAIN:
+              result = await phase2Handler.handleLearningTrain(safeArgs as any);
+              break;
+            case TOOL_NAMES.LEARNING_HISTORY:
+              result = await phase2Handler.handleLearningHistory(safeArgs as any);
+              break;
+            case TOOL_NAMES.LEARNING_RESET:
+              result = await phase2Handler.handleLearningReset(safeArgs as any);
+              break;
+            case TOOL_NAMES.LEARNING_EXPORT:
+              result = await phase2Handler.handleLearningExport(safeArgs as any);
+              break;
+            default:
+              throw new McpError(ErrorCode.MethodNotFound, `Unknown learning tool: ${name}`);
+          }
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        if (name.startsWith('mcp__agentic_qe__pattern_')) {
+          const phase2Handler = handler as Phase2ToolsHandler;
+          const safeArgs = args || {};
+          let result;
+          switch (name) {
+            case TOOL_NAMES.PATTERN_STORE:
+              result = await phase2Handler.handlePatternStore(safeArgs as any);
+              break;
+            case TOOL_NAMES.PATTERN_FIND:
+              result = await phase2Handler.handlePatternFind(safeArgs as any);
+              break;
+            case TOOL_NAMES.PATTERN_EXTRACT:
+              result = await phase2Handler.handlePatternExtract(safeArgs as any);
+              break;
+            case TOOL_NAMES.PATTERN_SHARE:
+              result = await phase2Handler.handlePatternShare(safeArgs as any);
+              break;
+            case TOOL_NAMES.PATTERN_STATS:
+              result = await phase2Handler.handlePatternStats(safeArgs as any);
+              break;
+            default:
+              throw new McpError(ErrorCode.MethodNotFound, `Unknown pattern tool: ${name}`);
+          }
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        if (name.startsWith('mcp__agentic_qe__improvement_') || name === TOOL_NAMES.PERFORMANCE_TRACK) {
+          const phase2Handler = handler as Phase2ToolsHandler;
+          const safeArgs = args || {};
+          let result;
+          switch (name) {
+            case TOOL_NAMES.IMPROVEMENT_STATUS:
+              result = await phase2Handler.handleImprovementStatus(safeArgs as any);
+              break;
+            case TOOL_NAMES.IMPROVEMENT_CYCLE:
+              result = await phase2Handler.handleImprovementCycle(safeArgs as any);
+              break;
+            case TOOL_NAMES.IMPROVEMENT_AB_TEST:
+              result = await phase2Handler.handleImprovementABTest(safeArgs as any);
+              break;
+            case TOOL_NAMES.IMPROVEMENT_FAILURES:
+              result = await phase2Handler.handleImprovementFailures(safeArgs as any);
+              break;
+            case TOOL_NAMES.PERFORMANCE_TRACK:
+              result = await phase2Handler.handlePerformanceTrack(safeArgs as any);
+              break;
+            default:
+              throw new McpError(ErrorCode.MethodNotFound, `Unknown improvement tool: ${name}`);
+          }
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
 
         // Check if this is a streaming handler (has execute method returning AsyncGenerator)
         const isStreamingHandler = handler.execute &&

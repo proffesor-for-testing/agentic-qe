@@ -544,6 +544,14 @@ export class SwarmMemoryManager {
     );
   }
 
+  /**
+   * Alias for store() method to maintain compatibility with MemoryStore interface
+   * Used by VerificationHookManager and other components
+   */
+  async set(key: string, value: any, options: StoreOptions = {}): Promise<void> {
+    return this.store(key, value, options);
+  }
+
   async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
