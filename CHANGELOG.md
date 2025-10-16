@@ -66,6 +66,23 @@ Major release adding learning capabilities, pattern reuse, ML-based flaky detect
 - Enhanced memory management for long-running learning processes
 - Improved error handling with detailed context for ML operations
 
+### Fixed
+
+#### CLI Logging Improvements
+- **Agent count consistency**: Fixed inconsistent agent count in `aqe init` output (17 vs 18)
+  - Updated all references to correctly show 18 agents (17 QE agents + 1 base template generator)
+  - Fixed `expectedAgents` constant from 17 to 18 in init.ts:297
+  - Updated fallback message to show consistent "18 agents" count
+  - Added clarifying comments explaining agent breakdown
+- **User-facing output cleanup**: Removed internal "Phase 1" and "Phase 2" terminology from init summary
+  - Removed phase prefixes from 5 console.log statements in displayComprehensiveSummary()
+  - Kept clean feature names: Multi-Model Router, Streaming, Learning System, Pattern Bank, Improvement Loop
+  - Internal code comments preserved for developer context
+- **README clarification**: Updated agent count documentation for accuracy
+  - Clarified distinction between 17 QE agents and 1 general-purpose agent (base-template-generator)
+  - Added inline notes explaining "(+ 1 general-purpose agent)" where appropriate
+  - Updated 5 locations in README with accurate agent count information
+
 ### Performance
 All performance targets exceeded:
 - **Pattern matching**: <50ms p95 latency (32ms actual, 36% better)

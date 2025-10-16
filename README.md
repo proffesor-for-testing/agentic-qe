@@ -113,7 +113,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 ### Core Features
 
 #### 🤖 Autonomous Agent Fleet
-- **18 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
+- **17 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
+  - _Note: Init copies 18 agent files (17 QE + 1 general-purpose agent from Claude Code)_
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -227,7 +228,7 @@ aqe init
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Improvement Loop (A/B testing)
-- ✅ 18 Specialized QE agent definitions
+- ✅ 17 Specialized QE agent definitions (+ 1 general-purpose agent)
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -1107,7 +1108,7 @@ npm test
 ```
 agentic-qe/
 ├── src/
-│   ├── agents/          # 18 agent implementations
+│   ├── agents/          # Agent implementation classes (BaseAgent, LearningAgent, etc.)
 │   ├── core/            # Core fleet management
 │   │   ├── FleetManager.ts
 │   │   ├── Agent.ts
@@ -1137,7 +1138,7 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 18 QE agent definitions
+│   ├── agents/          # 17 QE agent definitions (+ 1 general-purpose)
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -1200,7 +1201,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ Pattern Bank with cross-project sharing
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Continuous Improvement Loop
-- ✅ 18 specialized QE agents
+- ✅ 17 specialized QE agents
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis
 - ✅ MCP integration
