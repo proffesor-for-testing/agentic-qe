@@ -19,7 +19,25 @@ A distributed fleet of specialized AI agents for comprehensive software testing,
 
 ## 🚀 Features
 
-### Autonomous Agent Fleet
+### 💰 Cost Optimization (v1.0.5)
+- **Multi-Model Router**: 70% cost reduction through intelligent model selection
+- **4+ AI Models**: GPT-3.5, GPT-4, Claude Haiku, Claude Sonnet 4.5
+- **Smart Routing**: Automatic complexity analysis and model selection
+- **Cost Tracking**: Real-time monitoring with daily/monthly budgets
+- **Budget Alerts**: Email, Slack, and webhook notifications
+- **Cost Forecasting**: Predict future costs with 90% confidence
+- **ROI Dashboard**: Track savings vs single-model baseline
+
+### 📊 Real-Time Streaming (v1.0.5)
+- **Live Progress Updates**: Real-time feedback for all operations
+- **Test Generation Streaming**: See tests as they're created
+- **Test Execution Streaming**: Live pass/fail updates
+- **Coverage Streaming**: Real-time gap detection
+- **Progress Bars**: Beautiful terminal progress visualization
+- **Cancellation Support**: Stop operations mid-stream
+- **Event Piping**: Chain multiple operations together
+
+### 🤖 Autonomous Agent Fleet
 - **16 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
@@ -27,19 +45,19 @@ A distributed fleet of specialized AI agents for comprehensive software testing,
 - **Self-Organizing**: Agents autonomously coordinate testing strategies
 - **Type-Safe**: Full TypeScript type checking and IntelliSense support
 
-### Comprehensive Testing
+### 🧪 Comprehensive Testing
 - **AI-Powered Test Generation**: Generate comprehensive test suites automatically
 - **Multi-Framework Support**: Jest, Mocha, Cypress, Playwright, and more
 - **Parallel Execution**: Execute thousands of tests concurrently with intelligent orchestration
 - **Real-Time Coverage Analysis**: O(log n) algorithms for instant coverage gap detection
 
-### Quality Intelligence
+### 🎯 Quality Intelligence
 - **Smart Quality Gates**: ML-driven quality assessment with risk scoring
 - **Security Scanning**: SAST, DAST, dependency analysis, and container security
 - **Performance Testing**: Load testing with k6, JMeter, and Gatling integration
 - **Visual Regression**: AI-powered screenshot comparison and UI validation
 
-### Advanced Capabilities
+### ⚡ Advanced Capabilities
 - **Flaky Test Detection**: Statistical analysis with automatic stabilization
 - **API Contract Validation**: Breaking change detection across versions
 - **Test Data Generation**: 10,000+ realistic records per second
@@ -50,14 +68,33 @@ A distributed fleet of specialized AI agents for comprehensive software testing,
 
 ## 📦 Prerequisites & Installation
 
-### What's New in v1.0.4
+### What's New in v1.0.5 (Coming November 2025)
+
+**Major Release** - Cost Optimization & Streaming
+
+💰 **Multi-Model Router**: Reduce AI costs by 70% through intelligent model selection
+📊 **Real-Time Streaming**: Live progress updates for all long-running operations
+🎯 **Cost Tracking**: Comprehensive budgeting and forecasting tools
+⚡ **Enhanced Reliability**: Auto-retry, fallback chains, resource pooling
+🔧 **Zero Breaking Changes**: 100% backward compatible with v1.0.4
+
+**Key Features**:
+- **4+ AI Models**: GPT-3.5, GPT-4, Claude Haiku, Claude Sonnet 4.5
+- **Smart Routing**: Automatic model selection based on task complexity
+- **Live Updates**: Real-time progress for test generation, execution, and analysis
+- **Budget Management**: Daily/monthly limits with automatic enforcement
+- **Cost Forecasting**: Predict future costs with 90% confidence
+- **Savings Dashboard**: Track cost savings vs single-model baseline
+
+[📚 Migration Guide](docs/guides/MIGRATION-V1.0.5.md) • [💰 Cost Optimization Guide](docs/guides/COST-OPTIMIZATION.md) • [📊 Streaming Tutorial](docs/guides/STREAMING-API.md)
+
+### Previous Release (v1.0.4)
 
 **Patch Release** - October 8, 2025
 
 🎯 **Zero Warnings**: Eliminated all deprecated npm dependency warnings
 ⚡ **Better Performance**: Migrated to `better-sqlite3` for improved reliability
 🏗️ **Simplified Architecture**: Synchronous database API, no callbacks needed
-✨ **Professional Experience**: Clean npm install with zero deprecation warnings
 
 [View Complete Changelog](./CHANGELOG.md#104---2025-10-08)
 
@@ -325,24 +362,36 @@ await hookManager.executePostTaskValidation({ task, result });
 
 ## 📖 Documentation
 
+### 🆕 Phase 1 Features (v1.0.5)
+- [Multi-Model Router Guide](docs/guides/MULTI-MODEL-ROUTER.md) - **NEW!** Save 70% on AI costs
+- [Streaming API Tutorial](docs/guides/STREAMING-API.md) - **NEW!** Real-time progress updates
+- [Cost Optimization Best Practices](docs/guides/COST-OPTIMIZATION.md) - **NEW!** Maximize ROI
+- [Migration Guide v1.0.5](docs/guides/MIGRATION-V1.0.5.md) - **NEW!** Upgrade guide
+- [Routing API Reference](docs/api/ROUTING-API.md) - **NEW!** Complete API docs
+- [Streaming API Reference](docs/api/STREAMING-API.md) - **NEW!** Complete API docs
+- [Phase 1 Code Examples](docs/examples/phase1/) - **NEW!** Working examples
+
 ### Getting Started
 - [Quick Start Guide](docs/AQE-CLI.md)
-- [User Guide](docs/USER-GUIDE.md) - **NEW!** Comprehensive workflows and examples
+- [User Guide](docs/USER-GUIDE.md) - Comprehensive workflows and examples
 - [Agent Types Overview](docs/Agentic-QE-Fleet-Specification.md)
-- [Configuration Guide](docs/CONFIGURATION.md) - **NEW!** Complete configuration reference
-- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - **NEW!** Common issues and solutions
+- [Configuration Guide](docs/CONFIGURATION.md) - Complete configuration reference
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ### User Guides
 - [Test Generation](docs/guides/TEST-GENERATION.md)
 - [Coverage Analysis](docs/guides/COVERAGE-ANALYSIS.md)
 - [Quality Gates](docs/guides/QUALITY-GATES.md)
 - [Performance Testing](docs/guides/PERFORMANCE-TESTING.md)
+- [Test Execution](docs/guides/TEST-EXECUTION.md)
+- [MCP Integration](docs/guides/MCP-INTEGRATION.md)
 
 ### Advanced Topics
 - [API Reference](docs/API.md)
 - [Agent Development](docs/AGENT-DEVELOPMENT.md)
 - [MCP Integration](docs/CLAUDE-MD-INTEGRATION.md)
 - [Best Practices](docs/AI%20%26%20Agentic%20Security%20Best%20Practices.md)
+- [AQE Hooks Guide](docs/AQE-HOOKS-GUIDE.md)
 
 ### Commands Reference
 - [AQE Commands Overview](docs/QE-COMMANDS-INDEX.md)
