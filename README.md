@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/agentic-qe.svg)](https://www.npmjs.com/package/agentic-qe)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-17+-green.svg)](https://nodejs.org/)
 
 **AI-Driven Quality Engineering Automation**
 
@@ -38,7 +38,7 @@ A distributed fleet of specialized AI agents for comprehensive software testing,
 - **Event Piping**: Chain multiple operations together
 
 ### 🤖 Autonomous Agent Fleet
-- **16 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
+- **17 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -104,7 +104,7 @@ Before using Agentic QE, you must have:
 
 #### Required
 - **Claude Code**: Install from [claude.ai/code](https://claude.ai/code)
-- **Node.js**: 18.0 or higher
+- **Node.js**: 17.0 or higher
 - **npm**: 8.0 or higher
 
 #### Optional (Advanced Features)
@@ -180,7 +180,7 @@ aqe init
 ```
 
 **What it does:**
-- Creates `.claude/agents/` with 16 specialized QE agent definitions
+- Creates `.claude/agents/` with 17 specialized QE agent definitions
 - Creates `.claude/commands/` with 8 AQE slash commands
 - Creates `.agentic-qe/` configuration directory
 - Updates or creates `CLAUDE.md` with integration documentation
@@ -707,7 +707,7 @@ npm test
 ```
 agentic-qe/
 ├── src/
-│   ├── agents/          # 16 agent implementations
+│   ├── agents/          # 17 agent implementations
 │   ├── core/            # Core fleet management
 │   │   ├── FleetManager.ts
 │   │   ├── Agent.ts
@@ -726,7 +726,7 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 16 QE agent definitions
+│   ├── agents/          # 17 QE agent definitions
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -796,7 +796,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🗺️ Roadmap
 
 ### Current (v1.0)
-- ✅ 16 specialized QE agents
+- ✅ 17 specialized QE agents
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis
 - ✅ MCP integration
