@@ -222,7 +222,56 @@ aqe execute --parallel --coverage
 aqe help
 ```
 
+### Multi-Model Router Commands (v1.0.5)
+
+```bash
+# Enable cost-optimized routing (70-81% savings)
+aqe routing enable
+
+# View current configuration and savings
+aqe routing status
+
+# Launch real-time cost dashboard
+aqe routing dashboard
+
+# Generate detailed cost report
+aqe routing report --format html --output report.html
+
+# View routing statistics
+aqe routing stats --days 30
+
+# Disable routing
+aqe routing disable
+```
+
+**Example Output** - `aqe routing status`:
+```
+✅ Multi-Model Router Status
+
+Configuration:
+  Status: ENABLED ✓
+  Default Model: claude-sonnet-4.5
+  Cost Tracking: ENABLED ✓
+  Fallback Chains: ENABLED ✓
+
+Cost Summary (Last 30 Days):
+  Total Cost: $127.50
+  Baseline Cost: $545.00
+  Savings: $417.50 (76.6%)
+  Budget Status: ON TRACK ✓
+
+Model Usage:
+  ├─ gpt-3.5-turbo: 42% (simple tasks)
+  ├─ claude-haiku: 31% (medium tasks)
+  ├─ claude-sonnet-4.5: 20% (complex tasks)
+  └─ gpt-4: 7% (critical tasks)
+```
+
+📚 **[Complete Routing Examples](docs/examples/ROUTING-EXAMPLES.md)** - CLI and programmatic usage
+
 ### Programmatic Usage
+
+#### Basic Fleet Usage
 
 ```typescript
 import { FleetManager, QEAgentFactory } from 'agentic-qe';
@@ -247,6 +296,56 @@ const tests = await testGen.execute({
   testStyle: 'property-based'
 });
 ```
+
+#### With Multi-Model Router (v1.0.5)
+
+```typescript
+import { FleetManager, AdaptiveModelRouter } from 'agentic-qe';
+
+// Initialize fleet with cost-optimized routing
+const fleet = new FleetManager({
+  maxAgents: 20,
+  topology: 'mesh',
+  routing: {
+    enabled: true,
+    defaultModel: 'claude-sonnet-4.5',
+    enableCostTracking: true,
+    enableFallback: true,
+    modelPreferences: {
+      simple: 'gpt-3.5-turbo',      // 70% cheaper for simple tasks
+      medium: 'claude-haiku',        // 60% cheaper for standard tests
+      complex: 'claude-sonnet-4.5',  // Best quality/cost for complex
+      critical: 'gpt-4'              // Maximum quality when needed
+    },
+    budgets: {
+      daily: 50,
+      monthly: 1000
+    }
+  }
+});
+
+await fleet.initialize();
+
+// Spawn agent (automatically uses optimal model based on task complexity)
+const testGen = await fleet.spawnAgent('test-generator', {
+  targetCoverage: 95,
+  framework: 'jest',
+  useRouting: true  // Enable intelligent model selection
+});
+
+// Execute task (router selects cheapest model that meets quality requirements)
+const tests = await testGen.execute({
+  sourceFile: 'src/services/user-service.ts',
+  testStyle: 'property-based'
+});
+
+// Check cost savings
+const savings = await fleet.getRoutingSavings();
+console.log(`💰 Total savings: $${savings.total} (${savings.percent}%)`);
+console.log(`📊 Models used: ${JSON.stringify(savings.modelBreakdown, null, 2)}`);
+```
+
+📚 **[Complete Routing Examples](docs/examples/ROUTING-EXAMPLES.md)** - Advanced programmatic usage
 
 ---
 
