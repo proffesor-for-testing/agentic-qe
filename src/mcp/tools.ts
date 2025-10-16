@@ -1938,7 +1938,23 @@ export const TOOL_NAMES = {
   MUTATION_TEST_EXECUTE: 'mcp__agentic_qe__mutation_test_execute',
   // Streaming tools (v1.0.5)
   TEST_EXECUTE_STREAM: 'mcp__agentic_qe__test_execute_stream',
-  COVERAGE_ANALYZE_STREAM: 'mcp__agentic_qe__coverage_analyze_stream'
+  COVERAGE_ANALYZE_STREAM: 'mcp__agentic_qe__coverage_analyze_stream',
+  // Phase 2 tools
+  LEARNING_STATUS: 'mcp__agentic_qe__learning_status',
+  LEARNING_TRAIN: 'mcp__agentic_qe__learning_train',
+  LEARNING_HISTORY: 'mcp__agentic_qe__learning_history',
+  LEARNING_RESET: 'mcp__agentic_qe__learning_reset',
+  LEARNING_EXPORT: 'mcp__agentic_qe__learning_export',
+  PATTERN_STORE: 'mcp__agentic_qe__pattern_store',
+  PATTERN_FIND: 'mcp__agentic_qe__pattern_find',
+  PATTERN_EXTRACT: 'mcp__agentic_qe__pattern_extract',
+  PATTERN_SHARE: 'mcp__agentic_qe__pattern_share',
+  PATTERN_STATS: 'mcp__agentic_qe__pattern_stats',
+  IMPROVEMENT_STATUS: 'mcp__agentic_qe__improvement_status',
+  IMPROVEMENT_CYCLE: 'mcp__agentic_qe__improvement_cycle',
+  IMPROVEMENT_AB_TEST: 'mcp__agentic_qe__improvement_ab_test',
+  IMPROVEMENT_FAILURES: 'mcp__agentic_qe__improvement_failures',
+  PERFORMANCE_TRACK: 'mcp__agentic_qe__performance_track'
 } as const;
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];

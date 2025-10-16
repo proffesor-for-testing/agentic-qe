@@ -26,6 +26,10 @@ import * as configCommands from './commands/config/index.js';
 import * as debugCommands from './commands/debug/index.js';
 import * as memoryCommands from './commands/memory/index.js';
 import * as routingCommands from './commands/routing/index.js';
+import * as learnCommands from './commands/learn/index.js';
+import * as patternsCommands from './commands/patterns/index.js';
+import * as improveCommands from './commands/improve/index.js';
+import { InitCommand } from './commands/init';
 
 const program = new Command();
 const logger = Logger.getInstance();
@@ -36,27 +40,25 @@ let fleetManager: FleetManager | null = null;
 program
   .name('agentic-qe')
   .description('Agentic Quality Engineering Fleet - Autonomous testing and quality assurance')
-  .version('1.0.0');
+  .version('1.1.0');
 
 /**
- * Initialize fleet
+ * Initialize fleet using proper InitCommand
  */
 program
   .command('init')
   .description('Initialize the AQE Fleet')
   .option('-c, --config <path>', 'Configuration file path')
+  .option('-t, --topology <type>', 'Swarm topology', 'hierarchical')
+  .option('-m, --max-agents <number>', 'Maximum agents', '10')
+  .option('-f, --focus <areas>', 'Testing focus areas', 'unit,integration')
+  .option('-e, --environments <envs>', 'Target environments', 'development')
+  .option('--frameworks <frameworks>', 'Test frameworks', 'jest')
   .action(async (options) => {
     try {
-      console.log(chalk.blue('🚀 Initializing Agentic QE Fleet...'));
-
-      const config = await Config.load(options.config);
-      fleetManager = new FleetManager(config);
-
-      await fleetManager.initialize();
-      console.log(chalk.green('✅ Fleet initialized successfully'));
-
+      await InitCommand.execute(options as any);
     } catch (error) {
-      console.error(chalk.red('❌ Failed to initialize fleet:'), error);
+      console.error(chalk.red('❌ Failed to initialize:'), error);
       process.exit(1);
     }
   });
@@ -584,6 +586,363 @@ routingCommand
       await routingCommands.routingStats(options);
     } catch (error) {
       console.error(chalk.red('❌ Routing stats failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Learning commands (Phase 2 - Milestone 2.2)
+ * Manage the LearningEngine and view learning status
+ */
+const learnCommand = program
+  .command('learn')
+  .description('Manage agent learning and performance improvement (Phase 2)');
+
+learnCommand
+  .command('status')
+  .description('View learning status')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--detailed', 'Show detailed information')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('enable')
+  .description('Enable learning for agent(s)')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--all', 'Enable for all agents')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnEnable(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning enable failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('disable')
+  .description('Disable learning for agent')
+  .option('--agent <id>', 'Target specific agent')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnDisable(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning disable failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('history')
+  .description('View learning history')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--limit <number>', 'Limit number of results', parseInt, 20)
+  .action(async (options) => {
+    try {
+      await learnCommands.learnHistory(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning history failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('train')
+  .description('Trigger manual training')
+  .option('--agent <id>', 'Target specific agent', 'default')
+  .option('--task <json>', 'Task JSON for training')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnTrain(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning train failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('reset')
+  .description('Reset learning state')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--confirm', 'Confirm reset operation')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnReset(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning reset failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('export')
+  .description('Export learning data')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--output <file>', 'Output file path')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnExport(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning export failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Patterns commands (Phase 2)
+ * Manage test patterns in the QEReasoningBank
+ */
+const patternsCommand = program
+  .command('patterns')
+  .description('Manage test patterns in the QEReasoningBank (Phase 2)');
+
+patternsCommand
+  .command('list')
+  .description('List all patterns')
+  .option('--framework <name>', 'Filter by framework (jest, mocha, vitest, playwright)')
+  .option('--type <category>', 'Filter by type (unit, integration, e2e)')
+  .option('--limit <number>', 'Limit number of results', parseInt, 20)
+  .action(async (options) => {
+    try {
+      await patternsCommands.patternsCommand('list', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns list failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('search')
+  .description('Search patterns by keyword')
+  .argument('<keyword>', 'Search keyword')
+  .option('--min-confidence <n>', 'Minimum confidence (0-1)', parseFloat, 0.3)
+  .option('--limit <number>', 'Limit number of results', parseInt, 10)
+  .action(async (keyword, options) => {
+    try {
+      await patternsCommands.patternsCommand('search', [keyword], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns search failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('show')
+  .description('Show pattern details')
+  .argument('<pattern-id>', 'Pattern ID')
+  .action(async (patternId, options) => {
+    try {
+      await patternsCommands.patternsCommand('show', [patternId], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns show failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('extract')
+  .description('Extract patterns from test directory')
+  .argument('<directory>', 'Test directory path')
+  .option('--framework <name>', 'Test framework', 'jest')
+  .action(async (directory, options) => {
+    try {
+      await patternsCommands.patternsCommand('extract', [directory], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns extract failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('share')
+  .description('Share pattern across projects')
+  .argument('<pattern-id>', 'Pattern ID')
+  .option('--projects <ids>', 'Comma-separated project IDs')
+  .action(async (patternId, options) => {
+    try {
+      await patternsCommands.patternsCommand('share', [patternId], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns share failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('delete')
+  .description('Delete pattern')
+  .argument('<pattern-id>', 'Pattern ID')
+  .option('--confirm', 'Confirm deletion')
+  .action(async (patternId, options) => {
+    try {
+      await patternsCommands.patternsCommand('delete', [patternId], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns delete failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('export')
+  .description('Export patterns to file')
+  .option('--output <file>', 'Output file path')
+  .option('--framework <name>', 'Filter by framework')
+  .action(async (options) => {
+    try {
+      await patternsCommands.patternsCommand('export', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns export failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('import')
+  .description('Import patterns from file')
+  .option('--input <file>', 'Input file path')
+  .action(async (options) => {
+    try {
+      await patternsCommands.patternsCommand('import', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns import failed:'), error);
+      process.exit(1);
+    }
+  });
+
+patternsCommand
+  .command('stats')
+  .description('Show pattern statistics')
+  .option('--framework <name>', 'Filter by framework')
+  .action(async (options) => {
+    try {
+      await patternsCommands.patternsCommand('stats', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Patterns stats failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Improvement commands (Phase 2)
+ * Manage the continuous improvement loop
+ */
+const improveCommand = program
+  .command('improve')
+  .description('Manage continuous improvement loop (Phase 2)');
+
+improveCommand
+  .command('status')
+  .description('View improvement status')
+  .option('--agent <id>', 'Target specific agent')
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('status', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Improve status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('start')
+  .description('Start improvement loop')
+  .option('--agent <id>', 'Target specific agent')
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('start', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Improve start failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('stop')
+  .description('Stop improvement loop')
+  .option('--agent <id>', 'Target specific agent')
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('stop', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Improve stop failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('history')
+  .description('View improvement history')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--days <number>', 'Time period in days', parseInt, 30)
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('history', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Improve history failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('ab-test')
+  .description('Run A/B test')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--strategy-a <name>', 'First strategy')
+  .option('--strategy-b <name>', 'Second strategy')
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('ab-test', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ A/B test failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('failures')
+  .description('View failure patterns')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--limit <number>', 'Limit number of results', parseInt, 10)
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('failures', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Failures analysis failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('apply')
+  .description('Apply recommendation')
+  .argument('<recommendation-id>', 'Recommendation ID')
+  .option('--dry-run', 'Preview without applying', true)
+  .action(async (recommendationId, options) => {
+    try {
+      await improveCommands.improveCommand('apply', [recommendationId], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Apply recommendation failed:'), error);
+      process.exit(1);
+    }
+  });
+
+improveCommand
+  .command('report')
+  .description('Generate improvement report')
+  .option('--agent <id>', 'Target specific agent')
+  .option('--format <format>', 'Report format (html, json, text)', 'text')
+  .option('--output <file>', 'Output file path')
+  .action(async (options) => {
+    try {
+      await improveCommands.improveCommand('report', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Report generation failed:'), error);
       process.exit(1);
     }
   });

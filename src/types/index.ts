@@ -277,6 +277,7 @@ export interface Test {
   assertions: string[];
   expectedResult: any;
   estimatedDuration?: number;
+  code?: string; // Optional generated test code (from pattern templates)
 }
 
 export enum TestType {
@@ -357,6 +358,10 @@ export interface InitOptions extends CLIOptions {
   focus: string;
   environments: string;
   frameworks?: string;
+  // Phase 2 options (v1.1.0)
+  enableLearning?: boolean;
+  enablePatterns?: boolean;
+  enableImprovement?: boolean;
 }
 
 export interface GenerateOptions extends CLIOptions {

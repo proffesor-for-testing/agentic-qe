@@ -1,0 +1,48 @@
+{
+  "testHistory": [
+    {
+      "testName": "auth.test.ts:login",
+      "timestamp": "2025-10-16T00:00:00.000Z",
+      "result": "pass",
+      "duration": 150,
+      "agent": "ci-runner-1"
+    },
+    {
+      "testName": "auth.test.ts:login",
+      "timestamp": "2025-10-16T01:00:00.000Z",
+      "result": "fail",
+      "duration": 155,
+      "agent": "ci-runner-2",
+      "error": "Timeout exceeded"
+    },
+    {
+      "testName": "user.test.ts:create",
+      "timestamp": "2025-10-16T00:00:00.000Z",
+      "result": "pass",
+      "duration": 100,
+      "agent": "ci-runner-1"
+    },
+    {
+      "testName": "user.test.ts:create",
+      "timestamp": "2025-10-16T01:00:00.000Z",
+      "result": "pass",
+      "duration": 102,
+      "agent": "ci-runner-2"
+    },
+    {
+      "testName": "payment.test.ts:processPayment",
+      "timestamp": "2025-10-16T00:00:00.000Z",
+      "result": "fail",
+      "duration": 5200,
+      "agent": "ci-runner-1",
+      "error": "Request timeout"
+    },
+    {
+      "testName": "payment.test.ts:processPayment",
+      "timestamp": "2025-10-16T01:00:00.000Z",
+      "result": "pass",
+      "duration": 180,
+      "agent": "ci-runner-2"
+    }
+  ]
+}

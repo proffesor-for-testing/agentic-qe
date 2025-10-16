@@ -49,6 +49,15 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
    * Throws clear error if incompatible
    */
   private validateCompatibility(): void {
+    // Check if memoryStore is null or undefined
+    if (!this.memoryStore || typeof this.memoryStore !== 'object') {
+      throw new Error(
+        'MemoryStoreAdapter requires a valid MemoryStore instance. ' +
+        `Received: ${this.memoryStore === null ? 'null' : typeof this.memoryStore}. ` +
+        'Please ensure the MemoryStore is properly initialized before creating the adapter.'
+      );
+    }
+
     const requiredMethods = ['store', 'retrieve', 'set', 'get', 'delete', 'clear'];
     const missingMethods: string[] = [];
 

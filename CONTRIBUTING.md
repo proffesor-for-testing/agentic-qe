@@ -129,6 +129,57 @@ Documentation is crucial! You can contribute by:
 
 Before contributing to Agentic QE, you must have:
 
+### Phase 2 Development (v1.1.0+)
+
+When contributing to Phase 2 features (learning, patterns, improvement):
+
+#### Learning System
+- **LearningEngine** uses Q-learning reinforcement learning algorithm
+- Test with `tests/unit/learning/LearningEngine.test.ts` (85 tests)
+- Follow experience replay patterns for robust learning
+- Maintain 20% performance improvement target
+- Document learning parameters (learning rate, discount factor, epsilon)
+
+#### Pattern Bank
+- **QEReasoningBank** uses SQLite for pattern storage
+- Schema: `docs/architecture/REASONING-BANK-SCHEMA.sql`
+- Test pattern extraction thoroughly with all supported frameworks
+- Maintain 85%+ pattern matching accuracy
+- Support Jest, Mocha, Cypress, Vitest, Jasmine, AVA
+- Test deduplication and versioning logic
+
+#### Improvement Loop
+- Test A/B testing with sufficient sample size (minimum 30 samples per variant)
+- Validate statistical significance at 95% confidence level
+- Document improvement strategies and their success rates
+- Test automatic rollback on regression detection
+- Maintain performance benchmarks
+
+#### ML Models
+- Document all ML models in `docs/ml/` directory
+- Include training data, evaluation metrics, and hyperparameters
+- Maintain 90%+ accuracy requirement for flaky test detection
+- Test with diverse codebases and frameworks
+- Validate false positive rate (target: <5%)
+
+#### Integration Testing
+- Test Phase 1 + Phase 2 integration (routing + learning)
+- Validate memory usage under learning workloads (<100MB target)
+- Test pattern extraction performance (<50ms p95 target)
+- Validate learning convergence (30+ days)
+- Test A/B testing statistical validity
+
+#### Performance Requirements
+- Pattern matching: <50ms p95 latency
+- Learning iteration: <100ms per iteration
+- ML flaky detection (1000 tests): <500ms
+- Agent memory usage: <100MB average
+- SQLite operations: <10ms p95
+
+### Prerequisites
+
+Before contributing to Agentic QE, you must have:
+
 #### Required
 - **Claude Code**: Install from [claude.ai/code](https://claude.ai/code) - Required for agent execution
 - **Node.js** >= 18.0.0 (LTS recommended)

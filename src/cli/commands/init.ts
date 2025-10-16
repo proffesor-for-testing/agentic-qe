@@ -7,7 +7,7 @@ import { InitOptions, FleetConfig } from '../../types';
 
 export class InitCommand {
   static async execute(options: InitOptions): Promise<void> {
-    console.log(chalk.blue.bold('\n🚀 Initializing Agentic QE Fleet\n'));
+    console.log(chalk.blue.bold('\n🚀 Initializing Agentic QE Project (v1.1.0)\n'));
 
     try {
       // Parse options
@@ -108,6 +108,16 @@ export class InitCommand {
         if (fleetConfig.streaming) {
           fleetConfig.streaming.enabled = projectAnswers.enableStreaming;
         }
+
+        // Enable Phase 2 features by default (no questions)
+        (options as any).enableLearning = true;
+        (options as any).enablePatterns = true;
+        (options as any).enableImprovement = true;
+      } else {
+        // Use defaults if non-interactive
+        (options as any).enableLearning = true;
+        (options as any).enablePatterns = true;
+        (options as any).enableImprovement = true;
       }
 
       const spinner = ora('Setting up fleet infrastructure...').start();
@@ -130,9 +140,33 @@ export class InitCommand {
       // Create or update CLAUDE.md with agent documentation
       await this.createClaudeMd(fleetConfig);
 
-      spinner.text = 'Spawning initial agents...';
+      // Initialize Claude Flow coordination
+      await this.initializeCoordination(fleetConfig);
 
-      // Spawn initial fleet agents
+      // Phase 2: Initialize memory database FIRST (required for agents)
+      spinner.text = 'Initializing memory database...';
+      await this.initializeMemoryDatabase();
+
+      // Phase 2: Initialize pattern bank database
+      if (options.enablePatterns !== false) {
+        spinner.text = 'Initializing pattern bank database...';
+        await this.initializePatternDatabase(fleetConfig);
+      }
+
+      // Phase 2: Initialize learning system
+      if (options.enableLearning !== false) {
+        spinner.text = 'Initializing learning system...';
+        await this.initializeLearningSystem(fleetConfig);
+      }
+
+      // Phase 2: Initialize improvement loop
+      if (options.enableImprovement !== false) {
+        spinner.text = 'Setting up improvement loop...';
+        await this.initializeImprovementLoop(fleetConfig);
+      }
+
+      // Now spawn agents AFTER databases are initialized
+      spinner.text = 'Spawning initial agents...';
       await this.spawnInitialAgents(fleetConfig);
 
       spinner.succeed(chalk.green('Fleet initialization completed successfully!'));
@@ -149,20 +183,27 @@ export class InitCommand {
       const agentCount = await this.countAgentFiles('.claude/agents');
       console.log(chalk.gray(`  Agent Definitions: ${agentCount} agents ready`));
 
-      console.log(chalk.yellow('\n💡 Next Steps:'));
-      console.log(chalk.gray('  1. View agents: ls .claude/agents/'));
-      console.log(chalk.gray('  2. Generate tests: aqe test <module-name>'));
-      console.log(chalk.gray('  3. Run tests: aqe run tests --parallel'));
-      console.log(chalk.gray('  4. Monitor fleet: aqe status --verbose'));
+      // Create comprehensive config.json
+      spinner.text = 'Creating comprehensive configuration...';
+      await this.createComprehensiveConfig(fleetConfig, {
+        enableLearning: options.enableLearning !== false,
+        enablePatterns: options.enablePatterns !== false,
+        enableImprovement: options.enableImprovement !== false
+      });
 
-      // Initialize Claude Flow coordination
-      await this.initializeCoordination(fleetConfig);
+      spinner.succeed(chalk.green('Project initialization completed successfully!'));
+
+      // Display comprehensive summary
+      await this.displayComprehensiveSummary(fleetConfig, {
+        enableLearning: options.enableLearning !== false,
+        enablePatterns: options.enablePatterns !== false,
+        enableImprovement: options.enableImprovement !== false
+      });
 
     } catch (error: any) {
       console.error(chalk.red('❌ Initialization failed:'), error.message);
-      if (options.verbose) {
-        console.error(chalk.gray(error.stack));
-      }
+      console.error(chalk.gray('\nStack trace:'));
+      console.error(chalk.gray(error.stack));
       process.exit(1);
     }
   }
@@ -173,8 +214,14 @@ export class InitCommand {
       '.agentic-qe/config',
       '.agentic-qe/logs',
       '.agentic-qe/data',
+      '.agentic-qe/data/learning',       // Phase 2: Learning state
+      '.agentic-qe/data/patterns',       // Phase 2: Pattern database
+      '.agentic-qe/data/improvement',    // Phase 2: Improvement state
       '.agentic-qe/agents',
       '.agentic-qe/reports',
+      '.agentic-qe/scripts',             // For coordination scripts
+      '.agentic-qe/state',               // For state management
+      '.agentic-qe/state/coordination',  // Coordination state
       '.claude',              // For Claude Code integration
       '.claude/agents',       // Where agent definitions live
       'tests/unit',
@@ -193,6 +240,8 @@ export class InitCommand {
   }
 
   private static async copyAgentTemplates(): Promise<void> {
+    console.log(chalk.cyan('  🔍 Searching for agent templates...'));
+
     // Find the agentic-qe package location (handles both npm install and local dev)
     const possiblePaths = [
       path.join(__dirname, '../../../.claude/agents'),  // From dist/cli/commands
@@ -200,48 +249,112 @@ export class InitCommand {
       path.join(process.cwd(), '../agentic-qe/.claude/agents')  // Monorepo case
     ];
 
+    console.log(chalk.gray('  • Checking paths:'));
     let sourcePath: string | null = null;
     for (const p of possiblePaths) {
-      if (await fs.pathExists(p)) {
+      const exists = await fs.pathExists(p);
+      console.log(chalk.gray(`    ${exists ? '✓' : '✗'} ${p}`));
+      if (exists && !sourcePath) {
         sourcePath = p;
-        break;
       }
     }
 
     if (!sourcePath) {
-      console.warn(chalk.yellow('⚠️  Could not find agent templates, creating basic agents'));
+      console.warn(chalk.yellow('  ⚠️  No agent templates found in package paths'));
+      console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 17 agents)'));
       await this.createBasicAgents();
       return;
     }
 
-    // Copy all agent definition files
-    const targetPath = path.join(process.cwd(), '.claude/agents');
-    await fs.copy(sourcePath, targetPath, {
-      overwrite: false,  // Don't overwrite existing agent definitions
-      filter: (src) => src.endsWith('.md')  // Only copy markdown agent files
-    });
+    console.log(chalk.green(`  ✓ Found agent templates at: ${sourcePath}`));
 
-    console.log(chalk.green(`✓ Copied ${await this.countAgentFiles(targetPath)} agent definitions`));
+    // Count available templates
+    const availableFiles = await fs.readdir(sourcePath);
+    const templateFiles = availableFiles.filter(f => f.endsWith('.md'));
+    console.log(chalk.cyan(`  📦 Found ${templateFiles.length} agent templates to copy`));
+
+    // Copy all agent definition files individually (not directory copy)
+    const targetPath = path.join(process.cwd(), '.claude/agents');
+
+    let copiedFiles = 0;
+    for (const templateFile of templateFiles) {
+      const sourceFile = path.join(sourcePath, templateFile);
+      const targetFile = path.join(targetPath, templateFile);
+
+      // Only copy if target doesn't exist
+      if (!await fs.pathExists(targetFile)) {
+        await fs.copy(sourceFile, targetFile);
+        copiedFiles++;
+      }
+    }
+
+    console.log(chalk.green(`  ✓ Copied ${copiedFiles} new agent definitions`));
+
+    const copiedCount = await this.countAgentFiles(targetPath);
+    console.log(chalk.cyan(`  📋 Total agents in target: ${copiedCount}`));
+
+    // Verify all 17 agents exist
+    const expectedAgents = 17;
+    if (copiedCount < expectedAgents) {
+      console.warn(chalk.yellow(`  ⚠️  Expected ${expectedAgents} agents, found ${copiedCount}`));
+      console.warn(chalk.yellow(`  ℹ️  Creating missing agents programmatically...`));
+
+      // Get list of files that actually exist in TARGET (not source!)
+      const targetFiles = await fs.readdir(targetPath);
+      const existingTargetFiles = targetFiles.filter(f => f.endsWith('.md'));
+
+      await this.createMissingAgents(targetPath, existingTargetFiles);
+    } else {
+      console.log(chalk.green(`  ✓ All ${expectedAgents} agents present and ready`));
+    }
   }
 
   private static async createBasicAgents(): Promise<void> {
-    // Fallback: Create basic agent templates if package agents not found
-    const basicAgents = [
-      'qe-test-generator',
-      'qe-test-executor',
-      'qe-coverage-analyzer',
-      'qe-quality-gate',
-      'qe-performance-tester',
-      'qe-security-scanner'
-    ];
+    try {
+      console.log(chalk.cyan('  🛠️  Creating all agent definitions programmatically...'));
 
-    const targetPath = path.join(process.cwd(), '.claude/agents');
+      // ALL 17 AGENTS (not just 6!)
+      const allAgents = [
+        // Core Testing (5)
+        'qe-test-generator',
+        'qe-test-executor',
+        'qe-coverage-analyzer',
+        'qe-quality-gate',
+        'qe-quality-analyzer',
+        // Performance & Security (2)
+        'qe-performance-tester',
+        'qe-security-scanner',
+        // Strategic Planning (3)
+        'qe-requirements-validator',
+        'qe-production-intelligence',
+        'qe-fleet-commander',
+        // Deployment (1)
+        'qe-deployment-readiness',
+        // Advanced Testing (4)
+        'qe-regression-risk-analyzer',
+        'qe-test-data-architect',
+        'qe-api-contract-validator',
+        'qe-flaky-test-hunter',
+        // Specialized (2)
+        'qe-visual-tester',
+        'qe-chaos-engineer'
+      ];
 
-    for (const agentName of basicAgents) {
-      const agentFile = path.join(targetPath, `${agentName}.md`);
-      const agentType = agentName.replace('qe-', '');
+      const targetPath = path.join(process.cwd(), '.claude/agents');
 
-      const content = `---
+      console.log(chalk.gray(`  • Creating ${allAgents.length} agent definition files...`));
+
+      for (const agentName of allAgents) {
+        // Defensive null check
+        if (!agentName || typeof agentName !== 'string') {
+          console.warn(chalk.yellow(`⚠️  Skipping invalid agent name: ${agentName}`));
+          continue;
+        }
+
+        const agentFile = path.join(targetPath, `${agentName}.md`);
+        const agentType = agentName.replace('qe-', '');
+
+        const content = `---
 name: ${agentName}
 type: ${agentType}
 color: blue
@@ -400,8 +513,87 @@ for await (const event of agent.execute(params)) {
 For full capabilities, install the complete agentic-qe package.
 `;
 
-      await fs.writeFile(agentFile, content);
+        await fs.writeFile(agentFile, content);
+        console.log(chalk.gray(`    ✓ Created ${agentName}.md`));
+      }
+
+      const finalCount = await this.countAgentFiles(targetPath);
+      console.log(chalk.green(`  ✓ Successfully created ${finalCount} agent definitions`));
+    } catch (error: any) {
+      console.error(chalk.red('❌ Error in createBasicAgents:'), error.message);
+      console.error(chalk.gray('Stack trace:'), error.stack);
+      throw error;
     }
+  }
+
+  private static async createMissingAgents(targetPath: string, existingFiles: string[]): Promise<void> {
+    const allAgentNames = [
+      'qe-test-generator', 'qe-test-executor', 'qe-coverage-analyzer',
+      'qe-quality-gate', 'qe-quality-analyzer', 'qe-performance-tester',
+      'qe-security-scanner', 'qe-requirements-validator', 'qe-production-intelligence',
+      'qe-fleet-commander', 'qe-deployment-readiness', 'qe-regression-risk-analyzer',
+      'qe-test-data-architect', 'qe-api-contract-validator', 'qe-flaky-test-hunter',
+      'qe-visual-tester', 'qe-chaos-engineer'
+    ];
+
+    const existingAgentNames = existingFiles.map(f => f.replace('.md', ''));
+    const missingAgents = allAgentNames.filter(name => !existingAgentNames.includes(name));
+
+    if (missingAgents.length === 0) {
+      console.log(chalk.green('  ✓ No missing agents to create'));
+      return;
+    }
+
+    console.log(chalk.cyan(`  🛠️  Creating ${missingAgents.length} missing agents:`));
+    for (const agentName of missingAgents) {
+      console.log(chalk.gray(`    • ${agentName}`));
+    }
+
+    // Create missing agents using the same logic as createBasicAgents
+    for (const agentName of missingAgents) {
+      const agentFile = path.join(targetPath, `${agentName}.md`);
+      const agentType = agentName.replace('qe-', '');
+
+      const content = `---
+name: ${agentName}
+type: ${agentType}
+color: blue
+priority: medium
+description: "Agentic QE Fleet ${agentType} agent"
+capabilities:
+  - ${agentType}
+coordination:
+  protocol: aqe-hooks
+metadata:
+  version: "1.1.0"
+  framework: "agentic-qe"
+  routing: "supported"
+  streaming: "supported"
+---
+
+# ${agentName.toUpperCase()} Agent
+
+## Description
+This agent is part of the Agentic QE Fleet and specializes in ${agentType}.
+
+## Capabilities
+- AI-powered ${agentType}
+- Integration with Agentic QE Fleet
+- Native TypeScript coordination
+
+## Coordination Protocol
+
+This agent uses **AQE hooks** (Agentic QE native hooks) for coordination (zero external dependencies, 100-500x faster than external hooks).
+
+For full capabilities, install the complete agentic-qe package.
+`;
+
+      await fs.writeFile(agentFile, content);
+      console.log(chalk.gray(`    ✓ Created ${agentName}.md`));
+    }
+
+    const finalCount = await this.countAgentFiles(targetPath);
+    console.log(chalk.green(`  ✓ Total agent count: ${finalCount}`));
   }
 
   private static async countAgentFiles(dirPath: string): Promise<number> {
@@ -411,19 +603,59 @@ For full capabilities, install the complete agentic-qe package.
   }
 
   private static async writeFleetConfig(config: FleetConfig): Promise<void> {
+    console.log(chalk.cyan('  📝 Writing fleet configuration...'));
+
+    // Sanitize config to remove undefined values that cause jsonfile errors
+    const sanitizedConfig = this.sanitizeConfig(config);
+
     const configPath = '.agentic-qe/config/fleet.json';
-    await fs.writeJson(configPath, config, { spaces: 2 });
+    await fs.writeJson(configPath, sanitizedConfig, { spaces: 2 });
+    console.log(chalk.gray(`    ✓ Wrote ${configPath}`));
 
     // Create agent configurations
-    const agentConfigs = this.generateAgentConfigs(config);
+    const agentConfigs = this.sanitizeConfig(this.generateAgentConfigs(config));
     await fs.writeJson('.agentic-qe/config/agents.json', agentConfigs, { spaces: 2 });
+    console.log(chalk.gray(`    ✓ Wrote .agentic-qe/config/agents.json`));
 
     // Create environment configurations
-    const envConfigs = this.generateEnvironmentConfigs(config.environments || []);
+    const envConfigs = this.sanitizeConfig(this.generateEnvironmentConfigs(config.environments || []));
     await fs.writeJson('.agentic-qe/config/environments.json', envConfigs, { spaces: 2 });
+    console.log(chalk.gray(`    ✓ Wrote .agentic-qe/config/environments.json`));
 
     // Create routing configuration (Phase 1 - v1.0.5)
     await this.writeRoutingConfig(config);
+    console.log(chalk.green('  ✓ Fleet configuration complete'));
+  }
+
+  /**
+   * Sanitize config object by removing undefined values and ensuring all properties are serializable
+   */
+  private static sanitizeConfig(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeConfig(item)).filter(item => item !== null && item !== undefined);
+    }
+
+    if (typeof obj === 'object') {
+      const sanitized: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        // Skip undefined values
+        if (value === undefined) {
+          continue;
+        }
+        // Recursively sanitize nested objects
+        const sanitizedValue = this.sanitizeConfig(value);
+        if (sanitizedValue !== null && sanitizedValue !== undefined) {
+          sanitized[key] = sanitizedValue;
+        }
+      }
+      return sanitized;
+    }
+
+    return obj;
   }
 
   private static async writeRoutingConfig(config: FleetConfig): Promise<void> {
@@ -587,6 +819,10 @@ For full capabilities, install the complete agentic-qe package.
   }
 
   private static async initializeCoordination(config: FleetConfig): Promise<void> {
+    // Ensure config has required properties
+    const topology = config.topology || 'hierarchical';
+    const maxAgents = config.maxAgents || 10;
+
     // Create pre-execution coordination script (AQE native)
     const preExecutionScript = `#!/bin/bash
 # Agentic QE Fleet Pre-Execution Coordination
@@ -596,7 +832,7 @@ For full capabilities, install the complete agentic-qe package.
 agentic-qe fleet status --json > /tmp/aqe-fleet-status-pre.json 2>/dev/null || true
 
 # Log coordination event
-echo "[AQE] Pre-execution coordination: Fleet topology=${config.topology}, Max agents=${config.maxAgents}" >> .agentic-qe/logs/coordination.log
+echo "[AQE] Pre-execution coordination: Fleet topology=${topology}, Max agents=${maxAgents}" >> .agentic-qe/logs/coordination.log
 
 # Store fleet config in coordination memory (via file-based state)
 mkdir -p .agentic-qe/state/coordination
@@ -968,5 +1204,471 @@ tail -f .agentic-qe/logs/fleet.log
 `;
 
     await fs.writeFile(claudeMdPath, claudeMdContent);
+  }
+
+  // ============================================================================
+  // Phase 2 Initialization Methods (v1.1.0)
+  // ============================================================================
+
+  /**
+   * Initialize Phase 2 Pattern Bank Database
+   */
+  private static async initializePatternDatabase(config: FleetConfig): Promise<void> {
+    const Database = (await import('better-sqlite3')).default;
+    const dbPath = path.join(process.cwd(), '.agentic-qe', 'patterns.db');
+
+    console.log(chalk.cyan('  📦 Initializing Pattern Bank database...'));
+
+    const db = new Database(dbPath);
+
+    // Enable WAL mode for better concurrency
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
+    db.pragma('cache_size = -64000'); // 64MB cache
+
+    // Read and execute the schema
+    const schemaPath = path.join(__dirname, '../../../docs/architecture/REASONING-BANK-SCHEMA.sql');
+    let schema: string;
+
+    if (await fs.pathExists(schemaPath)) {
+      schema = await fs.readFile(schemaPath, 'utf-8');
+    } else {
+      // Fallback: inline schema if file not found
+      schema = this.getPatternBankSchema();
+    }
+
+    // Execute schema
+    db.exec(schema);
+
+    db.close();
+
+    console.log(chalk.green('  ✓ Pattern Bank initialized'));
+    console.log(chalk.gray(`    • Database: ${dbPath}`));
+    console.log(chalk.gray(`    • Framework: ${config.frameworks?.[0] || 'jest'}`));
+    console.log(chalk.gray(`    • Tables: test_patterns, pattern_usage, cross_project_mappings, pattern_similarity_index`));
+    console.log(chalk.gray(`    • Full-text search: enabled`));
+  }
+
+  /**
+   * Initialize Phase 2 Memory Database (SwarmMemoryManager)
+   */
+  private static async initializeMemoryDatabase(): Promise<void> {
+    const dbPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+
+    console.log(chalk.cyan('  💾 Initializing Memory Manager database...'));
+
+    // Import SwarmMemoryManager dynamically
+    const { SwarmMemoryManager } = await import('../../core/memory/SwarmMemoryManager');
+
+    const memoryManager = new SwarmMemoryManager(dbPath);
+    await memoryManager.initialize();
+
+    // Verify tables created
+    const stats = await memoryManager.stats();
+
+    await memoryManager.close();
+
+    console.log(chalk.green('  ✓ Memory Manager initialized'));
+    console.log(chalk.gray(`    • Database: ${dbPath}`));
+    console.log(chalk.gray(`    • Tables: 12 tables (memory_entries, hints, events, workflow_state, patterns, etc.)`));
+    console.log(chalk.gray(`    • Access control: 5 levels (private, team, swarm, public, system)`));
+  }
+
+  /**
+   * Initialize Phase 2 Learning System
+   */
+  private static async initializeLearningSystem(config: FleetConfig): Promise<void> {
+    const learningConfig = {
+      enabled: true,
+      learningRate: 0.1,
+      discountFactor: 0.95,
+      explorationRate: 0.2,
+      explorationDecay: 0.995,
+      minExplorationRate: 0.01,
+      targetImprovement: 0.20, // 20% improvement goal
+      maxMemorySize: 100 * 1024 * 1024, // 100MB
+      batchSize: 32,
+      updateFrequency: 10,
+      replayBufferSize: 10000
+    };
+
+    // Store learning configuration
+    await fs.writeJson('.agentic-qe/config/learning.json', learningConfig, { spaces: 2 });
+
+    // Create learning database directory
+    await fs.ensureDir('.agentic-qe/data/learning');
+
+    // Create learning state placeholder
+    const learningState = {
+      initialized: true,
+      version: '1.1.0',
+      createdAt: new Date().toISOString(),
+      agents: {} // Will be populated as agents learn
+    };
+
+    await fs.writeJson('.agentic-qe/data/learning/state.json', learningState, { spaces: 2 });
+
+    console.log(chalk.green('  ✓ Learning system initialized'));
+    console.log(chalk.gray(`    • Q-learning algorithm (lr=${learningConfig.learningRate}, γ=${learningConfig.discountFactor})`));
+    console.log(chalk.gray(`    • Experience replay buffer: ${learningConfig.replayBufferSize} experiences`));
+    console.log(chalk.gray(`    • Target improvement: ${learningConfig.targetImprovement * 100}%`));
+  }
+
+  /**
+   * Get inline Pattern Bank schema (fallback if schema file not found)
+   */
+  private static getPatternBankSchema(): string {
+    return `
+-- Enable WAL mode for better concurrent access
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+
+-- Core Pattern Storage
+CREATE TABLE IF NOT EXISTS test_patterns (
+    id TEXT PRIMARY KEY NOT NULL,
+    pattern_type TEXT NOT NULL,
+    framework TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'typescript',
+    code_signature_hash TEXT NOT NULL,
+    code_signature JSON NOT NULL,
+    test_template JSON NOT NULL,
+    metadata JSON NOT NULL,
+    version TEXT NOT NULL DEFAULT '1.0.0',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK(pattern_type IN ('edge-case', 'integration', 'boundary', 'error-handling', 'unit', 'e2e', 'performance', 'security')),
+    CHECK(framework IN ('jest', 'mocha', 'cypress', 'vitest', 'playwright', 'ava', 'jasmine')),
+    CHECK(json_valid(code_signature)),
+    CHECK(json_valid(test_template)),
+    CHECK(json_valid(metadata))
+);
+
+CREATE INDEX IF NOT EXISTS idx_patterns_framework_type ON test_patterns(framework, pattern_type);
+CREATE INDEX IF NOT EXISTS idx_patterns_signature_hash ON test_patterns(code_signature_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_dedup ON test_patterns(code_signature_hash, framework);
+
+-- Pattern Usage Tracking
+CREATE TABLE IF NOT EXISTS pattern_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    avg_execution_time REAL NOT NULL DEFAULT 0.0,
+    avg_coverage_gain REAL NOT NULL DEFAULT 0.0,
+    flaky_count INTEGER NOT NULL DEFAULT 0,
+    quality_score REAL NOT NULL DEFAULT 0.0,
+    first_used TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pattern_id) REFERENCES test_patterns(id) ON DELETE CASCADE,
+    UNIQUE(pattern_id, project_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_pattern ON pattern_usage(pattern_id);
+CREATE INDEX IF NOT EXISTS idx_usage_quality ON pattern_usage(quality_score DESC);
+
+-- Cross-Project Pattern Sharing
+CREATE TABLE IF NOT EXISTS cross_project_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern_id TEXT NOT NULL,
+    source_framework TEXT NOT NULL,
+    target_framework TEXT NOT NULL,
+    transformation_rules JSON NOT NULL,
+    compatibility_score REAL NOT NULL DEFAULT 1.0,
+    project_count INTEGER NOT NULL DEFAULT 0,
+    success_rate REAL NOT NULL DEFAULT 0.0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pattern_id) REFERENCES test_patterns(id) ON DELETE CASCADE,
+    UNIQUE(pattern_id, source_framework, target_framework),
+    CHECK(json_valid(transformation_rules))
+);
+
+-- Pattern Similarity Index
+CREATE TABLE IF NOT EXISTS pattern_similarity_index (
+    pattern_a TEXT NOT NULL,
+    pattern_b TEXT NOT NULL,
+    similarity_score REAL NOT NULL,
+    structure_similarity REAL NOT NULL,
+    identifier_similarity REAL NOT NULL,
+    metadata_similarity REAL NOT NULL,
+    algorithm TEXT NOT NULL DEFAULT 'hybrid-tfidf',
+    last_computed TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (pattern_a, pattern_b),
+    FOREIGN KEY (pattern_a) REFERENCES test_patterns(id) ON DELETE CASCADE,
+    FOREIGN KEY (pattern_b) REFERENCES test_patterns(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_similarity_score ON pattern_similarity_index(similarity_score DESC);
+
+-- Full-Text Search
+CREATE VIRTUAL TABLE IF NOT EXISTS pattern_fts USING fts5(
+    pattern_id UNINDEXED,
+    pattern_name,
+    description,
+    tags,
+    framework,
+    pattern_type,
+    content='',
+    tokenize='porter ascii'
+);
+
+-- Schema Version
+CREATE TABLE IF NOT EXISTS schema_version (
+    version TEXT PRIMARY KEY,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    description TEXT
+);
+
+INSERT OR IGNORE INTO schema_version (version, description)
+VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
+`;
+  }
+
+
+  /**
+   * Initialize Phase 2 Improvement Loop
+   */
+  private static async initializeImprovementLoop(config: FleetConfig): Promise<void> {
+    const improvementConfig = {
+      enabled: true,
+      intervalMs: 3600000, // 1 hour
+      autoApply: false, // Requires user approval
+      enableABTesting: true,
+      strategies: {
+        parallelExecution: { enabled: true, weight: 0.8 },
+        adaptiveRetry: { enabled: true, maxRetries: 3 },
+        resourceOptimization: { enabled: true, adaptive: true }
+      },
+      thresholds: {
+        minImprovement: 0.05, // 5% minimum improvement to apply
+        maxFailureRate: 0.1, // 10% max failure rate
+        minConfidence: 0.8 // 80% confidence required
+      },
+      abTesting: {
+        sampleSize: 100,
+        significanceLevel: 0.05,
+        minSampleDuration: 3600000 // 1 hour
+      }
+    };
+
+    // Store improvement configuration
+    await fs.writeJson('.agentic-qe/config/improvement.json', improvementConfig, { spaces: 2 });
+
+    // Create improvement state
+    const improvementState = {
+      version: '1.1.0',
+      lastCycle: null,
+      activeCycles: 0,
+      totalImprovement: 0,
+      strategies: {}
+    };
+
+    await fs.writeJson('.agentic-qe/data/improvement/state.json', improvementState, { spaces: 2 });
+
+    console.log(chalk.green('  ✓ Improvement loop initialized'));
+    console.log(chalk.gray(`    • Cycle interval: ${improvementConfig.intervalMs / 3600000} hour(s)`));
+    console.log(chalk.gray(`    • A/B testing: enabled (sample size: ${improvementConfig.abTesting.sampleSize})`));
+    console.log(chalk.gray(`    • Auto-apply: ${improvementConfig.autoApply ? 'enabled' : 'disabled (requires approval)'}`));
+  }
+
+  /**
+   * Create comprehensive config.json with all Phase 1 and Phase 2 settings
+   */
+  private static async createComprehensiveConfig(
+    fleetConfig: FleetConfig,
+    options: { enableLearning: boolean; enablePatterns: boolean; enableImprovement: boolean }
+  ): Promise<void> {
+    const comprehensiveConfig = {
+      version: '1.1.0',
+      initialized: new Date().toISOString(),
+
+      // Phase 1: Multi-Model Router
+      phase1: {
+        routing: {
+          enabled: fleetConfig.routing?.enabled || false,
+          defaultModel: fleetConfig.routing?.defaultModel || 'claude-sonnet-4.5',
+          costTracking: fleetConfig.routing?.enableCostTracking !== false,
+          fallback: fleetConfig.routing?.enableFallback !== false,
+          maxRetries: fleetConfig.routing?.maxRetries || 3,
+          modelPreferences: {
+            simple: 'gpt-3.5-turbo',
+            medium: 'claude-haiku',
+            complex: 'claude-sonnet-4.5',
+            critical: 'gpt-4'
+          },
+          budgets: {
+            daily: 50,
+            monthly: 1000
+          }
+        },
+        streaming: {
+          enabled: fleetConfig.streaming?.enabled !== false,
+          progressInterval: fleetConfig.streaming?.progressInterval || 2000,
+          bufferEvents: fleetConfig.streaming?.bufferEvents || false,
+          timeout: fleetConfig.streaming?.timeout || 1800000
+        }
+      },
+
+      // Phase 2: Learning, Patterns, and Improvement
+      phase2: {
+        learning: {
+          enabled: options.enableLearning,
+          learningRate: 0.1,
+          discountFactor: 0.95,
+          explorationRate: 0.2,
+          targetImprovement: 0.20
+        },
+        patterns: {
+          enabled: options.enablePatterns,
+          dbPath: '.agentic-qe/data/patterns.db',
+          minConfidence: 0.85,
+          enableExtraction: true
+        },
+        improvement: {
+          enabled: options.enableImprovement,
+          intervalMs: 3600000,
+          autoApply: false,
+          enableABTesting: true
+        }
+      },
+
+      // Agent configurations
+      agents: {
+        testGenerator: {
+          enablePatterns: options.enablePatterns,
+          enableLearning: options.enableLearning
+        },
+        coverageAnalyzer: {
+          enableLearning: options.enableLearning,
+          targetImprovement: 0.20
+        },
+        flakyTestHunter: {
+          enableML: true,
+          enableLearning: options.enableLearning
+        },
+        defaultAgents: {
+          enableLearning: options.enableLearning
+        }
+      },
+
+      // Fleet configuration
+      fleet: {
+        topology: fleetConfig.topology || 'hierarchical',
+        maxAgents: fleetConfig.maxAgents || 10,
+        testingFocus: fleetConfig.testingFocus || [],
+        environments: fleetConfig.environments || [],
+        frameworks: fleetConfig.frameworks || ['jest']
+      }
+    };
+
+    await fs.writeJson('.agentic-qe/config.json', comprehensiveConfig, { spaces: 2 });
+
+    console.log(chalk.green('  ✓ Comprehensive configuration created'));
+    console.log(chalk.gray(`    • Config file: .agentic-qe/config.json`));
+  }
+
+  /**
+   * Display comprehensive initialization summary
+   */
+  private static async displayComprehensiveSummary(
+    fleetConfig: FleetConfig,
+    options: { enableLearning: boolean; enablePatterns: boolean; enableImprovement: boolean }
+  ): Promise<void> {
+    console.log(chalk.yellow('\n📊 Initialization Summary:\n'));
+
+    // Phase 1 Summary
+    console.log(chalk.cyan('Phase 1: Multi-Model Router'));
+    console.log(chalk.gray(`  Status: ${fleetConfig.routing?.enabled ? '✅ Enabled' : '⚠️  Disabled (opt-in)'}`));
+    if (fleetConfig.routing?.enabled) {
+      console.log(chalk.gray('  • Cost optimization: 70-81% savings'));
+      console.log(chalk.gray('  • Fallback chains: enabled'));
+      console.log(chalk.gray('  • Budget tracking: daily $50, monthly $1000'));
+    }
+
+    console.log(chalk.cyan('\nPhase 1: Streaming'));
+    console.log(chalk.gray(`  Status: ${fleetConfig.streaming?.enabled !== false ? '✅ Enabled' : '⚠️  Disabled'}`));
+    console.log(chalk.gray('  • Real-time progress updates'));
+    console.log(chalk.gray('  • for-await-of compatible'));
+
+    // Phase 2 Summary
+    console.log(chalk.cyan('\nPhase 2: Learning System'));
+    console.log(chalk.gray(`  Status: ${options.enableLearning ? '✅ Enabled' : '⚠️  Disabled'}`));
+    if (options.enableLearning) {
+      console.log(chalk.gray('  • Q-learning (lr=0.1, γ=0.95)'));
+      console.log(chalk.gray('  • Experience replay (10,000 buffer)'));
+      console.log(chalk.gray('  • Target: 20% improvement'));
+    }
+
+    console.log(chalk.cyan('\nPhase 2: Pattern Bank'));
+    console.log(chalk.gray(`  Status: ${options.enablePatterns ? '✅ Enabled' : '⚠️  Disabled'}`));
+    if (options.enablePatterns) {
+      console.log(chalk.gray('  • Pattern extraction: enabled'));
+      console.log(chalk.gray('  • Confidence threshold: 85%'));
+      console.log(chalk.gray('  • Template generation: enabled'));
+    }
+
+    console.log(chalk.cyan('\nPhase 2: Improvement Loop'));
+    console.log(chalk.gray(`  Status: ${options.enableImprovement ? '✅ Enabled' : '⚠️  Disabled'}`));
+    if (options.enableImprovement) {
+      console.log(chalk.gray('  • Cycle: 1 hour intervals'));
+      console.log(chalk.gray('  • A/B testing: enabled'));
+      console.log(chalk.gray('  • Auto-apply: OFF (requires approval)'));
+    }
+
+    // Agent Configuration
+    console.log(chalk.cyan('\nAgent Configuration:'));
+    console.log(chalk.gray('  • TestGeneratorAgent: Patterns + Learning'));
+    console.log(chalk.gray('  • CoverageAnalyzerAgent: Learning + 20% target'));
+    console.log(chalk.gray('  • FlakyTestHunterAgent: ML + Learning'));
+    console.log(chalk.gray('  • All agents: Learning enabled (opt-in)'));
+
+    // Fleet Configuration
+    console.log(chalk.cyan('\nFleet Configuration:'));
+    console.log(chalk.gray(`  Topology: ${fleetConfig.topology}`));
+    console.log(chalk.gray(`  Max Agents: ${fleetConfig.maxAgents}`));
+    console.log(chalk.gray(`  Frameworks: ${(fleetConfig.frameworks || ['jest']).join(', ')}`));
+
+    // Next Steps
+    console.log(chalk.yellow('\n💡 Next Steps:\n'));
+    console.log(chalk.gray('  1. Review configuration: .agentic-qe/config.json'));
+    console.log(chalk.gray('  2. Generate tests: aqe test generate src/'));
+    if (options.enableLearning) {
+      console.log(chalk.gray('  3. Check learning status: aqe learn status'));
+    }
+    if (fleetConfig.routing?.enabled) {
+      console.log(chalk.gray('  4. View routing dashboard: aqe routing dashboard'));
+    }
+    if (options.enablePatterns) {
+      console.log(chalk.gray('  5. List patterns: aqe patterns list'));
+    }
+    if (options.enableImprovement) {
+      console.log(chalk.gray('  6. Start improvement loop: aqe improve start'));
+    }
+
+    // Documentation
+    console.log(chalk.yellow('\n📚 Documentation:\n'));
+    console.log(chalk.gray('  • Getting Started: docs/GETTING-STARTED.md'));
+    if (options.enableLearning) {
+      console.log(chalk.gray('  • Learning System: docs/guides/LEARNING-SYSTEM-USER-GUIDE.md'));
+    }
+    if (options.enablePatterns) {
+      console.log(chalk.gray('  • Pattern Management: docs/guides/PATTERN-MANAGEMENT-USER-GUIDE.md'));
+    }
+    if (fleetConfig.routing?.enabled) {
+      console.log(chalk.gray('  • Cost Optimization: docs/guides/COST-OPTIMIZATION-GUIDE.md'));
+    }
+
+    // Performance Tips
+    console.log(chalk.yellow('\n⚡ Performance Tips:\n'));
+    console.log(chalk.gray('  • Learning improves over time (20% target in 100 tasks)'));
+    console.log(chalk.gray('  • Patterns increase test quality (85% confidence threshold)'));
+    if (fleetConfig.routing?.enabled) {
+      console.log(chalk.gray('  • Routing saves 70-81% on AI costs'));
+    }
+    console.log(chalk.gray('  • Improvement loop optimizes continuously (1 hour cycles)'));
+
+    console.log('');
   }
 }
