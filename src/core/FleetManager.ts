@@ -43,6 +43,7 @@ import { EventBus } from './EventBus';
 import { Database } from '../utils/Database';
 import { Logger } from '../utils/Logger';
 import { Config, FleetConfig } from '../utils/Config';
+import { createAgent } from '../agents';
 
 /**
  * Status information about the fleet
@@ -219,8 +220,7 @@ export class FleetManager extends EventEmitter {
   async spawnAgent(type: string, config: any = {}): Promise<Agent> {
     const agentId = uuidv4();
 
-    // Import agent factory and create agent
-    const { createAgent } = await import('../agents');
+    // Create agent using static import (enables proper mocking in tests)
     const agent = await createAgent(type, agentId, config, this.eventBus);
 
     this.agents.set(agentId, agent as any);

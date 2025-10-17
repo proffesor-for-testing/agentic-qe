@@ -5,6 +5,18 @@
  */
 
 import * as fs from 'fs-extra';
+
+// Mock Logger to prevent undefined errors in Database
+jest.mock('../../src/utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn()
+    }))
+  }
+}));
 import { ConfigInitCommand } from '../../src/cli/commands/config/init';
 import { ConfigValidateCommand } from '../../src/cli/commands/config/validate';
 import { ConfigSetCommand } from '../../src/cli/commands/config/set';
@@ -28,6 +40,11 @@ const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe('Configuration CLI Commands', () => {
   beforeEach(() => {
+    // Mock process.exit to prevent test interruption
+    jest.spyOn(process, 'exit').mockImplementation((code?: number) => {
+      throw new Error(`Process.exit called with code ${code}`);
+    });
+
     jest.clearAllMocks();
     mockedFs.pathExists.mockResolvedValue(false);
     mockedFs.readJson.mockResolvedValue({});

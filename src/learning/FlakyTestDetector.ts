@@ -14,20 +14,31 @@ export interface FlakyDetectionOptions {
   varianceThreshold?: number;    // Variance threshold (default: 1000)
   useMLModel?: boolean;          // Use ML model for prediction (default: true)
   confidenceThreshold?: number;  // Minimum confidence for detection (default: 0.7)
+  randomSeed?: number;           // Random seed for ML model (default: undefined for non-deterministic)
+}
+
+export interface ResolvedFlakyDetectionOptions {
+  minRuns: number;
+  passRateThreshold: number;
+  varianceThreshold: number;
+  useMLModel: boolean;
+  confidenceThreshold: number;
+  randomSeed?: number;
 }
 
 export class FlakyTestDetector {
   private model: FlakyPredictionModel;
-  private options: Required<FlakyDetectionOptions>;
+  private options: ResolvedFlakyDetectionOptions;
 
   constructor(options: FlakyDetectionOptions = {}) {
-    this.model = new FlakyPredictionModel();
+    this.model = new FlakyPredictionModel(options.randomSeed);
     this.options = {
       minRuns: options.minRuns ?? 5,
       passRateThreshold: options.passRateThreshold ?? 0.8,
       varianceThreshold: options.varianceThreshold ?? 1000,
       useMLModel: options.useMLModel ?? true,
-      confidenceThreshold: options.confidenceThreshold ?? 0.7
+      confidenceThreshold: options.confidenceThreshold ?? 0.7,
+      randomSeed: options.randomSeed
     };
   }
 
@@ -55,19 +66,22 @@ export class FlakyTestDetector {
       const isFlaky = this.isFlakyCandidate(passRate, variance, confidence);
 
       // ML-based prediction (if enabled and model is trained)
+      let mlIsFlaky = false;
       let mlConfidence = 0;
       if (this.options.useMLModel) {
         try {
           const prediction = this.model.predict(testName, results);
-          mlConfidence = prediction.isFlaky ? prediction.confidence : 0;
+          mlIsFlaky = prediction.isFlaky && prediction.confidence > this.options.confidenceThreshold;
+          mlConfidence = prediction.confidence;
         } catch (error) {
           // Model not trained, fallback to rule-based only
+          mlIsFlaky = false;
           mlConfidence = 0;
         }
       }
 
       // Combined decision: rule-based OR ML-based (with high confidence)
-      const combinedIsFlaky = isFlaky || mlConfidence > this.options.confidenceThreshold;
+      const combinedIsFlaky = isFlaky || mlIsFlaky;
 
       if (combinedIsFlaky) {
         const failurePattern = this.identifyFailurePattern(results);
@@ -137,9 +151,28 @@ export class FlakyTestDetector {
     const variance = StatisticalAnalysis.calculateVariance(results);
     const confidence = StatisticalAnalysis.calculateConfidence(results);
 
+    // Rule-based detection
     const isFlaky = this.isFlakyCandidate(passRate, variance, confidence);
 
-    if (!isFlaky) {
+    // ML-based prediction (if enabled and model is trained)
+    let mlIsFlaky = false;
+    let mlConfidence = 0;
+    if (this.options.useMLModel) {
+      try {
+        const prediction = this.model.predict(testName, results);
+        mlIsFlaky = prediction.isFlaky && prediction.confidence > this.options.confidenceThreshold;
+        mlConfidence = prediction.confidence;
+      } catch (error) {
+        // Model not trained, fallback to rule-based only
+        mlIsFlaky = false;
+        mlConfidence = 0;
+      }
+    }
+
+    // Combined decision: rule-based OR ML-based (with high confidence)
+    const combinedIsFlaky = isFlaky || mlIsFlaky;
+
+    if (!combinedIsFlaky) {
       return null;
     }
 
@@ -153,7 +186,7 @@ export class FlakyTestDetector {
       name: testName,
       passRate,
       variance,
-      confidence,
+      confidence: Math.max(confidence, mlConfidence),
       totalRuns: results.length,
       failurePattern,
       recommendation,

@@ -1,4 +1,16 @@
 import { MonitorDashboard } from '../../src/cli/commands/monitor/dashboard';
+
+// Mock Logger to prevent undefined errors in Database
+jest.mock('../../src/utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn()
+    }))
+  }
+}));
 import { MonitorAlerts } from '../../src/cli/commands/monitor/alerts';
 import { MonitorExport } from '../../src/cli/commands/monitor/export';
 import { MonitorAnalyze } from '../../src/cli/commands/monitor/analyze';
@@ -38,6 +50,11 @@ describe('Monitor Dashboard Command', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    // Mock process.exit to prevent test interruption
+    jest.spyOn(process, 'exit').mockImplementation((code?: number) => {
+      throw new Error(`Process.exit called with code ${code}`);
+    });
+
     tempDir = path.join('/tmp', `monitor-test-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
     dashboard = new MonitorDashboard(tempDir);

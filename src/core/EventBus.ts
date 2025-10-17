@@ -20,6 +20,29 @@ export interface FleetEvent {
 }
 
 export class EventBus extends EventEmitter {
+
+  private static instance: EventBus | null = null;
+
+  /**
+   * Get singleton instance
+   */
+  public static getInstance(): EventBus {
+    if (!EventBus.instance) {
+      EventBus.instance = new EventBus();
+    }
+    return EventBus.instance;
+  }
+
+  /**
+   * Reset instance (for testing)
+   */
+  public static resetInstance(): void {
+    if (EventBus.instance) {
+      EventBus.instance.removeAllListeners();
+      EventBus.instance = null;
+    }
+  }
+
   private readonly logger: Logger;
   private readonly events: Map<string, FleetEvent>;
   private isInitialized: boolean = false;
@@ -49,6 +72,26 @@ export class EventBus extends EventEmitter {
   }
 
   /**
+   * Close the event bus and cleanup resources
+   */
+  async close(): Promise<void> {
+    if (!this.isInitialized) {
+      return;
+    }
+
+    this.logger.info('Closing EventBus');
+
+    // Remove all listeners
+    this.removeAllListeners();
+
+    // Clear events map
+    this.events.clear();
+
+    this.isInitialized = false;
+    this.logger.info('EventBus closed successfully');
+  }
+
+  /**
    * Emit a fleet event
    */
   async emitFleetEvent(
@@ -70,18 +113,23 @@ export class EventBus extends EventEmitter {
     // Store event
     this.events.set(event.id, event);
 
-    // Emit to listeners with error handling
-    try {
-      this.emit(type, {
-        eventId: event.id,
-        source,
-        target,
-        data,
-        timestamp: event.timestamp
-      });
-    } catch (error) {
-      // Log listener errors but don't throw - allow other listeners to continue
-      this.logger.error(`Error in event listener for ${type}:`, error);
+    const eventData = {
+      eventId: event.id,
+      source,
+      target,
+      data,
+      timestamp: event.timestamp
+    };
+
+    // Emit to each listener individually with error handling
+    const listeners = this.listeners(type);
+    for (const listener of listeners) {
+      try {
+        listener(eventData);
+      } catch (error) {
+        // Log listener errors but continue with other listeners
+        this.logger.error(`Error in event listener for ${type}:`, error);
+      }
     }
 
     // Log the event
@@ -115,41 +163,41 @@ export class EventBus extends EventEmitter {
     });
 
     // Agent lifecycle events
-    this.on('agent:spawned', (data) => {
-      this.logger.info(`Agent spawned: ${data.agentId} (${data.type})`);
+    this.on('agent:spawned', (eventData) => {
+      this.logger.info(`Agent spawned: ${eventData.data.agentId} (${eventData.data.type})`);
     });
 
-    this.on('agent:started', (data) => {
-      this.logger.info(`Agent started: ${data.agentId}`);
+    this.on('agent:started', (eventData) => {
+      this.logger.info(`Agent started: ${eventData.data.agentId}`);
     });
 
-    this.on('agent:stopped', (data) => {
-      this.logger.info(`Agent stopped: ${data.agentId}`);
+    this.on('agent:stopped', (eventData) => {
+      this.logger.info(`Agent stopped: ${eventData.data.agentId}`);
     });
 
-    this.on('agent:error', (data) => {
-      this.logger.error(`Agent error: ${data.agentId}`, data.error);
+    this.on('agent:error', (eventData) => {
+      this.logger.error(`Agent error: ${eventData.data.agentId}`, eventData.data.error);
     });
 
     // Task lifecycle events
-    this.on('task:submitted', (data) => {
-      this.logger.info(`Task submitted: ${data.taskId}`);
+    this.on('task:submitted', (eventData) => {
+      this.logger.info(`Task submitted: ${eventData.data.taskId}`);
     });
 
-    this.on('task:assigned', (data) => {
-      this.logger.info(`Task assigned: ${data.taskId} -> ${data.agentId}`);
+    this.on('task:assigned', (eventData) => {
+      this.logger.info(`Task assigned: ${eventData.data.taskId} -> ${eventData.data.agentId}`);
     });
 
-    this.on('task:started', (data) => {
-      this.logger.info(`Task started: ${data.taskId} by ${data.agentId}`);
+    this.on('task:started', (eventData) => {
+      this.logger.info(`Task started: ${eventData.data.taskId} by ${eventData.data.agentId}`);
     });
 
-    this.on('task:completed', (data) => {
-      this.logger.info(`Task completed: ${data.taskId} by ${data.agentId} in ${data.executionTime}ms`);
+    this.on('task:completed', (eventData) => {
+      this.logger.info(`Task completed: ${eventData.data.taskId} by ${eventData.data.agentId} in ${eventData.data.executionTime}ms`);
     });
 
-    this.on('task:failed', (data) => {
-      this.logger.error(`Task failed: ${data.taskId} by ${data.agentId}`, data.error);
+    this.on('task:failed', (eventData) => {
+      this.logger.error(`Task failed: ${eventData.data.taskId} by ${eventData.data.agentId}`, eventData.data.error);
     });
   }
 }

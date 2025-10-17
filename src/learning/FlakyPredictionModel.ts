@@ -11,6 +11,20 @@ export class FlakyPredictionModel {
   private bias: number = 0;
   private featureScalers: { mean: number; stdDev: number }[] = [];
   private isTrained: boolean = false;
+  private randomSeed?: number;
+  private seededRandom?: () => number;
+
+  constructor(seed?: number) {
+    this.randomSeed = seed;
+    if (seed !== undefined) {
+      // Initialize seeded random generator
+      let currentSeed = seed;
+      this.seededRandom = () => {
+        currentSeed = (currentSeed * 1664525 + 1013904223) % 2147483648;
+        return currentSeed / 2147483648;
+      };
+    }
+  }
 
   /**
    * Extract features from test results for ML model
@@ -127,8 +141,17 @@ export class FlakyPredictionModel {
    */
   private trainLogisticRegression(features: number[][], labels: number[]): void {
     const numFeatures = features[0].length;
-    this.weights = Array(numFeatures).fill(0);
-    this.bias = 0;
+
+    // Initialize weights with small random values or zeros
+    if (this.seededRandom) {
+      // Use seeded random for deterministic initialization
+      this.weights = Array(numFeatures).fill(0).map(() => (this.seededRandom!() - 0.5) * 0.01);
+      this.bias = (this.seededRandom() - 0.5) * 0.01;
+    } else {
+      // Use zeros for non-deterministic mode (existing behavior)
+      this.weights = Array(numFeatures).fill(0);
+      this.bias = 0;
+    }
 
     const learningRate = 0.1;
     const epochs = 1000;

@@ -259,12 +259,16 @@ export class SwarmMemoryManager {
       return;
     }
 
-    // Ensure directory exists for file-based DB
-    if (this.dbPath !== ':memory:') {
-      await fs.ensureDir(path.dirname(this.dbPath));
-    }
+    try {
+      // Ensure directory exists for file-based DB
+      if (this.dbPath !== ':memory:') {
+        await fs.ensureDir(path.dirname(this.dbPath));
+      }
 
-    this.db = new BetterSqlite3(this.dbPath);
+      this.db = new BetterSqlite3(this.dbPath);
+    } catch (error) {
+      throw new Error(`Failed to create database connection: ${error}`);
+    }
 
     // Create memory entries table with access control fields
     await this.run(`
@@ -490,8 +494,13 @@ export class SwarmMemoryManager {
   }
 
   async store(key: string, value: any, options: StoreOptions = {}): Promise<void> {
+    // Auto-initialize if not initialized
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     if (!this.db) {
-      throw new Error('Memory manager not initialized');
+      throw new Error('Memory manager not initialized. Call initialize() first.');
     }
 
     const partition = options.partition || 'default';
@@ -553,8 +562,13 @@ export class SwarmMemoryManager {
   }
 
   async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
+    // Auto-initialize if not initialized
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     if (!this.db) {
-      throw new Error('Memory manager not initialized');
+      throw new Error('Memory manager not initialized. Call initialize() first.');
     }
 
     const partition = options.partition || 'default';

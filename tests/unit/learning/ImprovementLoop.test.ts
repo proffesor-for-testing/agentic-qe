@@ -1,3 +1,29 @@
+// Mock Logger to prevent undefined errors
+jest.mock('../../../src/utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn()
+    }))
+  }
+}));
+
+// Mock Logger to prevent undefined errors
+jest.mock('../../utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn()
+    }))
+  }
+}));
+
 /**
  * Unit Tests for ImprovementLoop
  *
@@ -380,7 +406,7 @@ describe('ImprovementLoop', () => {
   // -------------------------------------------------------------------------
 
   describe('Strategy Management', () => {
-    it('should get all registered strategies', () => {
+    it('should get all registered strategies', async () => {
       const strategies = improvementLoop.getStrategies();
 
       expect(strategies.length).toBeGreaterThan(0);

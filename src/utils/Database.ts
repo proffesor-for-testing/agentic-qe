@@ -82,8 +82,9 @@ export class Database {
    */
   exec(sql: string): void {
     if (!this.db) {
-      throw new Error('Database not initialized');
-    }
+        this.logger.error('Database connection failed - not initialized');
+        throw new Error('Database not initialized. Call initialize() first.');
+      }
 
     try {
       this.db.exec(sql);
@@ -98,8 +99,9 @@ export class Database {
    */
   async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
     if (!this.db) {
-      throw new Error('Database not initialized');
-    }
+        this.logger.error('Database connection failed - not initialized');
+        throw new Error('Database not initialized. Call initialize() first.');
+      }
 
     try {
       const info = this.db.prepare(sql).run(...params);
@@ -118,8 +120,9 @@ export class Database {
    */
   async get(sql: string, params: any[] = []): Promise<DatabaseRow | undefined> {
     if (!this.db) {
-      throw new Error('Database not initialized');
-    }
+        this.logger.error('Database connection failed - not initialized');
+        throw new Error('Database not initialized. Call initialize() first.');
+      }
 
     try {
       return this.db.prepare(sql).get(...params) as DatabaseRow | undefined;
@@ -134,8 +137,9 @@ export class Database {
    */
   async all(sql: string, params: any[] = []): Promise<DatabaseRow[]> {
     if (!this.db) {
-      throw new Error('Database not initialized');
-    }
+        this.logger.error('Database connection failed - not initialized');
+        throw new Error('Database not initialized. Call initialize() first.');
+      }
 
     try {
       return this.db.prepare(sql).all(...params) as DatabaseRow[];
@@ -405,5 +409,58 @@ export class Database {
       metric.unit || null,
       metric.tags ? JSON.stringify(metric.tags) : null
     ]);
+  }
+
+  /**
+   * Get database statistics
+   */
+  async stats(): Promise<{
+    total: number;
+    active: number;
+    size?: number;
+    tables?: number;
+    lastModified?: Date;
+  }> {
+    if (!this.db) {
+        this.logger.error('Database connection failed - not initialized');
+        throw new Error('Database not initialized. Call initialize() first.');
+      }
+
+    try {
+      // Get total agents
+      const totalResult = await this.get('SELECT COUNT(*) as count FROM agents');
+      const total = totalResult?.count || 0;
+
+      // Get active agents
+      const activeResult = await this.get('SELECT COUNT(*) as count FROM agents WHERE status = ?', ['active']);
+      const active = activeResult?.count || 0;
+
+      return {
+        total,
+        active
+      };
+    } catch (error) {
+      this.logger.error('Error getting database stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Compact database (VACUUM)
+   */
+  async compact(): Promise<void> {
+    if (!this.db) {
+        this.logger.error('Database connection failed - not initialized');
+        throw new Error('Database not initialized. Call initialize() first.');
+      }
+
+    try {
+      this.logger.info('Compacting database...');
+      this.exec('VACUUM');
+      this.logger.info('Database compaction completed');
+    } catch (error) {
+      this.logger.error('Error compacting database:', error);
+      throw error;
+    }
   }
 }

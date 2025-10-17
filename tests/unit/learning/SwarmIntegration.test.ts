@@ -1,3 +1,29 @@
+// Mock Logger to prevent undefined errors
+jest.mock('../../../src/utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn()
+    }))
+  }
+}));
+
+// Mock Logger to prevent undefined errors
+jest.mock('../../utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn()
+    }))
+  }
+}));
+
 /**
  * Unit Tests for SwarmIntegration
  */
@@ -28,6 +54,12 @@ class MockSwarmMemoryStore implements SwarmMemoryStore {
     for (const [key, value] of this.storage) {
       if (regex.test(key)) {
         results.push({ key, value });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.restoreAllMocks();
+  });
+
         if (options?.limit && results.length >= options.limit) {
           break;
         }
@@ -46,13 +78,40 @@ describe('FlakyDetectionSwarmCoordinator', () => {
   let coordinator: FlakyDetectionSwarmCoordinator;
   let mockMemory: MockSwarmMemoryStore;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Mock Math.random for deterministic tests
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+
     mockMemory = new MockSwarmMemoryStore();
     coordinator = new FlakyDetectionSwarmCoordinator(mockMemory, {
       minRuns: 5,
       passRateThreshold: 0.8,
       confidenceThreshold: 0.7
     });
+
+    // Initialize coordinator with training data for ML model
+    const trainingData: Record<string, { results: TestResult[]; isFlaky: boolean }> = {};
+
+    // Generate realistic training data (20 tests: 10 flaky, 10 stable)
+    for (let i = 0; i < 10; i++) {
+      trainingData[`flaky_init_${i}`] = {
+        results: generateIntermittentResults(`flaky_init_${i}`, 15, 0.4 + (i % 5) * 0.08),
+        isFlaky: true
+      };
+
+      trainingData[`stable_init_${i}`] = {
+        results: generateStableResults(`stable_init_${i}`, 15),
+        isFlaky: false
+      };
+    }
+
+    // Store training data in memory
+    await mockMemory.store('phase2/training-data', trainingData, {
+      partition: 'coordination'
+    });
+
+    // Train the model
+    await coordinator.trainFromSwarmMemory();
   });
 
   describe('detectAndStore', () => {
@@ -84,14 +143,14 @@ describe('FlakyDetectionSwarmCoordinator', () => {
 
   describe('trainFromSwarmMemory', () => {
     it('should train model from stored training data', async () => {
-      // Store training data
+      // Store training data with sufficient samples
       const trainingData = {
         'flaky1': {
-          results: generateIntermittentResults('flaky1', 10, 0.5),
+          results: generateIntermittentResults('flaky1', 15, 0.5),
           isFlaky: true
         },
         'stable1': {
-          results: generateStableResults('stable1', 10),
+          results: generateStableResults('stable1', 15),
           isFlaky: false
         }
       };
@@ -131,9 +190,9 @@ describe('FlakyDetectionSwarmCoordinator', () => {
   describe('searchFlakyTests', () => {
     it('should search for flaky tests by pattern', async () => {
       const history = [
-        ...generateIntermittentResults('api.test1', 10, 0.5),
-        ...generateIntermittentResults('api.test2', 10, 0.6),
-        ...generateIntermittentResults('ui.test1', 10, 0.4)
+        ...generateIntermittentResults('api.test1', 50, 0.5),
+        ...generateIntermittentResults('api.test2', 50, 0.6),
+        ...generateIntermittentResults('ui.test1', 50, 0.4)
       ];
 
       await coordinator.detectAndStore(history);
@@ -249,10 +308,10 @@ describe('FlakyDetectionSwarmCoordinator', () => {
 // Helper functions
 function generateTestHistory(): TestResult[] {
   return [
-    ...generateIntermittentResults('flaky1', 10, 0.5),
-    ...generateIntermittentResults('flaky2', 10, 0.6),
-    ...generateStableResults('stable1', 10),
-    ...generateStableResults('stable2', 10)
+    ...generateIntermittentResults('flaky1', 50, 0.5),
+    ...generateIntermittentResults('flaky2', 50, 0.6),
+    ...generateStableResults('stable1', 50),
+    ...generateStableResults('stable2', 50)
   ];
 }
 
@@ -268,6 +327,7 @@ function generateIntermittentResults(
     const passed = Math.random() < passRate;
     results.push({
       name: testName,
+      passed,
       status: passed ? 'passed' : 'failed',
       duration: 100 + Math.random() * 50,
       timestamp: baseTime + i * 60000,
@@ -285,6 +345,7 @@ function generateStableResults(testName: string, count: number): TestResult[] {
   for (let i = 0; i < count; i++) {
     results.push({
       name: testName,
+      passed: true,
       status: 'passed',
       duration: 100 + Math.random() * 10,
       timestamp: baseTime + i * 60000

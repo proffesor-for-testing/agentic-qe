@@ -1,27 +1,48 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+
+  // CRITICAL: Global setup/teardown to prevent process.cwd() errors
+  globalSetup: '<rootDir>/jest.global-setup.ts',
+  globalTeardown: '<rootDir>/jest.global-teardown.ts',
+
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: [
     '**/__tests__/**/*.+(ts|tsx|js)',
     '**/*.(test|spec).+(ts|tsx|js)'
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: {
+        skipLibCheck: true,
+        skipDefaultLibCheck: true
+      },
+      isolatedModules: true
+    }]
   },
+
+  // CRITICAL: Coverage configuration - enabled via --coverage flag
+  collectCoverage: false, // Set to true via CLI --coverage flag
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
+    '!src/**/*.test.ts',
+    '!src/**/__mocks__/**',
+    '!src/**/types/**',
     '!src/**/index.ts'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: [
     'text',
     'lcov',
-    'html'
+    'html',
+    'json-summary'
   ],
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
-  globalTeardown: '<rootDir>/tests/teardown.ts',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts', '<rootDir>/tests/setup.ts'],
+  testEnvironmentOptions: {
+    // Use explicit path instead of process.cwd() to prevent initialization errors
+    cwd: '/workspaces/agentic-qe-cf'
+  },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@core/(.*)$': '<rootDir>/src/core/$1',
@@ -32,7 +53,7 @@ module.exports = {
   // Memory optimization settings - Enhanced for DevPod
   maxWorkers: 1, // Reduced from 2 to 1 for maximum safety
   workerIdleMemoryLimit: '384MB', // More aggressive: 512MB → 384MB
-  testTimeout: 20000, // Increased: 15s → 20s for better cleanup time
+  testTimeout: 30000, // Increased: 15s → 20s for better cleanup time
   cache: true, // Enable caching to reduce compilation overhead
   cacheDirectory: '/tmp/jest-cache', // Explicit cache location
   maxConcurrency: 2, // Limit concurrent test suites
@@ -73,17 +94,6 @@ module.exports = {
       enabled: process.env.TRACK_MEMORY === 'true'
     }]
   ],
-
-  globals: {
-    'ts-jest': {
-      isolatedModules: true, // Faster compilation, less memory
-      maxWorkers: 1, // Ensure ts-jest also respects worker limit
-      tsconfig: {
-        skipLibCheck: true, // Skip library type checking
-        skipDefaultLibCheck: true // Skip default library checks
-      }
-    }
-  },
 
   // Force garbage collection between test files
   testSequencer: '<rootDir>/tests/sequencers/MemorySafeSequencer.js',

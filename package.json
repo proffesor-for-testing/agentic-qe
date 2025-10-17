@@ -30,9 +30,9 @@
     "test:performance": "node --expose-gc --max-old-space-size=1536 --no-compilation-cache node_modules/.bin/jest tests/performance --runInBand --forceExit",
     "test:watch": "node --expose-gc --max-old-space-size=512 node_modules/.bin/jest --watch --maxWorkers=1",
     "pretest:coverage": "node scripts/check-memory-before-test.js",
-    "test:coverage": "node --expose-gc --max-old-space-size=1536 --no-compilation-cache node_modules/.bin/jest --coverage --maxWorkers=1 --runInBand",
+    "test:coverage": "node --expose-gc --max-old-space-size=1536 --no-compilation-cache node_modules/.bin/jest --coverage --maxWorkers=1",
     "pretest:coverage-safe": "node scripts/check-memory-before-test.js",
-    "test:coverage-safe": "node --expose-gc --max-old-space-size=1024 --no-compilation-cache node_modules/.bin/jest --coverage --maxWorkers=1 --runInBand --bail --forceExit",
+    "test:coverage-safe": "node --expose-gc --max-old-space-size=1024 --no-compilation-cache node_modules/.bin/jest --coverage --maxWorkers=1 --bail --forceExit",
     "test:memory-track": "TRACK_MEMORY=true node --expose-gc --max-old-space-size=1024 --no-compilation-cache node_modules/.bin/jest --maxWorkers=1 --runInBand",
     "test:debug": "node --expose-gc --inspect-brk --max-old-space-size=2048 node_modules/.bin/jest --runInBand --no-cache",
     "pretest:ci": "node scripts/check-memory-before-test.js",
@@ -66,7 +66,10 @@
     "mcp:start": "ts-node src/mcp/start.ts",
     "mcp:dev": "nodemon --watch src/mcp -e ts --exec ts-node src/mcp/start.ts",
     "docs:api": "typedoc --out docs/api src --exclude '**/*.test.ts' --excludePrivate",
-    "docs:serve": "npx http-server docs/api -p 8080"
+    "docs:serve": "npx http-server docs/api -p 8080",
+    "orchestrator": "ts-node scripts/final-go-orchestrator.ts",
+    "orchestrator:test": "ts-node scripts/test-orchestrator.ts",
+    "query-memory": "ts-node scripts/query-aqe-memory-single.ts"
   },
   "keywords": [
     "quality-engineering",
@@ -103,6 +106,10 @@
     "ora": "^5.4.1",
     "ws": "^8.14.2"
   },
+  "resolutions": {
+    "graceful-fs": "^4.2.11",
+    "stack-utils": "^2.0.6"
+  },
   "devDependencies": {
     "@faker-js/faker": "^10.0.0",
     "@types/better-sqlite3": "^7.6.13",
@@ -123,9 +130,12 @@
     "dotenv": "^17.2.3",
     "eslint": "^8.55.0",
     "eslint-plugin-security": "^3.0.1",
+    "graceful-fs": "^4.2.11",
     "graphql": "^16.11.0",
     "istanbul-lib-coverage": "^3.2.2",
     "jest": "^30.2.0",
+    "jest-extended": "^6.0.0",
+    "stack-utils": "^2.0.6",
     "nodemon": "^3.0.2",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.4.4",

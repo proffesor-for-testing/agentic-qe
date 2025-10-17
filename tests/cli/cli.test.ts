@@ -4,6 +4,18 @@
  */
 
 import { execSync, spawn } from 'child_process';
+
+// Mock Logger to prevent undefined errors in Database
+jest.mock('../../src/utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn()
+    }))
+  }
+}));
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -12,6 +24,11 @@ describe('AQE CLI Interface', () => {
   const aqeBinary = path.join(__dirname, '../../bin/aqe');
 
   beforeEach(async () => {
+    // Mock process.exit to prevent test interruption
+    jest.spyOn(process, 'exit').mockImplementation((code?: number) => {
+      throw new Error(`Process.exit called with code ${code}`);
+    });
+
     // Create test project directory
     await fs.ensureDir(testDir);
     process.chdir(testDir);
