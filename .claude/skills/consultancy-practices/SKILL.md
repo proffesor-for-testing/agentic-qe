@@ -1,3 +1,14 @@
+---
+name: consultancy-practices
+description: Apply effective software quality consultancy practices. Use when consulting, advising clients, or establishing consultancy workflows.
+version: 1.0.0
+category: professional
+tags: [consulting, advisory, client-engagement, strategy, transformation, coaching]
+difficulty: advanced
+estimated_time: 2 hours
+author: user
+---
+
 # Consultancy Practices
 
 ## Core Philosophy
@@ -410,6 +421,115 @@ Often "compliance" is over-interpreted. Find the minimum viable compliance.
 - Quarterly health checks
 - Open door for questions
 - Community of practice
+
+## Using with QE Agents
+
+### Automated Codebase Assessment
+
+**qe-quality-analyzer** performs comprehensive client codebase analysis:
+```typescript
+// Agent analyzes client codebase for improvement areas
+const assessment = await agent.assessCodebase({
+  scope: 'client-project/',
+  depth: 'comprehensive',
+  reportFormat: 'executive-summary',
+  includeMetrics: true,
+  includeRecommendations: true
+});
+
+// Returns:
+// {
+//   qualityScore: 0.67,
+//   testCoverage: 45,
+//   technicalDebt: 'high',
+//   securityRisk: 'medium',
+//   maintainabilityIndex: 62,
+//   recommendations: [...]
+// }
+```
+
+### Prioritized Recommendations
+
+```typescript
+// Agent generates prioritized improvement roadmap
+const recommendations = await qe-quality-analyzer.generateRecommendations({
+  assessment,
+  prioritize: 'high-impact-low-effort',
+  timeline: '3-months',
+  budget: 'medium',
+  teamSize: 5
+});
+
+// Returns phased improvement plan:
+// Phase 1 (Month 1): Critical security fixes, test automation setup
+// Phase 2 (Month 2): Improve test coverage, refactor hotspots
+// Phase 3 (Month 3): Performance optimization, monitoring
+```
+
+### ROI Analysis for Quality Improvements
+
+```typescript
+// Agent calculates ROI for quality initiatives
+const roiAnalysis = await qe-quality-analyzer.calculateQualityROI({
+  currentState: {
+    defectEscapeRate: 0.15,
+    mttr: 48,  // hours
+    deploymentFrequency: 'weekly'
+  },
+  proposedImprovements: [
+    'test-automation',
+    'ci-cd-pipeline',
+    'code-review-process'
+  ],
+  timeframe: '6-months'
+});
+
+// Returns:
+// {
+//   estimatedCost: '$50,000',
+//   estimatedSavings: '$120,000/year',
+//   paybackPeriod: '3 months',
+//   qualityImprovement: '40% fewer production bugs'
+// }
+```
+
+### Client Engagement Fleet
+
+```typescript
+const consultingFleet = await FleetManager.coordinate({
+  strategy: 'client-engagement',
+  agents: [
+    'qe-quality-analyzer',         // Assess current state
+    'qe-regression-risk-analyzer',  // Risk assessment
+    'qe-quality-gate',             // Define quality gates
+    'qe-deployment-readiness'      // Deployment maturity
+  ],
+  topology: 'hierarchical'
+});
+
+await consultingFleet.execute({
+  clientProject: 'enterprise-saas',
+  deliverable: 'comprehensive-quality-assessment'
+});
+```
+
+---
+
+## Related Skills
+
+**Core Quality:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent-driven consulting workflows
+- [quality-metrics](../quality-metrics/) - Metrics for client reporting
+
+**Testing:**
+- [risk-based-testing](../risk-based-testing/) - Client risk assessment
+- [holistic-testing-pact](../holistic-testing-pact/) - Comprehensive testing strategy
+
+**Communication:**
+- [technical-writing](../technical-writing/) - Client deliverables
+- [code-review-quality](../code-review-quality/) - Code quality consulting
+
+---
 
 ## Remember
 

@@ -1,6 +1,12 @@
 ---
-name: Extreme Programming (XP) Practices
+name: xp-practices
 description: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices.
+version: 1.0.0
+category: development
+tags: [xp, pair-programming, ensemble-programming, continuous-integration, sustainable-pace, agile, teamwork]
+difficulty: intermediate
+estimated_time: 2-3 hours
+author: user
 ---
 
 # Extreme Programming (XP) Practices
@@ -527,6 +533,131 @@ Never build more than needed
 - DevOps integration with XP
 - Continuous deployment patterns
 
+## Using with QE Agents
+
+### Agent-Human Pair Testing
+
+**qe-test-generator** + Human QE:
+```typescript
+// Ping-pong pattern with AI agent
+// Human writes test charter
+const charter = "Test payment processing edge cases";
+
+// Agent generates test code
+const test = await qe-test-generator.generate(charter);
+
+// Human reviews and refines
+const refinedTest = await human.review(test);
+
+// Agent implements refinements
+await qe-test-generator.implement(refinedTest);
+```
+
+### Ensemble Testing with Multiple Agents
+
+```typescript
+// Mob testing: Multiple agents + human coordinator
+const ensemble = await FleetManager.startEnsemble({
+  facilitator: 'human',
+  participants: [
+    'qe-test-generator',
+    'qe-coverage-analyzer',
+    'qe-security-scanner'
+  ],
+  rotation: '10min',
+  charter: 'Design test strategy for new payment API'
+});
+
+// Human directs, agents execute and suggest
+// Rotate which agent is "driving" every 10 minutes
+```
+
+### Continuous Integration with Agents
+
+```yaml
+# AI agents in CI pipeline
+name: XP CI with Agents
+
+on: [push]
+
+jobs:
+  test:
+    steps:
+      # Agent runs risk analysis
+      - name: Risk Analysis
+        run: aqe agent run qe-regression-risk-analyzer
+
+      # Agent generates tests for changes
+      - name: Generate Tests
+        run: aqe agent run qe-test-generator
+
+      # Agent executes all tests
+      - name: Execute Tests
+        run: aqe agent run qe-test-executor
+
+      # Agent analyzes coverage
+      - name: Coverage Check
+        run: aqe agent run qe-coverage-analyzer
+```
+
+### Collective Code & Test Ownership
+
+```typescript
+// Agents help maintain collective ownership
+// Any team member can improve any test
+// Agents ensure consistency
+
+await qe-quality-analyzer.enforceStandards({
+  scope: 'all-tests',
+  standards: ['naming-conventions', 'test-structure', 'assertions'],
+  autoFix: true  // Agent fixes simple violations
+});
+```
+
+### Sustainable Pace with Agent Assistance
+
+```typescript
+// Agents handle grunt work, humans focus on high-value tasks
+const workDistribution = {
+  agents: [
+    'Repetitive regression testing',
+    'Log analysis and pattern detection',
+    'Test data generation',
+    'Coverage gap analysis',
+    'Performance monitoring'
+  ],
+  humans: [
+    'Exploratory testing',
+    'Risk assessment',
+    'Test strategy decisions',
+    'Domain-specific edge cases',
+    'Stakeholder communication'
+  ]
+};
+
+// Result: 40-hour work week, sustainable, high productivity
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agents as pair partners
+- [holistic-testing-pact](../holistic-testing-pact/) - Whole-team quality practices
+- [context-driven-testing](../context-driven-testing/) - Adapt XP to context
+
+**Development Practices:**
+- [tdd-london-chicago](../tdd-london-chicago/) - TDD within XP workflow
+- [refactoring-patterns](../refactoring-patterns/) - Safe refactoring techniques
+- [code-review-quality](../code-review-quality/) - Review as pairing alternative
+
+**Testing Specializations:**
+- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Ensemble exploration
+- [test-automation-strategy](../test-automation-strategy/) - CI/CD integration
+
+---
+
 ## Remember
 
 XP practices work together as a system. Don't cherry-pick randomly:
@@ -536,3 +667,5 @@ XP practices work together as a system. Don't cherry-pick randomly:
 - Measure results
 
 **The goal:** Sustainable delivery of high-quality software through technical excellence and teamwork.
+
+**With Agents**: XP practices amplify agent effectiveness. Pair humans with agents for best results. Agents handle repetitive work, humans provide judgment and creativity.

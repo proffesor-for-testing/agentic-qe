@@ -1,6 +1,12 @@
 ---
-name: Test-Driven Development (London & Chicago Schools)
+name: tdd-london-chicago
 description: Apply both London and Chicago school TDD approaches. Use when practicing test-driven development, understanding different TDD philosophies, or choosing the right testing style for your context.
+version: 1.0.0
+category: development
+tags: [tdd, test-driven-development, london-school, chicago-school, mocking, red-green-refactor]
+difficulty: intermediate
+estimated_time: 2-4 hours
+author: user
 ---
 
 # Test-Driven Development: London & Chicago Schools
@@ -419,6 +425,136 @@ No. Test through public API. If private method is complex enough to need tests, 
 - **Working Effectively with Legacy Code** by Michael Feathers
 - Uncle Bob's TDD screencasts
 
+## Using with QE Agents
+
+### Agent-Assisted TDD Workflows
+
+**qe-test-generator** applies both schools:
+```typescript
+// Chicago style: Generate state-based tests
+await agent.generateTests({
+  style: 'chicago',
+  target: 'src/domain/Order.ts',
+  focus: 'state-verification'
+});
+// → Creates tests that verify final state
+
+// London style: Generate interaction-based tests
+await agent.generateTests({
+  style: 'london',
+  target: 'src/controllers/OrderController.ts',
+  focus: 'collaboration-patterns'
+});
+// → Creates tests with mocked dependencies
+```
+
+### Red-Green-Refactor with Agent Assistance
+
+```typescript
+// Red: Human writes failing test concept
+const testIdea = "Order applies 10% discount when total > $100";
+
+// Agent generates formal test (Red)
+const failingTest = await qe-test-generator.createFailingTest(testIdea);
+// → Generates complete test that fails
+
+// Human writes minimal code (Green)
+// ... implementation code ...
+
+// Agent validates green phase
+await qe-test-executor.verifyGreen(failingTest);
+// → Confirms test passes
+
+// Agent suggests refactorings
+const suggestions = await qe-quality-analyzer.suggestRefactorings({
+  scope: 'src/domain/Order.ts',
+  preserveTests: true
+});
+// → Provides safe refactoring options
+```
+
+### Agent-Human Pairing Patterns
+
+**Ping-Pong TDD with Agent:**
+```typescript
+// Human writes test
+const humanTest = `
+  test('cart applies bulk discount', () => {
+    const cart = new Cart();
+    cart.addItems(10);
+    expect(cart.discount()).toBe(15);
+  });
+`;
+
+// Agent makes it pass
+await qe-test-generator.implementTestLogic(humanTest);
+// → Generates minimal implementation
+
+// Agent writes next test
+const agentTest = await qe-test-generator.nextTest({
+  context: 'bulk-discount-edge-cases',
+  style: 'chicago'
+});
+
+// Human reviews and refines
+// [repeat cycle]
+```
+
+### Fleet Coordination for TDD
+
+```typescript
+// Multiple agents support TDD workflow
+const tddFleet = await FleetManager.coordinate({
+  workflow: 'red-green-refactor',
+  agents: {
+    testGenerator: 'qe-test-generator',    // Red phase
+    testExecutor: 'qe-test-executor',      // Green validation
+    qualityAnalyzer: 'qe-quality-analyzer' // Refactor suggestions
+  },
+  mode: 'sequential'
+});
+
+// Agents coordinate through TDD cycle
+await tddFleet.executeCycle({
+  feature: 'payment-processing',
+  school: 'mixed' // Use both Chicago and London where appropriate
+});
+```
+
+### Choosing TDD School with Agent Guidance
+
+```typescript
+// Agent analyzes code and recommends TDD approach
+const recommendation = await qe-quality-analyzer.recommendTDDStyle({
+  codeType: 'controller',
+  dependencies: ['database', 'emailService', 'paymentGateway'],
+  complexity: 'high'
+});
+
+// → Recommends London school (many external dependencies)
+// → Suggests mock patterns for database and services
+// → Provides example test structure
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - TDD with agent coordination
+- [context-driven-testing](../context-driven-testing/) - Choose TDD style based on context
+
+**Development Practices:**
+- [xp-practices](../xp-practices/) - TDD within XP workflow, ping-pong pairing
+- [refactoring-patterns](../refactoring-patterns/) - Refactor phase techniques
+- [code-review-quality](../code-review-quality/) - Review test quality
+
+**Testing Approaches:**
+- [test-automation-strategy](../test-automation-strategy/) - Where TDD fits in automation pyramid
+- [api-testing-patterns](../api-testing-patterns/) - London school for API testing
+
+---
+
 ## Remember
 
 **Chicago:** Test state, use real objects, refactor freely
@@ -427,3 +563,5 @@ No. Test through public API. If private method is complex enough to need tests, 
 **Both:** Write the test first, make it pass, refactor
 
 Neither is "right." Choose based on context. Mix as needed. The goal is well-designed, tested code, not religious adherence to one school.
+
+**With Agents**: Agents excel at generating tests in both schools, validating green phase, and suggesting safe refactorings. Use agents to maintain TDD discipline while humans focus on design decisions.

@@ -1,6 +1,12 @@
 ---
-name: Bug Reporting Excellence
+name: bug-reporting-excellence
 description: Write high-quality bug reports that get fixed quickly. Use when reporting bugs, training teams on bug reporting, or establishing bug report standards.
+version: 1.0.0
+category: communication
+tags: [bug-reporting, quality-assurance, documentation, communication, defect-tracking, collaboration]
+difficulty: beginner
+estimated_time: 30 minutes
+author: user
 ---
 
 # Bug Reporting Excellence
@@ -521,6 +527,99 @@ Accepted as "won't fix" due to:
 - Multiple rounds of clarification needed
 - Cannot be reproduced
 - Marked as "invalid" or "duplicate"
+
+## Using with QE Agents
+
+### Automated Bug Triage
+
+**qe-quality-analyzer** assists in bug triage and categorization:
+```typescript
+// Agent analyzes and triages bug report
+const triage = await agent.triageBug({
+  title: 'Payment fails for orders > $1000',
+  description: bugDescription,
+  steps: reproductionsteps,
+  expectedBehavior: '...',
+  actualBehavior: '...',
+  attachments: screenshots
+});
+
+// Returns:
+// {
+//   severity: 'critical',
+//   priority: 'high',
+//   likelyComponent: 'payment-service',
+//   suggestedAssignee: 'payments-team',
+//   relatedIssues: ['#123', '#456'],
+//   estimatedImpact: '5% of transactions affected'
+// }
+```
+
+### Intelligent Bug Duplication Detection
+
+```typescript
+// Agent detects duplicate bug reports
+const duplicateCheck = await agent.checkDuplicates({
+  bugReport: newBug,
+  searchIn: 'open-and-closed',
+  similarityThreshold: 0.85
+});
+
+// Returns:
+// {
+//   isDuplicate: true,
+//   originalIssue: '#789',
+//   similarity: 0.92,
+//   recommendation: 'Close as duplicate of #789'
+// }
+```
+
+### Bug Report Quality Enhancement
+
+```typescript
+// Agent improves bug report quality
+const enhanced = await qe-quality-analyzer.enhanceBugReport({
+  originalReport: userSubmittedBug,
+  addMissingInfo: true,
+  suggestReproSteps: true,
+  identifyRootCause: true
+});
+
+// Agent adds:
+// - Environment details
+// - Browser/OS information
+// - Clearer reproduction steps
+// - Potential root cause analysis
+```
+
+### Fleet Coordination for Bug Investigation
+
+```typescript
+const bugFleet = await FleetManager.coordinate({
+  strategy: 'bug-investigation',
+  agents: [
+    'qe-quality-analyzer',        // Triage and categorize
+    'qe-flaky-test-hunter',       // Check if test-related
+    'qe-regression-risk-analyzer', // Assess regression risk
+    'qe-production-intelligence'   // Check production logs
+  ],
+  topology: 'parallel'
+});
+```
+
+---
+
+## Related Skills
+
+**Communication:**
+- [technical-writing](../technical-writing/) - Clear bug documentation
+- [code-review-quality](../code-review-quality/) - Bug reporting in reviews
+
+**Testing:**
+- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Finding bugs through exploration
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent-driven bug workflows
+
+---
 
 ## Remember
 

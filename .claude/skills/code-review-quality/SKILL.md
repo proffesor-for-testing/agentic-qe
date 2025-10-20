@@ -1,3 +1,14 @@
+---
+name: code-review-quality
+description: Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices.
+version: 1.0.0
+category: development
+tags: [code-review, quality, feedback, security, performance, maintainability]
+difficulty: intermediate
+estimated_time: 30-45 minutes
+author: user
+---
+
 # Code Review Quality
 
 ## Core Philosophy
@@ -580,11 +591,89 @@ Add comments explaining:
 setTimeout(() => scrollToElement(ref.current), 0);
 ```
 
+## Using with QE Agents
+
+### Automated Code Review with qe-quality-analyzer
+
+**qe-quality-analyzer** performs intelligent code review:
+```typescript
+// Agent analyzes PR for quality issues
+const reviewAnalysis = await agent.reviewCode({
+  files: prChanges,
+  depth: 'comprehensive',
+  checkBugs: true,
+  checkSecurity: true,
+  checkPerformance: true,
+  checkMaintainability: true
+});
+
+// Returns categorized feedback
+// {
+//   blockers: [{ file, line, issue, severity: 'BLOCKER' }],
+//   major: [{ file, line, issue, severity: 'MAJOR' }],
+//   suggestions: [{ file, line, suggestion, severity: 'MINOR' }],
+//   qualityScore: 0.87
+// }
+```
+
+### Human-Agent Collaborative Review
+
+```typescript
+// Agent does first-pass review, human refines
+const agentReview = await qe-quality-analyzer.reviewCode(prChanges);
+const humanRefinements = await human.refineReview(agentReview);
+const finalReview = await agent.formatFeedback({
+  agentFindings: agentReview,
+  humanInsights: humanRefinements,
+  useEmojis: true  // 🔴 🟡 🟢 💡
+});
+```
+
+### Fleet Coordination for Comprehensive Review
+
+```typescript
+// Multiple agents review different aspects
+const reviewFleet = await FleetManager.coordinate({
+  strategy: 'code-review',
+  agents: [
+    'qe-quality-analyzer',      // Overall quality
+    'qe-security-scanner',       // Security vulnerabilities
+    'qe-performance-tester',     // Performance implications
+    'qe-coverage-analyzer'       // Test coverage impact
+  ],
+  topology: 'parallel'
+});
+
+await reviewFleet.execute({
+  prNumber: 123,
+  aggregateResults: true
+});
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent-driven quality workflows
+- [holistic-testing-pact](../holistic-testing-pact/) - Quality across all test quadrants
+
+**Development Practices:**
+- [refactoring-patterns](../refactoring-patterns/) - Code improvements post-review
+- [tdd-london-chicago](../tdd-london-chicago/) - Test-driven development practices
+- [xp-practices](../xp-practices/) - Pair programming and ensemble coding
+
+**Communication:**
+- [bug-reporting-excellence](../bug-reporting-excellence/) - Report issues found in reviews
+- [technical-writing](../technical-writing/) - Document review processes
+
+---
+
 ## Remember
 
 **Good code review is:**
 - Collaborative, not adversarial
-- Teaching, not judging  
+- Teaching, not judging
 - Specific, not vague
 - Constructive, not destructive
 - Timely, not delayed

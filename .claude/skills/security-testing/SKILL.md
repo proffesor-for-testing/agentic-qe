@@ -1,3 +1,14 @@
+---
+name: security-testing
+description: Test for security vulnerabilities using OWASP principles and security testing techniques. Use when conducting security audits, testing authentication/authorization, or implementing security practices.
+version: 1.0.0
+category: testing
+tags: [security, owasp, penetration-testing, vulnerability-scanning, authentication, authorization]
+difficulty: advanced
+estimated_time: 60 minutes
+author: user
+---
+
 # Security Testing
 
 ## Core Philosophy
@@ -551,6 +562,86 @@ security-checks:
    - **Fix:** Add helmet.js middleware
 
 **Result:** 4 vulnerabilities fixed before production launch.
+
+## Using with QE Agents
+
+### Multi-Layer Security Scanning
+
+**qe-security-scanner** performs comprehensive security testing:
+```typescript
+// Agent runs multi-layer security scan
+const securityScan = await agent.comprehensiveScan({
+  target: 'src/',
+  layers: {
+    sast: true,           // Static analysis
+    dast: true,           // Dynamic analysis
+    dependencies: true,   // npm audit
+    secrets: true,        // Secret scanning
+    containers: true      // Docker image scanning
+  },
+  severity: ['critical', 'high', 'medium']
+});
+
+// Returns categorized vulnerabilities
+```
+
+### OWASP Top 10 Automated Testing
+
+```typescript
+// Agent tests all OWASP Top 10 vulnerabilities
+const owaspTest = await agent.testOWASP({
+  categories: [
+    'broken-access-control',
+    'cryptographic-failures',
+    'injection',
+    'insecure-design',
+    'security-misconfiguration'
+  ],
+  depth: 'comprehensive'
+});
+```
+
+### Vulnerability Fix Validation
+
+```typescript
+// Agent validates security fix
+const validation = await agent.validateFix({
+  vulnerability: 'CVE-2024-12345',
+  expectedResolution: 'upgrade package to v2.0.0',
+  retestAfterFix: true
+});
+
+// Returns: { fixed: true, retestPassed: true, residualRisk: 'low' }
+```
+
+### Security Fleet Coordination
+
+```typescript
+const securityFleet = await FleetManager.coordinate({
+  strategy: 'security-testing',
+  agents: [
+    'qe-security-scanner',         // Run scans
+    'qe-api-contract-validator',   // API security
+    'qe-quality-analyzer',         // Code security review
+    'qe-deployment-readiness'      // Security gate
+  ],
+  topology: 'parallel'
+});
+```
+
+---
+
+## Related Skills
+
+**Testing:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Security testing coordination
+- [api-testing-patterns](../api-testing-patterns/) - API security testing
+
+**Development:**
+- [code-review-quality](../code-review-quality/) - Security code review
+
+**Quality:**
+- [quality-metrics](../quality-metrics/) - Security metrics tracking
 
 ## Remember
 

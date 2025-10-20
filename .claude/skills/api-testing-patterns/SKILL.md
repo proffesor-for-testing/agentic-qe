@@ -1,6 +1,18 @@
 ---
-name: API Testing Patterns
+name: api-testing-patterns
 description: Apply comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs, microservices, or designing API test strategies.
+version: 1.0.0
+category: testing
+tags:
+  - api-testing
+  - contract-testing
+  - rest-api
+  - graphql
+  - microservices
+  - integration-testing
+difficulty: intermediate
+estimated_time: 45-60 minutes
+author: user
 ---
 
 # API Testing Patterns
@@ -495,6 +507,180 @@ describe('E-Commerce Order API', () => {
 });
 ```
 
+## Using with QE Agents
+
+### Automated Contract Testing
+
+**qe-api-contract-validator** ensures API contracts are maintained:
+```typescript
+// Agent validates API contract against specification
+await agent.validateContract({
+  spec: 'openapi.yaml',
+  endpoint: '/orders',
+  method: 'POST',
+  checkBreakingChanges: true
+});
+
+// Returns:
+// {
+//   valid: false,
+//   breakingChanges: [
+//     'Field "orderId" changed from string to number'
+//   ],
+//   warnings: ['New optional field "metadata" added']
+// }
+```
+
+### Agent-Generated API Test Suites
+
+**qe-test-generator** creates comprehensive API tests:
+```typescript
+// Generate tests from OpenAPI spec
+await agent.generateFromSpec({
+  spec: 'openapi.yaml',
+  coverage: 'comprehensive',
+  include: [
+    'happy-paths',
+    'input-validation',
+    'auth-scenarios',
+    'error-handling',
+    'idempotency',
+    'concurrency'
+  ]
+});
+
+// → Creates 200+ tests covering all API patterns
+```
+
+### Real-Time API Test Execution
+
+**qe-test-executor** runs API tests with smart retry logic:
+```typescript
+// Execute API tests with intelligent retry for flakiness
+await agent.executeAPITests({
+  suite: 'integration',
+  parallel: true,
+  retryStrategy: 'exponential-backoff',
+  flakyDetection: true
+});
+
+// → Detects and reports network-related flakiness
+// → Auto-retries transient failures (503, timeout)
+// → Fails fast on persistent errors (401, 404)
+```
+
+### Contract-Based Integration Testing
+
+```typescript
+// Agent coordinates contract testing between services
+const contractFleet = await FleetManager.coordinate({
+  strategy: 'contract-testing',
+  agents: [
+    'qe-api-contract-validator',  // Validate contracts
+    'qe-test-generator',          // Generate consumer tests
+    'qe-test-executor'            // Execute against provider
+  ],
+  topology: 'mesh'  // Consumer-provider pairs
+});
+
+// Microservices contract validation
+await contractFleet.execute({
+  services: [
+    { name: 'orders-api', consumers: ['checkout-ui', 'admin-api'] },
+    { name: 'payment-api', consumers: ['orders-api'] }
+  ]
+});
+```
+
+### Performance Testing for APIs
+
+**qe-performance-tester** load tests critical endpoints:
+```typescript
+// Agent runs load tests on API endpoints
+await agent.loadTest({
+  endpoint: '/orders',
+  method: 'POST',
+  rps: 1000,  // 1000 requests per second
+  duration: '5min',
+  scenarios: [
+    'create-order',
+    'concurrent-checkouts',
+    'bulk-operations'
+  ]
+});
+
+// Returns:
+// {
+//   avgResponseTime: '45ms',
+//   p95: '120ms',
+//   p99: '250ms',
+//   errorRate: 0.02,  // 2% error rate
+//   bottlenecks: ['database connection pool']
+// }
+```
+
+### Security Testing for APIs
+
+**qe-security-scanner** tests API vulnerabilities:
+```typescript
+// Agent scans for API security issues
+await agent.scanAPI({
+  spec: 'openapi.yaml',
+  checks: [
+    'sql-injection',
+    'xss',
+    'broken-auth',
+    'excessive-data-exposure',
+    'rate-limiting',
+    'input-validation'
+  ]
+});
+
+// Identifies:
+// - Missing rate limiting on /login
+// - No input sanitization on /search
+// - Exposed internal IDs in responses
+```
+
+### Continuous Contract Monitoring
+
+**qe-production-intelligence** monitors live API contracts:
+```typescript
+// Agent monitors production API for contract drift
+await agent.monitorAPIContract({
+  endpoint: '/orders',
+  spec: 'openapi.yaml',
+  alertOn: 'breaking-changes',
+  sampleRate: 0.01  // Monitor 1% of traffic
+});
+
+// Alerts:
+// "⚠️  Production API returning extra field not in spec: 'internalProcessId'"
+// "🔴 Breaking change detected: 'quantity' changed from int to string"
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - API testing with agent coordination
+- [holistic-testing-pact](../holistic-testing-pact/) - APIs in test quadrants
+
+**Testing Approaches:**
+- [test-automation-strategy](../test-automation-strategy/) - API tests in automation pyramid
+- [risk-based-testing](../risk-based-testing/) - Risk-based API test prioritization
+- [performance-testing](../performance-testing/) - API load testing patterns
+- [security-testing](../security-testing/) - API security validation
+
+**Development Practices:**
+- [tdd-london-chicago](../tdd-london-chicago/) - London school for API testing (mocking)
+- [code-review-quality](../code-review-quality/) - Review API test quality
+
+---
+
 ## Remember
 
 API testing is about verifying contracts and behavior, not implementation details. Focus on what matters to API consumers: correct responses, proper error handling, and acceptable performance.
+
+**With Agents**: Agents automate contract validation, generate comprehensive API test suites from specifications, and continuously monitor production APIs for contract drift. Use agents to maintain API quality across microservices at scale.

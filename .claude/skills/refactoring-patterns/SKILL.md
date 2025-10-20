@@ -1,3 +1,14 @@
+---
+name: refactoring-patterns
+description: Apply safe refactoring patterns to improve code structure without changing behavior. Use when cleaning up code, reducing technical debt, or improving maintainability.
+version: 1.0.0
+category: development
+tags: [refactoring, clean-code, technical-debt, code-quality, patterns, design]
+difficulty: intermediate
+estimated_time: 35-50 minutes
+author: user
+---
+
 # Refactoring Patterns
 
 ## Core Philosophy
@@ -666,6 +677,88 @@ function calculateTotal(price, quantity, tax) {
   return price * quantity + tax;
 }
 ```
+
+## Using with QE Agents
+
+### Automated Refactoring Detection
+
+**qe-quality-analyzer** identifies refactoring opportunities:
+```typescript
+// Agent detects code smells
+const codeSmells = await agent.detectCodeSmells({
+  scope: 'src/services/',
+  patterns: [
+    'long-method',
+    'large-class',
+    'duplicate-code',
+    'feature-envy',
+    'data-clumps'
+  ]
+});
+
+// Suggests specific refactorings
+const suggestions = await agent.suggestRefactorings({
+  codeSmells,
+  preserveTests: true,
+  riskTolerance: 'low'
+});
+```
+
+### Safe Refactoring with Test Verification
+
+```typescript
+// Agent validates refactoring didn't break behavior
+const before = await git.getCurrentCommit();
+await human.performRefactoring();
+const after = await git.getCurrentCommit();
+
+const validation = await qe-test-executor.verifyRefactoring({
+  beforeCommit: before,
+  afterCommit: after,
+  expectSameBehavior: true,
+  runFullSuite: true
+});
+
+// Returns: { testsPass: true, behaviorPreserved: true, coverageChange: +2% }
+```
+
+### Fleet Coordination for Large Refactorings
+
+```typescript
+// Multiple agents coordinate on large refactoring
+const refactoringFleet = await FleetManager.coordinate({
+  strategy: 'refactoring',
+  agents: [
+    'qe-quality-analyzer',     // Identify targets
+    'qe-test-generator',       // Add safety tests
+    'qe-test-executor',        // Verify behavior
+    'qe-coverage-analyzer'     // Check coverage impact
+  ],
+  topology: 'sequential'
+});
+
+await refactoringFleet.execute({
+  target: 'src/services/OrderService.ts',
+  refactoringType: 'extract-class'
+});
+```
+
+---
+
+## Related Skills
+
+**Core Quality:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent-driven refactoring workflows
+
+**Development:**
+- [tdd-london-chicago](../tdd-london-chicago/) - Test coverage during refactoring
+- [code-review-quality](../code-review-quality/) - Review refactored code
+- [xp-practices](../xp-practices/) - Collective code ownership
+
+**Testing:**
+- [test-automation-strategy](../test-automation-strategy/) - Maintain test suite during refactoring
+
+---
 
 ## Remember
 

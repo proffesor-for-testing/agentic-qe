@@ -1,3 +1,14 @@
+---
+name: performance-testing
+description: Test application performance, scalability, and resilience. Use when planning load testing, stress testing, or optimizing system performance.
+version: 1.0.0
+category: testing
+tags: [performance, load-testing, stress-testing, scalability, optimization, monitoring]
+difficulty: intermediate
+estimated_time: 45 minutes
+author: user
+---
+
 # Performance Testing
 
 ## Core Principle
@@ -556,6 +567,90 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 **Set realistic goals**: Based on business requirements
 **Fix what matters**: Focus on user-impacting bottlenecks
 **Trend over time**: Performance degrades gradually, catch it early
+
+## Using with QE Agents
+
+### Automated Performance Testing
+
+**qe-performance-tester** orchestrates load testing:
+```typescript
+// Agent runs comprehensive load test
+const perfTest = await agent.runLoadTest({
+  target: 'https://api.example.com',
+  scenarios: {
+    checkout: { vus: 100, duration: '5m' },
+    search: { vus: 200, duration: '5m' },
+    browse: { vus: 500, duration: '5m' }
+  },
+  thresholds: {
+    'http_req_duration': ['p(95)<200'],
+    'http_req_failed': ['rate<0.01'],
+    'http_reqs': ['rate>100']
+  }
+});
+
+// Returns detailed performance report
+```
+
+### Bottleneck Analysis
+
+```typescript
+// Agent identifies performance bottlenecks
+const analysis = await qe-performance-tester.analyzeBottlenecks({
+  testResults: perfTest,
+  metrics: ['cpu', 'memory', 'db_queries', 'network', 'cache_hits']
+});
+
+// Returns:
+// {
+//   bottlenecks: [
+//     { component: 'database', severity: 'high', suggestion: 'Add index on orders.created_at' },
+//     { component: 'api', severity: 'medium', suggestion: 'Enable response caching' }
+//   ]
+// }
+```
+
+### Continuous Performance Monitoring
+
+```typescript
+// Agent integrates performance testing in CI/CD
+const ciPerformance = await qe-performance-tester.ciIntegration({
+  mode: 'smoke',  // Quick test on every commit
+  duration: '1m',
+  vus: 10,
+  failOn: {
+    'p95_response_time': 300,  // ms
+    'error_rate': 0.01         // 1%
+  }
+});
+```
+
+### Fleet Coordination for Performance
+
+```typescript
+const performanceFleet = await FleetManager.coordinate({
+  strategy: 'performance-testing',
+  agents: [
+    'qe-performance-tester',       // Run load tests
+    'qe-quality-analyzer',         // Analyze results
+    'qe-production-intelligence',  // Compare to production
+    'qe-deployment-readiness'      // Go/no-go decision
+  ],
+  topology: 'sequential'
+});
+```
+
+---
+
+## Related Skills
+
+**Testing:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
+- [api-testing-patterns](../api-testing-patterns/) - API performance testing
+
+**Quality:**
+- [quality-metrics](../quality-metrics/) - Performance metrics tracking
+- [risk-based-testing](../risk-based-testing/) - Performance risk assessment
 
 ## Resources
 

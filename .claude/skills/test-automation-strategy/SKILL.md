@@ -1,3 +1,14 @@
+---
+name: test-automation-strategy
+description: Build effective test automation strategy using the test pyramid and practical patterns. Use when planning automation approach, selecting tools, or optimizing test suites.
+version: 1.0.0
+category: testing
+tags: [test-automation, test-pyramid, ci-cd, automation-strategy, unit-testing, integration-testing]
+difficulty: intermediate
+estimated_time: 3-4 hours
+author: user
+---
+
 # Test Automation Strategy
 
 ## Core Philosophy
@@ -613,6 +624,208 @@ test.skip('flaky test', () => {
 - Fix all flaky tests
 - Target: Deploy multiple times daily
 
+## Using with QE Agents
+
+### Agent-Driven Test Pyramid
+
+**qe-test-generator** builds the pyramid intelligently:
+```typescript
+// Generate unit tests (70% of pyramid)
+await agent.generateTests({
+  level: 'unit',
+  target: 'src/services/PaymentService.ts',
+  coverage: 'comprehensive'
+});
+// → Fast, isolated tests for business logic
+
+// Generate integration tests (20% of pyramid)
+await agent.generateTests({
+  level: 'integration',
+  target: 'src/api/orders',
+  focus: 'database-interactions'
+});
+// → Tests for component integration
+
+// Generate E2E tests (10% of pyramid)
+await agent.generateTests({
+  level: 'e2e',
+  flows: ['checkout', 'payment'],
+  priority: 'critical-paths-only'
+});
+// → Minimal UI tests for happy paths
+```
+
+### Intelligent Test Selection
+
+**qe-regression-risk-analyzer** optimizes what to automate:
+```typescript
+// Analyze which tests provide most value
+const analysis = await agent.analyzeAutomationValue({
+  candidates: allManualTests,
+  criteria: ['repetition', 'stability', 'risk', 'execution-time']
+});
+
+// Returns prioritized list
+// High value: Frequent + stable + high-risk + fast
+// Low value: Rare + changing + low-risk + slow
+```
+
+### CI/CD Pipeline with Agent Coordination
+
+```yaml
+# Agents integrated into CI pipeline
+name: QE Agent Pipeline
+
+on: [push, pull_request]
+
+jobs:
+  fast-feedback:
+    runs-on: ubuntu-latest
+    steps:
+      # Unit tests with qe-test-executor
+      - name: Unit Tests
+        run: aqe agent run qe-test-executor --level unit --parallel
+        # → <5 minutes
+
+  comprehensive-check:
+    needs: fast-feedback
+    steps:
+      # Integration tests
+      - name: Integration Tests
+        run: aqe agent run qe-test-executor --level integration
+        # → <10 minutes
+
+      # Coverage analysis
+      - name: Coverage Analysis
+        run: aqe agent run qe-coverage-analyzer --threshold 80
+        # → Identifies gaps in real-time
+
+  deployment-gate:
+    needs: comprehensive-check
+    steps:
+      # E2E critical paths
+      - name: E2E Tests
+        run: aqe agent run qe-test-executor --level e2e --critical-only
+
+      # Quality gate decision
+      - name: Quality Gate
+        run: aqe agent run qe-quality-gate
+        # → GO/NO-GO decision
+```
+
+### Flaky Test Management with Agents
+
+**qe-flaky-test-hunter** identifies and fixes flaky tests:
+```typescript
+// Detect flakiness patterns
+await agent.huntFlakyTests({
+  suite: 'all',
+  runs: 100,
+  statisticalConfidence: 0.95
+});
+// → Identifies tests with <95% pass rate
+
+// Auto-stabilize common patterns
+await agent.stabilizeTests({
+  pattern: 'race-conditions',
+  fix: 'add-explicit-waits'
+});
+// → Converts sleep() to waitFor()
+
+// Quarantine unfixable tests
+await agent.quarantine({
+  flakiness: '>10%',
+  action: 'skip-and-ticket'
+});
+```
+
+### Agent-Assisted Test Data Strategy
+
+**qe-test-data-architect** generates test data:
+```typescript
+// Generate isolated test data per test
+const testData = await agent.generateTestData({
+  schema: 'users',
+  count: 100,
+  realistic: true,
+  isolation: 'per-test'  // Each test gets unique data
+});
+
+// Generate edge cases
+const edgeCases = await agent.generateEdgeCases({
+  field: 'email',
+  patterns: ['special-chars', 'unicode', 'max-length']
+});
+```
+
+### Fleet Coordination for Test Automation
+
+```typescript
+// Coordinate multiple agents for automation strategy
+const automationFleet = await FleetManager.coordinate({
+  strategy: 'test-automation',
+  agents: [
+    'qe-test-generator',           // Generate tests
+    'qe-test-executor',            // Execute in CI
+    'qe-coverage-analyzer',        // Analyze gaps
+    'qe-flaky-test-hunter',        // Fix flakiness
+    'qe-regression-risk-analyzer'  // Optimize selection
+  ],
+  topology: 'sequential'
+});
+
+// Execute full automation workflow
+await automationFleet.execute({
+  scope: 'payment-module',
+  pyramidBalance: { unit: 0.7, integration: 0.2, e2e: 0.1 }
+});
+```
+
+### Strategic Automation Decisions with Agent Insights
+
+```typescript
+// Agent helps decide what to automate
+const recommendation = await qe-quality-analyzer.recommendAutomation({
+  feature: 'checkout-flow',
+  currentCoverage: 'manual-only',
+  executionFrequency: 'daily',
+  stability: 'stable',
+  risk: 'high'
+});
+
+// Returns:
+// {
+//   shouldAutomate: true,
+//   level: 'integration',  // Skip E2E, test via API
+//   priority: 'high',
+//   estimatedROI: '15 hours saved/month',
+//   maintainanceCost: 'low'
+// }
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent orchestration for automation
+- [holistic-testing-pact](../holistic-testing-pact/) - Automation within whole-team quality
+
+**Development Practices:**
+- [tdd-london-chicago](../tdd-london-chicago/) - TDD drives automation at unit level
+- [xp-practices](../xp-practices/) - CI/CD integration with automation
+
+**Testing Specializations:**
+- [api-testing-patterns](../api-testing-patterns/) - API automation strategies
+- [performance-testing](../performance-testing/) - Performance automation
+- [security-testing](../security-testing/) - Security scan automation
+- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Balance with manual exploration
+
+**Communication:**
+- [quality-metrics](../quality-metrics/) - Measure automation effectiveness
+
+---
+
 ## Remember
 
 **Automation is a means, not an end.**
@@ -625,3 +838,5 @@ The goal is confident, frequent deployments of high-quality software. Automation
 Don't automate for automation's sake. Automate strategically.
 
 **Good automation amplifies good testing. Bad automation wastes everyone's time.**
+
+**With Agents**: Agents excel at maintaining the test pyramid, detecting flakiness, optimizing test selection, and coordinating CI/CD pipelines. Use agents to automate the automation strategy itself.

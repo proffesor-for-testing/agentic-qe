@@ -1,3 +1,20 @@
+---
+name: quality-metrics
+description: Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness.
+version: 1.0.0
+category: quality-engineering
+tags:
+  - metrics
+  - kpis
+  - quality-dashboards
+  - dora-metrics
+  - measurement
+  - continuous-improvement
+difficulty: intermediate
+estimated_time: 30-45 minutes
+author: user
+---
+
 # Quality Metrics
 
 ## Core Principle
@@ -391,6 +408,179 @@ Add:
 **Kill ruthlessly**: Remove metrics that don't drive action
 **Stay contextual**: What matters changes with your situation
 
+## Using with QE Agents
+
+### Automated Metrics Collection
+
+**qe-quality-analyzer** collects and analyzes quality metrics:
+```typescript
+// Agent collects comprehensive metrics automatically
+await agent.collectMetrics({
+  scope: 'all',
+  timeframe: '30d',
+  categories: [
+    'deployment-frequency',
+    'defect-escape-rate',
+    'test-execution-time',
+    'flaky-test-rate',
+    'coverage-trends'
+  ]
+});
+
+// Returns real-time dashboard data
+// No manual tracking required
+```
+
+### Intelligent Metric Analysis
+
+**qe-quality-analyzer** identifies trends and anomalies:
+```typescript
+// Agent detects metric anomalies
+const analysis = await agent.analyzeTrends({
+  metric: 'defect-escape-rate',
+  timeframe: '90d',
+  alertThreshold: 0.15
+});
+
+// Returns:
+// {
+//   trend: 'increasing',
+//   currentValue: 0.18,
+//   avgValue: 0.08,
+//   anomaly: true,
+//   recommendation: 'Increase pre-release testing focus',
+//   relatedMetrics: ['test-coverage: decreasing', 'MTTR: increasing']
+// }
+```
+
+### Actionable Insights from Metrics
+
+**qe-quality-gate** uses metrics for decision-making:
+```typescript
+// Agent makes GO/NO-GO decisions based on metrics
+const decision = await agent.evaluateMetrics({
+  release: 'v3.2',
+  thresholds: {
+    defectEscapeRate: '<5%',
+    changeFailureRate: '<10%',
+    testExecutionTime: '<15min',
+    flakyTestRate: '<2%'
+  }
+});
+
+// Returns:
+// {
+//   decision: 'NO-GO',
+//   blockers: [
+//     'Flaky test rate: 4.2% (threshold: 2%)'
+//   ],
+//   recommendations: [
+//     'Run qe-flaky-test-hunter to stabilize tests'
+//   ]
+// }
+```
+
+### Real-Time Metrics Dashboard
+
+**qe-quality-analyzer** generates live dashboards:
+```typescript
+// Agent creates context-specific dashboards
+await agent.createDashboard({
+  audience: 'executive',  // or 'developer', 'product'
+  focus: 'release-readiness',
+  updateFrequency: 'real-time'
+});
+
+// Executive Dashboard:
+// - Defect escape rate: 3.2% ✅
+// - Deployment frequency: 5/day ✅
+// - Change failure rate: 7% ✅
+// - Customer-impacting incidents: 1 (down from 3)
+```
+
+### Metric-Driven Test Optimization
+
+**qe-regression-risk-analyzer** uses metrics to optimize testing:
+```typescript
+// Agent identifies which tests provide most value
+const optimization = await agent.optimizeTestSuite({
+  metrics: {
+    executionTime: 'per-test',
+    defectDetectionRate: 'per-test',
+    maintenanceCost: 'per-test'
+  },
+  goal: 'maximize-value-per-minute'
+});
+
+// Recommends:
+// - Remove 50 tests with 0% defect detection (save 15 min)
+// - Keep top 200 tests (95% defect detection)
+// - Result: 40% faster suite, 5% defect detection loss
+```
+
+### Fleet Coordination for Metrics
+
+```typescript
+// Multiple agents collaborate on metrics collection and analysis
+const metricsFleet = await FleetManager.coordinate({
+  strategy: 'quality-metrics',
+  agents: [
+    'qe-test-executor',         // Collect execution metrics
+    'qe-coverage-analyzer',     // Collect coverage metrics
+    'qe-production-intelligence', // Collect production metrics
+    'qe-quality-analyzer',      // Analyze and visualize
+    'qe-quality-gate'           // Make decisions
+  ],
+  topology: 'hierarchical'
+});
+
+// Continuous metrics pipeline
+await metricsFleet.execute({
+  schedule: 'continuous',
+  aggregationInterval: '5min'
+});
+```
+
+### Context-Aware Metric Selection
+
+```typescript
+// Agent recommends metrics based on context
+const recommendation = await qe-quality-analyzer.recommendMetrics({
+  context: 'startup',
+  stage: 'early',
+  team: 'small',
+  compliance: 'none'
+});
+
+// Recommends:
+// - deployment-frequency (speed to market)
+// - critical-path-coverage (protect revenue)
+// - MTTR (move fast, fix fast)
+//
+// Skip:
+// - comprehensive coverage %
+// - detailed traceability
+// - process compliance metrics
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Metrics-driven agent coordination
+- [holistic-testing-pact](../holistic-testing-pact/) - Metrics across test quadrants
+
+**Testing Approaches:**
+- [risk-based-testing](../risk-based-testing/) - Risk-based metric selection
+- [test-automation-strategy](../test-automation-strategy/) - Automation effectiveness metrics
+- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Exploratory session metrics
+
+**Development Practices:**
+- [xp-practices](../xp-practices/) - XP success metrics (velocity, lead time)
+
+---
+
 ## Resources
 
 - **Accelerate** by Forsgren, Humble, Kim (DORA metrics)
@@ -398,3 +588,5 @@ Add:
 - Your own retrospectives (which metrics helped? Which didn't?)
 
 Metrics are tools for better decisions, not scorecards for performance reviews. Use them wisely.
+
+**With Agents**: Agents automate metrics collection, detect trends and anomalies, and provide context-aware recommendations. Use agents to make metrics actionable and avoid vanity metrics. Agents continuously analyze what drives quality outcomes in your specific context.

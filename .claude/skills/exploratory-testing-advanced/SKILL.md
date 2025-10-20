@@ -1,6 +1,12 @@
 ---
-name: Advanced Exploratory Testing
+name: advanced-exploratory-testing
 description: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks.
+version: 1.0.0
+category: testing
+tags: [exploratory-testing, sbtm, rst-heuristics, test-tours, bug-investigation, session-based-testing]
+difficulty: intermediate
+estimated_time: 3-4 hours
+author: user
 ---
 
 # Advanced Exploratory Testing
@@ -576,6 +582,81 @@ Test state transitions:
 - Mockaroo (custom data sets)
 - SQL scripts (predefined scenarios)
 
+## Using with QE Agents
+
+### Agent-Assisted Exploration
+
+**qe-flaky-test-hunter** uses this skill:
+```typescript
+// Agent uses exploration tours to hunt flaky tests
+await agent.exploreWithTour({
+  tour: 'bad-neighborhood',  // Focus on trouble-prone areas
+  duration: '90min',
+  charter: 'Discover flaky test patterns in authentication'
+});
+```
+
+**qe-visual-tester** applies exploratory techniques:
+```typescript
+// Agent explores UI using Supermodel Tour
+await agent.visualExploration({
+  tour: 'supermodel',  // Focus on visual/UX aspects
+  heuristic: 'SFDIPOT',
+  recordSession: true
+});
+```
+
+### Exploration-Generated Test Cases
+
+Agents learn from human exploration sessions:
+```typescript
+// Human explores and finds pattern
+// Session notes: "Payment fails when card expires during checkout"
+
+// Agent converts to automated test
+await qe-test-generator.generateFromSession({
+  sessionNotes: './sessions/payment-exploration-2025-10-20.md',
+  pattern: 'timing-related-errors',
+  priority: 'high'
+});
+// → Creates automated regression test for timing issue
+```
+
+### Agent-Human Pairing for Exploration
+
+```typescript
+// Collaborative exploration
+const session = await agent.startExplorationSession({
+  charter: 'Explore checkout edge cases',
+  humanRole: 'navigator',  // Human directs, agent executes
+  agentRole: 'driver'
+});
+
+// Agent executes while human observes and directs
+await session.explore();
+// Agent logs all actions, human spots patterns
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Using agents for exploration
+- [context-driven-testing](../context-driven-testing/) - Adapt exploration to context
+- [risk-based-testing](../risk-based-testing/) - Focus exploration on high-risk areas
+
+**Testing Approaches:**
+- [api-testing-patterns](../api-testing-patterns/) - Exploratory API testing
+- [security-testing](../security-testing/) - Security-focused tours
+- [performance-testing](../performance-testing/) - Performance exploration
+
+**Development Practices:**
+- [xp-practices](../xp-practices/) - Ensemble exploration sessions
+- [bug-reporting-excellence](../bug-reporting-excellence/) - Document findings effectively
+
+---
+
 ## Remember
 
 Exploratory testing is not:
@@ -591,3 +672,5 @@ Exploratory testing IS:
 - Continuous learning
 
 **Balance automation and exploration. Neither replaces the other.**
+
+**With Agents**: Agents handle repetitive exploration patterns, humans focus on creative, context-driven investigation. Both amplify each other.

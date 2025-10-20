@@ -1,6 +1,12 @@
 ---
-name: Context-Driven Testing
+name: context-driven-testing
 description: Apply context-driven testing principles where practices are chosen based on project context, not universal "best practices". Use when making testing decisions, questioning dogma, or adapting approaches to specific project needs.
+version: 1.0.0
+category: testing
+tags: [context-driven, exploratory-testing, rapid-software-testing, test-strategy, risk-based, session-based]
+difficulty: advanced
+estimated_time: 45-60 minutes
+author: user
 ---
 
 # Context-Driven Testing
@@ -292,8 +298,169 @@ Context-driven testing requires competence. Invest in skill development.
 - Association for Software Testing (AST)
 - Ministry of Testing community
 
+## Using with QE Agents
+
+### Context-Aware Agent Selection
+
+**qe-fleet-commander** analyzes context and selects appropriate agents:
+```typescript
+// Agent analyzes project context
+const contextAnalysis = await agent.analyzeContext({
+  project: 'e-commerce-platform',
+  stage: 'startup',
+  team: 'small',
+  constraints: ['timeline: tight', 'budget: limited'],
+  risks: ['high-transaction-volume', 'payment-security']
+});
+
+// Recommends agents based on context:
+// - qe-security-scanner (critical risk)
+// - qe-performance-tester (high volume)
+// - Skip: qe-visual-tester (low priority in startup context)
+```
+
+### Adaptive Testing Strategy
+
+Agents adjust their approach based on context:
+```typescript
+// Startup context: Fast exploratory testing
+await qe-test-generator.generate({
+  context: 'startup',
+  focus: 'critical-paths-only',
+  depth: 'smoke-tests',
+  automation: 'minimal'
+});
+
+// Regulated industry: Comprehensive documentation
+await qe-test-generator.generate({
+  context: 'medical-device',
+  focus: 'comprehensive-coverage',
+  depth: 'extensive',
+  automation: 'extensive',
+  documentation: 'full-traceability'
+});
+```
+
+### Context-Driven Risk Assessment
+
+**qe-regression-risk-analyzer** applies context to risk scoring:
+```typescript
+// Agent weights risk factors based on context
+const riskAnalysis = await agent.analyzeWithContext({
+  feature: 'payment-processing',
+  context: {
+    industry: 'fintech',         // High regulatory risk
+    userBase: 'enterprise',      // High reputational risk
+    maturity: 'early-stage'      // Higher technical risk
+  }
+});
+
+// Risk score adjusted by context:
+// - Same feature in different context = different risk level
+// - fintech payment: CRITICAL
+// - internal tool payment: MEDIUM
+```
+
+### Human-Agent Collaborative Investigation
+
+```typescript
+// Agent assists in exploratory testing (context-driven approach)
+const session = await qe-flaky-test-hunter.exploreWithHuman({
+  charter: 'Investigate auth edge cases',
+  humanRole: 'navigator',  // Human guides strategy
+  agentRole: 'executor',   // Agent executes variations
+  style: 'rapid-software-testing'
+});
+
+// Agent generates variations, human recognizes problems
+// Combined: Human judgment + Agent thoroughness
+```
+
+### Context-Specific Agent Behavior
+
+```typescript
+// Agent adapts questioning style based on context
+await qe-requirements-validator.validate({
+  requirements: userStories,
+  context: 'safety-critical',  // Medical device
+  rigor: 'strict',             // Question everything
+  documentation: 'mandatory'
+});
+
+// vs.
+
+await qe-requirements-validator.validate({
+  requirements: userStories,
+  context: 'prototype',        // Early MVP
+  rigor: 'lightweight',        // Accept ambiguity
+  documentation: 'minimal'
+});
+```
+
+### Fleet Coordination with Context Awareness
+
+```typescript
+// Agents coordinate based on project context
+const contextFleet = await FleetManager.coordinate({
+  strategy: 'context-driven',
+  context: {
+    type: 'greenfield-saas',
+    stage: 'growth',
+    compliance: 'gdpr-only'
+  },
+  agents: [
+    'qe-test-generator',          // Balanced automation
+    'qe-security-scanner',        // GDPR focus
+    'qe-performance-tester',      // Scalability critical
+    'qe-flaky-test-hunter'        // Maintain velocity
+  ],
+  exclude: [
+    'qe-visual-tester',           // Not priority
+    'qe-requirements-validator'   // Too heavyweight
+  ]
+});
+```
+
+### Agent Learning from Context
+
+```typescript
+// Agents learn what works in your specific context
+await qe-quality-analyzer.learnFromContext({
+  timeframe: '90d',
+  analyze: [
+    'which-tests-found-most-bugs',
+    'which-approaches-caught-regressions',
+    'what-metrics-predicted-quality'
+  ]
+});
+
+// Agent adapts recommendations to your context
+// "In your context: exploratory testing finds 3x more critical bugs than scripted"
+// "Automation ROI is low for features changed >2x/week"
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Context-driven agent selection
+- [holistic-testing-pact](../holistic-testing-pact/) - Adapt holistic model to context
+
+**Testing Approaches:**
+- [risk-based-testing](../risk-based-testing/) - Context affects risk assessment
+- [exploratory-testing-advanced](../exploratory-testing-advanced/) - RST techniques
+- [test-automation-strategy](../test-automation-strategy/) - Context determines automation approach
+
+**Development Practices:**
+- [xp-practices](../xp-practices/) - Context-driven XP adoption
+
+---
+
 ## Final Thought
 
 Context-driven testing is intellectually demanding. It requires constant thinking, learning, and adaptation. That's also what makes it effective and fulfilling.
 
 You're not a test script executor. You're a skilled investigator helping teams build better products.
+
+**With Agents**: Agents enhance context-driven testing by analyzing context, adapting strategies, and learning what works in your specific situation. Use agents to scale context-driven thinking across the team while maintaining human judgment for critical decisions.

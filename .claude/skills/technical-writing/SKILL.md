@@ -1,3 +1,14 @@
+---
+name: technical-writing
+description: Write clear, engaging technical content from real experience. Use when writing blog posts, documentation, tutorials, or technical articles.
+version: 1.0.0
+category: communication
+tags: [documentation, blogging, tutorials, content-creation, clarity, audience-awareness]
+difficulty: intermediate
+estimated_time: 30 minutes
+author: user
+---
+
 # Technical Writing Skill
 
 ## Purpose
@@ -129,6 +140,95 @@ Before publishing:
 - **On Writing Well** by William Zinsser
 - **Technical Blogging** by Antonio Cangiano (pragmatic approach)
 - Your own blog archives - review what got engagement vs. what flopped
+
+## Using with QE Agents
+
+### Automated Documentation Generation
+
+**qe-quality-analyzer** generates documentation from code:
+```typescript
+// Agent generates documentation from source code
+const docs = await agent.generateDocs({
+  source: 'src/services/PaymentService.ts',
+  format: 'markdown',
+  includeExamples: true,
+  includeApiDocs: true,
+  includeTypeDefinitions: true
+});
+
+// Generates:
+// - Function signatures
+// - Parameter descriptions
+// - Return types
+// - Usage examples
+// - Error handling docs
+```
+
+### Documentation Quality Review
+
+```typescript
+// Agent reviews documentation for quality
+const docReview = await qe-quality-analyzer.reviewDocumentation({
+  files: ['README.md', 'docs/api.md', 'docs/guides/*.md'],
+  checkClarity: true,
+  checkCompleteness: true,
+  checkAccuracy: true,
+  checkCodeExamples: true
+});
+
+// Returns:
+// {
+//   issues: [
+//     { file: 'README.md', line: 45, issue: 'Example code is outdated' },
+//     { file: 'docs/api.md', line: 12, issue: 'Missing error response docs' }
+//   ],
+//   score: 0.82
+// }
+```
+
+### Automated README Updates
+
+```typescript
+// Agent keeps README in sync with code
+const readmeUpdate = await qe-quality-analyzer.syncReadme({
+  source: 'src/',
+  readme: 'README.md',
+  sections: {
+    installation: true,
+    usage: true,
+    api: true,
+    examples: true
+  },
+  preserveManual: true  // Keep manually written sections
+});
+```
+
+### Documentation Fleet
+
+```typescript
+const docsFleet = await FleetManager.coordinate({
+  strategy: 'documentation',
+  agents: [
+    'qe-quality-analyzer',     // Generate and review docs
+    'qe-api-contract-validator', // API documentation accuracy
+    'qe-test-generator'        // Generate example code
+  ],
+  topology: 'sequential'
+});
+```
+
+---
+
+## Related Skills
+
+**Communication:**
+- [bug-reporting-excellence](../bug-reporting-excellence/) - Technical writing for bugs
+- [code-review-quality](../code-review-quality/) - Review documentation
+
+**Development:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Doc automation
+
+---
 
 ## Remember
 

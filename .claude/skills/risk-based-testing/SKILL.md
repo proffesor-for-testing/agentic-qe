@@ -1,3 +1,20 @@
+---
+name: risk-based-testing
+description: Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions.
+version: 1.0.0
+category: testing
+tags:
+  - risk-assessment
+  - test-strategy
+  - prioritization
+  - quality-management
+  - decision-making
+  - resource-allocation
+difficulty: intermediate
+estimated_time: 45-60 minutes
+author: user
+---
+
 # Risk-Based Testing
 
 ## Core Principle
@@ -549,6 +566,150 @@ Missing business, regulatory, reputation risks.
 - [ ] Update risk assessment based on learnings
 - [ ] Improve testing for next cycle
 
+## Using with QE Agents
+
+### Automated Risk Assessment
+
+**qe-regression-risk-analyzer** performs intelligent risk scoring:
+```typescript
+// Agent analyzes PR for risk factors
+const riskAnalysis = await agent.analyzeRisk({
+  diff: prChanges,
+  historicalData: true,
+  complexity: true,
+  testCoverage: true
+});
+
+// Returns prioritized risk areas
+// {
+//   criticalRisks: ['payment-processing', 'auth-session'],
+//   highRisks: ['order-calculation'],
+//   recommendedTests: [...],
+//   estimatedEffort: '4 hours'
+// }
+```
+
+### Risk-Driven Test Generation
+
+**qe-test-generator** creates tests based on risk levels:
+```typescript
+// Generate tests for critical risk areas
+await agent.generateTests({
+  riskLevel: 'critical',
+  features: ['payment', 'checkout'],
+  coverage: 'comprehensive',  // All scenarios + edge cases
+  techniques: ['boundary', 'error', 'load', 'security']
+});
+
+// Generate lighter tests for low risk
+await agent.generateTests({
+  riskLevel: 'low',
+  features: ['help-docs'],
+  coverage: 'smoke-only'  // Just verify it works
+});
+```
+
+### Dynamic Risk Re-Assessment
+
+**qe-production-intelligence** monitors production to update risk scores:
+```typescript
+// Agent tracks production incidents
+const productionRisks = await agent.analyzeIncidents({
+  timeframe: '30d',
+  severity: 'high',
+  frequency: 'recurring'
+});
+
+// Updates risk matrix based on real data
+// "Payment processing: Medium → CRITICAL (3 incidents this month)"
+// → Automatically increases test coverage for payment module
+```
+
+### Risk-Based Quality Gate
+
+**qe-quality-gate** makes GO/NO-GO decisions using risk:
+```typescript
+// Agent evaluates readiness for release
+const decision = await agent.evaluateRelease({
+  strategy: 'risk-based',
+  criteria: {
+    criticalRisks: 'all-tested-and-passed',
+    highRisks: 'coverage >= 90%',
+    mediumRisks: 'coverage >= 75%',
+    lowRisks: 'documented-only'
+  }
+});
+
+// Returns:
+// {
+//   decision: 'GO' | 'NO-GO',
+//   blockers: [],
+//   residualRisks: ['Low: UI glitch in admin panel (documented)'],
+//   confidence: 0.95
+// }
+```
+
+### Fleet Coordination for Risk Management
+
+```typescript
+// Multiple agents collaborate on risk management
+const riskFleet = await FleetManager.coordinate({
+  strategy: 'risk-based-testing',
+  agents: [
+    'qe-regression-risk-analyzer',    // Identify risks
+    'qe-test-generator',              // Generate risk-targeted tests
+    'qe-test-executor',               // Execute by priority
+    'qe-production-intelligence',     // Update risk from production
+    'qe-quality-gate'                 // Make release decision
+  ],
+  topology: 'sequential'
+});
+
+// Executes full risk-based workflow
+await riskFleet.execute({
+  release: 'v3.2',
+  riskMatrix: 'e-commerce-default'
+});
+```
+
+### Agent-Assisted Risk Workshops
+
+```typescript
+// Agent facilitates risk identification workshop
+const workshop = await qe-requirements-validator.facilitateRiskWorkshop({
+  participants: ['product', 'dev', 'qe', 'support', 'security'],
+  features: ['new-checkout-flow'],
+  duration: '60min'
+});
+
+// Agent synthesizes input into risk matrix
+// Identifies: 15 risks across 5 categories
+// Prioritizes: 3 critical, 5 high, 7 medium
+// Recommends: Test strategy per risk level
+```
+
+---
+
+## Related Skills
+
+**Core Quality Practices:**
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Risk-based agent coordination
+- [holistic-testing-pact](../holistic-testing-pact/) - Risk coverage across test quadrants
+- [context-driven-testing](../context-driven-testing/) - Risk assessment in context
+
+**Testing Approaches:**
+- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Risk-guided exploration charters
+- [test-automation-strategy](../test-automation-strategy/) - Automate based on risk × frequency
+- [api-testing-patterns](../api-testing-patterns/) - API risk scenarios
+- [performance-testing](../performance-testing/) - Load test high-risk areas
+- [security-testing](../security-testing/) - Security risk assessment
+
+**Communication:**
+- [quality-metrics](../quality-metrics/) - Risk-based metrics dashboard
+- [bug-reporting-excellence](../bug-reporting-excellence/) - Communicate bug risk levels
+
+---
+
 ## Remember
 
 **Perfect testing is impossible. Smart testing is achievable.**
@@ -556,3 +717,5 @@ Missing business, regulatory, reputation risks.
 Focus effort where it matters most. Accept that low-risk areas might have bugs. Communicate risk clearly. Adjust as you learn.
 
 Risk-based testing isn't about testing less - it's about testing smarter.
+
+**With Agents**: Agents automate risk scoring, continuously update risk matrices from production data, and orchestrate test generation based on risk priorities. Use agents to make risk-based testing data-driven and scalable.
