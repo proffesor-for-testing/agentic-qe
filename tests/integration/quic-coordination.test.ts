@@ -132,9 +132,28 @@ describe('QUIC Coordination Integration Tests', () => {
   });
 
   afterEach(async () => {
-    await memory.close();
-    eventBus.removeAllListeners();
-    transport.removeAllListeners();
+    // Close memory store
+    if (memory) {
+      await memory.close();
+    }
+
+    // Remove all event listeners from EventBus
+    if (eventBus?.removeAllListeners) {
+      eventBus.removeAllListeners();
+    }
+
+    // Remove all event listeners from transport
+    if (transport?.removeAllListeners) {
+      transport.removeAllListeners();
+      // Clear transport internal state
+      (transport as any).peers?.clear();
+      (transport as any).messageLog = [];
+    }
+
+    // Force garbage collection if available (run tests with --expose-gc)
+    if (global.gc) {
+      global.gc();
+    }
   });
 
   describe('Multi-Agent Coordination via QUIC', () => {

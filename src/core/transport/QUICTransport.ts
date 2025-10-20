@@ -367,9 +367,13 @@ export class QUICTransport extends EventEmitter implements IQUICTransport {
       return;
     }
 
+    // Log before cleanup
+    this.logger.info('Closing QUICTransport');
+
     // Stop discovery
     if (this.discoveryInterval) {
       clearInterval(this.discoveryInterval);
+      this.discoveryInterval = undefined;
     }
 
     // Disconnect all peers
@@ -383,17 +387,29 @@ export class QUICTransport extends EventEmitter implements IQUICTransport {
       await this.closeStream(streamId);
     }
 
-    // Clear pending requests
+    // Clear pending requests with proper cleanup
     for (const [requestId, pending] of this.pendingRequests.entries()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error('Transport closed'));
-      this.pendingRequests.delete(requestId);
+      try {
+        clearTimeout(pending.timer);
+        pending.reject(new Error('Transport closed'));
+      } catch (error) {
+        // Use logger if still available
+        if (this.logger) {
+          this.logger.warn(`Error cleaning up pending request ${requestId}:`, error);
+        }
+      }
     }
 
+    // Clear all collections
     this.peers.clear();
     this.streams.clear();
     this.pendingRequests.clear();
+
+    // Remove all event listeners (prevents memory leaks)
     this.removeAllListeners();
+
+    // Clear EventBus reference
+    this.eventBus = undefined;
 
     this.isInitialized = false;
     this.logger.info('QUICTransport closed');

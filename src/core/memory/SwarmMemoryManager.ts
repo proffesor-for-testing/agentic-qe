@@ -249,14 +249,14 @@ export class SwarmMemoryManager {
     this.db.prepare(sql).run(...params);
   }
 
-  private get<T = any>(sql: string, params: any[] = []): T | undefined {
+  private queryOne<T = any>(sql: string, params: any[] = []): T | undefined {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
     return this.db.prepare(sql).get(...params) as T | undefined;
   }
 
-  private all<T = any>(sql: string, params: any[] = []): T[] {
+  private queryAll<T = any>(sql: string, params: any[] = []): T[] {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
@@ -520,7 +520,7 @@ export class SwarmMemoryManager {
     const metadata = options.metadata ? JSON.stringify(options.metadata) : null;
 
     // Check write permission if updating existing entry
-    const existing = await this.get<any>(
+    const existing = await this.queryOne<any>(
       `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
       [key, partition]
     );
@@ -570,8 +570,24 @@ export class SwarmMemoryManager {
    * Alias for store() method to maintain compatibility with MemoryStore interface
    * Used by VerificationHookManager and other components
    */
-  async set(key: string, value: any, options: StoreOptions = {}): Promise<void> {
+  async set(key: string, value: any, options: StoreOptions | string = {}): Promise<void> {
+    // Handle legacy API: set(key, value, partition)
+    if (typeof options === 'string') {
+      return this.store(key, value, { partition: options });
+    }
     return this.store(key, value, options);
+  }
+
+  /**
+   * Alias for retrieve() method to maintain compatibility
+   * Supports both options object and partition string
+   */
+  async get(key: string, options: RetrieveOptions | string = {}): Promise<any> {
+    // Handle legacy API: get(key, partition)
+    if (typeof options === 'string') {
+      return this.retrieve(key, { partition: options });
+    }
+    return this.retrieve(key, options);
   }
 
   async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
@@ -595,7 +611,7 @@ export class SwarmMemoryManager {
       params.push(now);
     }
 
-    const row = await this.get<any>(query, params);
+    const row = await this.queryOne<any>(query, params);
 
     if (!row) {
       return null;
@@ -640,7 +656,7 @@ export class SwarmMemoryManager {
       params.push(now);
     }
 
-    const rows = await this.all<any>(query, params);
+    const rows = await this.queryAll<any>(query, params);
 
     // Filter by access control if agentId provided
     const filteredRows = options.agentId
@@ -680,7 +696,7 @@ export class SwarmMemoryManager {
 
     // Check delete permission if agentId provided
     if (options.agentId) {
-      const row = await this.get<any>(
+      const row = await this.queryOne<any>(
         `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
         [key, partition]
       );
@@ -741,7 +757,7 @@ export class SwarmMemoryManager {
 
     const now = Date.now();
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT key, value, created_at, expires_at
        FROM hints
        WHERE key LIKE ? AND (expires_at IS NULL OR expires_at > ?)
@@ -827,22 +843,22 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const entriesCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM memory_entries`);
-    const hintsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM hints`);
-    const eventsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM events`);
-    const workflowsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM workflow_state`);
-    const patternsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM patterns`);
-    const consensusCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM consensus_state`);
-    const metricsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM performance_metrics`);
-    const artifactsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM artifacts`);
-    const sessionsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM sessions`);
-    const agentsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM agent_registry`);
-    const goapGoalsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM goap_goals`);
-    const goapActionsCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM goap_actions`);
-    const goapPlansCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM goap_plans`);
-    const oodaCyclesCount = await this.get<{count: number}>(`SELECT COUNT(*) as count FROM ooda_cycles`);
-    const partitionsResult = await this.all<{partition: string}>(`SELECT DISTINCT partition FROM memory_entries`);
-    const accessLevelsResult = await this.all<{access_level: string; count: number}>(
+    const entriesCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM memory_entries`);
+    const hintsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM hints`);
+    const eventsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM events`);
+    const workflowsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM workflow_state`);
+    const patternsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM patterns`);
+    const consensusCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM consensus_state`);
+    const metricsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM performance_metrics`);
+    const artifactsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM artifacts`);
+    const sessionsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM sessions`);
+    const agentsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM agent_registry`);
+    const goapGoalsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM goap_goals`);
+    const goapActionsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM goap_actions`);
+    const goapPlansCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM goap_plans`);
+    const oodaCyclesCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM ooda_cycles`);
+    const partitionsResult = await this.queryAll<{partition: string}>(`SELECT DISTINCT partition FROM memory_entries`);
+    const accessLevelsResult = await this.queryAll<{access_level: string; count: number}>(
       `SELECT access_level, COUNT(*) as count FROM memory_entries GROUP BY access_level`
     );
 
@@ -900,7 +916,7 @@ export class SwarmMemoryManager {
     }
 
     const now = Date.now();
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, type, payload, timestamp, source, ttl
        FROM events
        WHERE type = ? AND (expires_at IS NULL OR expires_at > ?)
@@ -924,7 +940,7 @@ export class SwarmMemoryManager {
     }
 
     const now = Date.now();
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, type, payload, timestamp, source, ttl
        FROM events
        WHERE source = ? AND (expires_at IS NULL OR expires_at > ?)
@@ -966,7 +982,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, step, status, checkpoint, sha, ttl, created_at, updated_at
        FROM workflow_state
        WHERE id = ?`,
@@ -1017,7 +1033,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, step, status, checkpoint, sha, ttl, created_at, updated_at
        FROM workflow_state
        WHERE status = ?`,
@@ -1074,7 +1090,7 @@ export class SwarmMemoryManager {
     }
 
     const now = Date.now();
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
        WHERE pattern = ? AND (expires_at IS NULL OR expires_at > ?)`,
@@ -1115,7 +1131,7 @@ export class SwarmMemoryManager {
     }
 
     const now = Date.now();
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
        WHERE confidence >= ? AND (expires_at IS NULL OR expires_at > ?)
@@ -1171,7 +1187,7 @@ export class SwarmMemoryManager {
     }
 
     const now = Date.now();
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, decision, proposer, votes, quorum, status, version, ttl, created_at
        FROM consensus_state
        WHERE id = ? AND (expires_at IS NULL OR expires_at > ?)`,
@@ -1228,7 +1244,7 @@ export class SwarmMemoryManager {
     }
 
     const now = Date.now();
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, decision, proposer, votes, quorum, status, version, ttl, created_at
        FROM consensus_state
        WHERE status = ? AND (expires_at IS NULL OR expires_at > ?)`,
@@ -1274,7 +1290,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, metric, value, unit, timestamp, agent_id
        FROM performance_metrics
        WHERE metric = ?
@@ -1297,7 +1313,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, metric, value, unit, timestamp, agent_id
        FROM performance_metrics
        WHERE agent_id = ?
@@ -1320,7 +1336,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<{ avg: number }>(
+    const row = await this.queryOne<{ avg: number }>(
       `SELECT AVG(value) as avg FROM performance_metrics WHERE metric = ?`,
       [metricName]
     );
@@ -1361,7 +1377,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, kind, path, sha256, tags, metadata, ttl, created_at
        FROM artifacts
        WHERE id = ?`,
@@ -1389,7 +1405,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, kind, path, sha256, tags, metadata, ttl, created_at
        FROM artifacts
        WHERE kind = ?`,
@@ -1413,7 +1429,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, kind, path, sha256, tags, metadata, ttl, created_at
        FROM artifacts
        WHERE tags LIKE ?`,
@@ -1462,7 +1478,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, mode, state, checkpoints, created_at, last_resumed
        FROM sessions
        WHERE id = ?`,
@@ -1552,7 +1568,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, type, capabilities, status, performance, created_at, updated_at
        FROM agent_registry
        WHERE id = ?`,
@@ -1594,7 +1610,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, type, capabilities, status, performance, created_at, updated_at
        FROM agent_registry
        WHERE status = ?`,
@@ -1650,7 +1666,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, conditions, cost, priority, created_at
        FROM goap_goals
        WHERE id = ?`,
@@ -1696,7 +1712,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, preconditions, effects, cost, agent_type, created_at
        FROM goap_actions
        WHERE id = ?`,
@@ -1736,7 +1752,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, goal_id, sequence, total_cost, created_at
        FROM goap_plans
        WHERE id = ?`,
@@ -1787,7 +1803,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT id, phase, observations, orientation, decision, action, timestamp, completed, result
        FROM ooda_cycles
        WHERE id = ?`,
@@ -1851,7 +1867,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.all<any>(
+    const rows = await this.queryAll<any>(
       `SELECT id, phase, observations, orientation, decision, action, timestamp, completed, result
        FROM ooda_cycles
        WHERE phase = ?`,
@@ -1917,7 +1933,7 @@ export class SwarmMemoryManager {
       return this.aclCache.get(resourceId)!;
     }
 
-    const row = await this.get<any>(
+    const row = await this.queryOne<any>(
       `SELECT * FROM memory_acl WHERE resource_id = ?`,
       [resourceId]
     );
@@ -2150,7 +2166,7 @@ export class SwarmMemoryManager {
 
     query += ` ORDER BY created_at ASC`;
 
-    const rows = await this.all<any>(query, params);
+    const rows = await this.queryAll<any>(query, params);
 
     return rows.map((row: any) => ({
       key: row.key,

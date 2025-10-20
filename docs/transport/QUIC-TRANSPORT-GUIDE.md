@@ -85,13 +85,26 @@ await transport.initialize({
   host: 'fleet.example.com',
   port: 4433,
 
-  // TLS credentials (optional - generates self-signed if not provided)
+  // TLS credentials (REQUIRED - NEVER use self-signed in production)
   certPath: '/path/to/cert.pem',
   keyPath: '/path/to/key.pem',
+  caPath: '/path/to/ca.pem',     // CA certificate for validation
 
   // QUIC features
   enable0RTT: true,              // Fast reconnects
   maxConcurrentStreams: 200,     // Parallel streams
+
+  // Security (CRITICAL)
+  security: {
+    enableTLS: true,             // Always true in production
+    verifyPeer: true,            // Always verify certificates
+    requireClientCertificates: false,
+    allowedCipherSuites: [
+      'TLS_AES_256_GCM_SHA384',
+      'TLS_CHACHA20_POLY1305_SHA256',
+      'TLS_AES_128_GCM_SHA256'
+    ]
+  },
 
   // Reliability
   enableTCPFallback: true,       // Network compatibility
@@ -597,9 +610,28 @@ describe('QUIC Transport Integration', () => {
 **4. Certificate Errors**
 - Verify certificate paths are correct
 - Check certificate is not expired
-- Use self-signed cert for development
+- Use CA-signed certificates (Let's Encrypt recommended)
+- **NEVER** use self-signed certificates in production
+- See: `docs/security/CERTIFICATE-SETUP-GUIDE.md`
 
 ## Best Practices
+
+### Security Best Practices (CRITICAL)
+
+1. **Use CA-Signed Certificates**: Never use self-signed certificates in production
+2. **Enable Certificate Validation**: Always set `rejectUnauthorized: true`
+3. **Use TLS 1.3**: Set `minTLSVersion: 'TLSv1.3'`
+4. **Strong Cipher Suites**: Only allow AES-256-GCM, ChaCha20-Poly1305
+5. **Certificate Pinning**: Enable for critical production services
+6. **Automate Renewal**: Use Let's Encrypt with auto-renewal
+7. **Audit Logging**: Enable security audit logs for compliance
+8. **Secure Private Keys**: Set file permissions to 0600
+9. **Regular Rotation**: Rotate certificates before expiration
+10. **Monitor Expiration**: Alert 30 days before certificate expires
+
+**See:** `docs/security/CERTIFICATE-SETUP-GUIDE.md` for complete security setup.
+
+### Performance Best Practices
 
 1. **Use Connection Pooling**: Reuse transport instances for the same endpoint
 2. **Enable 0-RTT**: Significantly reduces reconnection latency

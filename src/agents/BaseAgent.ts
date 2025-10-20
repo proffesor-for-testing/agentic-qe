@@ -249,8 +249,11 @@ export abstract class BaseAgent extends EventEmitter {
       // Save current state
       await this.saveState();
 
-      // Clean up resources
+      // Clean up agent-specific resources
       await this.cleanup();
+
+      // Clean up neural and QUIC resources (prevents memory leaks)
+      await this.cleanupResources();
 
       // Remove all event handlers from EventBus
       for (const [eventType, handlers] of this.eventHandlers.entries()) {
@@ -450,6 +453,39 @@ export abstract class BaseAgent extends EventEmitter {
    * Clean up agent-specific resources
    */
   protected abstract cleanup(): Promise<void>;
+
+  /**
+   * Cleanup neural and QUIC resources (prevents memory leaks)
+   */
+  protected async cleanupResources(): Promise<void> {
+    // Cleanup neural matcher
+    if (this.neuralMatcher) {
+      // Clear any cached embeddings or state
+      this.neuralMatcher = null;
+    }
+
+    // Cleanup QUIC transport
+    if (this.quicTransport) {
+      try {
+        await this.quicTransport.close();
+      } catch (error) {
+        console.error(`Error closing QUIC transport for ${this.agentId.id}:`, error);
+      }
+      this.quicTransport = undefined;
+    }
+
+    // Cleanup learning engine
+    if (this.learningEngine) {
+      // Learning engine doesn't hold large resources, just clear reference
+      this.learningEngine = undefined;
+    }
+
+    // Cleanup performance tracker
+    if (this.performanceTracker) {
+      // Performance tracker uses SwarmMemoryManager, no cleanup needed
+      this.performanceTracker = undefined;
+    }
+  }
 
   // ============================================================================
   // Event System
