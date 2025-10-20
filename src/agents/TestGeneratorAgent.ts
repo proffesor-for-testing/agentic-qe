@@ -115,8 +115,8 @@ export class TestGeneratorAgent extends BaseAgent {
 
   // Pattern-based generation (Phase 2 integration)
   private reasoningBank?: QEReasoningBank;
-  private learningEngine?: LearningEngine;
-  private performanceTracker?: PerformanceTracker;
+  // Note: learningEngine and performanceTracker are inherited from BaseAgent as protected
+  // We don't redeclare them here to avoid visibility conflicts
   private readonly patternConfig: {
     enabled: boolean;
     minConfidence: number;
@@ -141,13 +141,10 @@ export class TestGeneratorAgent extends BaseAgent {
       this.logger.info('[TestGeneratorAgent] Pattern-based generation enabled');
     }
 
-    // Initialize learning components
-    if (this.patternConfig.learningEnabled) {
-      // Cast memoryStore to SwarmMemoryManager for learning integration
-      const swarmMemory = this.memoryStore as unknown as SwarmMemoryManager;
-      this.learningEngine = new LearningEngine(this.agentId.id, swarmMemory);
-      this.performanceTracker = new PerformanceTracker(this.agentId.id, swarmMemory);
-      this.logger.info('[TestGeneratorAgent] Learning system enabled');
+    // Note: Learning components are initialized by BaseAgent if enableLearning is true
+    // We just log status here
+    if (this.patternConfig.learningEnabled && this.enableLearning) {
+      this.logger.info('[TestGeneratorAgent] Learning system will be initialized by BaseAgent');
     }
   }
 
@@ -162,15 +159,13 @@ export class TestGeneratorAgent extends BaseAgent {
     this.psychoSymbolicReasoner = await this.createPsychoSymbolicReasoner();
     this.sublinearCore = await this.createSublinearCore();
 
-    // Initialize learning components
+    // Note: Learning components are initialized by BaseAgent.initialize()
+    // We just verify they're available
     if (this.learningEngine) {
-      await this.learningEngine.initialize();
-      this.logger.info('[TestGeneratorAgent] LearningEngine initialized');
+      this.logger.info('[TestGeneratorAgent] LearningEngine available');
     }
-
     if (this.performanceTracker) {
-      await this.performanceTracker.initialize();
-      this.logger.info('[TestGeneratorAgent] PerformanceTracker initialized');
+      this.logger.info('[TestGeneratorAgent] PerformanceTracker available');
     }
 
     await this.storeMemory('initialized', true);

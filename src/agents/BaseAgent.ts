@@ -24,6 +24,10 @@ import {
 } from '../types';
 import { VerificationHookManager } from '../core/hooks';
 import { MemoryStoreAdapter } from '../adapters/MemoryStoreAdapter';
+import { PerformanceTracker } from '../learning/PerformanceTracker';
+import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+import { LearningEngine } from '../learning/LearningEngine';
+import { LearningConfig, StrategyRecommendation } from '../learning/types';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -32,6 +36,8 @@ export interface BaseAgentConfig {
   context: AgentContext;
   memoryStore: MemoryStore;
   eventBus: EventEmitter;
+  enableLearning?: boolean; // Enable PerformanceTracker integration
+  learningConfig?: Partial<LearningConfig>; // Q-learning configuration
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -44,6 +50,10 @@ export abstract class BaseAgent extends EventEmitter {
   protected readonly eventHandlers: Map<string, EventHandler[]> = new Map();
   protected currentTask?: TaskAssignment;
   protected hookManager: VerificationHookManager;
+  protected performanceTracker?: PerformanceTracker; // Optional performance tracking
+  protected learningEngine?: LearningEngine; // Optional Q-learning engine
+  protected readonly enableLearning: boolean;
+  private learningConfig?: Partial<LearningConfig>; // Store config for initialization
   protected performanceMetrics: {
     tasksCompleted: number;
     averageExecutionTime: number;
@@ -55,6 +65,7 @@ export abstract class BaseAgent extends EventEmitter {
     errorCount: 0,
     lastActivity: new Date()
   };
+  private taskStartTime?: number; // Track task execution start time
 
   constructor(config: BaseAgentConfig) {
     super();
@@ -72,6 +83,8 @@ export abstract class BaseAgent extends EventEmitter {
     this.context = config.context;
     this.memoryStore = config.memoryStore;
     this.eventBus = config.eventBus;
+    this.enableLearning = config.enableLearning ?? false;
+    this.learningConfig = config.learningConfig;
 
     // Initialize verification hook manager with type-safe adapter
     // MemoryStoreAdapter bridges MemoryStore interface to SwarmMemoryManager
@@ -100,6 +113,23 @@ export abstract class BaseAgent extends EventEmitter {
       // Load agent knowledge and state
       await this.loadKnowledge();
       await this.restoreState();
+
+      // Initialize PerformanceTracker if learning is enabled
+      if (this.enableLearning && this.memoryStore instanceof SwarmMemoryManager) {
+        this.performanceTracker = new PerformanceTracker(
+          this.agentId.id,
+          this.memoryStore as SwarmMemoryManager
+        );
+        await this.performanceTracker.initialize();
+
+        // Initialize learning engine for Q-learning
+        this.learningEngine = new LearningEngine(
+          this.agentId.id,
+          this.memoryStore as SwarmMemoryManager,
+          this.learningConfig
+        );
+        await this.learningEngine.initialize();
+      }
 
       // Initialize agent-specific components
       await this.initializeComponents();
@@ -262,6 +292,39 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
+   * Get Q-learning strategy recommendation
+   */
+  public async recommendStrategy(taskState: any): Promise<StrategyRecommendation | null> {
+    if (!this.learningEngine?.isEnabled()) return null;
+    try {
+      return await this.learningEngine.recommendStrategy(taskState);
+    } catch (error) {
+      console.error(`Strategy recommendation failed:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get learned patterns from Q-learning
+   */
+  public getLearnedPatterns() {
+    return this.learningEngine?.getPatterns() || [];
+  }
+
+  /**
+   * Get learning engine status
+   */
+  public getLearningStatus() {
+    if (!this.learningEngine) return null;
+    return {
+      enabled: this.learningEngine.isEnabled(),
+      totalExperiences: this.learningEngine.getTotalExperiences(),
+      explorationRate: this.learningEngine.getExplorationRate(),
+      patterns: this.learningEngine.getPatterns().length
+    };
+  }
+
+  /**
    * Start the agent (alias for initialize)
    */
   public async start(): Promise<void> {
@@ -419,6 +482,9 @@ export abstract class BaseAgent extends EventEmitter {
    */
   protected async onPreTask(data: PreTaskData): Promise<void> {
     try {
+      // Track task start time for PerformanceTracker
+      this.taskStartTime = Date.now();
+
       const verificationResult = await this.hookManager.executePreTaskVerification({
         task: data.assignment.task.type,
         context: data.context
@@ -458,6 +524,46 @@ export abstract class BaseAgent extends EventEmitter {
           `Post-task validation warning with accuracy ${validationResult.accuracy}. ` +
           `Validations: ${validationResult.validations.join(', ')}`
         );
+      }
+
+      // Q-learning integration: Learn from task execution
+      if (this.learningEngine && this.learningEngine.isEnabled()) {
+        try {
+          const learningOutcome = await this.learningEngine.learnFromExecution(
+            data.assignment.task,
+            data.result
+          );
+
+          // Log learning progress
+          if (learningOutcome.improved) {
+            console.info(
+              `[Learning] Agent ${this.agentId.id} improved by ${learningOutcome.improvementRate.toFixed(2)}%`
+            );
+          }
+        } catch (learningError) {
+          console.error(`Learning engine error:`, learningError);
+          // Don't fail task due to learning errors
+        }
+      }
+
+      // Record performance snapshot if PerformanceTracker is enabled
+      if (this.performanceTracker && this.taskStartTime) {
+        const executionTime = Date.now() - this.taskStartTime;
+        const successRate = this.performanceMetrics.tasksCompleted /
+          Math.max(1, this.performanceMetrics.tasksCompleted + this.performanceMetrics.errorCount);
+
+        await this.performanceTracker.recordSnapshot({
+          metrics: {
+            tasksCompleted: this.performanceMetrics.tasksCompleted,
+            successRate: Math.min(1.0, Math.max(0.0, successRate || 1.0)),
+            averageExecutionTime: this.performanceMetrics.averageExecutionTime,
+            errorRate: this.performanceMetrics.errorCount /
+              Math.max(1, this.performanceMetrics.tasksCompleted + this.performanceMetrics.errorCount),
+            userSatisfaction: validationResult.valid ? 0.9 : 0.5,
+            resourceEfficiency: executionTime < 10000 ? 0.9 : 0.7 // Simple heuristic
+          },
+          trends: [] // Empty trends array for new snapshot
+        });
       }
 
       this.emitEvent('hook.post-task.completed', {
@@ -502,6 +608,26 @@ export abstract class BaseAgent extends EventEmitter {
         timestamp: new Date(),
         agentId: this.agentId.id
       });
+
+      // Record failure in PerformanceTracker if enabled
+      if (this.performanceTracker && this.taskStartTime) {
+        const executionTime = Date.now() - this.taskStartTime;
+        const successRate = this.performanceMetrics.tasksCompleted /
+          Math.max(1, this.performanceMetrics.tasksCompleted + this.performanceMetrics.errorCount);
+
+        await this.performanceTracker.recordSnapshot({
+          metrics: {
+            tasksCompleted: this.performanceMetrics.tasksCompleted,
+            successRate: Math.min(1.0, Math.max(0.0, successRate)),
+            averageExecutionTime: this.performanceMetrics.averageExecutionTime,
+            errorRate: (this.performanceMetrics.errorCount + 1) /
+              Math.max(1, this.performanceMetrics.tasksCompleted + this.performanceMetrics.errorCount + 1),
+            userSatisfaction: 0.3, // Low satisfaction on error
+            resourceEfficiency: 0.5
+          },
+          trends: [] // Empty trends array for error snapshot
+        });
+      }
 
       this.emitEvent('hook.task-error.completed', {
         agentId: this.agentId,

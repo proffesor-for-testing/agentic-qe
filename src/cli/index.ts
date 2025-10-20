@@ -29,6 +29,7 @@ import * as routingCommands from './commands/routing/index.js';
 import * as learnCommands from './commands/learn/index.js';
 import * as patternsCommands from './commands/patterns/index.js';
 import * as improveCommands from './commands/improve/index.js';
+import * as skillsCommands from './commands/skills/index.js';
 import { InitCommand } from './commands/init';
 
 const program = new Command();
@@ -824,6 +825,94 @@ patternsCommand
       await patternsCommands.patternsCommand('stats', [], options);
     } catch (error) {
       console.error(chalk.red('❌ Patterns stats failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Skills commands (Phase 2)
+ * Manage Claude Code Skills for agents
+ */
+const skillsCommand = program
+  .command('skills')
+  .description('Manage Claude Code Skills for agents');
+
+skillsCommand
+  .command('list')
+  .description('List all QE skills (17 total)')
+  .option('--detailed', 'Show detailed information')
+  .option('--category <name>', 'Filter by category')
+  .action(async (options) => {
+    try {
+      await skillsCommands.skillsCommand('list', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Skills list failed:'), error);
+      process.exit(1);
+    }
+  });
+
+skillsCommand
+  .command('search')
+  .description('Search QE skills by keyword')
+  .argument('<keyword>', 'Search keyword')
+  .action(async (keyword, options) => {
+    try {
+      await skillsCommands.skillsCommand('search', [keyword], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Skills search failed:'), error);
+      process.exit(1);
+    }
+  });
+
+skillsCommand
+  .command('show')
+  .description('Show skill details')
+  .argument('<skill-name>', 'Skill name')
+  .action(async (skillName, options) => {
+    try {
+      await skillsCommands.skillsCommand('show', [skillName], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Skills show failed:'), error);
+      process.exit(1);
+    }
+  });
+
+skillsCommand
+  .command('enable')
+  .description('Enable skill for agents')
+  .argument('<skill-name>', 'Skill name')
+  .option('--agent <id>', 'Target specific agent')
+  .action(async (skillName, options) => {
+    try {
+      await skillsCommands.skillsCommand('enable', [skillName], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Skills enable failed:'), error);
+      process.exit(1);
+    }
+  });
+
+skillsCommand
+  .command('disable')
+  .description('Disable skill')
+  .argument('<skill-name>', 'Skill name')
+  .option('--agent <id>', 'Target specific agent')
+  .action(async (skillName, options) => {
+    try {
+      await skillsCommands.skillsCommand('disable', [skillName], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Skills disable failed:'), error);
+      process.exit(1);
+    }
+  });
+
+skillsCommand
+  .command('stats')
+  .description('Show skill statistics')
+  .action(async (options) => {
+    try {
+      await skillsCommands.skillsCommand('stats', [], options);
+    } catch (error) {
+      console.error(chalk.red('❌ Skills stats failed:'), error);
       process.exit(1);
     }
   });

@@ -1,0 +1,74 @@
+{
+  "fleet": {
+    "topology": "mesh",
+    "maxAgents": 5,
+    "agents": [
+      {
+        "type": "test-generator",
+        "count": 2,
+        "capabilities": [
+          "unit-tests",
+          "integration-tests",
+          "property-based-testing",
+          "test-data-synthesis"
+        ],
+        "resources": {
+          "memory": "100MB",
+          "cpu": "0.5"
+        }
+      },
+      {
+        "type": "coverage-analyzer",
+        "count": 1,
+        "capabilities": [
+          "coverage-analysis",
+          "gap-identification",
+          "trend-analysis"
+        ],
+        "resources": {
+          "memory": "100MB",
+          "cpu": "0.5"
+        }
+      },
+      {
+        "type": "quality-gate",
+        "count": 1,
+        "capabilities": [
+          "quality-metrics",
+          "threshold-enforcement",
+          "decision-making"
+        ],
+        "resources": {
+          "memory": "100MB",
+          "cpu": "0.5"
+        }
+      },
+      {
+        "type": "performance-tester",
+        "count": 1,
+        "capabilities": [
+          "load-testing",
+          "stress-testing",
+          "bottleneck-analysis"
+        ],
+        "resources": {
+          "memory": "100MB",
+          "cpu": "0.5"
+        }
+      },
+      {
+        "type": "security-scanner",
+        "count": 1,
+        "capabilities": [
+          "vulnerability-scanning",
+          "security-testing",
+          "compliance-checking"
+        ],
+        "resources": {
+          "memory": "100MB",
+          "cpu": "0.5"
+        }
+      }
+    ]
+  }
+}

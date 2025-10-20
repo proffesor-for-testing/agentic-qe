@@ -25,8 +25,8 @@ export interface LearningAgentConfig extends BaseAgentConfig {
  * LearningAgent - Agent with reinforcement learning capabilities
  */
 export class LearningAgent extends BaseAgent {
-  private learningEngine: LearningEngine;
-  private performanceTracker: PerformanceTracker;
+  private localLearningEngine: LearningEngine;
+  private localPerformanceTracker: PerformanceTracker;
   private improvementLoop: ImprovementLoop;
   private learningEnabled: boolean;
 
@@ -39,7 +39,7 @@ export class LearningAgent extends BaseAgent {
     // Note: BaseAgent uses MemoryStore interface, but Phase 2 learning components
     // expect SwarmMemoryManager. This works because BaseAgent's memoryStore
     // is actually a SwarmMemoryManager instance at runtime.
-    this.learningEngine = new LearningEngine(
+    this.localLearningEngine = new LearningEngine(
       this.agentId.id,
       this.memoryStore as unknown as SwarmMemoryManager,
       {
@@ -48,7 +48,7 @@ export class LearningAgent extends BaseAgent {
       }
     );
 
-    this.performanceTracker = new PerformanceTracker(
+    this.localPerformanceTracker = new PerformanceTracker(
       this.agentId.id,
       this.memoryStore as unknown as SwarmMemoryManager
     );
@@ -56,8 +56,8 @@ export class LearningAgent extends BaseAgent {
     this.improvementLoop = new ImprovementLoop(
       this.agentId.id,
       this.memoryStore as unknown as SwarmMemoryManager,
-      this.learningEngine,
-      this.performanceTracker
+      this.localLearningEngine,
+      this.localPerformanceTracker
     );
   }
 
@@ -70,8 +70,8 @@ export class LearningAgent extends BaseAgent {
     }
 
     // Initialize learning components
-    await this.learningEngine.initialize();
-    await this.performanceTracker.initialize();
+    await this.localLearningEngine.initialize();
+    await this.localPerformanceTracker.initialize();
     await this.improvementLoop.initialize();
 
     // Start improvement loop (runs every hour by default)
@@ -96,7 +96,7 @@ export class LearningAgent extends BaseAgent {
 
     try {
       // Learn from task execution
-      const learning = await this.learningEngine.learnFromExecution(
+      const learning = await this.localLearningEngine.learnFromExecution(
         data.assignment.task,
         data.result,
         await this.getUserFeedback(data.assignment.id)
@@ -130,7 +130,7 @@ export class LearningAgent extends BaseAgent {
     const executionTime = data.result.executionTime || 0;
     const success = data.result.success !== false;
 
-    await this.performanceTracker.recordSnapshot({
+    await this.localPerformanceTracker.recordSnapshot({
       metrics: {
         tasksCompleted: this.performanceMetrics.tasksCompleted,
         successRate: success ? 1.0 : 0.0,
@@ -170,21 +170,49 @@ export class LearningAgent extends BaseAgent {
   }
 
   /**
-   * Get learning status
+   * Get learning status - override from BaseAgent
    */
-  public async getLearningStatus(): Promise<{
+  public override getLearningStatus(): {
+    enabled: boolean;
+    totalExperiences: number;
+    explorationRate: number;
+    patterns: number;
+  } | null {
+    // Call parent implementation to maintain consistency
+    const baseStatus = super.getLearningStatus();
+    if (baseStatus) {
+      return baseStatus;
+    }
+
+    // Fallback to local learning engine
+    if (!this.localLearningEngine) {
+      return null;
+    }
+
+    return {
+      enabled: this.learningEnabled,
+      totalExperiences: this.localLearningEngine.getTotalExperiences(),
+      explorationRate: this.localLearningEngine.getExplorationRate(),
+      patterns: this.localLearningEngine.getPatterns().length
+    };
+  }
+
+  /**
+   * Get detailed performance report (LearningAgent-specific)
+   */
+  public async getDetailedLearningStatus(): Promise<{
     enabled: boolean;
     totalExperiences: number;
     patterns: number;
     improvement: any;
     activeTests: number;
   }> {
-    const improvement = await this.performanceTracker.calculateImprovement();
+    const improvement = await this.localPerformanceTracker.calculateImprovement();
 
     return {
       enabled: this.learningEnabled,
-      totalExperiences: this.learningEngine.getTotalExperiences(),
-      patterns: this.learningEngine.getPatterns().length,
+      totalExperiences: this.localLearningEngine.getTotalExperiences(),
+      patterns: this.localLearningEngine.getPatterns().length,
       improvement,
       activeTests: this.improvementLoop.getActiveTests().length
     };
@@ -194,7 +222,7 @@ export class LearningAgent extends BaseAgent {
    * Get performance report
    */
   public async getPerformanceReport(): Promise<any> {
-    return await this.performanceTracker.generateReport();
+    return await this.localPerformanceTracker.generateReport();
   }
 
   /**
@@ -202,7 +230,7 @@ export class LearningAgent extends BaseAgent {
    */
   public setLearningEnabled(enabled: boolean): void {
     this.learningEnabled = enabled;
-    this.learningEngine.setEnabled(enabled);
+    this.localLearningEngine.setEnabled(enabled);
   }
 
   /**

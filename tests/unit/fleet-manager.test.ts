@@ -7,10 +7,16 @@ import { Database } from '../../src/utils/Database';
 import { EventBus } from '../../src/core/EventBus';
 import { QEAgentType, FleetConfig } from '../../src/types';
 
+// Mock the Database module before importing FleetManager
+jest.mock('../../src/utils/Database');
+
 // Mock the agents module before importing FleetManager
 jest.mock('../../src/agents', () => ({
   createAgent: jest.fn()
 }));
+
+// Import the mock after jest.mock() is called
+import { mockDatabase } from '../__mocks__/Database';
 
 // Define AgentType enum for tests (mirrors QEAgentType)
 enum AgentType {
@@ -40,48 +46,6 @@ const mockLogger = {
 
 // Mock Logger.getInstance to return our mock
 (Logger.getInstance as jest.Mock) = jest.fn(() => mockLogger);
-
-// Comprehensive database mock with all required methods
-const mockDatabase = {
-  // Core lifecycle methods
-  initialize: jest.fn().mockResolvedValue(undefined),
-  close: jest.fn().mockResolvedValue(undefined),
-
-  // Query methods (synchronous for better-sqlite3 compatibility)
-  query: jest.fn().mockReturnValue({ rows: [] }),
-  prepare: jest.fn().mockReturnValue({
-    run: jest.fn().mockReturnValue({ changes: 1, lastInsertRowid: 1 }),
-    get: jest.fn().mockReturnValue(undefined),
-    all: jest.fn().mockReturnValue([])
-  }),
-
-  // Direct execution methods (synchronous for better-sqlite3)
-  run: jest.fn().mockReturnValue({ changes: 1, lastInsertRowid: 1 }),
-  get: jest.fn().mockReturnValue(undefined),
-  all: jest.fn().mockReturnValue([]),
-  exec: jest.fn().mockReturnValue(undefined),
-
-  // Utility methods
-  pragma: jest.fn().mockReturnValue(undefined),
-  stats: jest.fn().mockResolvedValue({
-    total: 0,
-    active: 0,
-    size: 1024,
-    tables: 15,
-    lastModified: new Date()
-  }),
-  compact: jest.fn().mockResolvedValue(undefined),
-
-  // Transaction support
-  transaction: jest.fn((callback) => callback()),
-
-  // Domain-specific methods
-  upsertFleet: jest.fn().mockResolvedValue(undefined),
-  upsertAgent: jest.fn().mockResolvedValue(undefined),
-  upsertTask: jest.fn().mockResolvedValue(undefined),
-  insertEvent: jest.fn().mockResolvedValue(undefined),
-  insertMetric: jest.fn().mockResolvedValue(undefined)
-} as unknown as jest.Mocked<Database>;
 
 const mockEventBus = {
   initialize: jest.fn().mockResolvedValue(undefined),

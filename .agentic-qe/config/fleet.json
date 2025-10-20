@@ -1,0 +1,29 @@
+{
+  "agents": [],
+  "topology": "mesh",
+  "maxAgents": 5,
+  "testingFocus": [
+    "learning-system",
+    "testing"
+  ],
+  "environments": [
+    "development"
+  ],
+  "frameworks": [
+    "jest"
+  ],
+  "routing": {
+    "enabled": true,
+    "defaultModel": "claude-sonnet-4.5",
+    "enableCostTracking": true,
+    "enableFallback": true,
+    "maxRetries": 3,
+    "costThreshold": 0.5
+  },
+  "streaming": {
+    "enabled": true,
+    "progressInterval": 2000,
+    "bufferEvents": false,
+    "timeout": 1800000
+  }
+}

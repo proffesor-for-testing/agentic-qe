@@ -19,6 +19,13 @@ export interface FleetEvent {
   processed: boolean;
 }
 
+export type EventHandler = (data: any) => void | Promise<void>;
+
+export interface EventOptions {
+  filter?: (data: any) => boolean;
+  transform?: (data: any) => any;
+}
+
 export class EventBus extends EventEmitter {
 
   private static instance: EventBus | null = null;
@@ -39,18 +46,27 @@ export class EventBus extends EventEmitter {
   public static resetInstance(): void {
     if (EventBus.instance) {
       EventBus.instance.removeAllListeners();
+      EventBus.instance.customListeners.clear();
+      EventBus.instance.listenerOptions.clear();
+      // Note: WeakMap doesn't have clear() method, but will be garbage collected
       EventBus.instance = null;
     }
   }
 
   private readonly logger: Logger;
   private readonly events: Map<string, FleetEvent>;
+  private readonly customListeners: Map<string, Set<EventHandler>>;
+  private readonly listenerRefs: WeakMap<EventHandler, string>;
+  private readonly listenerOptions: Map<EventHandler, EventOptions>;
   private isInitialized: boolean = false;
 
   constructor() {
     super();
     this.logger = Logger.getInstance();
     this.events = new Map();
+    this.customListeners = new Map();
+    this.listenerRefs = new WeakMap();
+    this.listenerOptions = new Map();
     this.setMaxListeners(1000); // Support many agents
   }
 
@@ -84,11 +100,130 @@ export class EventBus extends EventEmitter {
     // Remove all listeners
     this.removeAllListeners();
 
+    // Clear all custom listeners and maps
+    this.customListeners.clear();
+    this.listenerOptions.clear();
+    // Note: WeakMap entries will be garbage collected automatically
+
     // Clear events map
     this.events.clear();
 
     this.isInitialized = false;
     this.logger.info('EventBus closed successfully');
+  }
+
+  /**
+   * Subscribe to an event with automatic cleanup
+   * Returns an unsubscribe function for memory leak prevention
+   */
+  subscribe(event: string, handler: EventHandler, options?: EventOptions): () => void {
+    if (!this.customListeners.has(event)) {
+      this.customListeners.set(event, new Set());
+    }
+
+    this.customListeners.get(event)!.add(handler);
+    this.listenerRefs.set(handler, event);
+
+    // Create wrapper function if options are provided
+    let wrappedHandler = handler;
+    if (options) {
+      this.listenerOptions.set(handler, options);
+
+      wrappedHandler = (data: any) => {
+        // Apply filter
+        if (options.filter && !options.filter(data)) {
+          return;
+        }
+
+        // Apply transformation
+        let processedData = data;
+        if (options.transform) {
+          processedData = options.transform(data);
+        }
+
+        handler(processedData);
+      };
+    }
+
+    // Register with EventEmitter
+    this.on(event, wrappedHandler);
+
+    // Return cleanup function
+    return () => this.unsubscribe(event, handler);
+  }
+
+  /**
+   * Unsubscribe from an event with proper cleanup
+   */
+  unsubscribe(event: string, handler: EventHandler): void {
+    const handlers = this.customListeners.get(event);
+    if (handlers) {
+      handlers.delete(handler);
+      // Clear empty event sets to prevent accumulation
+      if (handlers.size === 0) {
+        this.customListeners.delete(event);
+      }
+    }
+
+    // Clean up WeakMap reference (will be garbage collected)
+    this.listenerRefs.delete(handler);
+
+    // Clean up options
+    this.listenerOptions.delete(handler);
+
+    // Remove from EventEmitter
+    this.off(event, handler);
+  }
+
+  /**
+   * Override emit to support wildcard listeners
+   */
+  emit(event: string, data?: any): boolean {
+    // Handle wildcard listeners (but not for wildcard events themselves)
+    const wildcardPattern = event.split(':')[0] + ':*';
+    const allPattern = '*';
+
+    // Only emit wildcard patterns if this is not already a wildcard event
+    if (event !== '*' && event !== wildcardPattern) {
+      // Emit wildcard patterns first
+      if (wildcardPattern !== event + ':*') {
+        super.emit(wildcardPattern, data);
+      }
+      super.emit(allPattern, data);
+    }
+
+    // Call parent emit
+    return super.emit(event, data);
+  }
+
+  /**
+   * Async emit that waits for all listeners to complete
+   */
+  async emitAsync(event: string, data?: any): Promise<void> {
+    const listeners = this.listeners(event);
+    const promises: Promise<void>[] = [];
+    const logger = this.logger;
+
+    for (const listener of listeners) {
+      try {
+        const result = listener(data);
+        if (result instanceof Promise) {
+          promises.push(result.catch(error => {
+            if (logger) {
+              logger.error(`Async listener error for ${event}:`, error);
+            }
+            this.emit('error', { error, event, data });
+          }));
+        }
+      } catch (error) {
+        if (logger) {
+          logger.error(`Error in async listener for ${event}:`, error);
+        }
+        this.emit('error', { error, event, data });
+      }
+    }
+
+    await Promise.all(promises);
   }
 
   /**

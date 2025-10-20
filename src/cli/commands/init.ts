@@ -224,6 +224,7 @@ export class InitCommand {
       '.agentic-qe/state/coordination',  // Coordination state
       '.claude',              // For Claude Code integration
       '.claude/agents',       // Where agent definitions live
+      '.claude/skills',       // Where QE skill definitions live (17 QE skills only)
       'tests/unit',
       'tests/integration',
       'tests/e2e',
@@ -237,6 +238,9 @@ export class InitCommand {
 
     // Copy agent templates from agentic-qe package
     await this.copyAgentTemplates();
+
+    // Copy skill templates (only QE Fleet skills, not Claude Flow)
+    await this.copySkillTemplates();
   }
 
   private static async copyAgentTemplates(): Promise<void> {
@@ -353,6 +357,7 @@ export class InitCommand {
 
         const agentFile = path.join(targetPath, `${agentName}.md`);
         const agentType = agentName.replace('qe-', '');
+        const skills = this.getAgentSkills(agentName);
 
         const content = `---
 name: ${agentName}
@@ -362,13 +367,22 @@ priority: medium
 description: "Agentic QE Fleet ${agentType} agent"
 capabilities:
   - ${agentType}
+skills:
+${skills.map(s => `  - ${s}`).join('\n')}
 coordination:
   protocol: aqe-hooks
+learning:
+  enabled: true
+  observability:
+    - agent.getLearningStatus()
+    - agent.getLearnedPatterns()
+    - agent.recommendStrategy(state)
 metadata:
-  version: "1.0.5"
+  version: "1.1.0"
   framework: "agentic-qe"
   routing: "supported"
   streaming: "supported"
+  phase2: "q-learning-enabled"
 ---
 
 # ${agentName.toUpperCase()} Agent
@@ -380,6 +394,68 @@ This agent is part of the Agentic QE Fleet and specializes in ${agentType}.
 - AI-powered ${agentType}
 - Integration with Agentic QE Fleet
 - Native TypeScript coordination
+- **Q-Learning**: Learns from task execution automatically
+- **Pattern Bank**: Uses proven test patterns
+- **Improvement Loop**: Continuously optimizes strategies
+
+## 🧠 Q-Learning Integration (Phase 2)
+
+This agent automatically learns from EVERY task execution through Q-learning integration in \`BaseAgent.onPostTask()\`.
+
+### Observability Methods
+
+\`\`\`typescript
+// 1. Check learning status
+const status = agent.getLearningStatus();
+console.log(status);
+// {
+//   enabled: true,
+//   totalExperiences: 1247,
+//   explorationRate: 0.08,
+//   patterns: 34
+// }
+
+// 2. View learned patterns
+const patterns = agent.getLearnedPatterns();
+console.log(patterns[0]);
+// {
+//   state: { taskComplexity: 'high', ... },
+//   action: 'thorough-deep-analysis',
+//   qValue: 0.8734,
+//   successRate: 0.88
+// }
+
+// 3. Get strategy recommendations
+const recommendation = await agent.recommendStrategy({
+  taskComplexity: 'medium',
+  availableCapabilities: agent.capabilities
+});
+console.log(recommendation);
+// {
+//   action: 'balanced-coverage',
+//   confidence: 0.92,
+//   expectedQValue: 0.7845
+// }
+\`\`\`
+
+### CLI Commands
+
+\`\`\`bash
+# Check learning status
+aqe learn status --agent ${agentName}
+
+# View learned patterns
+aqe learn history --agent ${agentName} --limit 50
+
+# Export learning data
+aqe learn export --agent ${agentName} --output learning.json
+\`\`\`
+
+## Skills
+
+This agent can use the following Claude Code Skills:
+
+${this.getSkillDocumentation(agentName)}
 
 ## Coordination Protocol
 
@@ -553,6 +629,7 @@ For full capabilities, install the complete agentic-qe package.
     for (const agentName of missingAgents) {
       const agentFile = path.join(targetPath, `${agentName}.md`);
       const agentType = agentName.replace('qe-', '');
+      const skills = this.getAgentSkills(agentName);
 
       const content = `---
 name: ${agentName}
@@ -562,13 +639,22 @@ priority: medium
 description: "Agentic QE Fleet ${agentType} agent"
 capabilities:
   - ${agentType}
+skills:
+${skills.map(s => `  - ${s}`).join('\n')}
 coordination:
   protocol: aqe-hooks
+learning:
+  enabled: true
+  observability:
+    - agent.getLearningStatus()
+    - agent.getLearnedPatterns()
+    - agent.recommendStrategy(state)
 metadata:
   version: "1.1.0"
   framework: "agentic-qe"
   routing: "supported"
   streaming: "supported"
+  phase2: "q-learning-enabled"
 ---
 
 # ${agentName.toUpperCase()} Agent
@@ -580,6 +666,15 @@ This agent is part of the Agentic QE Fleet and specializes in ${agentType}.
 - AI-powered ${agentType}
 - Integration with Agentic QE Fleet
 - Native TypeScript coordination
+- **Q-Learning**: Learns from task execution automatically
+- **Pattern Bank**: Uses proven test patterns
+- **Improvement Loop**: Continuously optimizes strategies
+
+## Skills
+
+This agent can use the following Claude Code Skills:
+
+${this.getSkillDocumentation(agentName)}
 
 ## Coordination Protocol
 
@@ -600,6 +695,147 @@ For full capabilities, install the complete agentic-qe package.
     if (!await fs.pathExists(dirPath)) return 0;
     const files = await fs.readdir(dirPath);
     return files.filter(f => f.endsWith('.md')).length;
+  }
+
+  /**
+   * Copy only the 17 QE Fleet skills (filters out Claude Flow skills)
+   */
+  private static async copySkillTemplates(): Promise<void> {
+    console.log(chalk.cyan('  🎯 Initializing QE Fleet skills...'));
+
+    // Define the 17 QE Fleet skills (from SKILLS-MAPPING.md)
+    const QE_FLEET_SKILLS = [
+      // Core Quality Practices (5)
+      'holistic-testing-pact',
+      'context-driven-testing',
+      'agentic-quality-engineering',
+      'exploratory-testing-advanced',
+      'risk-based-testing',
+
+      // Development Methodologies (3)
+      'tdd-london-chicago',
+      'xp-practices',
+      'refactoring-patterns',
+
+      // Testing Specializations (4)
+      'api-testing-patterns',
+      'performance-testing',
+      'security-testing',
+      'test-automation-strategy',
+
+      // Communication & Process (3)
+      'technical-writing',
+      'bug-reporting-excellence',
+      'code-review-quality',
+
+      // Professional Skills (2)
+      'consultancy-practices',
+      'quality-metrics'
+    ];
+
+    // Find the agentic-qe package location
+    const possiblePaths = [
+      path.join(__dirname, '../../../.claude/skills'),  // From dist/cli/commands
+      path.join(process.cwd(), 'node_modules/agentic-qe/.claude/skills'),
+      path.join(process.cwd(), '../agentic-qe/.claude/skills')  // Monorepo case
+    ];
+
+    console.log(chalk.gray('  • Checking skill source paths:'));
+    let sourcePath: string | null = null;
+    for (const p of possiblePaths) {
+      const exists = await fs.pathExists(p);
+      console.log(chalk.gray(`    ${exists ? '✓' : '✗'} ${p}`));
+      if (exists && !sourcePath) {
+        sourcePath = p;
+      }
+    }
+
+    if (!sourcePath) {
+      console.warn(chalk.yellow('  ⚠️  No skill templates found in package paths'));
+      console.warn(chalk.yellow('  ℹ️  Skills can be added manually to .claude/skills/'));
+      return;
+    }
+
+    console.log(chalk.green(`  ✓ Found skill templates at: ${sourcePath}`));
+
+    // List all available skills
+    const availableDirs = await fs.readdir(sourcePath);
+    const availableSkills = availableDirs.filter(name => {
+      const skillPath = path.join(sourcePath, name);
+      try {
+        return fs.statSync(skillPath).isDirectory();
+      } catch {
+        return false;
+      }
+    });
+
+    console.log(chalk.cyan(`  📦 Found ${availableSkills.length} total skills in source`));
+
+    // Filter to only QE Fleet skills
+    const qeSkillsToConfig = availableSkills.filter(skill => QE_FLEET_SKILLS.includes(skill));
+    console.log(chalk.cyan(`  🎯 Filtering to ${qeSkillsToConfig.length} QE Fleet skills (excluding Claude Flow skills)`));
+
+    const targetPath = path.join(process.cwd(), '.claude/skills');
+    let copiedCount = 0;
+
+    // Copy each QE skill directory
+    for (const skillName of qeSkillsToConfig) {
+      const sourceSkillPath = path.join(sourcePath, skillName);
+      const targetSkillPath = path.join(targetPath, skillName);
+
+      // Skip if already exists
+      if (await fs.pathExists(targetSkillPath)) {
+        console.log(chalk.gray(`    • Skipped ${skillName} (already exists)`));
+        continue;
+      }
+
+      // Copy the entire skill directory
+      await fs.copy(sourceSkillPath, targetSkillPath);
+      copiedCount++;
+      console.log(chalk.gray(`    ✓ Copied ${skillName}`));
+    }
+
+    // Final count
+    const finalSkillCount = await this.countSkillDirs(targetPath);
+
+    if (copiedCount > 0) {
+      console.log(chalk.green(`  ✓ Copied ${copiedCount} new QE skills`));
+    } else {
+      console.log(chalk.green('  ✓ All QE skills already present'));
+    }
+
+    console.log(chalk.cyan(`  📋 Total QE skills initialized: ${finalSkillCount}`));
+
+    // Verify we have exactly 17 QE skills
+    if (finalSkillCount === 17) {
+      console.log(chalk.green('  ✅ All 17 QE Fleet skills successfully initialized'));
+    } else if (finalSkillCount < 17) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 17 QE skills, found ${finalSkillCount}`));
+      const missingSkills = QE_FLEET_SKILLS.filter(skill => {
+        return !fs.existsSync(path.join(targetPath, skill));
+      });
+      console.warn(chalk.yellow(`  ℹ️  Missing skills: ${missingSkills.join(', ')}`));
+    }
+  }
+
+  /**
+   * Count skill directories in .claude/skills
+   */
+  private static async countSkillDirs(dirPath: string): Promise<number> {
+    if (!await fs.pathExists(dirPath)) return 0;
+    const items = await fs.readdir(dirPath);
+    let count = 0;
+    for (const item of items) {
+      const itemPath = path.join(dirPath, item);
+      try {
+        if (fs.statSync(itemPath).isDirectory()) {
+          count++;
+        }
+      } catch {
+        // Ignore errors
+      }
+    }
+    return count;
   }
 
   private static async writeFleetConfig(config: FleetConfig): Promise<void> {
@@ -1134,9 +1370,106 @@ for await (const event of handler.execute(params)) {
 - ⚠️  Test generation (coming in v1.1.0)
 - ⚠️  Security scanning (coming in v1.1.0)
 
+## 🎯 Claude Code Skills Integration
+
+This fleet includes **17 specialized QE skills** that agents can use:
+
+### Quality Engineering Skills (10 skills)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
+- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing
+- **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly - includes templates, examples, and best practices
+- **context-driven-testing**: Apply context-driven testing principles where practices are chosen based on project context, not universal "best practices"
+- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours
+- **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles
+- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches - understanding different TDD philosophies and choosing the right testing style
+- **pair-programming**: AI-assisted pair programming with multiple modes (driver/navigator/switch), real-time verification, quality monitoring
+- **verification-quality**: Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold
+- **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace
+
+### AgentDB Skills (5 skills)
+- **agentdb-advanced**: Master advanced AgentDB features including QUIC synchronization, multi-database management, custom distance metrics, hybrid search
+- **agentdb-learning**: Create and train AI learning plugins with AgentDB's 9 reinforcement learning algorithms (Decision Transformer, Q-Learning, SARSA, Actor-Critic)
+- **agentdb-memory-patterns**: Implement persistent memory patterns for AI agents using AgentDB (session memory, long-term storage, pattern learning)
+- **agentdb-optimization**: Optimize AgentDB performance with quantization (4-32x memory reduction), HNSW indexing (150x faster search), caching
+- **agentdb-vector-search**: Implement semantic vector search with AgentDB for intelligent document retrieval, similarity matching, and context-aware querying
+
+### Using Skills
+
+#### Via CLI
+\\\`\\\`\\\`bash
+# List all available skills
+aqe skills list
+
+# Search for specific skills
+aqe skills search "testing"
+
+# Show skill details
+aqe skills show agentic-quality-engineering
+
+# Show skill statistics
+aqe skills stats
+\\\`\\\`\\\`
+
+#### Via Skill Tool in Claude Code
+\\\`\\\`\\\`javascript
+// Execute a skill
+Skill("agentic-quality-engineering")
+Skill("tdd-london-chicago")
+Skill("api-testing-patterns")
+\\\`\\\`\\\`
+
+#### Integration with Agents
+All QE agents automatically have access to relevant skills based on their specialization:
+- **Test generators** use: agentic-quality-engineering, api-testing-patterns, tdd-london-chicago
+- **Coverage analyzers** use: agentic-quality-engineering, quality-metrics, risk-based-testing
+- **Flaky test hunters** use: agentic-quality-engineering, exploratory-testing-advanced
+- **Performance testers** use: agentic-quality-engineering, performance-testing, quality-metrics
+- **Security scanners** use: agentic-quality-engineering, security-testing, risk-based-testing
+
+## 🧠 Q-Learning Integration (Phase 2)
+
+All agents automatically learn from task execution through Q-learning:
+
+### Observability
+\\\`\\\`\\\`bash
+# Check learning status
+aqe learn status --agent test-gen
+
+# View learned patterns
+aqe learn history --agent test-gen --limit 50
+
+# Export learning data
+aqe learn export --agent test-gen --output learning.json
+\\\`\\\`\\\`
+
+### Pattern Management
+\\\`\\\`\\\`bash
+# List test patterns
+aqe patterns list --framework jest
+
+# Search patterns
+aqe patterns search "api validation"
+
+# Extract patterns from tests
+aqe patterns extract ./tests --framework jest
+\\\`\\\`\\\`
+
+### Improvement Loop
+\\\`\\\`\\\`bash
+# Start continuous improvement
+aqe improve start
+
+# Check improvement status
+aqe improve status
+
+# Run single improvement cycle
+aqe improve cycle
+\\\`\\\`\\\`
+
 ## 📚 Documentation
 
 - **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents
+- **Skills**: \\\`.claude/skills/\\\` - 17 specialized QE skills for agents
 - **Fleet Config**: \\\`.agentic-qe/config/fleet.json\\\`
 - **Routing Config**: \\\`.agentic-qe/config/routing.json\\\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \\\`.agentic-qe/config/aqe-hooks.json\\\` (zero dependencies, 100-500x faster)
@@ -1670,5 +2003,56 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
     console.log(chalk.gray('  • Improvement loop optimizes continuously (1 hour cycles)'));
 
     console.log('');
+  }
+
+  /**
+   * Get relevant skills for an agent
+   */
+  private static getAgentSkills(agentName: string): string[] {
+    const skillMap: Record<string, string[]> = {
+      'qe-test-generator': ['agentic-quality-engineering', 'api-testing-patterns', 'tdd-london-chicago', 'test-automation-strategy'],
+      'qe-coverage-analyzer': ['agentic-quality-engineering', 'quality-metrics', 'risk-based-testing'],
+      'qe-flaky-test-hunter': ['agentic-quality-engineering', 'exploratory-testing-advanced', 'risk-based-testing'],
+      'qe-performance-tester': ['agentic-quality-engineering', 'performance-testing', 'quality-metrics'],
+      'qe-security-scanner': ['agentic-quality-engineering', 'security-testing', 'risk-based-testing'],
+      'qe-quality-gate': ['agentic-quality-engineering', 'quality-metrics', 'risk-based-testing'],
+      'qe-api-contract-validator': ['agentic-quality-engineering', 'api-testing-patterns'],
+      'qe-test-executor': ['agentic-quality-engineering', 'test-automation-strategy'],
+      'qe-requirements-validator': ['agentic-quality-engineering', 'context-driven-testing'],
+      'qe-quality-analyzer': ['agentic-quality-engineering', 'quality-metrics'],
+      'qe-visual-tester': ['agentic-quality-engineering', 'exploratory-testing-advanced'],
+      'qe-chaos-engineer': ['agentic-quality-engineering', 'risk-based-testing'],
+      'qe-production-intelligence': ['agentic-quality-engineering', 'context-driven-testing'],
+      'qe-fleet-commander': ['agentic-quality-engineering'],
+      'qe-deployment-readiness': ['agentic-quality-engineering', 'risk-based-testing', 'quality-metrics'],
+      'qe-regression-risk-analyzer': ['agentic-quality-engineering', 'risk-based-testing'],
+      'qe-test-data-architect': ['agentic-quality-engineering', 'test-automation-strategy']
+    };
+
+    return skillMap[agentName] || ['agentic-quality-engineering'];
+  }
+
+  /**
+   * Get skill documentation for agent
+   */
+  private static getSkillDocumentation(agentName: string): string {
+    const skills = this.getAgentSkills(agentName);
+    const skillDescriptions: Record<string, string> = {
+      'agentic-quality-engineering': 'AI agents as force multipliers in quality work (PACT principles)',
+      'api-testing-patterns': 'REST, GraphQL, contract testing patterns',
+      'tdd-london-chicago': 'Both TDD schools, when to use each approach',
+      'test-automation-strategy': 'When/how to automate effectively',
+      'quality-metrics': 'Meaningful metrics vs vanity metrics',
+      'risk-based-testing': 'Focus testing where failure hurts most',
+      'exploratory-testing-advanced': 'RST heuristics, SBTM, test tours',
+      'performance-testing': 'Load, stress, soak testing strategies',
+      'security-testing': 'OWASP Top 10, vulnerability patterns',
+      'context-driven-testing': 'RST techniques and contextual best practices'
+    };
+
+    return skills.map(skill => {
+      const description = skillDescriptions[skill] || 'Quality engineering expertise';
+      return `- **${skill}**: ${description}`;
+    }).join('\n');
   }
 }
