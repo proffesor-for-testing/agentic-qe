@@ -7,7 +7,6 @@
 2. **NEVER save working files, text/mds and tests to the root folder**
 3. ALWAYS organize files in appropriate subdirectories
 4. **USE CLAUDE CODE'S TASK TOOL** for spawning agents concurrently, not just MCP
-5. **NEVER COMMIT OR PUSH WITHOUT EXPLICIT USER REQUEST** - Always ask first
 
 ### ⚡ GOLDEN RULE: "1 MESSAGE = ALL RELATED OPERATIONS"
 
@@ -196,112 +195,42 @@ Flow-Nexus extends MCP capabilities with 70+ cloud-based orchestration tools:
 ```javascript
 // Single message with all agent spawning via Claude Code's Task tool
 [Parallel Agent Execution]:
-  Task("Backend Developer", "Build REST API with Express. Use AQE hooks for lifecycle management.", "backend-dev")
-  Task("Frontend Developer", "Create React UI. Coordinate via SwarmMemoryManager.", "coder")
-  Task("Database Architect", "Design PostgreSQL schema. Store in memory with 'db/schema' key.", "code-analyzer")
-  Task("Test Engineer", "Write Jest tests. Use VerificationHookManager for validation.", "tester")
-  Task("DevOps Engineer", "Setup Docker and CI/CD. Emit events via EventBus.", "cicd-engineer")
-  Task("Security Auditor", "Review authentication. Report via AQE hooks system.", "reviewer")
-
+  Task("Backend Developer", "Build REST API with Express. Use hooks for coordination.", "backend-dev")
+  Task("Frontend Developer", "Create React UI. Coordinate with backend via memory.", "coder")
+  Task("Database Architect", "Design PostgreSQL schema. Store schema in memory.", "code-analyzer")
+  Task("Test Engineer", "Write Jest tests. Check memory for API contracts.", "tester")
+  Task("DevOps Engineer", "Setup Docker and CI/CD. Document in memory.", "cicd-engineer")
+  Task("Security Auditor", "Review authentication. Report findings via hooks.", "reviewer")
+  
   // All todos batched together
   TodoWrite { todos: [...8-10 todos...] }
-
+  
   // All file operations together
   Write "backend/server.js"
   Write "frontend/App.jsx"
   Write "database/schema.sql"
 ```
 
-**Agent Implementation with AQE Hooks:**
-
-```typescript
-// Each agent automatically gets lifecycle hooks (aqe-hooks protocol)
-class BackendDevAgent extends BaseAgent {
-  protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
-    // Load shared context from memory
-    const context = await this.memoryStore.retrieve('project/context');
-    this.logger.info('Context loaded', { context });
-  }
-
-  protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
-    // Store API contract for other agents
-    await this.memoryStore.store('api/contract', data.result.contract, {
-      partition: 'coordination'
-    });
-
-    // Emit completion event
-    this.eventBus.emit('api:ready', { contract: data.result.contract });
-  }
-
-  protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
-    // Store error for fleet analysis
-    await this.memoryStore.store(`errors/${data.assignment.task.id}`, {
-      error: data.error.message,
-      timestamp: Date.now()
-    });
-  }
-}
-```
-
 ## 📋 Agent Coordination Protocol
 
-### AQE Hooks System (Zero Dependencies)
+### Every Agent Spawned via Task Tool MUST:
 
-**AQE agents use AQE hooks** - no external dependencies required!
-
-**Automatic Lifecycle Hooks** (Built into BaseAgent):
-- `onPreTask()` - Automatically called before task execution
-- `onPostTask()` - Automatically called after task completion
-- `onTaskError()` - Automatically called on task failure
-- `onPreTermination()` - Cleanup before agent termination
-
-**Memory Integration:**
-```typescript
-// Store results in swarm memory
-await this.memoryStore.store('aqe/test-results', results, {
-  partition: 'coordination',
-  ttl: 86400 // 24 hours
-});
-
-// Retrieve shared context
-const context = await this.memoryStore.retrieve('aqe/context', {
-  partition: 'coordination'
-});
+**1️⃣ BEFORE Work:**
+```bash
+npx claude-flow@alpha hooks pre-task --description "[task]"
+npx claude-flow@alpha hooks session-restore --session-id "swarm-[id]"
 ```
 
-**Event Bus Coordination:**
-```typescript
-// Emit events for swarm coordination
-this.eventBus.emit('test:completed', {
-  agentId: this.agentId,
-  results: testResults
-});
-
-// Listen for fleet-wide events
-this.registerEventHandler({
-  eventType: 'fleet.status',
-  handler: async (event) => { /* coordination logic */ }
-});
+**2️⃣ DURING Work:**
+```bash
+npx claude-flow@alpha hooks post-edit --file "[file]" --memory-key "swarm/[agent]/[step]"
+npx claude-flow@alpha hooks notify --message "[what was done]"
 ```
 
-**Advanced Verification (Optional):**
-```typescript
-// Use VerificationHookManager for advanced validation
-const hookManager = new VerificationHookManager(this.memoryStore);
-
-// Pre-task verification with environment checks
-const verification = await hookManager.executePreTaskVerification({
-  task: 'test-generation',
-  context: {
-    requiredVars: ['NODE_ENV'],
-    minMemoryMB: 512,
-    requiredModules: ['jest']
-  }
-});
-
-if (!verification.passed) {
-  throw new Error('Pre-task verification failed');
-}
+**3️⃣ AFTER Work:**
+```bash
+npx claude-flow@alpha hooks post-task --task-id "[task]"
+npx claude-flow@alpha hooks session-end --export-metrics true
 ```
 
 ## 🎯 Concurrent Execution Examples
@@ -319,11 +248,11 @@ if (!verification.passed) {
 // Step 2: Claude Code Task tool spawns ACTUAL agents that do the work
 [Single Message - Parallel Agent Execution]:
   // Claude Code's Task tool spawns real agents concurrently
-  Task("Research agent", "Analyze API requirements and best practices. Use SwarmMemoryManager to check prior decisions.", "researcher")
-  Task("Coder agent", "Implement REST endpoints with authentication. Use AQE lifecycle hooks for coordination.", "coder")
-  Task("Database agent", "Design and implement database schema. Store decisions using memoryStore.store().", "code-analyzer")
-  Task("Tester agent", "Create comprehensive test suite with 90% coverage. Use VerificationHookManager for validation.", "tester")
-  Task("Reviewer agent", "Review code quality and security. Emit findings via EventBus.", "reviewer")
+  Task("Research agent", "Analyze API requirements and best practices. Check memory for prior decisions.", "researcher")
+  Task("Coder agent", "Implement REST endpoints with authentication. Coordinate via hooks.", "coder")
+  Task("Database agent", "Design and implement database schema. Store decisions in memory.", "code-analyzer")
+  Task("Tester agent", "Create comprehensive test suite with 90% coverage.", "tester")
+  Task("Reviewer agent", "Review code quality and security. Document findings.", "reviewer")
   
   // Batch ALL todos in ONE call
   TodoWrite { todos: [
@@ -360,174 +289,29 @@ Message 4: Write "file.js"
 - **32.3% token reduction**
 - **2.8-4.4x speed improvement**
 - **27+ neural models**
-- **100-500x faster hooks** (AQE hooks vs external)
 
-## 🚀 AQE Hooks System
+## Hooks Integration
 
-### Why AQE Hooks?
+### Pre-Operation
+- Auto-assign agents by file type
+- Validate commands for safety
+- Prepare resources automatically
+- Optimize topology by complexity
+- Cache searches
 
-**Performance**: 100-500x faster than external hooks (<1ms vs 100-500ms per call)
-**Zero Dependencies**: No external packages required
-**Type Safety**: Full TypeScript type checking and IntelliSense
-**Direct Integration**: Direct SwarmMemoryManager and EventBus access
-**Built-in Rollback**: RollbackManager support for error recovery
+### Post-Operation
+- Auto-format code
+- Train neural patterns
+- Update memory
+- Analyze performance
+- Track token usage
 
-### Hook Capabilities
-
-#### 1. BaseAgent Lifecycle Hooks (Automatic)
-Every agent automatically gets these lifecycle methods:
-
-```typescript
-class MyAgent extends BaseAgent {
-  // Called before task execution
-  protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
-    // Verify environment, load context from memory
-  }
-
-  // Called after task completion
-  protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
-    // Validate results, store in memory, emit events
-  }
-
-  // Called on task failure
-  protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
-    // Store error, emit events, trigger rollback
-  }
-
-  // Called before termination
-  protected async onPreTermination(): Promise<void> {
-    // Cleanup, persist state
-  }
-}
-```
-
-#### 2. VerificationHookManager (Advanced)
-
-**5-Stage Verification Pipeline:**
-
-```typescript
-const hookManager = new VerificationHookManager(memoryStore);
-
-// Stage 1: Pre-task verification
-const verification = await hookManager.executePreTaskVerification({
-  task: 'test-generation',
-  context: {
-    requiredVars: ['NODE_ENV', 'TEST_FRAMEWORK'],
-    minMemoryMB: 512,
-    requiredModules: ['jest', '@types/jest']
-  }
-});
-
-// Stage 2: Post-task validation
-const validation = await hookManager.executePostTaskValidation({
-  task: 'test-generation',
-  result: { output: testResults, coverage: 95, metrics: {...} }
-});
-
-// Stage 3: Pre-edit verification
-const editCheck = await hookManager.executePreEditVerification({
-  filePath: 'src/test.ts',
-  operation: 'write',
-  content: testCode
-});
-
-// Stage 4: Post-edit update
-const editUpdate = await hookManager.executePostEditUpdate({
-  filePath: 'src/test.ts',
-  operation: 'write',
-  success: true
-});
-
-// Stage 5: Session finalization
-const finalization = await hookManager.executeSessionEndFinalization({
-  sessionId: 'v1.0.2',
-  exportMetrics: true,
-  exportArtifacts: true
-});
-```
-
-#### 3. Context Engineering
-
-**Pre-Tool-Use Bundle:**
-```typescript
-const bundle = await hookManager.buildPreToolUseBundle({
-  task: 'test-generation',
-  maxArtifacts: 5,
-  priority: 'high'
-});
-// Returns: { context, artifacts, patterns, checkpoints, recent_events }
-```
-
-**Post-Tool-Use Persistence:**
-```typescript
-await hookManager.persistPostToolUseOutcomes({
-  events: [{ type: 'test:generated', payload: {...} }],
-  patterns: [{ pattern: 'test-generation', confidence: 0.95 }],
-  checkpoints: [{ step: 'generation', status: 'completed' }],
-  artifacts: [{ kind: 'test', path: 'test.ts', sha256: hash }],
-  metrics: [{ metric: 'tests_generated', value: 10, unit: 'count' }]
-});
-```
-
-### Hook Performance Comparison
-
-| Operation | External Hooks | AQE Hooks | Speedup |
-|-----------|---------------|-----------|---------|
-| Pre-task verification | 100-500ms | <1ms | 100-500x |
-| Post-task validation | 100-500ms | <1ms | 100-500x |
-| Memory operations | 50-200ms | <0.1ms | 500-2000x |
-| Event emission | 20-100ms | <0.01ms | 2000-10000x |
-
-### Integration Examples
-
-#### Memory Coordination
-```typescript
-// Store coordination data
-await this.memoryStore.store('aqe/fleet/status', {
-  agent: this.agentId,
-  status: 'processing',
-  progress: 0.75,
-  timestamp: Date.now()
-}, {
-  partition: 'coordination',
-  ttl: 3600 // 1 hour
-});
-
-// Retrieve shared context
-const sharedContext = await this.memoryStore.retrieve('aqe/shared/context', {
-  partition: 'coordination'
-});
-```
-
-#### Event-Driven Coordination
-```typescript
-// Emit completion event
-this.eventBus.emit('agent:completed', {
-  agentId: this.agentId,
-  taskId: task.id,
-  result: result
-});
-
-// Listen for fleet events
-this.registerEventHandler({
-  eventType: 'fleet.status',
-  handler: async (event) => {
-    this.logger.info('Fleet status update', { event });
-  }
-});
-```
-
-#### Error Recovery with Rollback
-```typescript
-try {
-  // Execute task with rollback support
-  const result = await this.executeWithRollback(async () => {
-    return await this.performComplexOperation();
-  });
-} catch (error) {
-  // Automatic rollback triggered
-  await this.onTaskError({ assignment, error });
-}
+### Session Management
+- Generate summaries
+- Persist state
+- Track metrics
+- Restore context
+- Export workflows
 
 ## Advanced Features (v2.0.0)
 
@@ -566,66 +350,3 @@ NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 Never save working files, text/mds and tests to the root folder.
-
-
-## 🚀 AGENTIC QE FLEET - CRITICAL RULES
-
-### 📦 Project Structure
-**The AQE implementation is in `/agentic-qe/` subfolder by design:**
-- This is a modular monorepo pattern
-- Core AQE system is separate from projects using it
-- This allows:
-  - Centralized QE agent management
-  - Reusability across multiple projects
-  - Clean separation of concerns
-  - Easy updates and maintenance
-
-### 🤖 Available QE Agents
-- **qe-test-generator**: AI-powered test creation with property-based testing
-- **qe-test-executor**: Parallel test execution with retry logic
-- **qe-coverage-analyzer**: O(log n) coverage optimization with gap detection
-- **qe-quality-gate**: Intelligent go/no-go decisions with risk assessment
-- **qe-performance-tester**: Load testing and bottleneck detection
-- **qe-security-scanner**: SAST/DAST integration with CVE monitoring
-
-### ⚡ Agent Usage
-**Spawn agents via Claude Code Task tool:**
-```javascript
-Task("Generate tests", "Create comprehensive test suite", "qe-test-generator")
-Task("Execute tests", "Run tests in parallel", "qe-test-executor")
-Task("Analyze coverage", "Find coverage gaps", "qe-coverage-analyzer")
-```
-
-**Or use MCP tools for coordination:**
-```javascript
-mcp__agentic_qe__fleet_init({ topology: "hierarchical" })
-mcp__agentic_qe__test_generate({ framework: "jest", coverage: 0.95 })
-```
-
-### 🎯 Best Practices
-1. **Initialize Fleet First**: Run `aqe init` before using agents
-2. **Use Parallel Execution**: Spawn multiple agents in single messages
-3. **Leverage AQE Memory**: Agents share state via SwarmMemoryManager (TypeScript implementation)
-4. **Monitor Progress**: Check agent status with `aqe status`
-5. **AQE Hooks**: Agents use built-in AQE hooks (100-500x faster than external hooks)
-6. **Type Safety**: Enjoy full TypeScript type checking and IntelliSense
-
-### ⚠️ Common Pitfalls
-- Don't expect agents in root .claude/agents/ - they're in project's .claude/agents/
-- Real vs Mock: `aqe init` creates real agents (not mocked demos)
-- AQE hooks: Agents use AQE hooks protocol (NOT external Claude Flow hooks)
-- Memory is shared: All agents can access aqe/* memory keys via SwarmMemoryManager
-- Zero dependencies: AQE hooks system requires NO external packages
-
-### 🔧 Commands
-- `aqe init` - Initialize AQE fleet in current project
-- `aqe status` - Show fleet status
-- `aqe test <module>` - Generate tests for a module
-- `aqe coverage` - Analyze test coverage
-- `aqe quality` - Run quality gate check
-- `aqe agent spawn --name <agent>` - Spawn specific agent
-- `aqe agent execute --name <agent> --task "<task>"` - Execute task
-
----
-
-*Agentic QE Fleet - Enterprise-grade quality engineering powered by AI and sublinear algorithms*
