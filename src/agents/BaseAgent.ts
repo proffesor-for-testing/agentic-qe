@@ -22,12 +22,20 @@ import {
   PostTaskData,
   TaskErrorData
 } from '../types';
+import { QUICConfig, IQUICTransport, QUICMessage, QUICMessageType } from '../types/quic';
 import { VerificationHookManager } from '../core/hooks';
 import { MemoryStoreAdapter } from '../adapters/MemoryStoreAdapter';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { LearningEngine } from '../learning/LearningEngine';
 import { LearningConfig, StrategyRecommendation } from '../learning/types';
+import { QUICTransport } from '../core/transport/QUICTransport';
+import {
+  NeuralMatcher,
+  NeuralConfig,
+  createNeuralMatcher,
+  DEFAULT_NEURAL_CONFIG
+} from './mixins/NeuralCapableMixin';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -38,6 +46,8 @@ export interface BaseAgentConfig {
   eventBus: EventEmitter;
   enableLearning?: boolean; // Enable PerformanceTracker integration
   learningConfig?: Partial<LearningConfig>; // Q-learning configuration
+  neuralConfig?: Partial<NeuralConfig>; // Neural pattern matching configuration
+  quicConfig?: QUICConfig; // Optional QUIC configuration for distributed coordination
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -54,6 +64,10 @@ export abstract class BaseAgent extends EventEmitter {
   protected learningEngine?: LearningEngine; // Optional Q-learning engine
   protected readonly enableLearning: boolean;
   private learningConfig?: Partial<LearningConfig>; // Store config for initialization
+  protected neuralMatcher?: NeuralMatcher | null; // Optional neural pattern matching
+  private neuralConfig: Partial<NeuralConfig>; // Neural configuration
+  protected quicTransport?: IQUICTransport; // Optional QUIC transport for distributed coordination
+  private quicConfig?: QUICConfig; // Store QUIC config for initialization
   protected performanceMetrics: {
     tasksCompleted: number;
     averageExecutionTime: number;
@@ -85,6 +99,11 @@ export abstract class BaseAgent extends EventEmitter {
     this.eventBus = config.eventBus;
     this.enableLearning = config.enableLearning ?? false;
     this.learningConfig = config.learningConfig;
+    this.neuralConfig = config.neuralConfig ?? { enabled: false };
+    this.quicConfig = config.quicConfig;
+
+    // Initialize neural matcher if enabled
+    this.neuralMatcher = createNeuralMatcher(this.neuralConfig);
 
     // Initialize verification hook manager with type-safe adapter
     // MemoryStoreAdapter bridges MemoryStore interface to SwarmMemoryManager
@@ -129,6 +148,11 @@ export abstract class BaseAgent extends EventEmitter {
           this.learningConfig
         );
         await this.learningEngine.initialize();
+      }
+
+      // Initialize QUIC transport if configured
+      if (this.quicConfig && this.quicConfig.enabled) {
+        await this.enableQUIC(this.quicConfig);
       }
 
       // Initialize agent-specific components
@@ -216,6 +240,11 @@ export abstract class BaseAgent extends EventEmitter {
 
       // Execute pre-termination hooks
       await this.executeHook('pre-termination');
+
+      // Disable QUIC transport if enabled
+      if (this.quicTransport) {
+        await this.disableQUIC();
+      }
 
       // Save current state
       await this.saveState();
@@ -325,6 +354,58 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
+   * Enable neural capabilities at runtime
+   * @param config Optional neural configuration overrides
+   */
+  public enableNeural(config: Partial<NeuralConfig> = {}): void {
+    const finalConfig = {
+      ...DEFAULT_NEURAL_CONFIG,
+      ...this.neuralConfig,
+      ...config,
+      enabled: true
+    };
+
+    this.neuralConfig = finalConfig;
+    this.neuralMatcher = createNeuralMatcher(finalConfig);
+
+    if (this.neuralMatcher) {
+      this.emitEvent('agent.neural.enabled', {
+        agentId: this.agentId,
+        config: finalConfig
+      });
+      console.info(`[${this.agentId.id}] Neural capabilities enabled`);
+    }
+  }
+
+  /**
+   * Disable neural capabilities at runtime
+   */
+  public disableNeural(): void {
+    this.neuralMatcher = null;
+    this.neuralConfig = { ...this.neuralConfig, enabled: false };
+
+    this.emitEvent('agent.neural.disabled', {
+      agentId: this.agentId
+    });
+    console.info(`[${this.agentId.id}] Neural capabilities disabled`);
+  }
+
+  /**
+   * Get neural matcher status
+   */
+  public getNeuralStatus() {
+    if (!this.neuralMatcher) return null;
+    return this.neuralMatcher.getStatus();
+  }
+
+  /**
+   * Check if neural capabilities are available
+   */
+  public hasNeuralCapabilities(): boolean {
+    return this.neuralMatcher !== null && this.neuralMatcher !== undefined && this.neuralMatcher.isAvailable();
+  }
+
+  /**
    * Start the agent (alias for initialize)
    */
   public async start(): Promise<void> {
@@ -404,8 +485,30 @@ export abstract class BaseAgent extends EventEmitter {
 
   /**
    * Broadcast message to other agents
+   * Uses QUIC if enabled, falls back to EventBus
    */
   protected async broadcastMessage(type: string, payload: any): Promise<void> {
+    // Try QUIC first if enabled
+    if (this.quicTransport) {
+      try {
+        const quicMessage: QUICMessage = {
+          id: this.generateMessageId(),
+          from: this.agentId.id,
+          to: 'broadcast',
+          channel: 'coordination',
+          type: QUICMessageType.BROADCAST,
+          payload: { type, payload },
+          priority: 5,
+          timestamp: new Date()
+        };
+        await this.quicTransport.broadcast(quicMessage);
+        return;
+      } catch (error) {
+        console.warn('QUIC broadcast failed, falling back to EventBus:', error);
+      }
+    }
+
+    // Fallback to EventBus
     const message: AgentMessage = {
       id: this.generateMessageId(),
       from: this.agentId,
@@ -764,6 +867,242 @@ export abstract class BaseAgent extends EventEmitter {
 
   private generateMessageId(): string {
     return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // ============================================================================
+  // QUIC Coordination Methods
+  // ============================================================================
+
+  /**
+   * Enable QUIC transport for distributed coordination
+   */
+  public async enableQUIC(config: QUICConfig): Promise<void> {
+    if (this.quicTransport) {
+      throw new Error('QUIC already enabled for this agent');
+    }
+
+    if (!config.enabled) {
+      console.debug('QUIC config provided but not enabled');
+      return;
+    }
+
+    console.info(`[${this.agentId.id}] Enabling QUIC transport`, {
+      host: config.host,
+      port: config.port,
+      channels: config.channels.length
+    });
+
+    // Create QUIC transport
+    this.quicTransport = new QUICTransport();
+    this.quicConfig = config;
+
+    // Initialize transport
+    await this.quicTransport.initialize(config);
+
+    // Setup message handlers
+    this.setupQUICMessageHandlers();
+
+    // Link transport with EventBus for fallback
+    (this.quicTransport as QUICTransport).setEventBus(this.eventBus);
+
+    this.emitEvent('agent.quic.enabled', { agentId: this.agentId, config });
+    console.info(`[${this.agentId.id}] QUIC transport enabled successfully`);
+  }
+
+  /**
+   * Disable QUIC transport
+   */
+  public async disableQUIC(): Promise<void> {
+    if (!this.quicTransport) {
+      return;
+    }
+
+    console.info(`[${this.agentId.id}] Disabling QUIC transport`);
+
+    // Close transport
+    await this.quicTransport.close();
+    this.quicTransport = undefined;
+    this.quicConfig = undefined;
+
+    this.emitEvent('agent.quic.disabled', { agentId: this.agentId });
+    console.info(`[${this.agentId.id}] QUIC transport disabled`);
+  }
+
+  /**
+   * Check if QUIC is enabled
+   */
+  public isQUICEnabled(): boolean {
+    return this.quicTransport !== undefined;
+  }
+
+  /**
+   * Send direct message to another agent via QUIC
+   */
+  protected async sendToAgent(agentId: string, payload: any, channel: string = 'coordination'): Promise<void> {
+    if (!this.quicTransport) {
+      console.warn('QUIC not enabled, cannot send direct message');
+      return;
+    }
+
+    const message: QUICMessage = {
+      id: this.generateMessageId(),
+      from: this.agentId.id,
+      to: agentId,
+      channel,
+      type: QUICMessageType.DIRECT,
+      payload,
+      priority: 5,
+      timestamp: new Date()
+    };
+
+    await this.quicTransport.send(agentId, message);
+
+    console.debug(`[${this.agentId.id}] Sent message to agent ${agentId}`, {
+      channel,
+      payloadType: typeof payload
+    });
+  }
+
+  /**
+   * Request data from another agent via QUIC
+   */
+  protected async requestFromAgent(agentId: string, payload: any, timeout: number = 5000): Promise<any> {
+    if (!this.quicTransport) {
+      throw new Error('QUIC not enabled, cannot send request');
+    }
+
+    const message: QUICMessage = {
+      id: this.generateMessageId(),
+      from: this.agentId.id,
+      to: agentId,
+      channel: 'coordination',
+      type: QUICMessageType.REQUEST,
+      payload,
+      priority: 7,
+      timestamp: new Date()
+    };
+
+    const response = await this.quicTransport.request(agentId, message, {
+      timeout,
+      retries: 2,
+      retryDelay: 100
+    });
+
+    console.debug(`[${this.agentId.id}] Received response from agent ${agentId}`);
+
+    return response.payload;
+  }
+
+  /**
+   * Broadcast to fleet via QUIC
+   */
+  protected async broadcastToFleet(payload: any, channel: string = 'coordination'): Promise<void> {
+    if (!this.quicTransport) {
+      console.warn('QUIC not enabled, falling back to EventBus broadcast');
+      await this.broadcastMessage('fleet-broadcast', payload);
+      return;
+    }
+
+    const message: QUICMessage = {
+      id: this.generateMessageId(),
+      from: this.agentId.id,
+      to: 'broadcast',
+      channel,
+      type: QUICMessageType.BROADCAST,
+      payload,
+      priority: 5,
+      timestamp: new Date()
+    };
+
+    await this.quicTransport.broadcast(message, { channel });
+
+    const peers = this.quicTransport.getPeers();
+    console.debug(`[${this.agentId.id}] Broadcast message to ${peers.length} peers`, {
+      channel,
+      payloadType: typeof payload
+    });
+  }
+
+  /**
+   * Get QUIC connection stats
+   */
+  public getQUICStats() {
+    if (!this.quicTransport) {
+      return null;
+    }
+
+    return this.quicTransport.getStats();
+  }
+
+  /**
+   * Get QUIC health status
+   */
+  public getQUICHealth() {
+    if (!this.quicTransport) {
+      return null;
+    }
+
+    return this.quicTransport.getHealth();
+  }
+
+  /**
+   * Setup QUIC message handlers
+   */
+  private setupQUICMessageHandlers(): void {
+    if (!this.quicTransport) {
+      return;
+    }
+
+    // Handle incoming messages
+    this.quicTransport.on('message:received', (message: QUICMessage) => {
+      this.handleQUICMessage(message);
+    });
+
+    // Handle connection events
+    this.quicTransport.on('connection:established', (peer) => {
+      this.emit('peer:connected', peer);
+      console.info(`[${this.agentId.id}] Peer connected: ${peer.agentId}`);
+    });
+
+    this.quicTransport.on('connection:lost', (peer, reason) => {
+      this.emit('peer:disconnected', peer);
+      console.warn(`[${this.agentId.id}] Peer disconnected: ${peer.agentId}`, reason);
+    });
+
+    // Handle transport errors
+    this.quicTransport.on('transport:error', (error: Error) => {
+      this.emit('quic:error', error);
+      console.error(`[${this.agentId.id}] QUIC transport error:`, error);
+    });
+  }
+
+  /**
+   * Handle incoming QUIC message
+   */
+  private handleQUICMessage(message: QUICMessage): void {
+    console.debug(`[${this.agentId.id}] Received QUIC message from ${message.from}`, {
+      type: message.type,
+      channel: message.channel
+    });
+
+    // Handle response messages
+    if (message.type === QUICMessageType.RESPONSE && this.quicTransport) {
+      (this.quicTransport as QUICTransport).handleResponse(message);
+      return;
+    }
+
+    // Emit message event for custom handling
+    this.emit('quic:message', message);
+
+    // Can be overridden by subclasses for custom message handling
+    this.onQUICMessage(message);
+  }
+
+  /**
+   * Override this method in subclasses to handle QUIC messages
+   */
+  protected onQUICMessage(message: QUICMessage): void {
+    // Default implementation - subclasses can override
   }
 }
 

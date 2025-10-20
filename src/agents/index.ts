@@ -5,6 +5,7 @@
 
 // Export all agent implementations
 export { BaseAgent, BaseAgentConfig, BaseAgentFactory } from './BaseAgent';
+export { QUICCapable, applyQUICCapabilities, hasQUICCapabilities } from './mixins/QUICCapableMixin';
 export { TestGeneratorAgent } from './TestGeneratorAgent';
 export { TestExecutorAgent } from './TestExecutorAgent';
 export { CoverageAnalyzerAgent } from './CoverageAnalyzerAgent';

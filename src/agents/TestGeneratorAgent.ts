@@ -24,6 +24,7 @@ import { CodeSignature as ReasoningCodeSignature } from '../reasoning/types';
 import { LearningEngine } from '../learning/LearningEngine';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+import { safeNeuralPredict, NeuralInput, mergeWithNeuralPrediction } from './mixins/NeuralCapableMixin';
 
 // Create a simple logger interface
 interface Logger {
@@ -243,22 +244,47 @@ export class TestGeneratorAgent extends BaseAgent {
       // Phase 4: Test Strategy Selection using Psycho-Symbolic Reasoning
       const testStrategy = await this.selectTestStrategy(patterns, complexityMetrics, riskFactors, request.coverage);
 
-      // Phase 5: Sublinear Test Case Generation (with pattern templates)
+      // Phase 5: Neural-Enhanced Test Candidate Suggestions
+      let neuralTestSuggestions = null;
+      if (this.neuralMatcher) {
+        const neuralInput: NeuralInput = {
+          type: 'test-generation',
+          data: {
+            codeSignature: await this.extractCodeSignature(request.sourceCode),
+            framework: request.framework,
+            complexity: request.sourceCode.complexityMetrics,
+            constraints: request.constraints
+          },
+          context: { patterns, riskFactors }
+        };
+
+        neuralTestSuggestions = await safeNeuralPredict(this.neuralMatcher, neuralInput);
+
+        if (neuralTestSuggestions && neuralTestSuggestions.confidence > 0.75) {
+          this.logger.info(
+            `[TestGeneratorAgent] Neural suggestions available with ${(neuralTestSuggestions.confidence * 100).toFixed(1)}% confidence`
+          );
+        }
+      }
+
+      // Phase 6: Sublinear Test Case Generation (with pattern templates and neural suggestions)
       const testCandidates = await this.generateTestCandidatesSublinear(
         request.sourceCode,
         request.framework,
         request.constraints,
-        applicablePatterns // Pass patterns for template-based generation
+        applicablePatterns, // Pass patterns for template-based generation
+        neuralTestSuggestions // Pass neural suggestions for enhancement
       );
 
-      // Phase 6: Test Case Optimization using Sublinear Matrix Solving
+      // Phase 7: Test Case Optimization using Sublinear Matrix Solving
       const optimalTestSet = await this.optimizeTestSelection(testCandidates, request.coverage);
 
-      // Phase 7: Generate Specific Test Types (with pattern acceleration)
+      // Phase 8: Generate Specific Test Types (with pattern acceleration and neural guidance)
       const unitTests = await this.generateUnitTests(
         request.sourceCode,
         optimalTestSet.unitTestVectors,
-        applicablePatterns
+        applicablePatterns,
+        neuralTestSuggestions
       );
       const integrationTests = await this.generateIntegrationTests(request.sourceCode, optimalTestSet.integrationVectors);
       const edgeCaseTests = await this.generateEdgeCaseTests(riskFactors, optimalTestSet.edgeCaseVectors);
@@ -269,7 +295,7 @@ export class TestGeneratorAgent extends BaseAgent {
         .filter(p => p.applicability > 0.7)
         .map(p => p.pattern.id);
 
-      // Phase 8: Test Suite Assembly
+      // Phase 9: Test Suite Assembly
       const testSuite = await this.assembleTestSuite(
         unitTests,
         integrationTests,
@@ -278,7 +304,7 @@ export class TestGeneratorAgent extends BaseAgent {
         request.coverage
       );
 
-      // Phase 9: Validate Test Suite Quality
+      // Phase 10: Validate Test Suite Quality
       const qualityScore = await this.validateTestSuiteQuality(testSuite);
 
       let finalTestSuite = testSuite;
@@ -385,9 +411,38 @@ export class TestGeneratorAgent extends BaseAgent {
     sourceCode: any,
     framework: string,
     constraints: any,
-    applicablePatterns: PatternMatch[] = []
+    applicablePatterns: PatternMatch[] = [],
+    neuralSuggestions: any = null
   ): Promise<Test[]> {
     const testCandidates: Test[] = [];
+
+    // Prioritize neural suggestions if available
+    if (neuralSuggestions?.result?.suggestedTests) {
+      this.logger.info(
+        `[TestGeneratorAgent] Incorporating ${neuralSuggestions.result.suggestedTests.length} neural test suggestions`
+      );
+
+      for (const suggestion of neuralSuggestions.result.suggestedTests) {
+        if (testCandidates.length >= constraints.maxTests) break;
+
+        const testCase: Test = {
+          id: this.generateTestId(),
+          name: suggestion.name || 'neural_suggested_test',
+          type: suggestion.priority === 'high' ? TestType.UNIT : TestType.INTEGRATION,
+          parameters: [],
+          assertions: ['// Neural-suggested test'],
+          expectedResult: null,
+          estimatedDuration: 1000,
+          metadata: {
+            source: 'neural',
+            confidence: neuralSuggestions.confidence,
+            priority: suggestion.priority
+          }
+        };
+
+        testCandidates.push(testCase);
+      }
+    }
 
     // Generate test vectors using Johnson-Lindenstrauss dimension reduction
     const testVectors = await this.generateTestVectors(sourceCode.complexityMetrics.functionCount * 10);
@@ -458,14 +513,26 @@ export class TestGeneratorAgent extends BaseAgent {
   private async generateUnitTests(
     sourceCode: any,
     vectors: number[],
-    applicablePatterns: PatternMatch[] = []
+    applicablePatterns: PatternMatch[] = [],
+    neuralSuggestions: any = null
   ): Promise<Test[]> {
     const unitTests: Test[] = [];
     const functions = await this.extractFunctions(sourceCode);
 
+    // Check if neural predictions suggest focusing on specific functions
+    const neuralPriorityFunctions = neuralSuggestions?.result?.suggestedTests
+      ?.filter((s: any) => s.priority === 'high')
+      .map((s: any) => s.name);
+
     for (const func of functions) {
       const complexity = await this.calculateCyclomaticComplexity(func);
-      const testCount = Math.min(complexity * 2, 10);
+      let testCount = Math.min(complexity * 2, 10);
+
+      // Increase test count for neural-prioritized functions
+      if (neuralPriorityFunctions?.includes(func.name)) {
+        testCount = Math.min(testCount * 1.5, 15);
+        this.logger.debug(`[TestGeneratorAgent] Neural priority boost for ${func.name}`);
+      }
 
       // Check if we have applicable patterns for this function
       const funcPatterns = applicablePatterns.filter(p =>

@@ -656,3 +656,6 @@ export const WEEK3_EVENT_TYPES = {
 
 // Re-export hook types
 export * from './hook.types';
+
+// Re-export QUIC types
+export * from './quic';

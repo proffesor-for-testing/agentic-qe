@@ -52,5 +52,9 @@
     "progressInterval": 2000,
     "bufferEvents": false,
     "timeout": 1800000
+  },
+  "phase3Features": {
+    "quicEnabled": false,
+    "neuralEnabled": false
   }
 }

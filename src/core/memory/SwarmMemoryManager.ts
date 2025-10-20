@@ -8,6 +8,12 @@ import {
   ACL,
   AccessControlError
 } from './AccessControl';
+import {
+  AgentDBIntegration,
+  createDefaultQUICConfig,
+  type QUICConfig,
+  type QUICMetrics
+} from './AgentDBIntegration';
 
 export interface MemoryEntry {
   key: string;
@@ -216,6 +222,8 @@ export class SwarmMemoryManager {
   private initialized = false;
   private accessControl: AccessControl;
   private aclCache: Map<string, ACL>;
+  private quicIntegration: AgentDBIntegration | null = null;
+  private lastModifiedTimestamps: Map<string, number>; // Track entry modifications for sync
 
   // TTL policy constants (in seconds)
   private readonly TTL_POLICY = {
@@ -231,6 +239,7 @@ export class SwarmMemoryManager {
     this.dbPath = dbPath;
     this.accessControl = new AccessControl();
     this.aclCache = new Map();
+    this.lastModifiedTimestamps = new Map();
   }
 
   private run(sql: string, params: any[] = []): void {
@@ -551,6 +560,10 @@ export class SwarmMemoryManager {
         options.swarmId || null
       ]
     );
+
+    // Track modification for QUIC sync
+    const entryKey = `${partition}:${key}`;
+    this.lastModifiedTimestamps.set(entryKey, createdAt);
   }
 
   /**
@@ -1999,5 +2012,177 @@ export class SwarmMemoryManager {
    */
   getAccessControl(): AccessControl {
     return this.accessControl;
+  }
+
+  // ============================================================================
+  // QUIC Integration (Optional, opt-in feature)
+  // ============================================================================
+
+  /**
+   * Enable QUIC transport for distributed memory synchronization
+   *
+   * @param config - QUIC configuration (optional, uses defaults if not provided)
+   */
+  async enableQUIC(config?: Partial<QUICConfig>): Promise<void> {
+    if (this.quicIntegration) {
+      throw new Error('QUIC integration already enabled');
+    }
+
+    const fullConfig = {
+      ...createDefaultQUICConfig(),
+      ...config,
+      enabled: true // Force enabled when explicitly calling this method
+    };
+
+    this.quicIntegration = new AgentDBIntegration(fullConfig);
+
+    try {
+      await this.quicIntegration.enable();
+    } catch (error) {
+      // Graceful degradation: log error but don't fail
+      console.warn('[SwarmMemoryManager] QUIC integration failed, continuing without it:', error);
+      this.quicIntegration = null;
+    }
+  }
+
+  /**
+   * Disable QUIC transport
+   */
+  async disableQUIC(): Promise<void> {
+    if (!this.quicIntegration) {
+      return;
+    }
+
+    try {
+      await this.quicIntegration.disable();
+    } finally {
+      this.quicIntegration = null;
+    }
+  }
+
+  /**
+   * Add peer for QUIC synchronization
+   *
+   * @param address - Peer IP address
+   * @param port - Peer port number
+   * @returns Peer ID
+   */
+  async addQUICPeer(address: string, port: number): Promise<string> {
+    if (!this.quicIntegration) {
+      throw new Error('QUIC integration not enabled. Call enableQUIC() first.');
+    }
+
+    return this.quicIntegration.addPeer(address, port);
+  }
+
+  /**
+   * Remove peer from QUIC synchronization
+   *
+   * @param peerId - Peer ID to remove
+   */
+  async removeQUICPeer(peerId: string): Promise<void> {
+    if (!this.quicIntegration) {
+      throw new Error('QUIC integration not enabled');
+    }
+
+    return this.quicIntegration.removePeer(peerId);
+  }
+
+  /**
+   * Get QUIC performance metrics
+   *
+   * @returns Performance metrics or null if QUIC not enabled
+   */
+  getQUICMetrics(): QUICMetrics | null {
+    if (!this.quicIntegration) {
+      return null;
+    }
+
+    return this.quicIntegration.getMetrics();
+  }
+
+  /**
+   * Get list of connected QUIC peers
+   *
+   * @returns Array of peer information or empty array if QUIC not enabled
+   */
+  getQUICPeers(): any[] {
+    if (!this.quicIntegration) {
+      return [];
+    }
+
+    return this.quicIntegration.getPeers();
+  }
+
+  /**
+   * Check if QUIC integration is enabled
+   *
+   * @returns True if QUIC is enabled and available
+   */
+  isQUICEnabled(): boolean {
+    return this.quicIntegration !== null && this.quicIntegration.isAvailable();
+  }
+
+  /**
+   * Get memory entries modified since timestamp (for QUIC sync)
+   *
+   * @param since - Timestamp to get entries modified after
+   * @param partition - Optional partition filter
+   * @returns Array of modified entries with metadata
+   */
+  async getModifiedEntries(since: number, partition?: string): Promise<MemoryEntry[]> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    let query = `
+      SELECT key, value, partition, created_at, expires_at, owner, access_level, team_id, swarm_id
+      FROM memory_entries
+      WHERE created_at > ?
+    `;
+
+    const params: any[] = [since];
+
+    if (partition) {
+      query += ` AND partition = ?`;
+      params.push(partition);
+    }
+
+    query += ` ORDER BY created_at ASC`;
+
+    const rows = await this.all<any>(query, params);
+
+    return rows.map((row: any) => ({
+      key: row.key,
+      value: JSON.parse(row.value),
+      partition: row.partition,
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+      owner: row.owner,
+      accessLevel: row.access_level as AccessLevel,
+      teamId: row.team_id,
+      swarmId: row.swarm_id
+    }));
+  }
+
+  /**
+   * Get last modification timestamp for an entry
+   *
+   * @param key - Entry key
+   * @param partition - Entry partition
+   * @returns Timestamp or undefined if not tracked
+   */
+  getLastModified(key: string, partition: string = 'default'): number | undefined {
+    const entryKey = `${partition}:${key}`;
+    return this.lastModifiedTimestamps.get(entryKey);
+  }
+
+  /**
+   * Get QUIC integration instance (for advanced usage)
+   *
+   * @returns AgentDBIntegration instance or null if not enabled
+   */
+  getQUICIntegration(): AgentDBIntegration | null {
+    return this.quicIntegration;
   }
 }
