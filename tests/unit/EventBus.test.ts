@@ -7,27 +7,16 @@ import { EventBus, FleetEvent } from '../../src/core/EventBus';
 import { Logger } from '../../src/utils/Logger';
 import { createResourceCleanup } from '../helpers/cleanup';
 
-// Mock Logger
-jest.mock('../../src/utils/Logger');
+// Global mock from jest.setup.ts handles Logger
 
 describe('EventBus', () => {
   let eventBus: EventBus;
-  let mockLogger: jest.Mocked<Logger>;
   const cleanup = createResourceCleanup();
 
   beforeEach(async () => {
+    // Global mock from jest.setup.ts already provides Logger.getInstance()
+    // Just clear any previous calls
     jest.clearAllMocks();
-
-    // Create mock Logger
-    mockLogger = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-      getInstance: jest.fn().mockReturnValue(mockLogger)
-    } as any;
-
-    (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
 
     eventBus = new EventBus();
     await eventBus.initialize();
@@ -52,8 +41,8 @@ describe('EventBus', () => {
       const newEventBus = new EventBus();
       await expect(newEventBus.initialize()).resolves.not.toThrow();
 
-      expect(mockLogger.info).toHaveBeenCalledWith('Initializing EventBus');
-      expect(mockLogger.info).toHaveBeenCalledWith('EventBus initialized successfully');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Initializing EventBus');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('EventBus initialized successfully');
     });
 
     it('should handle multiple initialization calls gracefully', async () => {
@@ -73,7 +62,7 @@ describe('EventBus', () => {
       await new Promise(resolve => setImmediate(resolve));
 
       // Second call should NOT log anything (idempotent)
-      expect(mockLogger.info).toHaveBeenCalledTimes(0);
+      expect(Logger.getInstance().info).toHaveBeenCalledTimes(0);
     });
 
     it('should set max listeners to support many agents', () => {
@@ -136,7 +125,7 @@ describe('EventBus', () => {
 
       await eventBus.emitFleetEvent('test:event', 'test-source', eventData, 'test-target');
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect(Logger.getInstance().debug).toHaveBeenCalledWith(
         'Event emitted: test:event from test-source',
         expect.objectContaining({
           eventId: expect.any(String),
@@ -205,23 +194,23 @@ describe('EventBus', () => {
       const fleetData = { fleetId: 'fleet-123', status: 'running' };
 
       await eventBus.emitFleetEvent('fleet:started', 'fleet-manager', fleetData);
-      expect(mockLogger.info).toHaveBeenCalledWith('Fleet started', fleetData);
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Fleet started', fleetData);
 
       await eventBus.emitFleetEvent('fleet:stopped', 'fleet-manager', fleetData);
-      expect(mockLogger.info).toHaveBeenCalledWith('Fleet stopped', fleetData);
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Fleet stopped', fleetData);
     });
 
     it('should log agent lifecycle events', async () => {
       const agentData = { agentId: 'agent-123', type: 'test-executor' };
 
       await eventBus.emitFleetEvent('agent:spawned', 'fleet-manager', agentData);
-      expect(mockLogger.info).toHaveBeenCalledWith('Agent spawned: agent-123 (test-executor)');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Agent spawned: agent-123 (test-executor)');
 
       await eventBus.emitFleetEvent('agent:started', 'agent-123', { agentId: 'agent-123' });
-      expect(mockLogger.info).toHaveBeenCalledWith('Agent started: agent-123');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Agent started: agent-123');
 
       await eventBus.emitFleetEvent('agent:stopped', 'agent-123', { agentId: 'agent-123' });
-      expect(mockLogger.info).toHaveBeenCalledWith('Agent stopped: agent-123');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Agent stopped: agent-123');
     });
 
     it('should log agent errors', async () => {
@@ -229,7 +218,7 @@ describe('EventBus', () => {
 
       await eventBus.emitFleetEvent('agent:error', 'agent-456', errorData);
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
+      expect(Logger.getInstance().error).toHaveBeenCalledWith(
         'Agent error: agent-456',
         errorData.error
       );
@@ -238,21 +227,21 @@ describe('EventBus', () => {
     it('should log task lifecycle events', async () => {
       // Task submitted
       await eventBus.emitFleetEvent('task:submitted', 'client', { taskId: 'task-123' });
-      expect(mockLogger.info).toHaveBeenCalledWith('Task submitted: task-123');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Task submitted: task-123');
 
       // Task assigned
       await eventBus.emitFleetEvent('task:assigned', 'fleet-manager', {
         taskId: 'task-123',
         agentId: 'agent-456'
       });
-      expect(mockLogger.info).toHaveBeenCalledWith('Task assigned: task-123 -> agent-456');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Task assigned: task-123 -> agent-456');
 
       // Task started
       await eventBus.emitFleetEvent('task:started', 'agent-456', {
         taskId: 'task-123',
         agentId: 'agent-456'
       });
-      expect(mockLogger.info).toHaveBeenCalledWith('Task started: task-123 by agent-456');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Task started: task-123 by agent-456');
 
       // Task completed
       await eventBus.emitFleetEvent('task:completed', 'agent-456', {
@@ -260,7 +249,7 @@ describe('EventBus', () => {
         agentId: 'agent-456',
         executionTime: 1500
       });
-      expect(mockLogger.info).toHaveBeenCalledWith('Task completed: task-123 by agent-456 in 1500ms');
+      expect(Logger.getInstance().info).toHaveBeenCalledWith('Task completed: task-123 by agent-456 in 1500ms');
 
       // Task failed
       const taskError = new Error('Task execution failed');
@@ -269,7 +258,7 @@ describe('EventBus', () => {
         agentId: 'agent-456',
         error: taskError
       });
-      expect(mockLogger.error).toHaveBeenCalledWith('Task failed: task-789 by agent-456', taskError);
+      expect(Logger.getInstance().error).toHaveBeenCalledWith('Task failed: task-789 by agent-456', taskError);
     });
   });
 

@@ -4,18 +4,6 @@
  */
 
 import * as fs from 'fs-extra';
-
-// Mock Logger to prevent undefined errors in Database
-jest.mock('../../src/utils/Logger', () => ({
-  Logger: {
-    getInstance: jest.fn(() => ({
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn()
-    }))
-  }
-}));
 import { FleetInitCommand } from '../../src/cli/commands/fleet/init';
 import { FleetStatusCommand } from '../../src/cli/commands/fleet/status';
 import { FleetScaleCommand } from '../../src/cli/commands/fleet/scale';
