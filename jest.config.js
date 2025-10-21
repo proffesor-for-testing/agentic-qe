@@ -48,7 +48,9 @@ module.exports = {
     '^@core/(.*)$': '<rootDir>/src/core/$1',
     '^@agents/(.*)$': '<rootDir>/src/agents/$1',
     '^@cli/(.*)$': '<rootDir>/src/cli/$1',
-    '^@utils/(.*)$': '<rootDir>/src/utils/$1'
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    // Map .js imports to .ts source files for Jest
+    '^(\\.{1,2}/.*)\\.js$': '$1'
   },
   // Memory optimization settings - Enhanced for DevPod
   maxWorkers: 1, // Reduced from 2 to 1 for maximum safety

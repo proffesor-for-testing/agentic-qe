@@ -495,13 +495,13 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   /**
    * Predict gap likelihood using learned patterns
    */
-  async predictGapLikelihood(file: string, functionName: string): Promise<number> {
+  async predictGapLikelihood(file: string, _functionName: string): Promise<number> {
     if (!this.learningEngine) {
       return 0.5; // Default if learning disabled
     }
 
     // Extract features for prediction
-    const features = {
+    const _features = {
       fileType: file.split('.').pop() || '',
       functionComplexity: 0.7, // Simplified
       historicalGaps: 0.3 // Simplified
@@ -955,11 +955,11 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     return [];
   }
 
-  private async generateTestSuggestions(prediction: any): Promise<string[]> {
+  private async generateTestSuggestions(_prediction: any): Promise<string[]> {
     return ['suggested-test-1', 'suggested-test-2'];
   }
 
-  private async calculateFunctionCoverage(func: any, codeBase: any): Promise<number> {
+  private async calculateFunctionCoverage(_func: any, _codeBase: any): Promise<number> {
     return Math.random();
   }
 
@@ -1006,7 +1006,7 @@ class SublinearOptimizer {
     };
   }
 
-  async calculateConfidence(prediction: any): Promise<number> {
+  async calculateConfidence(_prediction: any): Promise<number> {
     return Math.random() * 0.5 + 0.5; // 0.5-1.0 confidence
   }
 

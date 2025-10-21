@@ -107,7 +107,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
    * Note: MemoryStore doesn't have native pattern matching,
    * so this returns empty array as safe fallback
    */
-  async query(pattern: string, options: RetrieveOptions = {}): Promise<MemoryEntry[]> {
+  async query(_pattern: string, _options: RetrieveOptions = {}): Promise<MemoryEntry[]> {
     // MemoryStore doesn't support pattern queries
     // Return empty array as safe fallback
     return [];
@@ -117,7 +117,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
    * Delete entry
    * Maps to MemoryStore.delete() with partition support
    */
-  async delete(key: string, partition: string = 'default', options: DeleteOptions = {}): Promise<void> {
+  async delete(key: string, partition: string = 'default', _options: DeleteOptions = {}): Promise<void> {
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
     await this.memoryStore.delete(namespacedKey);
   }
@@ -142,7 +142,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
    * Read hints matching pattern
    * Returns empty array as MemoryStore doesn't support pattern matching
    */
-  async readHints(pattern: string): Promise<Hint[]> {
+  async readHints(_pattern: string): Promise<Hint[]> {
     // MemoryStore doesn't support pattern queries
     return [];
   }
@@ -215,11 +215,11 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     return id;
   }
 
-  async queryEvents(type: string): Promise<Event[]> {
+  async queryEvents(_type: string): Promise<Event[]> {
     return [];
   }
 
-  async getEventsBySource(source: string): Promise<Event[]> {
+  async getEventsBySource(_source: string): Promise<Event[]> {
     return [];
   }
 
@@ -240,7 +240,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     await this.storeWorkflowState({ ...current, ...updates });
   }
 
-  async queryWorkflowsByStatus(status: string): Promise<WorkflowState[]> {
+  async queryWorkflowsByStatus(_status: string): Promise<WorkflowState[]> {
     return [];
   }
 
@@ -268,7 +268,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     }
   }
 
-  async queryPatternsByConfidence(threshold: number): Promise<Pattern[]> {
+  async queryPatternsByConfidence(_threshold: number): Promise<Pattern[]> {
     return [];
   }
 
@@ -297,7 +297,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     return approved;
   }
 
-  async queryConsensusProposals(status: string): Promise<ConsensusProposal[]> {
+  async queryConsensusProposals(_status: string): Promise<ConsensusProposal[]> {
     return [];
   }
 
@@ -307,15 +307,15 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     return id;
   }
 
-  async queryPerformanceMetrics(metricName: string): Promise<PerformanceMetric[]> {
+  async queryPerformanceMetrics(_metricName: string): Promise<PerformanceMetric[]> {
     return [];
   }
 
-  async getMetricsByAgent(agentId: string): Promise<PerformanceMetric[]> {
+  async getMetricsByAgent(_agentId: string): Promise<PerformanceMetric[]> {
     return [];
   }
 
-  async getAverageMetric(metricName: string): Promise<number> {
+  async getAverageMetric(_metricName: string): Promise<number> {
     return 0;
   }
 
@@ -331,11 +331,11 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     return data as Artifact;
   }
 
-  async queryArtifactsByKind(kind: string): Promise<Artifact[]> {
+  async queryArtifactsByKind(_kind: string): Promise<Artifact[]> {
     return [];
   }
 
-  async queryArtifactsByTag(tag: string): Promise<Artifact[]> {
+  async queryArtifactsByTag(_tag: string): Promise<Artifact[]> {
     return [];
   }
 
@@ -389,7 +389,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     await this.registerAgent(agent);
   }
 
-  async queryAgentsByStatus(status: string): Promise<AgentRegistration[]> {
+  async queryAgentsByStatus(_status: string): Promise<AgentRegistration[]> {
     return [];
   }
 
@@ -477,7 +477,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     await this.storeOODACycle(cycle);
   }
 
-  async queryOODACyclesByPhase(phase: string): Promise<OODACycle[]> {
+  async queryOODACyclesByPhase(_phase: string): Promise<OODACycle[]> {
     return [];
   }
 
@@ -508,7 +508,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     await this.storeACL(acl);
   }
 
-  async revokePermission(resourceId: string, agentId: string, permissions: any[]): Promise<void> {
+  async revokePermission(resourceId: string, agentId: string, _permissions: any[]): Promise<void> {
     const acl = await this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);

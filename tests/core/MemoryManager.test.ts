@@ -70,7 +70,16 @@ describe('MemoryManager', () => {
       } as any;
 
       const failingManager = new MemoryManager(failingDb);
-      await expect(failingManager.initialize()).rejects.toThrow('DB connection failed');
+
+      try {
+        await expect(failingManager.initialize()).rejects.toThrow('DB connection failed');
+      } finally {
+        // CRITICAL FIX: Clean up failingManager to prevent memory leak
+        // Even though initialization failed, the setInterval was already created in constructor
+        await failingManager.shutdown().catch(() => {
+          // Ignore shutdown errors since initialization failed
+        });
+      }
     });
   });
 

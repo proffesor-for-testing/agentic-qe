@@ -341,7 +341,7 @@ export class QualityGateAgent extends EventEmitter {
     }
   }
 
-  private async calculateDynamicThreshold(context: any, metrics: any): Promise<number> {
+  private async calculateDynamicThreshold(context: any, _metrics: any): Promise<number> {
     let baseThreshold = 0.8; // Default threshold
 
     // Adjust based on deployment criticality
@@ -582,7 +582,7 @@ export class QualityGateAgent extends EventEmitter {
   // Placeholder implementations for complex methods
   private async loadDecisionPatterns(): Promise<void> {
     if (this.memoryStore) {
-      const patterns = await this.memoryStore.get('decision-patterns', 'agents');
+      const _patterns = await this.memoryStore.get('decision-_patterns', 'agents');
       // Apply loaded patterns
     }
   }
@@ -617,7 +617,7 @@ export class QualityGateAgent extends EventEmitter {
     return value >= criterion.threshold;
   }
 
-  private async calculateImpact(criterion: QualityCriterion, value: number, context: any): Promise<string> {
+  private async calculateImpact(criterion: QualityCriterion, value: number, _context: any): Promise<string> {
     if (criterion.critical && value < criterion.threshold) {
       return 'High impact - critical criterion not met';
     } else if (value < criterion.threshold) {
@@ -627,7 +627,7 @@ export class QualityGateAgent extends EventEmitter {
     }
   }
 
-  private async getHistoricalPerformance(environment: string): Promise<number> {
+  private async getHistoricalPerformance(_environment: string): Promise<number> {
     return 0.85; // Placeholder for historical performance data
   }
 
@@ -679,7 +679,7 @@ class ConsciousnessEngine {
 class PsychoSymbolicReasoner {
   async initialize(): Promise<void> {}
 
-  async reason(params: any): Promise<any> {
+  async reason(_params: any): Promise<any> {
     // Simulate reasoning
     return {
       reasoning: 'Complex quality state analysis completed',

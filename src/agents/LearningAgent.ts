@@ -163,7 +163,7 @@ export class LearningAgent extends BaseAgent {
   /**
    * Get user feedback (stub - implement based on your system)
    */
-  private async getUserFeedback(taskId: string): Promise<any> {
+  private async getUserFeedback(_taskId: string): Promise<any> {
     // In a real system, this would fetch actual user feedback
     // For now, return undefined to use only system-calculated rewards
     return undefined;
@@ -248,7 +248,7 @@ export class LearningAgent extends BaseAgent {
   // Abstract Methods Implementation
   // ============================================================================
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(_task: QETask): Promise<any> {
     // Default implementation - override in subclasses
     return {
       success: true,

@@ -55,14 +55,23 @@ export interface QUICSecurityConfig {
   /** Private key path for TLS */
   keyPath?: string;
 
+  /** CA certificate path */
+  caPath?: string;
+
   /** Verify peer certificates */
   verifyPeer?: boolean;
+
+  /** Require client certificates */
+  requireClientCertificates?: boolean;
 
   /** Enable token-based authentication */
   enableTokenAuth?: boolean;
 
   /** Authentication token */
   token?: string;
+
+  /** Allowed cipher suites */
+  allowedCipherSuites?: string[];
 }
 
 export interface QUICChannel {

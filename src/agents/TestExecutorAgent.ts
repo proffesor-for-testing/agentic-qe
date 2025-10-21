@@ -521,7 +521,7 @@ export class TestExecutorAgent extends BaseAgent {
    * Analyze test files
    */
   private async analyzeTests(data: any): Promise<any> {
-    const { testPath, includeMetrics = true } = data;
+    const { testPath, _includeMetrics = true } = data;
 
     this.logger.info(`Analyzing tests in ${testPath}`);
 
@@ -641,7 +641,6 @@ export class TestExecutorAgent extends BaseAgent {
     };
 
     // Populate sparse matrix with dependency weights
-    let valueIndex = 0;
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         const weight = this.calculateDependencyWeight(tests[i], tests[j], dependencyGraph);
@@ -649,7 +648,6 @@ export class TestExecutorAgent extends BaseAgent {
           executionMatrix.values.push(weight);
           executionMatrix.rowIndices.push(i);
           executionMatrix.colIndices.push(j);
-          valueIndex++;
         }
       }
     }

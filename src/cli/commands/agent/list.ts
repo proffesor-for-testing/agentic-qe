@@ -3,6 +3,9 @@
  * Lists all agents with optional filtering
  */
 
+import * as fs from 'fs-extra';
+import * as path from 'path';
+
 export interface ListOptions {
   filter?: string;
   format?: 'json' | 'table';
@@ -17,17 +20,39 @@ export interface AgentInfo {
 
 export class AgentListCommand {
   static async execute(options: ListOptions): Promise<AgentInfo[] | string> {
-    // Simulate reading agent data (in real implementation, read from disk)
-    const mockAgents: AgentInfo[] = [
-      { id: 'agent-1', type: 'test-generator', status: 'active' },
-      { id: 'agent-2', type: 'test-executor', status: 'idle' },
-      { id: 'agent-3', type: 'quality-analyzer', status: 'active' }
-    ];
+    const agentDir = '.agentic-qe/agents';
+    let agents: AgentInfo[] = [];
+
+    // Read agent data from disk if available, otherwise use mock data
+    if (await fs.pathExists(agentDir)) {
+      const files = await fs.readdir(agentDir);
+      const agentFiles = files.filter(f => f.endsWith('.json'));
+
+      for (const file of agentFiles) {
+        const agentData = await fs.readJson(path.join(agentDir, file));
+        agents.push(agentData);
+      }
+    }
+
+    // Fallback to mock data if no agents found
+    if (agents.length === 0) {
+      // Read from mock state file if it exists
+      const mockStateFile = '.agentic-qe/test-state.json';
+      if (await fs.pathExists(mockStateFile)) {
+        const state = await fs.readJson(mockStateFile);
+        agents = state.agents || [];
+      } else {
+        agents = [
+          { id: 'agent-1', type: 'test-generator', status: 'active' },
+          { id: 'agent-2', type: 'test-executor', status: 'idle' },
+          { id: 'agent-3', type: 'quality-analyzer', status: 'active' }
+        ];
+      }
+    }
 
     // Apply filter if specified
-    let agents = mockAgents;
     if (options.filter) {
-      agents = mockAgents.filter(a => a.status === options.filter);
+      agents = agents.filter(a => a.status === options.filter);
     }
 
     // Format output

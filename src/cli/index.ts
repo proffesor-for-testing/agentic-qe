@@ -31,6 +31,7 @@ import * as patternsCommands from './commands/patterns/index.js';
 import * as improveCommands from './commands/improve/index.js';
 import * as skillsCommands from './commands/skills/index.js';
 import { InitCommand } from './commands/init';
+import packageJson from '../../package.json';
 
 const program = new Command();
 const logger = Logger.getInstance();
@@ -41,7 +42,7 @@ let fleetManager: FleetManager | null = null;
 program
   .name('agentic-qe')
   .description('Agentic Quality Engineering Fleet - Autonomous testing and quality assurance')
-  .version('1.1.0');
+  .version(packageJson.version);
 
 /**
  * Initialize fleet using proper InitCommand
@@ -55,6 +56,8 @@ program
   .option('-f, --focus <areas>', 'Testing focus areas', 'unit,integration')
   .option('-e, --environments <envs>', 'Target environments', 'development')
   .option('--frameworks <frameworks>', 'Test frameworks', 'jest')
+  .option('-y, --yes', 'Skip all prompts and use defaults (non-interactive mode)')
+  .option('--non-interactive', 'Same as --yes (skip all prompts)')
   .action(async (options) => {
     try {
       await InitCommand.execute(options as any);

@@ -13,7 +13,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
-import { AgentType, QEAgentType, QETask, AgentStatus } from '../types';
+import { AgentType as _AgentType, QEAgentType, QETask, AgentStatus } from '../types';
 
 export interface FleetCommanderConfig extends BaseAgentConfig {
   topology?: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive';
@@ -715,7 +715,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // Load Balancing
   // ============================================================================
 
-  private async rebalanceWorkload(payload: any): Promise<any> {
+  private async rebalanceWorkload(_payload: any): Promise<any> {
     console.log('[FleetCommander] Rebalancing workload across fleet');
 
     const rebalancingStrategy = await this.calculateRebalancingStrategy();
@@ -834,7 +834,7 @@ export class FleetCommanderAgent extends BaseAgent {
     return 'default';
   }
 
-  private async resolveResourceContention(agents: string[], allocation: ResourceAllocation): Promise<any> {
+  private async resolveResourceContention(agents: string[], _allocation: ResourceAllocation): Promise<any> {
     // Priority-weighted resource allocation
     const agentAllocations = await Promise.all(
       agents.map(async (agentId) => {

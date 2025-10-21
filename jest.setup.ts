@@ -57,21 +57,39 @@ jest.mock('path', () => {
 
 // Mock Logger globally to prevent initialization issues
 jest.mock('./src/utils/Logger', () => {
-  const mockLogger = {
+  // Create a factory function that returns a new mock logger instance each time
+  const createMockLogger = () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
     log: jest.fn(),
-    child: jest.fn().mockReturnThis(),
+    child: jest.fn(function() { return this; }), // Return 'this' to support chaining
     setLevel: jest.fn(),
     getLevel: jest.fn().mockReturnValue('info')
-  };
+  });
+
+  // Singleton instance for getInstance()
+  const singletonLogger = createMockLogger();
+
+  // Mock Logger class that can be instantiated
+  class MockLogger {
+    info = jest.fn();
+    warn = jest.fn();
+    error = jest.fn();
+    debug = jest.fn();
+    log = jest.fn();
+    child = jest.fn().mockReturnThis();
+    setLevel = jest.fn();
+    getLevel = jest.fn().mockReturnValue('info');
+
+    static getInstance() {
+      return singletonLogger;
+    }
+  }
 
   return {
-    Logger: {
-      getInstance: jest.fn().mockReturnValue(mockLogger)
-    },
+    Logger: MockLogger,
     LogLevel: {
       ERROR: 'error',
       WARN: 'warn',

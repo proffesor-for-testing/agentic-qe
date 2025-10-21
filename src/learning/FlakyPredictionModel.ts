@@ -11,7 +11,6 @@
 
 import { TestResult, FlakyPrediction, ModelTrainingData, ModelMetrics } from './types';
 import { StatisticalAnalysis } from './StatisticalAnalysis';
-import { AdvancedFeatureExtractor } from './AdvancedFeatureExtractor';
 
 export class FlakyPredictionModel {
   private weights: number[] = [];
@@ -35,17 +34,43 @@ export class FlakyPredictionModel {
 
   /**
    * Extract features from test results for ML model
-   * Now uses AdvancedFeatureExtractor with 27+ features
+   * Basic statistical feature extraction (inline)
    */
   private extractFeatures(results: TestResult[]): number[] {
     if (results.length === 0) {
-      // Return 27 zero features for consistency
-      return Array(27).fill(0);
+      // Return 12 zero features for consistency
+      return Array(12).fill(0);
     }
 
-    // Use advanced feature extractor
-    const advancedFeatures = AdvancedFeatureExtractor.extractFeatures(results);
-    return AdvancedFeatureExtractor.featuresToArray(advancedFeatures);
+    // Basic statistical features (sufficient for flaky test detection)
+    const passed = results.filter(r => r.passed).length;
+    const passRate = passed / results.length;
+    const failureRate = 1 - passRate;
+
+    const durations = results.map(r => r.duration);
+    const meanDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+    const variance = durations.reduce((sum, d) => sum + Math.pow(d - meanDuration, 2), 0) / durations.length;
+    const stdDev = Math.sqrt(variance);
+    const coefficientOfVariation = meanDuration > 0 ? stdDev / meanDuration : 0;
+    const minDuration = Math.min(...durations);
+    const maxDuration = Math.max(...durations);
+    const durationRange = maxDuration - minDuration;
+    const retryRate = results.filter(r => (r as any).retries && (r as any).retries > 0).length / results.length;
+
+    return [
+      passRate,
+      failureRate,
+      meanDuration,
+      variance,
+      stdDev,
+      coefficientOfVariation,
+      minDuration,
+      maxDuration,
+      durationRange,
+      retryRate,
+      results.length,
+      1.0 // data quality
+    ];
   }
 
   /**

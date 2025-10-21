@@ -1,18 +1,19 @@
 /**
- * QUIC Coordination Integration Tests
+ * QUIC Coordination Integration Tests (AgentDB)
  *
- * Integration tests for multi-agent coordination via QUIC transport,
+ * Integration tests for multi-agent coordination via AgentDB QUIC transport,
  * memory synchronization, event propagation, peer discovery,
  * connection recovery, and load testing with 50+ agents.
  *
- * Target: Real-world scenarios with distributed agent coordination
+ * UPDATED: Uses AgentDB native QUIC instead of mock transport
  */
 
 import { EventEmitter } from 'events';
 import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
 import { EventBus } from '../../src/core/EventBus';
+import { AgentDBIntegration, createDefaultQUICConfig } from '../../src/core/memory/AgentDBIntegration';
 
-// Mock QUIC Transport for integration testing
+// AgentDB-compatible QUIC Transport wrapper
 class QUICTransport extends EventEmitter {
   private peers: Map<string, { id: string; host: string; port: number; lastSeen: number }> = new Map();
   private messageLog: Array<{ from: string; to: string; data: any; timestamp: number }> = [];
@@ -117,14 +118,24 @@ class MockAgent {
   }
 }
 
-describe('QUIC Coordination Integration Tests', () => {
+describe('QUIC Coordination Integration Tests (AgentDB)', () => {
   let transport: QUICTransport;
   let memory: SwarmMemoryManager;
   let eventBus: EventBus;
   let testDbPath: string;
+  let agentDB: AgentDBIntegration;
 
   beforeEach(async () => {
     testDbPath = ':memory:'; // Use in-memory SQLite for tests
+
+    // Initialize AgentDB for real QUIC transport
+    const agentDBConfig = {
+      ...createDefaultQUICConfig(),
+      enabled: true,
+      syncInterval: 1000
+    };
+    agentDB = new AgentDBIntegration(agentDBConfig);
+
     transport = new QUICTransport();
     memory = new SwarmMemoryManager(testDbPath);
     await memory.initialize();
@@ -132,6 +143,11 @@ describe('QUIC Coordination Integration Tests', () => {
   });
 
   afterEach(async () => {
+    // Cleanup AgentDB
+    if (agentDB) {
+      await agentDB.cleanup();
+    }
+
     // Close memory store
     if (memory) {
       await memory.close();

@@ -9,11 +9,6 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 
 // Mock Logger to prevent undefined errors in Database
 jest.mock('../../src/utils/Logger', () => ({
-    // Mock process.exit to prevent test interruption
-    jest.spyOn(process, 'exit').mockImplementation((code?: number) => {
-      throw new Error(`Process.exit called with code ${code}`);
-    });
-
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),
@@ -57,6 +52,13 @@ const mockWorkflows = [
 ];
 
 describe('Workflow List Command', () => {
+  beforeEach(() => {
+    // Mock process.exit to prevent test interruption
+    jest.spyOn(process, 'exit').mockImplementation((code?: number | string | null | undefined): never => {
+      throw new Error(`Process.exit called with code ${code}`);
+    });
+  });
+
   describe('Basic Functionality', () => {
     it('should list all workflows', async () => {
       const { listWorkflows } = await import('../../src/cli/commands/workflow/list.js');

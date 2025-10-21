@@ -34,8 +34,8 @@ import {
   AgentCapability,
   QETask,
   FlakyTestHunterConfig,
-  QETestResult,
-  AQE_MEMORY_NAMESPACES
+  QETestResult as _QETestResult,
+  AQE_MEMORY_NAMESPACES as _AQE_MEMORY_NAMESPACES
 } from '../types';
 import {
   FlakyTestDetector,
@@ -713,7 +713,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
    * Analyze root cause using ML features and confidence
    * Phase 2: Enhanced with ML-based pattern recognition
    */
-  private async analyzeRootCauseML(mlTest: MLFlakyTest, stats: any): Promise<RootCauseAnalysis> {
+  private async analyzeRootCauseML(mlTest: MLFlakyTest, _stats: any): Promise<RootCauseAnalysis> {
     // Use ML recommendation as primary source
     const mlRecommendation = mlTest.recommendation;
 
@@ -987,7 +987,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     return patterns.random;
   }
 
-  private calculateSeverity(flakinessScore: number, stats: any): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
+  private calculateSeverity(flakinessScore: number, _stats: any): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
     if (flakinessScore >= 0.7) return 'CRITICAL';
     if (flakinessScore >= 0.5) return 'HIGH';
     if (flakinessScore >= 0.3) return 'MEDIUM';
@@ -1229,7 +1229,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     return 'F';
   }
 
-  private assignOwner(testName: string): string {
+  private assignOwner(_testName: string): string {
     // In production, would use CODEOWNERS or Git blame
     return 'qa-team@company.com';
   }
@@ -1253,7 +1253,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     }
   }
 
-  private async isTestStillRelevant(testName: string): Promise<boolean> {
+  private async isTestStillRelevant(_testName: string): Promise<boolean> {
     // Check if test file still exists and is referenced
     // Simplified implementation
     return true;

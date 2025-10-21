@@ -116,12 +116,12 @@ describe('FleetManager - London School TDD', () => {
     createAgentMock = agentsModule.createAgent as jest.Mock;
     createAgentMock.mockResolvedValue(mockAgent);
 
-    fleetManager = new FleetManager(mockConfig);
-
-    // Replace internal dependencies with mocks
-    (fleetManager as any).database = mockDatabase;
-    (fleetManager as any).eventBus = mockEventBus;
-    (fleetManager as any).logger = mockLogger;
+    // Use dependency injection instead of manually replacing properties
+    fleetManager = new FleetManager(mockConfig, {
+      database: mockDatabase as any,
+      eventBus: mockEventBus,
+      logger: mockLogger
+    });
   });
 
   describe('Fleet Initialization', () => {
@@ -379,17 +379,22 @@ describe('FleetManager - London School TDD', () => {
 // Contract tests for fleet manager interfaces
 describe('FleetManager Contracts', () => {
   it('should satisfy IFleetManager interface contract', () => {
-    const fleetManager = new FleetManager({
+    const testConfig: FleetConfig = {
+      agents: [],
+      topology: 'mesh' as const,
+      maxAgents: 4
+    };
+
+    const fleetManager = new FleetManager(testConfig, {
       logger: mockLogger,
-      metricsCollector: mockMetricsCollector,
-      agentFactory: mockAgentFactory
+      database: mockDatabase as any,
+      eventBus: mockEventBus
     });
-    
+
     // Verify interface compliance
     expect(typeof fleetManager.initialize).toBe('function');
     expect(typeof fleetManager.spawnAgent).toBe('function');
-    expect(typeof fleetManager.distributeTask).toBe('function');
-    expect(typeof fleetManager.getFleetStatus).toBe('function');
-    expect(typeof fleetManager.shutdown).toBe('function');
+    expect(typeof fleetManager.getStatus).toBe('function');
+    expect(typeof fleetManager.stop).toBe('function');
   });
 });

@@ -3,6 +3,9 @@
  * Creates and initializes new agents
  */
 
+import * as fs from 'fs-extra';
+import * as path from 'path';
+
 export interface SpawnOptions {
   type: string;
   name?: string;
@@ -55,10 +58,19 @@ export class AgentSpawnCommand {
       resources: options.resources
     };
 
-    // Simulate agent creation (in real implementation, this would persist to disk)
+    // Persist agent configuration
+    const agentDir = '.agentic-qe/agents';
+    const agentFile = path.join(agentDir, `${id}.json`);
+    await fs.ensureDir(agentDir);
+    await fs.writeJson(agentFile, agentConfig, { spaces: 2 });
+
+    // Simulate agent creation
     await new Promise(resolve => setTimeout(resolve, 10));
 
     agentConfig.status = 'active';
+
+    // Update status
+    await fs.writeJson(agentFile, agentConfig, { spaces: 2 });
 
     return agentConfig;
   }

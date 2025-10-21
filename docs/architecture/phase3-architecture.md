@@ -9,15 +9,15 @@
 
 ## Executive Summary
 
-This document defines the comprehensive architecture for integrating QUIC transport and Neural Training capabilities into the Agentic QE Fleet system. The design ensures zero breaking changes, maintains backward compatibility with existing HTTP-based communication, and provides simple APIs for QE agents to leverage advanced features.
+This document defines the comprehensive architecture for integrating AgentDB's advanced features into the Agentic QE Fleet system. AgentDB replaces custom QUIC transport and neural training implementations with battle-tested, production-ready solutions. The design ensures zero breaking changes, maintains backward compatibility, and provides simple APIs for QE agents.
 
 ### Key Objectives
 
-1. **QUIC Transport**: Reduce inter-agent communication latency by 50-70% using QUIC protocol with automatic TCP fallback
-2. **Neural Pattern Training**: Enable agents to learn from historical test data and predict optimal strategies
+1. **AgentDB QUIC Sync**: Sub-millisecond distributed memory synchronization using AgentDB's built-in QUIC transport with automatic encryption, retry, and multiplexing
+2. **AgentDB Learning Plugins**: 9 reinforcement learning algorithms (Decision Transformer, Q-Learning, SARSA, Actor-Critic, etc.) for intelligent pattern prediction
 3. **Simple Agent Integration**: Provide transparent APIs through BaseAgent mixins and optional configuration
 4. **Zero Breaking Changes**: All features opt-in with feature flags
-5. **Performance Targets**: <10ms QUIC handshake, 50-70% latency reduction, 85%+ prediction accuracy
+5. **Performance Targets**: <1ms QUIC sync latency, 150x faster vector search, 85%+ prediction accuracy with proven algorithms
 
 ---
 
@@ -59,53 +59,60 @@ This document defines the comprehensive architecture for integrating QUIC transp
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 Target Architecture (Phase 3)
+### 1.2 Target Architecture (Phase 3 - AgentDB Powered)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              FleetManager                                   │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  Configuration with Phase 3 Features                                   │ │
+│  │  Configuration with AgentDB Integration                                │ │
 │  │  {                                                                     │ │
 │  │    features: {                                                         │ │
-│  │      quicTransport: false,        // v1.1.0 (opt-in)                  │ │
-│  │      neuralTraining: false         // v1.1.0 (opt-in)                 │ │
+│  │      agentDBSync: false,          // v1.1.0 (opt-in)                  │ │
+│  │      agentDBLearning: false        // v1.1.0 (opt-in)                 │ │
 │  │    },                                                                  │ │
-│  │    quic: { port: 4433, cert: './certs/...' },                        │ │
-│  │    neural: { modelPath: './models/...' }                              │ │
+│  │    agentdb: {                                                          │ │
+│  │      dbPath: '.agentdb/fleet.db',                                      │ │
+│  │      enableQUICSync: true,                                             │ │
+│  │      syncPort: 4433,                                                   │ │
+│  │      syncPeers: ['node1:4433', 'node2:4433'],                         │ │
+│  │      enableLearning: true,                                             │ │
+│  │      learningAlgorithm: 'decision-transformer'  // 9 algorithms       │ │
+│  │    }                                                                   │ │
 │  │  }                                                                     │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                     │                                       │
 │                                     ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │                     QUICTransportManager                            │  │
+│  │                      AgentDB Core (Production)                      │  │
 │  │  ┌──────────────────┬──────────────────┬─────────────────────┐     │  │
-│  │  │ QUICServer       │   PeerDiscovery  │   FallbackHandler   │     │  │
-│  │  │ - Connection mgmt│   - Auto-discover│   - TCP fallback    │     │  │
-│  │  │ - TLS 1.3        │   - Health checks│   - Degradation     │     │  │
-│  │  │ - Stream mux     │   - Load balance │   - Circuit breaker │     │  │
+│  │  │ QUIC Sync        │  Vector Search   │  Learning Plugins   │     │  │
+│  │  │ - <1ms latency   │  - 150x faster   │  - 9 RL algorithms  │     │  │
+│  │  │ - TLS 1.3        │  - Hybrid search │  - WASM accelerated │     │  │
+│  │  │ - Auto-retry     │  - Custom metrics│  - Pre-trained      │     │  │
+│  │  │ - Multiplexing   │  - Metadata      │  - Decision Transf. │     │  │
 │  │  └──────────────────┴──────────────────┴─────────────────────┘     │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                     │                                       │
 │                                     ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │                    NeuralPatternMatcher                             │  │
+│  │                  AgentDB ReasoningBank Adapter                       │  │
 │  │  ┌──────────────────┬──────────────────┬─────────────────────┐     │  │
-│  │  │  TrainingPipeline│  InferenceEngine │  PatternCache       │     │  │
-│  │  │  - Data ingestion│  - Prediction API│  - LRU cache        │     │  │
-│  │  │  - Model training│  - Batch inference│ - Warm cache       │     │  │
-│  │  │  - Validation    │  - Confidence    │  - Invalidation     │     │  │
+│  │  │  Pattern Storage │  Learning Engine │  Sync Manager       │     │  │
+│  │  │  - Vector index  │  - 9 algorithms  │  - QUIC broadcast   │     │  │
+│  │  │  - Metadata      │  - Auto-train    │  - Peer discovery   │     │  │
+│  │  │  - Similarity    │  - Experience    │  - Conflict resolve │     │  │
 │  │  └──────────────────┴──────────────────┴─────────────────────┘     │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                     │                                       │
 │                                     ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │                      BaseAgent (Enhanced)                           │  │
+│  │                      BaseAgent (AgentDB Enhanced)                   │  │
 │  │  ┌──────────────────┬──────────────────┬─────────────────────┐     │  │
-│  │  │  QUICMixin       │  NeuralMixin     │  LegacySupport      │     │  │
-│  │  │  - sendMessage() │  - predictPattern│  - HTTP fallback    │     │  │
-│  │  │  - subscribe()   │  - getRecommend  │  - No neural mode   │     │  │
-│  │  │  - auto-switch   │  - trainFromTask │  - Graceful degrade │     │  │
+│  │  │  AgentDBMixin    │  LearningMixin   │  LegacySupport      │     │  │
+│  │  │  - syncPattern() │  - predictAction │  - Fallback mode    │     │  │
+│  │  │  - queryPattern()│  - learnFromExp  │  - Graceful degrade │     │  │
+│  │  │  - auto-sync     │  - 9 algorithms  │  - Zero breaking    │     │  │
 │  │  └──────────────────┴──────────────────┴─────────────────────┘     │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘

@@ -278,6 +278,7 @@ export interface Test {
   expectedResult: any;
   estimatedDuration?: number;
   code?: string; // Optional generated test code (from pattern templates)
+  metadata?: Record<string, any>; // Optional metadata for test tracking
 }
 
 export enum TestType {

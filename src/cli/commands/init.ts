@@ -52,8 +52,10 @@ export class InitCommand {
         }
       };
 
-      // Interactive project setup if needed
-      if (!options.config) {
+      // Interactive project setup if needed (skip if --non-interactive or --yes)
+      const isNonInteractive = (options as any).nonInteractive || (options as any).yes;
+
+      if (!options.config && !isNonInteractive) {
         const projectAnswers = await inquirer.prompt([
           {
             type: 'input',
@@ -114,10 +116,31 @@ export class InitCommand {
         (options as any).enablePatterns = true;
         (options as any).enableImprovement = true;
       } else {
+        // Non-interactive mode: use defaults or environment variables
+        (fleetConfig as any).project = {
+          name: process.env.AQE_PROJECT_NAME || path.basename(process.cwd()),
+          path: process.cwd(),
+          language: (process.env.AQE_LANGUAGE || 'typescript').toLowerCase()
+        };
+
+        // Use environment variables or defaults
+        if (fleetConfig.routing) {
+          fleetConfig.routing.enabled = process.env.AQE_ROUTING_ENABLED === 'true' || false;
+        }
+        if (fleetConfig.streaming) {
+          fleetConfig.streaming.enabled = process.env.AQE_STREAMING_ENABLED !== 'false';
+        }
+
         // Use defaults if non-interactive
-        (options as any).enableLearning = true;
-        (options as any).enablePatterns = true;
-        (options as any).enableImprovement = true;
+        (options as any).enableLearning = process.env.AQE_LEARNING_ENABLED !== 'false';
+        (options as any).enablePatterns = process.env.AQE_PATTERNS_ENABLED !== 'false';
+        (options as any).enableImprovement = process.env.AQE_IMPROVEMENT_ENABLED !== 'false';
+
+        console.log(chalk.gray('  ℹ️  Running in non-interactive mode with defaults'));
+        console.log(chalk.gray(`  • Project: ${(fleetConfig as any).project.name}`));
+        console.log(chalk.gray(`  • Language: ${(fleetConfig as any).project.language}`));
+        console.log(chalk.gray(`  • Routing: ${fleetConfig.routing?.enabled ? 'enabled' : 'disabled'}`));
+        console.log(chalk.gray(`  • Streaming: ${fleetConfig.streaming?.enabled ? 'enabled' : 'disabled'}`));
       }
 
       const spinner = ora('Setting up fleet infrastructure...').start();

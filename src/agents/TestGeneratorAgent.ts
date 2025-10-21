@@ -24,7 +24,6 @@ import { CodeSignature as ReasoningCodeSignature } from '../reasoning/types';
 import { LearningEngine } from '../learning/LearningEngine';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
-import { safeNeuralPredict, NeuralInput, mergeWithNeuralPrediction } from './mixins/NeuralCapableMixin';
 
 // Create a simple logger interface
 interface Logger {
@@ -245,27 +244,10 @@ export class TestGeneratorAgent extends BaseAgent {
       const testStrategy = await this.selectTestStrategy(patterns, complexityMetrics, riskFactors, request.coverage);
 
       // Phase 5: Neural-Enhanced Test Candidate Suggestions
-      let neuralTestSuggestions = null;
-      if (this.neuralMatcher) {
-        const neuralInput: NeuralInput = {
-          type: 'test-generation',
-          data: {
-            codeSignature: await this.extractCodeSignature(request.sourceCode),
-            framework: request.framework,
-            complexity: request.sourceCode.complexityMetrics,
-            constraints: request.constraints
-          },
-          context: { patterns, riskFactors }
-        };
-
-        neuralTestSuggestions = await safeNeuralPredict(this.neuralMatcher, neuralInput);
-
-        if (neuralTestSuggestions && neuralTestSuggestions.confidence > 0.75) {
-          this.logger.info(
-            `[TestGeneratorAgent] Neural suggestions available with ${(neuralTestSuggestions.confidence * 100).toFixed(1)}% confidence`
-          );
-        }
-      }
+      // Note: Neural capabilities removed, AgentDB provides distributed coordination
+      const neuralTestSuggestions = null;
+      // Neural features have been migrated to AgentDB
+      // Future implementation will use AgentDB for distributed test suggestions
 
       // Phase 6: Sublinear Test Case Generation (with pattern templates and neural suggestions)
       const testCandidates = await this.generateTestCandidatesSublinear(
@@ -411,7 +393,7 @@ export class TestGeneratorAgent extends BaseAgent {
     sourceCode: any,
     framework: string,
     constraints: any,
-    applicablePatterns: PatternMatch[] = [],
+    _applicablePatterns: PatternMatch[] = [],
     neuralSuggestions: any = null
   ): Promise<Test[]> {
     const testCandidates: Test[] = [];
@@ -471,7 +453,7 @@ export class TestGeneratorAgent extends BaseAgent {
     return vectors;
   }
 
-  private async optimizeTestSelection(testCandidates: Test[], coverage: any): Promise<any> {
+  private async optimizeTestSelection(testCandidates: Test[], _coverage: any): Promise<any> {
     // Build optimization matrix for sublinear solving
     const optimizationMatrix: SublinearMatrix = {
       rows: testCandidates.length,
@@ -653,7 +635,7 @@ export class TestGeneratorAgent extends BaseAgent {
     };
   }
 
-  private async validateTestSuiteQuality(testSuite: TestSuite): Promise<any> {
+  private async validateTestSuiteQuality(_testSuite: TestSuite): Promise<any> {
     return {
       overall: 0.85,
       diversity: 0.8,
@@ -662,7 +644,7 @@ export class TestGeneratorAgent extends BaseAgent {
     };
   }
 
-  private async refineTestSuite(testSuite: TestSuite, qualityScore: any): Promise<TestSuite> {
+  private async refineTestSuite(testSuite: TestSuite, _qualityScore: any): Promise<TestSuite> {
     // Apply refinement strategies based on quality gaps
     return testSuite; // Placeholder
   }
@@ -674,7 +656,7 @@ export class TestGeneratorAgent extends BaseAgent {
   private async createNeuralCore(): Promise<any> {
     // Placeholder for neural core initialization
     return {
-      recognizePatterns: async (sourceCode: any, options: any) => {
+      recognizePatterns: async (_sourceCode: any, _options: any) => {
         return ['common-patterns', 'test-patterns'];
       }
     };
@@ -683,7 +665,7 @@ export class TestGeneratorAgent extends BaseAgent {
   private async createConsciousnessEngine(): Promise<any> {
     // Placeholder for consciousness engine
     return {
-      analyzeCode: async (sourceCode: any) => {
+      analyzeCode: async (_sourceCode: any) => {
         return { complexity: 'medium', testability: 'high' };
       }
     };
@@ -692,7 +674,7 @@ export class TestGeneratorAgent extends BaseAgent {
   private async createPsychoSymbolicReasoner(): Promise<any> {
     // Placeholder for reasoning engine
     return {
-      reason: async (query: any) => {
+      reason: async (_query: any) => {
         return { strategy: 'comprehensive', confidence: 0.8 };
       }
     };
@@ -725,26 +707,26 @@ export class TestGeneratorAgent extends BaseAgent {
     return `suite-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  private async extractCodePatterns(sourceCode: any): Promise<string[]> {
+  private async extractCodePatterns(_sourceCode: any): Promise<string[]> {
     return ['singleton', 'factory', 'observer'];
   }
 
-  private async analyzeDependencies(sourceCode: any): Promise<any[]> {
+  private async analyzeDependencies(_sourceCode: any): Promise<any[]> {
     return [];
   }
 
-  private async assessTestability(sourceCode: any): Promise<number> {
+  private async assessTestability(_sourceCode: any): Promise<number> {
     return 0.8;
   }
 
-  private async identifyRiskFactors(codeAnalysis: any, complexityMetrics: any): Promise<any[]> {
+  private async identifyRiskFactors(_codeAnalysis: any, _complexityMetrics: any): Promise<any[]> {
     return [
       { type: 'high-complexity', severity: 'medium' },
       { type: 'deep-nesting', severity: 'low' }
     ];
   }
 
-  private async createTestCaseFromVector(vector: number[], sourceCode: any, framework: string): Promise<Test | null> {
+  private async createTestCaseFromVector(vector: number[], _sourceCode: any, _framework: string): Promise<Test | null> {
     // Generate test from vector (simplified)
     return {
       id: this.generateTestId(),
@@ -757,7 +739,7 @@ export class TestGeneratorAgent extends BaseAgent {
     };
   }
 
-  private async extractFunctions(sourceCode: any): Promise<any[]> {
+  private async extractFunctions(_sourceCode: any): Promise<any[]> {
     return [
       { name: 'exampleFunction', parameters: [], complexity: 3 }
     ];
@@ -767,15 +749,15 @@ export class TestGeneratorAgent extends BaseAgent {
     return func.complexity || 1;
   }
 
-  private async generateParametersFromVector(vector: number, parameters: any[]): Promise<TestParameter[]> {
+  private async generateParametersFromVector(_vector: number, _parameters: any[]): Promise<TestParameter[]> {
     return [];
   }
 
-  private async predictExpectedResult(func: any, parameters: TestParameter[]): Promise<any> {
+  private async predictExpectedResult(_func: any, _parameters: TestParameter[]): Promise<any> {
     return null;
   }
 
-  private async generateTestCode(func: any, parameters: TestParameter[], expectedResult: any): Promise<string> {
+  private async generateTestCode(func: any, _parameters: TestParameter[], _expectedResult: any): Promise<string> {
     return `// Test code for ${func.name}`;
   }
 
@@ -783,11 +765,11 @@ export class TestGeneratorAgent extends BaseAgent {
     return Math.min(complexity * 2, 10);
   }
 
-  private estimateTestDuration(func: any, parameters: TestParameter[]): number {
+  private estimateTestDuration(_func: any, _parameters: TestParameter[]): number {
     return 1000; // 1 second
   }
 
-  private async identifyComponents(sourceCode: any): Promise<any[]> {
+  private async identifyComponents(_sourceCode: any): Promise<any[]> {
     return [{ name: 'ComponentA' }];
   }
 

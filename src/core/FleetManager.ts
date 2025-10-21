@@ -17,9 +17,17 @@
  *   ]
  * };
  *
+ * // Production usage (dependencies created automatically)
  * const fleet = new FleetManager(config);
  * await fleet.initialize();
  * await fleet.start();
+ *
+ * // Test usage with dependency injection
+ * const testFleet = new FleetManager(config, {
+ *   database: mockDatabase,
+ *   eventBus: mockEventBus,
+ *   logger: mockLogger
+ * });
  *
  * // Submit tasks
  * const task = new Task('test-generation', 'Generate API tests', {
@@ -44,6 +52,7 @@ import { Database } from '../utils/Database';
 import { Logger } from '../utils/Logger';
 import { Config, FleetConfig } from '../utils/Config';
 import { createAgent } from '../agents';
+import { MemoryManager } from './MemoryManager';
 
 /**
  * Status information about the fleet
@@ -69,6 +78,19 @@ export interface FleetStatus {
   status: 'initializing' | 'running' | 'paused' | 'stopping' | 'stopped';
 }
 
+/**
+ * Optional dependencies that can be injected for testing
+ * @public
+ */
+export interface FleetManagerDependencies {
+  /** Database instance (optional, creates new instance if not provided) */
+  database?: Database;
+  /** EventBus instance (optional, creates new instance if not provided) */
+  eventBus?: EventBus;
+  /** Logger instance (optional, uses Logger.getInstance() if not provided) */
+  logger?: Logger;
+}
+
 export class FleetManager extends EventEmitter {
   private readonly id: string;
   private readonly agents: Map<string, Agent>;
@@ -77,20 +99,76 @@ export class FleetManager extends EventEmitter {
   private readonly database: Database;
   private readonly logger: Logger;
   private readonly config: FleetConfig;
+  private readonly memoryManager: MemoryManager;
   private startTime: Date | null = null;
   private status: FleetStatus['status'] = 'initializing';
 
-  constructor(config: FleetConfig) {
+  constructor(config: FleetConfig, dependencies?: FleetManagerDependencies) {
     super();
     this.id = uuidv4();
     this.agents = new Map();
     this.tasks = new Map();
-    this.eventBus = new EventBus();
-    this.database = new Database();
-    this.logger = Logger.getInstance();
+
+    // Dependency injection: Use provided dependencies or create new instances
+    this.eventBus = dependencies?.eventBus || new EventBus();
+    this.database = dependencies?.database || new Database();
+
+    // Initialize logger: Use injected logger or get singleton instance with fallback
+    if (dependencies?.logger) {
+      this.logger = dependencies.logger;
+    } else {
+      try {
+        const loggerInstance = Logger.getInstance();
+        if (!loggerInstance) {
+          // Fallback to console logger for test environment
+          this.logger = this.createFallbackLogger();
+        } else {
+          this.logger = loggerInstance;
+        }
+      } catch (error) {
+        // If Logger.getInstance() throws, use fallback
+        this.logger = this.createFallbackLogger();
+      }
+    }
+
     this.config = config;
+    this.memoryManager = new MemoryManager(this.database);
 
     this.setupEventHandlers();
+  }
+
+  /**
+   * Create fallback console-based logger for test environment
+   * @private
+   */
+  private createFallbackLogger(): Logger {
+    return {
+      info: (msg: string, meta?: any) => {
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(`[INFO] ${msg}`, meta || '');
+        }
+      },
+      warn: (msg: string, meta?: any) => {
+        if (process.env.NODE_ENV !== 'test') {
+          console.warn(`[WARN] ${msg}`, meta || '');
+        }
+      },
+      error: (msg: string, meta?: any) => {
+        if (process.env.NODE_ENV !== 'test') {
+          console.error(`[ERROR] ${msg}`, meta || '');
+        }
+      },
+      debug: (msg: string, meta?: any) => {
+        if (process.env.NODE_ENV !== 'test') {
+          console.debug(`[DEBUG] ${msg}`, meta || '');
+        }
+      },
+      log: (level: any, msg: string, meta?: any) => {
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(`[${level}] ${msg}`, meta || '');
+        }
+      }
+    } as any;
   }
 
   /**
@@ -122,6 +200,9 @@ export class FleetManager extends EventEmitter {
 
       // Initialize event bus
       await this.eventBus.initialize();
+
+      // Initialize memory manager
+      await this.memoryManager.initialize();
 
       // Create initial agent pool
       await this.createInitialAgents();
@@ -172,6 +253,7 @@ export class FleetManager extends EventEmitter {
    * - Stops accepting new tasks
    * - Waits for running tasks to complete
    * - Stops all agents
+   * - Shuts down memory manager (clears intervals)
    * - Closes database connections
    *
    * @returns A promise that resolves when shutdown is complete
@@ -189,6 +271,10 @@ export class FleetManager extends EventEmitter {
     );
 
     await Promise.all(stopPromises);
+
+    // CRITICAL FIX: Shutdown memory manager to clear cleanup interval
+    // This prevents memory leaks and hanging processes
+    await this.memoryManager.shutdown();
 
     // Close database connection
     await this.database.close();
@@ -220,16 +306,62 @@ export class FleetManager extends EventEmitter {
   async spawnAgent(type: string, config: any = {}): Promise<Agent> {
     const agentId = uuidv4();
 
-    // Create agent using static import (enables proper mocking in tests)
-    const agent = await createAgent(type, agentId, config, this.eventBus);
+    try {
+      // Ensure config has required dependencies
+      const agentConfig = {
+        memoryStore: config.memoryStore || this.getMemoryStore(),
+        context: config.context || { id: agentId, type, status: 'initializing' as any },
+        ...config
+      };
 
-    this.agents.set(agentId, agent as any);
-    await agent.initialize();
+      // Create agent using static import (enables proper mocking in tests)
+      const agent = await createAgent(type, agentId, agentConfig, this.eventBus);
 
-    this.logger.info(`Agent spawned: ${type} (${agentId})`);
-    this.emit('agent:spawned', { agentId, type });
+      // Validate agent was created successfully
+      if (!agent) {
+        throw new Error(`Failed to create agent of type: ${type}. Agent factory returned null/undefined.`);
+      }
 
-    return agent as any;
+      // Validate agent has initialize method
+      if (typeof agent.initialize !== 'function') {
+        throw new Error(
+          `Agent of type ${type} does not have initialize() method. ` +
+          `Agent class must extend BaseAgent and implement initialize().`
+        );
+      }
+
+      // Register agent before initialization (allows initialization hooks to access fleet)
+      this.agents.set(agentId, agent as any);
+
+      // Initialize the agent with error handling
+      try {
+        await agent.initialize();
+      } catch (initError) {
+        // Remove agent from registry if initialization fails
+        this.agents.delete(agentId);
+        throw new Error(
+          `Failed to initialize agent ${type} (${agentId}): ${
+            initError instanceof Error ? initError.message : String(initError)
+          }`
+        );
+      }
+
+      this.logger.info(`Agent spawned: ${type} (${agentId})`);
+      this.emit('agent:spawned', { agentId, type });
+
+      return agent as any;
+
+    } catch (error) {
+      // Enhanced error reporting
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to spawn agent ${type}:`, errorMessage);
+
+      // Re-throw with context
+      throw new Error(
+        `Agent spawning failed for type '${type}': ${errorMessage}. ` +
+        `Ensure agent type is registered and properly implements BaseAgent interface.`
+      );
+    }
   }
 
   /**
@@ -352,6 +484,13 @@ export class FleetManager extends EventEmitter {
    */
   getAllTasks(): Task[] {
     return Array.from(this.tasks.values());
+  }
+
+  /**
+   * Get memory store for agent initialization
+   */
+  private getMemoryStore(): MemoryManager {
+    return this.memoryManager;
   }
 
   /**
