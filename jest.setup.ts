@@ -82,19 +82,24 @@ jest.mock('./src/utils/Logger', () => {
 });
 
 // Mock createAgent globally with proper implementation
-jest.mock('./src/agents', () => ({
-  createAgent: jest.fn().mockImplementation((type, config, services) => ({
-    id: `agent-${Math.random().toString(36).substring(7)}`,
-    type,
-    config,
-    status: 'idle',
-    initialize: jest.fn().mockResolvedValue(undefined),
-    assignTask: jest.fn().mockResolvedValue(undefined),
-    terminate: jest.fn().mockResolvedValue(undefined),
-    getStatus: jest.fn().mockReturnValue({ status: 'idle' }),
-    execute: jest.fn().mockResolvedValue({ success: true })
-  }))
-}));
+// IMPORTANT: Use jest.requireActual to preserve QEAgentFactory and other exports
+jest.mock('./src/agents', () => {
+  const actual = jest.requireActual('./src/agents');
+  return {
+    ...actual, // Preserve all actual exports including QEAgentFactory
+    createAgent: jest.fn().mockImplementation((type, config, services) => ({
+      id: `agent-${Math.random().toString(36).substring(7)}`,
+      type,
+      config,
+      status: 'idle',
+      initialize: jest.fn().mockResolvedValue(undefined),
+      assignTask: jest.fn().mockResolvedValue(undefined),
+      terminate: jest.fn().mockResolvedValue(undefined),
+      getStatus: jest.fn().mockReturnValue({ status: 'idle' }),
+      execute: jest.fn().mockResolvedValue({ success: true })
+    }))
+  };
+});
 
 // Global test timeout (30 seconds)
 jest.setTimeout(30000);
