@@ -220,8 +220,8 @@ describe('Agentic QE CLI E2E Tests', () => {
         'utf-8'
       );
       
-      expect(generatedTest).toContain('describe(\'UserService\');
-      expect(generatedTest).toContain('it(\'should create user');
+      expect(generatedTest).toContain('describe(\'UserService\')');
+      expect(generatedTest).toContain('it(\'should create user\'');
       expect(generatedTest).toContain('expect(');
       expect(generatedTest).toContain('jest.fn()');
       expect(generatedTest).toContain('mockUserRepo');
