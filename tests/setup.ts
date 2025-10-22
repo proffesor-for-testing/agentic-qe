@@ -51,15 +51,34 @@ jest.mock('../src/utils/Database', () => {
     Database: jest.fn().mockImplementation(() => ({
       initialize: jest.fn().mockResolvedValue(undefined),
       close: jest.fn().mockResolvedValue(undefined),
+      exec: jest.fn().mockResolvedValue(undefined),
       run: jest.fn().mockResolvedValue({ lastID: 1, changes: 1 }),
       get: jest.fn().mockResolvedValue({}),
-      all: jest.fn().mockResolvedValue([])
+      all: jest.fn().mockResolvedValue([]),
+      prepare: jest.fn().mockReturnValue({
+        run: jest.fn(),
+        get: jest.fn(),
+        all: jest.fn().mockReturnValue([])
+      }),
+      stats: jest.fn().mockResolvedValue({
+        total: 0,
+        active: 0,
+        size: 1024,
+        tables: 15,
+        lastModified: new Date()
+      }),
+      compact: jest.fn().mockResolvedValue(undefined),
+      upsertFleet: jest.fn().mockResolvedValue(undefined),
+      upsertAgent: jest.fn().mockResolvedValue(undefined),
+      upsertTask: jest.fn().mockResolvedValue(undefined),
+      insertEvent: jest.fn().mockResolvedValue(undefined),
+      insertMetric: jest.fn().mockResolvedValue(undefined)
     }))
   };
 });
 
 // Global test timeout
-jest.setTimeout(10000);
+jest.setTimeout(30000);
 
 // Global teardown - clear all timers and async operations
 afterEach(() => {

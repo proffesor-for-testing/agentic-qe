@@ -20,6 +20,8 @@
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { EventEmitter } from 'events';
+// Note: 'fs' import removed as unused
+// Note: 'AQE_MEMORY_NAMESPACES' and 'AgentType' removed as unused
 
 // ============================================================================
 // Type Definitions
@@ -225,7 +227,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
     // Register for events from other agents
     this.registerEventHandler({
       eventType: 'test-generator.ready',
-      handler: async (event) => {
+      handler: async (_event) => {
         console.log('Test generator is ready, can start generating tests from BDD scenarios');
       }
     });

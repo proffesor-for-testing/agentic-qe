@@ -430,7 +430,14 @@ export class AgentRegistry {
       'regression-analyzer': QEAgentType.REGRESSION_RISK_ANALYZER,
       'data-generator': QEAgentType.TEST_DATA_ARCHITECT,
       'contract-validator': QEAgentType.API_CONTRACT_VALIDATOR,
-      'flaky-test-detector': QEAgentType.FLAKY_TEST_HUNTER
+      'flaky-test-detector': QEAgentType.FLAKY_TEST_HUNTER,
+
+      // Workflow step type mappings (for task orchestration)
+      'code-analyzer': QEAgentType.QUALITY_ANALYZER,
+      'metrics-collector': QEAgentType.QUALITY_ANALYZER,
+      'defect-predictor': QEAgentType.QUALITY_ANALYZER,
+      'report-generator': QEAgentType.QUALITY_ANALYZER,
+      'generic-agent': QEAgentType.QUALITY_ANALYZER
     };
 
     return mapping[mcpType];

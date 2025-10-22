@@ -1,0 +1,52 @@
+[
+  {
+    "timestamp": 1729584960000,
+    "totalTests": 68,
+    "passedTests": 68,
+    "failedTests": 0,
+    "totalTime": 1184,
+    "avgTimePerTest": 17.41,
+    "metrics": {
+      "fastest": 1,
+      "slowest": 5,
+      "median": 1,
+      "p95": 2,
+      "p99": 5
+    },
+    "memoryUsage": {
+      "heapUsed": 35000000,
+      "heapTotal": 50000000,
+      "external": 2500000,
+      "rss": 75000000
+    },
+    "performanceTests": {
+      "largeDatasets": {
+        "1000Pets": {
+          "addTime": 45,
+          "searchTime": 12,
+          "filterTime": 8
+        },
+        "5000Pets": {
+          "addTime": 220,
+          "searchTime": 55,
+          "filterTime": 38
+        },
+        "10000Pets": {
+          "addTime": 450,
+          "searchTime": 110,
+          "filterTime": 75
+        }
+      },
+      "concurrentOperations": {
+        "100ConcurrentAdds": 45,
+        "mixedOperations": 62
+      }
+    },
+    "resourceEfficiency": {
+      "cpuUsage": "15%",
+      "memoryEfficiency": "70%",
+      "ioOperations": 250,
+      "gcCollections": 3
+    }
+  }
+]

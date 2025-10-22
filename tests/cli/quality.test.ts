@@ -42,7 +42,7 @@ describe('Quality Gate Command', () => {
     executor = new QualityGateExecutor(config);
   });
 
-  it('should create executor with default config', () => {
+  it('should create executor with default config', async () => {
     const defaultExecutor = new QualityGateExecutor();
     expect(defaultExecutor).toBeDefined();
   });
@@ -86,7 +86,7 @@ describe('Quality Gate Command', () => {
     }
   });
 
-  it('should display results without errors', () => {
+  it('should display results without errors', async () => {
     const mockResult: QualityGateResult = {
       passed: true,
       metrics: {
@@ -190,7 +190,7 @@ describe('Quality Risk Command', () => {
     assessor = new QualityRiskAssessor();
   });
 
-  it('should create risk assessor', () => {
+  it('should create risk assessor', async () => {
     expect(assessor).toBeDefined();
   });
 
@@ -264,7 +264,7 @@ describe('Quality Decision Command', () => {
     decisionMaker = new QualityDecisionMaker();
   });
 
-  it('should create decision maker with default criteria', () => {
+  it('should create decision maker with default criteria', async () => {
     expect(decisionMaker).toBeDefined();
   });
 
@@ -359,7 +359,7 @@ describe('Quality Policy Command', () => {
     validator = new QualityPolicyValidator();
   });
 
-  it('should create policy validator with default policy', () => {
+  it('should create policy validator with default policy', async () => {
     expect(validator).toBeDefined();
   });
 

@@ -9,7 +9,7 @@ import { EventBus } from '../../src/core/EventBus';
 import { Logger } from '../../src/utils/Logger';
 
 // Mock implementations
-jest.mock('../../src/utils/Logger');
+// Note: Logger is globally mocked in jest.setup.ts - no need to mock here
 jest.mock('../../src/core/EventBus');
 
 // Test Agent implementation
@@ -100,16 +100,8 @@ describe('Agent', () => {
       getEvent: jest.fn()
     } as any;
 
-    // Create mock Logger
-    mockLogger = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-      getInstance: jest.fn().mockReturnValue(mockLogger)
-    } as any;
-
-    (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
+    // Logger is globally mocked in jest.setup.ts - just get the instance
+    mockLogger = Logger.getInstance() as jest.Mocked<Logger>;
 
     // Create mock Task
     mockTask = {

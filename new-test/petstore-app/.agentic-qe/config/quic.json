@@ -1,0 +1,39 @@
+{
+  "quic": {
+    "enabled": true,
+    "port": 4433,
+    "host": "0.0.0.0",
+    "peers": [],
+    "syncInterval": 1000,
+    "batchSize": 100,
+    "compression": true,
+    "tls": {
+      "rejectUnauthorized": false
+    },
+    "retry": {
+      "maxAttempts": 3,
+      "baseDelay": 1000,
+      "maxDelay": 10000,
+      "backoffMultiplier": 2
+    }
+  },
+  "patterns": {
+    "cacheSize": 10000,
+    "cacheTTL": 86400000,
+    "syncPriority": {
+      "high": ["test_execution", "coverage_analysis"],
+      "medium": ["test_generation", "quality_metrics"],
+      "low": ["general"]
+    }
+  },
+  "security": {
+    "enableAuth": true,
+    "allowedPeers": [],
+    "requireTLS": false
+  },
+  "monitoring": {
+    "enableMetrics": true,
+    "metricsInterval": 5000,
+    "healthCheckInterval": 30000
+  }
+}

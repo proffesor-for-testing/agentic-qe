@@ -5,6 +5,9 @@
  * with reinforcement learning capabilities.
  */
 
+// Re-export neural training types
+export * from '../core/neural/types';
+
 /**
  * Learning configuration for agents
  */

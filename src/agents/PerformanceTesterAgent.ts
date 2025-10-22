@@ -10,12 +10,12 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import {
-  AgentType,
+  AgentType as _AgentType,
   QEAgentType,
   QETask,
-  TestSuite,
-  Test,
-  TestType
+  TestSuite as _TestSuite,
+  Test as _Test,
+  TestType as _TestType
 } from '../types';
 
 // ============================================================================
@@ -548,7 +548,7 @@ function selectEndpoint(endpoints) {
     { duration: '${profile.duration - profile.rampUpTime}s', target: ${profile.virtualUsers} }
   ]`;
 
-      case 'spike':
+      case 'spike': {
         const spikeVUs = profile.virtualUsers * 3;
         return `[
     { duration: '${profile.rampUpTime}s', target: ${profile.virtualUsers} },
@@ -556,6 +556,7 @@ function selectEndpoint(endpoints) {
     { duration: '30s', target: ${profile.virtualUsers} },
     { duration: '${profile.duration - profile.rampUpTime - 60}s', target: ${profile.virtualUsers} }
   ]`;
+      }
 
       case 'stress':
         return `[
@@ -664,7 +665,7 @@ class LoadTestSimulation extends Simulation {
     };
   }
 
-  private async collectMonitoringData(testId: string): Promise<any> {
+  private async collectMonitoringData(_testId: string): Promise<any> {
     // Simulate monitoring data collection
     // In real implementation, query monitoring platform
     return {
@@ -1176,7 +1177,7 @@ class LoadTestSimulation extends Simulation {
     // Listen for test execution requests from other agents
     this.registerEventHandler({
       eventType: 'test.execution.complete',
-      handler: async (event: any) => {
+      handler: async (_event: any) => {
         // Automatically run performance tests after functional tests
         console.log('Functional tests completed, considering performance test run');
       }

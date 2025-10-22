@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Security configuration for AQE Fleet QUIC Transport",
+  "tls": {
+    "minVersion": "TLSv1.3",
+    "requireValidCertificates": true,
+    "rejectUnauthorized": true,
+    "certificateValidation": {
+      "enabled": true,
+      "checkExpiry": true,
+      "checkRevocation": true,
+      "allowSelfSigned": false
+    },
+    "certificatePinning": {
+      "enabled": false,
+      "fingerprints": [],
+      "algorithm": "sha256",
+      "description": "Certificate fingerprints for additional security. Generate with: openssl x509 -noout -fingerprint -sha256 -inform pem -in cert.pem"
+    }
+  },
+  "quic": {
+    "security": {
+      "enableTLS": true,
+      "verifyPeer": true,
+      "requireClientCertificates": false,
+      "allowedCipherSuites": [
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_AES_128_GCM_SHA256"
+      ],
+      "certificates": {
+        "caPath": "",
+        "certPath": "",
+        "keyPath": "",
+        "description": "Paths to CA-signed certificates. NEVER use self-signed certificates in production."
+      }
+    },
+    "tokenAuth": {
+      "enabled": false,
+      "tokenHeader": "X-AQE-Auth-Token",
+      "tokenExpiry": 3600
+    }
+  },
+  "production": {
+    "strictMode": true,
+    "disableDebugLogging": true,
+    "enableAuditLogging": true,
+    "maxConnectionsPerPeer": 10,
+    "connectionRateLimit": {
+      "enabled": true,
+      "maxPerMinute": 100,
+      "maxPerHour": 1000
+    }
+  },
+  "development": {
+    "allowSelfSignedCerts": true,
+    "strictMode": false,
+    "disableDebugLogging": false,
+    "enableAuditLogging": false,
+    "warningOnly": true
+  },
+  "compliance": {
+    "fips140": false,
+    "pciDss": false,
+    "hipaa": false,
+    "soc2": false
+  }
+}

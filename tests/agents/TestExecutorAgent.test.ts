@@ -29,12 +29,36 @@ class MockMemoryStore {
     return item ? item.value : undefined;
   }
 
-  async delete(key: string): Promise<boolean> {
-    return this.data.delete(key);
+  async set(key: string, value: any, namespace?: string): Promise<void> {
+    const fullKey = namespace ? `${namespace}:${key}` : key;
+    this.data.set(fullKey, value);
   }
 
-  async clear(): Promise<void> {
-    this.data.clear();
+  async get(key: string, namespace?: string): Promise<any> {
+    const fullKey = namespace ? `${namespace}:${key}` : key;
+    const item = this.data.get(fullKey);
+    return item && typeof item === 'object' && 'value' in item ? item.value : item;
+  }
+
+  async delete(key: string, namespace?: string): Promise<boolean> {
+    const fullKey = namespace ? `${namespace}:${key}` : key;
+    return this.data.delete(fullKey);
+  }
+
+  async clear(namespace?: string): Promise<void> {
+    if (namespace) {
+      const keysToDelete: string[] = [];
+      for (const key of this.data.keys()) {
+        if (key.startsWith(`${namespace}:`)) {
+          keysToDelete.push(key);
+        }
+      }
+      for (const key of keysToDelete) {
+        this.data.delete(key);
+      }
+    } else {
+      this.data.clear();
+    }
   }
 }
 

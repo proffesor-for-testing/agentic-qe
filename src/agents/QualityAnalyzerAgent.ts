@@ -6,7 +6,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
-import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
+import { QETask, AgentCapability as _AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { EventEmitter } from 'events';
 
 // Create a simple logger interface
@@ -176,7 +176,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
 
   private async initializeCapabilities(): Promise<void> {
     // Initialize capabilities - not used anymore but keeping for compatibility
-    const capabilities = [
+    const _capabilities = [
       {
         name: 'static-analysis',
         version: '1.0.0',
@@ -410,7 +410,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
     return report;
   }
 
-  private generateIssues(metrics: any): any[] {
+  private generateIssues(_metrics: any): any[] {
     const issues = [];
     const issueCount = Math.floor(Math.random() * 10);
 

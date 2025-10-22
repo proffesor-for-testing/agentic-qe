@@ -813,7 +813,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   private async parseGitDiff(diff: string): Promise<ChangedFile[]> {
     const files: ChangedFile[] = [];
     const fileRegex = /diff --git a\/(.*?) b\/(.*?)$/gm;
-    const statsRegex = /(\d+) insertions?\(\+\), (\d+) deletions?\(-\)/;
+    const _statsRegex = /(\d+) insertions?\(\+\), (\d+) deletions?\(-\)/;
 
     // Simplified parsing
     let match;
@@ -944,7 +944,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
 
   private async smartTestSelection(
     analysis: ChangeAnalysis,
-    confidence: number
+    _confidence: number
   ): Promise<TestInfo[]> {
     const tests: TestInfo[] = [];
 
@@ -1044,7 +1044,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     return tests;
   }
 
-  private async getMLPredictedTests(analysis: ChangeAnalysis): Promise<TestInfo[]> {
+  private async getMLPredictedTests(_analysis: ChangeAnalysis): Promise<TestInfo[]> {
     // Simplified ML prediction
     // In production, this would use the trained ML model
     const allTests = await this.getAllTests();
@@ -1109,7 +1109,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     return 'LOW';
   }
 
-  private async calculateModuleRisk(file: string, timeWindow: number): Promise<ModuleRisk> {
+  private async calculateModuleRisk(file: string, _timeWindow: number): Promise<ModuleRisk> {
     const factors = {
       changeFrequency: Math.floor(Math.random() * 50),
       complexity: await this.calculateFileComplexity(file),
@@ -1226,7 +1226,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     };
   }
 
-  private async calculateFileComplexity(file: string): Promise<number> {
+  private async calculateFileComplexity(_file: string): Promise<number> {
     // Simplified - in production, would analyze AST
     return 5 + Math.random() * 15;
   }
@@ -1409,7 +1409,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     }
   }
 
-  private async findSimilarChanges(analysis: ChangeAnalysis): Promise<any[]> {
+  private async findSimilarChanges(_analysis: ChangeAnalysis): Promise<any[]> {
     // Simplified - in production, would use cosine similarity
     return [
       {
@@ -1420,7 +1420,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     ];
   }
 
-  private async loadHistoricalTestResults(days: number): Promise<any[]> {
+  private async loadHistoricalTestResults(_days: number): Promise<any[]> {
     // Mock implementation
     return Array.from({ length: 100 }, (_, i) => ({
       commit: `commit-${i}`,

@@ -160,6 +160,20 @@ export class MemoryManager extends EventEmitter {
   }
 
   /**
+   * Set data in memory (alias for store, implements MemoryStore interface)
+   */
+  async set(key: string, value: any, namespace: string = 'default'): Promise<void> {
+    await this.store(key, value, { namespace });
+  }
+
+  /**
+   * Get data from memory (alias for retrieve, implements MemoryStore interface)
+   */
+  async get(key: string, namespace: string = 'default'): Promise<any> {
+    return await this.retrieve(key, namespace);
+  }
+
+  /**
    * Delete a key from memory
    */
   async delete(
@@ -452,7 +466,11 @@ export class MemoryManager extends EventEmitter {
   }
 
   /**
-   * Shutdown memory manager
+   * Shutdown memory manager and clean up resources
+   *
+   * @remarks
+   * CRITICAL: This method MUST be called to prevent memory leaks.
+   * Clears the cleanup interval, saves data to persistence, and closes database.
    */
   async shutdown(): Promise<void> {
     if (this.cleanupInterval) {
@@ -468,6 +486,15 @@ export class MemoryManager extends EventEmitter {
 
     this.initialized = false;
     this.logger.info('MemoryManager shutdown complete');
+  }
+
+  /**
+   * Alias for shutdown() - for consistency with other components
+   *
+   * @see shutdown
+   */
+  async close(): Promise<void> {
+    await this.shutdown();
   }
 
   /**

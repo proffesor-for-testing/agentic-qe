@@ -6,7 +6,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import yaml from 'yaml';
 import dotenv from 'dotenv';
 
@@ -268,7 +268,7 @@ export class Config {
    */
   public static async save(config: Partial<FleetConfig>, filePath: string): Promise<void> {
     const fs = await import('fs-extra');
-    await fs.ensureDir(require('path').dirname(filePath));
+    await fs.ensureDir(dirname(filePath));
     await fs.writeJson(filePath, config, { spaces: 2 });
   }
 

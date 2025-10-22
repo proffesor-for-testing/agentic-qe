@@ -1,3 +1,16 @@
+// Mock Logger to prevent undefined errors
+jest.mock('../../../src/utils/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn()
+    }))
+  }
+}));
+
 /**
  * Unit Tests for LearningEngine
  *
@@ -799,12 +812,12 @@ describe('LearningEngine', () => {
   // -------------------------------------------------------------------------
 
   describe('Feedback Loop', () => {
-    it('should enable feedback loop', () => {
+    it('should enable feedback loop', async () => {
       learningEngine.setFeedbackLoop(true);
       // Test that analysis is triggered automatically
     });
 
-    it('should disable feedback loop', () => {
+    it('should disable feedback loop', async () => {
       learningEngine.setFeedbackLoop(false);
       // Test that analysis is NOT triggered automatically
     });
@@ -889,7 +902,7 @@ describe('LearningEngine', () => {
       }
     });
 
-    it('should calculate accurate statistics', () => {
+    it('should calculate accurate statistics', async () => {
       const stats = learningEngine.getStatistics();
 
       expect(stats.totalRecords).toBe(20);
@@ -928,7 +941,7 @@ describe('LearningEngine', () => {
   // -------------------------------------------------------------------------
 
   describe('Edge Cases', () => {
-    it('should handle empty learning records', () => {
+    it('should handle empty learning records', async () => {
       const stats = learningEngine.getStatistics();
 
       expect(stats.totalRecords).toBe(0);

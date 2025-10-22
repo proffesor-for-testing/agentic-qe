@@ -310,12 +310,14 @@ describe('FleetCommanderAgent', () => {
       expect(result.newMode).toBe('mesh');
     });
 
-    it('should emit topology change events', async (done) => {
-      mockEventBus.once('fleet.topology-changed', (event) => {
-        expect(event.type).toBe('fleet.topology-changed');
-        expect(event.data.oldMode).toBe('hierarchical');
-        expect(event.data.newMode).toBe('hybrid');
-        done();
+    it('should emit topology change events', async () => {
+      const eventPromise = new Promise<void>((resolve) => {
+        mockEventBus.once('fleet.topology-changed', (event) => {
+          expect(event.type).toBe('fleet.topology-changed');
+          expect(event.data.oldMode).toBe('hierarchical');
+          expect(event.data.newMode).toBe('hybrid');
+          resolve();
+        });
       });
 
       const task = {
@@ -335,6 +337,7 @@ describe('FleetCommanderAgent', () => {
       };
 
       await agent.executeTask(assignment);
+      await eventPromise;
     });
 
     it('should store topology changes in memory', async () => {

@@ -29,6 +29,11 @@ const mockedFs = fs as jest.Mocked<typeof fs>;
 
 describe('Fleet Management Commands', () => {
   beforeEach(() => {
+    // Mock process.exit to prevent test interruption
+    jest.spyOn(process, 'exit').mockImplementation((code?: number) => {
+      throw new Error(`Process.exit called with code ${code}`);
+    });
+
     jest.clearAllMocks();
     mockedFs.pathExists.mockResolvedValue(true);
     mockedFs.readJson.mockResolvedValue({});

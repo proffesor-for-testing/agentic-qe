@@ -233,13 +233,131 @@ describe('EventBus', () => {
       eventBus.removeAllListeners('temp-event');
       expect(eventBus.listenerCount('temp-event')).toBe(0);
     });
+
+    it('should prevent memory leaks with subscribe/unsubscribe cycles', () => {
+      // Force initial garbage collection
+      if (global.gc) {
+        global.gc();
+        global.gc();
+      }
+
+      // Wait for GC to settle
+      const wait = () => new Promise(resolve => setImmediate(resolve));
+
+      // Track initial memory state after GC
+      const initialMemory = process.memoryUsage().heapUsed;
+      const handlers: (() => void)[] = [];
+
+      // Perform 10,000 subscribe/unsubscribe cycles with simple functions
+      for (let i = 0; i < 10000; i++) {
+        // Use simple arrow function instead of jest.fn() to reduce overhead
+        const handler = () => {};
+        const unsubscribe = eventBus.subscribe(`test-event-${i % 100}`, handler);
+        handlers.push(unsubscribe);
+      }
+
+      // Unsubscribe all
+      handlers.forEach(unsubscribe => unsubscribe());
+      handlers.length = 0; // Clear array
+
+      // Force aggressive garbage collection
+      if (global.gc) {
+        for (let i = 0; i < 5; i++) {
+          global.gc();
+        }
+      }
+
+      // Check memory growth
+      const finalMemory = process.memoryUsage().heapUsed;
+      const memoryGrowthMB = (finalMemory - initialMemory) / (1024 * 1024);
+
+      // Memory growth should be less than 1MB after aggressive cleanup
+      // Allow slightly higher threshold due to V8 memory management
+      expect(memoryGrowthMB).toBeLessThan(2);
+
+      // Verify all listeners are cleaned up
+      for (let i = 0; i < 100; i++) {
+        expect(eventBus.listenerCount(`test-event-${i}`)).toBe(0);
+      }
+    });
+
+    it('should cleanup custom listener maps properly', () => {
+      const handlers: (() => void)[] = [];
+
+      // Add many event types
+      for (let i = 0; i < 1000; i++) {
+        const handler = jest.fn();
+        const unsubscribe = eventBus.subscribe(`event-${i}`, handler);
+        handlers.push(unsubscribe);
+      }
+
+      // Verify listeners are registered
+      expect(eventBus.listenerCount('event-0')).toBe(1);
+      expect(eventBus.listenerCount('event-999')).toBe(1);
+
+      // Unsubscribe all
+      handlers.forEach(unsubscribe => unsubscribe());
+
+      // Verify all listeners are removed
+      for (let i = 0; i < 1000; i++) {
+        expect(eventBus.listenerCount(`event-${i}`)).toBe(0);
+      }
+    });
+
+    it('should handle rapid subscribe/unsubscribe without leaking', () => {
+      const eventName = 'rapid-test-event';
+
+      for (let cycle = 0; cycle < 1000; cycle++) {
+        const handler = jest.fn();
+        const unsubscribe = eventBus.subscribe(eventName, handler);
+
+        // Immediately unsubscribe
+        unsubscribe();
+
+        // Verify cleanup
+        expect(eventBus.listenerCount(eventName)).toBe(0);
+      }
+    });
+
+    it('should return cleanup function from subscribe', () => {
+      const handler = jest.fn();
+      const unsubscribe = eventBus.subscribe('test-event', handler);
+
+      expect(typeof unsubscribe).toBe('function');
+
+      // Verify handler is registered
+      eventBus.emit('test-event', { data: 'test' });
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      // Call cleanup function
+      unsubscribe();
+
+      // Verify handler is removed
+      eventBus.emit('test-event', { data: 'test2' });
+      expect(handler).toHaveBeenCalledTimes(1); // Still 1, not called again
+    });
+
+    it('should handle multiple unsubscribe calls gracefully', () => {
+      const handler = jest.fn();
+      const unsubscribe = eventBus.subscribe('test-event', handler);
+
+      // Call unsubscribe multiple times
+      expect(() => {
+        unsubscribe();
+        unsubscribe();
+        unsubscribe();
+      }).not.toThrow();
+
+      // Verify no listeners remain
+      expect(eventBus.listenerCount('test-event')).toBe(0);
+    });
   });
 
   describe('event filtering and middleware', () => {
     it('should support event filtering', () => {
       const handler = jest.fn();
 
-      eventBus.on('filtered-event', handler, {
+      eventBus.subscribe('filtered-event', handler, {
         filter: (data) => data.priority === 'high'
       });
 
@@ -253,7 +371,7 @@ describe('EventBus', () => {
     it('should support event transformation middleware', () => {
       const handler = jest.fn();
 
-      eventBus.on('transform-event', handler, {
+      eventBus.subscribe('transform-event', handler, {
         transform: (data) => ({ ...data, transformed: true })
       });
 

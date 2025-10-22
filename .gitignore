@@ -70,6 +70,15 @@ claude-flow-core/bin/
 claude-flow-core/dist-cjs/
 tests/__mocks__/
 
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+!src/core/coordination/
+!src/core/memory/
+!src/coverage/
+!src/memory/
+!tests/memory/
+
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
@@ -80,8 +89,13 @@ claude-flow.config.json
 memory/
 coordination/
 memory/claude-flow-data.json
-
-
+memory/sessions/*
+!memory/sessions/README.md
+memory/agents/*
+!memory/agents/README.md
+coordination/memory_bank/*
+coordination/subtasks/*
+coordination/orchestration/*
 *.db
 *.db-journal
 *.db-wal
@@ -91,8 +105,3 @@ memory/claude-flow-data.json
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
-!src/core/coordination/
-!src/core/memory/
-!src/coverage/
-!src/memory/
-!tests/memory/

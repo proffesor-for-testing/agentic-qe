@@ -8,14 +8,14 @@
  */
 
 // Core lifecycle commands
-// export { AgentSpawnCommand } from './spawn';
-// export { AgentKillCommand } from './kill';
+export { AgentSpawnCommand, SpawnOptions, SpawnResult } from './spawn';
+export { AgentKillCommand, KillOptions } from './kill';
 export { AgentRestartCommand, RestartOptions, RestartResult } from './restart';
 
 // Information and monitoring commands
-// export { AgentListCommand } from './list';
-// export { AgentMetricsCommand } from './metrics';
-// export { AgentLogsCommand } from './logs';
+export { AgentListCommand, ListOptions, AgentInfo } from './list';
+export { AgentMetricsCommand, MetricsOptions, AgentMetrics } from './metrics';
+export { AgentLogsCommand, LogsOptions } from './logs';
 export { AgentInspectCommand, InspectOptions, InspectResult } from './inspect';
 
 // Task management commands

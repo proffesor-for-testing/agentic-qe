@@ -1,19 +1,16 @@
 /**
- * Flaky Test Detection System - Public API
- * Export all components for external use
+ * Learning System - Phase 2 (Milestone 2.2)
+ *
+ * Exports all learning components for agent performance improvement.
  */
 
-export { FlakyTestDetector, FlakyDetectionOptions } from './FlakyTestDetector';
-export { FlakyPredictionModel } from './FlakyPredictionModel';
-export { StatisticalAnalysis } from './StatisticalAnalysis';
-export { FlakyFixRecommendations } from './FlakyFixRecommendations';
-
-export type {
-  TestResult,
-  FlakyTest,
-  FlakyFixRecommendation,
-  StatisticalMetrics,
-  FlakyPrediction,
-  ModelTrainingData,
-  ModelMetrics
-} from './types';
+export * from './types';
+export * from './LearningEngine';
+export * from './PerformanceTracker';
+export * from './ImprovementLoop';
+export * from './ImprovementWorker';
+export * from './FlakyTestDetector';
+export * from './FlakyPredictionModel';
+export * from './FlakyFixRecommendations';
+export * from './StatisticalAnalysis';
+export * from './SwarmIntegration';

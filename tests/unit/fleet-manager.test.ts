@@ -1,102 +1,171 @@
 import { jest } from '@jest/globals';
 import { FleetManager } from '../../src/core/FleetManager';
-import { Agent } from '../../src/core/Agent';
+import { Agent, AgentStatus } from '../../src/core/Agent';
+import { Task, TaskStatus } from '../../src/core/Task';
 import { Logger } from '../../src/utils/Logger';
-import { QEAgentType } from '../../src/types';
+import { Database } from '../../src/utils/Database';
+import { EventBus } from '../../src/core/EventBus';
+import { QEAgentType, FleetConfig } from '../../src/types';
+
+// Mock the Database module before importing FleetManager
+jest.mock('../../src/utils/Database');
+
+// Mock the agents module before importing FleetManager
+jest.mock('../../src/agents', () => ({
+  createAgent: jest.fn()
+}));
+
+// Import the mock after jest.mock() is called
+import { mockDatabase } from '../__mocks__/Database';
+
+// Define AgentType enum for tests (mirrors QEAgentType)
+enum AgentType {
+  UNIT_TEST_GENERATOR = 'unit-test-generator',
+  INTEGRATION_TEST_GENERATOR = 'integration-test-generator',
+  TEST_EXECUTOR = 'test-executor',
+  COVERAGE_ANALYZER = 'coverage-analyzer'
+}
+
+// Topology type constants (FleetConfig uses string literals, not enum)
+const TopologyType = {
+  MESH: 'mesh' as const,
+  HIERARCHICAL: 'hierarchical' as const,
+  RING: 'ring' as const,
+  ADAPTIVE: 'adaptive' as const,
+  STAR: 'ring' as const // Using 'ring' as fallback since 'star' isn't in FleetConfig
+}
 
 // London School TDD: Mock all dependencies
 const mockLogger = {
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
-  debug: jest.fn()
-} as jest.Mocked<Logger>;
+  debug: jest.fn(),
+  getInstance: jest.fn()
+} as unknown as jest.Mocked<Logger>;
+
+// Mock Logger.getInstance to return our mock
+(Logger.getInstance as jest.Mock) = jest.fn(() => mockLogger);
+
+const mockEventBus = {
+  initialize: jest.fn().mockResolvedValue(undefined),
+  emit: jest.fn(),
+  on: jest.fn(),
+  off: jest.fn(),
+  once: jest.fn(),
+  removeAllListeners: jest.fn()
+} as unknown as jest.Mocked<EventBus>;
 
 const mockMetricsCollector = {
-  recordMetric: jest.fn(),
-  getMetrics: jest.fn(),
-  clearMetrics: jest.fn()
-} as jest.Mocked<MetricsCollector>;
+  recordMetric: jest.fn().mockResolvedValue(undefined),
+  getMetrics: jest.fn().mockReturnValue({}),
+  incrementCounter: jest.fn(),
+  recordHistogram: jest.fn(),
+  recordGauge: jest.fn()
+};
+
+const mockAgentFactory = {
+  createAgent: jest.fn().mockResolvedValue({
+    id: 'test-agent-123',
+    type: QEAgentType.TEST_GENERATOR,
+    status: AgentStatus.IDLE,
+    start: jest.fn().mockResolvedValue(true),
+    stop: jest.fn().mockResolvedValue(true)
+  })
+};
 
 const mockAgent = {
   id: 'test-agent-123',
   type: QEAgentType.TEST_GENERATOR,
-  status: 'idle',
+  status: AgentStatus.IDLE,
   capabilities: ['jest', 'typescript'],
   start: jest.fn().mockResolvedValue(true),
   stop: jest.fn().mockResolvedValue(true),
   execute: jest.fn().mockResolvedValue({ success: true }),
-  getStatus: jest.fn().mockReturnValue('idle')
-} as jest.Mocked<Agent>;
-
-// Mock agent factory
-const mockAgentFactory = {
-  createAgent: jest.fn().mockReturnValue(mockAgent)
-};
+  getStatus: jest.fn().mockReturnValue(AgentStatus.IDLE),
+  getId: jest.fn().mockReturnValue('test-agent-123'),
+  initialize: jest.fn().mockResolvedValue(undefined),
+  assignTask: jest.fn().mockResolvedValue(undefined),
+  canHandleTaskType: jest.fn().mockReturnValue(true)
+} as unknown as jest.Mocked<Agent>;
 
 describe('FleetManager - London School TDD', () => {
   let fleetManager: FleetManager;
-  
-  beforeEach(() => {
+  let mockConfig: FleetConfig;
+  let createAgentMock: jest.Mock;
+
+  beforeEach(async () => {
     jest.clearAllMocks();
-    fleetManager = new FleetManager({
-      logger: mockLogger,
-      metricsCollector: mockMetricsCollector,
-      agentFactory: mockAgentFactory
+
+    // Reset the mocks
+    (mockDatabase.initialize as jest.Mock).mockResolvedValue(undefined);
+    (mockEventBus.initialize as jest.Mock).mockResolvedValue(undefined);
+
+    // Create a basic fleet config
+    mockConfig = {
+      agents: [
+        { type: 'test-generator', count: 2, config: {} },
+        { type: 'test-executor', count: 1, config: {} }
+      ],
+      topology: 'hierarchical' as const,
+      maxAgents: 8
+    };
+
+    // Setup createAgent mock
+    const agentsModule = await import('../../src/agents');
+    createAgentMock = agentsModule.createAgent as jest.Mock;
+    createAgentMock.mockResolvedValue(mockAgent);
+
+    // Use dependency injection instead of manually replacing properties
+    fleetManager = new FleetManager(mockConfig, {
+      database: mockDatabase as any,
+      eventBus: mockEventBus,
+      logger: mockLogger
     });
   });
 
   describe('Fleet Initialization', () => {
-    it('should initialize fleet with hierarchical topology', async () => {
-      const initConfig = {
-        topology: 'hierarchical' as const,
-        maxAgents: 8,
-        strategy: 'balanced'
-      };
+    it('should initialize fleet with database and event bus', async () => {
+      await fleetManager.initialize();
 
-      await fleetManager.initialize(initConfig);
+      // Verify database initialization
+      expect(mockDatabase.initialize).toHaveBeenCalled();
 
-      // Verify interactions (London School focus)
+      // Verify event bus initialization
+      expect(mockEventBus.initialize).toHaveBeenCalled();
+
+      // Verify logging
       expect(mockLogger.info).toHaveBeenCalledWith(
-        'Initializing QE fleet with hierarchical topology'
+        expect.stringContaining('Initializing Fleet Manager')
       );
-      expect(mockMetricsCollector.recordMetric).toHaveBeenCalledWith(
-        'fleet.initialization',
-        expect.objectContaining({ topology: 'hierarchical' })
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Fleet Manager initialized successfully'
       );
-
-      // Verify state change through behavior
-      expect(fleetManager.getTopology()).toBe('hierarchical');
-      expect(fleetManager.getMaxAgents()).toBe(8);
     });
 
-    it('should initialize fleet with mesh topology for complex integration', async () => {
-      const initConfig = {
-        topology: 'mesh' as const,
-        maxAgents: 12,
-        strategy: 'specialized'
-      };
+    it('should handle initialization failure gracefully', async () => {
+      const initError = new Error('Database connection failed');
+      (mockDatabase.initialize as jest.Mock).mockRejectedValueOnce(initError);
 
-      await fleetManager.initialize(initConfig);
-
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'Initializing QE fleet with mesh topology'
-      );
-      expect(fleetManager.getTopology()).toBe('mesh');
-    });
-
-    it('should reject initialization with invalid configuration', async () => {
-      const invalidConfig = {
-        topology: 'invalid' as any,
-        maxAgents: -1,
-        strategy: 'unknown'
-      };
-
-      await expect(fleetManager.initialize(invalidConfig))
-        .rejects.toThrow('Invalid fleet configuration');
+      await expect(fleetManager.initialize())
+        .rejects.toThrow('Database connection failed');
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        'Fleet initialization failed: Invalid configuration'
+        'Failed to initialize Fleet Manager:',
+        initError
+      );
+    });
+
+    it('should create initial agent pool from configuration', async () => {
+      await fleetManager.initialize();
+
+      // Verify createAgent was called for each agent in config
+      // (2 test-generators + 1 test-executor = 3 agents)
+      expect(createAgentMock).toHaveBeenCalledTimes(3);
+
+      // Verify successful initialization
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Fleet Manager initialized successfully'
       );
     });
   });
@@ -310,17 +379,22 @@ describe('FleetManager - London School TDD', () => {
 // Contract tests for fleet manager interfaces
 describe('FleetManager Contracts', () => {
   it('should satisfy IFleetManager interface contract', () => {
-    const fleetManager = new FleetManager({
+    const testConfig: FleetConfig = {
+      agents: [],
+      topology: 'mesh' as const,
+      maxAgents: 4
+    };
+
+    const fleetManager = new FleetManager(testConfig, {
       logger: mockLogger,
-      metricsCollector: mockMetricsCollector,
-      agentFactory: mockAgentFactory
+      database: mockDatabase as any,
+      eventBus: mockEventBus
     });
-    
+
     // Verify interface compliance
     expect(typeof fleetManager.initialize).toBe('function');
     expect(typeof fleetManager.spawnAgent).toBe('function');
-    expect(typeof fleetManager.distributeTask).toBe('function');
-    expect(typeof fleetManager.getFleetStatus).toBe('function');
-    expect(typeof fleetManager.shutdown).toBe('function');
+    expect(typeof fleetManager.getStatus).toBe('function');
+    expect(typeof fleetManager.stop).toBe('function');
   });
 });

@@ -23,3 +23,27 @@ export type {
   CreateACLParams,
   UpdateACLParams
 } from './AccessControl';
+
+// AgentDB Integration (Optional - for distributed coordination)
+export {
+  AgentDBManager,
+  createAgentDBManager
+} from './AgentDBManager';
+export type {
+  AgentDBConfig,
+  MemoryPattern,
+  RetrievalOptions,
+  RetrievalResult,
+  TrainingOptions,
+  TrainingMetrics
+} from './AgentDBManager';
+
+// AgentDBService - Production-ready vector database wrapper
+export { AgentDBService, createAgentDBService } from './AgentDBService';
+export type {
+  QEPattern,
+  AgentDBServiceConfig,
+  PatternSearchOptions,
+  BatchResult,
+  PatternSearchResult
+} from './AgentDBService';

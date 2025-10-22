@@ -1,0 +1,241 @@
+{
+  "metadata": {
+    "executionDate": "2025-10-21T00:00:00Z",
+    "release": "1.2.0",
+    "testCommand": "npm test -- --coverage --maxWorkers=4",
+    "environment": {
+      "nodeVersion": "22.19.0",
+      "platform": "linux",
+      "workingDirectory": "/workspaces/agentic-qe-cf",
+      "maxOldSpaceSize": "1024MB",
+      "workers": 1,
+      "timeout": 30000
+    }
+  },
+  "summary": {
+    "testFiles": {
+      "total": 40,
+      "passed": 9,
+      "failed": 31,
+      "skipped": 0,
+      "passRate": 22.50
+    },
+    "testCases": {
+      "total": 887,
+      "passed": 310,
+      "failed": 577,
+      "skipped": 0,
+      "passRate": 34.95
+    },
+    "coverage": {
+      "lines": {
+        "total": 192,
+        "covered": 156,
+        "pct": 81.25
+      },
+      "statements": {
+        "total": 197,
+        "covered": 160,
+        "pct": 81.21
+      },
+      "functions": {
+        "total": 51,
+        "covered": 47,
+        "pct": 92.15
+      },
+      "branches": {
+        "total": 44,
+        "covered": 27,
+        "pct": 61.36
+      }
+    },
+    "duration": {
+      "total": "~600s",
+      "slowestTest": "tests/cli/cli.test.ts (11.382s)"
+    }
+  },
+  "criticalFindings": {
+    "p0Failures": [
+      {
+        "type": "TypeError",
+        "message": "database.initialize is not a function",
+        "occurrences": 101,
+        "affectedFiles": [
+          "tests/unit/FleetManager.database.test.ts",
+          "tests/unit/fleet-manager.test.ts",
+          "tests/cli/*.test.ts"
+        ],
+        "impact": "CRITICAL - Database initialization broken across 60+ tests",
+        "rootCause": "MemoryManager expects database.initialize() method but Database mock doesn't provide it"
+      },
+      {
+        "type": "TypeError",
+        "message": "QEAgentFactory is not a constructor",
+        "occurrences": 75,
+        "affectedFiles": [
+          "tests/mcp/CoordinationTools.test.ts",
+          "tests/mcp/MemoryTools.test.ts",
+          "tests/cli/*.test.ts"
+        ],
+        "impact": "CRITICAL - Agent registry initialization fails in all MCP and CLI tests",
+        "rootCause": "QEAgentFactory not properly exported or mocked in test environment"
+      },
+      {
+        "type": "TypeError",
+        "message": "The 'path' argument must be of type string",
+        "occurrences": 226,
+        "affectedFiles": [
+          "tests/cli/*.test.ts",
+          "tests/mcp/*.test.ts"
+        ],
+        "impact": "HIGH - File path handling issues in CLI and MCP tests",
+        "rootCause": "process.cwd() or path arguments returning undefined in test environment"
+      },
+      {
+        "type": "TypeError",
+        "message": "Cannot read properties of undefined (reading 'close')",
+        "occurrences": 79,
+        "affectedFiles": [
+          "tests/mcp/*.test.ts",
+          "tests/cli/*.test.ts"
+        ],
+        "impact": "HIGH - Test cleanup failures causing resource leaks",
+        "rootCause": "Server/database instances not properly initialized before cleanup"
+      }
+    ],
+    "flakyTests": [],
+    "performanceIssues": [
+      {
+        "test": "tests/cli/cli.test.ts",
+        "duration": "11.382s",
+        "threshold": "5s",
+        "status": "SLOW"
+      }
+    ]
+  },
+  "categoryBreakdown": {
+    "unit": {
+      "total": 24,
+      "passed": 2,
+      "failed": 22,
+      "passRate": 8.33,
+      "categories": {
+        "Agent.test.ts": "PASSED",
+        "EventBus.test.ts": "PASSED",
+        "FleetManager.database.test.ts": "FAILED - database.initialize",
+        "core/memory/*": "FAILED - database initialization",
+        "learning/*": "FAILED - path/database issues",
+        "reasoning/*": "FAILED - dependency issues",
+        "transport/*": "FAILED - QUIC dependencies"
+      }
+    },
+    "integration": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "passRate": 0,
+      "note": "Integration tests not run in this execution"
+    },
+    "cli": {
+      "total": 11,
+      "passed": 1,
+      "failed": 10,
+      "passRate": 9.09,
+      "failures": [
+        "advanced-commands.test.ts - QEAgentFactory",
+        "agent.test.ts - QEAgentFactory",
+        "cli.test.ts - path arguments",
+        "debug.test.ts - QEAgentFactory",
+        "fleet.test.ts - database initialization",
+        "memory.test.ts - database initialization",
+        "monitor.test.ts - QEAgentFactory",
+        "quality.test.ts - QEAgentFactory",
+        "test.test.ts - QEAgentFactory",
+        "workflow.test.ts - QEAgentFactory"
+      ]
+    },
+    "mcp": {
+      "total": 2,
+      "passed": 0,
+      "failed": 2,
+      "passRate": 0,
+      "failures": [
+        "CoordinationTools.test.ts - QEAgentFactory",
+        "MemoryTools.test.ts - QEAgentFactory"
+      ]
+    },
+    "smoke": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "passRate": 100,
+      "note": "Basic Agent and EventBus tests passing"
+    }
+  },
+  "comparisonToBaseline": {
+    "previousRun": {
+      "date": "2025-10-20",
+      "passRate": 52.7,
+      "coverage": "~75%"
+    },
+    "currentRun": {
+      "passRate": 34.95,
+      "coverage": 81.25
+    },
+    "delta": {
+      "passRate": -17.75,
+      "coverage": +6.25,
+      "trend": "REGRESSED - Pass rate dropped significantly, coverage improved"
+    },
+    "analysis": "Significant regression in test pass rate (-33.7%) despite improved code coverage (+6.25%). Root cause: Database mocking refactor broke MemoryManager initialization across all agent, CLI, and MCP tests."
+  },
+  "qualityGateStatus": {
+    "targetPassRate": 95,
+    "actualPassRate": 34.95,
+    "delta": -60.05,
+    "status": "FAILED",
+    "targetCoverage": 80,
+    "actualCoverage": 81.25,
+    "coverageStatus": "PASSED",
+    "criticalFailures": 4,
+    "allowedCriticalFailures": 0,
+    "overallStatus": "NO-GO"
+  },
+  "recommendations": {
+    "immediate": [
+      "FIX P0: Restore database.initialize() method in Database mock (jest.setup.ts)",
+      "FIX P0: Fix QEAgentFactory export/import in src/agents/index.ts",
+      "FIX P0: Ensure process.cwd() returns valid path in all test contexts",
+      "FIX HIGH: Add proper server/database initialization in beforeEach hooks"
+    ],
+    "shortTerm": [
+      "Add test-specific database mock that matches MemoryManager interface",
+      "Refactor QEAgentFactory to use dependency injection for easier testing",
+      "Add validation for file paths before use in CLI commands",
+      "Implement retry logic for flaky resource initialization"
+    ],
+    "longTerm": [
+      "Standardize test infrastructure setup across unit/integration/e2e tests",
+      "Create reusable test fixtures for common scenarios (database, agents, MCP server)",
+      "Add contract tests between MemoryManager and Database implementations",
+      "Improve test isolation to prevent cascading failures"
+    ]
+  },
+  "releaseDecision": {
+    "recommendation": "NO-GO",
+    "blockers": [
+      "Test pass rate 34.95% vs 95% target (-60.05 points)",
+      "101 database initialization failures (P0)",
+      "75 agent factory failures (P0)",
+      "226 path argument failures",
+      "Significant regression from 52.7% baseline (-17.75 points)"
+    ],
+    "mitigations": [
+      "Coverage exceeds 80% target (81.25%)",
+      "Core Agent and EventBus tests passing (100% in smoke category)",
+      "No flaky tests detected",
+      "No memory leaks detected"
+    ],
+    "timeline": "Estimated 4-8 hours to fix P0 database and factory issues, re-run full test suite"
+  }
+}

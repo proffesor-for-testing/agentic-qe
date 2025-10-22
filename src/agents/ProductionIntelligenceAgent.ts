@@ -10,13 +10,13 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import {
-  AgentType,
+  AgentType as _AgentType,
   QEAgentType,
   QETask,
   TestSuite,
   Test,
   TestType,
-  QETestResult
+  QETestResult as _QETestResult
 } from '../types';
 
 // ============================================================================
@@ -352,7 +352,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     });
 
     // Close monitoring client connections
-    for (const [platform, client] of this.monitoringClients.entries()) {
+    for (const [platform, _client] of this.monitoringClients.entries()) {
       console.log(`Closing connection to ${platform}`);
       // In real implementation, properly close connections
     }
@@ -786,7 +786,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     };
   }
 
-  private async extractLoadPattern(timeWindow: string): Promise<LoadPattern> {
+  private async extractLoadPattern(_timeWindow: string): Promise<LoadPattern> {
     // Simulate load pattern extraction
     // In real implementation, fetch from monitoring platform
     return {
@@ -931,7 +931,7 @@ export default function() {
     return { features, unusedFeatures };
   }
 
-  private async fetchFeatureUsageData(timeWindow: string): Promise<any> {
+  private async fetchFeatureUsageData(_timeWindow: string): Promise<any> {
     // Simulate feature usage data
     // In real implementation, fetch from analytics platform
     return {
@@ -1035,7 +1035,7 @@ export default function() {
     const rumData = await this.fetchRUMData(timeWindow);
 
     // Filter journeys by frequency
-    const relevantJourneys = rumData.userJourneys.filter(
+    const _relevantJourneys = rumData.userJourneys.filter(
       j => j.frequency >= minJourneyFrequency
     );
 
@@ -1192,9 +1192,9 @@ export default function() {
   }
 
   private async fetchIncidents(
-    incidentIds?: string[],
-    severityFilter?: string[],
-    limit?: number
+    _incidentIds?: string[],
+    _severityFilter?: string[],
+    _limit?: number
   ): Promise<ProductionIncident[]> {
     // Simulate fetching incidents from memory
     // In real implementation, query incident management system
@@ -1221,12 +1221,12 @@ export default function() {
     ];
   }
 
-  private async fetchProductionMetric(metric: string): Promise<number> {
+  private async fetchProductionMetric(_metric: string): Promise<number> {
     // Simulate fetching production metric
     return Math.random() * 100;
   }
 
-  private async fetchStagingMetric(metric: string): Promise<number> {
+  private async fetchStagingMetric(_metric: string): Promise<number> {
     // Simulate fetching staging metric
     return Math.random() * 100;
   }

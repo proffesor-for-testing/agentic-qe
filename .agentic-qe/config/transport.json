@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QUIC Transport Configuration",
+  "description": "Configuration for distributed memory synchronization via QUIC protocol",
+  "quic": {
+    "enabled": false,
+    "host": "localhost",
+    "port": 9000,
+    "syncInterval": 5000,
+    "maxPeers": 10,
+    "retryAttempts": 3,
+    "retryDelay": 1000,
+    "timeout": 5000
+  },
+  "peers": [
+    {
+      "name": "example-peer-1",
+      "address": "192.168.1.100",
+      "port": 9000,
+      "enabled": false
+    },
+    {
+      "name": "example-peer-2",
+      "address": "192.168.1.101",
+      "port": 9000,
+      "enabled": false
+    }
+  ],
+  "security": {
+    "tls": {
+      "enabled": true,
+      "certPath": ".agentic-qe/certs/server.crt",
+      "keyPath": ".agentic-qe/certs/server.key",
+      "caPath": ".agentic-qe/certs/ca.crt"
+    },
+    "authentication": {
+      "enabled": false,
+      "method": "psk",
+      "secretKey": "CHANGE_ME_IN_PRODUCTION"
+    }
+  },
+  "performance": {
+    "compression": {
+      "enabled": true,
+      "algorithm": "gzip",
+      "level": 6
+    },
+    "batchSize": 100,
+    "maxConcurrentSyncs": 3,
+    "memoryLimit": 104857600
+  },
+  "logging": {
+    "level": "info",
+    "enableMetrics": true,
+    "metricsInterval": 60000,
+    "logFilePath": ".agentic-qe/logs/quic-transport.log"
+  },
+  "advanced": {
+    "keepAlive": {
+      "enabled": true,
+      "interval": 30000,
+      "timeout": 10000
+    },
+    "congestionControl": "cubic",
+    "flowControl": {
+      "initialWindow": 65536,
+      "maxWindow": 1048576
+    },
+    "retransmission": {
+      "initialTimeout": 100,
+      "maxTimeout": 5000,
+      "maxRetries": 5
+    }
+  },
+  "_comments": {
+    "enabled": "Set to true to enable QUIC transport (opt-in feature)",
+    "syncInterval": "How often to sync with peers (milliseconds)",
+    "maxPeers": "Maximum number of concurrent peer connections",
+    "security": "TLS and authentication settings for secure communication",
+    "performance": "Tuning parameters for throughput and resource usage",
+    "advanced": "Low-level QUIC protocol parameters (modify with caution)"
+  }
+}

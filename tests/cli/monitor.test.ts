@@ -38,6 +38,11 @@ describe('Monitor Dashboard Command', () => {
   let tempDir: string;
 
   beforeEach(async () => {
+    // Mock process.exit to prevent test interruption
+    jest.spyOn(process, 'exit').mockImplementation((code?: number) => {
+      throw new Error(`Process.exit called with code ${code}`);
+    });
+
     tempDir = path.join('/tmp', `monitor-test-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
     dashboard = new MonitorDashboard(tempDir);

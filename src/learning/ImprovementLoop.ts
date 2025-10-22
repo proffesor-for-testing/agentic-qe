@@ -112,7 +112,13 @@ export class ImprovementLoop {
   /**
    * Run a single improvement cycle
    */
-  async runImprovementCycle(): Promise<void> {
+  async runImprovementCycle(): Promise<{
+    improvement: any;
+    failurePatternsAnalyzed: number;
+    opportunitiesFound: number;
+    activeTests: number;
+    strategiesApplied: number;
+  }> {
     this.logger.info('Running improvement cycle...');
 
     try {
@@ -122,7 +128,8 @@ export class ImprovementLoop {
 
       // 2. Identify failure patterns
       const failurePatterns = this.learningEngine.getFailurePatterns();
-      await this.analyzeFailurePatterns(failurePatterns);
+      const failurePatternsAnalyzed = await this.analyzeFailurePatterns(failurePatterns);
+      this.logger.debug(`Analyzed ${failurePatternsAnalyzed} failure patterns`);
 
       // 3. Discover optimization opportunities
       const opportunities = await this.discoverOptimizations();
@@ -131,21 +138,34 @@ export class ImprovementLoop {
       // 4. Run active A/B tests
       await this.updateActiveTests();
 
-      // 5. Apply best strategies
-      await this.applyBestStrategies();
+      // 5. Apply best strategies (with opt-in check)
+      const strategiesApplied = await this.applyBestStrategies();
+      this.logger.debug(`Applied ${strategiesApplied} strategies`);
 
       // 6. Store cycle results
-      await this.storeCycleResults({
+      const cycleResults = {
         timestamp: new Date(),
         improvement,
         failurePatterns: failurePatterns.length,
+        failurePatternsAnalyzed,
         opportunities: opportunities.length,
-        activeTests: this.activeTests.size
-      });
+        activeTests: this.activeTests.size,
+        strategiesApplied
+      };
+      await this.storeCycleResults(cycleResults);
 
       this.logger.info('Improvement cycle completed successfully');
+
+      return {
+        improvement,
+        failurePatternsAnalyzed,
+        opportunitiesFound: opportunities.length,
+        activeTests: this.activeTests.size,
+        strategiesApplied
+      };
     } catch (error) {
       this.logger.error('Error in improvement cycle:', error);
+      throw error;
     }
   }
 
@@ -266,14 +286,16 @@ export class ImprovementLoop {
   /**
    * Analyze failure patterns and suggest mitigations
    */
-  private async analyzeFailurePatterns(patterns: FailurePattern[]): Promise<void> {
+  private async analyzeFailurePatterns(patterns: FailurePattern[]): Promise<number> {
     const highFrequencyPatterns = patterns.filter(p => p.frequency > 5 && p.confidence > 0.7);
+    let analyzedCount = 0;
 
     for (const pattern of highFrequencyPatterns) {
       // Suggest mitigation if not already present
       if (!pattern.mitigation) {
         const mitigation = await this.suggestMitigation(pattern);
         pattern.mitigation = mitigation;
+        analyzedCount++;
 
         this.logger.info(`Suggested mitigation for pattern ${pattern.pattern}: ${mitigation}`);
 
@@ -283,8 +305,18 @@ export class ImprovementLoop {
           pattern,
           { partition: 'learning' }
         );
+
+        // Emit event for monitoring
+        await this.memoryStore.storeEvent({
+          type: 'failure_pattern:analyzed',
+          payload: { pattern: pattern.pattern, mitigation, confidence: pattern.confidence },
+          source: this.agentId,
+          timestamp: Date.now()
+        });
       }
     }
+
+    return analyzedCount;
   }
 
   /**
@@ -346,17 +378,63 @@ export class ImprovementLoop {
   }
 
   /**
-   * Apply best strategies based on learning
+   * Apply best strategies based on learning (opt-in with high confidence threshold)
    */
-  private async applyBestStrategies(): Promise<void> {
+  private async applyBestStrategies(): Promise<number> {
+    // Check if auto-apply is enabled (opt-in feature)
+    const autoApplyEnabled = await this.isAutoApplyEnabled();
+    if (!autoApplyEnabled) {
+      this.logger.debug('Auto-apply disabled, skipping strategy application');
+      return 0;
+    }
+
+    // Only apply strategies with very high confidence (>0.9) and success rate (>0.8)
     const patterns = this.learningEngine.getPatterns()
       .filter(p => p.confidence > 0.9 && p.successRate > 0.8)
       .slice(0, 3);
 
+    let appliedCount = 0;
     for (const pattern of patterns) {
       const strategyName = pattern.pattern.split(':')[1] || 'default';
-      await this.applyStrategy(strategyName);
+      try {
+        await this.applyStrategy(strategyName);
+        appliedCount++;
+
+        this.logger.info(`Auto-applied strategy: ${strategyName} (confidence: ${pattern.confidence.toFixed(2)}, success: ${pattern.successRate.toFixed(2)})`);
+      } catch (error) {
+        this.logger.error(`Failed to apply strategy ${strategyName}:`, error);
+      }
     }
+
+    return appliedCount;
+  }
+
+  /**
+   * Check if auto-apply is enabled (opt-in configuration)
+   */
+  private async isAutoApplyEnabled(): Promise<boolean> {
+    try {
+      const config = await this.memoryStore.retrieve(
+        `phase2/learning/${this.agentId}/auto-apply-config`,
+        { partition: 'learning' }
+      );
+      return config?.enabled === true;
+    } catch {
+      // Default to disabled for safety
+      return false;
+    }
+  }
+
+  /**
+   * Enable or disable auto-apply for best strategies
+   */
+  async setAutoApply(enabled: boolean): Promise<void> {
+    await this.memoryStore.store(
+      `phase2/learning/${this.agentId}/auto-apply-config`,
+      { enabled, updatedAt: new Date() },
+      { partition: 'learning' }
+    );
+    this.logger.info(`Auto-apply ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**

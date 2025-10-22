@@ -18,8 +18,8 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
-import { QETask, QEAgentType, DeploymentReadinessConfig } from '../types';
-import { EventEmitter } from 'events';
+import { QETask, QEAgentType, DeploymentReadinessConfig as _DeploymentReadinessConfig } from '../types';
+import { EventEmitter as _EventEmitter } from 'events';
 
 // ============================================================================
 // Type Definitions
@@ -351,7 +351,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     await this.memoryStore.store('aqe/deployment/history', this.deploymentHistory);
 
     // Cleanup monitoring clients
-    for (const [tool, client] of this.monitoringClients.entries()) {
+    for (const [tool, _client] of this.monitoringClients.entries()) {
       try {
         // In production, would properly close connections
         console.log(`Cleaned up ${tool} monitoring client`);
@@ -705,8 +705,8 @@ export class DeploymentReadinessAgent extends BaseAgent {
 
   private generateConfidenceRecommendation(
     score: number,
-    level: string,
-    comparison: { averageSuccessRate: number; percentageImprovement: number }
+    _level: string,
+    _comparison: { averageSuccessRate: number; percentageImprovement: number }
   ): string {
     if (score >= 95) {
       return 'DEPLOY - Confidence significantly above baseline. All quality signals green.';
@@ -817,7 +817,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     return Math.min(10, score);
   }
 
-  private assessBlastRadius(metadata: DeploymentMetadata): number {
+  private assessBlastRadius(_metadata: DeploymentMetadata): number {
     // Default medium blast radius
     // In production, would analyze affected services/modules
     return 5;
@@ -962,7 +962,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
   }
 
   // Checklist validation helpers
-  private async checkCodeReview(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkCodeReview(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     // In production, would query GitHub/GitLab PR API
     return {
       category: 'code_quality',
@@ -990,7 +990,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkLinting(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkLinting(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'code_quality',
       name: 'ESLint/Prettier passing with 0 errors',
@@ -1039,7 +1039,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkE2ETests(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkE2ETests(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'testing',
       name: 'E2E smoke tests successful',
@@ -1091,7 +1091,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkDependencyAudit(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkDependencyAudit(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'security',
       name: 'Dependency audit clean',
@@ -1102,7 +1102,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkSecurityScan(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkSecurityScan(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'security',
       name: 'OWASP Top 10 checks passed',
@@ -1113,7 +1113,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkDatabaseMigrations(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkDatabaseMigrations(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'operations',
       name: 'Database migrations tested',
@@ -1124,7 +1124,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkRollbackPlan(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkRollbackPlan(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'operations',
       name: 'Rollback plan documented',
@@ -1135,7 +1135,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkMonitoring(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkMonitoring(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'operations',
       name: 'Monitoring/alerting configured',
@@ -1146,7 +1146,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkFeatureFlags(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkFeatureFlags(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'operations',
       name: 'Feature flags enabled',
@@ -1157,7 +1157,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     };
   }
 
-  private async checkCompliance(metadata: DeploymentMetadata): Promise<ChecklistItem> {
+  private async checkCompliance(_metadata: DeploymentMetadata): Promise<ChecklistItem> {
     return {
       category: 'compliance',
       name: 'Compliance requirements validated',

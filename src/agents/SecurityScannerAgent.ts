@@ -464,7 +464,7 @@ export class SecurityScannerAgent extends BaseAgent {
     };
   }
 
-  private async scanDependencies(metadata: any): Promise<SecurityScanResult> {
+  private async scanDependencies(_metadata: any): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Scanning dependencies with ${this.config.tools?.dependencies}`);
 
     const startTime = Date.now();
@@ -624,7 +624,7 @@ export class SecurityScannerAgent extends BaseAgent {
     return requirementsMap[standard] || [];
   }
 
-  private async checkRequirement(req: { id: string; description: string }, metadata: any): Promise<'compliant' | 'non-compliant' | 'not-applicable'> {
+  private async checkRequirement(_req: { id: string; description: string }, _metadata: any): Promise<'compliant' | 'non-compliant' | 'not-applicable'> {
     // Mock requirement checking
     // In production, this would perform actual compliance checks
     return Math.random() > 0.1 ? 'compliant' : 'non-compliant';
@@ -679,7 +679,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // Reporting & Analysis
   // ============================================================================
 
-  private async generateSecurityReport(metadata: any): Promise<any> {
+  private async generateSecurityReport(_metadata: any): Promise<any> {
     console.log(`[SecurityScanner] Generating security report`);
 
     const recentScans = this.scanHistory.slice(-10);
@@ -720,7 +720,7 @@ export class SecurityScannerAgent extends BaseAgent {
     return report;
   }
 
-  private async updateSecurityBaseline(metadata: any): Promise<void> {
+  private async updateSecurityBaseline(_metadata: any): Promise<void> {
     console.log(`[SecurityScanner] Updating security baseline`);
 
     const latestScan = this.scanHistory[this.scanHistory.length - 1];
@@ -845,7 +845,7 @@ export class SecurityScannerAgent extends BaseAgent {
     // In production, this would set up connections to actual scanning tools
   }
 
-  private async handleTestGenerated(data: any): Promise<void> {
+  private async handleTestGenerated(_data: any): Promise<void> {
     console.log('[SecurityScanner] Auto-scanning newly generated tests');
     // Automatically scan new test code for security issues
   }
@@ -879,7 +879,7 @@ export class SecurityScannerAgent extends BaseAgent {
     }
   }
 
-  private async checkAffectedDependencies(cve: CVERecord): Promise<string[]> {
+  private async checkAffectedDependencies(_cve: CVERecord): Promise<string[]> {
     // Mock: Check if project dependencies are affected by CVE
     return [];
   }
