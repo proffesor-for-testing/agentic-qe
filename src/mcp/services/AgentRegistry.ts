@@ -435,7 +435,7 @@ export class AgentRegistry {
       // Workflow step type mappings (for task orchestration)
       'code-analyzer': QEAgentType.QUALITY_ANALYZER,
       'metrics-collector': QEAgentType.QUALITY_ANALYZER,
-      'defect-predictor': QEAgentType.LEARNING_AGENT,
+      'defect-predictor': QEAgentType.QUALITY_ANALYZER,
       'report-generator': QEAgentType.QUALITY_ANALYZER,
       'generic-agent': QEAgentType.QUALITY_ANALYZER
     };

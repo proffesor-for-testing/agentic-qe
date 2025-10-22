@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "AgentDB Configuration Example",
+  "description": "Configuration for AgentDB integration in AQE Fleet agents",
+  "examples": [
+    {
+      "name": "Standalone Agent (No Sync)",
+      "description": "Single agent with local AgentDB for pattern storage",
+      "config": {
+        "agentDBPath": ".agentdb/standalone.db",
+        "enableQUICSync": false,
+        "enableLearning": true,
+        "quantizationType": "scalar"
+      }
+    },
+    {
+      "name": "Multi-Agent Fleet (QUIC Sync)",
+      "description": "Multiple agents synchronized via QUIC protocol",
+      "config": {
+        "agentDBPath": ".agentdb/fleet-shared.db",
+        "enableQUICSync": true,
+        "syncPort": 4433,
+        "syncPeers": [
+          "192.168.1.10:4433",
+          "192.168.1.11:4433"
+        ],
+        "syncInterval": 1000,
+        "syncBatchSize": 100,
+        "maxRetries": 3,
+        "compression": true,
+        "enableLearning": true,
+        "quantizationType": "product"
+      }
+    },
+    {
+      "name": "High-Performance Agent (Memory Optimization)",
+      "description": "Agent with aggressive quantization for low-memory environments",
+      "config": {
+        "agentDBPath": ".agentdb/optimized.db",
+        "enableQUICSync": false,
+        "enableLearning": true,
+        "quantizationType": "binary",
+        "cacheSize": 500
+      }
+    },
+    {
+      "name": "Development Agent (Full Features)",
+      "description": "Development agent with all features enabled",
+      "config": {
+        "agentDBPath": ".agentdb/dev.db",
+        "enableQUICSync": true,
+        "syncPort": 4434,
+        "syncPeers": [],
+        "enableLearning": true,
+        "enableReasoning": true,
+        "quantizationType": "scalar",
+        "cacheSize": 2000
+      }
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "agentDBPath": {
+        "type": "string",
+        "description": "Path to SQLite database file (default: .agentdb/reasoningbank.db)",
+        "default": ".agentdb/reasoningbank.db"
+      },
+      "enableQUICSync": {
+        "type": "boolean",
+        "description": "Enable QUIC synchronization for distributed agents (<1ms latency)",
+        "default": false
+      },
+      "syncPort": {
+        "type": "number",
+        "description": "QUIC server port for synchronization",
+        "default": 4433,
+        "minimum": 1024,
+        "maximum": 65535
+      },
+      "syncPeers": {
+        "type": "array",
+        "description": "Peer addresses for synchronization (e.g., ['192.168.1.10:4433'])",
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]{1,5}$"
+        },
+        "default": []
+      },
+      "enableLearning": {
+        "type": "boolean",
+        "description": "Enable neural training with 9 RL algorithms",
+        "default": true
+      },
+      "quantizationType": {
+        "type": "string",
+        "enum": ["scalar", "binary", "product", "none"],
+        "description": "Quantization type for memory efficiency (scalar=4x, binary=32x reduction)",
+        "default": "scalar"
+      },
+      "cacheSize": {
+        "type": "number",
+        "description": "In-memory cache size (number of patterns)",
+        "default": 1000,
+        "minimum": 100,
+        "maximum": 10000
+      },
+      "syncInterval": {
+        "type": "number",
+        "description": "QUIC sync interval in milliseconds",
+        "default": 1000,
+        "minimum": 100,
+        "maximum": 60000
+      },
+      "syncBatchSize": {
+        "type": "number",
+        "description": "Number of patterns per sync batch",
+        "default": 100,
+        "minimum": 10,
+        "maximum": 1000
+      },
+      "maxRetries": {
+        "type": "number",
+        "description": "Maximum QUIC retry attempts",
+        "default": 3,
+        "minimum": 1,
+        "maximum": 10
+      },
+      "compression": {
+        "type": "boolean",
+        "description": "Enable QUIC compression for sync payloads",
+        "default": true
+      }
+    }
+  },
+  "integrationPatterns": {
+    "lifecycle": {
+      "onPreTask": {
+        "description": "Load context from AgentDB via vector search",
+        "operations": [
+          "Generate task embedding",
+          "Search AgentDB for similar patterns",
+          "Enrich context with retrieved memories",
+          "Apply context to verification"
+        ],
+        "performance": "< 100µs with HNSW indexing"
+      },
+      "onPostTask": {
+        "description": "Store execution patterns and trigger neural training",
+        "operations": [
+          "Create execution pattern with embedding",
+          "Store pattern in AgentDB",
+          "Trigger incremental training (every 100 patterns)",
+          "Update learning metrics"
+        ],
+        "performance": "< 2ms for pattern storage"
+      },
+      "onTaskError": {
+        "description": "Store error patterns for failure analysis",
+        "operations": [
+          "Create error pattern with context",
+          "Store in dedicated error domain",
+          "Enable future error prevention via retrieval"
+        ],
+        "performance": "< 2ms for error logging"
+      }
+    }
+  },
+  "performance": {
+    "vectorSearch": "< 100µs with HNSW indexing",
+    "patternRetrieval": "< 1ms with cache",
+    "batchInsert": "2ms for 100 patterns",
+    "quicSync": "< 1ms latency",
+    "training": "~10s for 10 epochs on 1000 patterns"
+  },
+  "features": {
+    "quicSync": {
+      "enabled": "enableQUICSync: true",
+      "latency": "< 1ms",
+      "protocol": "QUIC over UDP",
+      "compression": "zstd",
+      "maxPeers": "unlimited"
+    },
+    "neuralTraining": {
+      "algorithms": 9,
+      "types": [
+        "Q-Learning",
+        "SARSA",
+        "Actor-Critic",
+        "PPO",
+        "A2C",
+        "Decision Transformer",
+        "DQN",
+        "DDPG",
+        "TD3"
+      ],
+      "autoTrigger": "Every 100 patterns",
+      "epochs": 10,
+      "batchSize": 32,
+      "validationSplit": 0.2
+    },
+    "quantization": {
+      "scalar": "4x memory reduction, 1% accuracy loss",
+      "binary": "32x memory reduction, 5% accuracy loss",
+      "product": "8-16x reduction, 2% accuracy loss",
+      "none": "No reduction, full accuracy"
+    },
+    "reasoning": {
+      "patternMatcher": "Find similar execution patterns",
+      "contextSynthesizer": "Generate rich context from memories",
+      "mmr": "Maximal Marginal Relevance for diversity"
+    }
+  },
+  "migration": {
+    "fromCustom": {
+      "quic": "Custom QUIC code → AgentDB QUIC (1,290 lines removed)",
+      "neural": "Custom Neural code → AgentDB Learning (1,000 lines removed)",
+      "benefits": "Production-ready, 100-500x faster, 9 RL algorithms"
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "multiModelRouter": {
+    "enabled": false,
+    "version": "1.0.5",
+    "defaultModel": "claude-sonnet-4.5",
+    "enableCostTracking": true,
+    "enableFallback": true,
+    "maxRetries": 3,
+    "costThreshold": 0.5,
+    "modelRules": {
+      "simple": {
+        "model": "gpt-3.5-turbo",
+        "maxTokens": 2000,
+        "estimatedCost": 0.0004
+      },
+      "moderate": {
+        "model": "gpt-3.5-turbo",
+        "maxTokens": 4000,
+        "estimatedCost": 0.0008
+      },
+      "complex": {
+        "model": "gpt-4",
+        "maxTokens": 8000,
+        "estimatedCost": 0.0048
+      },
+      "critical": {
+        "model": "claude-sonnet-4.5",
+        "maxTokens": 8000,
+        "estimatedCost": 0.0065
+      }
+    },
+    "fallbackChains": {
+      "gpt-4": [
+        "gpt-3.5-turbo",
+        "claude-haiku"
+      ],
+      "gpt-3.5-turbo": [
+        "claude-haiku",
+        "gpt-4"
+      ],
+      "claude-sonnet-4.5": [
+        "claude-haiku",
+        "gpt-4"
+      ],
+      "claude-haiku": [
+        "gpt-3.5-turbo"
+      ]
+    }
+  },
+  "streaming": {
+    "enabled": true,
+    "progressInterval": 2000,
+    "bufferEvents": false,
+    "timeout": 1800000
+  }
+}

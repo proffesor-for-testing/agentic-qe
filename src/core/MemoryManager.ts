@@ -163,7 +163,7 @@ export class MemoryManager extends EventEmitter {
    * Set data in memory (alias for store, implements MemoryStore interface)
    */
   async set(key: string, value: any, namespace: string = 'default'): Promise<void> {
-    await this.store(key, value, namespace);
+    await this.store(key, value, { namespace });
   }
 
   /**

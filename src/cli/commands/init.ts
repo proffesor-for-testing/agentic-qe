@@ -7,7 +7,7 @@ import { InitOptions, FleetConfig } from '../../types';
 
 export class InitCommand {
   static async execute(options: InitOptions): Promise<void> {
-    console.log(chalk.blue.bold('\n🚀 Initializing Agentic QE Project (v1.1.0)\n'));
+    console.log(chalk.blue.bold('\n🚀 Initializing Agentic QE Project (v1.2.0)\n'));
 
     try {
       // Parse options
@@ -248,6 +248,7 @@ export class InitCommand {
       '.claude',              // For Claude Code integration
       '.claude/agents',       // Where agent definitions live
       '.claude/skills',       // Where QE skill definitions live (17 QE skills only)
+      '.claude/commands',     // Where AQE slash commands live (8 commands)
       'tests/unit',
       'tests/integration',
       'tests/e2e',
@@ -264,6 +265,9 @@ export class InitCommand {
 
     // Copy skill templates (only QE Fleet skills, not Claude Flow)
     await this.copySkillTemplates();
+
+    // Copy command templates (8 AQE slash commands)
+    await this.copyCommandTemplates();
   }
 
   private static async copyAgentTemplates(): Promise<void> {
@@ -861,6 +865,102 @@ For full capabilities, install the complete agentic-qe package.
     return count;
   }
 
+  /**
+   * Copy AQE slash command templates (8 commands)
+   */
+  private static async copyCommandTemplates(): Promise<void> {
+    console.log(chalk.cyan('  ⚡ Initializing AQE slash commands...'));
+
+    // Define the 8 AQE slash commands
+    const AQE_COMMANDS = [
+      'aqe-analyze.md',
+      'aqe-benchmark.md',
+      'aqe-chaos.md',
+      'aqe-execute.md',
+      'aqe-fleet-status.md',
+      'aqe-generate.md',
+      'aqe-optimize.md',
+      'aqe-report.md'
+    ];
+
+    // Find the agentic-qe package location
+    const possiblePaths = [
+      path.join(__dirname, '../../../.claude/commands'),  // From dist/cli/commands
+      path.join(process.cwd(), 'node_modules/agentic-qe/.claude/commands'),
+      path.join(process.cwd(), '../agentic-qe/.claude/commands')  // Monorepo case
+    ];
+
+    console.log(chalk.gray('  • Checking command source paths:'));
+    let sourcePath: string | null = null;
+    for (const p of possiblePaths) {
+      const exists = await fs.pathExists(p);
+      console.log(chalk.gray(`    ${exists ? '✓' : '✗'} ${p}`));
+      if (exists && !sourcePath) {
+        sourcePath = p;
+      }
+    }
+
+    if (!sourcePath) {
+      console.warn(chalk.yellow('  ⚠️  No command templates found in package paths'));
+      console.warn(chalk.yellow('  ℹ️  Commands can be added manually to .claude/commands/'));
+      return;
+    }
+
+    console.log(chalk.green(`  ✓ Found command templates at: ${sourcePath}`));
+
+    const targetPath = path.join(process.cwd(), '.claude/commands');
+    let copiedCount = 0;
+
+    // Copy each AQE command file
+    for (const commandFile of AQE_COMMANDS) {
+      const sourceFile = path.join(sourcePath, commandFile);
+      const targetFile = path.join(targetPath, commandFile);
+
+      // Skip if already exists or if source doesn't exist
+      if (await fs.pathExists(targetFile)) {
+        console.log(chalk.gray(`    • Skipped ${commandFile} (already exists)`));
+        continue;
+      }
+
+      if (!await fs.pathExists(sourceFile)) {
+        console.log(chalk.gray(`    • Skipped ${commandFile} (source not found)`));
+        continue;
+      }
+
+      // Copy the command file
+      await fs.copy(sourceFile, targetFile);
+      copiedCount++;
+      console.log(chalk.gray(`    ✓ Copied ${commandFile}`));
+    }
+
+    // Count final commands
+    const finalCommandCount = await this.countCommandFiles(targetPath);
+
+    if (copiedCount > 0) {
+      console.log(chalk.green(`  ✓ Copied ${copiedCount} new AQE commands`));
+    } else {
+      console.log(chalk.green('  ✓ All AQE commands already present'));
+    }
+
+    console.log(chalk.cyan(`  📋 Total AQE commands initialized: ${finalCommandCount}`));
+
+    // Verify we have all 8 AQE commands
+    if (finalCommandCount >= 8) {
+      console.log(chalk.green('  ✅ All 8 AQE slash commands successfully initialized'));
+    } else if (finalCommandCount < 8) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 8 AQE commands, found ${finalCommandCount}`));
+    }
+  }
+
+  /**
+   * Count command files in .claude/commands
+   */
+  private static async countCommandFiles(dirPath: string): Promise<number> {
+    if (!await fs.pathExists(dirPath)) return 0;
+    const items = await fs.readdir(dirPath);
+    return items.filter(f => f.startsWith('aqe-') && f.endsWith('.md')).length;
+  }
+
   private static async writeFleetConfig(config: FleetConfig): Promise<void> {
     console.log(chalk.cyan('  📝 Writing fleet configuration...'));
 
@@ -1004,7 +1104,7 @@ For full capabilities, install the complete agentic-qe package.
     return capabilities[agentType] || [];
   }
 
-  private static generateEnvironmentConfigs(environments: string[]): any {
+  private static generateEnvironmentConfigs(environments: string[]): Record<string, any> {
     return environments.reduce((configs, env) => {
       configs[env] = {
         database: {
@@ -1024,7 +1124,8 @@ For full capabilities, install the complete agentic-qe package.
           alerts: env === 'production'
         }
       };
-    }, {} as any);
+      return configs;
+    }, {} as Record<string, any>);
   }
 
   private static async setupClaudeFlowIntegration(config: FleetConfig): Promise<void> {

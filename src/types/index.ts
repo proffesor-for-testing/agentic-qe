@@ -230,6 +230,8 @@ export interface QETask {
   status: string;
   result?: any;
   error?: Error;
+  description?: string;
+  context?: Record<string, any>;
   requirements?: {
     capabilities?: string[];
     resources?: Record<string, any>;
@@ -654,6 +656,44 @@ export const WEEK3_EVENT_TYPES = {
   TEST_QUARANTINED: 'test.quarantined',
   TEST_STABILIZED: 'test.stabilized'
 } as const;
+
+// Embedding Generation Types
+export interface EmbeddingOptions {
+  useML?: boolean;
+  useCache?: boolean;
+  normalize?: boolean;
+  language?: string;
+  model?: 'text' | 'code';
+  dimension?: number;
+}
+
+export interface EmbeddingResult {
+  embedding: number[];
+  dimension: number;
+  method: 'hash' | 'ml';
+  generationTime: number;
+  cached: boolean;
+  model: string;
+}
+
+export interface BatchEmbeddingResult {
+  embeddings: number[][];
+  totalTime: number;
+  avgTime: number;
+  cacheHits: number;
+  method: 'hash' | 'ml';
+}
+
+export interface CacheStats {
+  textCount: number;
+  codeCount: number;
+  totalCount: number;
+  hits: number;
+  misses: number;
+  hitRate: number;
+  memoryUsage: number;
+  maxSize: number;
+}
 
 // Re-export hook types
 export * from './hook.types';

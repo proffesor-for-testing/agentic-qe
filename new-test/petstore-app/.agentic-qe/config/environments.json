@@ -1,0 +1,22 @@
+{
+  "development": {
+    "database": {
+      "type": "sqlite",
+      "connectionString": ".agentic-qe/data/development.db"
+    },
+    "testing": {
+      "parallel": true,
+      "timeout": 300,
+      "retries": 1
+    },
+    "monitoring": {
+      "enabled": true,
+      "metrics": [
+        "coverage",
+        "performance",
+        "quality"
+      ],
+      "alerts": false
+    }
+  }
+}
