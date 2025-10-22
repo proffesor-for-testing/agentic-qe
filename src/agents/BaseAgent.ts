@@ -64,7 +64,7 @@ export abstract class BaseAgent extends EventEmitter {
   protected readonly enableLearning: boolean;
   private learningConfig?: Partial<LearningConfig>; // Store config for initialization
   protected agentDB?: AgentDBManager; // AgentDB integration for distributed coordination
-  private agentDBConfig?: Partial<AgentDBConfig>; // Store AgentDB config for initialization
+  protected agentDBConfig?: Partial<AgentDBConfig>; // Store AgentDB config for initialization (protected for subclass access)
   protected performanceMetrics: {
     tasksCompleted: number;
     averageExecutionTime: number;
