@@ -1,0 +1,38 @@
+{
+  "name": "atd-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-End Tests for Agile Testing Days 2025 Website",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:critical": "playwright test --grep @critical",
+    "test:p0": "playwright test --grep @p0",
+    "test:p1": "playwright test --grep @p1",
+    "test:navigation": "playwright test tests/navigation.spec.ts",
+    "test:registration": "playwright test tests/registration.spec.ts",
+    "test:payment": "playwright test tests/payment.spec.ts",
+    "test:newsletter": "playwright test tests/newsletter.spec.ts",
+    "test:login": "playwright test tests/login.spec.ts",
+    "report": "playwright show-report test-results/html-report",
+    "codegen": "playwright codegen https://agiletestingdays.com"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "testing",
+    "agile-testing-days"
+  ],
+  "author": "Agentic QE Fleet",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.1",
+    "@types/node": "^20.10.5",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
+}
