@@ -1,7 +1,7 @@
 {
   "fleet": {
-    "topology": "mesh",
-    "maxAgents": 5,
+    "topology": "hierarchical",
+    "maxAgents": 10,
     "agents": [
       {
         "type": "test-generator",

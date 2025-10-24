@@ -1,7 +1,7 @@
 {
   "multiModelRouter": {
     "enabled": false,
-    "version": "1.2.0",
+    "version": "1.0.5",
     "defaultModel": "claude-sonnet-4.5",
     "enableCostTracking": true,
     "enableFallback": true,
@@ -52,9 +52,5 @@
     "progressInterval": 2000,
     "bufferEvents": false,
     "timeout": 1800000
-  },
-  "phase3Features": {
-    "quicEnabled": false,
-    "neuralEnabled": false
   }
 }
