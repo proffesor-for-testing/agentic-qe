@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.0** - Security Hardening + Skills Expansion
+**Version 1.3.1** - Version Management Fix
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and optional 70-81% cost savings through intelligent model routing (opt-in feature).
 
@@ -19,7 +19,11 @@
 
 ---
 
-## 🎉 What's New in v1.3.0
+## 🎉 What's New in v1.3.1
+
+**Critical Bug Fix**: Fixed `aqe init` command that was using hardcoded versions (1.0.5, 1.1.0) instead of reading from `package.json`. All generated config files now correctly sync with the package version.
+
+### Previous Release (v1.3.0)
 
 ### Security Hardening + Skills Expansion (Oct 23-24, 2025)
 **2 days of intensive development** | **Security hardening + 17 new skills** | **11,500+ lines of expert content**
