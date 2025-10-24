@@ -12,6 +12,7 @@
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface TestExecuteParallelArgs {
   testFiles: string[];
@@ -155,17 +156,17 @@ export class TestExecuteParallelHandler extends BaseHandler {
 
   private async executeTest(testFile: string, workerIndex: number, timeout: number): Promise<any> {
     // Simulate test execution
-    await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+    await new Promise(resolve => setTimeout(resolve, 50 + SecureRandom.randomFloat() * 100));
 
-    const passed = Math.random() > 0.1; // 90% pass rate
+    const passed = SecureRandom.randomFloat() > 0.1; // 90% pass rate
 
     return {
       testFile,
       passed,
-      duration: Math.round(50 + Math.random() * 100),
+      duration: Math.round(50 + SecureRandom.randomFloat() * 100),
       workerIndex,
       timeout: false,
-      assertions: Math.floor(Math.random() * 10) + 1
+      assertions: Math.floor(SecureRandom.randomFloat() * 10) + 1
     };
   }
 
@@ -192,7 +193,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
 
       case 'random':
         testFiles.forEach(file => {
-          const randomIndex = Math.floor(Math.random() * parallelism);
+          const randomIndex = Math.floor(SecureRandom.randomFloat() * parallelism);
           batches[randomIndex].push(file);
         });
         break;
@@ -220,7 +221,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
   private getWorkerStats(parallelism: number): any {
     return {
       totalWorkers: parallelism,
-      efficiency: Math.round(75 + Math.random() * 20), // Simulate 75-95% efficiency
+      efficiency: Math.round(75 + SecureRandom.randomFloat() * 20), // Simulate 75-95% efficiency
       loadBalance: 'balanced'
     };
   }

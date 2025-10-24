@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 interface RetryOptions {
   maxAttempts: number;
@@ -33,7 +35,7 @@ export function createRetryCommand(): Command {
         if (failedTests.length === 0) {
           if (failOnNone) {
             spinner.fail('No failed tests found');
-            process.exit(1);
+            ProcessExit.exitIfNotTest(1);
           }
           spinner.succeed('No failed tests to retry');
           return;
@@ -59,12 +61,12 @@ export function createRetryCommand(): Command {
 
         // Exit with error if any tests still failing
         if (failed > 0) {
-          process.exit(1);
+          ProcessExit.exitIfNotTest(1);
         }
       } catch (error) {
         spinner.fail('Retry failed');
         console.error(chalk.red(error instanceof Error ? error.message : String(error)));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 
@@ -111,7 +113,7 @@ async function retryTests(
       }
 
       // Mock test execution
-      passed = Math.random() > 0.3; // 70% success rate
+      passed = SecureRandom.randomFloat() > 0.3; // 70% success rate
 
       if (passed) {
         console.log(chalk.green(`✓ ${test} passed on attempt ${attempts}`));

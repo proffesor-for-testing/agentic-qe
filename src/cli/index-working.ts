@@ -11,6 +11,7 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { SecureRandom } from '../utils/SecureRandom.js';
 
 const program = new Command();
 
@@ -407,11 +408,11 @@ async function showFleetStatus(config: any, options: FleetOptions, spinner: ora.
   const status = {
     name: config.name,
     topology: config.topology,
-    activeAgents: Math.floor(Math.random() * config.maxAgents),
+    activeAgents: Math.floor(SecureRandom.randomFloat() * config.maxAgents),
     totalAgents: config.maxAgents,
-    runningTasks: Math.floor(Math.random() * 10),
-    completedTasks: Math.floor(Math.random() * 100) + 50,
-    failedTasks: Math.floor(Math.random() * 5),
+    runningTasks: Math.floor(SecureRandom.randomFloat() * 10),
+    completedTasks: Math.floor(SecureRandom.randomFloat() * 100) + 50,
+    failedTasks: Math.floor(SecureRandom.randomFloat() * 5),
     uptime: '2h 15m',
     healthStatus: 'Healthy'
   };
@@ -430,10 +431,10 @@ async function showFleetStatus(config: any, options: FleetOptions, spinner: ora.
 
   if (options.verbose) {
     console.log(chalk.blue('\n📊 Detailed Metrics:'));
-    console.log(chalk.gray(`   Memory Usage: ${Math.floor(Math.random() * 50 + 30)}%`));
-    console.log(chalk.gray(`   CPU Usage: ${Math.floor(Math.random() * 40 + 10)}%`));
-    console.log(chalk.gray(`   Network I/O: ${Math.floor(Math.random() * 100)}MB/s`));
-    console.log(chalk.gray(`   Task Queue: ${Math.floor(Math.random() * 20)} pending`));
+    console.log(chalk.gray(`   Memory Usage: ${Math.floor(SecureRandom.randomFloat() * 50 + 30)}%`));
+    console.log(chalk.gray(`   CPU Usage: ${Math.floor(SecureRandom.randomFloat() * 40 + 10)}%`));
+    console.log(chalk.gray(`   Network I/O: ${Math.floor(SecureRandom.randomFloat() * 100)}MB/s`));
+    console.log(chalk.gray(`   Task Queue: ${Math.floor(SecureRandom.randomFloat() * 20)} pending`));
   }
 
   if (options.healthCheck) {

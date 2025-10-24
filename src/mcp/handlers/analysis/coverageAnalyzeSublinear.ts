@@ -4,6 +4,7 @@
  */
 
 import type { CoverageData, SublinearAnalysisResult } from '../../types/analysis';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface CoverageAnalyzeSublinearParams {
   sourceFiles: string[];
@@ -110,10 +111,10 @@ async function loadCoverageData(sourceFiles: string[]): Promise<CoverageData[]> 
   // In real implementation, this would parse coverage reports (Istanbul, Jest, etc.)
   return sourceFiles.map(file => ({
     file,
-    lines: Math.floor(Math.random() * 1000) + 100,
-    covered: Math.floor(Math.random() * 800) + 50,
-    branches: Math.floor(Math.random() * 50) + 10,
-    branchesCovered: Math.floor(Math.random() * 40) + 5
+    lines: Math.floor(SecureRandom.randomFloat() * 1000) + 100,
+    covered: Math.floor(SecureRandom.randomFloat() * 800) + 50,
+    branches: Math.floor(SecureRandom.randomFloat() * 50) + 10,
+    branchesCovered: Math.floor(SecureRandom.randomFloat() * 40) + 5
   }));
 }
 
@@ -122,7 +123,7 @@ function applyJohnsonLindenstrauss(
   targetDim: number
 ): { metrics: any; coverage: Record<string, number> } {
   const originalDim = data.length;
-  const distortion = 0.1 + Math.random() * 0.2; // Typical JL distortion
+  const distortion = 0.1 + SecureRandom.randomFloat() * 0.2; // Typical JL distortion
 
   const coverage: Record<string, number> = {};
   data.forEach(item => {
@@ -145,7 +146,7 @@ function applySpectralSparsification(
 ): { metrics: any; coverage: Record<string, number> } {
   const originalDim = data.length;
   const reducedDim = Math.ceil(originalDim * 0.3); // 70% sparsification
-  const distortion = 0.05 + Math.random() * 0.1;
+  const distortion = 0.05 + SecureRandom.randomFloat() * 0.1;
 
   const coverage: Record<string, number> = {};
   data.forEach(item => {
@@ -168,7 +169,7 @@ function applyAdaptiveSampling(
 ): { metrics: any; coverage: Record<string, number> } {
   const originalDim = data.length;
   const reducedDim = Math.ceil(originalDim * 0.5);
-  const distortion = 0.02 + Math.random() * 0.05;
+  const distortion = 0.02 + SecureRandom.randomFloat() * 0.05;
 
   const coverage: Record<string, number> = {};
   data.forEach(item => {
@@ -199,7 +200,7 @@ function detectUncoveredRegions(
     .filter(item => fileCoverage[item.file] < 0.8)
     .map(item => {
       const uncoveredCount = item.lines - item.covered;
-      const complexity = Math.floor(Math.random() * 10) + 1;
+      const complexity = Math.floor(SecureRandom.randomFloat() * 10) + 1;
 
       return {
         file: item.file,

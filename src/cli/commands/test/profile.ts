@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 interface ProfileOptions {
   cpu: boolean;
@@ -71,7 +72,7 @@ async function runWithProfiling(): Promise<ProfileData[]> {
     const startMem = process.memoryUsage().heapUsed;
 
     // Simulate test execution
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 100));
+    await new Promise(resolve => setTimeout(resolve, SecureRandom.randomFloat() * 1000 + 100));
 
     const duration = Date.now() - start;
     const memUsed = process.memoryUsage().heapUsed - startMem;
@@ -79,7 +80,7 @@ async function runWithProfiling(): Promise<ProfileData[]> {
     profileData.push({
       test,
       duration,
-      cpu: Math.random() * 100,
+      cpu: SecureRandom.randomFloat() * 100,
       memory: memUsed
     });
 

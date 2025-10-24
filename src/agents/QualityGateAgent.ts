@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentId,
   AgentStatus,
@@ -683,7 +684,7 @@ class PsychoSymbolicReasoner {
     // Simulate reasoning
     return {
       reasoning: 'Complex quality state analysis completed',
-      confidence: Math.random() * 0.5 + 0.5,
+      confidence: SecureRandom.randomFloat() * 0.5 + 0.5,
       recommendations: ['Consider additional testing']
     };
   }

@@ -6,6 +6,7 @@
 import { FleetManager } from '../../../core/FleetManager';
 import { Task, TaskPriority } from '../../../core/Task';
 import { Logger } from '../../../utils/Logger';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface BenchmarkOptions {
   fleetManager: FleetManager;
@@ -84,7 +85,7 @@ export async function benchmark(options: BenchmarkOptions): Promise<BenchmarkRes
         await agent.assignTask(task);
 
         // Wait for task completion (simplified)
-        await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+        await new Promise(resolve => setTimeout(resolve, 50 + SecureRandom.randomFloat() * 100));
 
         const iterationEnd = Date.now();
         const latency = iterationEnd - iterationStart;

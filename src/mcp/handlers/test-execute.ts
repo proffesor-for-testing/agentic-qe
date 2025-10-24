@@ -13,6 +13,7 @@ import { TestExecutionSpec } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
 import { QEAgentType } from '../../types/index.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface TestExecuteArgs {
   spec: TestExecutionSpec;
@@ -163,7 +164,7 @@ export class TestExecuteHandler extends BaseHandler {
   }
 
   private async executeTests(spec: TestExecutionSpec, fleetId?: string): Promise<TestExecution> {
-    const executionId = `execution-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const executionId = `execution-${Date.now()}-${SecureRandom.generateId(6)}`;
 
     const execution: TestExecution = {
       id: executionId,
@@ -484,10 +485,10 @@ export class TestExecuteHandler extends BaseHandler {
 
     // Calculate coverage (mock)
     execution.results.coverage = {
-      overall: Math.random() * 20 + 75, // 75-95%
+      overall: SecureRandom.randomFloat() * 20 + 75, // 75-95%
       byFile: {
-        'src/main.js': Math.random() * 20 + 80,
-        'src/utils.js': Math.random() * 20 + 70
+        'src/main.js': SecureRandom.randomFloat() * 20 + 80,
+        'src/utils.js': SecureRandom.randomFloat() * 20 + 70
       },
       uncoveredLines: [],
       threshold: 80,
@@ -500,9 +501,9 @@ export class TestExecuteHandler extends BaseHandler {
       averageTestTime: summary.total > 0 ? (execution.executionTime || 0) / summary.total : 0,
       parallelismEfficiency: execution.spec.parallelExecution ? 0.85 : 1.0,
       resourceUtilization: {
-        cpu: Math.random() * 30 + 40, // 40-70%
-        memory: Math.random() * 20 + 60, // 60-80%
-        network: Math.random() * 15 + 10 // 10-25%
+        cpu: SecureRandom.randomFloat() * 30 + 40, // 40-70%
+        memory: SecureRandom.randomFloat() * 20 + 60, // 60-80%
+        network: SecureRandom.randomFloat() * 15 + 10 // 10-25%
       }
     };
 
@@ -518,7 +519,7 @@ export class TestExecuteHandler extends BaseHandler {
       type: 'report',
       name: `test-report-${execution.id}.${execution.spec.reportFormat}`,
       path: `/artifacts/reports/test-report-${execution.id}.${execution.spec.reportFormat}`,
-      size: Math.floor(Math.random() * 500000) + 50000, // 50KB-550KB
+      size: Math.floor(SecureRandom.randomFloat() * 500000) + 50000, // 50KB-550KB
       environment: 'all'
     });
 
@@ -528,7 +529,7 @@ export class TestExecuteHandler extends BaseHandler {
         type: 'coverage',
         name: `coverage-${execution.id}.html`,
         path: `/artifacts/coverage/coverage-${execution.id}.html`,
-        size: Math.floor(Math.random() * 200000) + 100000, // 100KB-300KB
+        size: Math.floor(SecureRandom.randomFloat() * 200000) + 100000, // 100KB-300KB
         environment: 'all'
       });
     }
@@ -538,7 +539,7 @@ export class TestExecuteHandler extends BaseHandler {
       type: 'performance',
       name: `performance-${execution.id}.json`,
       path: `/artifacts/performance/performance-${execution.id}.json`,
-      size: Math.floor(Math.random() * 50000) + 10000, // 10KB-60KB
+      size: Math.floor(SecureRandom.randomFloat() * 50000) + 10000, // 10KB-60KB
       environment: 'all'
     });
 

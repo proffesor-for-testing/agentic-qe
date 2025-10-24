@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface SkillsCommandOptions {
   detailed?: boolean;
@@ -98,7 +99,7 @@ export class SkillsCommand {
       default:
         console.error(chalk.red(`❌ Unknown skills command: ${subcommand}`));
         this.showHelp();
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -147,7 +148,7 @@ export class SkillsCommand {
     } catch (error: any) {
       spinner.fail('Failed to list skills');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -158,7 +159,7 @@ export class SkillsCommand {
     if (!keyword) {
       console.error(chalk.red('❌ Keyword is required'));
       console.log(chalk.gray('Example: aqe skills search "testing"'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora(`Searching for "${keyword}"...`).start();
@@ -187,7 +188,7 @@ export class SkillsCommand {
     } catch (error: any) {
       spinner.fail('Search failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -197,7 +198,7 @@ export class SkillsCommand {
   private static async showSkill(skillName: string): Promise<void> {
     if (!skillName) {
       console.error(chalk.red('❌ Skill name is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Loading skill details...').start();
@@ -273,7 +274,7 @@ export class SkillsCommand {
     } catch (error: any) {
       spinner.fail('Failed to load skill');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -283,7 +284,7 @@ export class SkillsCommand {
   private static async enableSkill(skillName: string, options: SkillsCommandOptions): Promise<void> {
     if (!skillName) {
       console.error(chalk.red('❌ Skill name is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     console.log(chalk.yellow('⚠️  Skill enablement requires configuration update'));
@@ -297,7 +298,7 @@ export class SkillsCommand {
   private static async disableSkill(skillName: string, options: SkillsCommandOptions): Promise<void> {
     if (!skillName) {
       console.error(chalk.red('❌ Skill name is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     console.log(chalk.yellow('⚠️  Skill disablement requires configuration update'));
@@ -344,7 +345,7 @@ export class SkillsCommand {
     } catch (error: any) {
       spinner.fail('Failed to calculate statistics');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 

@@ -4,6 +4,7 @@
 
 import chalk from 'chalk';
 import { Config } from '../../../utils/Config.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export async function configList(options: any): Promise<void> {
   try {
@@ -19,7 +20,7 @@ export async function configList(options: any): Promise<void> {
 
   } catch (error) {
     console.error(chalk.red('❌ Failed to list config:'), error);
-    process.exit(1);
+    ProcessExit.exitIfNotTest(1);
   }
 }
 

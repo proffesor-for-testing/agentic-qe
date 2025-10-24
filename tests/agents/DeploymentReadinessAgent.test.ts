@@ -33,7 +33,8 @@ class MockMemoryStore {
   async delete(key: string): Promise<boolean> {
     if (key.includes('*')) {
       // Handle wildcard deletions
-      const prefix = key.replace('*', '');
+      // SECURITY FIX: Replace all occurrences, not just first
+      const prefix = key.replace(/\*/g, '');
       let deleted = false;
       for (const k of Array.from(this.data.keys())) {
         if (k.startsWith(prefix)) {

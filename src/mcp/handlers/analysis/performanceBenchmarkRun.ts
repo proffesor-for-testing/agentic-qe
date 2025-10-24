@@ -4,6 +4,7 @@
  */
 
 import type { BenchmarkConfig, BenchmarkResult } from '../../types/analysis';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface PerformanceBenchmarkRunParams {
   targets: string[];
@@ -167,7 +168,7 @@ async function runBenchmark(
 
 async function simulateExecution(target: string): Promise<void> {
   // Simulate target execution
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
+  await new Promise(resolve => setTimeout(resolve, SecureRandom.randomFloat() * 10));
 }
 
 async function collectMetrics(
@@ -179,22 +180,22 @@ async function collectMetrics(
   metricsToCollect.forEach(metric => {
     switch (metric) {
       case 'latency':
-        metrics.latency = Math.random() * 100 + 10; // 10-110ms
+        metrics.latency = SecureRandom.randomFloat() * 100 + 10; // 10-110ms
         break;
       case 'throughput':
-        metrics.throughput = Math.random() * 1000 + 100; // 100-1100 req/s
+        metrics.throughput = SecureRandom.randomFloat() * 1000 + 100; // 100-1100 req/s
         break;
       case 'cpu':
-        metrics.cpu = Math.random() * 80 + 10; // 10-90%
+        metrics.cpu = SecureRandom.randomFloat() * 80 + 10; // 10-90%
         break;
       case 'memory':
-        metrics.memory = Math.random() * 500 + 50; // 50-550 MB
+        metrics.memory = SecureRandom.randomFloat() * 500 + 50; // 50-550 MB
         break;
       case 'io':
-        metrics.io = Math.random() * 1000 + 100; // 100-1100 ops/s
+        metrics.io = SecureRandom.randomFloat() * 1000 + 100; // 100-1100 ops/s
         break;
       case 'network':
-        metrics.network = Math.random() * 100 + 10; // 10-110 Mbps
+        metrics.network = SecureRandom.randomFloat() * 100 + 10; // 10-110 Mbps
         break;
     }
   });

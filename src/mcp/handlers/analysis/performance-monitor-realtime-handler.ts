@@ -4,6 +4,7 @@
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface PerformanceMonitorRealtimeParams {
   target: string;
@@ -46,10 +47,10 @@ export class PerformanceMonitorRealtimeHandler extends BaseHandler {
     for (let i = 0; i < dataPoints; i++) {
       metrics.push({
         timestamp: new Date().toISOString(),
-        cpu: Math.random() * 100,
-        memory: Math.random() * 100,
-        responseTime: Math.random() * 500,
-        throughput: Math.random() * 1000
+        cpu: SecureRandom.randomFloat() * 100,
+        memory: SecureRandom.randomFloat() * 100,
+        responseTime: SecureRandom.randomFloat() * 500,
+        throughput: SecureRandom.randomFloat() * 1000
       });
     }
 

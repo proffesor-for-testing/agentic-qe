@@ -11,6 +11,7 @@
 import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface TaskOrchestrateArgs {
   task: {
@@ -391,7 +392,7 @@ export class TaskOrchestrateHandler extends BaseHandler {
   }
 
   private async orchestrateTask(args: TaskOrchestrateArgs): Promise<TaskOrchestration> {
-    const orchestrationId = `orchestration-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const orchestrationId = `orchestration-${Date.now()}-${SecureRandom.generateId(6)}`;
 
     // Get workflow template
     const workflowTemplate = this.workflowTemplates.get(args.task.type);
@@ -609,25 +610,25 @@ export class TaskOrchestrateHandler extends BaseHandler {
   private generateStepResults(step: WorkflowStep): any {
     const resultTemplates: Record<string, any> = {
       'analysis': {
-        complexity: Math.random() * 20 + 5,
-        linesOfCode: Math.floor(Math.random() * 10000 + 1000),
-        functions: Math.floor(Math.random() * 100 + 10)
+        complexity: SecureRandom.randomFloat() * 20 + 5,
+        linesOfCode: Math.floor(SecureRandom.randomFloat() * 10000 + 1000),
+        functions: Math.floor(SecureRandom.randomFloat() * 100 + 10)
       },
       'test-generation': {
-        testsGenerated: Math.floor(Math.random() * 50 + 10),
-        coverageTarget: Math.random() * 20 + 75,
+        testsGenerated: Math.floor(SecureRandom.randomFloat() * 50 + 10),
+        coverageTarget: SecureRandom.randomFloat() * 20 + 75,
         testTypes: ['unit', 'integration']
       },
       'test-execution': {
-        testsRun: Math.floor(Math.random() * 100 + 20),
-        passed: Math.floor(Math.random() * 90 + 85),
-        failed: Math.floor(Math.random() * 5),
-        duration: Math.random() * 300 + 60
+        testsRun: Math.floor(SecureRandom.randomFloat() * 100 + 20),
+        passed: Math.floor(SecureRandom.randomFloat() * 90 + 85),
+        failed: Math.floor(SecureRandom.randomFloat() * 5),
+        duration: SecureRandom.randomFloat() * 300 + 60
       },
       'performance-testing': {
-        averageResponseTime: Math.random() * 200 + 50,
-        throughput: Math.random() * 1000 + 500,
-        errors: Math.floor(Math.random() * 3)
+        averageResponseTime: SecureRandom.randomFloat() * 200 + 50,
+        throughput: SecureRandom.randomFloat() * 1000 + 500,
+        errors: Math.floor(SecureRandom.randomFloat() * 3)
       }
     };
 
@@ -745,7 +746,7 @@ export class TaskOrchestrateHandler extends BaseHandler {
           type: step.type,
           name: `${step.name.replace(/\s+/g, '-').toLowerCase()}-output.json`,
           path: `/artifacts/${orchestration.id}/${step.id}/output.json`,
-          size: Math.floor(Math.random() * 100000 + 10000),
+          size: Math.floor(SecureRandom.randomFloat() * 100000 + 10000),
           stepId: step.id
         });
       }
@@ -758,13 +759,13 @@ export class TaskOrchestrateHandler extends BaseHandler {
     const agentUtilization: Record<string, number> = {};
 
     for (const assignment of orchestration.assignments) {
-      agentUtilization[assignment.agentId] = Math.random() * 30 + 70; // 70-100%
+      agentUtilization[assignment.agentId] = SecureRandom.randomFloat() * 30 + 70; // 70-100%
     }
 
     return {
-      parallelismEfficiency: orchestration.strategy === 'parallel' ? Math.random() * 0.2 + 0.8 : 1.0,
-      resourceUtilization: Math.random() * 20 + 70, // 70-90%
-      coordinationOverhead: Math.random() * 10 + 5, // 5-15%
+      parallelismEfficiency: orchestration.strategy === 'parallel' ? SecureRandom.randomFloat() * 0.2 + 0.8 : 1.0,
+      resourceUtilization: SecureRandom.randomFloat() * 20 + 70, // 70-90%
+      coordinationOverhead: SecureRandom.randomFloat() * 10 + 5, // 5-15%
       agentUtilization
     };
   }

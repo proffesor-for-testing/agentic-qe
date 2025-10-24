@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const chalk = require('chalk');
 
 // Create temp test directory
@@ -27,7 +27,9 @@ console.log(chalk.green('✅ Created test directory:'), testDir);
 // Test 1: Creating new CLAUDE.md
 console.log(chalk.cyan('\nTest 1: Creating new CLAUDE.md in empty project'));
 try {
-  execSync(`node ${path.join(__dirname, '..', 'bin', 'agentic-qe-real')} init ${testDir}`, {
+  // SECURITY FIX: Use execFileSync instead of execSync to prevent command injection
+  // Pass arguments as array (no shell interpretation)
+  execFileSync('node', [path.join(__dirname, '..', 'bin', 'agentic-qe-real'), 'init', testDir], {
     stdio: 'inherit'
   });
 
@@ -70,7 +72,8 @@ This is an existing project with its own configuration.
 fs.writeFileSync(path.join(testDir2, 'CLAUDE.md'), existingContent);
 
 try {
-  execSync(`node ${path.join(__dirname, '..', 'bin', 'agentic-qe-real')} init ${testDir2}`, {
+  // SECURITY FIX: Use execFileSync instead of execSync to prevent command injection
+  execFileSync('node', [path.join(__dirname, '..', 'bin', 'agentic-qe-real'), 'init', testDir2], {
     stdio: 'inherit'
   });
 
@@ -91,7 +94,8 @@ try {
 console.log(chalk.cyan('\nTest 3: Testing idempotency (running init twice)'));
 try {
   // Run init again on testDir2
-  execSync(`node ${path.join(__dirname, '..', 'bin', 'agentic-qe-real')} init ${testDir2}`, {
+  // SECURITY FIX: Use execFileSync instead of execSync to prevent command injection
+  execFileSync('node', [path.join(__dirname, '..', 'bin', 'agentic-qe-real'), 'init', testDir2], {
     stdio: 'inherit'
   });
 

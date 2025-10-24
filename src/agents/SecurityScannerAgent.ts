@@ -12,6 +12,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import { QEAgentType, QETask } from '../types';
 import { RealSecurityScanner } from '../utils/SecurityScanner';
 
@@ -627,7 +628,7 @@ export class SecurityScannerAgent extends BaseAgent {
   private async checkRequirement(_req: { id: string; description: string }, _metadata: any): Promise<'compliant' | 'non-compliant' | 'not-applicable'> {
     // Mock requirement checking
     // In production, this would perform actual compliance checks
-    return Math.random() > 0.1 ? 'compliant' : 'non-compliant';
+    return SecureRandom.randomFloat() > 0.1 ? 'compliant' : 'non-compliant';
   }
 
   // ============================================================================

@@ -4,6 +4,7 @@
  */
 
 import type { CoverageGap, AIAnalysisResult } from '../../types/analysis';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface CoverageGapsDetectParams {
   sourceFiles: string[];
@@ -132,7 +133,7 @@ async function detectGaps(
         type: 'uncovered-lines',
         location: { start: 1, end: fileCoverage.lines.total },
         severity: fileCoverage.statements.pct < 50 ? 'critical' : 'high',
-        complexity: Math.floor(Math.random() * 10) + 1,
+        complexity: Math.floor(SecureRandom.randomFloat() * 10) + 1,
         riskScore: 0,
         suggestedTests: [
           'Add unit tests for core logic',
@@ -149,7 +150,7 @@ async function detectGaps(
         type: 'uncovered-branches',
         location: { start: 1, end: fileCoverage.lines.total },
         severity: fileCoverage.branches.pct < 50 ? 'high' : 'medium',
-        complexity: Math.floor(Math.random() * 8) + 3,
+        complexity: Math.floor(SecureRandom.randomFloat() * 8) + 3,
         riskScore: 0,
         suggestedTests: [
           'Test all conditional branches',
@@ -166,7 +167,7 @@ async function detectGaps(
         type: 'uncovered-functions',
         location: { start: 1, end: fileCoverage.lines.total },
         severity: 'medium',
-        complexity: Math.floor(Math.random() * 6) + 2,
+        complexity: Math.floor(SecureRandom.randomFloat() * 6) + 2,
         riskScore: 0,
         suggestedTests: [
           'Add tests for uncovered functions',
@@ -177,13 +178,13 @@ async function detectGaps(
     }
 
     // Detect potential edge cases (AI-based heuristic)
-    if (Math.random() > 0.7) {
+    if (SecureRandom.randomFloat() > 0.7) {
       gaps.push({
         file: fileCoverage.file,
         type: 'edge-cases',
         location: { start: 1, end: 50 },
         severity: 'low',
-        complexity: Math.floor(Math.random() * 5) + 1,
+        complexity: Math.floor(SecureRandom.randomFloat() * 5) + 1,
         riskScore: 0,
         suggestedTests: [
           'Test boundary conditions',

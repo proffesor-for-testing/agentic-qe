@@ -3,6 +3,7 @@
  * Orchestrates multi-service integration tests with real execution logic
  */
 
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import type {
   IntegrationTestOrchestrateParams,
   IntegrationTestOrchestrateResult,
@@ -60,7 +61,7 @@ function generateTestData(scenario: string): Record<string, unknown> {
     }),
     default: () => ({
       timestamp: Date.now(),
-      testId: `test-${Math.random().toString(36).substring(7)}`,
+      testId: `test-${SecureRandom.randomFloat().toString(36).substring(7)}`,
     }),
   };
 

@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface FleetLogsOptions {
   lines?: number; // Number of lines to show
@@ -201,7 +202,7 @@ export class FleetLogsCommand {
     process.on('SIGINT', () => {
       this.stopFollowing();
       console.log(chalk.yellow('\n\n📜 Log following stopped'));
-      process.exit(0);
+      ProcessExit.exitIfNotTest(0);
     });
 
     // Keep process alive

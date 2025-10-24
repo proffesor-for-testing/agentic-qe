@@ -1,4 +1,5 @@
 import BetterSqlite3 from 'better-sqlite3';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import {
@@ -895,7 +896,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const id = event.id || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = event.id || `event-${Date.now()}-${SecureRandom.generateId(5)}`;
     const timestamp = event.timestamp || Date.now();
     const ttl = event.ttl !== undefined ? event.ttl : this.TTL_POLICY.events;
     const expiresAt = ttl > 0 ? timestamp + (ttl * 1000) : null;
@@ -1060,7 +1061,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const id = pattern.id || `pattern-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = pattern.id || `pattern-${Date.now()}-${SecureRandom.generateId(5)}`;
     const now = Date.now();
     const ttl = pattern.ttl !== undefined ? pattern.ttl : this.TTL_POLICY.patterns;
     const expiresAt = ttl > 0 ? now + (ttl * 1000) : null;
@@ -1272,7 +1273,7 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    const id = metric.id || `metric-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = metric.id || `metric-${Date.now()}-${SecureRandom.generateId(5)}`;
     const timestamp = metric.timestamp || Date.now();
 
     await this.run(

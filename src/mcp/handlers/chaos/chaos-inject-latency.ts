@@ -9,6 +9,7 @@ import type {
   ActiveInjection,
 } from '../../types/chaos';
 import { validateUrl, generateId } from '../../../utils/validation';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 // Track active latency injections
 const activeInjections = new Map<string, ActiveInjection>();
@@ -31,21 +32,21 @@ function generateLatency(
     case 'uniform':
       const min = params?.min ?? baseLatency * 0.5;
       const max = params?.max ?? baseLatency * 1.5;
-      return Math.random() * (max - min) + min;
+      return SecureRandom.randomFloat() * (max - min) + min;
 
     case 'normal': {
       const mean = params?.mean ?? baseLatency;
       const stdDev = params?.stdDev ?? baseLatency * 0.2;
       // Box-Muller transform for normal distribution
-      const u1 = Math.random();
-      const u2 = Math.random();
+      const u1 = SecureRandom.randomFloat();
+      const u2 = SecureRandom.randomFloat();
       const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
       return Math.max(0, mean + z0 * stdDev);
     }
 
     case 'exponential': {
       const lambda = params?.lambda ?? 1 / baseLatency;
-      return -Math.log(1 - Math.random()) / lambda;
+      return -Math.log(1 - SecureRandom.randomFloat()) / lambda;
     }
 
     default:
@@ -61,7 +62,7 @@ function calculateAffectedServices(
   percentage: number
 ): string[] {
   const count = Math.ceil((targetServices.length * percentage) / 100);
-  const shuffled = [...targetServices].sort(() => Math.random() - 0.5);
+  const shuffled = [...targetServices].sort(() => SecureRandom.randomFloat() - 0.5);
   return shuffled.slice(0, count);
 }
 

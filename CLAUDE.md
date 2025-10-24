@@ -458,7 +458,7 @@ Real-time progress updates for long-running operations using AsyncGenerator patt
 
 ### AQE Fleet
 - **Agent Definitions**: `.claude/agents/` - 18 specialized QE agents
-- **Skills**: `.claude/skills/` - 17 QE skills (world-class, v1.0.0)
+- **Skills**: `.claude/skills/` - 35 QE skills (world-class, v1.0.0)
 - **Fleet Config**: `.agentic-qe/config/fleet.json`
 - **Routing Config**: `.agentic-qe/config/routing.json`
 - **AQE Hooks Config**: `.agentic-qe/config/aqe-hooks.json`

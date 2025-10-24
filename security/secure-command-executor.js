@@ -1,9 +1,13 @@
 /**
  * Secure Command Executor - Replaces unsafe execSync calls
- * Prevents command injection vulnerabilities by sanitizing inputs
+ * Prevents command injection vulnerabilities by using execFile (no shell)
+ *
+ * SECURITY FIX: Changed from exec/execSync to execFile/execFileSync
+ * - execFile does NOT spawn a shell, preventing command injection
+ * - Arguments passed as array, no string interpolation
  */
 
-const { execSync, exec } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
 const path = require('path');
 
 class SecureCommandExecutor {
@@ -89,8 +93,9 @@ class SecureCommandExecutor {
                 ...options
             };
 
+            // SECURITY FIX: Use execFileSync instead of execSync (no shell spawned)
             // Execute with sanitized command
-            return execSync(sanitized.fullCommand, secureOptions);
+            return execFileSync(sanitized.command, sanitized.args, secureOptions);
 
         } catch (error) {
             console.error(`Secure command execution failed: ${error.message}`);
@@ -124,8 +129,9 @@ class SecureCommandExecutor {
                 ...options
             };
 
-            // Execute with callback
-            return exec(sanitized.fullCommand, secureOptions, callback);
+            // SECURITY FIX: Use execFile instead of exec (no shell spawned)
+            // Pass command and arguments separately as array
+            return execFile(sanitized.command, sanitized.args, secureOptions, callback);
 
         } catch (error) {
             if (callback) callback(error, null, null);

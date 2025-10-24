@@ -11,6 +11,7 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { AgentRegistry } from '../../services/AgentRegistry.js';
 import { HookExecutor } from '../../services/HookExecutor.js';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface DeploymentReadinessCheckArgs {
   deployment: {
@@ -260,7 +261,7 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
     const minCoverage = args.thresholds?.minTestCoverage || 80;
 
     // Simulate test results check
-    const actualCoverage = 75 + Math.random() * 20;
+    const actualCoverage = 75 + SecureRandom.randomFloat() * 20;
     const testsRun = 450;
     const testsPassed = Math.floor(testsRun * 0.98);
     const testsFailed = testsRun - testsPassed;
@@ -302,9 +303,9 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
     const maxHigh = args.thresholds?.maxHighIssues || 5;
 
     // Simulate code quality check
-    const criticalIssues = Math.floor(Math.random() * 2);
-    const highIssues = Math.floor(Math.random() * 8);
-    const mediumIssues = Math.floor(Math.random() * 20);
+    const criticalIssues = Math.floor(SecureRandom.randomFloat() * 2);
+    const highIssues = Math.floor(SecureRandom.randomFloat() * 8);
+    const mediumIssues = Math.floor(SecureRandom.randomFloat() * 20);
 
     const status = criticalIssues > maxCritical ? 'fail'
       : highIssues > maxHigh ? 'warning'
@@ -324,10 +325,10 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
           criticalIssues,
           highIssues,
           mediumIssues,
-          lowIssues: Math.floor(Math.random() * 50),
-          codeSmells: Math.floor(Math.random() * 100),
-          maintainabilityIndex: 75 + Math.random() * 20,
-          technicalDebt: `${Math.floor(Math.random() * 10)}h`
+          lowIssues: Math.floor(SecureRandom.randomFloat() * 50),
+          codeSmells: Math.floor(SecureRandom.randomFloat() * 100),
+          maintainabilityIndex: 75 + SecureRandom.randomFloat() * 20,
+          technicalDebt: `${Math.floor(SecureRandom.randomFloat() * 10)}h`
         },
         threshold: { maxCritical, maxHigh },
         actual: { criticalIssues, highIssues }
@@ -344,10 +345,10 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
 
     // Simulate security scan
     const vulnerabilities = {
-      critical: Math.floor(Math.random() * 2),
-      high: Math.floor(Math.random() * 3),
-      medium: Math.floor(Math.random() * 10),
-      low: Math.floor(Math.random() * 20)
+      critical: Math.floor(SecureRandom.randomFloat() * 2),
+      high: Math.floor(SecureRandom.randomFloat() * 3),
+      medium: Math.floor(SecureRandom.randomFloat() * 10),
+      low: Math.floor(SecureRandom.randomFloat() * 20)
     };
 
     const status = vulnerabilities.critical > 0 ? 'fail'
@@ -368,7 +369,7 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
           ...vulnerabilities,
           dependencyVulnerabilities: vulnerabilities.high + vulnerabilities.medium,
           codeVulnerabilities: vulnerabilities.critical,
-          complianceScore: 85 + Math.random() * 10
+          complianceScore: 85 + SecureRandom.randomFloat() * 10
         },
         threshold: { maxCritical: 0, maxHigh: 2 },
         actual: vulnerabilities
@@ -385,10 +386,10 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
 
     // Simulate performance metrics
     const metrics = {
-      buildTime: 3 + Math.random() * 5, // minutes
-      bundleSize: 2.5 + Math.random() * 2, // MB
-      loadTime: 1.5 + Math.random() * 1.5, // seconds
-      memoryUsage: 150 + Math.random() * 100 // MB
+      buildTime: 3 + SecureRandom.randomFloat() * 5, // minutes
+      bundleSize: 2.5 + SecureRandom.randomFloat() * 2, // MB
+      loadTime: 1.5 + SecureRandom.randomFloat() * 1.5, // seconds
+      memoryUsage: 150 + SecureRandom.randomFloat() * 100 // MB
     };
 
     const maxBuildTime = args.thresholds?.maxBuildTime || 10;
@@ -418,9 +419,9 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
     const startTime = performance.now();
 
     // Simulate dependency check
-    const outdated = Math.floor(Math.random() * 10);
-    const deprecated = Math.floor(Math.random() * 3);
-    const total = 150 + Math.floor(Math.random() * 50);
+    const outdated = Math.floor(SecureRandom.randomFloat() * 10);
+    const deprecated = Math.floor(SecureRandom.randomFloat() * 3);
+    const total = 150 + Math.floor(SecureRandom.randomFloat() * 50);
 
     const status = deprecated > 0 ? 'warning' : outdated > 15 ? 'warning' : 'pass';
     const score = Math.max(0, 100 - (deprecated * 15 + outdated * 2));
@@ -453,7 +454,7 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
   private async checkBuildStatus(args: DeploymentReadinessCheckArgs): Promise<DeploymentCheck> {
     const startTime = performance.now();
 
-    const buildSuccess = Math.random() > 0.1;
+    const buildSuccess = SecureRandom.randomFloat() > 0.1;
     const status = buildSuccess ? 'pass' : 'fail';
 
     return {
@@ -482,8 +483,8 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
   private async checkDocumentation(args: DeploymentReadinessCheckArgs): Promise<DeploymentCheck> {
     const startTime = performance.now();
 
-    const hasChangelog = Math.random() > 0.2;
-    const hasReleaseNotes = Math.random() > 0.3;
+    const hasChangelog = SecureRandom.randomFloat() > 0.2;
+    const hasReleaseNotes = SecureRandom.randomFloat() > 0.3;
     const status = hasChangelog && hasReleaseNotes ? 'pass' : 'warning';
 
     return {

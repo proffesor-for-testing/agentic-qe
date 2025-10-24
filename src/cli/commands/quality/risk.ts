@@ -8,6 +8,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 const execAsync = promisify(exec);
 
@@ -93,7 +95,7 @@ export class QualityRiskAssessor {
     });
 
     // Security risks
-    const securityIssues = Math.floor(Math.random() * 3);
+    const securityIssues = Math.floor(SecureRandom.randomFloat() * 3);
     if (securityIssues > 0) {
       factors.push({
         category: 'security',
@@ -290,11 +292,11 @@ export function createQualityRiskCommand(): Command {
           assessor.displayResults(result);
         }
 
-        process.exit(0);
+        ProcessExit.exitIfNotTest(0);
       } catch (error) {
         spinner.fail('Risk assessment failed');
         console.error(chalk.red('Error:'), error);
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 

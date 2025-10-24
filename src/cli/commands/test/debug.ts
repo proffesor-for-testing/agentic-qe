@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 interface DebugOptions {
   breakOnFailure: boolean;
@@ -105,7 +106,7 @@ async function runDebugTest(
   };
 
   // Simulate failure
-  if (Math.random() > 0.5) {
+  if (SecureRandom.randomFloat() > 0.5) {
     debugInfo.error = new Error('Assertion failed: expected 42 to equal 43');
     debugInfo.error.stack = `Error: Assertion failed
     at Object.<anonymous> (${testFile}:25:15)

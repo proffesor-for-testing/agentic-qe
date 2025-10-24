@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface FleetMetricsOptions {
   format?: 'json' | 'prometheus' | 'table'; // Output format
@@ -142,7 +143,7 @@ export class FleetMetricsCommand {
     const memUsage = process.memoryUsage();
 
     return {
-      cpu: Math.random() * 100, // Simulated - would use actual CPU monitoring
+      cpu: SecureRandom.randomFloat() * 100, // Simulated - would use actual CPU monitoring
       memory: (memUsage.heapUsed / memUsage.heapTotal * 100).toFixed(1),
       memoryMB: (memUsage.heapUsed / 1024 / 1024).toFixed(2),
       uptime: Math.floor(process.uptime())

@@ -21,6 +21,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 import { Logger } from '../../utils/Logger';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
 import { AgentDBManager, MemoryPattern } from '../memory/AgentDBManager';
@@ -575,9 +576,9 @@ export class NeuralTrainer {
     const sorted = actions.sort((a, b) => b.qValue - a.qValue);
 
     // Add exploration based on epsilon-greedy
-    if (Math.random() < this.config.epsilon) {
+    if (SecureRandom.randomFloat() < this.config.epsilon) {
       // Explore: random action
-      const randomIndex = Math.floor(Math.random() * actions.length);
+      const randomIndex = Math.floor(SecureRandom.randomFloat() * actions.length);
       return actions[randomIndex];
     } else {
       // Exploit: best action

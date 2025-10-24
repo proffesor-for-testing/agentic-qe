@@ -50,6 +50,7 @@ import { RegressionRiskAnalyzerAgent, RegressionRiskAnalyzerConfig as Regression
 import { ApiContractValidatorAgent } from './ApiContractValidatorAgent';
 import { TestDataArchitectAgent, TestDataArchitectAgentConfig } from './TestDataArchitectAgent';
 import { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
   PerformanceTesterConfig,
@@ -75,7 +76,7 @@ export class QEAgentFactory {
    * Generate a unique agent ID
    */
   private generateAgentId(type: AgentType): string {
-    return `${type}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    return `${type}-${Date.now()}-${SecureRandom.randomFloat().toString(36).substring(7)}`;
   }
 
   /**

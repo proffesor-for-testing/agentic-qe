@@ -70,7 +70,7 @@ jest.mock('./src/utils/Logger', () => {
   });
 
   // Singleton instance for getInstance()
-  const singletonLogger = createMockLogger();
+  let singletonLogger = createMockLogger();
 
   // Mock Logger class that can be instantiated
   class MockLogger {
@@ -83,9 +83,8 @@ jest.mock('./src/utils/Logger', () => {
     setLevel = jest.fn();
     getLevel = jest.fn().mockReturnValue('info');
 
-    static getInstance() {
-      return singletonLogger;
-    }
+    // Make getInstance a jest.Mock so tests can mock it
+    static getInstance = jest.fn(() => singletonLogger);
   }
 
   return {

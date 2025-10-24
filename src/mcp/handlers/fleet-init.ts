@@ -12,6 +12,7 @@ import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { FleetConfig } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface FleetInitArgs {
   config: FleetConfig;
@@ -102,7 +103,7 @@ export class FleetInitHandler extends BaseHandler {
   }
 
   private async initializeFleet(config: FleetConfig, projectContext?: any): Promise<FleetInstance> {
-    const fleetId = `fleet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const fleetId = `fleet-${Date.now()}-${SecureRandom.generateId(5)}`;
 
     // Create coordination channels based on topology
     const coordinationChannels = this.createCoordinationChannels(config.topology, fleetId);

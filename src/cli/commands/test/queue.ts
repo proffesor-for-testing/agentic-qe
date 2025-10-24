@@ -1,3 +1,4 @@
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 
@@ -161,5 +162,5 @@ function expandPattern(pattern: string): string[] {
 }
 
 function generateId(): string {
-  return `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `test-${Date.now()}-${SecureRandom.generateId(9)}`;
 }

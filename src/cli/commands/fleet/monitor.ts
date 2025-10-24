@@ -1,6 +1,8 @@
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import ora from 'ora';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface FleetMonitorOptions {
   interval?: number; // Monitoring interval in milliseconds
@@ -53,7 +55,7 @@ export class FleetMonitorCommand {
     process.on('SIGINT', () => {
       this.stopMonitoring();
       console.log(chalk.yellow('\n\n📡 Monitoring stopped'));
-      process.exit(0);
+      ProcessExit.exitIfNotTest(0);
     });
 
     // Store monitoring start in coordination
@@ -152,10 +154,10 @@ export class FleetMonitorCommand {
     // Simulate real-time metrics collection
     // In production, this would query actual system metrics
     return {
-      cpu: Math.random() * 100,
-      memory: Math.random() * 100,
-      taskThroughput: Math.floor(Math.random() * 50),
-      avgResponseTime: Math.floor(Math.random() * 1000)
+      cpu: SecureRandom.randomFloat() * 100,
+      memory: SecureRandom.randomFloat() * 100,
+      taskThroughput: Math.floor(SecureRandom.randomFloat() * 50),
+      avgResponseTime: Math.floor(SecureRandom.randomFloat() * 1000)
     };
   }
 
