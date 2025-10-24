@@ -154,6 +154,9 @@ export class ConfigSetCommand {
       throw new Error('Invalid property key: must be a non-empty string');
     }
 
+    // The dangerous keys check is already done at the beginning of the function
+    // No need to duplicate the check here since all keys are validated upfront
+
     // Use Object.defineProperty instead of direct assignment
     Object.defineProperty(current, finalKey, {
       value: value,

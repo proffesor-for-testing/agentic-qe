@@ -124,11 +124,27 @@ export class SecureRandom {
     length: number,
     alphabet: string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   ): string {
-    const bytes = randomBytes(length);
-    let result = '';
+    // Use rejection sampling to avoid modulo bias
+    // Calculate the largest multiple of alphabet.length that fits in a byte
+    const alphabetLength = alphabet.length;
+    const maxValid = 256 - (256 % alphabetLength);
 
-    for (let i = 0; i < length; i++) {
-      result += alphabet[bytes[i] % alphabet.length];
+    let result = '';
+    let bytesNeeded = length;
+
+    while (result.length < length) {
+      const bytes = randomBytes(bytesNeeded);
+
+      for (let i = 0; i < bytes.length && result.length < length; i++) {
+        const byte = bytes[i];
+        // Reject values that would cause bias
+        if (byte < maxValid) {
+          result += alphabet[byte % alphabetLength];
+        } else {
+          // Need an extra byte to replace this rejected one
+          bytesNeeded++;
+        }
+      }
     }
 
     return result;
