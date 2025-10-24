@@ -352,8 +352,10 @@ describe('Security Fixes Validation', () => {
     it('uses global regex flags to replace all occurrences', () => {
       const input = 'test*with*many*wildcards*here';
 
-      // WRONG: Only replaces first
-      const wrongResult = input.replace('*', '');
+      // WRONG: Only replaces first (intentionally showing the wrong way)
+      // lgtm[js/incomplete-sanitization]
+      // Intentional incomplete sanitization for testing/demonstration
+      const wrongResult = input.replace(/\*/, ''); // Using regex without 'g' flag
       expect(wrongResult).toBe('testwith*many*wildcards*here'); // Still has *
 
       // CORRECT: Replaces all with global flag
@@ -365,9 +367,11 @@ describe('Security Fixes Validation', () => {
     it('properly escapes backslashes before quotes', () => {
       const input = "test\\with\\backslashes'and'quotes";
 
-      // WRONG: Escapes quotes but not backslashes
-      const wrongResult = input.replace(/'/g, "\\'");
-      // Would fail because backslashes not escaped
+      // WRONG: Escapes quotes but not backslashes (showing the issue)
+      // lgtm[js/incomplete-sanitization]
+      // Intentional incomplete sanitization for testing/demonstration
+      const wrongResult = input.replace(/'/g, "\\'"); // Missing backslash escaping
+      // This demonstrates incomplete sanitization
 
       // CORRECT: Escape backslashes first, then quotes
       const correctResult = input
