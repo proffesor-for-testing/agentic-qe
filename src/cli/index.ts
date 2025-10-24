@@ -31,6 +31,7 @@ import * as patternsCommands from './commands/patterns/index.js';
 import * as improveCommands from './commands/improve/index.js';
 import * as skillsCommands from './commands/skills/index.js';
 import { InitCommand } from './commands/init';
+import { createQuantizationCommand } from './commands/quantization';
 import packageJson from '../../package.json';
 
 const program = new Command();
@@ -1038,6 +1039,11 @@ improveCommand
       process.exit(1);
     }
   });
+
+/**
+ * Vector Quantization commands
+ */
+program.addCommand(createQuantizationCommand());
 
 // Parse command line arguments
 program.parse();

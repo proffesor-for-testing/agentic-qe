@@ -11,6 +11,7 @@
 import { EventEmitter } from 'events';
 import { StreamingMCPTool } from './StreamingMCPTool.js';
 import { ProgressReporter, calculateProgress } from './types.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface CoverageAnalyzeStreamParams {
   sourceFiles: string[];
@@ -268,7 +269,7 @@ export class CoverageAnalyzeStreamHandler extends StreamingMCPTool {
 
     // Ensure we have at least the target number of files
     while (selectedFiles.length < target && selectedFiles.length < files.length) {
-      const index = Math.floor(Math.random() * files.length);
+      const index = Math.floor(SecureRandom.randomFloat() * files.length);
       if (!selectedFiles.includes(files[index])) {
         selectedFiles.push(files[index]);
       }
@@ -286,19 +287,19 @@ export class CoverageAnalyzeStreamHandler extends StreamingMCPTool {
     includeUncovered?: boolean
   ): Promise<FileCoverageResult> {
     // Simulate file analysis with realistic metrics
-    const linesCovered = Math.floor(Math.random() * 500) + 100;
-    const linesTotal = Math.floor(linesCovered / (Math.random() * 0.4 + 0.6));
+    const linesCovered = Math.floor(SecureRandom.randomFloat() * 500) + 100;
+    const linesTotal = Math.floor(linesCovered / (SecureRandom.randomFloat() * 0.4 + 0.6));
 
-    const branchesCovered = Math.floor(Math.random() * 100) + 20;
-    const branchesTotal = Math.floor(branchesCovered / (Math.random() * 0.3 + 0.65));
+    const branchesCovered = Math.floor(SecureRandom.randomFloat() * 100) + 20;
+    const branchesTotal = Math.floor(branchesCovered / (SecureRandom.randomFloat() * 0.3 + 0.65));
 
-    const functionsCovered = Math.floor(Math.random() * 50) + 10;
-    const functionsTotal = Math.floor(functionsCovered / (Math.random() * 0.3 + 0.7));
+    const functionsCovered = Math.floor(SecureRandom.randomFloat() * 50) + 10;
+    const functionsTotal = Math.floor(functionsCovered / (SecureRandom.randomFloat() * 0.3 + 0.7));
 
     const coverage = (linesCovered / linesTotal) * 100;
 
     // Calculate complexity (cyclomatic complexity estimate)
-    const complexity = Math.floor(Math.random() * 15) + 1;
+    const complexity = Math.floor(SecureRandom.randomFloat() * 15) + 1;
 
     // Determine priority based on coverage and complexity
     let priority: 'low' | 'medium' | 'high' | 'critical';
@@ -386,7 +387,7 @@ export class CoverageAnalyzeStreamHandler extends StreamingMCPTool {
     const step = Math.floor(totalLines / uncoveredCount);
 
     for (let i = 0; i < uncoveredCount; i++) {
-      uncovered.push(i * step + Math.floor(Math.random() * step));
+      uncovered.push(i * step + Math.floor(SecureRandom.randomFloat() * step));
     }
 
     return uncovered.sort((a, b) => a - b);

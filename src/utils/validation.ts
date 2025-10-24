@@ -1,3 +1,5 @@
+import { SecureRandom } from './SecureRandom.js';
+
 /**
  * Validation Utilities for Chaos Engineering
  */
@@ -19,7 +21,7 @@ export function validateUrl(url: string): boolean {
  */
 export function generateId(prefix: string): string {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 15);
+  const random = SecureRandom.randomFloat().toString(36).substring(2, 15);
   return `${prefix}-${timestamp}-${random}`;
 }
 

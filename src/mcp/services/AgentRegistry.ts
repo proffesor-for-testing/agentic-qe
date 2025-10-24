@@ -14,6 +14,7 @@ import { QEAgentType, AgentContext, AgentCapability, AgentStatus, MemoryStore } 
 import { Logger } from '../../utils/Logger';
 import { EventBus } from '../../core/EventBus';
 import { MemoryManager } from '../../core/MemoryManager';
+import { SecureRandom } from '../../utils/SecureRandom';
 
 export interface AgentRegistryConfig {
   maxAgents?: number;
@@ -395,7 +396,7 @@ export class AgentRegistry {
    */
   private generateAgentId(mcpType: string): string {
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substr(2, 9);
+    const random = SecureRandom.generateId(9);
     const id = this.nextAgentId++;
     return `${mcpType}-${id}-${timestamp}-${random}`;
   }

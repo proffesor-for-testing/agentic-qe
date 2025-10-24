@@ -3,6 +3,7 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { AnalyzeOptions } from '../../types';
+import { ProcessExit } from '../../utils/ProcessExit';
 
 export class AnalyzeCommand {
   static async execute(target: string, options: AnalyzeOptions): Promise<void> {
@@ -63,7 +64,7 @@ export class AnalyzeCommand {
       if (options.verbose) {
         console.error(chalk.gray(error.stack));
       }
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 

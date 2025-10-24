@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface PerformanceMonitorRealtimeParams {
   targets: string[];
@@ -169,12 +170,12 @@ async function collectRealtimeMetrics(target: string): Promise<RealtimeMetrics> 
   return {
     timestamp: Date.now(),
     target,
-    latency: Math.random() * 200 + 50, // 50-250ms
-    throughput: Math.random() * 500 + 200, // 200-700 req/s
-    cpu: Math.random() * 60 + 20, // 20-80%
-    memory: Math.random() * 400 + 100, // 100-500 MB
-    errorRate: Math.random() * 0.02, // 0-2%
-    activeConnections: Math.floor(Math.random() * 100) + 10 // 10-110
+    latency: SecureRandom.randomFloat() * 200 + 50, // 50-250ms
+    throughput: SecureRandom.randomFloat() * 500 + 200, // 200-700 req/s
+    cpu: SecureRandom.randomFloat() * 60 + 20, // 20-80%
+    memory: SecureRandom.randomFloat() * 400 + 100, // 100-500 MB
+    errorRate: SecureRandom.randomFloat() * 0.02, // 0-2%
+    activeConnections: Math.floor(SecureRandom.randomFloat() * 100) + 10 // 10-110
   };
 }
 

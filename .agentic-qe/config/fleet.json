@@ -1,106 +1,10 @@
 {
-  "agents": [
-    {
-      "id": "test-generator-1",
-      "type": "test-generator",
-      "status": "idle",
-      "capabilities": [
-        "unit-tests",
-        "integration-tests",
-        "jest"
-      ],
-      "resources": {
-        "memory": "512MB",
-        "cpu": "0.5"
-      },
-      "config": {
-        "enableLearning": true,
-        "enableQUIC": false,
-        "enableNeural": false
-      }
-    },
-    {
-      "id": "coverage-analyzer-1",
-      "type": "coverage-analyzer",
-      "status": "idle",
-      "capabilities": [
-        "coverage-analysis",
-        "gap-detection",
-        "o-log-n"
-      ],
-      "resources": {
-        "memory": "512MB",
-        "cpu": "0.5"
-      },
-      "config": {
-        "enableLearning": true,
-        "enableQUIC": false,
-        "enableNeural": false
-      }
-    },
-    {
-      "id": "quality-gate-1",
-      "type": "quality-gate",
-      "status": "idle",
-      "capabilities": [
-        "risk-assessment",
-        "policy-validation",
-        "go-no-go"
-      ],
-      "resources": {
-        "memory": "512MB",
-        "cpu": "0.5"
-      },
-      "config": {
-        "enableLearning": true,
-        "enableQUIC": false,
-        "enableNeural": false
-      }
-    },
-    {
-      "id": "security-scanner-1",
-      "type": "security-scanner",
-      "status": "idle",
-      "capabilities": [
-        "sast",
-        "dast",
-        "vulnerability-detection"
-      ],
-      "resources": {
-        "memory": "512MB",
-        "cpu": "0.5"
-      },
-      "config": {
-        "enableLearning": true,
-        "enableQUIC": false,
-        "enableNeural": false
-      }
-    },
-    {
-      "id": "performance-tester-1",
-      "type": "performance-tester",
-      "status": "idle",
-      "capabilities": [
-        "load-testing",
-        "stress-testing",
-        "k6"
-      ],
-      "resources": {
-        "memory": "512MB",
-        "cpu": "0.5"
-      },
-      "config": {
-        "enableLearning": true,
-        "enableQUIC": false,
-        "enableNeural": false
-      }
-    }
-  ],
-  "topology": "mesh",
-  "maxAgents": 5,
+  "agents": [],
+  "topology": "hierarchical",
+  "maxAgents": 10,
   "testingFocus": [
-    "learning-system",
-    "testing"
+    "unit",
+    "integration"
   ],
   "environments": [
     "development"
@@ -109,7 +13,7 @@
     "jest"
   ],
   "routing": {
-    "enabled": true,
+    "enabled": false,
     "defaultModel": "claude-sonnet-4.5",
     "enableCostTracking": true,
     "enableFallback": true,
@@ -121,5 +25,10 @@
     "progressInterval": 2000,
     "bufferEvents": false,
     "timeout": 1800000
+  },
+  "project": {
+    "name": "agentic-qe-cf",
+    "path": "/workspaces/agentic-qe-cf",
+    "language": "typescript"
   }
 }

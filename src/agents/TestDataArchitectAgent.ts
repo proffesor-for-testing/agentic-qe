@@ -9,6 +9,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   QEAgentType,
   QETask,
@@ -1691,7 +1692,7 @@ export class TestDataArchitectAgent extends BaseAgent {
       case FieldType.DECIMAL:
         return this.generateFloat();
       case FieldType.BOOLEAN:
-        return Math.random() < 0.5;
+        return SecureRandom.randomFloat() < 0.5;
       case FieldType.DATE:
       case FieldType.DATETIME:
       case FieldType.TIMESTAMP:
@@ -1725,7 +1726,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = Math.random() * 16 | 0;
+      const r = SecureRandom.randomFloat() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
       return v.toString(16);
     });
@@ -1753,39 +1754,39 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Generate age
    */
   private generateAge(min: number = 18, max: number = 120): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    return Math.floor(SecureRandom.randomFloat() * (max - min + 1)) + min;
   }
 
   /**
    * Generate integer
    */
   private generateInteger(min: number = 0, max: number = 1000000): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+    return Math.floor(SecureRandom.randomFloat() * (max - min + 1)) + min;
   }
 
   /**
    * Generate float
    */
   private generateFloat(min: number = 0, max: number = 1000): number {
-    return Math.random() * (max - min) + min;
+    return SecureRandom.randomFloat() * (max - min) + min;
   }
 
   /**
    * Generate price
    */
   private generatePrice(): number {
-    return Math.round((Math.random() * 999 + 1) * 100) / 100;
+    return Math.round((SecureRandom.randomFloat() * 999 + 1) * 100) / 100;
   }
 
   /**
    * Generate string
    */
   private generateString(maxLength: number): string {
-    const length = Math.floor(Math.random() * maxLength) + 1;
+    const length = Math.floor(SecureRandom.randomFloat() * maxLength) + 1;
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
     for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+      result += chars.charAt(Math.floor(SecureRandom.randomFloat() * chars.length));
     }
     return result;
   }
@@ -1794,21 +1795,21 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Select random element from array
    */
   private selectRandom<T>(array: T[]): T {
-    return array[Math.floor(Math.random() * array.length)];
+    return array[Math.floor(SecureRandom.randomFloat() * array.length)];
   }
 
   /**
    * Generate dataset ID
    */
   private generateDatasetId(): string {
-    return `dataset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `dataset-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
   /**
    * Generate version ID
    */
   private generateVersionId(): string {
-    return `version-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `version-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 }
 

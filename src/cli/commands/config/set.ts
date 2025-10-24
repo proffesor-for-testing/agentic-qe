@@ -106,22 +106,69 @@ export class ConfigSetCommand {
     return value;
   }
 
+  /**
+   * Set nested value (SECURE - Prototype pollution protected)
+   *
+   * Security Fix (Alert #21): Added guards against prototype pollution
+   * Previous vulnerability: Allowed setting __proto__, constructor, prototype
+   * New approach: Validates keys and uses Object.defineProperty
+   */
   private static setNestedValue(obj: any, path: string, value: any): void {
     const keys = path.split('.');
     let current = obj;
 
+    // Security: Validate all keys in the path
+    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    for (const key of keys) {
+      if (dangerousKeys.includes(key)) {
+        throw new Error(
+          `Invalid configuration key '${key}': Prototype pollution attempt detected. ` +
+          `Keys '__proto__', 'constructor', and 'prototype' are not allowed.`
+        );
+      }
+    }
+
     // Navigate to the parent object
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
-      if (!(key in current)) {
-        current[key] = {};
+
+      // Only create objects if they don't exist
+      if (!Object.prototype.hasOwnProperty.call(current, key)) {
+        // Use Object.create(null) to avoid prototype chain
+        current[key] = Object.create(null);
       }
-      current = current[key];
+
+      // lgtm[js/prototype-pollution-utility]
+      // Safe: All keys validated against dangerous names above (line 121-129)
+      // Using Object.create(null) and explicit hasOwnProperty checks
+      const nextValue = current[key];
+
+      // Validate we're still working with an object
+      if (nextValue === null || typeof nextValue !== 'object') {
+        throw new Error(`Cannot set property on non-object at path segment '${key}'`);
+      }
+
+      current = nextValue;
     }
 
-    // Set the final value
+    // Set the final value using Object.defineProperty for safety
     const finalKey = keys[keys.length - 1];
-    current[finalKey] = value;
+
+    // Additional validation for the final key
+    if (typeof finalKey !== 'string' || finalKey.length === 0) {
+      throw new Error('Invalid property key: must be a non-empty string');
+    }
+
+    // The dangerous keys check is already done at the beginning of the function
+    // No need to duplicate the check here since all keys are validated upfront
+
+    // Use Object.defineProperty instead of direct assignment
+    Object.defineProperty(current, finalKey, {
+      value: value,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
   }
 }
 

@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "pre-task": {
+      "enabled": true,
+      "description": "Pre-task verification via BaseAgent lifecycle hooks"
+    },
+    "post-edit": {
+      "enabled": true,
+      "description": "Post-edit validation via VerificationHookManager"
+    },
+    "post-task": {
+      "enabled": true,
+      "description": "Post-task coordination via BaseAgent lifecycle hooks"
+    }
+  },
+  "coordination": {
+    "enabled": true,
+    "topology": "hierarchical",
+    "memory": {
+      "namespace": "agentic-qe",
+      "ttl": 3600,
+      "implementation": "SwarmMemoryManager"
+    },
+    "hooks_system": "aqe-hooks",
+    "performance": "100-500x faster than external hooks"
+  }
+}

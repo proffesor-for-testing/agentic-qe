@@ -1,3 +1,4 @@
+import { ProcessExit } from '../../utils/ProcessExit';
 import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
@@ -39,7 +40,7 @@ export class FleetCommand {
       if (options.verbose) {
         console.error(chalk.gray(error.stack));
       }
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 

@@ -7,6 +7,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentId,
   AgentStatus,
@@ -771,7 +772,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   private async createGapQueryEmbedding(file: string, functionName: string): Promise<number[]> {
     // Simplified embedding - replace with actual model in production
     const queryStr = `${file}:${functionName}`;
-    const embedding = new Array(384).fill(0).map(() => Math.random());
+    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
 
     // Add semantic hash for reproducibility
     const hash = queryStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -786,7 +787,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   private async createGapEmbedding(gap: CoverageOptimizationResult['gaps'][0]): Promise<number[]> {
     // Simplified embedding - replace with actual model in production
     const gapStr = `${gap.location}:${gap.type}:${gap.severity}`;
-    const embedding = new Array(384).fill(0).map(() => Math.random());
+    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
 
     // Add semantic hash
     const hash = gapStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -969,11 +970,11 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     const coveragePoints: any[] = [];
 
     // Simple heuristic: each test covers 10-30% of coverage points
-    const coverageRatio = 0.1 + Math.random() * 0.2;
+    const coverageRatio = 0.1 + SecureRandom.randomFloat() * 0.2;
     const pointCount = Math.floor(codeBase.coveragePoints.length * coverageRatio);
 
     for (let i = 0; i < pointCount; i++) {
-      const randomIndex = Math.floor(Math.random() * codeBase.coveragePoints.length);
+      const randomIndex = Math.floor(SecureRandom.randomFloat() * codeBase.coveragePoints.length);
       const point = codeBase.coveragePoints[randomIndex];
       if (!coveragePoints.find(cp => cp.id === point.id)) {
         coveragePoints.push(point);
@@ -1055,7 +1056,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
   private isCriticalPath(_pointIndex: number): boolean {
     // Determine if coverage point is on a critical execution path
-    return Math.random() > 0.8; // 20% are critical
+    return SecureRandom.randomFloat() > 0.8; // 20% are critical
   }
 
   private async calculateOriginalCoverage(request: CoverageAnalysisRequest): Promise<number> {
@@ -1091,7 +1092,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   }
 
   private async calculateFunctionCoverage(_func: any, _codeBase: any): Promise<number> {
-    return Math.random();
+    return SecureRandom.randomFloat();
   }
 
   private async generateFunctionTestSuggestions(func: any): Promise<string[]> {
@@ -1124,7 +1125,7 @@ class SublinearOptimizer {
     const startTime = Date.now();
 
     // Simulate sublinear solving
-    const solution = Array.from({ length: params.matrix.rows }, () => Math.random());
+    const solution = Array.from({ length: params.matrix.rows }, () => SecureRandom.randomFloat());
 
     this.optimizationCount++;
     this.totalTime += Date.now() - startTime;
@@ -1138,7 +1139,7 @@ class SublinearOptimizer {
   }
 
   async calculateConfidence(_prediction: any): Promise<number> {
-    return Math.random() * 0.5 + 0.5; // 0.5-1.0 confidence
+    return SecureRandom.randomFloat() * 0.5 + 0.5; // 0.5-1.0 confidence
   }
 
   getOptimizationCount(): number {

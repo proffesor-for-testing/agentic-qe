@@ -4,6 +4,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   QETask,
   TestSuite,
@@ -446,7 +447,7 @@ export class TestGeneratorAgent extends BaseAgent {
     const vectors: number[][] = [];
 
     for (let i = 0; i < size; i++) {
-      const vector = Array.from({ length: 10 }, () => Math.random());
+      const vector = Array.from({ length: 10 }, () => SecureRandom.randomFloat());
       vectors.push(vector);
     }
 
@@ -472,7 +473,7 @@ export class TestGeneratorAgent extends BaseAgent {
     // Populate matrix with coverage data (simplified)
     for (let i = 0; i < testCandidates.length; i++) {
       for (let j = 0; j < 10; j++) { // Sample coverage points
-        (optimizationMatrix.data as any).values.push(Math.random());
+        (optimizationMatrix.data as any).values.push(SecureRandom.randomFloat());
         (optimizationMatrix.data as any).rowIndices.push(i);
         (optimizationMatrix.data as any).colIndices.push(j);
       }
@@ -684,14 +685,14 @@ export class TestGeneratorAgent extends BaseAgent {
     // Placeholder for sublinear optimization
     return {
       solve: async (matrix: SublinearMatrix) => {
-        return { solution: Array.from({ length: matrix.rows }, () => Math.random()) };
+        return { solution: Array.from({ length: matrix.rows }, () => SecureRandom.randomFloat()) };
       }
     };
   }
 
   private async solveSublinear(matrix: SublinearMatrix): Promise<SublinearSolution> {
     return {
-      solution: Array.from({ length: matrix.rows }, () => Math.random()),
+      solution: Array.from({ length: matrix.rows }, () => SecureRandom.randomFloat()),
       iterations: 100,
       convergence: true,
       convergenceTime: 50
@@ -700,11 +701,11 @@ export class TestGeneratorAgent extends BaseAgent {
 
   // Utility methods
   private generateTestId(): string {
-    return `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `test-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
   private generateTestSuiteId(): string {
-    return `suite-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `suite-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
   private async extractCodePatterns(_sourceCode: any): Promise<string[]> {
@@ -816,7 +817,7 @@ export class TestGeneratorAgent extends BaseAgent {
    */
   private async createTaskEmbedding(taskDescription: string): Promise<number[]> {
     // Simplified embedding - replace with actual model in production
-    const embedding = new Array(384).fill(0).map(() => Math.random());
+    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
 
     // Add semantic hash based on task description for reproducibility
     const hash = taskDescription.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -853,7 +854,7 @@ export class TestGeneratorAgent extends BaseAgent {
   private async createPatternEmbedding(pattern: any): Promise<number[]> {
     // Simplified embedding - replace with actual model in production
     const patternStr = JSON.stringify(pattern);
-    const embedding = new Array(384).fill(0).map(() => Math.random());
+    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
 
     // Add semantic hash based on pattern content
     const hash = patternStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -1013,7 +1014,7 @@ export class TestGeneratorAgent extends BaseAgent {
           const patternEmbedding = await this.createPatternEmbedding(pattern);
 
           const patternId = await this.agentDB.store({
-            id: `test-pattern-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: `test-pattern-${Date.now()}-${SecureRandom.generateId(5)}`,
             type: 'test-generation-pattern',
             domain: 'test-generation',
             pattern_data: JSON.stringify({

@@ -1,3 +1,4 @@
+import { ProcessExit } from '../../utils/ProcessExit';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
@@ -5,9 +6,13 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { InitOptions, FleetConfig } from '../../types';
 
+// Import version from package.json to maintain consistency
+const packageJson = require('../../../package.json');
+const PACKAGE_VERSION = packageJson.version;
+
 export class InitCommand {
   static async execute(options: InitOptions): Promise<void> {
-    console.log(chalk.blue.bold('\n🚀 Initializing Agentic QE Project (v1.2.0)\n'));
+    console.log(chalk.blue.bold(`\n🚀 Initializing Agentic QE Project (v${PACKAGE_VERSION})\n`));
 
     try {
       // Parse options
@@ -19,13 +24,13 @@ export class InitCommand {
       // Validate inputs
       if (maxAgents < 5 || maxAgents > 50) {
         console.error(chalk.red('❌ Max agents must be between 5 and 50'));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
 
       const validTopologies = ['hierarchical', 'mesh', 'ring', 'adaptive'];
       if (!validTopologies.includes(options.topology)) {
         console.error(chalk.red(`❌ Invalid topology. Must be one of: ${validTopologies.join(', ')}`));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
 
       // Create fleet configuration
@@ -227,7 +232,7 @@ export class InitCommand {
       console.error(chalk.red('❌ Initialization failed:'), error.message);
       console.error(chalk.gray('\nStack trace:'));
       console.error(chalk.gray(error.stack));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -247,7 +252,7 @@ export class InitCommand {
       '.agentic-qe/state/coordination',  // Coordination state
       '.claude',              // For Claude Code integration
       '.claude/agents',       // Where agent definitions live
-      '.claude/skills',       // Where QE skill definitions live (17 QE skills only)
+      '.claude/skills',       // Where QE skill definitions live (35 QE skills)
       '.claude/commands',     // Where AQE slash commands live (8 commands)
       'tests/unit',
       'tests/integration',
@@ -405,7 +410,7 @@ learning:
     - agent.getLearnedPatterns()
     - agent.recommendStrategy(state)
 metadata:
-  version: "1.1.0"
+  version: "${PACKAGE_VERSION}"
   framework: "agentic-qe"
   routing: "supported"
   streaming: "supported"
@@ -584,7 +589,7 @@ This agent coordinates with other QE Fleet agents through:
 - **EventBus**: Event-driven communication
 - **Fleet Manager**: Lifecycle management
 
-## 💰 Cost Optimization (v1.0.5)
+## 💰 Cost Optimization (v${PACKAGE_VERSION})
 
 This agent supports the **Multi-Model Router** for intelligent model selection and cost savings.
 
@@ -597,7 +602,7 @@ If routing is enabled, this agent will automatically use the most cost-effective
 
 **No code changes required** - routing is transparent infrastructure.
 
-## 📊 Streaming Support (v1.0.5)
+## 📊 Streaming Support (v${PACKAGE_VERSION})
 
 This agent supports **streaming progress updates** for real-time visibility.
 
@@ -677,7 +682,7 @@ learning:
     - agent.getLearnedPatterns()
     - agent.recommendStrategy(state)
 metadata:
-  version: "1.1.0"
+  version: "${PACKAGE_VERSION}"
   framework: "agentic-qe"
   routing: "supported"
   streaming: "supported"
@@ -725,13 +730,14 @@ For full capabilities, install the complete agentic-qe package.
   }
 
   /**
-   * Copy only the 17 QE Fleet skills (filters out Claude Flow skills)
+   * Copy all 35 QE Fleet skills (filters out Claude Flow skills)
    */
   private static async copySkillTemplates(): Promise<void> {
     console.log(chalk.cyan('  🎯 Initializing QE Fleet skills...'));
 
-    // Define the 17 QE Fleet skills (from SKILLS-MAPPING.md)
+    // Define all 35 QE Fleet skills (Phase 1: 18 original + Phase 2: 17 new = 35 total)
     const QE_FLEET_SKILLS = [
+      // Phase 1: Original Quality Practices (18 skills)
       // Core Quality Practices (5)
       'holistic-testing-pact',
       'context-driven-testing',
@@ -755,9 +761,34 @@ For full capabilities, install the complete agentic-qe package.
       'bug-reporting-excellence',
       'code-review-quality',
 
-      // Professional Skills (2)
+      // Professional Skills (3 - includes verification-quality)
       'consultancy-practices',
-      'quality-metrics'
+      'quality-metrics',
+      'verification-quality',
+
+      // Phase 2: New QE Skills from v1.3.0 (17 new skills)
+      // Testing Methodologies (6)
+      'regression-testing',
+      'shift-left-testing',
+      'shift-right-testing',
+      'test-design-techniques',
+      'mutation-testing',
+      'test-data-management',
+
+      // Specialized Testing (9)
+      'accessibility-testing',
+      'mobile-testing',
+      'database-testing',
+      'contract-testing',
+      'chaos-engineering-resilience',
+      'compatibility-testing',
+      'localization-testing',
+      'compliance-testing',
+      'visual-testing-advanced',
+
+      // Testing Infrastructure (2)
+      'test-environment-management',
+      'test-reporting-analytics'
     ];
 
     // Find the agentic-qe package location
@@ -833,11 +864,11 @@ For full capabilities, install the complete agentic-qe package.
 
     console.log(chalk.cyan(`  📋 Total QE skills initialized: ${finalSkillCount}`));
 
-    // Verify we have exactly 17 QE skills
-    if (finalSkillCount === 17) {
-      console.log(chalk.green('  ✅ All 17 QE Fleet skills successfully initialized'));
-    } else if (finalSkillCount < 17) {
-      console.warn(chalk.yellow(`  ⚠️  Expected 17 QE skills, found ${finalSkillCount}`));
+    // Verify we have exactly 35 QE skills
+    if (finalSkillCount === 35) {
+      console.log(chalk.green('  ✅ All 35 QE Fleet skills successfully initialized'));
+    } else if (finalSkillCount < 35) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 35 QE skills, found ${finalSkillCount}`));
       const missingSkills = QE_FLEET_SKILLS.filter(skill => {
         return !fs.existsSync(path.join(targetPath, skill));
       });
@@ -981,7 +1012,7 @@ For full capabilities, install the complete agentic-qe package.
     await fs.writeJson('.agentic-qe/config/environments.json', envConfigs, { spaces: 2 });
     console.log(chalk.gray(`    ✓ Wrote .agentic-qe/config/environments.json`));
 
-    // Create routing configuration (Phase 1 - v1.0.5)
+    // Create routing configuration
     await this.writeRoutingConfig(config);
     console.log(chalk.green('  ✓ Fleet configuration complete'));
   }
@@ -1021,7 +1052,7 @@ For full capabilities, install the complete agentic-qe package.
     const routingConfig = {
       multiModelRouter: {
         enabled: config.routing?.enabled || false,
-        version: '1.0.5',
+        version: PACKAGE_VERSION,
         defaultModel: config.routing?.defaultModel || 'claude-sonnet-4.5',
         enableCostTracking: config.routing?.enableCostTracking !== false,
         enableFallback: config.routing?.enableFallback !== false,
@@ -1393,7 +1424,7 @@ Agents share state through the **\\\`aqe/*\\\` memory namespace**:
 **Environments**: ${config.environments?.join(', ') || 'Not specified'}
 **Frameworks**: ${config.frameworks?.join(', ') || 'jest'}
 
-## 💰 Multi-Model Router (v1.0.5)
+## 💰 Multi-Model Router (v${PACKAGE_VERSION})
 
 **Status**: ${config.routing?.enabled ? '✅ Enabled' : '⚠️  Disabled (opt-in)'}
 
@@ -1459,7 +1490,7 @@ aqe routing report --format json
 aqe routing stats
 \\\`\\\`\\\`
 
-## 📊 Streaming Progress (v1.0.5)
+## 📊 Streaming Progress (v${PACKAGE_VERSION})
 
 **Status**: ${config.streaming?.enabled ? '✅ Enabled' : '⚠️  Disabled'}
 
@@ -1496,7 +1527,7 @@ for await (const event of handler.execute(params)) {
 
 ## 🎯 Claude Code Skills Integration
 
-This fleet includes **17 specialized QE skills** that agents can use:
+This fleet includes **35 specialized QE skills** that agents can use:
 
 ### Quality Engineering Skills (10 skills)
 - **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
@@ -1655,7 +1686,7 @@ tail -f .agentic-qe/logs/fleet.log
 
 ---
 
-**Generated by**: Agentic QE Fleet v1.0.5
+**Generated by**: Agentic QE Fleet v${PACKAGE_VERSION}
 **Initialization Date**: ${new Date().toISOString()}
 **Fleet Topology**: ${config.topology}
 `;
@@ -1758,7 +1789,7 @@ tail -f .agentic-qe/logs/fleet.log
     // Create learning state placeholder
     const learningState = {
       initialized: true,
-      version: '1.1.0',
+      version: PACKAGE_VERSION,
       createdAt: new Date().toISOString(),
       agents: {} // Will be populated as agents learn
     };
@@ -1915,7 +1946,7 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
 
     // Create improvement state
     const improvementState = {
-      version: '1.1.0',
+      version: PACKAGE_VERSION,
       lastCycle: null,
       activeCycles: 0,
       totalImprovement: 0,
@@ -2063,7 +2094,7 @@ VALUES ('1.1.0', 'Initial QE ReasoningBank schema');
     if (options.enablePatterns) {
       console.log(chalk.gray('  • Pattern extraction: enabled'));
       console.log(chalk.gray('  • Confidence threshold: 85%'));
-      console.log(chalk.gray('  • Template generation: enabled'));
+      console.log(chalk.gray('  • Cross-project sharing: enabled'));
     }
 
     console.log(chalk.cyan('\nImprovement Loop'));

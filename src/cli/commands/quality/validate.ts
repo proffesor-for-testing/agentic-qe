@@ -10,6 +10,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 const execAsync = promisify(exec);
 
@@ -86,11 +88,11 @@ export class QualityValidator {
     return {
       coverage: await this.getCoverage(),
       testSuccessRate: await this.getTestSuccessRate(),
-      complexity: Math.random() * 15,
-      duplications: Math.random() * 5,
-      securityIssues: Math.floor(Math.random() * 2),
-      criticalBugs: Math.floor(Math.random() * 2),
-      technicalDebt: Math.random() * 10,
+      complexity: SecureRandom.randomFloat() * 15,
+      duplications: SecureRandom.randomFloat() * 5,
+      securityIssues: Math.floor(SecureRandom.randomFloat() * 2),
+      criticalBugs: Math.floor(SecureRandom.randomFloat() * 2),
+      technicalDebt: SecureRandom.randomFloat() * 10,
     };
   }
 
@@ -106,7 +108,7 @@ export class QualityValidator {
 
   private async getTestSuccessRate(): Promise<number> {
     // Placeholder - integrate with test results
-    return 95 + Math.random() * 5;
+    return 95 + SecureRandom.randomFloat() * 5;
   }
 
   private validateRule(
@@ -240,11 +242,11 @@ export function createQualityValidateCommand(): Command {
           validator.displayResults(result);
         }
 
-        process.exit(result.valid ? 0 : 1);
+        ProcessExit.exitIfNotTest(result.valid ? 0 : 1);
       } catch (error) {
         spinner.fail('Quality validation failed');
         console.error(chalk.red('Error:'), error);
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 

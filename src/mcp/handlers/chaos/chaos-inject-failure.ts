@@ -10,6 +10,7 @@ import type {
   FailureType,
 } from '../../types/chaos';
 import { validateUrl, generateId } from '../../../utils/validation';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 // Track active failure injections
 const activeInjections = new Map<string, ActiveInjection>();
@@ -29,7 +30,7 @@ const VALID_HTTP_CODES = new Set([
  * Calculate if request should fail based on failure rate
  */
 function shouldFail(failureRate: number = 1.0): boolean {
-  return Math.random() < failureRate;
+  return SecureRandom.randomFloat() < failureRate;
 }
 
 /**
@@ -40,7 +41,7 @@ function calculateAffectedServices(
   percentage: number
 ): string[] {
   const count = Math.ceil((targetServices.length * percentage) / 100);
-  const shuffled = [...targetServices].sort(() => Math.random() - 0.5);
+  const shuffled = [...targetServices].sort(() => SecureRandom.randomFloat() - 0.5);
   return shuffled.slice(0, count);
 }
 
@@ -109,7 +110,7 @@ function createPartialResponse(): Response {
  * Select random failure from combined types
  */
 function selectRandomFailure(failureTypes: FailureType[]): FailureType {
-  const randomIndex = Math.floor(Math.random() * failureTypes.length);
+  const randomIndex = Math.floor(SecureRandom.randomFloat() * failureTypes.length);
   return failureTypes[randomIndex];
 }
 

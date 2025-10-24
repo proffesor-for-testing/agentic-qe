@@ -13,6 +13,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import { AgentType as _AgentType, QEAgentType, QETask, AgentStatus } from '../types';
 
 export interface FleetCommanderConfig extends BaseAgentConfig {
@@ -1165,7 +1166,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // ============================================================================
 
   private async requestAgentSpawn(type: string, priority: string, config: any = {}): Promise<string> {
-    const agentId = `${type}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const agentId = `${type}-${Date.now()}-${SecureRandom.randomFloat().toString(36).substring(7)}`;
 
     // Emit spawn request event
     this.emitEvent('agent.spawn-request', {

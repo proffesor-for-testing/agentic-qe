@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import chokidar from 'chokidar';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 interface WatchOptions {
   pattern: string;
@@ -54,7 +55,7 @@ export function createWatchCommand(): Command {
       process.on('SIGINT', () => {
         console.log(chalk.yellow('\n\nWatch mode stopped'));
         watcher.close();
-        process.exit(0);
+        ProcessExit.exitIfNotTest(0);
       });
 
       // Interactive commands
@@ -141,7 +142,7 @@ function setupInteractiveMode(watcher: chokidar.FSWatcher): void {
       case '\u0003': // Ctrl+C
         console.log(chalk.yellow('\n\nWatch mode stopped'));
         watcher.close();
-        process.exit(0);
+        ProcessExit.exitIfNotTest(0);
         break;
     }
   });

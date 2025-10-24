@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-**Version 1.2.0** - Production Hardening Release
+**Version 1.3.2** - Security Hardening
 
-> Enterprise-grade test automation with AI learning, pattern reuse, and 70-81% cost savings through intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and optional 70-81% cost savings through intelligent model routing (opt-in feature).
 
-🧠 **20% Continuous Improvement** | 📦 **Cross-Project Pattern Sharing** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings**
+🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **100% CodeQL Resolution**
 
 [Quick Start](#quick-start) • [Documentation](docs/) • [Contributing](CONTRIBUTING.md) • [Examples](examples/)
 
@@ -19,18 +19,33 @@
 
 ---
 
-## 🎉 What's New in v1.2.0
+## 🎉 What's New in v1.3.2
 
-### Production Hardening Release (Oct 19-22, 2025)
-**3 days of intensive development** | **714 files changed** | **+283,989 additions** | **-5,256 deletions**
+**🔐 Security Release**: Fixed all 4 open CodeQL security alerts - achieving **100% alert resolution (26/26 fixed)**. Critical fixes include elimination of cryptographic randomness bias, enhanced prototype pollution prevention, and comprehensive security test coverage.
 
-#### 🎓 **42 Claude Skills Added**
+### Previous Release (v1.3.1)
 
-**Our Quality Engineering Skills (17 skills)** - World-class v1.0.0 ✨
+**Critical Bug Fix**: Fixed `aqe init` command that was using hardcoded versions (1.0.5, 1.1.0) instead of reading from `package.json`. All generated config files now correctly sync with the package version.
+
+### Previous Release (v1.3.0)
+
+### Security Hardening + Skills Expansion (Oct 23-24, 2025)
+**2 days of intensive development** | **Security hardening + 17 new skills** | **11,500+ lines of expert content**
+
+#### 🎓 **60 Claude Skills Total (35 QE-Specific)**
+
+**Phase 1: Original Quality Engineering Skills (18 skills)** - World-class v1.0.0 ✨
 - agentic-quality-engineering, holistic-testing-pact, context-driven-testing, exploratory-testing-advanced
 - risk-based-testing, test-automation-strategy, api-testing-patterns, performance-testing, security-testing
 - tdd-london-chicago, xp-practices, code-review-quality, refactoring-patterns, quality-metrics
 - bug-reporting-excellence, technical-writing, consultancy-practices
+
+**Phase 2: Expanded QE Skills Library (17 NEW skills)** - v1.0.0 🆕
+- **Testing Methodologies (6)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management
+- **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
+- **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
+
+**Total QE Skills: 35 (95%+ coverage of modern QE practices)** 🏆
 
 **Skill Optimization Achievements:**
 - ✅ 107 unique tags, 156 cross-references
@@ -202,8 +217,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 ### Core Features
 
 #### 🤖 Autonomous Agent Fleet
-- **17 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
-  - _Note: Init copies 18 agent files (17 QE + 1 general-purpose agent from Claude Code)_
+- **18 Specialized Agents**: Each agent is an expert in specific quality engineering domains
+  - _Note: 17 QE-specific agents + 1 general-purpose base-template-generator agent_
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure

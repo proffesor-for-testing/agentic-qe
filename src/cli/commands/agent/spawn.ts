@@ -3,6 +3,7 @@
  * Creates and initializes new agents
  */
 
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -46,7 +47,7 @@ export class AgentSpawnCommand {
     }
 
     // Generate agent ID
-    const id = `agent-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const id = `agent-${Date.now()}-${SecureRandom.generateId(9)}`;
 
     // Create agent configuration
     const agentConfig: SpawnResult = {

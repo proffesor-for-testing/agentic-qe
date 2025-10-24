@@ -13,6 +13,7 @@ import { StreamingMCPTool } from './StreamingMCPTool.js';
 import { ProgressReporter, calculateProgress } from './types.js';
 import type { TestExecution, SuiteResult, TestResult } from '../handlers/test-execute.js';
 import { TestExecutionSpec } from '../tools.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface TestExecuteStreamParams {
   spec: TestExecutionSpec;
@@ -427,7 +428,7 @@ export class TestExecuteStreamHandler extends StreamingMCPTool {
    * Create execution object
    */
   private createExecution(spec: TestExecutionSpec, fleetId?: string): TestExecution {
-    const executionId = `execution-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const executionId = `execution-${Date.now()}-${SecureRandom.generateId(3)}`;
 
     return {
       id: executionId,
@@ -486,9 +487,9 @@ export class TestExecuteStreamHandler extends StreamingMCPTool {
       averageTestTime: summary.total > 0 ? (execution.executionTime || 0) / summary.total : 0,
       parallelismEfficiency: execution.spec.parallelExecution ? 0.85 : 1.0,
       resourceUtilization: {
-        cpu: Math.random() * 30 + 40,
-        memory: Math.random() * 20 + 60,
-        network: Math.random() * 15 + 10
+        cpu: SecureRandom.randomFloat() * 30 + 40,
+        memory: SecureRandom.randomFloat() * 20 + 60,
+        network: SecureRandom.randomFloat() * 15 + 10
       }
     };
 
@@ -505,7 +506,7 @@ export class TestExecuteStreamHandler extends StreamingMCPTool {
         type: 'report',
         name: `test-report-${execution.id}.${execution.spec.reportFormat}`,
         path: `/artifacts/reports/test-report-${execution.id}.${execution.spec.reportFormat}`,
-        size: Math.floor(Math.random() * 500000) + 50000,
+        size: Math.floor(SecureRandom.randomFloat() * 500000) + 50000,
         environment: 'all'
       }
     ];

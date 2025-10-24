@@ -12,6 +12,7 @@ import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { QualityAnalysisParams } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface QualityAnalyzeArgs {
   params: QualityAnalysisParams;
@@ -403,7 +404,7 @@ export class QualityAnalyzeHandler extends BaseHandler {
   }
 
   private async performQualityAnalysis(params: QualityAnalysisParams, dataSource?: any): Promise<QualityReport> {
-    const reportId = `quality-report-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const reportId = `quality-report-${Date.now()}-${SecureRandom.generateId(3)}`;
 
     this.log('info', 'Performing quality analysis', { reportId, scope: params.scope });
 
@@ -466,24 +467,24 @@ export class QualityAnalyzeHandler extends BaseHandler {
 
     return {
       complexity: {
-        cyclomatic: Math.random() * 15 + 5, // 5-20
-        cognitive: Math.random() * 20 + 10, // 10-30
-        maintainabilityIndex: Math.random() * 40 + 60 // 60-100
+        cyclomatic: SecureRandom.randomFloat() * 15 + 5, // 5-20
+        cognitive: SecureRandom.randomFloat() * 20 + 10, // 10-30
+        maintainabilityIndex: SecureRandom.randomFloat() * 40 + 60 // 60-100
       },
       coverage: {
-        line: Math.random() * 20 + 75, // 75-95%
-        branch: Math.random() * 25 + 70, // 70-95%
-        function: Math.random() * 15 + 80, // 80-95%
-        statement: Math.random() * 20 + 75 // 75-95%
+        line: SecureRandom.randomFloat() * 20 + 75, // 75-95%
+        branch: SecureRandom.randomFloat() * 25 + 70, // 70-95%
+        function: SecureRandom.randomFloat() * 15 + 80, // 80-95%
+        statement: SecureRandom.randomFloat() * 20 + 75 // 75-95%
       },
       duplication: {
-        percentage: Math.random() * 8 + 2, // 2-10%
-        lines: Math.floor(Math.random() * 500 + 50), // 50-550
-        blocks: Math.floor(Math.random() * 20 + 5) // 5-25
+        percentage: SecureRandom.randomFloat() * 8 + 2, // 2-10%
+        lines: SecureRandom.randomInt(50, 550), // 50-550
+        blocks: SecureRandom.randomInt(5, 25) // 5-25
       },
       technicalDebt: {
-        ratio: Math.random() * 0.3 + 0.1, // 10-40%
-        estimatedHours: Math.random() * 100 + 20, // 20-120 hours
+        ratio: SecureRandom.randomFloat() * 0.3 + 0.1, // 10-40%
+        estimatedHours: SecureRandom.randomFloat() * 100 + 20, // 20-120 hours
         issues: this.generateTechnicalDebtIssues()
       }
     };
@@ -495,22 +496,22 @@ export class QualityAnalyzeHandler extends BaseHandler {
 
     return {
       reliability: {
-        flakyTests: Math.floor(Math.random() * 5), // 0-5
-        successRate: Math.random() * 5 + 95, // 95-100%
-        averageRetries: Math.random() * 0.5 + 0.1 // 0.1-0.6
+        flakyTests: SecureRandom.randomInt(0, 5), // 0-5
+        successRate: SecureRandom.randomFloat() * 5 + 95, // 95-100%
+        averageRetries: SecureRandom.randomFloat() * 0.5 + 0.1 // 0.1-0.6
       },
       effectiveness: {
-        mutationScore: Math.random() * 25 + 70, // 70-95%
-        defectDetectionRate: Math.random() * 20 + 75, // 75-95%
-        falsePositiveRate: Math.random() * 5 + 1 // 1-6%
+        mutationScore: SecureRandom.randomFloat() * 25 + 70, // 70-95%
+        defectDetectionRate: SecureRandom.randomFloat() * 20 + 75, // 75-95%
+        falsePositiveRate: SecureRandom.randomFloat() * 5 + 1 // 1-6%
       },
       efficiency: {
-        executionTime: Math.random() * 300 + 60, // 60-360 seconds
-        parallelization: Math.random() * 0.3 + 0.6, // 60-90%
-        resourceUsage: Math.random() * 30 + 40 // 40-70%
+        executionTime: SecureRandom.randomFloat() * 300 + 60, // 60-360 seconds
+        parallelization: SecureRandom.randomFloat() * 0.3 + 0.6, // 60-90%
+        resourceUsage: SecureRandom.randomFloat() * 30 + 40 // 40-70%
       },
       coverage: {
-        achieved: Math.random() * 20 + 75, // 75-95%
+        achieved: SecureRandom.randomFloat() * 20 + 75, // 75-95%
         target: 80,
         gaps: this.generateCoverageGaps()
       }
@@ -523,18 +524,18 @@ export class QualityAnalyzeHandler extends BaseHandler {
 
     return {
       responseTime: {
-        average: Math.random() * 200 + 50, // 50-250ms
-        p95: Math.random() * 500 + 100, // 100-600ms
-        p99: Math.random() * 1000 + 200 // 200-1200ms
+        average: SecureRandom.randomFloat() * 200 + 50, // 50-250ms
+        p95: SecureRandom.randomFloat() * 500 + 100, // 100-600ms
+        p99: SecureRandom.randomFloat() * 1000 + 200 // 200-1200ms
       },
       throughput: {
-        requestsPerSecond: Math.random() * 2000 + 500, // 500-2500 RPS
-        concurrent: Math.random() * 100 + 50 // 50-150 concurrent
+        requestsPerSecond: SecureRandom.randomFloat() * 2000 + 500, // 500-2500 RPS
+        concurrent: SecureRandom.randomFloat() * 100 + 50 // 50-150 concurrent
       },
       resources: {
-        cpu: Math.random() * 40 + 30, // 30-70%
-        memory: Math.random() * 30 + 50, // 50-80%
-        network: Math.random() * 20 + 10 // 10-30%
+        cpu: SecureRandom.randomFloat() * 40 + 30, // 30-70%
+        memory: SecureRandom.randomFloat() * 30 + 50, // 50-80%
+        network: SecureRandom.randomFloat() * 20 + 10 // 10-30%
       },
       bottlenecks: this.generatePerformanceBottlenecks()
     };
@@ -546,19 +547,19 @@ export class QualityAnalyzeHandler extends BaseHandler {
 
     return {
       vulnerabilities: {
-        critical: Math.floor(Math.random() * 2), // 0-1
-        high: Math.floor(Math.random() * 5), // 0-4
-        medium: Math.floor(Math.random() * 10 + 2), // 2-12
-        low: Math.floor(Math.random() * 20 + 5) // 5-25
+        critical: SecureRandom.randomInt(0, 2), // 0-1
+        high: SecureRandom.randomInt(0, 5), // 0-4
+        medium: SecureRandom.randomInt(2, 12), // 2-12
+        low: SecureRandom.randomInt(5, 25) // 5-25
       },
       compliance: {
-        owasp: Math.random() * 20 + 75, // 75-95%
-        score: Math.random() * 25 + 70, // 70-95
+        owasp: SecureRandom.randomFloat() * 20 + 75, // 75-95%
+        score: SecureRandom.randomFloat() * 25 + 70, // 70-95
         issues: this.generateSecurityIssues()
       },
       dependencies: {
-        outdated: Math.floor(Math.random() * 10 + 2), // 2-12
-        vulnerable: Math.floor(Math.random() * 3), // 0-2
+        outdated: SecureRandom.randomInt(2, 12), // 2-12
+        vulnerable: SecureRandom.randomInt(0, 3), // 0-2
         licenses: this.generateLicenseIssues()
       }
     };
@@ -569,11 +570,11 @@ export class QualityAnalyzeHandler extends BaseHandler {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     return {
-      readability: Math.random() * 25 + 70, // 70-95
-      documentation: Math.random() * 30 + 60, // 60-90
-      testability: Math.random() * 20 + 75, // 75-95
-      modularity: Math.random() * 25 + 70, // 70-95
-      changeability: Math.random() * 30 + 65 // 65-95
+      readability: SecureRandom.randomFloat() * 25 + 70, // 70-95
+      documentation: SecureRandom.randomFloat() * 30 + 60, // 60-90
+      testability: SecureRandom.randomFloat() * 20 + 75, // 75-95
+      modularity: SecureRandom.randomFloat() * 25 + 70, // 70-95
+      changeability: SecureRandom.randomFloat() * 30 + 65 // 65-95
     };
   }
 
@@ -736,7 +737,7 @@ export class QualityAnalyzeHandler extends BaseHandler {
     };
 
     return {
-      id: `rec-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `rec-${Date.now()}-${SecureRandom.generateId(2)}`,
       category: assessment.category,
       priority: assessment.impact === 'critical' ? 'critical' : assessment.impact === 'high' ? 'high' : 'medium',
       title: template.title,
@@ -778,13 +779,13 @@ export class QualityAnalyzeHandler extends BaseHandler {
   private async analyzeTrends(reportId: string, metrics: QualityMetrics): Promise<TrendAnalysis> {
     // Simulate trend analysis
     return {
-      direction: Math.random() > 0.5 ? 'improving' : Math.random() > 0.5 ? 'stable' : 'declining',
-      velocity: Math.random() * 10 - 5, // -5 to +5
+      direction: SecureRandom.randomFloat() > 0.5 ? 'improving' : SecureRandom.randomFloat() > 0.5 ? 'stable' : 'declining',
+      velocity: SecureRandom.randomFloat() * 10 - 5, // -5 to +5
       predictions: [
         {
           metric: 'overall-quality',
-          predictedValue: Math.random() * 20 + 75, // 75-95
-          confidence: Math.random() * 20 + 70, // 70-90%
+          predictedValue: SecureRandom.randomFloat() * 20 + 75, // 75-95
+          confidence: SecureRandom.randomFloat() * 20 + 70, // 70-90%
           timeframe: '30 days'
         }
       ],
@@ -998,9 +999,9 @@ export class QualityAnalyzeHandler extends BaseHandler {
       data.push({
         date: date.toISOString().split('T')[0],
         metrics: {
-          'overall-quality': Math.random() * 20 + 70 + i * 0.5, // Improving trend
-          'coverage': Math.random() * 10 + 75 + i * 0.3,
-          'complexity': Math.random() * 5 + 8 - i * 0.1
+          'overall-quality': SecureRandom.randomFloat() * 20 + 70 + i * 0.5, // Improving trend
+          'coverage': SecureRandom.randomFloat() * 10 + 75 + i * 0.3,
+          'complexity': SecureRandom.randomFloat() * 5 + 8 - i * 0.1
         }
       });
     }

@@ -29,6 +29,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   QEAgentType,
   AgentCapability,
@@ -921,7 +922,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
   private async createFlakyPatternEmbedding(test: FlakyTestResult): Promise<number[]> {
     // Simplified embedding - replace with actual model in production
     const patternStr = `${test.testName}:${test.pattern}:${test.rootCause?.category}`;
-    const embedding = new Array(384).fill(0).map(() => Math.random());
+    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
 
     // Add semantic hash
     const hash = patternStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -936,7 +937,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
   private async createFlakyQueryEmbedding(testName: string, pattern: string): Promise<number[]> {
     // Simplified embedding - replace with actual model in production
     const queryStr = `${testName}:${pattern}`;
-    const embedding = new Array(384).fill(0).map(() => Math.random());
+    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
 
     // Add semantic hash
     const hash = queryStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);

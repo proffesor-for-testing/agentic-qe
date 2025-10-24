@@ -11,6 +11,7 @@ import * as fs from 'fs-extra';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface LearnCommandOptions {
   agent?: string;
@@ -57,7 +58,7 @@ export class LearningCommand {
       default:
         console.error(chalk.red(`❌ Unknown learn command: ${subcommand}`));
         this.showHelp();
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -141,7 +142,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Failed to load learning status');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -197,7 +198,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Failed to enable learning');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -236,7 +237,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Failed to disable learning');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -286,7 +287,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Failed to load history');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -297,7 +298,7 @@ export class LearningCommand {
     if (!options.agent || !options.task) {
       console.error(chalk.red('❌ --agent and --task are required'));
       console.log(chalk.gray('Example: aqe learn train --agent test-gen --task \'{"type":"test-generation"}\''));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Training agent...').start();
@@ -306,11 +307,11 @@ export class LearningCommand {
       const memoryManager = new SwarmMemoryManager(this.memoryPath);
       await memoryManager.initialize();
 
-      const learningEngine = new LearningEngine(options.agent, memoryManager);
+      const learningEngine = new LearningEngine(options.agent || 'default', memoryManager);
       await learningEngine.initialize();
 
       // Parse task JSON
-      const task = JSON.parse(options.task);
+      const task = JSON.parse(options.task || '{}');
 
       // Mock result for training
       const result = {
@@ -332,7 +333,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Training failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -367,7 +368,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Reset failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -377,7 +378,7 @@ export class LearningCommand {
   private static async exportLearningData(options: LearnCommandOptions): Promise<void> {
     if (!options.output) {
       console.error(chalk.red('❌ --output is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Exporting learning data...').start();
@@ -398,7 +399,7 @@ export class LearningCommand {
         return;
       }
 
-      await fs.writeJson(options.output, learningState, { spaces: 2 });
+      await fs.writeJson(options.output!, learningState, { spaces: 2 });
 
       spinner.succeed(`Learning data exported to: ${options.output}`);
       console.log(chalk.green('\n✅ Export completed'));
@@ -407,7 +408,7 @@ export class LearningCommand {
     } catch (error: any) {
       spinner.fail('Export failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 

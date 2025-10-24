@@ -1,3 +1,5 @@
+import { SecureRandom } from '../../utils/SecureRandom.js';
+
 /**
  * Base Handler for Agentic QE MCP Tools
  * 
@@ -30,7 +32,7 @@ export abstract class BaseHandler {
    * Generate a unique request ID
    */
   protected generateRequestId(): string {
-    return `${Date.now()}-${++this.requestCounter}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${Date.now()}-${++this.requestCounter}-${SecureRandom.generateId(5)}`;
   }
 
   /**

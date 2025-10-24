@@ -14,6 +14,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentType,
   QEAgentType,
@@ -821,8 +822,8 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       const path = match[1];
 
       // Get stats for this file
-      const linesAdded = Math.floor(Math.random() * 50); // Simplified
-      const linesDeleted = Math.floor(Math.random() * 30);
+      const linesAdded = Math.floor(SecureRandom.randomFloat() * 50); // Simplified
+      const linesDeleted = Math.floor(SecureRandom.randomFloat() * 30);
 
       files.push({
         path,
@@ -886,7 +887,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
         from: nodes[i].id,
         to: nodes[i + 1].id,
         type: 'imports',
-        strength: Math.random()
+        strength: SecureRandom.randomFloat()
       });
     }
 
@@ -1053,7 +1054,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       .map(path => ({
         path,
         reason: 'ML model prediction',
-        failureProbability: 0.4 + Math.random() * 0.3,
+        failureProbability: 0.4 + SecureRandom.randomFloat() * 0.3,
         priority: 'MEDIUM' as const,
         runtime: '1m 30s'
       }));
@@ -1111,11 +1112,11 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
 
   private async calculateModuleRisk(file: string, _timeWindow: number): Promise<ModuleRisk> {
     const factors = {
-      changeFrequency: Math.floor(Math.random() * 50),
+      changeFrequency: Math.floor(SecureRandom.randomFloat() * 50),
       complexity: await this.calculateFileComplexity(file),
-      failureCount: Math.floor(Math.random() * 20),
+      failureCount: Math.floor(SecureRandom.randomFloat() * 20),
       criticality: await this.getFileCriticality(file),
-      coverage: 60 + Math.random() * 35
+      coverage: 60 + SecureRandom.randomFloat() * 35
     };
 
     const riskScore = (
@@ -1228,15 +1229,15 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
 
   private async calculateFileComplexity(_file: string): Promise<number> {
     // Simplified - in production, would analyze AST
-    return 5 + Math.random() * 15;
+    return 5 + SecureRandom.randomFloat() * 15;
   }
 
   private async getFileCriticality(file: string): Promise<number> {
     // Simplified - in production, would analyze business logic
-    if (file.includes('payment') || file.includes('auth')) return 0.9 + Math.random() * 0.1;
-    if (file.includes('order') || file.includes('checkout')) return 0.8 + Math.random() * 0.1;
-    if (file.includes('service')) return 0.6 + Math.random() * 0.2;
-    return 0.3 + Math.random() * 0.3;
+    if (file.includes('payment') || file.includes('auth')) return 0.9 + SecureRandom.randomFloat() * 0.1;
+    if (file.includes('order') || file.includes('checkout')) return 0.8 + SecureRandom.randomFloat() * 0.1;
+    if (file.includes('service')) return 0.6 + SecureRandom.randomFloat() * 0.2;
+    return 0.3 + SecureRandom.randomFloat() * 0.3;
   }
 
   private classifyFileType(file: string): 'service' | 'controller' | 'utility' | 'model' {
@@ -1424,8 +1425,8 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     // Mock implementation
     return Array.from({ length: 100 }, (_, i) => ({
       commit: `commit-${i}`,
-      passed: Math.random() > 0.3,
-      complexity: Math.random() * 20
+      passed: SecureRandom.randomFloat() > 0.3,
+      complexity: SecureRandom.randomFloat() * 20
     }));
   }
 

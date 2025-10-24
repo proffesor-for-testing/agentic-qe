@@ -7,6 +7,7 @@
  * @version 1.0.0
  */
 
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import chalk from 'chalk';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
 import { Logger } from '../../../utils/Logger.js';
@@ -376,7 +377,7 @@ async function createCancellationCheckpoint(
   finalState: any,
   options: CancelWorkflowOptions
 ): Promise<string> {
-  const checkpointId = `cancel-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+  const checkpointId = `cancel-${Date.now()}-${SecureRandom.generateId(6)}`;
 
   await memory.store(`workflow:checkpoint:${checkpointId}`, {
     checkpointId,

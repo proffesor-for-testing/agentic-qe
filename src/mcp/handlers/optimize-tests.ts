@@ -9,6 +9,7 @@
  */
 
 import { BaseHandler, HandlerResponse } from './base-handler.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
 
@@ -322,7 +323,7 @@ export class OptimizeTestsHandler extends BaseHandler {
   }
 
   private async optimizeTestSuite(args: OptimizeTestsArgs): Promise<TestOptimization> {
-    const optimizationId = `optimization-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const optimizationId = `optimization-${Date.now()}-${SecureRandom.generateId(3)}`;
 
     this.log('info', 'Performing test suite optimization', {
       optimizationId,
@@ -381,14 +382,14 @@ export class OptimizeTestsHandler extends BaseHandler {
     // Simulate test suite analysis
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    const size = testSuite?.size || Math.floor(Math.random() * 1000 + 100); // 100-1100 tests
+    const size = testSuite?.size || Math.floor(SecureRandom.randomFloat() * 1000 + 100); // 100-1100 tests
 
     return {
       totalTests: size,
-      executionTime: size * (Math.random() * 5 + 2), // 2-7 seconds per test
-      coverage: Math.random() * 20 + 75, // 75-95%
-      cost: size * (Math.random() * 0.5 + 0.1), // $0.10-$0.60 per test
-      reliability: Math.random() * 10 + 90, // 90-100%
+      executionTime: size * (SecureRandom.randomFloat() * 5 + 2), // 2-7 seconds per test
+      coverage: SecureRandom.randomFloat() * 20 + 75, // 75-95%
+      cost: size * (SecureRandom.randomFloat() * 0.5 + 0.1), // $0.10-$0.60 per test
+      reliability: SecureRandom.randomFloat() * 10 + 90, // 90-100%
       characteristics: this.analyzeTestCharacteristics(size)
     };
   }
@@ -396,17 +397,17 @@ export class OptimizeTestsHandler extends BaseHandler {
   private analyzeTestCharacteristics(size: number): TestCharacteristics {
     return {
       complexityDistribution: {
-        'low': Math.random() * 0.4 + 0.3, // 30-70%
-        'medium': Math.random() * 0.3 + 0.2, // 20-50%
-        'high': Math.random() * 0.2 + 0.05 // 5-25%
+        'low': SecureRandom.randomFloat() * 0.4 + 0.3, // 30-70%
+        'medium': SecureRandom.randomFloat() * 0.3 + 0.2, // 20-50%
+        'high': SecureRandom.randomFloat() * 0.2 + 0.05 // 5-25%
       },
       typeDistribution: {
-        'unit': Math.random() * 0.3 + 0.5, // 50-80%
-        'integration': Math.random() * 0.2 + 0.15, // 15-35%
-        'e2e': Math.random() * 0.1 + 0.05 // 5-15%
+        'unit': SecureRandom.randomFloat() * 0.3 + 0.5, // 50-80%
+        'integration': SecureRandom.randomFloat() * 0.2 + 0.15, // 15-35%
+        'e2e': SecureRandom.randomFloat() * 0.1 + 0.05 // 5-15%
       },
       dependencyGraph: this.generateDependencyGraph(size),
-      parallelizationPotential: Math.random() * 0.4 + 0.6 // 60-100%
+      parallelizationPotential: SecureRandom.randomFloat() * 0.4 + 0.6 // 60-100%
     };
   }
 
@@ -416,7 +417,7 @@ export class OptimizeTestsHandler extends BaseHandler {
 
     for (let i = 0; i < nodeCount; i++) {
       const dependencies: string[] = [];
-      const depCount = Math.floor(Math.random() * 3); // 0-2 dependencies
+      const depCount = Math.floor(SecureRandom.randomFloat() * 3); // 0-2 dependencies
 
       for (let j = 0; j < depCount && j < i; j++) {
         dependencies.push(`test-${j}`);
@@ -425,7 +426,7 @@ export class OptimizeTestsHandler extends BaseHandler {
       nodes.push({
         testId: `test-${i}`,
         dependencies,
-        weight: Math.random() * 10 + 1 // 1-11
+        weight: SecureRandom.randomFloat() * 10 + 1 // 1-11
       });
     }
 
@@ -489,20 +490,20 @@ export class OptimizeTestsHandler extends BaseHandler {
     // Calculate improvement for target metric
     switch (targetMetric) {
       case 'execution-time':
-        improvements['execution-time'] = Math.random() * 40 + 20; // 20-60% improvement
-        improvements['coverage'] = -(Math.random() * 5); // Slight coverage loss
+        improvements['execution-time'] = SecureRandom.randomFloat() * 40 + 20; // 20-60% improvement
+        improvements['coverage'] = -(SecureRandom.randomFloat() * 5); // Slight coverage loss
         break;
       case 'coverage':
-        improvements['coverage'] = Math.random() * 10 + 5; // 5-15% improvement
-        improvements['execution-time'] = Math.random() * 10 + 5; // Some time increase
+        improvements['coverage'] = SecureRandom.randomFloat() * 10 + 5; // 5-15% improvement
+        improvements['execution-time'] = SecureRandom.randomFloat() * 10 + 5; // Some time increase
         break;
       case 'cost':
-        improvements['cost'] = Math.random() * 30 + 15; // 15-45% cost reduction
-        improvements['execution-time'] = Math.random() * 20 + 10; // Time improvement
+        improvements['cost'] = SecureRandom.randomFloat() * 30 + 15; // 15-45% cost reduction
+        improvements['execution-time'] = SecureRandom.randomFloat() * 20 + 10; // Time improvement
         break;
       case 'reliability':
-        improvements['reliability'] = Math.random() * 5 + 2; // 2-7% improvement
-        improvements['execution-time'] = Math.random() * 15 + 5; // Time improvement
+        improvements['reliability'] = SecureRandom.randomFloat() * 5 + 2; // 2-7% improvement
+        improvements['execution-time'] = SecureRandom.randomFloat() * 15 + 5; // Time improvement
         break;
     }
 
@@ -515,16 +516,16 @@ export class OptimizeTestsHandler extends BaseHandler {
     improvements: Record<string, number>
   ): SelectedTest[] {
     const selectedTests: SelectedTest[] = [];
-    const selectionRatio = Math.random() * 0.3 + 0.6; // Select 60-90% of tests
+    const selectionRatio = SecureRandom.randomFloat() * 0.3 + 0.6; // Select 60-90% of tests
     const selectedCount = Math.floor(suite.totalTests * selectionRatio);
 
     for (let i = 0; i < selectedCount; i++) {
       selectedTests.push({
         testId: `test-${i}`,
-        priority: Math.random() * 100,
+        priority: SecureRandom.randomFloat() * 100,
         executionOrder: i,
         reason: this.getSelectionReason(optimization.targetMetric),
-        estimatedImpact: Math.random() * 10 + 1
+        estimatedImpact: SecureRandom.randomFloat() * 10 + 1
       });
     }
 
@@ -548,7 +549,7 @@ export class OptimizeTestsHandler extends BaseHandler {
     };
 
     const metricReasons = reasons[targetMetric] || ['Optimal selection'];
-    return metricReasons[Math.floor(Math.random() * metricReasons.length)];
+    return metricReasons[Math.floor(SecureRandom.randomFloat() * metricReasons.length)];
   }
 
   private createExecutionPlan(selectedTests: SelectedTest[], suite: TestSuiteMetrics): ExecutionPlan {
@@ -565,7 +566,7 @@ export class OptimizeTestsHandler extends BaseHandler {
         tests: phaseTests.map(t => t.testId),
         estimatedDuration: phaseTests.length * 3, // 3 seconds per test average
         dependencies: i > 0 ? [`phase-${i}`] : [],
-        parallelizable: Math.random() > 0.3 // 70% chance of being parallelizable
+        parallelizable: SecureRandom.randomFloat() > 0.3 // 70% chance of being parallelizable
       });
     }
 
@@ -610,8 +611,8 @@ export class OptimizeTestsHandler extends BaseHandler {
       complexity: algorithm.complexity,
       convergenceTime: executionTime,
       memoryUsage: suite.totalTests * 0.1, // MB
-      accuracy: Math.random() * 0.1 + 0.9, // 90-100%
-      stability: Math.random() * 0.05 + 0.95 // 95-100%
+      accuracy: SecureRandom.randomFloat() * 0.1 + 0.9, // 90-100%
+      stability: SecureRandom.randomFloat() * 0.05 + 0.95 // 95-100%
     };
   }
 
@@ -790,10 +791,10 @@ export class OptimizeTestsHandler extends BaseHandler {
     const optimizationRatio = (originalSuite.executionTime - optimizedSuite.executionTime) / originalSuite.executionTime;
 
     const performance: OptimizationPerformance = {
-      algorithmExecutionTime: Math.random() * 1000 + 100, // 100-1100ms
+      algorithmExecutionTime: SecureRandom.randomFloat() * 1000 + 100, // 100-1100ms
       memoryUsed: originalSuite.totalTests * 0.05, // MB
       optimizationRatio,
-      confidenceScore: Math.random() * 0.2 + 0.8 // 80-100%
+      confidenceScore: SecureRandom.randomFloat() * 0.2 + 0.8 // 80-100%
     };
 
     // Add temporal advantage for temporal-advantage algorithm

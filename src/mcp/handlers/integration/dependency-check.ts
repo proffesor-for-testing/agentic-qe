@@ -3,6 +3,7 @@
  * Checks service dependency health with real connection testing
  */
 
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import type {
   DependencyCheckParams,
   DependencyCheckResult,
@@ -79,7 +80,7 @@ async function checkServiceHealth(
     }),
     'flaky-service': async () => {
       // 50% chance of failure
-      const shouldFail = Math.random() > 0.5;
+      const shouldFail = SecureRandom.randomFloat() > 0.5;
       return {
         status: shouldFail ? 'unhealthy' : 'healthy',
         delay: 100,
@@ -91,7 +92,7 @@ async function checkServiceHealth(
   // Default behavior for unknown services
   const defaultBehavior = async () => ({
     status: 'healthy' as DependencyStatus,
-    delay: 50 + Math.random() * 50,
+    delay: 50 + SecureRandom.randomFloat() * 50,
     details: detailed ? {
       version: '1.0.0',
       uptime: 3600,

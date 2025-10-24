@@ -12,6 +12,7 @@ import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { TestGenerationSpec } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface TestGenerateArgs {
   spec: TestGenerationSpec;
@@ -221,7 +222,7 @@ export class TestGenerateHandler extends BaseHandler {
   }
 
   private async generateTestSuite(spec: TestGenerationSpec, agentId?: string): Promise<TestSuite> {
-    const suiteId = `test-suite-${spec.type}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const suiteId = `test-suite-${spec.type}-${Date.now()}-${SecureRandom.generateId(3)}`;
 
     // Analyze source code
     const analysisResults = await this.analyzeSourceCode(spec.sourceCode);
@@ -301,7 +302,7 @@ export class TestGenerateHandler extends BaseHandler {
   }
 
   private async generateTestCaseForFunction(spec: TestGenerationSpec, func: any, generator: any): Promise<TestCase> {
-    const testId = `test-${func.name}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const testId = `test-${func.name}-${Date.now()}-${SecureRandom.generateId(2)}`;
 
     return {
       id: testId,
@@ -334,7 +335,7 @@ export class TestGenerateHandler extends BaseHandler {
 
   private async calculateCoverage(tests: TestCase[], target: number, analysisResults: any): Promise<any> {
     // Simulate coverage calculation
-    const achieved = Math.min(target + Math.random() * 10, 95); // Simulate realistic coverage
+    const achieved = Math.min(target + SecureRandom.randomFloat() * 10, 95); // Simulate realistic coverage
 
     const gaps: CoverageGap[] = [];
     if (achieved < target) {

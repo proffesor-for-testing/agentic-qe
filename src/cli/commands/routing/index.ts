@@ -1,3 +1,4 @@
+import { ProcessExit } from '../../../utils/ProcessExit';
 /**
  * Routing CLI Commands
  *
@@ -72,7 +73,7 @@ export class RoutingCommand {
       default:
         console.error(chalk.red(`❌ Unknown routing command: ${subcommand}`));
         this.showHelp();
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -86,7 +87,7 @@ export class RoutingCommand {
       if (!await fs.pathExists(configPath)) {
         console.error(chalk.red(`❌ Routing config not found: ${configPath}`));
         console.log(chalk.yellow('\n💡 Run "aqe init" first to initialize the fleet'));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
 
       const config: RoutingConfig = await fs.readJson(configPath);
@@ -114,7 +115,7 @@ export class RoutingCommand {
 
     } catch (error: any) {
       console.error(chalk.red('❌ Failed to enable routing:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -127,7 +128,7 @@ export class RoutingCommand {
 
       if (!await fs.pathExists(configPath)) {
         console.error(chalk.red(`❌ Routing config not found: ${configPath}`));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
 
       const config: RoutingConfig = await fs.readJson(configPath);
@@ -147,7 +148,7 @@ export class RoutingCommand {
 
     } catch (error: any) {
       console.error(chalk.red('❌ Failed to disable routing:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -161,7 +162,7 @@ export class RoutingCommand {
       if (!await fs.pathExists(configPath)) {
         console.error(chalk.red(`❌ Routing config not found: ${configPath}`));
         console.log(chalk.yellow('\n💡 Run "aqe init" first to initialize the fleet'));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
 
       const config: RoutingConfig = await fs.readJson(configPath);
@@ -206,7 +207,7 @@ export class RoutingCommand {
 
     } catch (error: any) {
       console.error(chalk.red('❌ Failed to get status:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -273,7 +274,7 @@ export class RoutingCommand {
 
     } catch (error: any) {
       console.error(chalk.red('❌ Failed to show dashboard:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -339,7 +340,7 @@ export class RoutingCommand {
 
     } catch (error: any) {
       console.error(chalk.red('❌ Failed to generate report:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -385,7 +386,7 @@ export class RoutingCommand {
 
     } catch (error: any) {
       console.error(chalk.red('❌ Failed to show stats:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
