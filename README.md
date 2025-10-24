@@ -9,9 +9,9 @@
 
 **Version 1.3.0** - Security Hardening + Skills Expansion
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and 70-81% cost savings through intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and optional 70-81% cost savings through intelligent model routing (opt-in feature).
 
-🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings** | 🔒 **Production-Grade Security**
+🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **Production-Grade Security**
 
 [Quick Start](#quick-start) • [Documentation](docs/) • [Contributing](CONTRIBUTING.md) • [Examples](examples/)
 
@@ -209,8 +209,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 ### Core Features
 
 #### 🤖 Autonomous Agent Fleet
-- **17 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
-  - _Note: Init copies 18 agent files (17 QE + 1 general-purpose agent from Claude Code)_
+- **18 Specialized Agents**: Each agent is an expert in specific quality engineering domains
+  - _Note: 17 QE-specific agents + 1 general-purpose base-template-generator agent_
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
