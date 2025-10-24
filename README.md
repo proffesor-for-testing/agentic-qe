@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.0** - Security Hardening + Skills Expansion
+**Version 1.3.1** - Version Management Fix
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and 70-81% cost savings through intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and optional 70-81% cost savings through intelligent model routing (opt-in feature).
 
-🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings** | 🔒 **Production-Grade Security**
+🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **Production-Grade Security**
 
 [Quick Start](#quick-start) • [Documentation](docs/) • [Contributing](CONTRIBUTING.md) • [Examples](examples/)
 
@@ -19,7 +19,11 @@
 
 ---
 
-## 🎉 What's New in v1.3.0
+## 🎉 What's New in v1.3.1
+
+**Critical Bug Fix**: Fixed `aqe init` command that was using hardcoded versions (1.0.5, 1.1.0) instead of reading from `package.json`. All generated config files now correctly sync with the package version.
+
+### Previous Release (v1.3.0)
 
 ### Security Hardening + Skills Expansion (Oct 23-24, 2025)
 **2 days of intensive development** | **Security hardening + 17 new skills** | **11,500+ lines of expert content**
@@ -209,8 +213,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 ### Core Features
 
 #### 🤖 Autonomous Agent Fleet
-- **17 Specialized QE Agents**: Each agent is an expert in specific quality engineering domains
-  - _Note: Init copies 18 agent files (17 QE + 1 general-purpose agent from Claude Code)_
+- **18 Specialized Agents**: Each agent is an expert in specific quality engineering domains
+  - _Note: 17 QE-specific agents + 1 general-purpose base-template-generator agent_
 - **AQE Hooks System**: 100-500x faster coordination with zero external dependencies
 - **Intelligent Coordination**: Event-driven architecture with automatic task distribution
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure

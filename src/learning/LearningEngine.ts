@@ -8,6 +8,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/Logger';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+
+// Import version from package.json to maintain consistency
+const packageJson = require('../../package.json');
+const PACKAGE_VERSION = packageJson.version;
 import {
   LearningConfig,
   TaskExperience,
@@ -527,7 +531,7 @@ export class LearningEngine {
       patterns: this.getPatterns(),
       config: this.config,
       performance: await this.getCurrentPerformance(),
-      version: '1.0.0',
+      version: PACKAGE_VERSION,
       lastUpdated: new Date(),
       size: this.calculateStateSize()
     };
