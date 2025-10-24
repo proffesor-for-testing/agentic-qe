@@ -1,13 +1,15 @@
 /**
- * Mutation Testing Execution with REAL Mutations
- * Applies mutation operators to code and tests if tests detect the mutations
+ * Mutation Test Execution Handler
+ * Executes mutation testing to evaluate test suite effectiveness
  */
 
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import type {
   MutationTestExecuteParams,
   MutationTestExecuteResult,
+  MutationOperator,
   SurvivedMutant
-} from '../../types/advanced';
+} from '../../types/advanced.js';
 
 // Mutation operators
 const MUTATION_OPERATORS = {
@@ -209,8 +211,8 @@ function simulateTestExecution(
   // Higher test quality + higher detectability = more likely to kill mutant
   const killProbability = (testQuality * 0.6) + (mutationDetectability * 0.4);
 
-  const isKilled = Math.random() < killProbability;
-  const isTimedOut = mutant.mutatedCode.includes('while(true)') && Math.random() < 0.3;
+  const isKilled = SecureRandom.randomFloat() < killProbability;
+  const isTimedOut = mutant.mutatedCode.includes('while(true)') && SecureRandom.randomFloat() < 0.3;
 
   return {
     killed: isKilled,

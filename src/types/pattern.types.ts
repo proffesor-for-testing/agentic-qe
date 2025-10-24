@@ -218,18 +218,58 @@ export interface ParameterConstraints {
 }
 
 /**
- * Validation rule for templates
+ * Validation rule for templates (SECURE - No eval)
+ *
+ * Security: Uses ValidationConfig instead of code strings
+ * to prevent code injection vulnerabilities.
+ *
+ * @see SecureValidation in utils/SecureValidation.ts
  */
 export interface ValidationRule {
   /** Rule identifier */
   id: string;
   /** Rule description */
   description: string;
-  /** Validation function as string */
-  validator: string;
+  /** Validation type */
+  type: 'required' | 'type-check' | 'range' | 'pattern' | 'length' | 'enum' | 'custom';
+  /** Validation configuration (secure - no code execution) */
+  config: ValidationConfig;
   /** Severity level */
   severity: 'error' | 'warning' | 'info';
 }
+
+/**
+ * Secure validation configuration
+ */
+export interface ValidationConfig {
+  /** Required parameter names */
+  requiredParams?: string[];
+  /** Type checks: param name -> expected type */
+  typeChecks?: Record<string, ValidationType>;
+  /** Range checks for numbers */
+  rangeChecks?: Record<string, { min?: number; max?: number }>;
+  /** Pattern checks using RegExp */
+  patternChecks?: Record<string, RegExp>;
+  /** Length checks for strings/arrays */
+  lengthChecks?: Record<string, { min?: number; max?: number }>;
+  /** Enum checks: param name -> allowed values */
+  enumChecks?: Record<string, any[]>;
+  /** Custom validator ID (references predefined validators only) */
+  customValidatorId?: string;
+}
+
+/**
+ * Supported validation types
+ */
+export type ValidationType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'object'
+  | 'array'
+  | 'function'
+  | 'undefined'
+  | 'null';
 
 /**
  * Pattern extraction result

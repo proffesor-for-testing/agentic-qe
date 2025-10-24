@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 interface TraceOptions {
   timeline: boolean;
@@ -78,7 +79,7 @@ async function traceTest(testFile: string, options: TraceOptions): Promise<Trace
   ];
 
   for (const step of steps) {
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 200 + 50));
+    await new Promise(resolve => setTimeout(resolve, SecureRandom.randomFloat() * 200 + 50));
 
     traces.push({
       timestamp: Date.now() - startTime,

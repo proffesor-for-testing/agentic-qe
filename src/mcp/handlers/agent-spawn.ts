@@ -12,6 +12,7 @@ import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { AgentSpec } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface AgentSpawnArgs {
   spec: AgentSpec;
@@ -137,7 +138,7 @@ export class AgentSpawnHandler extends BaseHandler {
   }
 
   private async spawnAgent(spec: AgentSpec, fleetId?: string): Promise<AgentInstance> {
-    const agentId = `agent-${spec.type}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const agentId = `agent-${spec.type}-${Date.now()}-${SecureRandom.generateId(3)}`;
     const typeConfig = this.agentTypeConfigs.get(spec.type)!;
 
     // Merge capabilities

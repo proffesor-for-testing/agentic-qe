@@ -1,3 +1,4 @@
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -171,7 +172,7 @@ export class MonitorAlerts {
 
       if (triggered) {
         const alert: Alert = {
-          id: `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: `alert-${Date.now()}-${SecureRandom.generateId(9)}`,
           type: rule.metric,
           severity: rule.severity,
           message: `${rule.metric} is ${rule.condition} threshold ${rule.threshold} (current: ${value})`,

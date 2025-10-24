@@ -6,6 +6,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentType,
   AgentCapability,
@@ -500,10 +501,10 @@ export class TestExecutorAgent extends BaseAgent {
 
     // Simulate test discovery
     const discovered = {
-      unitTests: Math.floor(Math.random() * 50) + 10,
-      integrationTests: Math.floor(Math.random() * 20) + 5,
-      e2eTests: Math.floor(Math.random() * 15) + 3,
-      apiTests: Math.floor(Math.random() * 25) + 8
+      unitTests: Math.floor(SecureRandom.randomFloat() * 50) + 10,
+      integrationTests: Math.floor(SecureRandom.randomFloat() * 20) + 5,
+      e2eTests: Math.floor(SecureRandom.randomFloat() * 15) + 3,
+      apiTests: Math.floor(SecureRandom.randomFloat() * 25) + 8
     };
 
     const total = Object.values(discovered).reduce((sum, count) => sum + count, 0);
@@ -527,11 +528,11 @@ export class TestExecutorAgent extends BaseAgent {
 
     // Simulate test analysis
     const analysis = {
-      coverage: Math.floor(Math.random() * 30) + 70, // 70-100%
-      complexity: Math.floor(Math.random() * 10) + 1, // 1-10
-      maintainability: Math.floor(Math.random() * 20) + 80, // 80-100
-      duplicates: Math.floor(Math.random() * 5),
-      outdated: Math.floor(Math.random() * 8)
+      coverage: Math.floor(SecureRandom.randomFloat() * 30) + 70, // 70-100%
+      complexity: Math.floor(SecureRandom.randomFloat() * 10) + 1, // 1-10
+      maintainability: Math.floor(SecureRandom.randomFloat() * 20) + 80, // 80-100
+      duplicates: Math.floor(SecureRandom.randomFloat() * 5),
+      outdated: Math.floor(SecureRandom.randomFloat() * 8)
     };
 
     const recommendations = [];
@@ -606,7 +607,7 @@ export class TestExecutorAgent extends BaseAgent {
     }
 
     // Apply Johnson-Lindenstrauss random projection for optimization
-    solution.sort(() => Math.random() - 0.5);
+    solution.sort(() => SecureRandom.randomFloat() - 0.5);
 
     return solution.slice(0, Math.min(n, targetDim * 4));
   }
@@ -723,8 +724,8 @@ export class TestExecutorAgent extends BaseAgent {
       await new Promise(resolve => setTimeout(resolve, duration));
 
       // Simulate test result based on test characteristics
-      const success = Math.random() > 0.1; // 90% success rate
-      const assertions = test.assertions?.length || Math.floor(Math.random() * 10) + 1;
+      const success = SecureRandom.randomFloat() > 0.1; // 90% success rate
+      const assertions = test.assertions?.length || Math.floor(SecureRandom.randomFloat() * 10) + 1;
 
       return {
         id: test.id,
@@ -764,14 +765,14 @@ export class TestExecutorAgent extends BaseAgent {
     };
 
     const base = baseDuration[test.type as keyof typeof baseDuration] || 500;
-    return base + Math.floor(Math.random() * base * 0.5);
+    return base + Math.floor(SecureRandom.randomFloat() * base * 0.5);
   }
 
   private simulateCoverage() {
     return {
-      lines: Math.floor(Math.random() * 40) + 60,
-      branches: Math.floor(Math.random() * 35) + 55,
-      functions: Math.floor(Math.random() * 30) + 70
+      lines: Math.floor(SecureRandom.randomFloat() * 40) + 60,
+      branches: Math.floor(SecureRandom.randomFloat() * 35) + 55,
+      functions: Math.floor(SecureRandom.randomFloat() * 30) + 70
     };
   }
 

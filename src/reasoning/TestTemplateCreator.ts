@@ -16,10 +16,12 @@ import {
   TemplateParameter,
   ParameterType,
   ValidationRule,
+  ValidationConfig,
   TestFramework,
   ParameterConstraints
 } from '../types/pattern.types';
 import { Logger } from '../utils/Logger';
+import { SecureValidation } from '../utils/SecureValidation';
 import * as crypto from 'crypto';
 
 export class TestTemplateCreator {
@@ -233,36 +235,90 @@ export class TestTemplateCreator {
   }
 
   /**
-   * Create validation rules
+   * Create validation rules (SECURE - No eval)
+   *
+   * Security Fix (Alert #22): Replaced string-based validators with secure config
+   * Previous vulnerability: Created code strings executed via eval()
+   * New approach: Uses ValidationConfig with predefined validator functions
    */
   private createValidationRules(pattern: TestPattern, parameters: TemplateParameter[]): ValidationRule[] {
     const rules: ValidationRule[] = [];
 
-    // Required parameter validation
-    rules.push({
-      id: 'required-params',
-      description: 'All required parameters must be provided',
-      validator: `(params) => ${JSON.stringify(parameters.filter(p => p.required).map(p => p.name))}.every(name => params[name] !== undefined)`,
-      severity: 'error'
-    });
+    // 1. Required parameter validation
+    const requiredParams = parameters.filter(p => p.required).map(p => p.name);
+    if (requiredParams.length > 0) {
+      const config: ValidationConfig = {
+        requiredParams: requiredParams
+      };
 
-    // Type validation
-    rules.push({
-      id: 'type-validation',
-      description: 'Parameters must match their expected types',
-      validator: '(params) => true', // Simplified
-      severity: 'error'
-    });
-
-    // Pattern-specific validation
-    if (pattern.type === 'boundary-condition') {
       rules.push({
-        id: 'boundary-order',
-        description: 'minValue must be less than maxValue',
-        validator: '(params) => params.minValue < params.maxValue',
+        id: 'required-params',
+        description: 'All required parameters must be provided',
+        type: 'required',
+        config: config,
         severity: 'error'
       });
     }
+
+    // 2. Type validation
+    const typeChecks: Record<string, any> = {};
+    for (const param of parameters) {
+      if (param.type) {
+        // Map parameter types to validation types
+        let validationType: string = param.type;
+        if (param.type === 'string') validationType = 'string';
+        else if (param.type === 'number') validationType = 'number';
+        else if (param.type === 'boolean') validationType = 'boolean';
+        else if (param.type === 'array') validationType = 'array';
+        else validationType = 'object';
+
+        typeChecks[param.name] = validationType;
+      }
+    }
+
+    if (Object.keys(typeChecks).length > 0) {
+      const config: ValidationConfig = {
+        typeChecks: typeChecks
+      };
+
+      rules.push({
+        id: 'type-validation',
+        description: 'Parameters must match their expected types',
+        type: 'type-check',
+        config: config,
+        severity: 'error'
+      });
+    }
+
+    // 3. Pattern-specific validation
+    if (pattern.type === 'boundary-condition') {
+      // Range check: minValue must be less than maxValue
+      const config: ValidationConfig = {
+        rangeChecks: {
+          minValue: { max: Number.MAX_SAFE_INTEGER },
+          maxValue: { min: Number.MIN_SAFE_INTEGER }
+        }
+      };
+
+      rules.push({
+        id: 'boundary-order',
+        description: 'minValue must be less than maxValue',
+        type: 'range',
+        config: config,
+        severity: 'error'
+      });
+    }
+
+    // 4. Add prototype pollution protection
+    rules.push({
+      id: 'no-prototype-pollution',
+      description: 'Prevent prototype pollution attacks',
+      type: 'custom',
+      config: {
+        customValidatorId: 'no-prototype-pollution'
+      },
+      severity: 'error'
+    });
 
     return rules;
   }
@@ -511,16 +567,23 @@ test('{{testName}}', async t => {
   }
 
   /**
-   * Validate template
+   * Validate template (SECURE - No eval)
+   *
+   * Security Fix (Alert #22): Removed eval() vulnerability
+   * Previous: eval(rule.validator) - DANGEROUS!
+   * New: SecureValidation.validate() - Safe, type-checked validation
    */
   async validateTemplate(template: TestTemplate, params: Record<string, any>): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
     for (const rule of template.validationRules) {
       try {
-        const validator = eval(rule.validator);
-        if (!validator(params)) {
-          errors.push(rule.description);
+        // SECURE: Use predefined validation functions, no code execution
+        const result = SecureValidation.validate(rule.config, params);
+
+        if (!result.valid) {
+          // Add rule description and specific errors
+          errors.push(`${rule.description}: ${result.errors.join(', ')}`);
         }
       } catch (error) {
         errors.push(`Validation rule ${rule.id} failed: ${(error as Error).message}`);

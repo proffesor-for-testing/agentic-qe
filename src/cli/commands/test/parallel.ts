@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import os from 'os';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 interface ParallelOptions {
   workers: number;
@@ -53,12 +55,12 @@ export function createParallelCommand(): Command {
         console.log(chalk.gray(`Total time: ${duration}ms`));
 
         if (failed > 0) {
-          process.exit(1);
+          ProcessExit.exitIfNotTest(1);
         }
       } catch (error) {
         spinner.fail('Parallel execution failed');
         console.error(chalk.red(error instanceof Error ? error.message : String(error)));
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 
@@ -117,8 +119,8 @@ async function executeParallel(
       if (shouldStop && failFast) break;
 
       const start = Date.now();
-      const passed = Math.random() > 0.2; // 80% success rate
-      const duration = Math.floor(Math.random() * 500) + 100;
+      const passed = SecureRandom.randomFloat() > 0.2; // 80% success rate
+      const duration = Math.floor(SecureRandom.randomFloat() * 500) + 100;
 
       await new Promise(resolve => setTimeout(resolve, duration));
 

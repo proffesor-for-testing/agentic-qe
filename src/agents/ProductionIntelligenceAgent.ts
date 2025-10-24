@@ -9,6 +9,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentType as _AgentType,
   QEAgentType,
@@ -793,7 +794,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
       dailyPattern: {
         hourly: Array.from({ length: 24 }, (_, hour) => ({
           hour,
-          rps: hour >= 9 && hour <= 17 ? 2000 + Math.random() * 1000 : 500 + Math.random() * 200
+          rps: hour >= 9 && hour <= 17 ? 2000 + SecureRandom.randomFloat() * 1000 : 500 + SecureRandom.randomFloat() * 200
         })),
         peakHours: [9, 12, 14, 15, 18],
         lowTrafficHours: [0, 1, 2, 3, 4]
@@ -853,7 +854,7 @@ export default function() {
   const endpoints = ${JSON.stringify(pattern.endpointDistribution)};
 
   // Select endpoint based on distribution
-  const rand = Math.random();
+  const rand = SecureRandom.randomFloat();
   let endpoint = '/api/products';
 
   group('User Session', () => {
@@ -862,7 +863,7 @@ export default function() {
       'status 200': (r) => r.status === 200,
       'response time < 500ms': (r) => r.timings.duration < 500
     });
-    sleep(Math.random() * 3 + 1);
+    sleep(SecureRandom.randomFloat() * 3 + 1);
   });
 }
 `.trim();
@@ -973,7 +974,7 @@ export default function() {
         name: feature.name,
         usage: usagePercent,
         priority,
-        testCoverage: Math.floor(Math.random() * 30) + 60, // Simulated
+        testCoverage: Math.floor(SecureRandom.randomFloat() * 30) + 60, // Simulated
         recommendation
       };
     });
@@ -1223,11 +1224,11 @@ export default function() {
 
   private async fetchProductionMetric(_metric: string): Promise<number> {
     // Simulate fetching production metric
-    return Math.random() * 100;
+    return SecureRandom.randomFloat() * 100;
   }
 
   private async fetchStagingMetric(_metric: string): Promise<number> {
     // Simulate fetching staging metric
-    return Math.random() * 100;
+    return SecureRandom.randomFloat() * 100;
   }
 }

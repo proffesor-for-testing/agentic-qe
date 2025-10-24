@@ -11,6 +11,7 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { AgentRegistry } from '../../services/AgentRegistry.js';
 import { HookExecutor } from '../../services/HookExecutor.js';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface PredictDefectsAIArgs {
   codeChanges: {
@@ -227,12 +228,12 @@ export class PredictDefectsAIHandler extends BaseHandler {
       files: codeChanges.files || [],
       historicalWindow,
       extractedFeatures: {
-        cyclomaticComplexity: Math.random() * 20,
-        linesOfCode: Math.floor(Math.random() * 1000),
-        numberOfChanges: Math.floor(Math.random() * 50),
-        authorCount: Math.floor(Math.random() * 10) + 1,
-        testCoverage: Math.random() * 100,
-        bugHistory: Math.floor(Math.random() * 10)
+        cyclomaticComplexity: SecureRandom.randomFloat() * 20,
+        linesOfCode: Math.floor(SecureRandom.randomFloat() * 1000),
+        numberOfChanges: Math.floor(SecureRandom.randomFloat() * 50),
+        authorCount: Math.floor(SecureRandom.randomFloat() * 10) + 1,
+        testCoverage: SecureRandom.randomFloat() * 100,
+        bugHistory: Math.floor(SecureRandom.randomFloat() * 10)
       }
     };
   }
@@ -250,11 +251,11 @@ export class PredictDefectsAIHandler extends BaseHandler {
     // In production, this would use actual trained models
     const fileCount = features.files.length || 3;
     for (let i = 0; i < fileCount; i++) {
-      const probability = Math.random();
+      const probability = SecureRandom.randomFloat();
       if (probability > (1 - config.confidenceThreshold)) {
         predictions.push({
           file: features.files[i] || `file-${i}.ts`,
-          lineRange: { start: Math.floor(Math.random() * 100), end: Math.floor(Math.random() * 100) + 100 },
+          lineRange: { start: Math.floor(SecureRandom.randomFloat() * 100), end: Math.floor(SecureRandom.randomFloat() * 100) + 100 },
           function: `function${i}`,
           defectType: this.selectDefectType(probability),
           probability,
@@ -266,7 +267,7 @@ export class PredictDefectsAIHandler extends BaseHandler {
             complexity: features.extractedFeatures.cyclomaticComplexity,
             changeFrequency: features.extractedFeatures.numberOfChanges / 30,
             historicalDefects: features.extractedFeatures.bugHistory,
-            authorExperience: Math.random() * 5
+            authorExperience: SecureRandom.randomFloat() * 5
           }
         });
       }

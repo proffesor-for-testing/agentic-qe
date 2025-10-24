@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface Observation {
   id: string;
@@ -102,7 +103,7 @@ export class OODACoordination extends EventEmitter {
     }
 
     const obs: Observation = {
-      id: `obs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `obs-${Date.now()}-${SecureRandom.generateId(5)}`,
       ...observation,
       timestamp: Date.now()
     };

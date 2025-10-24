@@ -1,3 +1,5 @@
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+
 /**
  * Comprehensive Security Scanning
  * SAST, DAST, SCA, and CVE monitoring with risk assessment
@@ -153,14 +155,14 @@ async function runSASTScan(
   // Simulate SAST findings
   targets.forEach(target => {
     // SQL Injection
-    if (Math.random() > 0.7) {
+    if (SecureRandom.randomFloat() > 0.7) {
       vulnerabilities.push({
-        id: `SAST-${Date.now()}-${Math.random()}`,
+        id: `SAST-${Date.now()}-${SecureRandom.randomFloat()}`,
         type: 'sast',
         severity: 'high',
         title: 'SQL Injection Vulnerability',
         description: 'Unsanitized user input used in SQL query',
-        location: { file: target, line: Math.floor(Math.random() * 100) + 1 },
+        location: { file: target, line: Math.floor(SecureRandom.randomFloat() * 100) + 1 },
         cwe: 'CWE-89',
         cvssScore: 8.5,
         exploitability: 'high',
@@ -174,14 +176,14 @@ async function runSASTScan(
     }
 
     // XSS
-    if (Math.random() > 0.6) {
+    if (SecureRandom.randomFloat() > 0.6) {
       vulnerabilities.push({
-        id: `SAST-${Date.now()}-${Math.random()}`,
+        id: `SAST-${Date.now()}-${SecureRandom.randomFloat()}`,
         type: 'sast',
         severity: 'medium',
         title: 'Cross-Site Scripting (XSS)',
         description: 'Unescaped user input rendered in HTML',
-        location: { file: target, line: Math.floor(Math.random() * 100) + 1 },
+        location: { file: target, line: Math.floor(SecureRandom.randomFloat() * 100) + 1 },
         cwe: 'CWE-79',
         cvssScore: 6.5,
         exploitability: 'medium',
@@ -208,9 +210,9 @@ async function runDASTScan(
   // Simulate DAST findings
   targets.forEach(target => {
     // Missing Security Headers
-    if (Math.random() > 0.5) {
+    if (SecureRandom.randomFloat() > 0.5) {
       vulnerabilities.push({
-        id: `DAST-${Date.now()}-${Math.random()}`,
+        id: `DAST-${Date.now()}-${SecureRandom.randomFloat()}`,
         type: 'dast',
         severity: 'low',
         title: 'Missing Security Headers',
@@ -229,9 +231,9 @@ async function runDASTScan(
     }
 
     // Insecure Authentication
-    if (Math.random() > 0.8) {
+    if (SecureRandom.randomFloat() > 0.8) {
       vulnerabilities.push({
-        id: `DAST-${Date.now()}-${Math.random()}`,
+        id: `DAST-${Date.now()}-${SecureRandom.randomFloat()}`,
         type: 'dast',
         severity: 'critical',
         title: 'Weak Authentication Mechanism',
@@ -262,9 +264,9 @@ async function runSCAScan(
 
   // Simulate SCA findings
   targets.forEach(target => {
-    if (Math.random() > 0.6) {
+    if (SecureRandom.randomFloat() > 0.6) {
       vulnerabilities.push({
-        id: `SCA-${Date.now()}-${Math.random()}`,
+        id: `SCA-${Date.now()}-${SecureRandom.randomFloat()}`,
         type: 'sca',
         severity: 'high',
         title: 'Vulnerable Third-Party Library',
@@ -294,14 +296,14 @@ async function runSecretsDetection(
 
   // Simulate secrets detection
   targets.forEach(target => {
-    if (Math.random() > 0.9) {
+    if (SecureRandom.randomFloat() > 0.9) {
       vulnerabilities.push({
-        id: `SECRET-${Date.now()}-${Math.random()}`,
+        id: `SECRET-${Date.now()}-${SecureRandom.randomFloat()}`,
         type: 'secrets',
         severity: 'critical',
         title: 'Hardcoded Credentials Detected',
         description: 'API key or password found in source code',
-        location: { file: target, line: Math.floor(Math.random() * 100) + 1 },
+        location: { file: target, line: Math.floor(SecureRandom.randomFloat() * 100) + 1 },
         cwe: 'CWE-798',
         cvssScore: 9.5,
         exploitability: 'high',
@@ -326,9 +328,9 @@ async function runDependencyScan(
   const vulnerabilities: SecurityVulnerability[] = [];
 
   // Simulate dependency scan
-  if (Math.random() > 0.7) {
+  if (SecureRandom.randomFloat() > 0.7) {
     vulnerabilities.push({
-      id: `DEP-${Date.now()}-${Math.random()}`,
+      id: `DEP-${Date.now()}-${SecureRandom.randomFloat()}`,
       type: 'dependencies',
       severity: 'medium',
       title: 'Outdated Dependency with Security Patches',

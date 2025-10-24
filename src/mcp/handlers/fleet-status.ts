@@ -11,6 +11,7 @@
 import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface FleetStatusArgs {
   fleetId?: string;
@@ -160,7 +161,7 @@ export class FleetStatusHandler extends BaseHandler {
   }
 
   private generateHealthStatus(): HealthStatus {
-    const score = Math.random() * 30 + 70; // 70-100
+    const score = SecureRandom.randomFloat() * 30 + 70; // 70-100
     const issues = this.generateHealthIssues();
 
     let overall: HealthStatus['overall'];
@@ -172,7 +173,7 @@ export class FleetStatusHandler extends BaseHandler {
       overall,
       score: Math.round(score * 100) / 100,
       issues,
-      uptime: Math.random() * 30 + 95 // 95-125% (can be over 100 due to efficiency)
+      uptime: SecureRandom.randomFloat() * 30 + 95 // 95-125% (can be over 100 due to efficiency)
     };
   }
 
@@ -180,23 +181,23 @@ export class FleetStatusHandler extends BaseHandler {
     const issues: HealthIssue[] = [];
 
     // Randomly generate some issues
-    if (Math.random() < 0.3) {
+    if (SecureRandom.randomFloat() < 0.3) {
       issues.push({
         type: 'coordination-lag',
         severity: 'medium',
         description: 'Coordination messages experiencing increased latency',
         affectedComponents: ['coordination-channel-1'],
-        detectedAt: new Date(Date.now() - Math.random() * 3600000).toISOString()
+        detectedAt: new Date(Date.now() - SecureRandom.randomFloat() * 3600000).toISOString()
       });
     }
 
-    if (Math.random() < 0.1) {
+    if (SecureRandom.randomFloat() < 0.1) {
       issues.push({
         type: 'agent-failure',
         severity: 'high',
         description: 'Agent has stopped responding to health checks',
         affectedComponents: ['agent-test-executor-3'],
-        detectedAt: new Date(Date.now() - Math.random() * 1800000).toISOString()
+        detectedAt: new Date(Date.now() - SecureRandom.randomFloat() * 1800000).toISOString()
       });
     }
 
@@ -204,7 +205,7 @@ export class FleetStatusHandler extends BaseHandler {
   }
 
   private generateAgentSummaries(): AgentSummary[] {
-    const agentCount = Math.floor(Math.random() * 10) + 3; // 3-12 agents
+    const agentCount = Math.floor(SecureRandom.randomFloat() * 10) + 3; // 3-12 agents
     const agents: AgentSummary[] = [];
 
     const agentTypes = ['test-generator', 'coverage-analyzer', 'quality-gate', 'performance-tester', 'security-scanner'];
@@ -217,7 +218,7 @@ export class FleetStatusHandler extends BaseHandler {
         id: `agent-${agentType}-${i + 1}`,
         type: agentType,
         status,
-        health: Math.random() * 20 + 80, // 80-100
+        health: SecureRandom.randomFloat() * 20 + 80, // 80-100
         currentTask: status === 'busy' ? `task-${Date.now()}-${i}` : undefined,
         performance: this.generateAgentPerformance()
       });
@@ -230,7 +231,7 @@ export class FleetStatusHandler extends BaseHandler {
     const statuses: AgentSummary['status'][] = ['active', 'idle', 'busy', 'error'];
     const weights = [0.3, 0.4, 0.25, 0.05]; // Probability weights
 
-    const random = Math.random();
+    const random = SecureRandom.randomFloat();
     let cumulative = 0;
 
     for (let i = 0; i < statuses.length; i++) {
@@ -245,38 +246,38 @@ export class FleetStatusHandler extends BaseHandler {
 
   private generateAgentPerformance(): AgentPerformance {
     return {
-      tasksCompleted: Math.floor(Math.random() * 100) + 10, // 10-110
-      averageExecutionTime: Math.random() * 5000 + 500, // 500-5500ms
-      successRate: Math.random() * 10 + 90, // 90-100%
+      tasksCompleted: Math.floor(SecureRandom.randomFloat() * 100) + 10, // 10-110
+      averageExecutionTime: SecureRandom.randomFloat() * 5000 + 500, // 500-5500ms
+      successRate: SecureRandom.randomFloat() * 10 + 90, // 90-100%
       resourceUsage: {
-        cpu: Math.random() * 60 + 20, // 20-80%
-        memory: Math.random() * 50 + 30 // 30-80%
+        cpu: SecureRandom.randomFloat() * 60 + 20, // 20-80%
+        memory: SecureRandom.randomFloat() * 50 + 30 // 30-80%
       }
     };
   }
 
   private generateFleetMetrics(): FleetMetrics {
-    const totalTasks = Math.floor(Math.random() * 1000) + 100; // 100-1100
-    const completedTasks = Math.floor(totalTasks * (Math.random() * 0.2 + 0.75)); // 75-95% completion
-    const failedTasks = Math.floor((totalTasks - completedTasks) * Math.random() * 0.5); // Some failed
+    const totalTasks = Math.floor(SecureRandom.randomFloat() * 1000) + 100; // 100-1100
+    const completedTasks = Math.floor(totalTasks * (SecureRandom.randomFloat() * 0.2 + 0.75)); // 75-95% completion
+    const failedTasks = Math.floor((totalTasks - completedTasks) * SecureRandom.randomFloat() * 0.5); // Some failed
 
     return {
       totalTasks,
       completedTasks,
       failedTasks,
-      averageResponseTime: Math.random() * 200 + 50, // 50-250ms
-      throughput: Math.random() * 100 + 50, // 50-150 tasks/min
+      averageResponseTime: SecureRandom.randomFloat() * 200 + 50, // 50-250ms
+      throughput: SecureRandom.randomFloat() * 100 + 50, // 50-150 tasks/min
       resourceUtilization: {
-        cpu: Math.random() * 40 + 40, // 40-80%
-        memory: Math.random() * 30 + 50, // 50-80%
-        network: Math.random() * 25 + 15, // 15-40%
-        storage: Math.random() * 20 + 60 // 60-80%
+        cpu: SecureRandom.randomFloat() * 40 + 40, // 40-80%
+        memory: SecureRandom.randomFloat() * 30 + 50, // 50-80%
+        network: SecureRandom.randomFloat() * 25 + 15, // 15-40%
+        storage: SecureRandom.randomFloat() * 20 + 60 // 60-80%
       },
       performance: {
-        coordinationLatency: Math.random() * 50 + 10, // 10-60ms
-        taskDistributionTime: Math.random() * 100 + 20, // 20-120ms
-        agentSpawnTime: Math.random() * 300 + 200, // 200-500ms
-        errorRate: Math.random() * 5 + 1 // 1-6%
+        coordinationLatency: SecureRandom.randomFloat() * 50 + 10, // 10-60ms
+        taskDistributionTime: SecureRandom.randomFloat() * 100 + 20, // 20-120ms
+        agentSpawnTime: SecureRandom.randomFloat() * 300 + 200, // 200-500ms
+        errorRate: SecureRandom.randomFloat() * 5 + 1 // 1-6%
       }
     };
   }
@@ -314,9 +315,9 @@ export class FleetStatusHandler extends BaseHandler {
     return channels.map(channel => ({
       name: channel.name,
       type: channel.type,
-      status: Math.random() > 0.1 ? 'active' : Math.random() > 0.5 ? 'congested' : 'failed',
-      messageCount: Math.floor(Math.random() * 1000) + 100, // 100-1100
-      latency: Math.random() * 100 + 10 // 10-110ms
+      status: SecureRandom.randomFloat() > 0.1 ? 'active' : SecureRandom.randomFloat() > 0.5 ? 'congested' : 'failed',
+      messageCount: Math.floor(SecureRandom.randomFloat() * 1000) + 100, // 100-1100
+      latency: SecureRandom.randomFloat() * 100 + 10 // 10-110ms
     }));
   }
 

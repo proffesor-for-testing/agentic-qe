@@ -11,6 +11,7 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { AgentRegistry } from '../../services/AgentRegistry.js';
 import { HookExecutor } from '../../services/HookExecutor.js';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface RegressionRiskAnalyzeArgs {
   changeSet: {
@@ -316,7 +317,7 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
     });
 
     // Complexity factor (simulated)
-    const complexityScore = Math.random() * 10;
+    const complexityScore = SecureRandom.randomFloat() * 10;
     factors.push({
       category: 'complexity',
       name: 'Code Complexity',
@@ -340,7 +341,7 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
     });
 
     // Dependencies factor (simulated)
-    const dependencyScore = Math.random() * 10;
+    const dependencyScore = SecureRandom.randomFloat() * 10;
     factors.push({
       category: 'dependencies',
       name: 'Dependency Impact',
@@ -351,7 +352,7 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
     });
 
     // Historical defects factor (simulated)
-    const historyScore = Math.random() * 10;
+    const historyScore = SecureRandom.randomFloat() * 10;
     factors.push({
       category: 'history',
       name: 'Defect History',
@@ -369,8 +370,8 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
    */
   private analyzeImpactScope(file: any): FileRiskAnalysis['impactScope'] {
     return {
-      directDependents: Math.floor(Math.random() * 15),
-      indirectDependents: Math.floor(Math.random() * 50),
+      directDependents: Math.floor(SecureRandom.randomFloat() * 15),
+      indirectDependents: Math.floor(SecureRandom.randomFloat() * 50),
       publicAPI: file.path.includes('api') || file.path.includes('public'),
       sharedUtility: file.path.includes('util') || file.path.includes('common')
     };
@@ -381,10 +382,10 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
    */
   private getHistoricalData(file: any): FileRiskAnalysis['historicalData'] {
     return {
-      pastDefects: Math.floor(Math.random() * 10),
-      changeFrequency: Math.random() * 5,
-      lastModified: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-      contributors: Math.floor(Math.random() * 8) + 1
+      pastDefects: Math.floor(SecureRandom.randomFloat() * 10),
+      changeFrequency: SecureRandom.randomFloat() * 5,
+      lastModified: new Date(Date.now() - SecureRandom.randomFloat() * 90 * 24 * 60 * 60 * 1000).toISOString(),
+      contributors: Math.floor(SecureRandom.randomFloat() * 8) + 1
     };
   }
 

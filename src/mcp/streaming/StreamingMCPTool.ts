@@ -22,6 +22,7 @@ import {
   createResult,
   createError
 } from './types.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface StreamingToolContext {
   sessionId: string;
@@ -352,7 +353,7 @@ export abstract class StreamingMCPTool {
    * Generate unique session ID
    */
   private generateSessionId(): string {
-    return `stream-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `stream-${Date.now()}-${SecureRandom.generateId(9)}`;
   }
 
   /**

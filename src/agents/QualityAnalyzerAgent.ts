@@ -6,6 +6,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import { QETask, AgentCapability as _AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { EventEmitter } from 'events';
 
@@ -211,12 +212,12 @@ export class QualityAnalyzerAgent extends BaseAgent {
     await this.delay(2000);
 
     const metrics = {
-      linesOfCode: Math.floor(Math.random() * 5000) + 1000,
-      methods: Math.floor(Math.random() * 200) + 50,
-      classes: Math.floor(Math.random() * 50) + 10,
-      complexity: Math.floor(Math.random() * 15) + 1,
-      maintainability: Math.floor(Math.random() * 30) + 70,
-      coverage: Math.floor(Math.random() * 40) + 60
+      linesOfCode: Math.floor(SecureRandom.randomFloat() * 5000) + 1000,
+      methods: Math.floor(SecureRandom.randomFloat() * 200) + 50,
+      classes: Math.floor(SecureRandom.randomFloat() * 50) + 10,
+      complexity: Math.floor(SecureRandom.randomFloat() * 15) + 1,
+      maintainability: Math.floor(SecureRandom.randomFloat() * 30) + 70,
+      coverage: Math.floor(SecureRandom.randomFloat() * 40) + 60
     };
 
     const issues = this.generateIssues(metrics);
@@ -240,11 +241,11 @@ export class QualityAnalyzerAgent extends BaseAgent {
     await this.delay(1500);
 
     const complexity = {
-      cyclomatic: Math.floor(Math.random() * 20) + 1,
-      cognitive: Math.floor(Math.random() * 25) + 1,
+      cyclomatic: Math.floor(SecureRandom.randomFloat() * 20) + 1,
+      cognitive: Math.floor(SecureRandom.randomFloat() * 25) + 1,
       halstead: {
-        difficulty: Math.floor(Math.random() * 10) + 1,
-        effort: Math.floor(Math.random() * 1000) + 100
+        difficulty: Math.floor(SecureRandom.randomFloat() * 10) + 1,
+        effort: Math.floor(SecureRandom.randomFloat() * 1000) + 100
       }
     };
 
@@ -273,8 +274,8 @@ export class QualityAnalyzerAgent extends BaseAgent {
 
     await this.delay(1000);
 
-    const violations = Math.floor(Math.random() * 20);
-    const warnings = Math.floor(Math.random() * 10);
+    const violations = Math.floor(SecureRandom.randomFloat() * 20);
+    const warnings = Math.floor(SecureRandom.randomFloat() * 10);
 
     const issues = [];
 
@@ -282,7 +283,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
       issues.push({
         type: 'error',
         rule: this.getRandomRule(),
-        line: Math.floor(Math.random() * 100) + 1,
+        line: Math.floor(SecureRandom.randomFloat() * 100) + 1,
         message: 'Style violation detected'
       });
     }
@@ -291,7 +292,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
       issues.push({
         type: 'warning',
         rule: this.getRandomRule(),
-        line: Math.floor(Math.random() * 100) + 1,
+        line: Math.floor(SecureRandom.randomFloat() * 100) + 1,
         message: 'Style warning detected'
       });
     }
@@ -314,10 +315,10 @@ export class QualityAnalyzerAgent extends BaseAgent {
     await this.delay(3000);
 
     const vulnerabilities = {
-      critical: Math.floor(Math.random() * 3),
-      high: Math.floor(Math.random() * 5),
-      medium: Math.floor(Math.random() * 8),
-      low: Math.floor(Math.random() * 10)
+      critical: Math.floor(SecureRandom.randomFloat() * 3),
+      high: Math.floor(SecureRandom.randomFloat() * 5),
+      medium: Math.floor(SecureRandom.randomFloat() * 8),
+      low: Math.floor(SecureRandom.randomFloat() * 10)
     };
 
     const total = Object.values(vulnerabilities).reduce((sum, count) => sum + count, 0);
@@ -342,24 +343,24 @@ export class QualityAnalyzerAgent extends BaseAgent {
 
     const metrics = {
       quality: {
-        maintainability: Math.floor(Math.random() * 30) + 70,
-        reliability: Math.floor(Math.random() * 25) + 75,
-        security: Math.floor(Math.random() * 20) + 80
+        maintainability: Math.floor(SecureRandom.randomFloat() * 30) + 70,
+        reliability: Math.floor(SecureRandom.randomFloat() * 25) + 75,
+        security: Math.floor(SecureRandom.randomFloat() * 20) + 80
       },
       coverage: {
-        line: Math.floor(Math.random() * 40) + 60,
-        branch: Math.floor(Math.random() * 35) + 55,
-        function: Math.floor(Math.random() * 30) + 70
+        line: Math.floor(SecureRandom.randomFloat() * 40) + 60,
+        branch: Math.floor(SecureRandom.randomFloat() * 35) + 55,
+        function: Math.floor(SecureRandom.randomFloat() * 30) + 70
       },
       complexity: {
-        average: Math.floor(Math.random() * 8) + 2,
-        maximum: Math.floor(Math.random() * 15) + 5
+        average: Math.floor(SecureRandom.randomFloat() * 8) + 2,
+        maximum: Math.floor(SecureRandom.randomFloat() * 15) + 5
       },
       size: {
-        files: Math.floor(Math.random() * 100) + 50,
-        classes: Math.floor(Math.random() * 50) + 20,
-        methods: Math.floor(Math.random() * 200) + 100,
-        lines: Math.floor(Math.random() * 5000) + 2000
+        files: Math.floor(SecureRandom.randomFloat() * 100) + 50,
+        classes: Math.floor(SecureRandom.randomFloat() * 50) + 20,
+        methods: Math.floor(SecureRandom.randomFloat() * 200) + 100,
+        lines: Math.floor(SecureRandom.randomFloat() * 5000) + 2000
       }
     };
 
@@ -412,15 +413,15 @@ export class QualityAnalyzerAgent extends BaseAgent {
 
   private generateIssues(_metrics: any): any[] {
     const issues = [];
-    const issueCount = Math.floor(Math.random() * 10);
+    const issueCount = Math.floor(SecureRandom.randomFloat() * 10);
 
     for (let i = 0; i < issueCount; i++) {
       issues.push({
-        type: Math.random() > 0.7 ? 'error' : 'warning',
+        type: SecureRandom.randomFloat() > 0.7 ? 'error' : 'warning',
         category: this.getRandomCategory(),
         message: 'Code quality issue detected',
-        line: Math.floor(Math.random() * 100) + 1,
-        severity: Math.random() > 0.5 ? 'high' : 'medium'
+        line: Math.floor(SecureRandom.randomFloat() * 100) + 1,
+        severity: SecureRandom.randomFloat() > 0.5 ? 'high' : 'medium'
       });
     }
 
@@ -467,7 +468,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
       'max-len',
       'camelcase'
     ];
-    return rules[Math.floor(Math.random() * rules.length)];
+    return rules[Math.floor(SecureRandom.randomFloat() * rules.length)];
   }
 
   private getRandomCategory(): string {
@@ -478,7 +479,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
       'performance',
       'style'
     ];
-    return categories[Math.floor(Math.random() * categories.length)];
+    return categories[Math.floor(SecureRandom.randomFloat() * categories.length)];
   }
 
   private getGrade(score: number): string {

@@ -5,6 +5,7 @@
 
 import { Database } from '../../../utils/Database';
 import { Logger } from '../../../utils/Logger';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface MutateOptions {
   sourceCode: string;
@@ -154,7 +155,7 @@ async function testMutants(mutants: Mutant[], testSuite: string): Promise<Mutant
   // In a real implementation, this would actually run tests against each mutant
   return mutants.map(mutant => {
     // Simulate 70% kill rate
-    const killed = Math.random() > 0.3;
+    const killed = SecureRandom.randomFloat() > 0.3;
 
     return {
       ...mutant,

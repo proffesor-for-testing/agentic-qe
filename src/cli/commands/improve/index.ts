@@ -12,6 +12,7 @@ import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
 import { ImprovementLoop } from '../../../learning/ImprovementLoop';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface ImproveCommandOptions {
   agent?: string;
@@ -62,7 +63,7 @@ export class ImproveCommand {
       default:
         console.error(chalk.red(`❌ Unknown improve command: ${subcommand}`));
         this.showHelp();
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -150,7 +151,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to load status');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -202,7 +203,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to start loop');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -234,7 +235,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to stop loop');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -285,7 +286,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to load history');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -295,7 +296,7 @@ export class ImproveCommand {
   private static async runABTest(options: ImproveCommandOptions): Promise<void> {
     if (!options.strategyA || !options.strategyB) {
       console.error(chalk.red('❌ --strategy-a and --strategy-b are required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Creating A/B test...').start();
@@ -323,8 +324,8 @@ export class ImproveCommand {
       const testId = await improvementLoop.createABTest(
         `${options.strategyA} vs ${options.strategyB}`,
         [
-          { name: options.strategyA, config: {} },
-          { name: options.strategyB, config: {} }
+          { name: options.strategyA!, config: {} },
+          { name: options.strategyB!, config: {} }
         ],
         100
       );
@@ -342,7 +343,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to create A/B test');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -390,7 +391,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to analyze failures');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -400,7 +401,7 @@ export class ImproveCommand {
   private static async applyRecommendation(recommendationId: string, options: ImproveCommandOptions): Promise<void> {
     if (!recommendationId) {
       console.error(chalk.red('❌ Recommendation ID is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     if (options.dryRun) {
@@ -423,7 +424,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to apply recommendation');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -488,7 +489,7 @@ export class ImproveCommand {
     } catch (error: any) {
       spinner.fail('Failed to generate report');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 

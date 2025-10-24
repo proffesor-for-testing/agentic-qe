@@ -12,6 +12,7 @@ import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { DefectPredictionScope } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface PredictDefectsArgs {
   scope: DefectPredictionScope;
@@ -292,7 +293,7 @@ export class PredictDefectsHandler extends BaseHandler {
   }
 
   private async predictDefects(scope: DefectPredictionScope, codeChanges?: any): Promise<DefectPrediction> {
-    const predictionId = `defect-prediction-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const predictionId = `defect-prediction-${Date.now()}-${SecureRandom.generateId(6)}`;
 
     this.log('info', 'Performing defect prediction', {
       predictionId,
@@ -357,7 +358,7 @@ export class PredictDefectsHandler extends BaseHandler {
 
   private async extractFeatureGroup(extractorName: string, extractor: any, codeChanges?: any): Promise<any> {
     // Simulate feature extraction based on type
-    await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+    await new Promise(resolve => setTimeout(resolve, 50 + SecureRandom.randomFloat() * 100));
 
     switch (extractorName) {
       case 'complexity':
@@ -377,64 +378,64 @@ export class PredictDefectsHandler extends BaseHandler {
 
   private extractComplexityFeatures(codeChanges?: any): any {
     return {
-      cyclomaticComplexity: Math.random() * 20 + 5, // 5-25
-      cognitiveComplexity: Math.random() * 30 + 10, // 10-40
-      nestingDepth: Math.floor(Math.random() * 8 + 1), // 1-8
-      functionLength: Math.floor(Math.random() * 200 + 10), // 10-210 lines
-      parameterCount: Math.floor(Math.random() * 10 + 1), // 1-10
-      returnPoints: Math.floor(Math.random() * 5 + 1) // 1-5
+      cyclomaticComplexity: SecureRandom.randomFloat() * 20 + 5, // 5-25
+      cognitiveComplexity: SecureRandom.randomFloat() * 30 + 10, // 10-40
+      nestingDepth: Math.floor(SecureRandom.randomFloat() * 8 + 1), // 1-8
+      functionLength: Math.floor(SecureRandom.randomFloat() * 200 + 10), // 10-210 lines
+      parameterCount: Math.floor(SecureRandom.randomFloat() * 10 + 1), // 1-10
+      returnPoints: Math.floor(SecureRandom.randomFloat() * 5 + 1) // 1-5
     };
   }
 
   private extractChangeHistoryFeatures(codeChanges?: any): any {
     return {
-      changeFrequency: Math.random() * 10 + 1, // 1-11 changes per month
-      linesAdded: Math.floor(Math.random() * 500 + 10), // 10-510
-      linesDeleted: Math.floor(Math.random() * 200 + 5), // 5-205
-      filesChanged: Math.floor(Math.random() * 20 + 1), // 1-20
-      commitSize: Math.floor(Math.random() * 1000 + 50), // 50-1050 lines
-      timesSinceLastChange: Math.floor(Math.random() * 30 + 1) // 1-30 days
+      changeFrequency: SecureRandom.randomFloat() * 10 + 1, // 1-11 changes per month
+      linesAdded: Math.floor(SecureRandom.randomFloat() * 500 + 10), // 10-510
+      linesDeleted: Math.floor(SecureRandom.randomFloat() * 200 + 5), // 5-205
+      filesChanged: Math.floor(SecureRandom.randomFloat() * 20 + 1), // 1-20
+      commitSize: Math.floor(SecureRandom.randomFloat() * 1000 + 50), // 50-1050 lines
+      timesSinceLastChange: Math.floor(SecureRandom.randomFloat() * 30 + 1) // 1-30 days
     };
   }
 
   private extractAuthorPatternFeatures(codeChanges?: any): any {
     return {
-      authorExperience: Math.random() * 5 + 0.5, // 0.5-5.5 years
-      defectRate: Math.random() * 0.1 + 0.01, // 1-11% defect rate
-      codeQualityScore: Math.random() * 30 + 70, // 70-100
-      reviewFeedbackScore: Math.random() * 20 + 75, // 75-95
-      productivityScore: Math.random() * 25 + 70, // 70-95
-      domainKnowledge: Math.random() * 40 + 60 // 60-100
+      authorExperience: SecureRandom.randomFloat() * 5 + 0.5, // 0.5-5.5 years
+      defectRate: SecureRandom.randomFloat() * 0.1 + 0.01, // 1-11% defect rate
+      codeQualityScore: SecureRandom.randomFloat() * 30 + 70, // 70-100
+      reviewFeedbackScore: SecureRandom.randomFloat() * 20 + 75, // 75-95
+      productivityScore: SecureRandom.randomFloat() * 25 + 70, // 70-95
+      domainKnowledge: SecureRandom.randomFloat() * 40 + 60 // 60-100
     };
   }
 
   private extractCodeQualityFeatures(codeChanges?: any): any {
     return {
-      duplicationPercentage: Math.random() * 15 + 2, // 2-17%
-      testCoverage: Math.random() * 30 + 65, // 65-95%
-      technicalDebtRatio: Math.random() * 0.4 + 0.1, // 10-50%
-      documentationCoverage: Math.random() * 40 + 50, // 50-90%
-      codeSmells: Math.floor(Math.random() * 20 + 2), // 2-22
-      securityIssues: Math.floor(Math.random() * 5) // 0-4
+      duplicationPercentage: SecureRandom.randomFloat() * 15 + 2, // 2-17%
+      testCoverage: SecureRandom.randomFloat() * 30 + 65, // 65-95%
+      technicalDebtRatio: SecureRandom.randomFloat() * 0.4 + 0.1, // 10-50%
+      documentationCoverage: SecureRandom.randomFloat() * 40 + 50, // 50-90%
+      codeSmells: Math.floor(SecureRandom.randomFloat() * 20 + 2), // 2-22
+      securityIssues: Math.floor(SecureRandom.randomFloat() * 5) // 0-4
     };
   }
 
   private extractStructuralFeatures(codeChanges?: any): any {
     return {
-      couplingBetweenObjects: Math.random() * 20 + 5, // 5-25
-      lackOfCohesion: Math.random() * 0.8 + 0.1, // 0.1-0.9
-      inheritanceDepth: Math.floor(Math.random() * 8 + 1), // 1-8
-      numberOfDependencies: Math.floor(Math.random() * 50 + 5), // 5-55
-      fanIn: Math.floor(Math.random() * 15 + 1), // 1-15
-      fanOut: Math.floor(Math.random() * 10 + 1) // 1-10
+      couplingBetweenObjects: SecureRandom.randomFloat() * 20 + 5, // 5-25
+      lackOfCohesion: SecureRandom.randomFloat() * 0.8 + 0.1, // 0.1-0.9
+      inheritanceDepth: Math.floor(SecureRandom.randomFloat() * 8 + 1), // 1-8
+      numberOfDependencies: Math.floor(SecureRandom.randomFloat() * 50 + 5), // 5-55
+      fanIn: Math.floor(SecureRandom.randomFloat() * 15 + 1), // 1-15
+      fanOut: Math.floor(SecureRandom.randomFloat() * 10 + 1) // 1-10
     };
   }
 
   private generateMockFeatures(extractorName: string): any {
     return {
-      feature1: Math.random(),
-      feature2: Math.random() * 100,
-      feature3: Math.floor(Math.random() * 10)
+      feature1: SecureRandom.randomFloat(),
+      feature2: SecureRandom.randomFloat() * 100,
+      feature3: Math.floor(SecureRandom.randomFloat() * 10)
     };
   }
 
@@ -544,7 +545,7 @@ export class PredictDefectsHandler extends BaseHandler {
     confidence *= extremenessAdjustment;
 
     // Add some variance
-    confidence += (Math.random() - 0.5) * 0.1;
+    confidence += (SecureRandom.randomFloat() - 0.5) * 0.1;
 
     return Math.max(0.1, Math.min(1, confidence));
   }
@@ -622,7 +623,7 @@ export class PredictDefectsHandler extends BaseHandler {
             analyzedFeatures.push({
               name: `${featureGroup}.${featureName}`,
               value,
-              importance: extractor.weight * Math.random(), // Simulate importance
+              importance: extractor.weight * SecureRandom.randomFloat(), // Simulate importance
               interpretation: this.interpretFeature(featureName, value)
             });
           }
@@ -635,11 +636,11 @@ export class PredictDefectsHandler extends BaseHandler {
 
   private getHistoricalContext(target: string): HistoricalContext {
     return {
-      similarDefects: Math.floor(Math.random() * 10 + 1), // 1-10
-      lastDefectDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      defectPattern: ['regression', 'new-feature', 'refactoring', 'hotfix'][Math.floor(Math.random() * 4)],
-      changeFrequency: Math.random() * 5 + 1, // 1-6 changes per month
-      authorExperience: Math.random() * 5 + 0.5 // 0.5-5.5 years
+      similarDefects: Math.floor(SecureRandom.randomFloat() * 10 + 1), // 1-10
+      lastDefectDate: new Date(Date.now() - SecureRandom.randomFloat() * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      defectPattern: ['regression', 'new-feature', 'refactoring', 'hotfix'][Math.floor(SecureRandom.randomFloat() * 4)],
+      changeFrequency: SecureRandom.randomFloat() * 5 + 1, // 1-6 changes per month
+      authorExperience: SecureRandom.randomFloat() * 5 + 0.5 // 0.5-5.5 years
     };
   }
 
@@ -668,7 +669,7 @@ export class PredictDefectsHandler extends BaseHandler {
         features: 45,
         timespan: '12 months'
       },
-      lastTraining: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+      lastTraining: new Date(Date.now() - SecureRandom.randomFloat() * 30 * 24 * 60 * 60 * 1000).toISOString(),
       modelVersion: '2.1.0'
     };
   }
@@ -696,7 +697,7 @@ export class PredictDefectsHandler extends BaseHandler {
 
   private createPreventionRecommendation(prediction: DefectPredictionResult, defectType: PredictedDefectType): DefectPreventionRecommendation {
     return {
-      id: `prevention-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `prevention-${Date.now()}-${SecureRandom.generateId(2)}`,
       category: defectType.type,
       priority: prediction.severity === 'critical' ? 'critical' : prediction.severity === 'high' ? 'high' : 'medium',
       title: `Prevent ${defectType.type} in ${prediction.target}`,
@@ -707,7 +708,7 @@ export class PredictDefectsHandler extends BaseHandler {
         automated: this.isActionAutomated(prev),
         tools: this.getRecommendedTools(prev)
       })),
-      estimatedEffectiveness: Math.random() * 0.4 + 0.6, // 60-100%
+      estimatedEffectiveness: SecureRandom.randomFloat() * 0.4 + 0.6, // 60-100%
       implementationCost: this.estimateImplementationCost(defectType.type),
       timeToImplement: this.estimateTimeToImplement(defectType.type)
     };

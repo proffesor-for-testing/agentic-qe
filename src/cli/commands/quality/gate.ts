@@ -8,6 +8,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 const execAsync = promisify(exec);
 
@@ -95,32 +97,32 @@ export class QualityGateExecutor {
 
   private async getComplexity(): Promise<number> {
     // Placeholder - integrate with complexity analysis tools
-    return Math.random() * 15;
+    return SecureRandom.randomFloat() * 15;
   }
 
   private async getMaintainability(): Promise<number> {
     // Placeholder - integrate with maintainability index tools
-    return 60 + Math.random() * 30;
+    return 60 + SecureRandom.randomFloat() * 30;
   }
 
   private async getDuplications(): Promise<number> {
     // Placeholder - integrate with duplication detection
-    return Math.random() * 5;
+    return SecureRandom.randomFloat() * 5;
   }
 
   private async getSecurityHotspots(): Promise<number> {
     // Placeholder - integrate with security scanners
-    return Math.floor(Math.random() * 3);
+    return Math.floor(SecureRandom.randomFloat() * 3);
   }
 
   private async getBugs(): Promise<number> {
     // Placeholder - integrate with static analysis
-    return Math.floor(Math.random() * 2);
+    return Math.floor(SecureRandom.randomFloat() * 2);
   }
 
   private async getVulnerabilities(): Promise<number> {
     // Placeholder - integrate with vulnerability scanners
-    return Math.floor(Math.random() * 2);
+    return Math.floor(SecureRandom.randomFloat() * 2);
   }
 
   private checkThresholds(metrics: QualityGateResult['metrics']): string[] {
@@ -252,11 +254,11 @@ export function createQualityGateCommand(): Command {
           executor.displayResults(result);
         }
 
-        process.exit(result.passed ? 0 : 1);
+        ProcessExit.exitIfNotTest(result.passed ? 0 : 1);
       } catch (error) {
         spinner.fail('Quality gate execution failed');
         console.error(chalk.red('Error:'), error);
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 

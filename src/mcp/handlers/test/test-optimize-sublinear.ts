@@ -12,6 +12,7 @@
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface TestOptimizeSublinearArgs {
   testSuite: {
@@ -162,8 +163,8 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     // Simulate temporal advantage prediction
     const predictions = tests.map((test: any, index: number) => ({
       testId: test.id || `test-${index}`,
-      failureProbability: Math.random(),
-      temporalLeadMs: Math.round(Math.random() * 1000)
+      failureProbability: SecureRandom.randomFloat(),
+      temporalLeadMs: Math.round(SecureRandom.randomFloat() * 1000)
     }));
 
     // Calculate total temporal advantage

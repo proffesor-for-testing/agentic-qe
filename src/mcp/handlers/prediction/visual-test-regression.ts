@@ -11,6 +11,7 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { AgentRegistry } from '../../services/AgentRegistry.js';
 import { HookExecutor } from '../../services/HookExecutor.js';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface VisualTestRegressionArgs {
   testConfig: {
@@ -239,7 +240,7 @@ export class VisualTestRegressionHandler extends BaseHandler {
   ): Promise<VisualComparison> {
     // Simulate image comparison
     // In production, this would use actual image diffing libraries like pixelmatch
-    const diffPercentage = Math.random() * 0.15; // 0-15% difference
+    const diffPercentage = SecureRandom.randomFloat() * 0.15; // 0-15% difference
     const pixelDiffCount = Math.floor(diffPercentage * viewport.width * viewport.height);
 
     let status: 'pass' | 'fail' | 'warning' = 'pass';
@@ -255,16 +256,16 @@ export class VisualTestRegressionHandler extends BaseHandler {
     // Find affected areas (simulate)
     const affectedAreas = diffPercentage > threshold ? [
       {
-        x: Math.floor(Math.random() * viewport.width / 2),
-        y: Math.floor(Math.random() * viewport.height / 2),
-        width: Math.floor(Math.random() * 200) + 50,
-        height: Math.floor(Math.random() * 200) + 50,
+        x: Math.floor(SecureRandom.randomFloat() * viewport.width / 2),
+        y: Math.floor(SecureRandom.randomFloat() * viewport.height / 2),
+        width: Math.floor(SecureRandom.randomFloat() * 200) + 50,
+        height: Math.floor(SecureRandom.randomFloat() * 200) + 50,
         severity: status === 'fail' ? 'high' : 'medium'
       }
     ] : [];
 
     return {
-      id: `comp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `comp-${Date.now()}-${SecureRandom.generateId(5)}`,
       baseline,
       comparison,
       viewport: { width: viewport.width, height: viewport.height },

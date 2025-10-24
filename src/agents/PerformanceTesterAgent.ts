@@ -9,6 +9,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentType as _AgentType,
   QEAgentType,
@@ -512,7 +513,7 @@ export default function() {
   errorRate.add(response.status >= 400);
   latency.add(response.timings.duration);
 
-  sleep(Math.random() * 2 + 1);
+  sleep(SecureRandom.randomFloat() * 2 + 1);
 }
 
 function selectEndpoint(endpoints) {
@@ -520,7 +521,7 @@ function selectEndpoint(endpoints) {
     return { path: '/', method: 'GET', percentage: 100 };
   }
 
-  const rand = Math.random() * 100;
+  const rand = SecureRandom.randomFloat() * 100;
   let cumulative = 0;
 
   for (const endpoint of endpoints) {
@@ -660,7 +661,7 @@ class LoadTestSimulation extends Simulation {
         successful: config.loadProfile.virtualUsers * Math.floor(config.loadProfile.duration / 2) * 0.98,
         failed: config.loadProfile.virtualUsers * Math.floor(config.loadProfile.duration / 2) * 0.02
       },
-      latencies: Array.from({ length: 1000 }, () => Math.random() * 1000),
+      latencies: Array.from({ length: 1000 }, () => SecureRandom.randomFloat() * 1000),
       throughput: config.loadProfile.virtualUsers * 2
     };
   }
@@ -670,17 +671,17 @@ class LoadTestSimulation extends Simulation {
     // In real implementation, query monitoring platform
     return {
       cpu: {
-        samples: Array.from({ length: 100 }, () => 60 + Math.random() * 30),
+        samples: Array.from({ length: 100 }, () => 60 + SecureRandom.randomFloat() * 30),
         average: 75,
         peak: 92
       },
       memory: {
-        samples: Array.from({ length: 100 }, () => 4 + Math.random() * 2),
+        samples: Array.from({ length: 100 }, () => 4 + SecureRandom.randomFloat() * 2),
         average: 5.2,
         peak: 6.8
       },
       network: {
-        samples: Array.from({ length: 100 }, () => 100 + Math.random() * 50),
+        samples: Array.from({ length: 100 }, () => 100 + SecureRandom.randomFloat() * 50),
         average: 125,
         peak: 180
       }

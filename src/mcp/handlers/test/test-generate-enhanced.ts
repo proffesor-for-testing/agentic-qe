@@ -12,6 +12,7 @@
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface TestGenerateEnhancedArgs {
   sourceCode: string;
@@ -211,7 +212,7 @@ export class TestGenerateEnhancedHandler extends BaseHandler {
   }
 
   private async predictCoverage(tests: any[], goal: number): Promise<any> {
-    const predicted = Math.min(85 + Math.random() * 10, goal);
+    const predicted = Math.min(85 + SecureRandom.randomFloat() * 10, goal);
     return {
       predicted: Math.round(predicted),
       confidence: 0.90,

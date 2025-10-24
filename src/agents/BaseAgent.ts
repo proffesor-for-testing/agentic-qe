@@ -5,6 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentId,
   QEAgentType as AgentType,
@@ -432,7 +433,7 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public async assignTask(task: QETask): Promise<void> {
     const assignment: TaskAssignment = {
-      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `task-${Date.now()}-${SecureRandom.generateId(5)}`,
       task,
       agentId: this.agentId.id,
       assignedAt: new Date(),
@@ -1059,15 +1060,15 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   private generateAgentId(type: AgentType): string {
-    return `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `${type}-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
   private generateEventId(): string {
-    return `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `event-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
   private generateMessageId(): string {
-    return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `msg-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
   /**

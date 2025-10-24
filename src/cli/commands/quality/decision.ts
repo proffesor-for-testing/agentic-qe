@@ -8,6 +8,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 const execAsync = promisify(exec);
 
@@ -111,23 +113,23 @@ export class QualityDecisionMaker {
   }
 
   private async getTestSuccessRate(): Promise<number> {
-    return 95 + Math.random() * 5;
+    return 95 + SecureRandom.randomFloat() * 5;
   }
 
   private async getAverageComplexity(): Promise<number> {
-    return 5 + Math.random() * 10;
+    return 5 + SecureRandom.randomFloat() * 10;
   }
 
   private async getSecurityScore(): Promise<number> {
-    return Math.floor(Math.random() * 3);
+    return Math.floor(SecureRandom.randomFloat() * 3);
   }
 
   private async getPerformanceScore(): Promise<number> {
-    return 85 + Math.random() * 15;
+    return 85 + SecureRandom.randomFloat() * 15;
   }
 
   private async getCriticalBugs(): Promise<number> {
-    return Math.floor(Math.random() * 2);
+    return Math.floor(SecureRandom.randomFloat() * 2);
   }
 
   private evaluateFactors(factors: DecisionFactors): DecisionResult['factors'] {
@@ -433,11 +435,11 @@ export function createQualityDecisionCommand(): Command {
           decisionMaker.displayResults(result);
         }
 
-        process.exit(result.decision === 'no-go' ? 1 : 0);
+        ProcessExit.exitIfNotTest(result.decision === 'no-go' ? 1 : 0);
       } catch (error) {
         spinner.fail('Decision analysis failed');
         console.error(chalk.red('Error:'), error);
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 

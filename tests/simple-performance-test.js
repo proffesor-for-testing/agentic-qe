@@ -542,7 +542,8 @@ async function main() {
       const metricsData = JSON.stringify(tester.results, null, 2);
       const storeMetricsCmd = `npx claude-flow@alpha memory store --namespace "aqe-analysis" --key "performance-metrics" --value '${metricsData.replace(/'/g, "\\'")}' --ttl 7200000`;
 
-      const reportData = report.replace(/'/g, "\\'");
+      // SECURITY FIX: Properly escape backslashes first, then single quotes
+      const reportData = report.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const storeReportCmd = `npx claude-flow@alpha memory store --namespace "aqe-analysis" --key "performance-report" --value '${reportData}' --ttl 7200000`;
 
       const bottlenecksData = JSON.stringify({

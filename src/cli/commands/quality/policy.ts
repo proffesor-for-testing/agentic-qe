@@ -10,6 +10,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 const execAsync = promisify(exec);
 
@@ -207,10 +209,10 @@ export class QualityPolicyValidator {
       'tests.successRate': 100,
       'security.vulnerabilities': 0,
       'security.highRiskDeps': 0,
-      'performance.avgResponseTime': 250 + Math.random() * 300,
-      'maintainability.complexity': 5 + Math.random() * 10,
-      'maintainability.techDebtRatio': Math.random() * 8,
-      'documentation.apiCoverage': 80 + Math.random() * 20,
+      'performance.avgResponseTime': 250 + SecureRandom.randomFloat() * 300,
+      'maintainability.complexity': 5 + SecureRandom.randomFloat() * 10,
+      'maintainability.techDebtRatio': SecureRandom.randomFloat() * 8,
+      'documentation.apiCoverage': 80 + SecureRandom.randomFloat() * 20,
     };
   }
 
@@ -355,7 +357,7 @@ export function createQualityPolicyCommand(): Command {
           const defaultPath = path.join(process.cwd(), 'quality-policy.json');
           await validator.savePolicyToFile(defaultPath);
           console.log(chalk.green(`Created default policy at ${defaultPath}`));
-          process.exit(0);
+          ProcessExit.exitIfNotTest(0);
         }
 
         if (options.load) {
@@ -365,7 +367,7 @@ export function createQualityPolicyCommand(): Command {
 
         if (options.save) {
           await validator.savePolicyToFile(options.save);
-          process.exit(0);
+          ProcessExit.exitIfNotTest(0);
         }
 
         const spinner = ora('Validating quality policy...').start();
@@ -378,10 +380,10 @@ export function createQualityPolicyCommand(): Command {
           validator.displayResults(result);
         }
 
-        process.exit(result.compliant ? 0 : 1);
+        ProcessExit.exitIfNotTest(result.compliant ? 0 : 1);
       } catch (error) {
         console.error(chalk.red('Error:'), error);
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
       }
     });
 

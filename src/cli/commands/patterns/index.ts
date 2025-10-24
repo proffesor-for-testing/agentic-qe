@@ -10,6 +10,7 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import { QEReasoningBank, TestPattern } from '../../../reasoning/QEReasoningBank';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface PatternsCommandOptions {
   framework?: 'jest' | 'mocha' | 'vitest' | 'playwright';
@@ -92,7 +93,7 @@ export class PatternsCommand {
       default:
         console.error(chalk.red(`❌ Unknown patterns command: ${subcommand}`));
         this.showHelp();
-        process.exit(1);
+        ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -159,7 +160,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Failed to list patterns');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -170,7 +171,7 @@ export class PatternsCommand {
     if (!keyword) {
       console.error(chalk.red('❌ Keyword is required'));
       console.log(chalk.gray('Example: aqe patterns search "api validation"'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora(`Searching for "${keyword}"...`).start();
@@ -206,7 +207,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Search failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -216,7 +217,7 @@ export class PatternsCommand {
   private static async showPattern(patternId: string): Promise<void> {
     if (!patternId) {
       console.error(chalk.red('❌ Pattern ID is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Loading pattern...').start();
@@ -259,7 +260,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Failed to load pattern');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -269,7 +270,7 @@ export class PatternsCommand {
   private static async extractPatterns(directory: string, options: PatternsCommandOptions): Promise<void> {
     if (!directory) {
       console.error(chalk.red('❌ Directory is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora(`Extracting patterns from ${directory}...`).start();
@@ -324,7 +325,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Extraction failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -334,12 +335,12 @@ export class PatternsCommand {
   private static async sharePattern(patternId: string, options: PatternsCommandOptions): Promise<void> {
     if (!patternId) {
       console.error(chalk.red('❌ Pattern ID is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     if (!options.projects) {
       console.error(chalk.red('❌ --projects is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Sharing pattern...').start();
@@ -352,7 +353,7 @@ export class PatternsCommand {
         return;
       }
 
-      const projects = options.projects.split(',');
+      const projects = (options.projects || '').split(',');
 
       spinner.succeed(`Pattern shared with ${projects.length} projects`);
 
@@ -363,7 +364,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Sharing failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -373,7 +374,7 @@ export class PatternsCommand {
   private static async deletePattern(patternId: string, options: PatternsCommandOptions): Promise<void> {
     if (!patternId) {
       console.error(chalk.red('❌ Pattern ID is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     if (!options.confirm) {
@@ -396,7 +397,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Deletion failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -406,7 +407,7 @@ export class PatternsCommand {
   private static async exportPatterns(options: PatternsCommandOptions): Promise<void> {
     if (!options.output) {
       console.error(chalk.red('❌ --output is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Exporting patterns...').start();
@@ -425,7 +426,7 @@ export class PatternsCommand {
         filteredPatterns = filteredPatterns.filter((p: any) => p.framework === options.framework);
       }
 
-      await fs.writeJson(options.output, filteredPatterns, { spaces: 2 });
+      await fs.writeJson(options.output!, filteredPatterns, { spaces: 2 });
 
       spinner.succeed(`Exported ${filteredPatterns.length} patterns to: ${options.output}`);
       console.log(chalk.green('\n✅ Export completed\n'));
@@ -433,7 +434,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Export failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -443,13 +444,13 @@ export class PatternsCommand {
   private static async importPatterns(options: PatternsCommandOptions): Promise<void> {
     if (!options.input) {
       console.error(chalk.red('❌ --input is required'));
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
 
     const spinner = ora('Importing patterns...').start();
 
     try {
-      const patterns = await fs.readJson(options.input);
+      const patterns = await fs.readJson(options.input!);
 
       if (!Array.isArray(patterns)) {
         spinner.fail('Invalid patterns file');
@@ -474,7 +475,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Import failed');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 
@@ -513,7 +514,7 @@ export class PatternsCommand {
     } catch (error: any) {
       spinner.fail('Failed to calculate statistics');
       console.error(chalk.red('❌ Error:'), error.message);
-      process.exit(1);
+      ProcessExit.exitIfNotTest(1);
     }
   }
 

@@ -806,7 +806,8 @@ async function main() {
       console.log('\n💾 Storing performance metrics in coordination memory...');
       execSync(storeCommand, { stdio: 'inherit' });
 
-      const reportCommand = `npx claude-flow@alpha memory store --namespace "aqe-analysis" --key "performance-report" --value '${report.replace(/'/g, "\\'")}' --ttl 3600000`;
+      // SECURITY FIX: Properly escape backslashes first, then single quotes
+      const reportCommand = `npx claude-flow@alpha memory store --namespace "aqe-analysis" --key "performance-report" --value '${report.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' --ttl 3600000`;
       execSync(reportCommand, { stdio: 'inherit' });
 
       console.log('✅ Performance data stored in coordination memory');
