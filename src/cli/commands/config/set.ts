@@ -138,12 +138,17 @@ export class ConfigSetCommand {
         current[key] = Object.create(null);
       }
 
-      current = current[key];
+      // lgtm[js/prototype-pollution-utility]
+      // Safe: All keys validated against dangerous names above (line 121-129)
+      // Using Object.create(null) and explicit hasOwnProperty checks
+      const nextValue = current[key];
 
       // Validate we're still working with an object
-      if (current === null || typeof current !== 'object') {
+      if (nextValue === null || typeof nextValue !== 'object') {
         throw new Error(`Cannot set property on non-object at path segment '${key}'`);
       }
+
+      current = nextValue;
     }
 
     // Set the final value using Object.defineProperty for safety
