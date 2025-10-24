@@ -1,0 +1,35 @@
+{
+  "name": "agentics-e2e-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive E2E test suite for Agentics Foundation website",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "test:mobile": "playwright test --project='Mobile Chrome' --project='Mobile Safari'",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report",
+    "crawl": "tsx crawl-site.ts"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "testing",
+    "agentics",
+    "accessibility",
+    "performance"
+  ],
+  "author": "Agentic QE Fleet",
+  "license": "ISC",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@playwright/test": "^1.56.1"
+  }
+}

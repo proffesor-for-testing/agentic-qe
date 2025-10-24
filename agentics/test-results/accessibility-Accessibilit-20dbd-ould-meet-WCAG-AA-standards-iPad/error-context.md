@@ -1,0 +1,182 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - button "Console" [ref=e3] [cursor=pointer]:
+    - img [ref=e4]
+    - generic [ref=e6]: Console
+  - generic [ref=e7]:
+    - banner [ref=e8]:
+      - navigation "Main navigation" [ref=e9]:
+        - link "Agentics Foundation Home" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img "Agentics Foundation" [ref=e11]
+        - list [ref=e12]:
+          - listitem [ref=e13]:
+            - link "About" [ref=e14] [cursor=pointer]:
+              - /url: /about
+          - listitem [ref=e15]:
+            - link "Community" [ref=e16] [cursor=pointer]:
+              - /url: /community
+          - listitem [ref=e17]:
+            - link "Projects" [ref=e18] [cursor=pointer]:
+              - /url: /projects
+          - listitem [ref=e19]:
+            - link "Training" [ref=e20] [cursor=pointer]:
+              - /url: /training
+          - listitem [ref=e21]:
+            - link "Ambassador" [ref=e22] [cursor=pointer]:
+              - /url: /ambassador
+          - listitem [ref=e23]:
+            - link "Leadership" [ref=e24] [cursor=pointer]:
+              - /url: /leadership
+          - listitem [ref=e25]:
+            - link "Partners" [ref=e26] [cursor=pointer]:
+              - /url: /partners
+    - main [ref=e27]:
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - img [ref=e34]
+          - generic [ref=e36]: "> Building the future of AI"
+        - heading "Welcome to the Era of Agentic AI" [level=1] [ref=e37]:
+          - text: Welcome to the Era of
+          - text: Agentic AI
+        - paragraph [ref=e38]: Autonomous agents that think, adapt, and collaborate
+        - generic [ref=e40]:
+          - generic [ref=e41]:
+            - generic [ref=e42]: 100K+
+            - generic [ref=e43]: Community Members
+          - generic [ref=e44]:
+            - generic [ref=e45]: Open Source
+            - generic [ref=e46]: Transparent & Collaborative
+          - generic [ref=e47]:
+            - generic [ref=e48]: Global
+            - generic [ref=e49]: Worldwide Movement
+        - paragraph [ref=e50]: Join a global community dedicated to advancing agentic AI through open-source innovation, education, and collaborative research.
+        - generic [ref=e51]:
+          - link "Join the Community" [ref=e52] [cursor=pointer]:
+            - /url: https://community.agentics.org
+            - text: Join the Community
+            - img
+          - link "What is Agentic AI?" [ref=e53] [cursor=pointer]:
+            - /url: /what-is-agentics
+      - generic [ref=e55]:
+        - heading "Explore Agentics" [level=2] [ref=e56]
+        - generic [ref=e57]:
+          - link "About → Learn about Agentic AI and our mission to democratize AI innovation." [ref=e58] [cursor=pointer]:
+            - /url: /about
+            - heading "About →" [level=3] [ref=e59]
+            - paragraph [ref=e60]: Learn about Agentic AI and our mission to democratize AI innovation.
+          - link "Impact → Discover our paths of impact through R&D, education, and community." [ref=e61] [cursor=pointer]:
+            - /url: /impact
+            - heading "Impact →" [level=3] [ref=e62]
+            - paragraph [ref=e63]: Discover our paths of impact through R&D, education, and community.
+          - link "Community → Join our global network of developers, researchers, and enthusiasts." [ref=e64] [cursor=pointer]:
+            - /url: /community
+            - heading "Community →" [level=3] [ref=e65]
+            - paragraph [ref=e66]: Join our global network of developers, researchers, and enthusiasts.
+          - link "Projects → Explore our active open-source projects and initiatives." [ref=e67] [cursor=pointer]:
+            - /url: /projects
+            - heading "Projects →" [level=3] [ref=e68]
+            - paragraph [ref=e69]: Explore our active open-source projects and initiatives.
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - heading "What is Agentic AI?" [level=2] [ref=e73]
+          - paragraph [ref=e74]: Agentic Engineering and Vibe Coding represent different approaches to AI-assisted development.
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - heading "Vibe Coding" [level=3] [ref=e77]
+            - list [ref=e78]:
+              - listitem [ref=e79]:
+                - generic [ref=e80]: ●
+                - generic [ref=e81]: Flow and intuitive interactions
+              - listitem [ref=e82]:
+                - generic [ref=e83]: ●
+                - generic [ref=e84]: Human-driven feedback loops
+              - listitem [ref=e85]:
+                - generic [ref=e86]: ●
+                - generic [ref=e87]: Rapid ideation and discovery
+          - generic [ref=e88]:
+            - heading "Agentic Engineering" [level=3] [ref=e89]
+            - list [ref=e90]:
+              - listitem [ref=e91]:
+                - generic [ref=e92]: ●
+                - generic [ref=e93]: Structured, process-driven approach
+              - listitem [ref=e94]:
+                - generic [ref=e95]: ●
+                - generic [ref=e96]: Machine-driven feedback loops
+              - listitem [ref=e97]:
+                - generic [ref=e98]: ●
+                - generic [ref=e99]: Deep planning and refinement
+        - generic [ref=e100]:
+          - paragraph [ref=e101]: Both approaches have their place in modern development. Learn when to use each on the spectrum.
+          - link "Explore the Full Spectrum →" [ref=e102] [cursor=pointer]:
+            - /url: /what-is-agentics
+      - generic [ref=e104]:
+        - heading "Agentic Foundation's Paths of Impact" [level=2] [ref=e105]
+        - generic [ref=e106]:
+          - generic [ref=e107]:
+            - img [ref=e109]
+            - generic [ref=e112]:
+              - heading "R&D" [level=3] [ref=e113]
+              - paragraph [ref=e114]: Research and development in agentic systems
+          - generic [ref=e115]:
+            - img [ref=e117]
+            - generic [ref=e120]:
+              - heading "Open Source Toolkits" [level=3] [ref=e121]
+              - paragraph [ref=e122]: Developer resources and libraries
+          - generic [ref=e123]:
+            - img [ref=e125]
+            - generic [ref=e127]:
+              - heading "Educational Resources" [level=3] [ref=e128]
+              - paragraph [ref=e129]: Accreditation and learning materials
+          - generic [ref=e130]:
+            - img [ref=e132]
+            - generic [ref=e134]:
+              - heading "Workshops" [level=3] [ref=e135]
+              - paragraph [ref=e136]: Live and online learning sessions
+          - generic [ref=e137]:
+            - img [ref=e139]
+            - generic [ref=e142]:
+              - heading "Regional Chapters" [level=3] [ref=e143]
+              - paragraph [ref=e144]: In-person events around the world
+          - generic [ref=e145]:
+            - img [ref=e147]
+            - generic [ref=e149]:
+              - heading "AI Safety" [level=3] [ref=e150]
+              - paragraph [ref=e151]: Education and responsible deployment tools
+          - generic [ref=e152]:
+            - img [ref=e154]
+            - generic [ref=e157]:
+              - heading "Advisory Services" [level=3] [ref=e158]
+              - paragraph [ref=e159]: Public, government and institutional guidance
+      - generic [ref=e161]:
+        - heading "> Global Community" [level=2] [ref=e162]
+        - generic [ref=e163]:
+          - generic [ref=e164]:
+            - generic [ref=e165]: 130K+
+            - generic [ref=e166]: Reddit Followers
+          - generic [ref=e167]:
+            - generic [ref=e168]: 52K+
+            - generic [ref=e169]: LinkedIn Members
+          - generic [ref=e170]:
+            - generic [ref=e171]: 3K+
+            - generic [ref=e172]: Discord Members
+    - contentinfo [ref=e173]:
+      - generic [ref=e176]:
+        - img [ref=e177]
+        - heading "Join the Agentics Community" [level=3] [ref=e182]
+        - paragraph [ref=e183]: Connect with developers, researchers, and AI enthusiasts from around the world. Share knowledge, collaborate on projects, and shape the future of agentic AI.
+        - link "Join Community →" [ref=e184] [cursor=pointer]:
+          - /url: https://community.agentics.org
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - img [ref=e188]
+          - generic [ref=e190]: © 2025 Agentics Foundation | Built by the Community
+        - button "Contact Us" [ref=e191] [cursor=pointer]:
+          - img
+          - text: Contact Us
+```
