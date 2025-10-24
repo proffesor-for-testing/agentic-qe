@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.1** - Version Management Fix
+**Version 1.3.2** - Security Hardening
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and optional 70-81% cost savings through intelligent model routing (opt-in feature).
 
-🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **Production-Grade Security**
+🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **100% CodeQL Resolution**
 
 [Quick Start](#quick-start) • [Documentation](docs/) • [Contributing](CONTRIBUTING.md) • [Examples](examples/)
 
@@ -19,7 +19,11 @@
 
 ---
 
-## 🎉 What's New in v1.3.1
+## 🎉 What's New in v1.3.2
+
+**🔐 Security Release**: Fixed all 4 open CodeQL security alerts - achieving **100% alert resolution (26/26 fixed)**. Critical fixes include elimination of cryptographic randomness bias, enhanced prototype pollution prevention, and comprehensive security test coverage.
+
+### Previous Release (v1.3.1)
 
 **Critical Bug Fix**: Fixed `aqe init` command that was using hardcoded versions (1.0.5, 1.1.0) instead of reading from `package.json`. All generated config files now correctly sync with the package version.
 

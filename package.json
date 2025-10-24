@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
