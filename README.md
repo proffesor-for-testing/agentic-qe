@@ -24,7 +24,7 @@
 ### Security Hardening + Skills Expansion (Oct 23-24, 2025)
 **2 days of intensive development** | **Security hardening + 17 new skills** | **11,500+ lines of expert content**
 
-#### 🎓 **59 Claude Skills Total (35 QE-Specific)**
+#### 🎓 **60 Claude Skills Total (35 QE-Specific)**
 
 **Phase 1: Original Quality Engineering Skills (18 skills)** - World-class v1.0.0 ✨
 - agentic-quality-engineering, holistic-testing-pact, context-driven-testing, exploratory-testing-advanced

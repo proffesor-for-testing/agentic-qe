@@ -96,8 +96,8 @@ export class Config {
           config: {}
         },
         {
-          type: 'performance-monitor',
-          count: parseInt(process.env.PERFORMANCE_MONITOR_COUNT || '1'),
+          type: 'performance-tester',
+          count: parseInt(process.env.PERFORMANCE_TESTER_COUNT || '1'),
           config: {}
         }
       ],

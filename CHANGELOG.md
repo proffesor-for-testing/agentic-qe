@@ -1114,6 +1114,22 @@ Special thanks to:
 - Zero new vulnerabilities introduced (documentation only)
 - All security hardening intact
 
+### 🐛 Bug Fixes
+
+#### Agent Type Configuration Fix (Issue #13)
+- **FIXED:** Agent spawning error - "Unknown agent type: performance-monitor"
+  - Fixed in `src/utils/Config.ts`: Changed `performance-monitor` → `performance-tester`
+  - Fixed in `.env.example`: Changed `PERFORMANCE_MONITOR_COUNT` → `PERFORMANCE_TESTER_COUNT`
+  - **Root Cause:** Default fleet configuration referenced non-existent agent type
+  - **Impact:** Fleet now starts correctly without agent spawning errors
+  - **Issue:** [#13](https://github.com/proffesor-for-testing/agentic-qe/issues/13)
+  - **Reported by:** @auitenbroek1
+
+#### Documentation Accuracy Fix
+- **FIXED:** README.md skill count math error
+  - Changed "59 Claude Skills Total" → "60 Claude Skills Total" (35 QE + 25 Claude Flow = 60)
+  - **Impact:** Accurate skill count documentation for users
+
 ### Quality
 - **Quality Score**: 78/100 (skills: 100/100)
 - **Regression Risk**: LOW (18/100)
@@ -1128,7 +1144,6 @@ Special thanks to:
 ### Known Limitations
 - Package version needs bump to 1.3.0 (deferred to follow-up)
 - CHANGELOG entry created in this release
-- README skill count update needed
 
 ---
 
@@ -1136,7 +1151,6 @@ Special thanks to:
 
 ### Coming in v1.3.1
 - Package version bump to 1.3.0
-- README skill count updates
 - Complete validator.js CVE-2025-56200 remediation
 
 ### Future Roadmap (v2.0)

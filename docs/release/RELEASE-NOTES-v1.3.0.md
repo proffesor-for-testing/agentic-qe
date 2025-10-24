@@ -428,6 +428,80 @@ const escaped = report
 
 ---
 
+## 🐛 Bug Fixes
+
+### 1. Agent Type Configuration Fix (Issue #13) ✅ FIXED
+
+**Severity**: Blocker (prevents fleet startup)
+**Impact**: Fleet now starts correctly without agent spawning errors
+**Reported by**: @auitenbroek1
+
+**What Was Fixed**:
+- Default fleet configuration referenced non-existent agent type `performance-monitor`
+- Correct agent type is `performance-tester` (PerformanceTesterAgent)
+- Environment variable naming inconsistency fixed for consistency
+
+**Files Modified**:
+- `src/utils/Config.ts` (line 99-100):
+  - Changed `type: 'performance-monitor'` → `type: 'performance-tester'`
+  - Changed `PERFORMANCE_MONITOR_COUNT` → `PERFORMANCE_TESTER_COUNT`
+- `.env.example` (line 13):
+  - Changed `PERFORMANCE_MONITOR_COUNT=1` → `PERFORMANCE_TESTER_COUNT=1`
+
+**Before (BROKEN)**:
+```typescript
+{
+  type: 'performance-monitor',  // ❌ Non-existent agent type
+  count: parseInt(process.env.PERFORMANCE_MONITOR_COUNT || '1'),
+  config: {}
+}
+```
+
+**After (FIXED)**:
+```typescript
+{
+  type: 'performance-tester',  // ✅ Correct agent type
+  count: parseInt(process.env.PERFORMANCE_TESTER_COUNT || '1'),
+  config: {}
+}
+```
+
+**Error Before Fix**:
+```
+❌ Failed to start fleet: Error: Agent spawning failed for type 'performance-monitor':
+Unknown agent type: performance-monitor. Ensure agent type is registered and properly
+implements BaseAgent interface.
+```
+
+**Result After Fix**:
+- ✅ Fleet initializes successfully
+- ✅ All 18 QE agents spawn correctly
+- ✅ Performance testing agent works as expected
+
+**Issue**: [#13](https://github.com/proffesor-for-testing/agentic-qe/issues/13)
+
+---
+
+### 2. Documentation Accuracy Fix ✅ FIXED
+
+**Severity**: Minor (documentation only)
+**Impact**: Accurate skill count for users
+
+**What Was Fixed**:
+- README.md incorrectly stated "59 Claude Skills Total"
+- Correct count is 60 skills (35 QE + 25 Claude Flow = 60)
+
+**Files Modified**:
+- `README.md` (line 27):
+  - Changed "59 Claude Skills Total" → "60 Claude Skills Total"
+
+**Math Error**:
+- ❌ Before: "59 Claude Skills Total (35 QE-Specific)"
+- ✅ After: "60 Claude Skills Total (35 QE-Specific)"
+- Calculation: 35 QE + 25 Claude Flow = **60 total**
+
+---
+
 ## 🆕 New Features
 
 ### Security Utilities (3 new files)
