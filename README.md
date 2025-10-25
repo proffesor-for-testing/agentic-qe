@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.2** - Security Hardening
+**Version 1.3.3** - Critical Database & MCP Server Fixes
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (35 QE skills), and optional 70-81% cost savings through intelligent model routing (opt-in feature).
 
-🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **100% CodeQL Resolution**
+🧠 **20% Continuous Improvement** | 📚 **35 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings (opt-in)** | 🔒 **100% CodeQL Resolution** | 🔧 **52 MCP Tools**
 
 [Quick Start](#quick-start) • [Documentation](docs/) • [Contributing](CONTRIBUTING.md) • [Examples](examples/)
 
@@ -19,7 +19,37 @@
 
 ---
 
-## 🎉 What's New in v1.3.2
+## 🎉 What's New in v1.3.3
+
+**🐛 Critical Bug Fixes**: Fixed missing `memory_store` database table and MCP server startup issues. Fleet initialization now works correctly, and Claude Code MCP integration is reliable with all 52 tools available.
+
+### Key Fixes
+
+- **Database Schema**: Added missing `memory_store` table for persistent agent memory
+- **MCP Server**: Created standalone `aqe-mcp` binary + fixed module resolution
+- **Impact**: Smooth fleet initialization and reliable Claude Code integration
+
+### Migration from v1.3.2
+
+```bash
+npm install -g agentic-qe@latest
+rm -rf ./data/*.db ./.agentic-qe/*.db
+aqe init
+```
+
+Update Claude Code MCP config:
+```json
+{
+  "mcpServers": {
+    "agentic-qe": {
+      "command": "aqe-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+### Previous Release (v1.3.2)
 
 **🔐 Security Release**: Fixed all 4 open CodeQL security alerts - achieving **100% alert resolution (26/26 fixed)**. Critical fixes include elimination of cryptographic randomness bias, enhanced prototype pollution prevention, and comprehensive security test coverage.
 
