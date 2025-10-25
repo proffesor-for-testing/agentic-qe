@@ -229,6 +229,19 @@ export class Database {
         FOREIGN KEY (fleet_id) REFERENCES fleets (id),
         FOREIGN KEY (agent_id) REFERENCES agents (id),
         FOREIGN KEY (task_id) REFERENCES tasks (id)
+      )`,
+
+      // Memory store for persistent agent memory
+      `CREATE TABLE IF NOT EXISTS memory_store (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        namespace TEXT NOT NULL DEFAULT 'default',
+        ttl INTEGER DEFAULT 0,
+        metadata TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,
+        UNIQUE(key, namespace)
       )`
     ];
 
@@ -250,7 +263,9 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_events_processed ON events (processed)',
       'CREATE INDEX IF NOT EXISTS idx_metrics_fleet_id ON metrics (fleet_id)',
       'CREATE INDEX IF NOT EXISTS idx_metrics_agent_id ON metrics (agent_id)',
-      'CREATE INDEX IF NOT EXISTS idx_metrics_type ON metrics (metric_type)'
+      'CREATE INDEX IF NOT EXISTS idx_metrics_type ON metrics (metric_type)',
+      'CREATE INDEX IF NOT EXISTS idx_memory_store_namespace ON memory_store (namespace)',
+      'CREATE INDEX IF NOT EXISTS idx_memory_store_expires_at ON memory_store (expires_at)'
     ];
 
     for (const index of indexes) {

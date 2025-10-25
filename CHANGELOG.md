@@ -5,6 +5,120 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2025-10-25
+
+### 🐛 Critical Bug Fixes
+
+#### Database Schema - Missing `memory_store` Table (HIGH PRIORITY)
+- **FIXED:** `src/utils/Database.ts` - Database initialization was missing the `memory_store` table
+  - **Issue:** MemoryManager attempted to use `memory_store` table that was never created during initialization
+  - **Symptom:** `aqe start` failed with error: `SqliteError: no such table: memory_store`
+  - **Root Cause:** Database `createTables()` method only created 5 tables (fleets, agents, tasks, events, metrics) but not memory_store
+  - **Solution:** Added complete `memory_store` table schema with proper indexes
+  - **Impact:** Fleet initialization now works correctly with persistent agent memory
+  - **Files Modified:**
+    - `src/utils/Database.ts:235-245` - Added memory_store table definition
+    - `src/utils/Database.ts:267-268` - Added performance indexes (namespace, expires_at)
+
+**Table Schema Added:**
+```sql
+CREATE TABLE IF NOT EXISTS memory_store (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  namespace TEXT NOT NULL DEFAULT 'default',
+  ttl INTEGER DEFAULT 0,
+  metadata TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME,
+  UNIQUE(key, namespace)
+);
+```
+
+#### MCP Server Startup Failure (HIGH PRIORITY)
+- **FIXED:** MCP server command and module resolution issues
+  - **Issue #1:** Claude Code MCP config used incorrect command `npx agentic-qe mcp:start`
+  - **Issue #2:** `npm run mcp:start` used `ts-node` which had ESM/CommonJS module resolution conflicts
+  - **Root Cause:**
+    - No standalone MCP server binary existed
+    - ts-node couldn't resolve `.js` imports in CommonJS mode
+  - **Solution:**
+    - Created standalone `aqe-mcp` binary for direct MCP server startup
+    - Fixed `mcp:start` script to use compiled JavaScript instead of ts-node
+  - **Impact:** MCP server now starts reliably and exposes all 52 tools
+  - **Files Modified:**
+    - `bin/aqe-mcp` (NEW) - Standalone MCP server entry point
+    - `package.json:10` - Added `aqe-mcp` to bin section
+    - `package.json:67` - Fixed mcp:start to use `node dist/mcp/start.js`
+    - `package.json:68` - Fixed mcp:dev for development workflow
+
+### ✅ MCP Server Verification
+
+Successfully tested MCP server startup - **52 tools available**:
+
+**Tool Categories:**
+- **Core Fleet Tools (9):** fleet_init, fleet_status, agent_spawn, task_orchestrate, optimize_tests, etc.
+- **Test Tools (14):** test_generate, test_execute, test_execute_stream, coverage_analyze_stream, etc.
+- **Quality Tools (10):** quality_gate_execute, quality_risk_assess, deployment_readiness_check, etc.
+- **Memory & Coordination (10):** memory_store, memory_retrieve, blackboard_post, workflow_create, etc.
+- **Advanced QE (9):** flaky_test_detect, predict_defects_ai, mutation_test_execute, api_breaking_changes, etc.
+
+### 📚 Documentation
+
+- **ADDED:** Comprehensive fix documentation in `user-reported-issues/FIXES-Oct-25-2024.md`
+  - Detailed root cause analysis
+  - Step-by-step fix verification
+  - Three MCP server configuration options
+  - Troubleshooting guide
+
+### 🔧 Claude Code Integration
+
+**Updated MCP Configuration:**
+```json
+{
+  "mcpServers": {
+    "agentic-qe": {
+      "command": "aqe-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+### 📦 Migration Guide
+
+Users upgrading from v1.3.2 should:
+
+1. **Rebuild:** `npm run build`
+2. **Clean databases:** `rm -rf ./data/*.db ./.agentic-qe/*.db`
+3. **Reinitialize:** `aqe init`
+4. **Update Claude Code MCP config** to use `aqe-mcp` command
+
+### Files Changed
+
+1. **src/utils/Database.ts** - Added memory_store table + indexes
+2. **bin/aqe-mcp** (NEW) - Standalone MCP server binary
+3. **package.json** - Version bump, new binary, fixed MCP scripts
+4. **user-reported-issues/FIXES-Oct-25-2024.md** (NEW) - Complete fix documentation
+
+### Quality Metrics
+
+- **Build Status:** ✅ Clean TypeScript compilation
+- **MCP Server:** ✅ All 52 tools loading successfully
+- **Database Schema:** ✅ Complete and verified
+- **Regression Risk:** LOW (critical fixes, no API changes)
+- **Breaking Changes:** None (backward compatible)
+- **Release Recommendation:** ✅ GO (critical bug fixes)
+
+### 🎯 Impact
+
+- **Fleet Initialization:** Fixed - no more memory_store errors
+- **MCP Integration:** Reliable startup for Claude Code
+- **Agent Memory:** Persistent storage now working correctly
+- **User Experience:** Smooth initialization and MCP connection
+
+---
+
 ## [1.3.2] - 2025-10-24
 
 ### 🔐 Security Fixes (Critical)

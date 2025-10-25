@@ -1,12 +1,13 @@
 {
   "name": "agentic-qe",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
     "agentic-qe": "./bin/agentic-qe",
-    "aqe": "./bin/aqe"
+    "aqe": "./bin/aqe",
+    "aqe-mcp": "./bin/aqe-mcp"
   },
   "scripts": {
     "build": "tsc",
@@ -63,8 +64,8 @@
     "clean": "rimraf dist",
     "prepare": "npm run build",
     "prepublishOnly": "npm run typecheck && npm run build",
-    "mcp:start": "ts-node src/mcp/start.ts",
-    "mcp:dev": "nodemon --watch src/mcp -e ts --exec ts-node src/mcp/start.ts",
+    "mcp:start": "node dist/mcp/start.js",
+    "mcp:dev": "nodemon --watch src/mcp -e ts --exec \"npm run build && node dist/mcp/start.js\"",
     "docs:api": "typedoc --out docs/api src --exclude '**/*.test.ts' --excludePrivate",
     "docs:serve": "npx http-server docs/api -p 8080",
     "orchestrator": "ts-node scripts/final-go-orchestrator.ts",
