@@ -4,16 +4,16 @@
  */
 
 import * as fs from 'fs-extra';
-import { AgentSpawnCommand } from '../../src/cli/commands/agent/spawn';
-import { AgentListCommand } from '../../src/cli/commands/agent/list';
-import { AgentMetricsCommand } from '../../src/cli/commands/agent/metrics';
-import { AgentLogsCommand } from '../../src/cli/commands/agent/logs';
-import { AgentKillCommand } from '../../src/cli/commands/agent/kill';
-import { AgentRestartCommand } from '../../src/cli/commands/agent/restart';
-import { AgentInspectCommand } from '../../src/cli/commands/agent/inspect';
-import { AgentAssignCommand } from '../../src/cli/commands/agent/assign';
-import { AgentAttachCommand } from '../../src/cli/commands/agent/attach';
-import { AgentDetachCommand } from '../../src/cli/commands/agent/detach';
+import { AgentSpawnCommand } from '@cli/commands/agent/spawn';
+import { AgentListCommand } from '@cli/commands/agent/list';
+import { AgentMetricsCommand } from '@cli/commands/agent/metrics';
+import { AgentLogsCommand } from '@cli/commands/agent/logs';
+import { AgentKillCommand } from '@cli/commands/agent/kill';
+import { AgentRestartCommand } from '@cli/commands/agent/restart';
+import { AgentInspectCommand } from '@cli/commands/agent/inspect';
+import { AgentAssignCommand } from '@cli/commands/agent/assign';
+import { AgentAttachCommand } from '@cli/commands/agent/attach';
+import { AgentDetachCommand } from '@cli/commands/agent/detach';
 
 jest.mock('fs-extra');
 

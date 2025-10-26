@@ -8,16 +8,16 @@
 import { describe, beforeEach, afterEach, it, expect, jest } from '@jest/globals';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import { FleetManager } from '../../src/core/FleetManager';
-import { EventBus } from '../../src/core/EventBus';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
-import { InitCommand } from '../../src/cli/commands/init';
-import { FleetConfig } from '../../src/types';
+import { FleetManager } from '@core/FleetManager';
+import { EventBus } from '@core/EventBus';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
+import { InitCommand } from '@cli/commands/init';
+import { FleetConfig } from '@typessrc/types';
 
 // Mock external dependencies
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 jest.mock('fs-extra');
 jest.mock('inquirer');
 jest.mock('ora');

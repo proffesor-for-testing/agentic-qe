@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { AgentDBManager, AgentDBConfig, MemoryPattern } from '../../src/core/memory/AgentDBManager';
+import { AgentDBManager, AgentDBConfig, MemoryPattern } from '@core/memory/AgentDBManager';
 import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';

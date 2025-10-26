@@ -4,14 +4,14 @@
  */
 
 import { EventEmitter } from 'events';
-import { MemoryManager } from '../../src/core/MemoryManager';
-import { EventBus } from '../../src/core/EventBus';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
+import { MemoryManager } from '@core/MemoryManager';
+import { EventBus } from '@core/EventBus';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
 
 // Mock external dependencies
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 
 describe('RequirementsValidatorAgent Integration', () => {
   let eventBus: EventBus;

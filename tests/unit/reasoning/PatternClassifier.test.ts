@@ -3,8 +3,8 @@
  * Phase 2 (v1.1.0) - Pattern Extraction Specialist
  */
 
-import { PatternClassifier } from '../../../src/reasoning/PatternClassifier';
-import { TestPattern, PatternType, TestFramework, PatternCategory } from '../../../src/types/pattern.types';
+import { PatternClassifier } from '@reasoning/PatternClassifier';
+import { TestPattern, PatternType, TestFramework, PatternCategory } from '@types/pattern.types';
 
 describe('PatternClassifier', () => {
   let classifier: PatternClassifier;

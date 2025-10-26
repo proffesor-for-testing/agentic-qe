@@ -4,12 +4,12 @@
  * Total: 37 test cases covering all edge cases
  */
 
-import { requirementsValidate } from '../../../src/mcp/handlers/advanced/requirements-validate';
-import { requirementsGenerateBDD } from '../../../src/mcp/handlers/advanced/requirements-generate-bdd';
-import { productionIncidentReplay } from '../../../src/mcp/handlers/advanced/production-incident-replay';
-import { productionRUMAnalyze } from '../../../src/mcp/handlers/advanced/production-rum-analyze';
-import { apiBreakingChanges } from '../../../src/mcp/handlers/advanced/api-breaking-changes';
-import { mutationTestExecute } from '../../../src/mcp/handlers/advanced/mutation-test-execute';
+import { requirementsValidate } from '@mcp/handlers/advanced/requirements-validate';
+import { requirementsGenerateBDD } from '@mcp/handlers/advanced/requirements-generate-bdd';
+import { productionIncidentReplay } from '@mcp/handlers/advanced/production-incident-replay';
+import { productionRUMAnalyze } from '@mcp/handlers/advanced/production-rum-analyze';
+import { apiBreakingChanges } from '@mcp/handlers/advanced/api-breaking-changes';
+import { mutationTestExecute } from '@mcp/handlers/advanced/mutation-test-execute';
 
 describe('Requirements Validation Tool', () => {
   it('should validate testable requirements', async () => {

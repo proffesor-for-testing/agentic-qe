@@ -17,22 +17,22 @@
  * failure handling, and recovery mechanisms.
  */
 
-import { DeploymentReadinessAgent } from '../../src/agents/DeploymentReadinessAgent';
-import { PerformanceTesterAgent } from '../../src/agents/PerformanceTesterAgent';
-import { SecurityScannerAgent } from '../../src/agents/SecurityScannerAgent';
-import { QualityGateAgent } from '../../src/agents/QualityGateAgent';
-import { CoverageAnalyzerAgent } from '../../src/agents/CoverageAnalyzerAgent';
-import { TestExecutorAgent } from '../../src/agents/TestExecutorAgent';
-import { EventBus } from '../../src/core/EventBus';
-import { MemoryManager } from '../../src/core/MemoryManager';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
-import { QEAgentType, AgentStatus, WEEK2_EVENT_TYPES } from '../../src/types';
+import { DeploymentReadinessAgent } from '@agents/DeploymentReadinessAgent';
+import { PerformanceTesterAgent } from '@agents/PerformanceTesterAgent';
+import { SecurityScannerAgent } from '@agents/SecurityScannerAgent';
+import { QualityGateAgent } from '@agents/QualityGateAgent';
+import { CoverageAnalyzerAgent } from '@agents/CoverageAnalyzerAgent';
+import { TestExecutorAgent } from '@agents/TestExecutorAgent';
+import { EventBus } from '@core/EventBus';
+import { MemoryManager } from '@core/MemoryManager';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
+import { QEAgentType, AgentStatus, WEEK2_EVENT_TYPES } from '@typessrc/types';
 import { createResourceCleanup } from '../helpers/cleanup';
 
 // Mock external dependencies
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 
 describe('Week 2 Full Fleet Integration Tests', () => {
   let deploymentAgent: DeploymentReadinessAgent;

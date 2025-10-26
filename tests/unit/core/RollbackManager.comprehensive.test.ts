@@ -3,8 +3,8 @@
  * Coverage target: 90%+ of RollbackManager.ts
  */
 
-import { RollbackManager, Snapshot, RollbackResult } from '../../../src/core/hooks/RollbackManager';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
+import { RollbackManager, Snapshot, RollbackResult } from '@core/hooks/RollbackManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';

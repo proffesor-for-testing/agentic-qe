@@ -3,14 +3,14 @@
  * Testing the base Agent class with full coverage including edge cases and error scenarios
  */
 
-import { Agent, AgentStatus, AgentCapability, AgentMetrics } from '../../src/core/Agent';
-import { Task, TaskStatus } from '../../src/core/Task';
-import { EventBus } from '../../src/core/EventBus';
-import { Logger } from '../../src/utils/Logger';
+import { Agent, AgentStatus, AgentCapability, AgentMetrics } from '@core/Agent';
+import { Task, TaskStatus } from '@core/Task';
+import { EventBus } from '@core/EventBus';
+import { Logger } from '@utils/Logger';
 
 // Mock implementations
 // Note: Logger is globally mocked in jest.setup.ts - no need to mock here
-jest.mock('../../src/core/EventBus');
+jest.mock('@core/EventBus');
 
 // Test Agent implementation
 class TestAgent extends Agent {

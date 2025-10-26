@@ -2,7 +2,7 @@
  * QuantizationManager tests
  */
 
-import { QuantizationManager, type AgentProfile } from '../../../src/core/quantization';
+import { QuantizationManager, type AgentProfile } from '@core/quantization';
 
 describe('QuantizationManager', () => {
   beforeEach(() => {

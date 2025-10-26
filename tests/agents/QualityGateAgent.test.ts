@@ -3,9 +3,9 @@
  * Tests intelligent go/no-go decisions and policy validation
  */
 
-import { QualityGateAgent } from '../../src/agents/QualityGateAgent';
-import { EventBus } from '../../src/core/EventBus';
-import { Task } from '../../src/core/Task';
+import { QualityGateAgent } from '@agents/QualityGateAgent';
+import { EventBus } from '@core/EventBus';
+import { Task } from '@core/Task';
 
 describe('QualityGateAgent', () => {
   let agent: QualityGateAgent;

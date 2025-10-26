@@ -6,8 +6,8 @@
  * Agent: integration-test-architect
  */
 
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { BaseAgent } from '../../src/agents/BaseAgent';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { BaseAgent } from '@agents/BaseAgent';
 import * as path from 'path';
 import * as fs from 'fs';
 

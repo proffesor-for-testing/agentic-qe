@@ -12,7 +12,7 @@
  * Replaces mock QUIC transport with AgentDB native QUIC
  */
 
-import { AgentDBIntegration, QUICConfig, createDefaultQUICConfig } from '../../src/core/memory/AgentDBIntegration';
+import { AgentDBIntegration, QUICConfig, createDefaultQUICConfig } from '@core/memory/AgentDBIntegration';
 import { EventEmitter } from 'events';
 
 describe('AgentDB QUIC Synchronization', () => {

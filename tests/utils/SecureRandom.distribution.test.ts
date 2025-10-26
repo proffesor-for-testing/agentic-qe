@@ -5,7 +5,7 @@
  * distribution uniformity, and security properties
  */
 
-import { SecureRandom } from '../../src/utils/SecureRandom';
+import { SecureRandom } from '@utils/SecureRandom';
 
 describe('SecureRandom Distribution', () => {
   describe('generateId', () => {

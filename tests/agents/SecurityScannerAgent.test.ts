@@ -1,6 +1,6 @@
-import { SecurityScannerAgent, SecurityScannerConfig } from '../../src/agents/SecurityScannerAgent';
+import { SecurityScannerAgent, SecurityScannerConfig } from '@agents/SecurityScannerAgent';
 import { EventEmitter } from 'events';
-import { QEAgentType, AgentStatus } from '../../src/types';
+import { QEAgentType, AgentStatus } from '@types';
 
 class MockMemoryStore {
   private data = new Map<string, any>();

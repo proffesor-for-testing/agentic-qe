@@ -5,9 +5,9 @@
  * memory operations, and workflow execution.
  */
 
-import { FleetManager } from '../../../src/core/FleetManager';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { Task, TaskPriority } from '../../../src/core/Task';
+import { FleetManager } from '@core/FleetManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { Task, TaskPriority } from '@core/Task';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';

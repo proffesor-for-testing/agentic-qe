@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeAll } from '@jest/globals';
-import { AgenticQEMCPServer } from '../../src/mcp/server.js';
-import { TOOL_NAMES } from '../../src/mcp/tools.js';
+import { AgenticQEMCPServer } from '@mcp/server.js';
+import { TOOL_NAMES } from '@mcp/tools.js';
 import { Command } from 'commander';
 import { createRequire } from 'module';
 

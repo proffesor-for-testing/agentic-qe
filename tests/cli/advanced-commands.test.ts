@@ -4,29 +4,29 @@
  * Comprehensive tests for 15 advanced CLI commands with real implementations
  */
 
-import { Database } from '../../src/utils/Database';
-import { MemoryManager } from '../../src/core/MemoryManager';
-import { FleetManager } from '../../src/core/FleetManager';
-import { Logger } from '../../src/utils/Logger';
+import { Database } from '@utils/Database';
+import { MemoryManager } from '@core/MemoryManager';
+import { FleetManager } from '@core/FleetManager';
+import { Logger } from '@utils/Logger';
 import { join } from 'path';
 import { mkdirSync, rmSync, existsSync } from 'fs';
 
 // Command imports
-import { compact } from '../../src/cli/commands/memory/compact';
-import { vacuum } from '../../src/cli/commands/memory/vacuum';
-import { stats } from '../../src/cli/commands/memory/stats';
-import { optimize } from '../../src/cli/commands/fleet/optimize';
-import { backup } from '../../src/cli/commands/fleet/backup';
-import { recover } from '../../src/cli/commands/fleet/recover';
-import { clone } from '../../src/cli/commands/agent/clone';
-import { migrate } from '../../src/cli/commands/agent/migrate';
-import { benchmark } from '../../src/cli/commands/agent/benchmark';
-import { analyzeFailures } from '../../src/cli/commands/test/analyze-failures';
-import { flakiness } from '../../src/cli/commands/test/flakiness';
-import { mutate } from '../../src/cli/commands/test/mutate';
-import { trends } from '../../src/cli/commands/quality/trends';
-import { compare } from '../../src/cli/commands/quality/compare';
-import { baseline } from '../../src/cli/commands/quality/baseline';
+import { compact } from '@cli/commands/memory/compact';
+import { vacuum } from '@cli/commands/memory/vacuum';
+import { stats } from '@cli/commands/memory/stats';
+import { optimize } from '@cli/commands/fleet/optimize';
+import { backup } from '@cli/commands/fleet/backup';
+import { recover } from '@cli/commands/fleet/recover';
+import { clone } from '@cli/commands/agent/clone';
+import { migrate } from '@cli/commands/agent/migrate';
+import { benchmark } from '@cli/commands/agent/benchmark';
+import { analyzeFailures } from '@cli/commands/test/analyze-failures';
+import { flakiness } from '@cli/commands/test/flakiness';
+import { mutate } from '@cli/commands/test/mutate';
+import { trends } from '@cli/commands/quality/trends';
+import { compare } from '@cli/commands/quality/compare';
+import { baseline } from '@cli/commands/quality/baseline';
 
 const TEST_DATA_DIR = join(__dirname, '../data/cli-advanced');
 const TEST_DB_PATH = join(TEST_DATA_DIR, 'test-advanced.db');

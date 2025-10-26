@@ -8,7 +8,7 @@
  * @group utils
  */
 
-import { Logger, LogLevel } from '../../src/utils/Logger';
+import { Logger, LogLevel } from '@utils/Logger';
 import * as fs from 'fs';
 import * as path from 'path';
 

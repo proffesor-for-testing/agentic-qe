@@ -13,7 +13,7 @@ import {
   NeuralInput,
   NeuralConfig,
   DEFAULT_NEURAL_CONFIG
-} from '../../../src/agents/mixins/NeuralCapableMixin';
+} from '@agents/mixins/NeuralCapableMixin';
 
 describe('NeuralCapableMixin', () => {
   describe('DefaultNeuralMatcher', () => {

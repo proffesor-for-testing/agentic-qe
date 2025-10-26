@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
   "version": "1.3.3",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, and native TypeScript hooks",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 34 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 61 MCP tools, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
@@ -43,6 +43,9 @@
     "test:mcp": "node --expose-gc --max-old-space-size=512 --no-compilation-cache node_modules/.bin/jest tests/mcp --runInBand",
     "test:cli": "node --expose-gc --max-old-space-size=512 --no-compilation-cache node_modules/.bin/jest tests/cli --runInBand",
     "test:utils": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest tests/utils --runInBand",
+    "test:streaming": "node --expose-gc --max-old-space-size=512 --no-compilation-cache node_modules/.bin/jest tests/streaming --runInBand",
+    "test:agentdb": "node --expose-gc --max-old-space-size=1024 --no-compilation-cache node_modules/.bin/jest tests/agentdb --runInBand",
+    "test:benchmark": "node --expose-gc --max-old-space-size=2048 --no-compilation-cache node_modules/.bin/jest tests/agentdb/performance-benchmark.test.ts --runInBand --forceExit",
     "pretest:integration:phase2": "node scripts/check-memory-before-test.js",
     "test:integration:phase2": "node --expose-gc --max-old-space-size=1024 --no-compilation-cache node_modules/.bin/jest tests/integration/phase2 --runInBand --forceExit",
     "pretest:integration:phase2:agents": "node scripts/check-memory-before-test.js",
@@ -70,7 +73,12 @@
     "docs:serve": "npx http-server docs/api -p 8080",
     "orchestrator": "ts-node scripts/final-go-orchestrator.ts",
     "orchestrator:test": "ts-node scripts/test-orchestrator.ts",
-    "query-memory": "ts-node scripts/query-aqe-memory-single.ts"
+    "query-memory": "ts-node scripts/query-aqe-memory-single.ts",
+    "verify:counts": "tsx scripts/verify-counts.ts",
+    "verify:agent-skills": "tsx scripts/verify-agent-skills.ts",
+    "verify:features": "tsx scripts/verify-features.ts",
+    "verify:all": "npm run verify:counts && npm run verify:agent-skills && npm run verify:features",
+    "update:counts": "tsx scripts/update-documentation-counts.ts"
   },
   "keywords": [
     "quality-engineering",
@@ -98,10 +106,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.64.0",
     "@babel/parser": "^7.24.0",
+    "@babel/traverse": "^7.24.0",
     "@faker-js/faker": "^10.0.0",
     "@modelcontextprotocol/sdk": "^1.18.2",
     "@xenova/transformers": "^2.6.0",
+    "agentdb": "^1.0.0",
     "agentic-flow": "^1.7.3",
+    "agentic-qe": "^1.3.3",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "better-sqlite3": "^12.4.1",
@@ -154,6 +165,7 @@
     "stack-utils": "^2.0.6",
     "ts-jest": "^29.4.4",
     "ts-node": "^10.9.1",
+    "tsx": "^4.20.6",
     "typedoc": "^0.28.13",
     "typescript": "^5.9.3",
     "uuid": "^11.0.5",

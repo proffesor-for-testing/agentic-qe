@@ -11,9 +11,9 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { QEReasoningBank } from '../../src/reasoning/QEReasoningBank';
-import { LearningEngine } from '../../src/learning/LearningEngine';
-import { PatternExtractor } from '../../src/reasoning/PatternExtractor';
+import { QEReasoningBank } from '@reasoning/QEReasoningBank';
+import { LearningEngine } from '@learning/LearningEngine';
+import { PatternExtractor } from '@reasoning/PatternExtractor';
 
 describe('Phase 1 + Phase 2 Integration', () => {
   let reasoningBank: QEReasoningBank;

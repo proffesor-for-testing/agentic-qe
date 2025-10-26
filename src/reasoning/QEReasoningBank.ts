@@ -30,6 +30,8 @@
  */
 
 import { createHash } from 'crypto';
+import { VectorSimilarity } from './VectorSimilarity';
+import { PatternQualityScorer, QualityComponents } from './PatternQualityScorer';
 
 // ===========================================================================
 // Test Interfaces (Phase 2 spec)
@@ -40,13 +42,14 @@ export interface TestPattern {
   name: string;
   description: string;
   category: 'unit' | 'integration' | 'e2e' | 'performance' | 'security';
-  framework: 'jest' | 'mocha' | 'vitest' | 'playwright';
+  framework: 'jest' | 'mocha' | 'vitest' | 'playwright' | 'cypress' | 'jasmine' | 'ava';
   language: 'typescript' | 'javascript' | 'python';
   template: string;
   examples: string[];
   confidence: number;
   usageCount: number;
   successRate: number;
+  quality?: number; // Overall quality score (0-1)
   metadata: {
     createdAt: Date;
     updatedAt: Date;
@@ -58,6 +61,7 @@ export interface TestPattern {
 export interface PatternMatch {
   pattern: TestPattern;
   confidence: number;
+  similarity: number; // Vector similarity score (0-1)
   reasoning: string;
   applicability: number;
 }
@@ -83,9 +87,19 @@ export class QEReasoningBank {
   private patterns: Map<string, TestPattern> = new Map();
   private patternIndex: Map<string, Set<string>> = new Map();
   private versionHistory: Map<string, TestPattern[]> = new Map();
+  private vectorSimilarity: VectorSimilarity;
+  private qualityScorer: PatternQualityScorer;
+  private vectorCache: Map<string, number[]> = new Map();
+  private minQuality: number;
+
+  constructor(config: { minQuality?: number } = {}) {
+    this.vectorSimilarity = new VectorSimilarity({ useIDF: true });
+    this.qualityScorer = new PatternQualityScorer();
+    this.minQuality = config.minQuality ?? 0.7;
+  }
 
   /**
-   * Store a new test pattern
+   * Store a new test pattern with quality scoring and vector indexing
    */
   public async storePattern(pattern: TestPattern): Promise<void> {
     // Validate pattern
@@ -95,6 +109,23 @@ export class QEReasoningBank {
 
     if (pattern.confidence < 0 || pattern.confidence > 1) {
       throw new Error('Confidence must be between 0 and 1');
+    }
+
+    // Calculate pattern quality if not provided
+    if (pattern.quality === undefined) {
+      const qualityScore = this.qualityScorer.calculateQuality({
+        id: pattern.id,
+        name: pattern.name,
+        code: pattern.examples[0] || pattern.template,
+        template: pattern.template,
+        description: pattern.description,
+        tags: pattern.metadata.tags,
+        usageCount: pattern.usageCount,
+        metadata: {
+          successRate: pattern.successRate
+        }
+      });
+      pattern.quality = qualityScore.overall;
     }
 
     // Version existing pattern
@@ -108,6 +139,12 @@ export class QEReasoningBank {
     // Store pattern
     this.patterns.set(pattern.id, { ...pattern });
 
+    // Generate and cache vector embedding
+    const patternText = this.getPatternText(pattern);
+    this.vectorSimilarity.indexDocument(patternText);
+    const vector = this.vectorSimilarity.generateEmbedding(patternText);
+    this.vectorCache.set(pattern.id, vector);
+
     // Update index for fast lookup
     this.updateIndex(pattern);
   }
@@ -120,7 +157,8 @@ export class QEReasoningBank {
   }
 
   /**
-   * Find matching patterns for a code context
+   * Find matching patterns using vector similarity
+   * Target: 85%+ matching accuracy
    */
   public async findMatchingPatterns(
     context: {
@@ -128,28 +166,69 @@ export class QEReasoningBank {
       framework?: string;
       language?: string;
       keywords?: string[];
+      sourceCode?: string; // Optional source code for better matching
     },
     limit: number = 10
   ): Promise<PatternMatch[]> {
+    // Build query text from context
+    const queryText = this.buildQueryText(context);
+    const queryVector = this.vectorSimilarity.generateEmbedding(queryText);
+
+    // Find top-K similar patterns using vector similarity
+    const vectorMatches = this.vectorSimilarity.findTopK(
+      queryVector,
+      this.vectorCache,
+      limit * 2 // Get more candidates for filtering
+    );
+
     const matches: PatternMatch[] = [];
 
-    for (const pattern of Array.from(this.patterns.values())) {
-      const confidence = this.calculateMatchConfidence(pattern, context);
+    for (const vectorMatch of vectorMatches) {
+      const pattern = this.patterns.get(vectorMatch.id);
+      if (!pattern) continue;
 
-      if (confidence > 0.3) { // Threshold
+      // Calculate hybrid confidence (vector similarity + rule-based)
+      const ruleBased = this.calculateMatchConfidence(pattern, context);
+      const vectorSim = vectorMatch.similarity;
+
+      // Hybrid scoring: 60% vector similarity, 40% rule-based
+      const confidence = vectorSim * 0.6 + ruleBased * 0.4;
+
+      // Apply quality filter
+      const meetsQuality = (pattern.quality ?? 1.0) >= this.minQuality;
+
+      if (confidence > 0.3 && meetsQuality) {
         matches.push({
           pattern,
           confidence,
-          reasoning: this.generateReasoning(pattern, context),
-          applicability: confidence * pattern.successRate
+          similarity: vectorSim,
+          reasoning: this.generateReasoning(pattern, context, vectorSim),
+          applicability: confidence * pattern.successRate * (pattern.quality ?? 1.0)
         });
       }
     }
 
-    // Sort by applicability
+    // Sort by applicability (confidence × success rate × quality)
     matches.sort((a, b) => b.applicability - a.applicability);
 
     return matches.slice(0, limit);
+  }
+
+  /**
+   * Find similar patterns by example code
+   * Uses vector similarity for code-based matching
+   */
+  public async findSimilarPatterns(
+    exampleCode: string,
+    framework?: string,
+    limit: number = 5
+  ): Promise<PatternMatch[]> {
+    return this.findMatchingPatterns({
+      codeType: 'test',
+      framework,
+      sourceCode: exampleCode,
+      keywords: this.extractKeywords(exampleCode)
+    }, limit);
   }
 
   /**
@@ -177,12 +256,13 @@ export class QEReasoningBank {
   }
 
   /**
-   * Get pattern statistics
+   * Get pattern statistics (alias for getStats for backward compatibility)
    */
   public async getStatistics(): Promise<{
     totalPatterns: number;
     averageConfidence: number;
     averageSuccessRate: number;
+    averageQuality: number;
     byCategory: Record<string, number>;
     byFramework: Record<string, number>;
   }> {
@@ -194,6 +274,8 @@ export class QEReasoningBank {
         patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length || 0,
       averageSuccessRate:
         patterns.reduce((sum, p) => sum + p.successRate, 0) / patterns.length || 0,
+      averageQuality:
+        patterns.reduce((sum, p) => sum + (p.quality ?? 0), 0) / patterns.length || 0,
       byCategory: {} as Record<string, number>,
       byFramework: {} as Record<string, number>
     };
@@ -306,9 +388,15 @@ export class QEReasoningBank {
 
   private generateReasoning(
     pattern: TestPattern,
-    context: { codeType: string; framework?: string; language?: string; keywords?: string[] }
+    context: { codeType: string; framework?: string; language?: string; keywords?: string[]; sourceCode?: string },
+    similarity?: number
   ): string {
     const reasons: string[] = [];
+
+    // Vector similarity score
+    if (similarity !== undefined) {
+      reasons.push(`Similarity: ${(similarity * 100).toFixed(1)}%`);
+    }
 
     if (context.framework && pattern.framework === context.framework) {
       reasons.push(`Framework match: ${pattern.framework}`);
@@ -328,10 +416,144 @@ export class QEReasoningBank {
       }
     }
 
+    if (pattern.quality !== undefined) {
+      reasons.push(`Quality: ${(pattern.quality * 100).toFixed(1)}%`);
+    }
+
     reasons.push(`Success rate: ${(pattern.successRate * 100).toFixed(1)}%`);
     reasons.push(`Used ${pattern.usageCount} times`);
 
     return reasons.join('; ');
+  }
+
+  /**
+   * Build query text from context for vector matching
+   */
+  private buildQueryText(context: {
+    codeType: string;
+    framework?: string;
+    language?: string;
+    keywords?: string[];
+    sourceCode?: string;
+  }): string {
+    const parts: string[] = [];
+
+    parts.push(context.codeType);
+
+    if (context.framework) {
+      parts.push(context.framework);
+    }
+
+    if (context.language) {
+      parts.push(context.language);
+    }
+
+    if (context.keywords) {
+      parts.push(...context.keywords);
+    }
+
+    if (context.sourceCode) {
+      // Extract meaningful tokens from source code
+      parts.push(...this.extractKeywords(context.sourceCode));
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * Get pattern text for vector embedding
+   */
+  private getPatternText(pattern: TestPattern): string {
+    const parts: string[] = [];
+
+    parts.push(pattern.name);
+    parts.push(pattern.description);
+    parts.push(pattern.category);
+    parts.push(pattern.framework);
+    parts.push(...pattern.metadata.tags);
+
+    if (pattern.examples.length > 0) {
+      parts.push(...this.extractKeywords(pattern.examples[0]));
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * Extract keywords from code
+   */
+  private extractKeywords(code: string): string[] {
+    // Simple keyword extraction (can be enhanced with AST analysis)
+    const keywords: string[] = [];
+
+    // Extract function/method names
+    const functionMatches = code.match(/function\s+(\w+)|const\s+(\w+)\s*=/g);
+    if (functionMatches) {
+      keywords.push(...functionMatches.map(m => m.replace(/function|const|=|\s/g, '')));
+    }
+
+    // Extract identifiers (camelCase, snake_case)
+    const identifiers = code.match(/\b[a-z_][a-zA-Z0-9_]{2,}\b/g);
+    if (identifiers) {
+      keywords.push(...identifiers.slice(0, 20)); // Limit to avoid noise
+    }
+
+    return keywords.filter(k => k.length > 2);
+  }
+
+  /**
+   * Export patterns for cross-project sharing
+   */
+  public exportPatterns(filter?: Partial<TestPattern>): TestPattern[] {
+    let patterns = Array.from(this.patterns.values());
+
+    if (filter) {
+      patterns = patterns.filter(p => {
+        if (filter.framework && p.framework !== filter.framework) return false;
+        if (filter.category && p.category !== filter.category) return false;
+        if (filter.language && p.language !== filter.language) return false;
+        return true;
+      });
+    }
+
+    return patterns;
+  }
+
+  /**
+   * Import patterns from another project
+   */
+  public async importPatterns(patterns: TestPattern[]): Promise<void> {
+    for (const pattern of patterns) {
+      await this.storePattern(pattern);
+    }
+  }
+
+  /**
+   * Get pattern statistics including quality metrics
+   */
+  public getStats(): {
+    totalPatterns: number;
+    byFramework: Record<string, number>;
+    byCategory: Record<string, number>;
+    averageQuality: number;
+    averageSuccessRate: number;
+  } {
+    const patterns = Array.from(this.patterns.values());
+
+    const stats = {
+      totalPatterns: patterns.length,
+      byFramework: {} as Record<string, number>,
+      byCategory: {} as Record<string, number>,
+      averageQuality: patterns.reduce((sum, p) => sum + (p.quality ?? 0), 0) / patterns.length || 0,
+      averageSuccessRate: patterns.reduce((sum, p) => sum + p.successRate, 0) / patterns.length || 0
+    };
+
+    for (const pattern of patterns) {
+      stats.byFramework[pattern.framework] = (stats.byFramework[pattern.framework] || 0) + 1;
+      stats.byCategory[pattern.category] = (stats.byCategory[pattern.category] || 0) + 1;
+    }
+
+    return stats;
   }
 }
 

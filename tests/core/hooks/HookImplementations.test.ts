@@ -8,17 +8,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { VerificationHookManager } from '../../../src/core/hooks/VerificationHookManager';
-import { EnvironmentChecker } from '../../../src/core/hooks/checkers/EnvironmentChecker';
-import { ResourceChecker } from '../../../src/core/hooks/checkers/ResourceChecker';
-import { PermissionChecker } from '../../../src/core/hooks/checkers/PermissionChecker';
-import { ConfigurationChecker } from '../../../src/core/hooks/checkers/ConfigurationChecker';
-import { OutputValidator } from '../../../src/core/hooks/validators/OutputValidator';
-import { QualityValidator } from '../../../src/core/hooks/validators/QualityValidator';
-import { CoverageValidator } from '../../../src/core/hooks/validators/CoverageValidator';
-import { PerformanceValidator } from '../../../src/core/hooks/validators/PerformanceValidator';
-import { RollbackManager } from '../../../src/core/hooks/RollbackManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { VerificationHookManager } from '@core/hooks/VerificationHookManager';
+import { EnvironmentChecker } from '@core/hooks/checkers/EnvironmentChecker';
+import { ResourceChecker } from '@core/hooks/checkers/ResourceChecker';
+import { PermissionChecker } from '@core/hooks/checkers/PermissionChecker';
+import { ConfigurationChecker } from '@core/hooks/checkers/ConfigurationChecker';
+import { OutputValidator } from '@core/hooks/validators/OutputValidator';
+import { QualityValidator } from '@core/hooks/validators/QualityValidator';
+import { CoverageValidator } from '@core/hooks/validators/CoverageValidator';
+import { PerformanceValidator } from '@core/hooks/validators/PerformanceValidator';
+import { RollbackManager } from '@core/hooks/RollbackManager';
 import * as os from 'os';
 import * as fs from 'fs-extra';
 import * as path from 'path';

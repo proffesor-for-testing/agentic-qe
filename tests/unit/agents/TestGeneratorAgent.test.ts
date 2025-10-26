@@ -3,14 +3,14 @@
  * Testing the TestGeneratorAgent with full coverage
  */
 
-import { TestGeneratorAgent } from '../../../src/agents/TestGeneratorAgent';
-import { EventBus } from '../../../src/core/EventBus';
-import { Task, TaskStatus } from '../../../src/core/Task';
-import { Logger } from '../../../src/utils/Logger';
+import { TestGeneratorAgent } from '@agents/TestGeneratorAgent';
+import { EventBus } from '@core/EventBus';
+import { Task, TaskStatus } from '@core/Task';
+import { Logger } from '@utils/Logger';
 
 // Mock dependencies
-jest.mock('../../../src/utils/Logger');
-jest.mock('../../../src/core/EventBus');
+jest.mock('@utils/Logger');
+jest.mock('@core/EventBus');
 
 describe('TestGeneratorAgent', () => {
   let agent: TestGeneratorAgent;

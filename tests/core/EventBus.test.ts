@@ -3,7 +3,7 @@
  * Tests event system, pub/sub, and inter-agent communication
  */
 
-import { EventBus } from '../../src/core/EventBus';
+import { EventBus } from '@core/EventBus';
 
 describe('EventBus', () => {
   let eventBus: EventBus;

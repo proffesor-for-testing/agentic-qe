@@ -9,12 +9,12 @@
  * @group agents
  */
 
-import { QualityAnalyzerAgent, QualityAnalyzerConfig } from '../../src/agents/QualityAnalyzerAgent';
-import { QETask, AgentContext, MemoryStore, AgentStatus } from '../../src/types';
+import { QualityAnalyzerAgent, QualityAnalyzerConfig } from '@agents/QualityAnalyzerAgent';
+import { QETask, AgentContext, MemoryStore, AgentStatus } from '@types';
 import { EventEmitter } from 'events';
 
 // Mock Logger to avoid file system operations
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),

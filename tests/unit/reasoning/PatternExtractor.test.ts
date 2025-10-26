@@ -3,8 +3,8 @@
  * Phase 2 (v1.1.0) - Pattern Extraction Specialist
  */
 
-import { PatternExtractor } from '../../../src/reasoning/PatternExtractor';
-import { TestFramework, PatternType } from '../../../src/types/pattern.types';
+import { PatternExtractor } from '@reasoning/PatternExtractor';
+import { TestFramework, PatternType } from '@types/pattern.types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 

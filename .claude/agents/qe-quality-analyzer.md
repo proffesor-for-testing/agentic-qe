@@ -35,6 +35,26 @@ integration_points:
 
 # Quality Analyzer Agent
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **quality-metrics**: Measure quality effectively with actionable metrics and KPIs
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+- **compliance-testing**: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show test-reporting-analytics
+
+# Via Skill tool in Claude Code
+Skill("test-reporting-analytics")
+Skill("compliance-testing")
+```
+
 ## Core Responsibilities
 
 ### Primary Functions

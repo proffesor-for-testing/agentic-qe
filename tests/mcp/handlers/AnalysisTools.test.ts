@@ -3,11 +3,11 @@
  * Tests all 5 analysis handlers with edge cases and integration scenarios
  */
 
-import { coverageAnalyzeSublinear } from '../../../src/mcp/handlers/analysis/coverageAnalyzeSublinear';
-import { coverageGapsDetect } from '../../../src/mcp/handlers/analysis/coverageGapsDetect';
-import { performanceBenchmarkRun } from '../../../src/mcp/handlers/analysis/performanceBenchmarkRun';
-import { performanceMonitorRealtime } from '../../../src/mcp/handlers/analysis/performanceMonitorRealtime';
-import { securityScanComprehensive } from '../../../src/mcp/handlers/analysis/securityScanComprehensive';
+import { coverageAnalyzeSublinear } from '@mcp/handlers/analysis/coverageAnalyzeSublinear';
+import { coverageGapsDetect } from '@mcp/handlers/analysis/coverageGapsDetect';
+import { performanceBenchmarkRun } from '@mcp/handlers/analysis/performanceBenchmarkRun';
+import { performanceMonitorRealtime } from '@mcp/handlers/analysis/performanceMonitorRealtime';
+import { securityScanComprehensive } from '@mcp/handlers/analysis/securityScanComprehensive';
 
 describe('Analysis MCP Tools - Coverage Analyze Sublinear', () => {
   it('should analyze coverage with Johnson-Lindenstrauss for large codebases', async () => {

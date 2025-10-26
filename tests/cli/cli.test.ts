@@ -6,7 +6,7 @@
 import { execSync, spawn } from 'child_process';
 
 // Mock Logger to prevent undefined errors in Database
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),

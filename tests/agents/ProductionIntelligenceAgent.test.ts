@@ -2,9 +2,9 @@
  * Unit tests for ProductionIntelligenceAgent
  */
 
-import { ProductionIntelligenceAgent, ProductionIntelligenceConfig, ProductionIncident } from '../../src/agents/ProductionIntelligenceAgent';
+import { ProductionIntelligenceAgent, ProductionIntelligenceConfig, ProductionIncident } from '@agents/ProductionIntelligenceAgent';
 import { EventEmitter } from 'events';
-import { AgentStatus, QEAgentType } from '../../src/types';
+import { AgentStatus, QEAgentType } from '@types';
 
 // Mock MemoryStore
 class MockMemoryStore {

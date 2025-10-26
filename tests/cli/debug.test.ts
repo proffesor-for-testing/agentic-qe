@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 
 // Mock Logger to prevent undefined errors in Database
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),
@@ -20,12 +20,12 @@ import * as path from 'path';
 import * as os from 'os';
 
 // Import commands to test
-import { debugAgent } from '../../src/cli/commands/debug/agent';
-import { runDiagnostics } from '../../src/cli/commands/debug/diagnostics';
-import { healthCheck } from '../../src/cli/commands/debug/health-check';
-import { troubleshoot } from '../../src/cli/commands/debug/troubleshoot';
-import { traceExecution } from '../../src/cli/commands/debug/trace';
-import { profilePerformance } from '../../src/cli/commands/debug/profile';
+import { debugAgent } from '@cli/commands/debug/agent';
+import { runDiagnostics } from '@cli/commands/debug/diagnostics';
+import { healthCheck } from '@cli/commands/debug/health-check';
+import { troubleshoot } from '@cli/commands/debug/troubleshoot';
+import { traceExecution } from '@cli/commands/debug/trace';
+import { profilePerformance } from '@cli/commands/debug/profile';
 
 describe('Debug & Diagnostics CLI Commands', () => {
   let tempDir: string;

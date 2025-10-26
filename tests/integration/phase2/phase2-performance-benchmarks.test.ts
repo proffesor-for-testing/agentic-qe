@@ -11,11 +11,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { QEReasoningBank } from '../../../src/reasoning/QEReasoningBank';
-import { LearningEngine } from '../../../src/learning/LearningEngine';
-import { PatternExtractor } from '../../../src/reasoning/PatternExtractor';
-import { FlakyTestDetector } from '../../../src/learning/FlakyTestDetector';
-import { PerformanceTracker } from '../../../src/learning/PerformanceTracker';
+import { QEReasoningBank } from '@reasoning/QEReasoningBank';
+import { LearningEngine } from '@learning/LearningEngine';
+import { PatternExtractor } from '@reasoning/PatternExtractor';
+import { FlakyTestDetector } from '@learning/FlakyTestDetector';
+import { PerformanceTracker } from '@learning/PerformanceTracker';
 
 // Helper to calculate percentiles
 function percentile(values: number[], p: number): number {

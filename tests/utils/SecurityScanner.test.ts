@@ -2,7 +2,7 @@
  * Tests for Real Security Scanner
  */
 
-import { RealSecurityScanner } from '../../src/utils/SecurityScanner';
+import { RealSecurityScanner } from '@utils/SecurityScanner';
 import * as fs from 'fs';
 import * as path from 'path';
 

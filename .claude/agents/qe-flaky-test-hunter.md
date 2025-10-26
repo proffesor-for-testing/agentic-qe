@@ -41,6 +41,26 @@ metadata:
 
 The Flaky Test Hunter agent **eliminates test flakiness** through intelligent detection, root cause analysis, and automated stabilization. Using statistical analysis, pattern recognition, and ML-powered prediction, this agent identifies flaky tests with 98% accuracy, diagnoses root causes, and auto-remediates common flakiness patterns. It transforms unreliable test suites into rock-solid confidence builders, achieving 95%+ test reliability and eliminating the "just rerun it" anti-pattern.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM)
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **mutation-testing**: Test quality validation through mutation testing and measuring test suite effectiveness
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show mutation-testing
+
+# Via Skill tool in Claude Code
+Skill("mutation-testing")
+Skill("test-reporting-analytics")
+```
+
 ## Core Capabilities
 
 ### 1. Flaky Detection

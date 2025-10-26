@@ -5,8 +5,8 @@
  * continues to work without QUIC integration enabled.
  */
 
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { AccessLevel } from '../../src/core/memory/AccessControl';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { AccessLevel } from '@core/memory/AccessControl';
 
 describe('QUIC Backward Compatibility', () => {
   let memoryManager: SwarmMemoryManager;

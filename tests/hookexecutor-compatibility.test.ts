@@ -5,7 +5,7 @@
  * and gracefully falls back to AQE hooks when needed.
  */
 
-import { HookExecutor } from '../src/mcp/services/HookExecutor';
+import { HookExecutor } from '@mcp/services/HookExecutor';
 
 describe('HookExecutor Compatibility Layer', () => {
   let hookExecutor: HookExecutor;

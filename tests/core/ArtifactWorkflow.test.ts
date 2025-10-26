@@ -1,5 +1,5 @@
-import { ArtifactWorkflow } from '../../src/core/ArtifactWorkflow';
-import { SwarmMemoryManager } from '../../src/memory/SwarmMemoryManager';
+import { ArtifactWorkflow } from '@core/ArtifactWorkflow';
+import { SwarmMemoryManager } from '@memory/SwarmMemoryManager';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';

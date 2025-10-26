@@ -3,7 +3,7 @@
  * Tests AI-powered test generation, sublinear algorithms, and consciousness integration
  */
 
-import { TestGeneratorAgent, TestGeneratorConfig } from '../../src/agents/TestGeneratorAgent';
+import { TestGeneratorAgent, TestGeneratorConfig } from '@agents/TestGeneratorAgent';
 import { EventEmitter } from 'events';
 import {
   AgentType,
@@ -12,7 +12,7 @@ import {
   TaskAssignment,
   TestSuite,
   TestType
-} from '../../src/types';
+} from '@types';
 
 // Mock MemoryStore implementation
 class MockMemoryStore {

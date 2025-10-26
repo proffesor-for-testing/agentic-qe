@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { integrationTestOrchestrate } from '../../../src/mcp/handlers/integration/integration-test-orchestrate';
-import { contractValidate } from '../../../src/mcp/handlers/integration/contract-validate';
-import { dependencyCheck } from '../../../src/mcp/handlers/integration/dependency-check';
+import { integrationTestOrchestrate } from '@mcp/handlers/integration/integration-test-orchestrate';
+import { contractValidate } from '@mcp/handlers/integration/contract-validate';
+import { dependencyCheck } from '@mcp/handlers/integration/dependency-check';
 import type {
   IntegrationTestOrchestrateParams,
   ContractValidateParams,
   DependencyCheckParams,
-} from '../../../src/mcp/types/integration';
+} from '@mcp/types/integration';
 
 describe('Integration Testing MCP Tools', () => {
   describe('integration_test_orchestrate', () => {

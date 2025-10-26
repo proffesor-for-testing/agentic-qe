@@ -12,7 +12,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { AgentStatus, QEAgentType, QETask } from '../../src/types';
+import { AgentStatus, QEAgentType, QETask } from '@typessrc/types';
 
 // Mock TestDataArchitectAgent until it's implemented
 interface TestDataArchitectConfig {

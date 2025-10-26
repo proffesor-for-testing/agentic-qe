@@ -1,11 +1,11 @@
 import { jest } from '@jest/globals';
 import { AgentCoordinator, CoordinationTopology } from '../../src/coordination/agent-coordinator';
 import { MessageBus } from '../../src/communication/message-bus';
-import { FleetManager } from '../../src/core/fleet-manager';
-import { TestGeneratorAgent } from '../../src/agents/TestGeneratorAgent';
-import { TestExecutorAgent } from '../../src/agents/TestExecutorAgent';
-import { CoverageAnalyzerAgent } from '../../src/agents/CoverageAnalyzerAgent';
-import { QualityGateAgent } from '../../src/agents/QualityGateAgent';
+import { FleetManager } from '@core/fleet-manager';
+import { TestGeneratorAgent } from '@agents/TestGeneratorAgent';
+import { TestExecutorAgent } from '@agents/TestExecutorAgent';
+import { CoverageAnalyzerAgent } from '@agents/CoverageAnalyzerAgent';
+import { QualityGateAgent } from '@agents/QualityGateAgent';
 
 // Integration tests for multi-agent coordination - London School TDD
 // Mock the communication layer but test real agent interactions

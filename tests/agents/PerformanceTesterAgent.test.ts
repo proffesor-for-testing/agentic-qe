@@ -1,6 +1,6 @@
-import { PerformanceTesterAgent, PerformanceTesterConfig } from '../../src/agents/PerformanceTesterAgent';
+import { PerformanceTesterAgent, PerformanceTesterConfig } from '@agents/PerformanceTesterAgent';
 import { EventEmitter } from 'events';
-import { AgentType, QEAgentType, AgentStatus, QETask } from '../../src/types';
+import { AgentType, QEAgentType, AgentStatus, QETask } from '@types';
 
 // Mock memory store
 class MockMemoryStore {

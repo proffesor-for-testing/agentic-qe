@@ -4,16 +4,16 @@
  */
 
 import * as fs from 'fs-extra';
-import { FleetInitCommand } from '../../src/cli/commands/fleet/init';
-import { FleetStatusCommand } from '../../src/cli/commands/fleet/status';
-import { FleetScaleCommand } from '../../src/cli/commands/fleet/scale';
-import { FleetMonitorCommand } from '../../src/cli/commands/fleet/monitor';
-import { FleetHealthCommand } from '../../src/cli/commands/fleet/health';
-import { FleetTopologyCommand } from '../../src/cli/commands/fleet/topology';
-import { FleetRestartCommand } from '../../src/cli/commands/fleet/restart';
-import { FleetShutdownCommand } from '../../src/cli/commands/fleet/shutdown';
-import { FleetLogsCommand } from '../../src/cli/commands/fleet/logs';
-import { FleetMetricsCommand } from '../../src/cli/commands/fleet/metrics';
+import { FleetInitCommand } from '@cli/commands/fleet/init';
+import { FleetStatusCommand } from '@cli/commands/fleet/status';
+import { FleetScaleCommand } from '@cli/commands/fleet/scale';
+import { FleetMonitorCommand } from '@cli/commands/fleet/monitor';
+import { FleetHealthCommand } from '@cli/commands/fleet/health';
+import { FleetTopologyCommand } from '@cli/commands/fleet/topology';
+import { FleetRestartCommand } from '@cli/commands/fleet/restart';
+import { FleetShutdownCommand } from '@cli/commands/fleet/shutdown';
+import { FleetLogsCommand } from '@cli/commands/fleet/logs';
+import { FleetMetricsCommand } from '@cli/commands/fleet/metrics';
 
 jest.mock('fs-extra');
 jest.mock('chalk', () => ({

@@ -618,7 +618,7 @@ export abstract class BaseAgent extends EventEmitter {
               ...data.context,
               agentDBContext: retrievalResult.context,
               relevantPatterns: retrievalResult.patterns || [],
-              similarTasks: retrievalResult.memories.map(m => {
+              similarTasks: retrievalResult.memories.map((m: any) => {
                 const patternData = JSON.parse(m.pattern_data);
                 return {
                   taskType: patternData.taskType,

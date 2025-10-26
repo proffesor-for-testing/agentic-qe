@@ -735,38 +735,37 @@ For full capabilities, install the complete agentic-qe package.
   private static async copySkillTemplates(): Promise<void> {
     console.log(chalk.cyan('  🎯 Initializing QE Fleet skills...'));
 
-    // Define all 35 QE Fleet skills (Phase 1: 18 original + Phase 2: 17 new = 35 total)
+    // Define all 34 QE Fleet skills (Phase 1: 17 original + Phase 2: 17 new = 34 total)
     const QE_FLEET_SKILLS = [
-      // Phase 1: Original Quality Practices (18 skills)
-      // Core Quality Practices (5)
-      'holistic-testing-pact',
-      'context-driven-testing',
+      // Phase 1: Original Quality Practices (17 skills)
+      // Core Quality Practices (3)
       'agentic-quality-engineering',
-      'exploratory-testing-advanced',
-      'risk-based-testing',
+      'context-driven-testing',
+      'holistic-testing-pact',
 
-      // Development Methodologies (3)
+      // Testing Methodologies (4)
       'tdd-london-chicago',
       'xp-practices',
-      'refactoring-patterns',
-
-      // Testing Specializations (4)
-      'api-testing-patterns',
-      'performance-testing',
-      'security-testing',
+      'risk-based-testing',
       'test-automation-strategy',
 
-      // Communication & Process (3)
-      'technical-writing',
-      'bug-reporting-excellence',
+      // Testing Techniques (4)
+      'api-testing-patterns',
+      'exploratory-testing-advanced',
+      'performance-testing',
+      'security-testing',
+
+      // Code Quality (3)
       'code-review-quality',
-
-      // Professional Skills (3 - includes verification-quality)
-      'consultancy-practices',
+      'refactoring-patterns',
       'quality-metrics',
-      'verification-quality',
 
-      // Phase 2: New QE Skills from v1.3.0 (17 new skills)
+      // Communication (3)
+      'bug-reporting-excellence',
+      'technical-writing',
+      'consultancy-practices',
+
+      // Phase 2: Expanded QE Skills Library (17 skills)
       // Testing Methodologies (6)
       'regression-testing',
       'shift-left-testing',
@@ -864,11 +863,11 @@ For full capabilities, install the complete agentic-qe package.
 
     console.log(chalk.cyan(`  📋 Total QE skills initialized: ${finalSkillCount}`));
 
-    // Verify we have exactly 35 QE skills
-    if (finalSkillCount === 35) {
-      console.log(chalk.green('  ✅ All 35 QE Fleet skills successfully initialized'));
-    } else if (finalSkillCount < 35) {
-      console.warn(chalk.yellow(`  ⚠️  Expected 35 QE skills, found ${finalSkillCount}`));
+    // Verify we have exactly 34 QE skills
+    if (finalSkillCount === 34) {
+      console.log(chalk.green('  ✅ All 34 QE Fleet skills successfully initialized'));
+    } else if (finalSkillCount < 34) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 34 QE skills, found ${finalSkillCount}`));
       const missingSkills = QE_FLEET_SKILLS.filter(skill => {
         return !fs.existsSync(path.join(targetPath, skill));
       });
@@ -1527,26 +1526,61 @@ for await (const event of handler.execute(params)) {
 
 ## 🎯 Claude Code Skills Integration
 
-This fleet includes **35 specialized QE skills** that agents can use:
+This fleet includes **34 specialized QE skills** that agents can use:
 
-### Quality Engineering Skills (10 skills)
+### Phase 1: Original Quality Engineering Skills (17 skills)
+
+#### Core Testing (3 skills)
 - **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
-- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing
-- **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly - includes templates, examples, and best practices
 - **context-driven-testing**: Apply context-driven testing principles where practices are chosen based on project context, not universal "best practices"
-- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours
 - **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles
-- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches - understanding different TDD philosophies and choosing the right testing style
-- **pair-programming**: AI-assisted pair programming with multiple modes (driver/navigator/switch), real-time verification, quality monitoring
-- **verification-quality**: Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold
-- **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace
 
-### AgentDB Skills (5 skills)
-- **agentdb-advanced**: Master advanced AgentDB features including QUIC synchronization, multi-database management, custom distance metrics, hybrid search
-- **agentdb-learning**: Create and train AI learning plugins with AgentDB's 9 reinforcement learning algorithms (Decision Transformer, Q-Learning, SARSA, Actor-Critic)
-- **agentdb-memory-patterns**: Implement persistent memory patterns for AI agents using AgentDB (session memory, long-term storage, pattern learning)
-- **agentdb-optimization**: Optimize AgentDB performance with quantization (4-32x memory reduction), HNSW indexing (150x faster search), caching
-- **agentdb-vector-search**: Implement semantic vector search with AgentDB for intelligent document retrieval, similarity matching, and context-aware querying
+#### Testing Methodologies (4 skills)
+- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches - understanding different TDD philosophies and choosing the right testing style
+- **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment and prioritization
+- **test-automation-strategy**: Design and implement comprehensive test automation strategies
+
+#### Testing Techniques (4 skills)
+- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing
+- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours
+- **performance-testing**: Test application performance, scalability, and resilience with load testing and stress testing
+- **security-testing**: Test for security vulnerabilities using OWASP principles and security testing techniques
+
+#### Code Quality (3 skills)
+- **code-review-quality**: Conduct context-driven code reviews focusing on quality, testability, and maintainability
+- **refactoring-patterns**: Apply safe refactoring patterns to improve code structure without changing behavior
+- **quality-metrics**: Measure quality effectively with actionable metrics and KPIs
+
+#### Communication (3 skills)
+- **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly - includes templates, examples, and best practices
+- **technical-writing**: Create clear, concise technical documentation
+- **consultancy-practices**: Apply effective software quality consultancy practices
+
+### Phase 2: Expanded QE Skills Library (17 skills)
+
+#### Testing Methodologies (6 skills)
+- **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
+- **shift-left-testing**: Move testing activities earlier in development lifecycle with TDD, BDD, and design for testability
+- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
+- **test-design-techniques**: Advanced test design using equivalence partitioning, boundary value analysis, and decision tables
+- **mutation-testing**: Test quality validation through mutation testing and measuring test suite effectiveness
+- **test-data-management**: Realistic test data generation, GDPR compliance, and data masking strategies
+
+#### Specialized Testing (9 skills)
+- **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification
+- **mobile-testing**: Comprehensive mobile testing for iOS and Android including gestures, sensors, and device fragmentation
+- **database-testing**: Database schema validation, data integrity testing, migration testing, and query performance
+- **contract-testing**: Consumer-driven contract testing for microservices using Pact and API versioning
+- **chaos-engineering-resilience**: Chaos engineering principles, controlled failure injection, and resilience testing
+- **compatibility-testing**: Cross-browser, cross-platform, and cross-device compatibility testing
+- **localization-testing**: Internationalization (i18n) and localization (l10n) testing for global products
+- **compliance-testing**: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS
+- **visual-testing-advanced**: Advanced visual regression testing with AI-powered screenshot comparison and UI validation
+
+#### Testing Infrastructure (2 skills)
+- **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
 
 ### Using Skills
 
@@ -1624,7 +1658,7 @@ aqe improve cycle
 ## 📚 Documentation
 
 - **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents
-- **Skills**: \\\`.claude/skills/\\\` - 17 specialized QE skills for agents
+- **Skills**: \\\`.claude/skills/\\\` - 34 specialized QE skills for agents (Phase 1: 17 + Phase 2: 17)
 - **Fleet Config**: \\\`.agentic-qe/config/fleet.json\\\`
 - **Routing Config**: \\\`.agentic-qe/config/routing.json\\\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \\\`.agentic-qe/config/aqe-hooks.json\\\` (zero dependencies, 100-500x faster)

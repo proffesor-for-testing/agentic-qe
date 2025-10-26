@@ -17,13 +17,13 @@ import {
   DataGenerationRequest,
   AnonymizationStrategy,
   CheckConstraint
-} from '../../src/agents/TestDataArchitectAgent';
+} from '@agents/TestDataArchitectAgent';
 import {
   QEAgentType,
   AgentStatus,
   MemoryStore,
   QETask
-} from '../../src/types';
+} from '@types';
 
 // ============================================================================
 // Mock Implementations

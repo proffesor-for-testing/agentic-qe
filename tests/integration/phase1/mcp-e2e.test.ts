@@ -8,9 +8,9 @@
  * requiring the MCP server to be running.
  */
 
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { BlackboardCoordination } from '../../../src/core/coordination/BlackboardCoordination';
-import { ConsensusGating } from '../../../src/core/coordination/ConsensusGating';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { BlackboardCoordination } from '@core/coordination/BlackboardCoordination';
+import { ConsensusGating } from '@core/coordination/ConsensusGating';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';

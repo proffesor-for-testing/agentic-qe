@@ -3,7 +3,7 @@
  * Complete coverage for fleet status monitoring functionality
  */
 
-import { FleetStatusHandler, FleetStatusArgs } from '../../../src/mcp/handlers/fleet-status';
+import { FleetStatusHandler, FleetStatusArgs } from '@mcp/handlers/fleet-status';
 
 describe('FleetStatusHandler', () => {
   let handler: FleetStatusHandler;

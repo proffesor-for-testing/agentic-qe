@@ -1,4 +1,4 @@
-import { SwarmMemoryManager } from '../../src/memory/SwarmMemoryManager';
+import { SwarmMemoryManager } from '@memory/SwarmMemoryManager';
 import * as fs from 'fs';
 import * as path from 'path';
 

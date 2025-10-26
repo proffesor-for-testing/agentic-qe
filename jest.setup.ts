@@ -55,48 +55,8 @@ jest.mock('path', () => {
   };
 });
 
-// Mock Logger globally to prevent initialization issues
-jest.mock('./src/utils/Logger', () => {
-  // Create a factory function that returns a new mock logger instance each time
-  const createMockLogger = () => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-    log: jest.fn(),
-    child: jest.fn(function() { return this; }), // Return 'this' to support chaining
-    setLevel: jest.fn(),
-    getLevel: jest.fn().mockReturnValue('info')
-  });
-
-  // Singleton instance for getInstance()
-  let singletonLogger = createMockLogger();
-
-  // Mock Logger class that can be instantiated
-  class MockLogger {
-    info = jest.fn();
-    warn = jest.fn();
-    error = jest.fn();
-    debug = jest.fn();
-    log = jest.fn();
-    child = jest.fn().mockReturnThis();
-    setLevel = jest.fn();
-    getLevel = jest.fn().mockReturnValue('info');
-
-    // Make getInstance a jest.Mock so tests can mock it
-    static getInstance = jest.fn(() => singletonLogger);
-  }
-
-  return {
-    Logger: MockLogger,
-    LogLevel: {
-      ERROR: 'error',
-      WARN: 'warn',
-      INFO: 'info',
-      DEBUG: 'debug'
-    }
-  };
-});
+// Logger is mocked via manual mock in src/utils/__mocks__/Logger.ts
+// Jest will automatically use the manual mock when jest.mock() is called in test files
 
 // Mock createAgent globally with proper implementation
 // IMPORTANT: Use jest.requireActual to preserve QEAgentFactory and other exports

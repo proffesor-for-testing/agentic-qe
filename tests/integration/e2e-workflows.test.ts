@@ -6,8 +6,8 @@
  * Agent: integration-test-architect
  */
 
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../src/core/EventBus';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
 import * as path from 'path';
 import * as fs from 'fs';
 

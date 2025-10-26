@@ -14,11 +14,11 @@
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { BaseAgent } from '../../../src/agents/core/BaseAgent.js';
-import { AgentDBManager } from '../../../src/core/memory/AgentDBManager.js';
-import { AgentId, TaskAssignment } from '../../../src/types/agent.types.js';
-import { EventBus } from '../../../src/core/EventBus.js';
-import { MemoryManager } from '../../../src/core/MemoryManager.js';
+import { BaseAgent } from '@agents/core/BaseAgent.js';
+import { AgentDBManager } from '@core/memory/AgentDBManager.js';
+import { AgentId, TaskAssignment } from '@typessrc/types/agent.types.js';
+import { EventBus } from '@core/EventBus.js';
+import { MemoryManager } from '@core/MemoryManager.js';
 
 // Mock AgentDB module
 jest.mock('agentdb');

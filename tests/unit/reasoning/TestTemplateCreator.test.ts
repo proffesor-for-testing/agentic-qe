@@ -3,8 +3,8 @@
  * Phase 2 (v1.1.0) - Pattern Extraction Specialist
  */
 
-import { TestTemplateCreator } from '../../../src/reasoning/TestTemplateCreator';
-import { TestPattern, PatternType, TestFramework, PatternCategory } from '../../../src/types/pattern.types';
+import { TestTemplateCreator } from '@reasoning/TestTemplateCreator';
+import { TestPattern, PatternType, TestFramework, PatternCategory } from '@types/pattern.types';
 
 describe('TestTemplateCreator', () => {
   let creator: TestTemplateCreator;

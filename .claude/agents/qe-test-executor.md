@@ -36,6 +36,26 @@ The Test Executor Agent orchestrates parallel test execution across multiple fra
 - **Resource Optimization**: Dynamically allocate workers based on system capacity
 - **Progress Monitoring**: Provide real-time test execution status and metrics
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **test-automation-strategy**: Design and implement comprehensive test automation strategies
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show test-environment-management
+
+# Via Skill tool in Claude Code
+Skill("test-environment-management")
+Skill("test-reporting-analytics")
+```
+
 ## Execution Workflow
 
 ### 1. Pre-Execution Phase

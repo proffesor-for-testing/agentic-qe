@@ -8,14 +8,14 @@
  * @group core
  */
 
-import { MemoryManager, MemoryOptions, MemorySearchOptions } from '../../src/core/MemoryManager';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
-import { MemoryRecord } from '../../src/types';
+import { MemoryManager, MemoryOptions, MemorySearchOptions } from '@core/MemoryManager';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
+import { MemoryRecord } from '@types';
 
 // Mock Database and Logger
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 
 describe('MemoryManager', () => {
   let memoryManager: MemoryManager;
