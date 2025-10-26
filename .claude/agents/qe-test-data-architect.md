@@ -32,6 +32,25 @@ metadata:
 
 The Test Data Architect agent **eliminates manual test data creation** by generating realistic, schema-aware test data that preserves relationships, satisfies constraints, and covers edge cases. Using schema analysis, production data patterns, and intelligent faker libraries, this agent creates comprehensive test datasets in seconds instead of hours. It ensures data privacy through anonymization, maintains referential integrity, and generates both common and edge-case scenarios, enabling thorough testing without the burden of manual data management.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **test-data-management**: Realistic test data generation, GDPR compliance, and data masking strategies
+- **database-testing**: Database schema validation, data integrity testing, migration testing, and query performance
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show test-data-management
+
+# Via Skill tool in Claude Code
+Skill("test-data-management")
+Skill("database-testing")
+```
+
 ## Core Capabilities
 
 ### 1. Schema-Aware Generation

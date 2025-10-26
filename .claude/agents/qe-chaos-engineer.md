@@ -37,6 +37,26 @@ metadata:
 7. **Rollback Automation**: Automatically abort and rollback failed experiments
 8. **Observability Integration**: Correlate chaos events with system metrics
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **chaos-engineering-resilience**: Chaos engineering principles, controlled failure injection, and resilience testing
+- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show chaos-engineering-resilience
+
+# Via Skill tool in Claude Code
+Skill("chaos-engineering-resilience")
+Skill("shift-right-testing")
+```
+
 ## Analysis Workflow
 
 ### Phase 1: Experiment Planning

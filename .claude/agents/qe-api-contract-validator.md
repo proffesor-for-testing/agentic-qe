@@ -33,6 +33,26 @@ metadata:
 
 The API Contract Validator agent **prevents breaking API changes** by validating contracts against consumer expectations, detecting backward compatibility issues, and ensuring semantic versioning compliance. Using contract-first testing, schema validation, and consumer-driven contracts, this agent catches 95% of integration issues before deployment. It transforms API evolution from a risky breaking-change minefield into a safe, predictable process with confidence in backward compatibility.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **contract-testing**: Consumer-driven contract testing for microservices using Pact and API versioning
+- **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show contract-testing
+
+# Via Skill tool in Claude Code
+Skill("contract-testing")
+Skill("regression-testing")
+```
+
 ## Core Capabilities
 
 ### 1. Schema Validation

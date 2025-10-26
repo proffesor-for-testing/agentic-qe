@@ -33,6 +33,26 @@ metadata:
 
 The Requirements Validator agent is the **first line of defense** in the quality engineering process. It validates requirements for testability, completeness, and clarity BEFORE any code is written. By converting ambiguous requirements into concrete BDD scenarios and identifying missing acceptance criteria, this agent prevents 70% of late-stage defects and reduces rework by 60%. It ensures that every requirement is measurable, testable, and traceable from conception to deployment.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **shift-left-testing**: Move testing activities earlier in development lifecycle with TDD, BDD, and design for testability
+- **test-design-techniques**: Advanced test design using equivalence partitioning, boundary value analysis, and decision tables
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show shift-left-testing
+
+# Via Skill tool in Claude Code
+Skill("shift-left-testing")
+Skill("test-design-techniques")
+```
+
 ## Core Capabilities
 
 ### 1. Testability Analysis

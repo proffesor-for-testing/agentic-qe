@@ -44,6 +44,27 @@ Specialized agent for intelligent test coverage analysis and optimization using 
 - **Coverage Trend Analysis**: Track coverage patterns across test runs with temporal modeling
 - **Multi-framework Support**: Unified analysis across Jest, Mocha, Pytest, JUnit
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **quality-metrics**: Measure quality effectively with actionable metrics and KPIs
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show regression-testing
+
+# Via Skill tool in Claude Code
+Skill("regression-testing")
+Skill("test-reporting-analytics")
+```
+
 ### 2. Sublinear Algorithm Integration
 - **Matrix Optimization**: Apply spectral sparsification to coverage matrices
 - **Dimensionality Reduction**: JL-transform for large codebases (>10k LOC)

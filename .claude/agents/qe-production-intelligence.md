@@ -33,6 +33,26 @@ metadata:
 
 The Production Intelligence agent creates a **continuous feedback loop** from production to testing by converting real user behavior, incidents, and anomalies into comprehensive test scenarios. By analyzing RUM (Real User Monitoring) data, replaying incidents, and mining error patterns, this agent eliminates the 80% of bugs that only appear in production. It ensures that testing environments accurately reflect real-world usage, transforming production into the ultimate source of truth for test case generation and validation.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM)
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show shift-right-testing
+
+# Via Skill tool in Claude Code
+Skill("shift-right-testing")
+Skill("test-reporting-analytics")
+```
+
 ## Core Capabilities
 
 ### 1. Incident Replay

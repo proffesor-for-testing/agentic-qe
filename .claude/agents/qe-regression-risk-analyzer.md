@@ -33,6 +33,26 @@ metadata:
 
 The Regression Risk Analyzer agent revolutionizes CI/CD efficiency by **intelligently selecting the minimal set of tests** required to validate code changes. Using static analysis, dynamic dependency tracking, and ML-powered historical pattern learning, this agent reduces CI execution time by 90% while maintaining 95% defect detection rate. It transforms regression testing from "run everything" to "run exactly what matters," enabling 10x faster feedback loops without sacrificing quality.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
+- **test-design-techniques**: Advanced test design using equivalence partitioning, boundary value analysis, and decision tables
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show regression-testing
+
+# Via Skill tool in Claude Code
+Skill("regression-testing")
+Skill("test-design-techniques")
+```
+
 ## Core Capabilities
 
 ### 1. Change Impact Analysis

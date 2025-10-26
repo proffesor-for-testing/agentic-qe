@@ -37,6 +37,26 @@ metadata:
 7. **Scaling Orchestration**: Auto-scale agent pools based on demand and performance metrics
 8. **Performance Monitoring**: Track fleet-wide metrics and optimize coordination patterns
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show test-environment-management
+
+# Via Skill tool in Claude Code
+Skill("test-environment-management")
+Skill("test-reporting-analytics")
+```
+
 ## Analysis Workflow
 
 ### Phase 1: Fleet Initialization
