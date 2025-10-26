@@ -226,14 +226,14 @@ function checkCodePattern(file: string, pattern: RegExp, description: string): F
  */
 function verifyMultiModelRouter(): FeatureVerification {
   const checks: FeatureCheck[] = [
-    checkClassExists('src/routing/AdaptiveModelRouter.ts', 'AdaptiveModelRouter'),
+    checkClassExists('src/core/routing/AdaptiveModelRouter.ts', 'AdaptiveModelRouter'),
     checkConfigExists('.agentic-qe/config/routing.json'),
     checkConfigExists('.agentic-qe/config/routing.json', 'multiModelRouter'),
-    checkClassExists('src/routing/CostTracker.ts', 'CostTracker'),
+    checkClassExists('src/core/routing/CostTracker.ts', 'CostTracker'),
     checkTestsExist('*routing*.test.ts'),
     checkTestsExist('*model*.test.ts'),
-    checkCodePattern('src/routing/AdaptiveModelRouter.ts', /selectModel|chooseModel/, 'Model selection logic'),
-    checkCodePattern('src/routing/CostTracker.ts', /trackCost|calculateCost/, 'Cost tracking implementation')
+    checkCodePattern('src/core/routing/AdaptiveModelRouter.ts', /selectModel|chooseModel/, 'Model selection logic'),
+    checkCodePattern('src/core/routing/CostTracker.ts', /trackCost|calculateCost/, 'Cost tracking implementation')
   ];
 
   const passCount = checks.filter(c => c.status === 'pass').length;
@@ -282,13 +282,13 @@ function verifyLearningSystem(): FeatureVerification {
  */
 function verifyPatternBank(): FeatureVerification {
   const checks: FeatureCheck[] = [
-    checkClassExists('src/pattern-bank/QEReasoningBank.ts', 'QEReasoningBank'),
-    checkCodePattern('src/pattern-bank/QEReasoningBank.ts', /extractPattern|storePattern/, 'Pattern extraction'),
-    checkCodePattern('src/pattern-bank/QEReasoningBank.ts', /matchPattern|findPattern/, 'Pattern matching'),
+    checkClassExists('src/reasoning/QEReasoningBank.ts', 'QEReasoningBank'),
+    checkCodePattern('src/reasoning/QEReasoningBank.ts', /extractPattern|storePattern/, 'Pattern extraction'),
+    checkCodePattern('src/reasoning/QEReasoningBank.ts', /matchPattern|findPattern/, 'Pattern matching'),
     checkTestsExist('*pattern*.test.ts'),
     checkTestsExist('*reasoning*.test.ts'),
     checkFileExists('.agentic-qe/data/patterns/registry.json'),
-    checkCodePattern('src/pattern-bank/QEReasoningBank.ts', /share|sync/, 'Cross-project sharing')
+    checkCodePattern('src/reasoning/QEReasoningBank.ts', /share|sync/, 'Cross-project sharing')
   ];
 
   const passCount = checks.filter(c => c.status === 'pass').length;
@@ -309,12 +309,12 @@ function verifyPatternBank(): FeatureVerification {
  */
 function verifyFlakyDetection(): FeatureVerification {
   const checks: FeatureCheck[] = [
-    checkClassExists('src/flaky/FlakyTestDetector.ts', 'FlakyTestDetector'),
-    checkCodePattern('src/flaky/FlakyTestDetector.ts', /detectFlaky|isFlaky/, 'Flaky detection logic'),
-    checkCodePattern('src/flaky/FlakyTestDetector.ts', /rootCause|analyze/, 'Root cause analysis'),
-    checkCodePattern('src/flaky/FlakyTestDetector.ts', /recommend|fix/, 'Fix recommendations'),
+    checkClassExists('src/learning/FlakyTestDetector.ts', 'FlakyTestDetector'),
+    checkCodePattern('src/learning/FlakyTestDetector.ts', /detectFlaky|isFlaky/, 'Flaky detection logic'),
+    checkCodePattern('src/learning/FlakyTestDetector.ts', /rootCause|analyze/, 'Root cause analysis'),
+    checkCodePattern('src/learning/FlakyTestDetector.ts', /recommend|fix/, 'Fix recommendations'),
     checkTestsExist('*flaky*.test.ts'),
-    checkCodePattern('src/flaky/FlakyTestDetector.ts', /ml|model|predict/, 'ML model usage')
+    checkCodePattern('src/learning/FlakyTestDetector.ts', /ml|model|predict/, 'ML model usage')
   ];
 
   const passCount = checks.filter(c => c.status === 'pass').length;
@@ -335,10 +335,10 @@ function verifyFlakyDetection(): FeatureVerification {
  */
 function verifyStreamingAPI(): FeatureVerification {
   const checks: FeatureCheck[] = [
-    checkFileExists('src/mcp/handlers/streaming/TestExecuteStreamHandler.ts'),
-    checkFileExists('src/mcp/handlers/streaming/CoverageAnalyzeStreamHandler.ts'),
-    checkCodePattern('src/mcp/handlers/streaming/TestExecuteStreamHandler.ts', /AsyncGenerator|async\s*\*/, 'AsyncGenerator pattern'),
-    checkCodePattern('src/mcp/handlers/streaming/TestExecuteStreamHandler.ts', /progress|emit/, 'Progress events'),
+    checkFileExists('src/mcp/streaming/TestExecuteStreamHandler.ts'),
+    checkFileExists('src/mcp/streaming/CoverageAnalyzeStreamHandler.ts'),
+    checkCodePattern('src/mcp/streaming/TestExecuteStreamHandler.ts', /AsyncGenerator|async\s*\*/, 'AsyncGenerator pattern'),
+    checkCodePattern('src/mcp/streaming/TestExecuteStreamHandler.ts', /progress|emit/, 'Progress events'),
     checkTestsExist('*stream*.test.ts'),
     checkCodePattern('src/mcp/tools.ts', /test_execute_stream|coverage_analyze_stream/, 'Streaming tool definitions')
   ];
