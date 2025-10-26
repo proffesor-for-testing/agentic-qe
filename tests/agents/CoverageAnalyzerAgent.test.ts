@@ -3,9 +3,9 @@
  * Tests O(log n) coverage optimization and gap detection
  */
 
-import { CoverageAnalyzerAgent } from '../../src/agents/CoverageAnalyzerAgent';
-import { EventBus } from '../../src/core/EventBus';
-import { Task } from '../../src/core/Task';
+import { CoverageAnalyzerAgent } from '@agents/CoverageAnalyzerAgent';
+import { EventBus } from '@core/EventBus';
+import { Task } from '@core/Task';
 
 describe('CoverageAnalyzerAgent', () => {
   let agent: CoverageAnalyzerAgent;

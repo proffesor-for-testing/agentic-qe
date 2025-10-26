@@ -3,10 +3,10 @@
  * Tests real coordination with EventBus and MemoryStore
  */
 
-import { SecurityScannerAgent, SecurityScannerConfig } from '../../src/agents/SecurityScannerAgent';
-import { FleetCommanderAgent, FleetCommanderConfig } from '../../src/agents/FleetCommanderAgent';
+import { SecurityScannerAgent, SecurityScannerConfig } from '@agents/SecurityScannerAgent';
+import { FleetCommanderAgent, FleetCommanderConfig } from '@agents/FleetCommanderAgent';
 import { EventEmitter } from 'events';
-import { QEAgentType, AgentStatus } from '../../src/types';
+import { QEAgentType, AgentStatus } from '@typessrc/types';
 
 class MemoryManager {
   private data = new Map<string, any>();

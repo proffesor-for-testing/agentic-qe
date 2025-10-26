@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
-import { EnhancedAgentDBService, LearningExperience, RLAlgorithm } from '../../src/core/memory/EnhancedAgentDBService';
-import { QEPattern } from '../../src/core/memory/AgentDBService';
+import { EnhancedAgentDBService, LearningExperience, RLAlgorithm } from '@core/memory/EnhancedAgentDBService';
+import { QEPattern } from '@core/memory/AgentDBService';
 import * as fs from 'fs';
 import * as path from 'path';
 

@@ -4,7 +4,7 @@
  * Tests for real test framework execution
  */
 
-import { TestFrameworkExecutor } from '../../src/utils/TestFrameworkExecutor';
+import { TestFrameworkExecutor } from '@utils/TestFrameworkExecutor';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as os from 'os';

@@ -10,8 +10,8 @@
  * @group services
  */
 
-import { HookExecutor, HookType, HookParams } from '../../../src/mcp/services/HookExecutor';
-import { Logger } from '../../../src/utils/Logger';
+import { HookExecutor, HookType, HookParams } from '@mcp/services/HookExecutor';
+import { Logger } from '@utils/Logger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -21,7 +21,7 @@ jest.mock('child_process', () => ({
 }));
 
 // Mock Logger
-jest.mock('../../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),

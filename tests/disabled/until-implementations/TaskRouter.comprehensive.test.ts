@@ -1,7 +1,7 @@
-import { TaskRouter } from '../../../src/core/coordination/TaskRouter';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
-import { Task, AgentCapability } from '../../../src/core/types';
+import { TaskRouter } from '@core/coordination/TaskRouter';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { Task, AgentCapability } from '@core/types';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 

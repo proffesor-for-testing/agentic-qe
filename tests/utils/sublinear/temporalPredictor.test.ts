@@ -10,7 +10,7 @@ import {
   TimeSeriesData,
   CoveragePredictor,
   QualityPredictor
-} from '../../../src/utils/sublinear/temporalPredictor';
+} from '@utils/sublinear/temporalPredictor';
 
 describe('TemporalPredictor', () => {
   let predictor: TemporalPredictor;

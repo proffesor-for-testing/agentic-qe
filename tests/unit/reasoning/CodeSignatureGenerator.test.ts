@@ -3,8 +3,8 @@
  * Phase 2 (v1.1.0) - Pattern Extraction Specialist
  */
 
-import { CodeSignatureGenerator } from '../../../src/reasoning/CodeSignatureGenerator';
-import { PatternType } from '../../../src/types/pattern.types';
+import { CodeSignatureGenerator } from '@reasoning/CodeSignatureGenerator';
+import { PatternType } from '@types/pattern.types';
 
 describe('CodeSignatureGenerator', () => {
   let generator: CodeSignatureGenerator;

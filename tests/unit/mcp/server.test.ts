@@ -17,7 +17,7 @@ import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 // Mock dependencies
 jest.mock('@modelcontextprotocol/sdk/server/index.js');
-jest.mock('../../../src/mcp/tools/index.js');
+jest.mock('@mcp/tools/index.js');
 
 describe('MCP Server', () => {
   let mockServer: jest.Mocked<Server>;

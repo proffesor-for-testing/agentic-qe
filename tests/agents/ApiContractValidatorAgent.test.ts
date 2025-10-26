@@ -4,7 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { ApiContractValidatorAgent } from '../../src/agents/ApiContractValidatorAgent';
+import { ApiContractValidatorAgent } from '@agents/ApiContractValidatorAgent';
 import {
   AgentStatus,
   QEAgentType,
@@ -12,7 +12,7 @@ import {
   MemoryStore,
   AgentContext,
   WEEK3_EVENT_TYPES
-} from '../../src/types';
+} from '@types';
 
 describe('ApiContractValidatorAgent', () => {
   let agent: ApiContractValidatorAgent;

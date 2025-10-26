@@ -3,8 +3,8 @@
  * Coverage target: 90%+ of OODACoordination.ts
  */
 
-import { OODACoordination, OODALoop, Observation, Orientation, Decision, Action } from '../../../src/core/coordination/OODACoordination';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
+import { OODACoordination, OODALoop, Observation, Orientation, Decision, Action } from '@core/coordination/OODACoordination';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs-extra';

@@ -4,7 +4,7 @@
  * Tests for realistic test data generation using Faker.js
  */
 
-import { FakerDataGenerator } from '../../src/utils/FakerDataGenerator';
+import { FakerDataGenerator } from '@utils/FakerDataGenerator';
 
 describe('FakerDataGenerator', () => {
   let generator: FakerDataGenerator;

@@ -15,8 +15,8 @@
  * Total: 40+ comprehensive fallback tests
  */
 
-import { EventBus } from '../../src/core/EventBus';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { MemoryStoreAdapter } from '../../src/adapters/MemoryStoreAdapter';
 import {
   AgentId,
@@ -25,7 +25,7 @@ import {
   AgentStatus,
   QEAgentType,
   MemoryStore
-} from '../../src/types';
+} from '@typessrc/types';
 
 // Mock QUIC transport for testing
 class MockQUICTransport {

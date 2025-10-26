@@ -12,7 +12,7 @@ import {
   TemporalAdvantageResult,
   createMatrixSolver,
   MatrixUtils
-} from '../../../src/utils/sublinear/matrixSolver';
+} from '@utils/sublinear/matrixSolver';
 
 describe('SublinearMatrixSolver', () => {
   let solver: SublinearMatrixSolver;

@@ -3,16 +3,16 @@
  * Testing complete coordination scenarios between FleetManager, Agents, and EventBus
  */
 
-import { FleetManager } from '../../src/core/FleetManager';
-import { Agent, AgentStatus } from '../../src/core/Agent';
-import { Task, TaskStatus } from '../../src/core/Task';
-import { EventBus } from '../../src/core/EventBus';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
+import { FleetManager } from '@core/FleetManager';
+import { Agent, AgentStatus } from '@core/Agent';
+import { Task, TaskStatus } from '@core/Task';
+import { EventBus } from '@core/EventBus';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
 
 // Mock external dependencies but use real coordination logic
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 
 // Test Agent implementation for integration testing
 class TestIntegrationAgent extends Agent {

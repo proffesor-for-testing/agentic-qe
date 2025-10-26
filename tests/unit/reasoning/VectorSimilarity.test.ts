@@ -3,7 +3,7 @@
  * Target: 85%+ matching accuracy
  */
 
-import { VectorSimilarity } from '../../../src/reasoning/VectorSimilarity';
+import { VectorSimilarity } from '@reasoning/VectorSimilarity';
 
 describe('VectorSimilarity', () => {
   let vectorSim: VectorSimilarity;

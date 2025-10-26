@@ -13,10 +13,10 @@
  * The actual memory leak fixes have been implemented and verified manually.
  */
 
-import { QUICConfig } from '../../src/types/quic';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { QUICTransportWrapper, createDefaultQUICConfig } from '../../src/core/memory/AgentDBIntegration';
-import { EventBus } from '../../src/core/EventBus';
+import { QUICConfig } from '@types/quic';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { QUICTransportWrapper, createDefaultQUICConfig } from '@core/memory/AgentDBIntegration';
+import { EventBus } from '@core/EventBus';
 
 describe('Memory Leak Detection', () => {
   const getMemoryUsage = () => {

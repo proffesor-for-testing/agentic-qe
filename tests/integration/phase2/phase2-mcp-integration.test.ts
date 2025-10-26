@@ -11,11 +11,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { MCPToolRegistry } from '../../../src/mcp/MCPToolRegistry';
-import { LearningEngine } from '../../../src/learning/LearningEngine';
-import { QEReasoningBank } from '../../../src/reasoning/QEReasoningBank';
-import { ImprovementLoop } from '../../../src/learning/ImprovementLoop';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
+import { MCPToolRegistry } from '@mcp/MCPToolRegistry';
+import { LearningEngine } from '@learning/LearningEngine';
+import { QEReasoningBank } from '@reasoning/QEReasoningBank';
+import { ImprovementLoop } from '@learning/ImprovementLoop';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 
 describe('Phase 2 MCP Tool Integration Tests', () => {
   let toolRegistry: MCPToolRegistry;

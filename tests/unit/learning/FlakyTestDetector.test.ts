@@ -1,5 +1,5 @@
 // Mock Logger to prevent undefined errors
-jest.mock('../../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),
@@ -16,8 +16,8 @@ jest.mock('../../../src/utils/Logger', () => ({
  * Validates 90% accuracy and < 5% false positive rate
  */
 
-import { FlakyTestDetector } from '../../../src/learning/FlakyTestDetector';
-import { TestResult } from '../../../src/learning/types';
+import { FlakyTestDetector } from '@learning/FlakyTestDetector';
+import { TestResult } from '@learning/types';
 
 // Seeded random number generator for deterministic tests
 class SeededRandom {

@@ -10,7 +10,7 @@ import {
   CoverageMatrix,
   OptimizationResult,
   createCoverageOptimizer
-} from '../../../src/utils/sublinear/coverageOptimizer';
+} from '@utils/sublinear/coverageOptimizer';
 
 describe('SublinearCoverageOptimizer', () => {
   let optimizer: SublinearCoverageOptimizer;

@@ -3,14 +3,14 @@
  * Tests hook failures, concurrent operations, state corruption, and error recovery
  */
 
-import { BaseAgent } from '../../src/agents/BaseAgent';
-import { TaskAssignment, TaskResult } from '../../src/core/Task';
-import { Logger } from '../../src/utils/Logger';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../src/core/EventBus';
+import { BaseAgent } from '@agents/BaseAgent';
+import { TaskAssignment, TaskResult } from '@core/Task';
+import { Logger } from '@utils/Logger';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
 
 // Mock dependencies
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Logger');
 
 describe('BaseAgent Edge Cases', () => {
   let agent: TestAgent;

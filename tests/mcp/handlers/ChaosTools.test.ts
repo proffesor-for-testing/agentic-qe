@@ -8,14 +8,14 @@ import {
   chaosInjectLatency,
   chaosInjectFailure,
   chaosResilienceTest,
-} from '../../../src/mcp/handlers/chaos';
+} from '@mcp/handlers/chaos';
 import type {
   ChaosLatencyConfig,
   ChaosFailureConfig,
   ChaosResilienceConfig,
   ChaosInjectionResult,
   ChaosResilienceReport,
-} from '../../../src/mcp/types/chaos';
+} from '@mcp/types/chaos';
 
 describe('Chaos Engineering MCP Tools', () => {
   // Test helpers

@@ -3,7 +3,7 @@
  * Tests task creation, lifecycle, and execution management
  */
 
-import { Task } from '../../src/core/Task';
+import { Task } from '@core/Task';
 
 describe('Task', () => {
   describe('task creation', () => {

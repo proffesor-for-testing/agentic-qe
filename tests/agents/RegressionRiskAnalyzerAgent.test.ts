@@ -14,8 +14,8 @@
  */
 
 import { EventEmitter } from 'events';
-import { RegressionRiskAnalyzerAgent, RegressionRiskAnalyzerConfig } from '../../src/agents/RegressionRiskAnalyzerAgent';
-import { MemoryStore, QEAgentType, QETask } from '../../src/types';
+import { RegressionRiskAnalyzerAgent, RegressionRiskAnalyzerConfig } from '@agents/RegressionRiskAnalyzerAgent';
+import { MemoryStore, QEAgentType, QETask } from '@types';
 
 // ============================================================================
 // Mock Implementations

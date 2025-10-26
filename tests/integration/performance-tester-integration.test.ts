@@ -3,9 +3,9 @@
  * Tests real-world scenarios with EventBus and MemoryManager
  */
 
-import { PerformanceTesterAgent, PerformanceTesterConfig } from '../../src/agents/PerformanceTesterAgent';
+import { PerformanceTesterAgent, PerformanceTesterConfig } from '@agents/PerformanceTesterAgent';
 import { EventEmitter } from 'events';
-import { AgentStatus, QEAgentType, QETask } from '../../src/types';
+import { AgentStatus, QEAgentType, QETask } from '@typessrc/types';
 
 // Simple in-memory store for integration testing
 class MemoryManager {

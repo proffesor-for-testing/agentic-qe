@@ -3,9 +3,9 @@
  * Comprehensive test suite for fleet coordination, resource allocation, and topology management
  */
 
-import { FleetCommanderAgent, FleetCommanderConfig } from '../../src/agents/FleetCommanderAgent';
+import { FleetCommanderAgent, FleetCommanderConfig } from '@agents/FleetCommanderAgent';
 import { EventEmitter } from 'events';
-import { AgentType, QEAgentType, AgentStatus } from '../../src/types';
+import { AgentType, QEAgentType, AgentStatus } from '@types';
 
 // Mock MemoryStore implementation
 class MockMemoryStore {

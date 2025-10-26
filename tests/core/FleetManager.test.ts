@@ -3,7 +3,7 @@
  */
 
 // Mock Logger before any imports that use it
-jest.mock('../../src/utils/Logger', () => {
+jest.mock('@utils/Logger', () => {
   const mockLoggerInstance = {
     info: jest.fn(),
     warn: jest.fn(),
@@ -29,7 +29,7 @@ jest.mock('../../src/utils/Logger', () => {
 });
 
 // Mock Database before any imports that use it
-jest.mock('../../src/utils/Database', () => {
+jest.mock('@utils/Database', () => {
   // Create mock class that properly implements Database interface
   class MockDatabase {
     initialize = jest.fn().mockResolvedValue(undefined);
@@ -54,7 +54,7 @@ jest.mock('../../src/utils/Database', () => {
 });
 
 // Mock EventBus to prevent Logger dependency issues
-jest.mock('../../src/core/EventBus', () => {
+jest.mock('@core/EventBus', () => {
   const EventEmitter = require('events');
 
   class MockEventBus extends EventEmitter {
@@ -92,7 +92,7 @@ jest.mock('../../src/core/EventBus', () => {
 });
 
 // Mock MemoryManager to prevent Logger and Database dependency issues
-jest.mock('../../src/core/MemoryManager', () => {
+jest.mock('@core/MemoryManager', () => {
   const EventEmitter = require('events');
 
   class MockMemoryManager extends EventEmitter {
@@ -120,8 +120,8 @@ jest.mock('../../src/core/MemoryManager', () => {
   };
 });
 
-import { FleetManager } from '../../src/core/FleetManager';
-import { Config } from '../../src/utils/Config';
+import { FleetManager } from '@core/FleetManager';
+import { Config } from '@utils/Config';
 import { createResourceCleanup } from '../helpers/cleanup';
 
 describe('FleetManager', () => {

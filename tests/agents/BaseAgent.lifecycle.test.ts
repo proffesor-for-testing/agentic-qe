@@ -5,9 +5,9 @@
  */
 
 import { EventEmitter } from 'events';
-import { BaseAgent, BaseAgentConfig } from '../../src/agents/BaseAgent';
-import { AgentStatus, QETask, TaskAssignment, AgentCapability, QEAgentType } from '../../src/types';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
+import { BaseAgent, BaseAgentConfig } from '@agents/BaseAgent';
+import { AgentStatus, QETask, TaskAssignment, AgentCapability, QEAgentType } from '@types';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 
 // Mock concrete agent implementation
 class TestAgent extends BaseAgent {

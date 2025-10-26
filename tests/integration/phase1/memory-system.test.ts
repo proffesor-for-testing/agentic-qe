@@ -5,7 +5,7 @@
  * access control, version history, and encryption/compression.
  */
 
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';

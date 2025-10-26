@@ -5,13 +5,13 @@
  * This test simulates a realistic QE workload and measures actual savings.
  */
 
-import { AdaptiveModelRouter } from '../../../src/core/routing/AdaptiveModelRouter';
-import { CostTracker } from '../../../src/core/routing/CostTracker';
-import { ComplexityAnalyzer } from '../../../src/core/routing/ComplexityAnalyzer';
-import { AIModel, TaskComplexity, QETask } from '../../../src/core/routing/types';
-import { MODEL_CAPABILITIES } from '../../../src/core/routing/ModelRules';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
+import { AdaptiveModelRouter } from '@routing/AdaptiveModelRouter';
+import { CostTracker } from '@routing/CostTracker';
+import { ComplexityAnalyzer } from '@routing/ComplexityAnalyzer';
+import { AIModel, TaskComplexity, QETask } from '@routing/types';
+import { MODEL_CAPABILITIES } from '@routing/ModelRules';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
 import * as path from 'path';
 
 describe('Cost Savings Verification', () => {

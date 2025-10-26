@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { AgentDBManager, AgentDBConfig, MemoryPattern } from '../../../src/core/memory/AgentDBManager';
+import { AgentDBManager, AgentDBConfig, MemoryPattern } from '@core/memory/AgentDBManager';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as net from 'net';

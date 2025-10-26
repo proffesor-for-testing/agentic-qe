@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
 // Mock Logger to prevent undefined errors in Database
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),
@@ -104,7 +104,7 @@ describe('Workflow List Command', () => {
       const { listWorkflows } = await import('../../src/cli/commands/workflow/list.js');
 
       // Mock empty response
-      jest.mock('../../src/cli/commands/workflow/list', () => ({
+      jest.mock('@cli/commands/workflow/list', () => ({
         listWorkflows: jest.fn().mockResolvedValue({ workflows: [] })
       }));
 
@@ -191,7 +191,7 @@ describe('Workflow List Command', () => {
       const { listWorkflows } = await import('../../src/cli/commands/workflow/list.js');
 
       // Mock network error
-      jest.mock('../../src/cli/commands/workflow/list', () => ({
+      jest.mock('@cli/commands/workflow/list', () => ({
         listWorkflows: jest.fn().mockRejectedValue(new Error('Connection failed'))
       }));
 
@@ -340,7 +340,7 @@ describe('Workflow Pause Command', () => {
       const { pauseWorkflow } = await import('../../src/cli/commands/workflow/pause.js');
 
       // Mock pause failure
-      jest.mock('../../src/cli/commands/workflow/pause', () => ({
+      jest.mock('@cli/commands/workflow/pause', () => ({
         pauseWorkflow: jest.fn().mockRejectedValue(new Error('Pause failed'))
       }));
 
@@ -533,7 +533,7 @@ describe('Workflow Cancel Command', () => {
       const { cancelWorkflow } = await import('../../src/cli/commands/workflow/cancel.js');
 
       // Mock cancellation failure
-      jest.mock('../../src/cli/commands/workflow/cancel', () => ({
+      jest.mock('@cli/commands/workflow/cancel', () => ({
         cancelWorkflow: jest.fn().mockRejectedValue(new Error('Cancel failed'))
       }));
 

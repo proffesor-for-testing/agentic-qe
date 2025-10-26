@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { BaseStreamHandler, StreamEvent } from '../../src/streaming/BaseStreamHandler';
-import { TestGenerateStreamHandler } from '../../src/streaming/TestGenerateStreamHandler';
+import { BaseStreamHandler, StreamEvent } from '@streaming/BaseStreamHandler';
+import { TestGenerateStreamHandler } from '@streaming/TestGenerateStreamHandler';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

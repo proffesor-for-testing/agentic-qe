@@ -5,7 +5,7 @@
  * boundary conditions, and security validations
  */
 
-import { SecureValidation, ValidationConfig, ValidationError } from '../../src/utils/SecureValidation';
+import { SecureValidation, ValidationConfig, ValidationError } from '@utils/SecureValidation';
 
 describe('SecureValidation Edge Cases', () => {
   describe('Required Parameters', () => {

@@ -14,13 +14,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { TestGeneratorAgent } from '../../../src/agents/TestGeneratorAgent';
-import { CoverageAnalyzerAgent } from '../../../src/agents/CoverageAnalyzerAgent';
-import { FlakyTestHunterAgent } from '../../../src/agents/FlakyTestHunterAgent';
-import { TestExecutorAgent } from '../../../src/agents/TestExecutorAgent';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
-import { QEAgentType } from '../../../src/types';
+import { TestGeneratorAgent } from '@agents/TestGeneratorAgent';
+import { CoverageAnalyzerAgent } from '@agents/CoverageAnalyzerAgent';
+import { FlakyTestHunterAgent } from '@agents/FlakyTestHunterAgent';
+import { TestExecutorAgent } from '@agents/TestExecutorAgent';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { QEAgentType } from '@typessrc/types';
 import { createAgentConfig } from '../../helpers/agent-config-factory';
 
 describe('Phase 2 Agent Integration Tests', () => {

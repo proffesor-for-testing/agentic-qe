@@ -3,8 +3,8 @@
  * Complete coverage for analysis functionality and edge cases
  */
 
-import { AnalyzeCommand } from '../../../src/cli/commands/analyze';
-import { AnalyzeOptions } from '../../../src/types';
+import { AnalyzeCommand } from '@cli/commands/analyze';
+import { AnalyzeOptions } from '@types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 

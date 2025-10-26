@@ -3,7 +3,7 @@
  * Target: 85%+ pattern matching accuracy
  */
 
-import { QEReasoningBank, TestPattern } from '../../../src/reasoning/QEReasoningBank';
+import { QEReasoningBank, TestPattern } from '@reasoning/QEReasoningBank';
 
 describe('QEReasoningBank - Enhanced with Vector Similarity', () => {
   let reasoningBank: QEReasoningBank;

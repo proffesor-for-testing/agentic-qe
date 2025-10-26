@@ -4,14 +4,14 @@
  */
 
 import * as fs from 'fs-extra';
-import { MemoryStoreCommand } from '../../src/cli/commands/memory/store';
-import { MemoryRetrieveCommand } from '../../src/cli/commands/memory/retrieve';
-import { MemoryQueryCommand } from '../../src/cli/commands/memory/query';
-import { MemoryBackupCommand } from '../../src/cli/commands/memory/backup';
-import { MemoryRestoreCommand } from '../../src/cli/commands/memory/restore';
-import { MemoryListCommand } from '../../src/cli/commands/memory/list';
-import { MemoryClearCommand } from '../../src/cli/commands/memory/clear';
-import { MemoryStatsCommand } from '../../src/cli/commands/memory/stats';
+import { MemoryStoreCommand } from '@cli/commands/memory/store';
+import { MemoryRetrieveCommand } from '@cli/commands/memory/retrieve';
+import { MemoryQueryCommand } from '@cli/commands/memory/query';
+import { MemoryBackupCommand } from '@cli/commands/memory/backup';
+import { MemoryRestoreCommand } from '@cli/commands/memory/restore';
+import { MemoryListCommand } from '@cli/commands/memory/list';
+import { MemoryClearCommand } from '@cli/commands/memory/clear';
+import { MemoryStatsCommand } from '@cli/commands/memory/stats';
 
 jest.mock('fs-extra');
 

@@ -1,14 +1,14 @@
 import { jest } from '@jest/globals';
-import { FleetManager } from '../../src/core/FleetManager';
-import { Agent, AgentStatus } from '../../src/core/Agent';
-import { Task, TaskStatus } from '../../src/core/Task';
-import { Logger } from '../../src/utils/Logger';
-import { Database } from '../../src/utils/Database';
-import { EventBus } from '../../src/core/EventBus';
-import { QEAgentType, FleetConfig } from '../../src/types';
+import { FleetManager } from '@core/FleetManager';
+import { Agent, AgentStatus } from '@core/Agent';
+import { Task, TaskStatus } from '@core/Task';
+import { Logger } from '@utils/Logger';
+import { Database } from '@utils/Database';
+import { EventBus } from '@core/EventBus';
+import { QEAgentType, FleetConfig } from '@types';
 
 // Mock the Database module before importing FleetManager
-jest.mock('../../src/utils/Database');
+jest.mock('@utils/Database');
 
 // Mock the agents module before importing FleetManager
 jest.mock('../../src/agents', () => ({

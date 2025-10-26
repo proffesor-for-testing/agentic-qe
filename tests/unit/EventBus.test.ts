@@ -3,8 +3,8 @@
  * Testing the EventBus class with full coverage including event persistence and coordination
  */
 
-import { EventBus, FleetEvent } from '../../src/core/EventBus';
-import { Logger } from '../../src/utils/Logger';
+import { EventBus, FleetEvent } from '@core/EventBus';
+import { Logger } from '@utils/Logger';
 import { createResourceCleanup } from '../helpers/cleanup';
 
 // Global mock from jest.setup.ts handles Logger

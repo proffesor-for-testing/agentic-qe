@@ -1,6 +1,6 @@
-import { PatternLearningSystem } from '../../../src/learning/PatternLearningSystem';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
+import { PatternLearningSystem } from '@learning/PatternLearningSystem';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 

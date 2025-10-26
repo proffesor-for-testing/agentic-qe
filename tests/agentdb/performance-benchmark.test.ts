@@ -11,8 +11,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { EnhancedAgentDBService } from '../../src/core/memory/EnhancedAgentDBService';
-import { QEPattern } from '../../src/core/memory/AgentDBService';
+import { EnhancedAgentDBService } from '@core/memory/EnhancedAgentDBService';
+import { QEPattern } from '@core/memory/AgentDBService';
 import * as fs from 'fs';
 import * as path from 'path';
 
