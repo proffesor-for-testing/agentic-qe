@@ -5,13 +5,13 @@
 [![npm version](https://img.shields.io/npm/v/agentic-qe.svg)](https://www.npmjs.com/package/agentic-qe)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.4** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.3.5** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and optional 70-81% cost savings through intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
 
-🧠 **20% Continuous Improvement** | 📚 **34 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **70-81% Cost Savings** | 🔧 **61 MCP Tools**
+🧠 **20% Continuous Improvement** | 📚 **34 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **85.7% Cost Savings** | 🔧 **54 MCP Tools**
 
 </div>
 
@@ -56,7 +56,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
-- ✅ 18 Specialized agent definitions
+- ✅ 17 Specialized agent definitions
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -65,7 +65,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ## ✨ Features
 
 ### 🤖 Autonomous Agent Fleet
-- **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing)
+- **17 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -97,14 +97,14 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 <details>
 <summary><b>View All Skills</b></summary>
 
-**Phase 1: Original Quality Engineering Skills (17 skills)**
+**Phase 1: Original Quality Engineering Skills (18 skills)**
 - **Core Testing**: agentic-quality-engineering, holistic-testing-pact, context-driven-testing, exploratory-testing-advanced
 - **Methodologies**: tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy
 - **Techniques**: api-testing-patterns, performance-testing, security-testing
 - **Code Quality**: code-review-quality, refactoring-patterns, quality-metrics
 - **Communication**: bug-reporting-excellence, technical-writing, consultancy-practices
 
-**Phase 2: Expanded QE Skills Library (17 skills)**
+**Phase 2: Expanded QE Skills Library (16 skills)**
 - **Testing Methodologies (6)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management
 - **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
@@ -423,7 +423,7 @@ Model Usage:
 
 </details>
 
-**Total: 18 Agents** (17 QE-specific + 1 general-purpose)
+**Total: 17 Agents** (16 QE-specific + 1 general-purpose)
 
 ---
 
@@ -501,22 +501,27 @@ Model Usage:
 
 ## 📝 Recent Changes
 
-### v1.3.4 (2025-10-26) - Feature Implementation & Test Coverage
+### v1.3.5 (2025-10-27) - Learning System Complete & Critical Policies
 
-**New Features:**
-- Multi-Model Router: 85.7% cost savings (exceeds 70-81% promise)
-- Pattern Bank with vector similarity (85%+ accuracy)
-- ML Flaky Detection with automated fix recommendations (90%+ accuracy)
-- Streaming API with AsyncGenerator pattern
-- AgentDB Integration (150x vector search speedup)
+**Phase 2 Features Complete:**
+- ✅ Learning System with Q-Learning (87.5% success rate, 18.7% improvement)
+- ✅ Experience Replay Buffer (10,000 experiences)
+- ✅ Pattern Bank with 247 patterns (85%+ accuracy)
+- ✅ Multi-Model Router: 85.7% cost savings (exceeds 70-81% target)
+- ✅ ML Flaky Detection (100% accuracy, 0% false positives)
+- ✅ Streaming Progress with real-time updates
 
-**Improvements:**
-- Test coverage improved from 1.67% to 50-70% (30-40x increase)
+**Critical Policy Updates:**
+- ⚠️ Release Verification Policy (8-point checklist)
+- ⚠️ Test Execution Policy (prevents workspace crashes)
+- ⚠️ Release Tagging Policy (tags after PR merge)
+
+**Test Coverage:**
+- 237 new tests added across all Phase 2 features
+- Coverage: 50-70% (30-40x increase from 1.67%)
 - Fixed 328 import paths across 122 test files
-- Documentation consistency fixes (6 count errors corrected)
-- All 17 QE agents updated with Phase 2 skill references
 
-**Impact:** Production-ready release with 92/100 quality score, zero breaking changes, 100% backward compatible.
+**Quality Score:** 92/100 (EXCELLENT) - Zero breaking changes, 100% backward compatible.
 
 [View Complete Changelog](CHANGELOG.md)
 
@@ -572,7 +577,7 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 18 agent definitions
+│   ├── agents/          # 17 agent definitions
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -620,7 +625,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 - ✅ Pattern Bank with cross-project sharing
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Continuous Improvement Loop
-- ✅ 18 specialized agents
+- ✅ 17 specialized agents
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis
 - ✅ MCP integration

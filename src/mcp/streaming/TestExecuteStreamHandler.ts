@@ -10,7 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { StreamingMCPTool } from './StreamingMCPTool.js';
-import { ProgressReporter, calculateProgress } from './types.js';
+import { ProgressReporter, calculateProgress, StreamEvent } from './types.js';
 import type { TestExecution, SuiteResult, TestResult } from '../handlers/test-execute.js';
 import { TestExecutionSpec } from '../tools.js';
 import { SecureRandom } from '../../utils/SecureRandom.js';
@@ -37,6 +37,9 @@ export interface TestStreamProgress {
 
 /**
  * Streaming handler for test execution with real-time progress
+ *
+ * Performance: Supports parallel test execution with real-time progress streaming
+ * using AsyncGenerator pattern for progressive result emission
  */
 export class TestExecuteStreamHandler extends StreamingMCPTool {
   private execution: TestExecution | null = null;
@@ -49,6 +52,15 @@ export class TestExecuteStreamHandler extends StreamingMCPTool {
       timeout: 1800000, // 30 minutes timeout for long test suites
       persistSession: true
     });
+  }
+
+  /**
+   * Execute tests with streaming progress updates using AsyncGenerator pattern
+   * @yields {StreamEvent} Progress events, test results, and errors
+   * @returns {AsyncGenerator<StreamEvent, void, undefined>}
+   */
+  async *execute(params: TestExecuteStreamParams): AsyncGenerator<StreamEvent, void, undefined> {
+    yield* super.execute(params);
   }
 
   /**
