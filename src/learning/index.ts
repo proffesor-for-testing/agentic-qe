@@ -7,6 +7,8 @@
 
 export * from './types';
 export * from './LearningEngine';
+export * from './QLearning';
+export * from './ExperienceReplayBuffer';
 export * from './PerformanceTracker';
 export * from './ImprovementLoop';
 export * from './ImprovementWorker';

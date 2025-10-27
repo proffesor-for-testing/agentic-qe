@@ -110,32 +110,54 @@ function checkClassExists(file: string, className: string): FeatureCheck {
 }
 
 /**
- * Check if tests exist for a feature
+ * Check if tests exist for a feature (supports recursive patterns)
  */
-function checkTestsExist(pattern: string): FeatureCheck {
-  try {
-    const result = execSync(`find ${PROJECT_ROOT}/tests -name "${pattern}" -type f`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'ignore']
-    });
+function checkTestsExist(pattern: string, keywords?: string[]): FeatureCheck {
+  const displayPattern = keywords ? keywords.join(', ') : pattern;
 
-    const files = result.trim().split('\n').filter(f => f.length > 0);
+  try {
+    let files: string[] = [];
+
+    // If keywords provided, use grep for flexible matching on filenames
+    if (keywords && keywords.length > 0) {
+      const keywordPattern = keywords.join('|');
+      // Match case-insensitively on file paths
+      const result = execSync(
+        `find ${PROJECT_ROOT}/tests -type f -name "*.test.ts" | grep -iE "${keywordPattern}" || true`,
+        {
+          encoding: 'utf-8'
+        }
+      );
+      files = result.trim().split('\n').filter(f => f.length > 0);
+    } else {
+      // Use find with pattern
+      const result = execSync(
+        `find ${PROJECT_ROOT}/tests -type f -name "${pattern}" || true`,
+        {
+          encoding: 'utf-8'
+        }
+      );
+      files = result.trim().split('\n').filter(f => f.length > 0);
+    }
+
     const exists = files.length > 0;
 
     return {
-      name: `Tests: ${pattern}`,
+      name: `Tests: ${displayPattern}`,
       type: 'test',
-      description: `Check if tests matching ${pattern} exist`,
+      description: `Check if tests matching ${displayPattern} exist`,
       status: exists ? 'pass' : 'warning',
-      details: exists ? `Found ${files.length} test file(s)` : `No tests found matching ${pattern}`
+      details: exists
+        ? `Found ${files.length} test file(s)${VERBOSE ? ':\n    ' + files.map(f => path.relative(PROJECT_ROOT, f)).join('\n    ') : ''}`
+        : `No tests found matching ${displayPattern}`
     };
   } catch (error) {
     return {
-      name: `Tests: ${pattern}`,
+      name: `Tests: ${displayPattern}`,
       type: 'test',
-      description: `Check if tests matching ${pattern} exist`,
+      description: `Check if tests matching ${displayPattern} exist`,
       status: 'warning',
-      details: 'Could not scan for tests'
+      details: `Error scanning for tests: ${error instanceof Error ? error.message : String(error)}`
     };
   }
 }
@@ -230,8 +252,8 @@ function verifyMultiModelRouter(): FeatureVerification {
     checkConfigExists('.agentic-qe/config/routing.json'),
     checkConfigExists('.agentic-qe/config/routing.json', 'multiModelRouter'),
     checkClassExists('src/core/routing/CostTracker.ts', 'CostTracker'),
-    checkTestsExist('*routing*.test.ts'),
-    checkTestsExist('*model*.test.ts'),
+    checkTestsExist('*routing*.test.ts', ['routing', 'router']),
+    checkTestsExist('*model*.test.ts', ['AdaptiveModelRouter', 'ModelRouter', 'CostTracker']),
     checkCodePattern('src/core/routing/AdaptiveModelRouter.ts', /selectModel|chooseModel/, 'Model selection logic'),
     checkCodePattern('src/core/routing/CostTracker.ts', /trackCost|calculateCost/, 'Cost tracking implementation')
   ];
@@ -257,8 +279,8 @@ function verifyLearningSystem(): FeatureVerification {
     checkClassExists('src/learning/LearningEngine.ts', 'LearningEngine'),
     checkClassExists('src/learning/QLearning.ts', 'QLearning'),
     checkFileExists('src/learning/ExperienceReplayBuffer.ts'),
-    checkTestsExist('*learning*.test.ts'),
-    checkTestsExist('*qlearning*.test.ts'),
+    checkTestsExist('*learning*.test.ts', ['learning', 'LearningEngine', 'ImprovementLoop']),
+    checkTestsExist('*qlearning*.test.ts', ['QLearning', 'qlearning']),
     checkCodePattern('src/learning/QLearning.ts', /updateQValue|qTable/, 'Q-learning algorithm'),
     checkCodePattern('src/learning/LearningEngine.ts', /train|learn/, 'Learning implementation'),
     checkFileExists('.agentic-qe/data/learning/state.json')
@@ -285,8 +307,8 @@ function verifyPatternBank(): FeatureVerification {
     checkClassExists('src/reasoning/QEReasoningBank.ts', 'QEReasoningBank'),
     checkCodePattern('src/reasoning/QEReasoningBank.ts', /extractPattern|storePattern/, 'Pattern extraction'),
     checkCodePattern('src/reasoning/QEReasoningBank.ts', /matchPattern|findPattern/, 'Pattern matching'),
-    checkTestsExist('*pattern*.test.ts'),
-    checkTestsExist('*reasoning*.test.ts'),
+    checkTestsExist('*pattern*.test.ts', ['Pattern', 'PatternExtractor', 'PatternClassifier']),
+    checkTestsExist('*reasoning*.test.ts', ['Reasoning', 'QEReasoningBank', 'VectorSimilarity']),
     checkFileExists('.agentic-qe/data/patterns/registry.json'),
     checkCodePattern('src/reasoning/QEReasoningBank.ts', /share|sync/, 'Cross-project sharing')
   ];
@@ -313,7 +335,7 @@ function verifyFlakyDetection(): FeatureVerification {
     checkCodePattern('src/learning/FlakyTestDetector.ts', /detectFlaky|isFlaky/, 'Flaky detection logic'),
     checkCodePattern('src/learning/FlakyTestDetector.ts', /rootCause|analyze/, 'Root cause analysis'),
     checkCodePattern('src/learning/FlakyTestDetector.ts', /recommend|fix/, 'Fix recommendations'),
-    checkTestsExist('*flaky*.test.ts'),
+    checkTestsExist('*flaky*.test.ts', ['Flaky', 'FlakyTestDetector']),
     checkCodePattern('src/learning/FlakyTestDetector.ts', /ml|model|predict/, 'ML model usage')
   ];
 
@@ -339,7 +361,7 @@ function verifyStreamingAPI(): FeatureVerification {
     checkFileExists('src/mcp/streaming/CoverageAnalyzeStreamHandler.ts'),
     checkCodePattern('src/mcp/streaming/TestExecuteStreamHandler.ts', /AsyncGenerator|async\s*\*/, 'AsyncGenerator pattern'),
     checkCodePattern('src/mcp/streaming/TestExecuteStreamHandler.ts', /progress|emit/, 'Progress events'),
-    checkTestsExist('*stream*.test.ts'),
+    checkTestsExist('*stream*.test.ts', ['stream', 'Stream', 'streaming']),
     checkCodePattern('src/mcp/tools.ts', /test_execute_stream|coverage_analyze_stream/, 'Streaming tool definitions')
   ];
 
@@ -366,7 +388,7 @@ function verifyAgentDBIntegration(): FeatureVerification {
     checkCodePattern('src/agents/BaseAgent.ts', /agentdb|AgentDB/i, 'AgentDB imports'),
     checkCodePattern('src/agents/BaseAgent.ts', /quic|QUIC/i, 'QUIC sync usage'),
     checkCodePattern('src/agents/BaseAgent.ts', /vectorSearch|vector/, 'Vector search usage'),
-    checkTestsExist('*agentdb*.test.ts')
+    checkTestsExist('*agentdb*.test.ts', ['agentdb', 'AgentDB'])
   ];
 
   const passCount = checks.filter(c => c.status === 'pass').length;
@@ -391,7 +413,7 @@ function verifyMCPTools(): FeatureVerification {
     checkCodePattern('src/mcp/tools.ts', /export\s+const\s+agenticQETools/, 'Tools export'),
     checkCodePattern('src/mcp/tools.ts', /mcp__agentic_qe__/g, 'Tool definitions'),
     checkFileExists('src/mcp/handlers'),
-    checkTestsExist('*mcp*.test.ts'),
+    checkTestsExist('*mcp*.test.ts', ['mcp', 'MCP']),
     checkFileExists('bin/aqe-mcp')
   ];
 
@@ -422,12 +444,12 @@ function verifyMCPTools(): FeatureVerification {
  */
 function verifyPerformanceClaims(): FeatureVerification {
   const checks: FeatureCheck[] = [
-    checkTestsExist('*performance*.test.ts'),
-    checkTestsExist('*benchmark*.test.ts'),
+    checkTestsExist('*performance*.test.ts', ['performance', 'Performance', 'benchmark']),
+    checkTestsExist('*benchmark*.test.ts', ['benchmark', 'Benchmark']),
     checkCodePattern('src/test-generation/TestGenerator.ts', /1000|rate|throughput/, 'Test generation performance'),
     checkCodePattern('src/coverage/CoverageAnalyzer.ts', /O\(log\s*n\)|sublinear|johnson/, 'O(log n) complexity'),
     checkCodePattern('src/test-data/TestDataGenerator.ts', /10000|10,000/, 'Data generation rate'),
-    checkTestsExist('*sublinear*.test.ts'),
+    checkTestsExist('*sublinear*.test.ts', ['sublinear', 'Sublinear']),
     checkFileExists('tests/performance')
   ];
 

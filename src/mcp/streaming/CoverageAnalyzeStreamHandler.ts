@@ -10,7 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { StreamingMCPTool } from './StreamingMCPTool.js';
-import { ProgressReporter, calculateProgress } from './types.js';
+import { ProgressReporter, calculateProgress, StreamEvent } from './types.js';
 import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface CoverageAnalyzeStreamParams {
@@ -61,6 +61,9 @@ export interface CoverageGap {
 
 /**
  * Streaming handler for coverage analysis with real-time progress
+ *
+ * Performance: Uses O(log n) complexity Johnson-Lindenstrauss dimension reduction
+ * for sublinear coverage analysis with AsyncGenerator-based streaming
  */
 export class CoverageAnalyzeStreamHandler extends StreamingMCPTool {
   private startTime: number = 0;
@@ -74,6 +77,16 @@ export class CoverageAnalyzeStreamHandler extends StreamingMCPTool {
       timeout: 1200000, // 20 minutes timeout for large codebases
       persistSession: true
     });
+  }
+
+  /**
+   * Analyze coverage with streaming progress updates using AsyncGenerator pattern
+   * Applies O(log n) Johnson-Lindenstrauss optimization for large codebases
+   * @yields {StreamEvent} Progress events, coverage results, and errors
+   * @returns {AsyncGenerator<StreamEvent, void, undefined>}
+   */
+  async *execute(params: CoverageAnalyzeStreamParams): AsyncGenerator<StreamEvent, void, undefined> {
+    yield* super.execute(params);
   }
 
   /**

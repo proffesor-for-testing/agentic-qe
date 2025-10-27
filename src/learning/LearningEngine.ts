@@ -8,6 +8,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/Logger';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+import { QLearning, QLearningConfig } from './QLearning';
 
 // Import version from package.json to maintain consistency
 const packageJson = require('../../package.json');
@@ -49,7 +50,9 @@ export class LearningEngine {
   private readonly memoryStore: SwarmMemoryManager;
   private readonly agentId: string;
   private config: LearningConfig;
-  private qTable: Map<string, Map<string, number>>; // state-action values
+  private qTable: Map<string, Map<string, number>>; // state-action values (legacy)
+  private qLearning?: QLearning; // Q-learning integration
+  private useQLearning: boolean;
   private experiences: TaskExperience[];
   private patterns: Map<string, LearnedPattern>;
   private failurePatterns: Map<string, FailurePattern>;
@@ -65,6 +68,7 @@ export class LearningEngine {
     this.memoryStore = memoryStore;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.qTable = new Map();
+    this.useQLearning = false; // Default to legacy implementation
     this.experiences = [];
     this.patterns = new Map();
     this.failurePatterns = new Map();
@@ -596,6 +600,40 @@ export class LearningEngine {
   }
 
   /**
+   * Serialize Q-table for QLearning import (converts to QValue format)
+   */
+  private serializeQTableForQLearning(): Record<string, Record<string, any>> {
+    const serialized: Record<string, Record<string, any>> = {};
+    for (const [state, actions] of this.qTable.entries()) {
+      serialized[state] = {};
+      for (const [action, value] of actions.entries()) {
+        serialized[state][action] = {
+          state,
+          action,
+          value,
+          updateCount: 1,
+          lastUpdated: Date.now()
+        };
+      }
+    }
+    return serialized;
+  }
+
+  /**
+   * Deserialize Q-table from QLearning export (extracts values from QValue format)
+   */
+  private deserializeQTableFromQLearning(data: Record<string, Record<string, any>>): void {
+    this.qTable.clear();
+    for (const [state, actions] of Object.entries(data)) {
+      const actionMap = new Map<string, number>();
+      for (const [action, qValue] of Object.entries(actions)) {
+        actionMap.set(action, qValue.value);
+      }
+      this.qTable.set(state, actionMap);
+    }
+  }
+
+  /**
    * Calculate state size in bytes
    */
   private calculateStateSize(): number {
@@ -672,5 +710,142 @@ export class LearningEngine {
    */
   isEnabled(): boolean {
     return this.config.enabled;
+  }
+
+  /**
+   * Enable Q-learning mode (Phase 2 Integration)
+   * Switches from basic Q-table to full QLearning algorithm with experience replay
+   */
+  enableQLearning(config?: Partial<QLearningConfig>): void {
+    const qLearningConfig: Partial<QLearningConfig> = {
+      learningRate: this.config.learningRate,
+      discountFactor: this.config.discountFactor,
+      explorationRate: this.config.explorationRate,
+      explorationDecay: this.config.explorationDecay,
+      minExplorationRate: this.config.minExplorationRate,
+      useExperienceReplay: true,
+      replayBufferSize: 10000,
+      batchSize: this.config.batchSize,
+      ...config
+    };
+
+    this.qLearning = new QLearning(qLearningConfig);
+    this.useQLearning = true;
+
+    // Import existing Q-table into QLearning if we have data
+    if (this.qTable.size > 0) {
+      const serialized = this.serializeQTableForQLearning();
+      this.qLearning.import({
+        qTable: serialized,
+        config: qLearningConfig as QLearningConfig,
+        stepCount: this.taskCount,
+        episodeCount: Math.floor(this.taskCount / 10)
+      });
+    }
+
+    this.logger.info(`Q-learning mode enabled for agent ${this.agentId}`, {
+      config: qLearningConfig
+    });
+  }
+
+  /**
+   * Disable Q-learning mode (revert to basic implementation)
+   */
+  disableQLearning(): void {
+    if (this.qLearning && this.useQLearning) {
+      // Export Q-learning state to basic Q-table
+      const exported = this.qLearning.export();
+      this.deserializeQTableFromQLearning(exported.qTable);
+    }
+
+    this.qLearning = undefined;
+    this.useQLearning = false;
+
+    this.logger.info(`Q-learning mode disabled for agent ${this.agentId}`);
+  }
+
+  /**
+   * Learn from experience using Q-learning (when enabled)
+   * This method integrates with the QLearning algorithm
+   */
+  async learnFromExperience(experience: TaskExperience): Promise<void> {
+    if (!this.config.enabled) {
+      return;
+    }
+
+    if (this.useQLearning && this.qLearning) {
+      // Use QLearning algorithm
+      this.qLearning.update(experience);
+      this.experiences.push(experience);
+
+      // Perform batch update periodically
+      if (this.taskCount % this.config.updateFrequency === 0) {
+        this.qLearning.batchUpdate();
+      }
+
+      // End episode periodically to trigger exploration decay
+      if (this.taskCount % 10 === 0) {
+        this.qLearning.endEpisode();
+      }
+    } else {
+      // Use legacy Q-table implementation
+      await this.updateQTable(experience);
+      this.experiences.push(experience);
+    }
+
+    this.taskCount++;
+  }
+
+  /**
+   * Select action with policy (Q-learning integration)
+   * Uses epsilon-greedy policy when Q-learning is enabled
+   */
+  async selectActionWithPolicy(state: TaskState, availableActions: AgentAction[]): Promise<AgentAction> {
+    if (this.useQLearning && this.qLearning) {
+      // Use Q-learning's epsilon-greedy policy
+      return this.qLearning.selectAction(state, availableActions);
+    }
+
+    // Fallback to recommendation-based selection
+    const recommendation = await this.recommendStrategy(state);
+
+    // Find the action matching the recommended strategy
+    const matchingAction = availableActions.find(
+      action => action.strategy === recommendation.strategy
+    );
+
+    return matchingAction || availableActions[0];
+  }
+
+  /**
+   * Get Q-learning statistics (when enabled)
+   */
+  getQLearningStats(): {
+    enabled: boolean;
+    stats?: {
+      steps: number;
+      episodes: number;
+      tableSize: number;
+      explorationRate: number;
+      avgQValue: number;
+      maxQValue: number;
+      minQValue: number;
+    };
+  } {
+    if (!this.useQLearning || !this.qLearning) {
+      return { enabled: false };
+    }
+
+    return {
+      enabled: true,
+      stats: this.qLearning.getStatistics()
+    };
+  }
+
+  /**
+   * Check if Q-learning mode is enabled
+   */
+  isQLearningEnabled(): boolean {
+    return this.useQLearning;
   }
 }

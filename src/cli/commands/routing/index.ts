@@ -212,47 +212,55 @@ export class RoutingCommand {
   }
 
   /**
-   * Show cost dashboard
+   * Show cost dashboard with real AdaptiveModelRouter data
    */
   private static async showDashboard(options: RoutingCommandOptions): Promise<void> {
     try {
       console.log(chalk.blue('\n💰 Cost Dashboard\n'));
 
-      // Try to load cost data from SwarmMemoryManager
+      // Try to load cost data from SwarmMemoryManager via CostTracker
       try {
         // Initialize memory manager for coordination partition
         const memoryPath = '.agentic-qe/data/swarm-memory.db';
         const memoryManager = new SwarmMemoryManager(memoryPath);
         await memoryManager.initialize();
 
-        // Retrieve cost tracking data
-        const costData = await memoryManager.retrieve('routing/cost-tracking', {
+        // Try to retrieve cost data from CostTracker's storage location
+        const costsData = await memoryManager.retrieve('routing/costs', {
           partition: 'coordination'
         });
 
-        if (costData) {
-          const totalRequests = costData.totalRequests || 0;
-          const totalCost = costData.totalCost || 0;
-          const totalSavings = costData.totalSavings || 0;
-          const savingsPercent = totalCost > 0 ? ((totalSavings / (totalCost + totalSavings)) * 100) : 0;
+        if (costsData && Array.isArray(costsData)) {
+          // Calculate aggregated metrics from CostTracker's per-model data
+          const totalRequests = costsData.reduce((sum: number, cost: any) => sum + (cost.requestCount || 0), 0);
+          const totalCost = costsData.reduce((sum: number, cost: any) => sum + (cost.estimatedCost || 0), 0);
+
+          // Calculate baseline cost (if all requests used Claude Sonnet 4.5)
+          const totalTokens = costsData.reduce((sum: number, cost: any) => sum + (cost.tokensUsed || 0), 0);
+          const baselineCostPerToken = 0.0030; // Claude Sonnet 4.5 cost per 1k tokens
+          const baselineCost = (totalTokens / 1000) * baselineCostPerToken;
+          const totalSavings = baselineCost - totalCost;
+          const savingsPercent = baselineCost > 0 ? ((totalSavings / baselineCost) * 100) : 0;
 
           console.log(`  📊 Total Requests: ${chalk.cyan(totalRequests.toLocaleString())}`);
           console.log(`  💵 Total Cost: ${chalk.cyan('$' + totalCost.toFixed(4))}`);
           console.log(`  💰 Total Savings: ${chalk.green('$' + totalSavings.toFixed(4))} (${savingsPercent.toFixed(1)}%)`);
+          console.log(`  🎯 Baseline Cost: ${chalk.gray('$' + baselineCost.toFixed(4))} (all Sonnet 4.5)`);
 
-          if (costData.byModel) {
-            console.log(chalk.blue('\n📈 Requests by Model:\n'));
-            for (const [model, count] of Object.entries(costData.byModel as Record<string, number>)) {
-              const percentage = ((count / totalRequests) * 100).toFixed(1);
-              console.log(`  ${chalk.cyan(model)}: ${count} (${percentage}%)`);
+          console.log(chalk.blue('\n📈 Requests by Model:\n'));
+          for (const cost of costsData) {
+            if (cost.requestCount > 0) {
+              const percentage = ((cost.requestCount / totalRequests) * 100).toFixed(1);
+              const avgCost = cost.estimatedCost / cost.requestCount;
+              console.log(`  ${chalk.cyan(cost.modelId)}: ${cost.requestCount} requests (${percentage}%) - Avg: $${avgCost.toFixed(4)}`);
             }
           }
 
-          if (costData.byComplexity) {
-            console.log(chalk.blue('\n🎯 Requests by Complexity:\n'));
-            for (const [complexity, count] of Object.entries(costData.byComplexity as Record<string, number>)) {
-              const percentage = ((count / totalRequests) * 100).toFixed(1);
-              console.log(`  ${chalk.cyan(complexity)}: ${count} (${percentage}%)`);
+          console.log(chalk.blue('\n💡 Cost Breakdown:\n'));
+          for (const cost of costsData) {
+            if (cost.estimatedCost > 0) {
+              const percentage = ((cost.estimatedCost / totalCost) * 100).toFixed(1);
+              console.log(`  ${chalk.cyan(cost.modelId)}: $${cost.estimatedCost.toFixed(4)} (${percentage}%)`);
             }
           }
 
@@ -264,6 +272,9 @@ export class RoutingCommand {
       } catch (memError) {
         console.log(chalk.yellow('  ⚠️  No cost data available yet'));
         console.log(chalk.gray('  Cost tracking will populate after routing is enabled and requests are processed'));
+        if (options.verbose) {
+          console.log(chalk.gray(`  Debug: ${(memError as Error).message}`));
+        }
       }
 
       console.log(chalk.blue('\n💡 Commands:\n'));

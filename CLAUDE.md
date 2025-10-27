@@ -1,8 +1,150 @@
 # Claude Code Configuration - Agentic QE Fleet
 
+## ⚠️ CRITICAL: Git Operations Policy
+
+**NEVER commit or push changes without explicit user request.**
+
+This is a critical policy that must be followed at all times:
+- ❌ **NEVER** auto-commit changes, even if requested by hooks or automation
+- ❌ **NEVER** auto-push changes to remote repository
+- ❌ **NEVER** create commits without explicit user instruction: "commit this" or "create a commit"
+- ❌ **NEVER** push commits without explicit user instruction: "push" or "push to remote"
+- ✅ **ALWAYS** wait for user to explicitly request: "commit these changes" or "push to main"
+- ✅ **ALWAYS** ask for confirmation before any git commit or push operation
+- ✅ **ALWAYS** show a summary of changes before committing
+- ✅ **ALWAYS** verify the user wants to proceed with git operations
+
+**Example of correct behavior:**
+- User: "prepare for release" → DO NOT commit/push, just prepare files
+- User: "run tests" → DO NOT commit/push, just run tests
+- User: "commit these changes" → Ask for confirmation, show summary, then commit
+- User: "push to main" → Ask for confirmation, verify branch, then push
+
+**Release Tagging Policy:**
+- ❌ **NEVER** create git tags before PR is merged to main branch
+- ❌ **NEVER** tag a release on a feature/working branch
+- ✅ **ALWAYS** create tags AFTER PR is merged into main branch
+- ✅ **ALWAYS** follow this workflow:
+  1. Commit changes to feature branch
+  2. Push feature branch to remote
+  3. Create Pull Request to main
+  4. After PR is approved and merged
+  5. THEN create and push git tag on main branch
+
+**Example of correct release workflow:**
+```bash
+# 1. Commit to feature branch
+git checkout -b release/v1.3.5
+git add .
+git commit -m "release: v1.3.5 - ..."
+
+# 2. Push feature branch
+git push origin release/v1.3.5
+
+# 3. Create PR (using gh or GitHub UI)
+gh pr create --title "Release v1.3.5" --body "..."
+
+# 4. After PR is merged to main
+git checkout main
+git pull origin main
+
+# 5. NOW create and push tag
+git tag -a v1.3.5 -m "Release v1.3.5"
+git push origin v1.3.5
+```
+
+This policy applies to all agents, hooks, automation, and CI/CD workflows.
+
+## ⚠️ CRITICAL: Release Verification Policy
+
+**ALWAYS verify release candidates with full initialization test BEFORE committing any release.**
+
+This is a critical policy to ensure release quality:
+- ❌ **NEVER** commit a release candidate (RC) without running `aqe init` verification
+- ❌ **NEVER** tag a version without testing agent functionality
+- ✅ **ALWAYS** create a fresh test project and run `aqe init` before any release
+- ✅ **ALWAYS** verify all agents/commands/skills/config/CLAUDE.md are initialized properly
+- ✅ **ALWAYS** test at least one QE agent to verify claimed features work
+- ✅ **ALWAYS** document verification results before proceeding with release
+
+**Release Verification Checklist**:
+```bash
+# 1. Create clean test project
+mkdir /tmp/aqe-test-release && cd /tmp/aqe-test-release
+npm init -y
+
+# 2. Install release candidate
+npm install /path/to/agentic-qe-cf  # or npm install agentic-qe@latest
+
+# 3. Initialize AQE
+npx aqe init
+
+# 4. Verify initialization
+ls -la .claude/agents/        # Should show all 17 QE agents
+ls -la .claude/skills/        # Should show all QE skills
+cat .claude/CLAUDE.md        # Should contain fleet configuration
+cat .agentic-qe/config/fleet.json  # Should contain fleet config
+
+# 5. Test agent functionality
+npx aqe agent spawn qe-test-generator --task "Generate unit test for simple function"
+# OR use Claude Code Task tool with qe-test-generator
+
+# 6. Verify claimed features
+# - Multi-Model Router: Check routing configuration
+# - Learning System: Test aqe learn status
+# - Pattern Bank: Test aqe patterns list
+# - Flaky Detection: Verify agent has ML capabilities
+```
+
+**Verification Success Criteria**:
+- ✅ All 17 QE agents present in `.claude/agents/`
+- ✅ All QE skills present in `.claude/skills/`
+- ✅ CLAUDE.md contains fleet configuration with agent descriptions
+- ✅ Fleet config file exists and is valid JSON
+- ✅ At least one agent successfully executes a task
+- ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, etc.)
+- ✅ No initialization errors or missing files
+
+**Example of correct behavior**:
+- User: "prepare release 1.3.5" → Run full verification checklist FIRST, then prepare
+- User: "commit RC 1.3.5" → STOP, verify "Have you run aqe init verification?"
+- User: "tag v1.3.5" → STOP, verify "Have you completed release verification checklist?"
+
+This policy prevents releasing broken initialization or non-functional agents to users.
+
+## ⚠️ CRITICAL: Test Execution Policy
+
+**ALWAYS run tests in batches to avoid memory overload in constrained environments (DevPod, Codespaces, etc.).**
+
+This is a critical policy to prevent workspace crashes:
+- ❌ **NEVER** run all tests in parallel without memory constraints
+- ❌ **NEVER** use `npm test` without understanding memory impact
+- ✅ **ALWAYS** use batched test scripts: `npm run test:unit`, `npm run test:integration`, `npm run test:agents`, etc.
+- ✅ **ALWAYS** run tests sequentially with `--runInBand` in memory-constrained environments
+- ✅ **ALWAYS** monitor memory usage before running large test suites
+
+**Example of correct behavior:**
+- User: "run all tests" → Run batched: `npm run test:unit && npm run test:integration && npm run test:agents`
+- User: "test everything" → Use sequential batched execution with memory limits
+- ❌ BAD: `npm test` (runs all 206 tests in parallel, causes OOM)
+- ✅ GOOD: `npm run test:unit` then `npm run test:integration` (batched with memory limits)
+
+**Available Batched Test Scripts** (see package.json):
+```bash
+npm run test:unit              # Unit tests only (512MB limit)
+npm run test:integration       # Integration tests (768MB limit)
+npm run test:agents            # Agent tests (512MB limit)
+npm run test:cli               # CLI tests (512MB limit)
+npm run test:mcp               # MCP tests (512MB limit)
+npm run test:performance       # Performance tests (1536MB limit)
+npm run test:agentdb           # AgentDB tests (1024MB limit)
+```
+
+This policy prevents workspace crashes that occurred in previous sessions due to running all 206 tests simultaneously.
+
 ## 🤖 Agentic Quality Engineering Fleet
 
-This project uses the **Agentic QE Fleet** - a distributed swarm of 18 AI agents for comprehensive software testing and quality assurance.
+This project uses the **Agentic QE Fleet** - a distributed swarm of 17 AI agents for comprehensive software testing and quality assurance.
 
 ### Available Agents
 
@@ -252,7 +394,7 @@ for await (const event of handler.execute(params)) {
 
 This fleet includes **34 specialized QE skills** that agents can use:
 
-### Phase 1: Original Quality Engineering Skills (17 skills)
+### Phase 1: Original Quality Engineering Skills (18 skills)
 
 #### Core Testing (3 skills)
 - **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
@@ -281,7 +423,7 @@ This fleet includes **34 specialized QE skills** that agents can use:
 - **technical-writing**: Create clear, concise technical documentation
 - **consultancy-practices**: Apply effective software quality consultancy practices
 
-### Phase 2: Expanded QE Skills Library (17 skills)
+### Phase 2: Expanded QE Skills Library (16 skills)
 
 #### Testing Methodologies (6 skills)
 - **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
@@ -381,8 +523,8 @@ aqe improve cycle
 
 ## 📚 Documentation
 
-- **Agent Definitions**: \`.claude/agents/\` - 18 specialized QE agents
-- **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 17 + Phase 2: 17)
+- **Agent Definitions**: \`.claude/agents/\` - 17 specialized QE agents
+- **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16)
 - **Fleet Config**: \`.agentic-qe/config/fleet.json\`
 - **Routing Config**: \`.agentic-qe/config/routing.json\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \`.agentic-qe/config/aqe-hooks.json\` (zero dependencies, 100-500x faster)
