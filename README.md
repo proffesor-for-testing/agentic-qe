@@ -30,7 +30,7 @@ cd your-project
 aqe init
 
 # Add MCP server to Claude Code (optional)
-claude mcp add agentic-qe npx -y agentic-qe mcp:start
+claude mcp add agentic-qe npx aqe-mcp
 
 # Verify connection
 claude mcp list
