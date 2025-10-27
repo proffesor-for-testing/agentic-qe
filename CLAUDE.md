@@ -105,12 +105,37 @@ npx aqe agent spawn qe-test-generator --task "Generate unit test for simple func
 - ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, etc.)
 - ✅ No initialization errors or missing files
 
+**Version Update Policy (CRITICAL)**:
+- ❌ **NEVER** create release PR without updating version numbers in ALL documentation
+- ✅ **ALWAYS** update version numbers BEFORE creating release PR
+- ✅ **ALWAYS** check and update these files:
+  - `README.md` (line ~10: "**Version X.X.X**")
+  - `README.md` (Recent Changes section)
+  - `package.json` (already updated by npm version or manually)
+  - Any other docs referencing current version
+- ✅ **ALWAYS** search for old version: `grep -r "v1.x.x" README.md docs/`
+
+**Version Update Workflow**:
+```bash
+# 1. Search for old version references (excluding historical docs)
+grep -r "v1.3.4\|Version 1.3.4" README.md --exclude-dir=docs/releases
+
+# 2. Update all found references to new version
+# - README.md header: Version X.X.X
+# - README.md tagline: Update cost savings if changed
+# - README.md Recent Changes: Add new version section
+
+# 3. THEN run release verification and create PR
+```
+
 **Example of correct behavior**:
-- User: "prepare release 1.3.5" → Run full verification checklist FIRST, then prepare
+- User: "prepare release 1.3.5" → Update versions FIRST, verify, then prepare
+- User: "commit RC 1.3.5" → STOP, verify "Have you updated README.md version?"
+- User: "create PR" → STOP, verify "README.md shows correct version?"
 - User: "commit RC 1.3.5" → STOP, verify "Have you run aqe init verification?"
 - User: "tag v1.3.5" → STOP, verify "Have you completed release verification checklist?"
 
-This policy prevents releasing broken initialization or non-functional agents to users.
+This policy prevents releasing broken initialization, non-functional agents, or incorrect version numbers to users.
 
 ## ⚠️ CRITICAL: Test Execution Policy
 
