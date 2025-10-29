@@ -1,6 +1,6 @@
-import { ModelTrainingSystem } from '../../../src/learning/ModelTrainingSystem';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
+import { ModelTrainingSystem } from '@learning/ModelTrainingSystem';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 

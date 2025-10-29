@@ -3,7 +3,7 @@
  * Complete coverage for base handler functionality
  */
 
-import { BaseHandler, HandlerResponse } from '../../../src/mcp/handlers/base-handler';
+import { BaseHandler, HandlerResponse } from '@mcp/handlers/base-handler';
 
 // Create a concrete implementation for testing
 class TestHandler extends BaseHandler {

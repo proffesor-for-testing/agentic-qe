@@ -5,11 +5,11 @@
  * multi-agent coordination, and event-driven coordination.
  */
 
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { BlackboardCoordination } from '../../../src/core/coordination/BlackboardCoordination';
-import { ConsensusGating } from '../../../src/core/coordination/ConsensusGating';
-import { GOAPCoordination, Action, Goal } from '../../../src/core/coordination/GOAPCoordination';
-import { OODACoordination } from '../../../src/core/coordination/OODACoordination';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { BlackboardCoordination } from '@core/coordination/BlackboardCoordination';
+import { ConsensusGating } from '@core/coordination/ConsensusGating';
+import { GOAPCoordination, Action, Goal } from '@core/coordination/GOAPCoordination';
+import { OODACoordination } from '@core/coordination/OODACoordination';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';

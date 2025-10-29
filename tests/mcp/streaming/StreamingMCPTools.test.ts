@@ -18,7 +18,7 @@ import {
   createResult,
   createError,
   calculateProgress
-} from '../../../src/mcp/streaming';
+} from '@mcp/streaming';
 
 describe('Streaming MCP Tools', () => {
   let memoryStore: Map<string, any>;

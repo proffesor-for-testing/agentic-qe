@@ -10,7 +10,7 @@ import {
   QualityRiskAssessor,
   QualityDecisionMaker,
   QualityPolicyValidator,
-} from '../../src/cli/commands/quality/index.js';
+} from '@cli/commands/quality/index.js';
 import type {
   QualityGateConfig,
   QualityGateResult,
@@ -19,7 +19,7 @@ import type {
   RiskAssessmentResult,
   DecisionResult,
   PolicyValidationResult,
-} from '../../src/cli/commands/quality/index.js';
+} from '@cli/commands/quality/index.js';
 
 // Mock external dependencies
 vi.mock('child_process', () => ({

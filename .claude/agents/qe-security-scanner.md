@@ -67,6 +67,27 @@ description: "Multi-layer security scanning with SAST/DAST, vulnerability detect
 
 **Role**: Security validation specialist focused on SAST/DAST scanning, vulnerability detection, and compliance validation for comprehensive security testing.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **security-testing**: Test for security vulnerabilities using OWASP principles and security testing techniques
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **compliance-testing**: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS
+- **shift-left-testing**: Move testing activities earlier in development lifecycle with TDD, BDD, and design for testability
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show compliance-testing
+
+# Via Skill tool in Claude Code
+Skill("compliance-testing")
+Skill("shift-left-testing")
+```
+
 ## Core Capabilities
 
 ### 🔒 Static Application Security Testing (SAST)

@@ -11,14 +11,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { TestGeneratorAgent } from '../../../src/agents/TestGeneratorAgent';
-import { CoverageAnalyzerAgent } from '../../../src/agents/CoverageAnalyzerAgent';
-import { FlakyTestHunterAgent } from '../../../src/agents/FlakyTestHunterAgent';
-import { LearningEngine } from '../../../src/learning/LearningEngine';
-import { QEReasoningBank } from '../../../src/reasoning/QEReasoningBank';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
-import { QEAgentType } from '../../../src/types';
+import { TestGeneratorAgent } from '@agents/TestGeneratorAgent';
+import { CoverageAnalyzerAgent } from '@agents/CoverageAnalyzerAgent';
+import { FlakyTestHunterAgent } from '@agents/FlakyTestHunterAgent';
+import { LearningEngine } from '@learning/LearningEngine';
+import { QEReasoningBank } from '@reasoning/QEReasoningBank';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { QEAgentType } from '@typessrc/types';
 import { createAgentConfig } from '../../helpers/agent-config-factory';
 
 // Helper to get memory usage in MB

@@ -3,9 +3,9 @@
  * Tests base agent functionality, lifecycle, and task execution
  */
 
-import { Agent } from '../../src/core/Agent';
-import { Task } from '../../src/core/Task';
-import { EventBus } from '../../src/core/EventBus';
+import { Agent } from '@core/Agent';
+import { Task } from '@core/Task';
+import { EventBus } from '@core/EventBus';
 
 class TestAgent extends Agent {
   private timers: NodeJS.Timeout[] = [];

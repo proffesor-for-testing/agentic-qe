@@ -1,8 +1,8 @@
-import { MonitorDashboard } from '../../src/cli/commands/monitor/dashboard';
-import { MonitorAlerts } from '../../src/cli/commands/monitor/alerts';
-import { MonitorExport } from '../../src/cli/commands/monitor/export';
-import { MonitorAnalyze } from '../../src/cli/commands/monitor/analyze';
-import { MonitorCompare } from '../../src/cli/commands/monitor/compare';
+import { MonitorDashboard } from '@cli/commands/monitor/dashboard';
+import { MonitorAlerts } from '@cli/commands/monitor/alerts';
+import { MonitorExport } from '@cli/commands/monitor/export';
+import { MonitorAnalyze } from '@cli/commands/monitor/analyze';
+import { MonitorCompare } from '@cli/commands/monitor/compare';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

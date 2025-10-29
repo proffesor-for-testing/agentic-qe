@@ -49,6 +49,13 @@ module.exports = {
     '^@agents/(.*)$': '<rootDir>/src/agents/$1',
     '^@cli/(.*)$': '<rootDir>/src/cli/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@types/(.*)$': '<rootDir>/src/types/$1',
+    '^@mcp/(.*)$': '<rootDir>/src/mcp/$1',
+    '^@learning/(.*)$': '<rootDir>/src/learning/$1',
+    '^@reasoning/(.*)$': '<rootDir>/src/reasoning/$1',
+    '^@streaming/(.*)$': '<rootDir>/src/streaming/$1',
+    '^@routing/(.*)$': '<rootDir>/src/core/routing/$1',
+    '^@memory/(.*)$': '<rootDir>/src/memory/$1',
     // Map .js imports to .ts source files for Jest
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },

@@ -5,8 +5,8 @@
  * PostToolUse persistence, and rollback mechanisms.
  */
 
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { VerificationHookManager, PostToolUsePersistence } from '../../../src/core/hooks/VerificationHookManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { VerificationHookManager, PostToolUsePersistence } from '@core/hooks/VerificationHookManager';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';

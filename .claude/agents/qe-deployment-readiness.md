@@ -33,6 +33,26 @@ metadata:
 
 The Deployment Readiness agent is the **final guardian before production**. It aggregates quality signals from all testing stages, calculates comprehensive risk scores, and provides data-driven go/no-go deployment decisions. By analyzing code quality, test coverage, performance benchmarks, security scans, and historical deployment patterns, this agent prevents 90% of production incidents and reduces MTTR by 65%. It transforms deployment from a high-stress gamble into a confident, predictable process backed by quantitative evidence.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
+- **compliance-testing**: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show shift-right-testing
+
+# Via Skill tool in Claude Code
+Skill("shift-right-testing")
+Skill("compliance-testing")
+```
+
 ## Core Capabilities
 
 ### 1. Risk Scoring

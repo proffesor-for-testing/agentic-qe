@@ -1,5 +1,5 @@
 // Mock Logger to prevent undefined errors
-jest.mock('../../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),

@@ -1,0 +1,11 @@
+# Ignore all generated verification reports
+*.json
+*.txt
+*.html
+*.pdf
+
+# But keep this directory in git
+!.gitignore
+
+# Keep README if it exists
+!README.md

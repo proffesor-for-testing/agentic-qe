@@ -1,8 +1,175 @@
 # Claude Code Configuration - Agentic QE Fleet
 
+## ⚠️ CRITICAL: Git Operations Policy
+
+**NEVER commit or push changes without explicit user request.**
+
+This is a critical policy that must be followed at all times:
+- ❌ **NEVER** auto-commit changes, even if requested by hooks or automation
+- ❌ **NEVER** auto-push changes to remote repository
+- ❌ **NEVER** create commits without explicit user instruction: "commit this" or "create a commit"
+- ❌ **NEVER** push commits without explicit user instruction: "push" or "push to remote"
+- ✅ **ALWAYS** wait for user to explicitly request: "commit these changes" or "push to main"
+- ✅ **ALWAYS** ask for confirmation before any git commit or push operation
+- ✅ **ALWAYS** show a summary of changes before committing
+- ✅ **ALWAYS** verify the user wants to proceed with git operations
+
+**Example of correct behavior:**
+- User: "prepare for release" → DO NOT commit/push, just prepare files
+- User: "run tests" → DO NOT commit/push, just run tests
+- User: "commit these changes" → Ask for confirmation, show summary, then commit
+- User: "push to main" → Ask for confirmation, verify branch, then push
+
+**Release Tagging Policy:**
+- ❌ **NEVER** create git tags before PR is merged to main branch
+- ❌ **NEVER** tag a release on a feature/working branch
+- ✅ **ALWAYS** create tags AFTER PR is merged into main branch
+- ✅ **ALWAYS** follow this workflow:
+  1. Commit changes to feature branch
+  2. Push feature branch to remote
+  3. Create Pull Request to main
+  4. After PR is approved and merged
+  5. THEN create and push git tag on main branch
+
+**Example of correct release workflow:**
+```bash
+# 1. Commit to feature branch
+git checkout -b release/v1.3.5
+git add .
+git commit -m "release: v1.3.5 - ..."
+
+# 2. Push feature branch
+git push origin release/v1.3.5
+
+# 3. Create PR (using gh or GitHub UI)
+gh pr create --title "Release v1.3.5" --body "..."
+
+# 4. After PR is merged to main
+git checkout main
+git pull origin main
+
+# 5. NOW create and push tag
+git tag -a v1.3.5 -m "Release v1.3.5"
+git push origin v1.3.5
+```
+
+This policy applies to all agents, hooks, automation, and CI/CD workflows.
+
+## ⚠️ CRITICAL: Release Verification Policy
+
+**ALWAYS verify release candidates with full initialization test BEFORE committing any release.**
+
+This is a critical policy to ensure release quality:
+- ❌ **NEVER** commit a release candidate (RC) without running `aqe init` verification
+- ❌ **NEVER** tag a version without testing agent functionality
+- ✅ **ALWAYS** create a fresh test project and run `aqe init` before any release
+- ✅ **ALWAYS** verify all agents/commands/skills/config/CLAUDE.md are initialized properly
+- ✅ **ALWAYS** test at least one QE agent to verify claimed features work
+- ✅ **ALWAYS** document verification results before proceeding with release
+
+**Release Verification Checklist**:
+```bash
+# 1. Create clean test project
+mkdir /tmp/aqe-test-release && cd /tmp/aqe-test-release
+npm init -y
+
+# 2. Install release candidate
+npm install /path/to/agentic-qe-cf  # or npm install agentic-qe@latest
+
+# 3. Initialize AQE
+npx aqe init
+
+# 4. Verify initialization
+ls -la .claude/agents/        # Should show all 17 QE agents
+ls -la .claude/skills/        # Should show all QE skills
+cat .claude/CLAUDE.md        # Should contain fleet configuration
+cat .agentic-qe/config/fleet.json  # Should contain fleet config
+
+# 5. Test agent functionality
+npx aqe agent spawn qe-test-generator --task "Generate unit test for simple function"
+# OR use Claude Code Task tool with qe-test-generator
+
+# 6. Verify claimed features
+# - Multi-Model Router: Check routing configuration
+# - Learning System: Test aqe learn status
+# - Pattern Bank: Test aqe patterns list
+# - Flaky Detection: Verify agent has ML capabilities
+```
+
+**Verification Success Criteria**:
+- ✅ All 17 QE agents present in `.claude/agents/`
+- ✅ All QE skills present in `.claude/skills/`
+- ✅ CLAUDE.md contains fleet configuration with agent descriptions
+- ✅ Fleet config file exists and is valid JSON
+- ✅ At least one agent successfully executes a task
+- ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, etc.)
+- ✅ No initialization errors or missing files
+
+**Version Update Policy (CRITICAL)**:
+- ❌ **NEVER** create release PR without updating version numbers in ALL documentation
+- ✅ **ALWAYS** update version numbers BEFORE creating release PR
+- ✅ **ALWAYS** check and update these files:
+  - `README.md` (line ~10: "**Version X.X.X**")
+  - `README.md` (Recent Changes section)
+  - `package.json` (already updated by npm version or manually)
+  - Any other docs referencing current version
+- ✅ **ALWAYS** search for old version: `grep -r "v1.x.x" README.md docs/`
+
+**Version Update Workflow**:
+```bash
+# 1. Search for old version references (excluding historical docs)
+grep -r "v1.3.4\|Version 1.3.4" README.md --exclude-dir=docs/releases
+
+# 2. Update all found references to new version
+# - README.md header: Version X.X.X
+# - README.md tagline: Update cost savings if changed
+# - README.md Recent Changes: Add new version section
+
+# 3. THEN run release verification and create PR
+```
+
+**Example of correct behavior**:
+- User: "prepare release 1.3.5" → Update versions FIRST, verify, then prepare
+- User: "commit RC 1.3.5" → STOP, verify "Have you updated README.md version?"
+- User: "create PR" → STOP, verify "README.md shows correct version?"
+- User: "commit RC 1.3.5" → STOP, verify "Have you run aqe init verification?"
+- User: "tag v1.3.5" → STOP, verify "Have you completed release verification checklist?"
+
+This policy prevents releasing broken initialization, non-functional agents, or incorrect version numbers to users.
+
+## ⚠️ CRITICAL: Test Execution Policy
+
+**ALWAYS run tests in batches to avoid memory overload in constrained environments (DevPod, Codespaces, etc.).**
+
+This is a critical policy to prevent workspace crashes:
+- ❌ **NEVER** run all tests in parallel without memory constraints
+- ❌ **NEVER** use `npm test` without understanding memory impact
+- ✅ **ALWAYS** use batched test scripts: `npm run test:unit`, `npm run test:integration`, `npm run test:agents`, etc.
+- ✅ **ALWAYS** run tests sequentially with `--runInBand` in memory-constrained environments
+- ✅ **ALWAYS** monitor memory usage before running large test suites
+
+**Example of correct behavior:**
+- User: "run all tests" → Run batched: `npm run test:unit && npm run test:integration && npm run test:agents`
+- User: "test everything" → Use sequential batched execution with memory limits
+- ❌ BAD: `npm test` (runs all 206 tests in parallel, causes OOM)
+- ✅ GOOD: `npm run test:unit` then `npm run test:integration` (batched with memory limits)
+
+**Available Batched Test Scripts** (see package.json):
+```bash
+npm run test:unit              # Unit tests only (512MB limit)
+npm run test:integration       # Integration tests (768MB limit)
+npm run test:agents            # Agent tests (512MB limit)
+npm run test:cli               # CLI tests (512MB limit)
+npm run test:mcp               # MCP tests (512MB limit)
+npm run test:performance       # Performance tests (1536MB limit)
+npm run test:agentdb           # AgentDB tests (1024MB limit)
+```
+
+This policy prevents workspace crashes that occurred in previous sessions due to running all 206 tests simultaneously.
+
 ## 🤖 Agentic Quality Engineering Fleet
 
-This project uses the **Agentic QE Fleet** - a distributed swarm of 18 AI agents for comprehensive software testing and quality assurance.
+This project uses the **Agentic QE Fleet** - a distributed swarm of 17 AI agents for comprehensive software testing and quality assurance.
 
 ### Available Agents
 
@@ -147,7 +314,7 @@ Agents share state through the **\`aqe/*\` memory namespace**:
 **Environments**: development
 **Frameworks**: jest
 
-## 💰 Multi-Model Router (v1.3.1)
+## 💰 Multi-Model Router (v1.3.3)
 
 **Status**: ⚠️  Disabled (opt-in)
 
@@ -213,7 +380,7 @@ aqe routing report --format json
 aqe routing stats
 \`\`\`
 
-## 📊 Streaming Progress (v1.3.1)
+## 📊 Streaming Progress (v1.3.3)
 
 **Status**: ✅ Enabled
 
@@ -250,26 +417,61 @@ for await (const event of handler.execute(params)) {
 
 ## 🎯 Claude Code Skills Integration
 
-This fleet includes **35 specialized QE skills** that agents can use:
+This fleet includes **34 specialized QE skills** that agents can use:
 
-### Quality Engineering Skills (10 skills)
+### Phase 1: Original Quality Engineering Skills (18 skills)
+
+#### Core Testing (3 skills)
 - **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
-- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing
-- **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly - includes templates, examples, and best practices
 - **context-driven-testing**: Apply context-driven testing principles where practices are chosen based on project context, not universal "best practices"
-- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours
 - **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles
-- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches - understanding different TDD philosophies and choosing the right testing style
-- **pair-programming**: AI-assisted pair programming with multiple modes (driver/navigator/switch), real-time verification, quality monitoring
-- **verification-quality**: Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold
-- **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace
 
-### AgentDB Skills (5 skills)
-- **agentdb-advanced**: Master advanced AgentDB features including QUIC synchronization, multi-database management, custom distance metrics, hybrid search
-- **agentdb-learning**: Create and train AI learning plugins with AgentDB's 9 reinforcement learning algorithms (Decision Transformer, Q-Learning, SARSA, Actor-Critic)
-- **agentdb-memory-patterns**: Implement persistent memory patterns for AI agents using AgentDB (session memory, long-term storage, pattern learning)
-- **agentdb-optimization**: Optimize AgentDB performance with quantization (4-32x memory reduction), HNSW indexing (150x faster search), caching
-- **agentdb-vector-search**: Implement semantic vector search with AgentDB for intelligent document retrieval, similarity matching, and context-aware querying
+#### Testing Methodologies (4 skills)
+- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches - understanding different TDD philosophies and choosing the right testing style
+- **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace
+- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment and prioritization
+- **test-automation-strategy**: Design and implement comprehensive test automation strategies
+
+#### Testing Techniques (4 skills)
+- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing
+- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours
+- **performance-testing**: Test application performance, scalability, and resilience with load testing and stress testing
+- **security-testing**: Test for security vulnerabilities using OWASP principles and security testing techniques
+
+#### Code Quality (3 skills)
+- **code-review-quality**: Conduct context-driven code reviews focusing on quality, testability, and maintainability
+- **refactoring-patterns**: Apply safe refactoring patterns to improve code structure without changing behavior
+- **quality-metrics**: Measure quality effectively with actionable metrics and KPIs
+
+#### Communication (3 skills)
+- **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly - includes templates, examples, and best practices
+- **technical-writing**: Create clear, concise technical documentation
+- **consultancy-practices**: Apply effective software quality consultancy practices
+
+### Phase 2: Expanded QE Skills Library (16 skills)
+
+#### Testing Methodologies (6 skills)
+- **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
+- **shift-left-testing**: Move testing activities earlier in development lifecycle with TDD, BDD, and design for testability
+- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
+- **test-design-techniques**: Advanced test design using equivalence partitioning, boundary value analysis, and decision tables
+- **mutation-testing**: Test quality validation through mutation testing and measuring test suite effectiveness
+- **test-data-management**: Realistic test data generation, GDPR compliance, and data masking strategies
+
+#### Specialized Testing (9 skills)
+- **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification
+- **mobile-testing**: Comprehensive mobile testing for iOS and Android including gestures, sensors, and device fragmentation
+- **database-testing**: Database schema validation, data integrity testing, migration testing, and query performance
+- **contract-testing**: Consumer-driven contract testing for microservices using Pact and API versioning
+- **chaos-engineering-resilience**: Chaos engineering principles, controlled failure injection, and resilience testing
+- **compatibility-testing**: Cross-browser, cross-platform, and cross-device compatibility testing
+- **localization-testing**: Internationalization (i18n) and localization (l10n) testing for global products
+- **compliance-testing**: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS
+- **visual-testing-advanced**: Advanced visual regression testing with AI-powered screenshot comparison and UI validation
+
+#### Testing Infrastructure (2 skills)
+- **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
+- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
 
 ### Using Skills
 
@@ -346,8 +548,8 @@ aqe improve cycle
 
 ## 📚 Documentation
 
-- **Agent Definitions**: \`.claude/agents/\` - 18 specialized QE agents
-- **Skills**: \`.claude/skills/\` - 17 specialized QE skills for agents
+- **Agent Definitions**: \`.claude/agents/\` - 17 specialized QE agents
+- **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16)
 - **Fleet Config**: \`.agentic-qe/config/fleet.json\`
 - **Routing Config**: \`.agentic-qe/config/routing.json\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \`.agentic-qe/config/aqe-hooks.json\` (zero dependencies, 100-500x faster)
@@ -409,6 +611,208 @@ tail -f .agentic-qe/logs/fleet.log
 
 ---
 
-**Generated by**: Agentic QE Fleet v1.3.1
-**Initialization Date**: 2025-10-24T13:08:19.486Z
+**Generated by**: Agentic QE Fleet v1.3.3
+**Initialization Date**: 2025-10-26T08:08:10.902Z
 **Fleet Topology**: hierarchical
+
+---
+
+# Claude Flow Integration (Preserved from original CLAUDE.md)
+
+## 🚨 CRITICAL: CONCURRENT EXECUTION & FILE MANAGEMENT
+
+**ABSOLUTE RULES**:
+1. ALL operations MUST be concurrent/parallel in a single message
+2. **NEVER save working files, text/mds and tests to the root folder**
+3. ALWAYS organize files in appropriate subdirectories
+4. **USE CLAUDE CODE'S TASK TOOL** for spawning agents concurrently, not just MCP
+
+### ⚡ GOLDEN RULE: "1 MESSAGE = ALL RELATED OPERATIONS"
+
+**MANDATORY PATTERNS:**
+- **TodoWrite**: ALWAYS batch ALL todos in ONE call (5-10+ todos minimum)
+- **Task tool (Claude Code)**: ALWAYS spawn ALL agents in ONE message with full instructions
+- **File operations**: ALWAYS batch ALL reads/writes/edits in ONE message
+- **Bash commands**: ALWAYS batch ALL terminal operations in ONE message
+- **Memory operations**: ALWAYS batch ALL memory store/retrieve in ONE message
+
+### 🎯 CRITICAL: Claude Code Task Tool for Agent Execution
+
+**Claude Code's Task tool is the PRIMARY way to spawn agents:**
+```javascript
+// ✅ CORRECT: Use Claude Code's Task tool for parallel agent execution
+[Single Message]:
+  Task("Research agent", "Analyze requirements and patterns...", "researcher")
+  Task("Coder agent", "Implement core features...", "coder")
+  Task("Tester agent", "Create comprehensive tests...", "tester")
+  Task("Reviewer agent", "Review code quality...", "reviewer")
+  Task("Architect agent", "Design system architecture...", "system-architect")
+```
+
+**MCP tools are ONLY for coordination setup:**
+- `mcp__claude-flow__swarm_init` - Initialize coordination topology
+- `mcp__claude-flow__agent_spawn` - Define agent types for coordination
+- `mcp__claude-flow__task_orchestrate` - Orchestrate high-level workflows
+
+### 📁 File Organization Rules
+
+**NEVER save to root folder. Use these directories:**
+- `/src` - Source code files
+- `/tests` - Test files
+- `/docs` - Documentation and markdown files
+- `/config` - Configuration files
+- `/scripts` - Utility scripts
+- `/examples` - Example code
+
+## SPARC Commands
+
+### Core Commands
+- `npx claude-flow sparc modes` - List available modes
+- `npx claude-flow sparc run <mode> "<task>"` - Execute specific mode
+- `npx claude-flow sparc tdd "<feature>"` - Run complete TDD workflow
+- `npx claude-flow sparc info <mode>` - Get mode details
+
+### Batchtools Commands
+- `npx claude-flow sparc batch <modes> "<task>"` - Parallel execution
+- `npx claude-flow sparc pipeline "<task>"` - Full pipeline processing
+- `npx claude-flow sparc concurrent <mode> "<tasks-file>"` - Multi-task processing
+
+### Build Commands
+- `npm run build` - Build project
+- `npm run test` - Run tests
+- `npm run lint` - Linting
+- `npm run typecheck` - Type checking
+
+## 🚀 Available Claude Flow Agents (54 Total)
+
+### Core Development
+`coder`, `reviewer`, `tester`, `planner`, `researcher`
+
+### Swarm Coordination
+`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`
+
+### Consensus & Distributed
+`byzantine-coordinator`, `raft-manager`, `gossip-coordinator`, `consensus-builder`, `crdt-synchronizer`, `quorum-manager`, `security-manager`
+
+### Performance & Optimization
+`perf-analyzer`, `performance-benchmarker`, `task-orchestrator`, `memory-coordinator`, `smart-agent`
+
+### GitHub & Repository
+`github-modes`, `pr-manager`, `code-review-swarm`, `issue-tracker`, `release-manager`, `workflow-automation`, `project-board-sync`, `repo-architect`, `multi-repo-swarm`
+
+### SPARC Methodology
+`sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`, `refinement`
+
+### Specialized Development
+`backend-dev`, `mobile-dev`, `ml-developer`, `cicd-engineer`, `api-docs`, `system-architect`, `code-analyzer`, `base-template-generator`
+
+### Testing & Validation
+`tdd-london-swarm`, `production-validator`
+
+### Migration & Planning
+`migration-planner`, `swarm-init`
+
+## 🎯 Claude Code vs MCP Tools
+
+### Claude Code Handles ALL EXECUTION:
+- **Task tool**: Spawn and run agents concurrently for actual work
+- File operations (Read, Write, Edit, MultiEdit, Glob, Grep)
+- Code generation and programming
+- Bash commands and system operations
+- Implementation work
+- Project navigation and analysis
+- TodoWrite and task management
+- Git operations
+- Package management
+- Testing and debugging
+
+### MCP Tools ONLY COORDINATE:
+- Swarm initialization (topology setup)
+- Agent type definitions (coordination patterns)
+- Task orchestration (high-level planning)
+- Memory management
+- Neural features
+- Performance tracking
+- GitHub integration
+
+**KEY**: MCP coordinates the strategy, Claude Code's Task tool executes with real agents.
+
+## 📋 Agent Coordination Protocol
+
+### Every Agent Spawned via Task Tool MUST:
+
+**1️⃣ BEFORE Work:**
+```bash
+npx claude-flow@alpha hooks pre-task --description "[task]"
+npx claude-flow@alpha hooks session-restore --session-id "swarm-[id]"
+```
+
+**2️⃣ DURING Work:**
+```bash
+npx claude-flow@alpha hooks post-edit --file "[file]" --memory-key "swarm/[agent]/[step]"
+npx claude-flow@alpha hooks notify --message "[what was done]"
+```
+
+**3️⃣ AFTER Work:**
+```bash
+npx claude-flow@alpha hooks post-task --task-id "[task]"
+npx claude-flow@alpha hooks session-end --export-metrics true
+```
+
+## Performance Benefits
+
+- **84.8% SWE-Bench solve rate**
+- **32.3% token reduction**
+- **2.8-4.4x speed improvement**
+- **27+ neural models**
+
+## Hooks Integration
+
+### Pre-Operation
+- Auto-assign agents by file type
+- Validate commands for safety
+- Prepare resources automatically
+- Optimize topology by complexity
+- Cache searches
+
+### Post-Operation
+- Auto-format code
+- Train neural patterns
+- Update memory
+- Analyze performance
+- Track token usage
+
+### Session Management
+- Generate summaries
+- Persist state
+- Track metrics
+- Restore context
+- Export workflows
+
+## Advanced Features (v2.0.0)
+
+- 🚀 Automatic Topology Selection
+- ⚡ Parallel Execution (2.8-4.4x speed)
+- 🧠 Neural Training
+- 📊 Bottleneck Analysis
+- 🤖 Smart Auto-Spawning
+- 🛡️ Self-Healing Workflows
+- 💾 Cross-Session Memory
+- 🔗 GitHub Integration
+
+## Support
+
+- Documentation: https://github.com/ruvnet/claude-flow
+- Issues: https://github.com/ruvnet/claude-flow/issues
+- Flow-Nexus Platform: https://flow-nexus.ruv.io (registration required for cloud features)
+
+---
+
+Remember: **Claude Flow coordinates, Claude Code creates!**
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+Never save working files, text/mds and tests to the root folder.

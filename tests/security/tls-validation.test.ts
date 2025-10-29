@@ -9,10 +9,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { CertificateValidator, loadSecurityConfig } from '../../src/core/security/CertificateValidator';
+import { CertificateValidator, loadSecurityConfig } from '@core/security/CertificateValidator';
 
 // Mock Logger to avoid initialization issues
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),

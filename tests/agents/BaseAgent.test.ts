@@ -3,7 +3,7 @@
  * Tests lifecycle hooks, event handling, memory operations, and error handling
  */
 
-import { BaseAgent, BaseAgentConfig } from '../../src/agents/BaseAgent';
+import { BaseAgent, BaseAgentConfig } from '@agents/BaseAgent';
 import { EventEmitter } from 'events';
 import {
   AgentType,
@@ -12,7 +12,7 @@ import {
   QETask,
   TaskAssignment,
   MemoryStore
-} from '../../src/types';
+} from '@types';
 
 // Mock implementation of BaseAgent for testing
 class TestAgent extends BaseAgent {

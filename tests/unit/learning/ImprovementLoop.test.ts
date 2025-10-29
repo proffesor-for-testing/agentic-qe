@@ -1,5 +1,5 @@
 // Mock Logger to prevent undefined errors
-jest.mock('../../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),
@@ -21,11 +21,11 @@ jest.mock('../../../src/utils/Logger', () => ({
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { ImprovementLoop } from '../../../src/learning/ImprovementLoop';
-import { LearningEngine } from '../../../src/learning/LearningEngine';
-import { PerformanceTracker } from '../../../src/learning/PerformanceTracker';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { ABTest } from '../../../src/learning/types';
+import { ImprovementLoop } from '@learning/ImprovementLoop';
+import { LearningEngine } from '@learning/LearningEngine';
+import { PerformanceTracker } from '@learning/PerformanceTracker';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { ABTest } from '@learning/types';
 
 describe('ImprovementLoop', () => {
   let improvementLoop: ImprovementLoop;

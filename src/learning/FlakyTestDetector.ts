@@ -3,10 +3,11 @@
  * Achieves 90% accuracy in identifying flaky tests
  */
 
-import { TestResult, FlakyTest } from './types';
+import { TestResult, FlakyTest, FlakyFixRecommendation } from './types';
 import { StatisticalAnalysis } from './StatisticalAnalysis';
 import { FlakyPredictionModel } from './FlakyPredictionModel';
 import { FlakyFixRecommendations } from './FlakyFixRecommendations';
+import { FixRecommendationEngine, RootCauseAnalysis, RootCause } from './FixRecommendationEngine';
 
 export interface FlakyDetectionOptions {
   minRuns?: number;              // Minimum test runs required (default: 5)
@@ -28,10 +29,12 @@ export interface ResolvedFlakyDetectionOptions {
 
 export class FlakyTestDetector {
   private model: FlakyPredictionModel;
+  private fixEngine: FixRecommendationEngine;
   private options: ResolvedFlakyDetectionOptions;
 
   constructor(options: FlakyDetectionOptions = {}) {
     this.model = new FlakyPredictionModel(options.randomSeed);
+    this.fixEngine = new FixRecommendationEngine();
     this.options = {
       minRuns: options.minRuns ?? 5,
       passRateThreshold: options.passRateThreshold ?? 0.8,
@@ -85,7 +88,13 @@ export class FlakyTestDetector {
 
       if (combinedIsFlaky) {
         const failurePattern = this.identifyFailurePattern(results);
-        const recommendation = FlakyFixRecommendations.generateRecommendation(
+
+        // Enhanced root cause analysis with ML
+        const rootCause = this.analyzeRootCause(testName, results, failurePattern);
+
+        // Generate fix recommendations using new engine
+        const recommendations = this.fixEngine.generateRecommendations(rootCause);
+        const recommendation = recommendations[0] || FlakyFixRecommendations.generateRecommendation(
           testName,
           results
         );
@@ -100,7 +109,9 @@ export class FlakyTestDetector {
           recommendation,
           severity: this.calculateSeverity(passRate, variance),
           firstDetected: Math.min(...results.map(r => r.timestamp)),
-          lastSeen: Math.max(...results.map(r => r.timestamp))
+          lastSeen: Math.max(...results.map(r => r.timestamp)),
+          rootCause,
+          fixRecommendations: recommendations
         });
       }
     }
@@ -309,5 +320,137 @@ export class FlakyTestDetector {
     if (passRate < 0.5) return 'high';
     if (passRate < 0.7 || variance > 5000) return 'medium';
     return 'low';
+  }
+
+  /**
+   * Analyze root cause of flakiness using ML patterns
+   *
+   * @param testName - Name of the flaky test
+   * @param results - Test execution results
+   * @param failurePattern - Identified failure pattern
+   * @returns Root cause analysis with ML confidence
+   */
+  analyzeRootCause(
+    testName: string,
+    results: TestResult[],
+    failurePattern: 'intermittent' | 'environmental' | 'timing' | 'resource'
+  ): RootCauseAnalysis {
+    const variance = StatisticalAnalysis.calculateVariance(results);
+    const metrics = StatisticalAnalysis.calculateMetrics(results.map(r => r.duration));
+
+    // Evidence collection
+    const evidence: string[] = [];
+    const patterns: string[] = [];
+
+    // Analyze variance for timing issues
+    const cv = metrics.mean > 0 ? metrics.stdDev / metrics.mean : 0;
+    if (cv > 0.5) {
+      evidence.push(`High coefficient of variation: ${(cv * 100).toFixed(1)}%`);
+      patterns.push('timing-variance');
+    }
+
+    // Analyze environmental correlation
+    const envVariability = this.calculateEnvironmentVariability(results);
+    if (envVariability > 0.3) {
+      evidence.push(`Environment variability: ${(envVariability * 100).toFixed(1)}%`);
+      patterns.push('environment-sensitive');
+    }
+
+    // Analyze failure clustering
+    const failureResults = results.filter(r => !r.passed);
+    if (failureResults.length >= 2) {
+      const isSequential = this.areFailuresSequential(failureResults, results);
+      if (isSequential) {
+        evidence.push('Failures occur in sequence (race condition indicator)');
+        patterns.push('race-condition');
+      }
+    }
+
+    // Analyze resource usage
+    const outlierRatio = metrics.outliers.length / results.length;
+    if (outlierRatio > 0.15) {
+      evidence.push(`${(outlierRatio * 100).toFixed(1)}% outliers in execution time`);
+      patterns.push('resource-contention');
+    }
+
+    // Analyze retry patterns
+    const retryCount = results.filter(r => (r.retryCount || 0) > 0).length;
+    if (retryCount > 0) {
+      evidence.push(`${retryCount} tests required retries`);
+      patterns.push('intermittent-failure');
+    }
+
+    // Determine root cause from patterns
+    let cause: RootCause;
+    let mlConfidence: number;
+
+    if (patterns.includes('race-condition')) {
+      cause = 'race_condition';
+      mlConfidence = 0.85;
+    } else if (patterns.includes('environment-sensitive')) {
+      cause = 'environment';
+      mlConfidence = 0.8;
+    } else if (patterns.includes('timing-variance')) {
+      cause = 'timing';
+      mlConfidence = 0.75;
+    } else if (patterns.includes('resource-contention')) {
+      cause = failurePattern === 'resource' ? 'dependency' : 'isolation';
+      mlConfidence = 0.7;
+    } else if (patterns.includes('intermittent-failure')) {
+      cause = 'isolation';
+      mlConfidence = 0.65;
+    } else {
+      // Fallback to failure pattern
+      cause = this.mapFailurePatternToRootCause(failurePattern);
+      mlConfidence = 0.6;
+    }
+
+    return {
+      cause,
+      mlConfidence,
+      evidence,
+      patterns
+    };
+  }
+
+  /**
+   * Check if failures occur sequentially (race condition indicator)
+   */
+  private areFailuresSequential(
+    failures: TestResult[],
+    allResults: TestResult[]
+  ): boolean {
+    if (failures.length < 2) return false;
+
+    // Check if failures are adjacent in the result sequence
+    const failureIndices = failures.map(f =>
+      allResults.findIndex(r => r.timestamp === f.timestamp)
+    );
+
+    let consecutiveCount = 0;
+    for (let i = 1; i < failureIndices.length; i++) {
+      if (failureIndices[i] - failureIndices[i - 1] === 1) {
+        consecutiveCount++;
+      }
+    }
+
+    // If more than 50% of failures are consecutive, likely race condition
+    return consecutiveCount / (failureIndices.length - 1) > 0.5;
+  }
+
+  /**
+   * Map failure pattern to root cause
+   */
+  private mapFailurePatternToRootCause(
+    pattern: 'intermittent' | 'environmental' | 'timing' | 'resource'
+  ): RootCause {
+    const mapping: Record<string, RootCause> = {
+      intermittent: 'isolation',
+      environmental: 'environment',
+      timing: 'timing',
+      resource: 'dependency'
+    };
+
+    return mapping[pattern] || 'isolation';
   }
 }

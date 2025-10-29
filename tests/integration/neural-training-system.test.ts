@@ -15,11 +15,11 @@ import {
   NeuralPatternMatcher,
   ModelBackend,
   NeuralArchitecture
-} from '../../src/learning/NeuralPatternMatcher';
+} from '@learning/NeuralPatternMatcher';
 import {
   NeuralTrainer,
   TrainingConfig
-} from '../../src/learning/NeuralTrainer';
+} from '@learning/NeuralTrainer';
 
 describe('Neural Training System Integration', () => {
   let mockMemoryManager: any;

@@ -3,7 +3,7 @@
  * Coverage target: 90%+ of Config.ts
  */
 
-import { Config, FleetConfig, DatabaseConfig } from '../../../src/utils/Config';
+import { Config, FleetConfig, DatabaseConfig } from '@utils/Config';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';

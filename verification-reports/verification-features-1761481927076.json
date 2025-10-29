@@ -1,0 +1,496 @@
+{
+  "timestamp": "2025-10-26T12:32:07.012Z",
+  "summary": {
+    "totalFeatures": 8,
+    "verified": 4,
+    "partial": 2,
+    "missing": 2,
+    "unknown": 0,
+    "averageConfidence": 74.2559523809524
+  },
+  "features": [
+    {
+      "feature": "Multi-Model Router",
+      "description": "70-81% cost savings through intelligent model selection",
+      "claimed": "70-81% cost savings, intelligent model selection based on task complexity",
+      "checks": [
+        {
+          "name": "Class: AdaptiveModelRouter",
+          "type": "class",
+          "description": "Check if class AdaptiveModelRouter exists in src/core/routing/AdaptiveModelRouter.ts",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/core/routing/AdaptiveModelRouter.ts",
+          "details": "Found in src/core/routing/AdaptiveModelRouter.ts"
+        },
+        {
+          "name": "Config: .agentic-qe/config/routing.json",
+          "type": "config",
+          "description": "Check if configuration .agentic-qe/config/routing.json exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/.agentic-qe/config/routing.json",
+          "details": "Configuration file found"
+        },
+        {
+          "name": "Config: .agentic-qe/config/routing.json (multiModelRouter)",
+          "type": "config",
+          "description": "Check if configuration key multiModelRouter exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/.agentic-qe/config/routing.json",
+          "details": "Key multiModelRouter found in config"
+        },
+        {
+          "name": "Class: CostTracker",
+          "type": "class",
+          "description": "Check if class CostTracker exists in src/core/routing/CostTracker.ts",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/core/routing/CostTracker.ts",
+          "details": "Found in src/core/routing/CostTracker.ts"
+        },
+        {
+          "name": "Tests: *routing*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *routing*.test.ts exist",
+          "status": "warning",
+          "details": "No tests found matching *routing*.test.ts"
+        },
+        {
+          "name": "Tests: *model*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *model*.test.ts exist",
+          "status": "warning",
+          "details": "No tests found matching *model*.test.ts"
+        },
+        {
+          "name": "Model selection logic",
+          "type": "file",
+          "description": "Model selection logic",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/core/routing/AdaptiveModelRouter.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Cost tracking implementation",
+          "type": "file",
+          "description": "Cost tracking implementation",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/core/routing/CostTracker.ts",
+          "details": "Pattern found (1 matches)"
+        }
+      ],
+      "overallStatus": "partial",
+      "confidence": 75
+    },
+    {
+      "feature": "Learning System",
+      "description": "20% continuous improvement through Q-learning",
+      "claimed": "20% improvement target, Q-learning algorithm, experience replay",
+      "checks": [
+        {
+          "name": "Class: LearningEngine",
+          "type": "class",
+          "description": "Check if class LearningEngine exists in src/learning/LearningEngine.ts",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/LearningEngine.ts",
+          "details": "Found in src/learning/LearningEngine.ts"
+        },
+        {
+          "name": "Class: QLearning",
+          "type": "class",
+          "description": "Check if class QLearning exists in src/learning/QLearning.ts",
+          "status": "fail",
+          "details": "File not found: /home/runner/work/agentic-qe/agentic-qe/src/learning/QLearning.ts"
+        },
+        {
+          "name": "File: src/learning/ExperienceReplayBuffer.ts",
+          "type": "file",
+          "description": "Check if src/learning/ExperienceReplayBuffer.ts exists",
+          "status": "fail",
+          "details": "Not found at /home/runner/work/agentic-qe/agentic-qe/src/learning/ExperienceReplayBuffer.ts"
+        },
+        {
+          "name": "Tests: *learning*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *learning*.test.ts exist",
+          "status": "pass",
+          "details": "Found 2 test file(s)"
+        },
+        {
+          "name": "Tests: *qlearning*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *qlearning*.test.ts exist",
+          "status": "warning",
+          "details": "No tests found matching *qlearning*.test.ts"
+        },
+        {
+          "name": "Q-learning algorithm",
+          "type": "file",
+          "description": "Q-learning algorithm",
+          "status": "fail",
+          "details": "File not found: /home/runner/work/agentic-qe/agentic-qe/src/learning/QLearning.ts"
+        },
+        {
+          "name": "Learning implementation",
+          "type": "file",
+          "description": "Learning implementation",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/LearningEngine.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "File: .agentic-qe/data/learning/state.json",
+          "type": "file",
+          "description": "Check if .agentic-qe/data/learning/state.json exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/.agentic-qe/data/learning/state.json",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/.agentic-qe/data/learning/state.json"
+        }
+      ],
+      "overallStatus": "partial",
+      "confidence": 50
+    },
+    {
+      "feature": "Pattern Bank (QE Reasoning Bank)",
+      "description": "85%+ matching accuracy for pattern reuse",
+      "claimed": "85%+ matching accuracy, pattern extraction, cross-project sharing",
+      "checks": [
+        {
+          "name": "Class: QEReasoningBank",
+          "type": "class",
+          "description": "Check if class QEReasoningBank exists in src/reasoning/QEReasoningBank.ts",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/reasoning/QEReasoningBank.ts",
+          "details": "Found in src/reasoning/QEReasoningBank.ts"
+        },
+        {
+          "name": "Pattern extraction",
+          "type": "file",
+          "description": "Pattern extraction",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/reasoning/QEReasoningBank.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Pattern matching",
+          "type": "file",
+          "description": "Pattern matching",
+          "status": "fail",
+          "details": "Pattern not found"
+        },
+        {
+          "name": "Tests: *pattern*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *pattern*.test.ts exist",
+          "status": "warning",
+          "details": "No tests found matching *pattern*.test.ts"
+        },
+        {
+          "name": "Tests: *reasoning*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *reasoning*.test.ts exist",
+          "status": "warning",
+          "details": "No tests found matching *reasoning*.test.ts"
+        },
+        {
+          "name": "File: .agentic-qe/data/patterns/registry.json",
+          "type": "file",
+          "description": "Check if .agentic-qe/data/patterns/registry.json exists",
+          "status": "fail",
+          "details": "Not found at /home/runner/work/agentic-qe/agentic-qe/.agentic-qe/data/patterns/registry.json"
+        },
+        {
+          "name": "Cross-project sharing",
+          "type": "file",
+          "description": "Cross-project sharing",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/reasoning/QEReasoningBank.ts",
+          "details": "Pattern found (1 matches)"
+        }
+      ],
+      "overallStatus": "missing",
+      "confidence": 42.857142857142854
+    },
+    {
+      "feature": "ML Flaky Test Detection",
+      "description": "100% accuracy in flaky test detection",
+      "claimed": "100% accuracy, ML-based detection, root cause analysis, fix recommendations",
+      "checks": [
+        {
+          "name": "Class: FlakyTestDetector",
+          "type": "class",
+          "description": "Check if class FlakyTestDetector exists in src/learning/FlakyTestDetector.ts",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/FlakyTestDetector.ts",
+          "details": "Found in src/learning/FlakyTestDetector.ts"
+        },
+        {
+          "name": "Flaky detection logic",
+          "type": "file",
+          "description": "Flaky detection logic",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/FlakyTestDetector.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Root cause analysis",
+          "type": "file",
+          "description": "Root cause analysis",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/FlakyTestDetector.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Fix recommendations",
+          "type": "file",
+          "description": "Fix recommendations",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/FlakyTestDetector.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Tests: *flaky*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *flaky*.test.ts exist",
+          "status": "pass",
+          "details": "Found 1 test file(s)"
+        },
+        {
+          "name": "ML model usage",
+          "type": "file",
+          "description": "ML model usage",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/learning/FlakyTestDetector.ts",
+          "details": "Pattern found (1 matches)"
+        }
+      ],
+      "overallStatus": "verified",
+      "confidence": 100
+    },
+    {
+      "feature": "Streaming API",
+      "description": "Real-time progress updates for long-running operations",
+      "claimed": "AsyncGenerator pattern, real-time progress, for-await-of compatibility",
+      "checks": [
+        {
+          "name": "File: src/mcp/streaming/TestExecuteStreamHandler.ts",
+          "type": "file",
+          "description": "Check if src/mcp/streaming/TestExecuteStreamHandler.ts exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/streaming/TestExecuteStreamHandler.ts",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/src/mcp/streaming/TestExecuteStreamHandler.ts"
+        },
+        {
+          "name": "File: src/mcp/streaming/CoverageAnalyzeStreamHandler.ts",
+          "type": "file",
+          "description": "Check if src/mcp/streaming/CoverageAnalyzeStreamHandler.ts exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/streaming/CoverageAnalyzeStreamHandler.ts",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/src/mcp/streaming/CoverageAnalyzeStreamHandler.ts"
+        },
+        {
+          "name": "AsyncGenerator pattern",
+          "type": "file",
+          "description": "AsyncGenerator pattern",
+          "status": "fail",
+          "details": "Pattern not found"
+        },
+        {
+          "name": "Progress events",
+          "type": "file",
+          "description": "Progress events",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/streaming/TestExecuteStreamHandler.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Tests: *stream*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *stream*.test.ts exist",
+          "status": "pass",
+          "details": "Found 1 test file(s)"
+        },
+        {
+          "name": "Streaming tool definitions",
+          "type": "file",
+          "description": "Streaming tool definitions",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/tools.ts",
+          "details": "Pattern found (1 matches)"
+        }
+      ],
+      "overallStatus": "verified",
+      "confidence": 83.33333333333334
+    },
+    {
+      "feature": "AgentDB Integration",
+      "description": "Vector database with QUIC sync and learning plugins",
+      "claimed": "AgentDB installed, QUIC sync, vector search, learning plugins, performance optimizations",
+      "checks": [
+        {
+          "name": "File: package.json",
+          "type": "file",
+          "description": "Check if package.json exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/package.json",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/package.json"
+        },
+        {
+          "name": "AgentDB dependency",
+          "type": "file",
+          "description": "AgentDB dependency",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/package.json",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "AgentDB imports",
+          "type": "file",
+          "description": "AgentDB imports",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/agents/BaseAgent.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "QUIC sync usage",
+          "type": "file",
+          "description": "QUIC sync usage",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/agents/BaseAgent.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Vector search usage",
+          "type": "file",
+          "description": "Vector search usage",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/agents/BaseAgent.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Tests: *agentdb*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *agentdb*.test.ts exist",
+          "status": "pass",
+          "details": "Found 4 test file(s)"
+        }
+      ],
+      "overallStatus": "verified",
+      "confidence": 100
+    },
+    {
+      "feature": "MCP Tools",
+      "description": "54 MCP tools for Claude Code integration",
+      "claimed": "61 MCP tools for comprehensive QE operations",
+      "checks": [
+        {
+          "name": "File: src/mcp/tools.ts",
+          "type": "file",
+          "description": "Check if src/mcp/tools.ts exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/tools.ts",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/src/mcp/tools.ts"
+        },
+        {
+          "name": "Tools export",
+          "type": "file",
+          "description": "Tools export",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/tools.ts",
+          "details": "Pattern found (1 matches)"
+        },
+        {
+          "name": "Tool definitions",
+          "type": "file",
+          "description": "Tool definitions",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/tools.ts",
+          "details": "Pattern found (123 matches)"
+        },
+        {
+          "name": "File: src/mcp/handlers",
+          "type": "file",
+          "description": "Check if src/mcp/handlers exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/src/mcp/handlers",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/src/mcp/handlers"
+        },
+        {
+          "name": "Tests: *mcp*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *mcp*.test.ts exist",
+          "status": "pass",
+          "details": "Found 2 test file(s)"
+        },
+        {
+          "name": "File: bin/aqe-mcp",
+          "type": "file",
+          "description": "Check if bin/aqe-mcp exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/bin/aqe-mcp",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/bin/aqe-mcp"
+        }
+      ],
+      "overallStatus": "verified",
+      "confidence": 100
+    },
+    {
+      "feature": "Performance Claims",
+      "description": "High-performance test generation and analysis",
+      "claimed": "1000+ tests/min, O(log n) coverage, 10,000+ records/sec, <50ms p95 matching",
+      "checks": [
+        {
+          "name": "Tests: *performance*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *performance*.test.ts exist",
+          "status": "pass",
+          "details": "Found 5 test file(s)"
+        },
+        {
+          "name": "Tests: *benchmark*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *benchmark*.test.ts exist",
+          "status": "pass",
+          "details": "Found 4 test file(s)"
+        },
+        {
+          "name": "Test generation performance",
+          "type": "file",
+          "description": "Test generation performance",
+          "status": "fail",
+          "details": "File not found: /home/runner/work/agentic-qe/agentic-qe/src/test-generation/TestGenerator.ts"
+        },
+        {
+          "name": "O(log n) complexity",
+          "type": "file",
+          "description": "O(log n) complexity",
+          "status": "fail",
+          "details": "File not found: /home/runner/work/agentic-qe/agentic-qe/src/coverage/CoverageAnalyzer.ts"
+        },
+        {
+          "name": "Data generation rate",
+          "type": "file",
+          "description": "Data generation rate",
+          "status": "fail",
+          "details": "File not found: /home/runner/work/agentic-qe/agentic-qe/src/test-data/TestDataGenerator.ts"
+        },
+        {
+          "name": "Tests: *sublinear*.test.ts",
+          "type": "test",
+          "description": "Check if tests matching *sublinear*.test.ts exist",
+          "status": "warning",
+          "details": "No tests found matching *sublinear*.test.ts"
+        },
+        {
+          "name": "File: tests/performance",
+          "type": "file",
+          "description": "Check if tests/performance exists",
+          "status": "pass",
+          "path": "/home/runner/work/agentic-qe/agentic-qe/tests/performance",
+          "details": "Found at /home/runner/work/agentic-qe/agentic-qe/tests/performance"
+        }
+      ],
+      "overallStatus": "missing",
+      "confidence": 42.857142857142854
+    }
+  ],
+  "errors": []
+}

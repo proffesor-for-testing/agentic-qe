@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from '@jest/globals';
-import { QEReasoningBank } from '../../src/reasoning/QEReasoningBank';
-import { LearningEngine } from '../../src/learning/LearningEngine';
-import { PatternExtractor } from '../../src/reasoning/PatternExtractor';
-import { FlakyTestDetector } from '../../src/learning/FlakyTestDetector';
+import { QEReasoningBank } from '@reasoning/QEReasoningBank';
+import { LearningEngine } from '@learning/LearningEngine';
+import { PatternExtractor } from '@reasoning/PatternExtractor';
+import { FlakyTestDetector } from '@learning/FlakyTestDetector';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 

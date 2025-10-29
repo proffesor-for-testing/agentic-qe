@@ -231,6 +231,16 @@ export interface TestResult {
 }
 
 /**
+ * Root cause analysis for flaky tests
+ */
+export interface RootCauseAnalysis {
+  cause: 'timing' | 'race_condition' | 'dependency' | 'isolation' | 'environment';
+  mlConfidence: number; // 0-1 ML model confidence
+  evidence: string[];
+  patterns: string[];
+}
+
+/**
  * Detected flaky test
  */
 export interface FlakyTest {
@@ -244,6 +254,8 @@ export interface FlakyTest {
   severity: 'low' | 'medium' | 'high' | 'critical';
   firstDetected: number;
   lastSeen: number;
+  rootCause?: RootCauseAnalysis; // Enhanced ML root cause analysis
+  fixRecommendations?: FlakyFixRecommendation[]; // Multiple fix recommendations
 }
 
 /**

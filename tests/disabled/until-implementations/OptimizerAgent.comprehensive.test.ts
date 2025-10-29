@@ -1,7 +1,7 @@
-import { OptimizerAgent } from '../../../src/agents/OptimizerAgent';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../../src/core/EventBus';
-import { TaskAssignment } from '../../../src/core/types';
+import { OptimizerAgent } from '@agents/OptimizerAgent';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { TaskAssignment } from '@core/types';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 

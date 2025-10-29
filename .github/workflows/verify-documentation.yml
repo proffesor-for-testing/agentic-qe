@@ -1,0 +1,158 @@
+name: Verify Documentation Accuracy
+
+on:
+  push:
+    branches: [main, develop, testing-with-qe]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  verify-documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Verify skill/agent counts
+        id: verify-counts
+        run: |
+          npm run verify:counts || echo "COUNTS_FAILED=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Verify agent skill references
+        id: verify-agent-skills
+        run: |
+          npm run verify:agent-skills || echo "AGENT_SKILLS_FAILED=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Verify feature claims
+        id: verify-features
+        run: |
+          npm run verify:features || echo "FEATURES_FAILED=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Upload verification reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-reports
+          path: reports/verification-*.json
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const reportsDir = 'reports';
+            let comment = '## 📊 Documentation Verification Report\n\n';
+
+            // Read latest reports
+            const files = fs.readdirSync(reportsDir)
+              .filter(f => f.startsWith('verification-') && f.endsWith('.json'))
+              .map(f => ({
+                name: f,
+                time: fs.statSync(path.join(reportsDir, f)).mtime.getTime()
+              }))
+              .sort((a, b) => b.time - a.time);
+
+            const countsFailed = process.env.COUNTS_FAILED === 'true';
+            const agentSkillsFailed = process.env.AGENT_SKILLS_FAILED === 'true';
+            const featuresFailed = process.env.FEATURES_FAILED === 'true';
+
+            comment += `### Status\n\n`;
+            comment += `- Counts Verification: ${countsFailed ? '❌ Failed' : '✅ Passed'}\n`;
+            comment += `- Agent Skills Verification: ${agentSkillsFailed ? '❌ Failed' : '✅ Passed'}\n`;
+            comment += `- Features Verification: ${featuresFailed ? '❌ Failed' : '✅ Passed'}\n\n`;
+
+            if (countsFailed || agentSkillsFailed || featuresFailed) {
+              comment += '### ⚠️ Action Required\n\n';
+              if (countsFailed) {
+                comment += '- Documentation counts do not match actual counts\n';
+                comment += '- Run `npm run update:counts` to fix\n';
+              }
+              if (agentSkillsFailed) {
+                comment += '- Some agent skill references are broken\n';
+                comment += '- Review broken references and fix agent markdown files\n';
+              }
+              if (featuresFailed) {
+                comment += '- Some feature claims cannot be verified\n';
+                comment += '- Review implementation or update documentation\n';
+              }
+              comment += '\n';
+            }
+
+            comment += '### 📄 Reports\n\n';
+            comment += 'Detailed reports are available as workflow artifacts.\n';
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
+      - name: Fail if verification failed
+        if: |
+          env.COUNTS_FAILED == 'true' ||
+          env.AGENT_SKILLS_FAILED == 'true' ||
+          env.FEATURES_FAILED == 'true'
+        run: |
+          echo "::error::Documentation verification failed. Please review the reports."
+          exit 1
+
+      - name: Create issue on failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Documentation Verification Failed - Daily Check';
+            const body = `## Automated Documentation Verification Failed
+
+            The daily documentation verification check has detected issues.
+
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Please review the verification reports and fix the issues:
+            1. Check the workflow artifacts for detailed reports
+            2. Run verification scripts locally to diagnose
+            3. Update documentation or fix implementation as needed
+
+            ### Quick Fixes
+            - For count mismatches: \`npm run update:counts\`
+            - For skill references: Review and fix agent markdown files
+            - For feature claims: Verify implementation or update docs
+            `;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['documentation', 'automated-issue', 'verification']
+            });

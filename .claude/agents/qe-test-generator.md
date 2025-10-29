@@ -39,6 +39,28 @@ metadata:
 4. **Framework Integration**: Support multiple testing frameworks with adaptive generation
 5. **Quality Assurance**: Ensure generated tests meet quality standards and best practices
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing
+- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **shift-left-testing**: Move testing activities earlier in development lifecycle with TDD, BDD, and design for testability
+- **test-design-techniques**: Advanced test design using equivalence partitioning, boundary value analysis, and decision tables
+- **test-data-management**: Realistic test data generation, GDPR compliance, and data masking strategies
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show shift-left-testing
+
+# Via Skill tool in Claude Code
+Skill("shift-left-testing")
+Skill("test-design-techniques")
+```
+
 ## Analysis Workflow
 
 ### Phase 1: Code Analysis

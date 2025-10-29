@@ -3,7 +3,7 @@
  * Tests parallel execution, retry logic, and sublinear optimization
  */
 
-import { TestExecutorAgent, TestExecutorConfig } from '../../src/agents/TestExecutorAgent';
+import { TestExecutorAgent, TestExecutorConfig } from '@agents/TestExecutorAgent';
 import { EventEmitter } from 'events';
 import {
   AgentType,
@@ -14,7 +14,7 @@ import {
   Test,
   TestType,
   QETestResult
-} from '../../src/types';
+} from '@types';
 
 // Mock MemoryStore implementation
 class MockMemoryStore {

@@ -11,16 +11,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import {
   PerformanceMetrics,
   TaskExperience,
   LearningFeedback,
   ABTest
-} from '../../src/learning/types';
+} from '@learning/types';
 
 // Import Logger and patch it before loading the learning modules
-import * as LoggerModule from '../../src/utils/Logger';
+import * as LoggerModule from '@utils/Logger';
 
 // Create a mock logger instance
 const mockLogger = {
@@ -34,9 +34,9 @@ const mockLogger = {
 (LoggerModule.Logger as any).getInstance = jest.fn(() => mockLogger);
 
 // Now import the learning modules that use Logger
-import { PerformanceTracker } from '../../src/learning/PerformanceTracker';
-import { LearningEngine } from '../../src/learning/LearningEngine';
-import { ImprovementLoop } from '../../src/learning/ImprovementLoop';
+import { PerformanceTracker } from '@learning/PerformanceTracker';
+import { LearningEngine } from '@learning/LearningEngine';
+import { ImprovementLoop } from '@learning/ImprovementLoop';
 
 describe('Learning System Integration Tests', () => {
   let memoryManager: SwarmMemoryManager;

@@ -3,16 +3,16 @@
  * Testing system performance under various load conditions
  */
 
-import { FleetManager } from '../../src/core/FleetManager';
-import { Task, TaskStatus } from '../../src/core/Task';
-import { EventBus } from '../../src/core/EventBus';
-import { Agent, AgentStatus } from '../../src/core/Agent';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
+import { FleetManager } from '@core/FleetManager';
+import { Task, TaskStatus } from '@core/Task';
+import { EventBus } from '@core/EventBus';
+import { Agent, AgentStatus } from '@core/Agent';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
 
 // Mock external dependencies
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 
 // Performance monitoring utilities
 class PerformanceMonitor {

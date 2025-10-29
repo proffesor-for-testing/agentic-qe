@@ -13,15 +13,15 @@
  */
 
 import { jest } from '@jest/globals';
-import { FleetManager } from '../../src/core/FleetManager';
-import { Database } from '../../src/utils/Database';
-import { EventBus } from '../../src/core/EventBus';
-import { Logger } from '../../src/utils/Logger';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
+import { FleetManager } from '@core/FleetManager';
+import { Database } from '@utils/Database';
+import { EventBus } from '@core/EventBus';
+import { Logger } from '@utils/Logger';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import * as path from 'path';
 
 // Mock dependencies
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Logger');
 jest.mock('../../src/agents', () => ({
   createAgent: jest.fn().mockImplementation((type, config, services) => ({
     id: `agent-${Math.random().toString(36).substring(7)}`,

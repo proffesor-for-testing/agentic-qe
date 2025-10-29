@@ -3,16 +3,15 @@
  * Testing complete coordination scenarios between FleetManager, Agents, and EventBus
  */
 
-import { FleetManager } from '../../src/core/FleetManager';
-import { Agent, AgentStatus } from '../../src/core/Agent';
-import { Task, TaskStatus } from '../../src/core/Task';
-import { EventBus } from '../../src/core/EventBus';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
+// Mock Database
+// Note: Logger is already mocked globally in jest.setup.ts
+jest.mock('@utils/Database');
 
-// Mock external dependencies but use real coordination logic
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+import { FleetManager } from '@core/FleetManager';
+import { Agent, AgentStatus } from '@core/Agent';
+import { Task, TaskStatus } from '@core/Task';
+import { EventBus } from '@core/EventBus';
+import { Database } from '@utils/Database';
 
 // Test Agent implementation for integration testing
 class TestIntegrationAgent extends Agent {
@@ -75,7 +74,6 @@ describe('Fleet Coordination Integration Tests', () => {
   let fleetManager: FleetManager;
   let eventBus: EventBus;
   let mockDatabase: jest.Mocked<Database>;
-  let mockLogger: jest.Mocked<Logger>;
 
   const createFleetConfig = () => ({
     fleet: {
@@ -118,21 +116,12 @@ describe('Fleet Coordination Integration Tests', () => {
       all: jest.fn().mockResolvedValue([])
     } as any;
 
-    // Mock Logger
-    mockLogger = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
-      getInstance: jest.fn().mockReturnValue(mockLogger)
-    } as any;
-
     (Database as jest.Mock).mockImplementation(() => mockDatabase);
-    (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
 
-    // Create real EventBus for integration testing
-    eventBus = new EventBus();
-    await eventBus.initialize();
+    // Use the global EventBus instance that was already initialized in jest.setup.ts
+    // This avoids Logger mock issues when creating new EventBus instances
+    eventBus = EventBus.getInstance();
+    // EventBus is already initialized in jest.setup.ts beforeAll, so no need to call initialize() again
 
     // Mock agent factory to return our test agents
     const originalImport = jest.requireActual('../../src/agents');
@@ -143,7 +132,10 @@ describe('Fleet Coordination Integration Tests', () => {
       })
     }));
 
-    fleetManager = new FleetManager(createFleetConfig());
+    // Pass the mocked EventBus to FleetManager via dependencies
+    fleetManager = new FleetManager(createFleetConfig(), {
+      eventBus: eventBus
+    });
   });
 
   afterEach(async () => {
@@ -173,7 +165,6 @@ describe('Fleet Coordination Integration Tests', () => {
 
     // Clear mock implementations
     mockDatabase = null as any;
-    mockLogger = null as any;
 
     // Force garbage collection if available
     if (global.gc) {

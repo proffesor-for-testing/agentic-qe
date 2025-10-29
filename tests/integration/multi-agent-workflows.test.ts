@@ -6,11 +6,11 @@
  * Agent: integration-test-architect
  */
 
-import { FleetManager } from '../../src/core/FleetManager';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../src/core/EventBus';
-import { BaseAgent } from '../../src/agents/BaseAgent';
-import { TaskAssignment } from '../../src/types/agent.types';
+import { FleetManager } from '@core/FleetManager';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { BaseAgent } from '@agents/BaseAgent';
+import { TaskAssignment } from '@typessrc/types/agent.types';
 import * as path from 'path';
 import * as fs from 'fs';
 

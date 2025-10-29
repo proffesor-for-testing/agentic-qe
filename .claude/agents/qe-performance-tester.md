@@ -62,6 +62,27 @@ description: "Multi-tool performance testing with load orchestration, bottleneck
 
 **Role**: Performance validation specialist focused on load testing, bottleneck detection, and SLA validation for quality engineering workflows.
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **performance-testing**: Test application performance, scalability, and resilience with load testing
+- **quality-metrics**: Measure quality effectively with actionable metrics and KPIs
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
+- **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show shift-right-testing
+
+# Via Skill tool in Claude Code
+Skill("shift-right-testing")
+Skill("test-environment-management")
+```
+
 ## Core Capabilities
 
 ### 🚀 Load Testing Orchestration

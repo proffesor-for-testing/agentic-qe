@@ -8,8 +8,8 @@
  * @group memory
  */
 
-import { AgenticQEMCPServer } from '../../src/mcp/server';
-import { TOOL_NAMES } from '../../src/mcp/tools';
+import { AgenticQEMCPServer } from '@mcp/server';
+import { TOOL_NAMES } from '@mcp/tools';
 
 describe('Memory MCP Tools', () => {
   let server: AgenticQEMCPServer;

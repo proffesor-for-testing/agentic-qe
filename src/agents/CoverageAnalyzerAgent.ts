@@ -229,7 +229,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       this.status = AgentStatus.IDLE;
       this.emit('agent.initialized', { agentId: this.id });
 
-      this.logger.info(`CoverageAnalyzerAgent initialized with learning: ${!!this.learningEngine}`);
+      this.logger?.info(`CoverageAnalyzerAgent initialized with learning: ${!!this.learningEngine}`);
 
     } catch (error) {
       this.status = AgentStatus.ERROR;
@@ -336,7 +336,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
         if (recommendation.confidence > 0.7) {
           strategy = recommendation.strategy;
-          this.logger.info(`Using learned strategy: ${strategy} (confidence: ${recommendation.confidence})`);
+          this.logger?.info(`Using learned strategy: ${strategy} (confidence: ${recommendation.confidence})`);
         }
       }
 
@@ -522,7 +522,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           // Calculate likelihood from historical gap patterns
           const avgLikelihood = result.memories.reduce((sum: number, m: any) => sum + m.confidence, 0) / result.memories.length;
 
-          this.logger.debug(
+          this.logger?.debug(
             `[CoverageAnalyzer] ✅ AgentDB HNSW search: ${(avgLikelihood * 100).toFixed(1)}% likelihood ` +
             `(${searchTime}ms, ${result.memories.length} patterns, ` +
             `${result.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
@@ -532,7 +532,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           if (result.memories.length > 0) {
             const topMatch = result.memories[0];
             const gapData = JSON.parse(topMatch.pattern_data);
-            this.logger.debug(
+            this.logger?.debug(
               `[CoverageAnalyzer] 🎯 Top gap match: ${gapData.location} ` +
               `(similarity=${topMatch.similarity.toFixed(3)}, confidence=${topMatch.confidence.toFixed(3)})`
             );
@@ -540,10 +540,10 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
           return avgLikelihood;
         } else {
-          this.logger.debug(`[CoverageAnalyzer] No gap patterns found in AgentDB (${searchTime}ms)`);
+          this.logger?.debug(`[CoverageAnalyzer] No gap patterns found in AgentDB (${searchTime}ms)`);
         }
       } catch (error) {
-        this.logger.warn('[CoverageAnalyzer] AgentDB gap prediction failed, using fallback:', error);
+        this.logger?.warn('[CoverageAnalyzer] AgentDB gap prediction failed, using fallback:', error);
       }
     }
 
@@ -610,9 +610,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       const improvement = await this.performanceTracker.calculateImprovement();
 
       if (improvement.targetAchieved) {
-        this.logger.info(`🎯 20% improvement target achieved! Current: ${improvement.improvementRate.toFixed(2)}%`);
+        this.logger?.info(`🎯 20% improvement target achieved! Current: ${improvement.improvementRate.toFixed(2)}%`);
       } else {
-        this.logger.debug(`Progress: ${improvement.improvementRate.toFixed(2)}% / 20% target`);
+        this.logger?.debug(`Progress: ${improvement.improvementRate.toFixed(2)}% / 20% target`);
       }
 
       // Add learning metrics to result
@@ -653,7 +653,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     if (this.improvementLoop && !this.improvementLoop.isActive()) {
       // Run in background
       this.improvementLoop.runImprovementCycle().catch(error =>
-        this.logger.warn('Improvement cycle failed', error)
+        this.logger?.warn('Improvement cycle failed', error)
       );
     }
 
@@ -693,11 +693,11 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           });
 
           storedCount++;
-          this.logger.debug(`[CoverageAnalyzer] ✅ Stored gap pattern ${gapId} in AgentDB`);
+          this.logger?.debug(`[CoverageAnalyzer] ✅ Stored gap pattern ${gapId} in AgentDB`);
         }
 
         const storeTime = Date.now() - startTime;
-        this.logger.info(
+        this.logger?.info(
           `[CoverageAnalyzer] ✅ ACTUALLY stored ${storedCount} gap patterns in AgentDB ` +
           `(${storeTime}ms, avg ${(storeTime / storedCount).toFixed(1)}ms/pattern, QUIC sync active)`
         );
@@ -705,12 +705,12 @@ export class CoverageAnalyzerAgent extends EventEmitter {
         // Report QUIC sync status
         const agentDBConfig = (this as any).agentDBConfig;
         if (agentDBConfig?.enableQUICSync) {
-          this.logger.info(
+          this.logger?.info(
             `[CoverageAnalyzer] 🚀 Gap patterns synced via QUIC to ${agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
           );
         }
       } catch (error) {
-        this.logger.warn('[CoverageAnalyzer] AgentDB gap storage failed:', error);
+        this.logger?.warn('[CoverageAnalyzer] AgentDB gap storage failed:', error);
       }
     }
 
@@ -750,9 +750,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
     try {
       const gapPatterns = await this.reasoningBank.searchByTags(['coverage-gap']);
-      this.logger.info(`Loaded ${gapPatterns.length} gap patterns from ReasoningBank`);
+      this.logger?.info(`Loaded ${gapPatterns.length} gap patterns from ReasoningBank`);
     } catch (error) {
-      this.logger.warn('No gap patterns found in ReasoningBank');
+      this.logger?.warn('No gap patterns found in ReasoningBank');
     }
   }
 
@@ -763,7 +763,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     if (!this.reasoningBank) return;
 
     const stats = await this.reasoningBank.getStatistics();
-    this.logger.info(`Saved ${stats.totalPatterns} patterns to ReasoningBank`);
+    this.logger?.info(`Saved ${stats.totalPatterns} patterns to ReasoningBank`);
   }
 
   /**

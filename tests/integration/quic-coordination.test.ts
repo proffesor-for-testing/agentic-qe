@@ -9,9 +9,9 @@
  */
 
 import { EventEmitter } from 'events';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../src/core/EventBus';
-import { AgentDBIntegration, createDefaultQUICConfig } from '../../src/core/memory/AgentDBIntegration';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { AgentDBIntegration, createDefaultQUICConfig } from '@core/memory/AgentDBIntegration';
 
 // AgentDB-compatible QUIC Transport wrapper
 class QUICTransport extends EventEmitter {

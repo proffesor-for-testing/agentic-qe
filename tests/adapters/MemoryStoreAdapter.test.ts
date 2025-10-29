@@ -4,7 +4,7 @@
  */
 
 import { MemoryStoreAdapter } from '../../src/adapters/MemoryStoreAdapter';
-import { MemoryStore } from '../../src/types';
+import { MemoryStore } from '@types';
 
 describe('MemoryStoreAdapter', () => {
   let mockMemoryStore: MemoryStore;

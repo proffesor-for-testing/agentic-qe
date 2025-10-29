@@ -3,9 +3,9 @@
  * Tests deployment readiness checks, confidence calculations, and risk assessments
  */
 
-import { DeploymentReadinessAgent, DeploymentReadinessAgentConfig } from '../../src/agents/DeploymentReadinessAgent';
+import { DeploymentReadinessAgent, DeploymentReadinessAgentConfig } from '@agents/DeploymentReadinessAgent';
 import { EventEmitter } from 'events';
-import { QEAgentType, AgentStatus } from '../../src/types';
+import { QEAgentType, AgentStatus } from '@types';
 
 // ============================================================================
 // Mock Implementations

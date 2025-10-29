@@ -1,4 +1,4 @@
-import { Validators } from '../../../src/utils/Validators';
+import { Validators } from '@utils/Validators';
 
 describe('Validators Comprehensive Tests', () => {
   describe('String Validation', () => {

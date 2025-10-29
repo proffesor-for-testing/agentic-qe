@@ -13,9 +13,9 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { SecureValidation } from '../../src/utils/SecureValidation';
-import { SecureRandom } from '../../src/utils/SecureRandom';
-import type { ValidationConfig } from '../../src/types/pattern.types';
+import { SecureValidation } from '@utils/SecureValidation';
+import { SecureRandom } from '@utils/SecureRandom';
+import type { ValidationConfig } from '@types/pattern.types';
 
 describe('Security Fixes Validation', () => {
 

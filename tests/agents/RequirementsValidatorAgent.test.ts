@@ -4,9 +4,9 @@
  * acceptance criteria validation, traceability mapping, and edge case identification
  */
 
-import { RequirementsValidatorAgent, RequirementsValidatorConfig, Requirement } from '../../src/agents/RequirementsValidatorAgent';
+import { RequirementsValidatorAgent, RequirementsValidatorConfig, Requirement } from '@agents/RequirementsValidatorAgent';
 import { EventEmitter } from 'events';
-import { QEAgentType, AgentStatus, MemoryStore, QETask, TaskAssignment } from '../../src/types';
+import { QEAgentType, AgentStatus, MemoryStore, QETask, TaskAssignment } from '@types';
 
 // Mock MemoryStore implementation
 class MockMemoryStore implements MemoryStore {

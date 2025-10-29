@@ -77,6 +77,9 @@ jest.mock('../src/utils/Database', () => {
   };
 });
 
+// Logger is mocked via manual mock in src/utils/__mocks__/Logger.ts
+// This is automatically used when jest.mock('@utils/Logger') is called in test files
+
 // Global test timeout
 jest.setTimeout(30000);
 

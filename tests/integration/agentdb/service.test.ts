@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import Database from 'better-sqlite3';
-import { AgentDBManager, AgentDBConfig, MemoryPattern, RetrievalOptions } from '../../../src/core/memory/AgentDBManager';
+import { AgentDBManager, AgentDBConfig, MemoryPattern, RetrievalOptions } from '@core/memory/AgentDBManager';
 import * as fs from 'fs';
 import * as path from 'path';
 

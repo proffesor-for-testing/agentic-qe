@@ -12,9 +12,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { QEReasoningBank } from '../../src/reasoning/QEReasoningBank';
-import { LearningEngine } from '../../src/learning/LearningEngine';
-import { PatternExtractor } from '../../src/reasoning/PatternExtractor';
+import { QEReasoningBank } from '@reasoning/QEReasoningBank';
+import { LearningEngine } from '@learning/LearningEngine';
+import { PatternExtractor } from '@reasoning/PatternExtractor';
 
 interface BenchmarkResult {
   operation: string;

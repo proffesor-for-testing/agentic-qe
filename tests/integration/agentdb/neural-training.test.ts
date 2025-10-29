@@ -4,17 +4,17 @@
  * Tests AgentDB integration with 9 RL algorithms for neural training
  */
 
-import { NeuralTrainer } from '../../../src/core/neural/NeuralTrainer';
-import { NeuralAgentExtension } from '../../../src/agents/NeuralAgentExtension';
-import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
-import { createAgentDBManager } from '../../../src/core/memory/AgentDBManager';
+import { NeuralTrainer } from '@core/neural/NeuralTrainer';
+import { NeuralAgentExtension } from '@agents/NeuralAgentExtension';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { createAgentDBManager } from '@core/memory/AgentDBManager';
 import {
   Experience,
   State,
   Action,
   RLAlgorithm,
   NeuralConfig
-} from '../../../src/core/neural/types';
+} from '@core/neural/types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 

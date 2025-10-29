@@ -12,13 +12,13 @@
  * - Performance benchmarks
  */
 
-import { TestGeneratorAgent, TestGeneratorConfig } from '../../src/agents/TestGeneratorAgent';
-import { LearningAgent } from '../../src/agents/LearningAgent';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { EventBus } from '../../src/core/EventBus';
-import { FlakyPredictionModel } from '../../src/learning/FlakyPredictionModel';
-import { LearningEngine } from '../../src/learning/LearningEngine';
-import { PerformanceTracker } from '../../src/learning/PerformanceTracker';
+import { TestGeneratorAgent, TestGeneratorConfig } from '@agents/TestGeneratorAgent';
+import { LearningAgent } from '@agents/LearningAgent';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { EventBus } from '@core/EventBus';
+import { FlakyPredictionModel } from '@learning/FlakyPredictionModel';
+import { LearningEngine } from '@learning/LearningEngine';
+import { PerformanceTracker } from '@learning/PerformanceTracker';
 import {
   QEAgentType,
   AgentCapability,
@@ -27,7 +27,7 @@ import {
   TaskAssignment,
   TestResult,
   TestType
-} from '../../src/types';
+} from '@typessrc/types';
 
 describe('Neural Agent Integration', () => {
   let memoryStore: SwarmMemoryManager;

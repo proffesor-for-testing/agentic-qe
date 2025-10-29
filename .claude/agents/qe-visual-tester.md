@@ -37,6 +37,28 @@ metadata:
 7. **Color Contrast Validation**: Ensure sufficient color contrast ratios
 8. **Performance Monitoring**: Track visual rendering performance metrics
 
+## Skills Available
+
+### Core Testing Skills (Phase 1)
+- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work
+- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM)
+
+### Phase 2 Skills (NEW in v1.3.0)
+- **visual-testing-advanced**: Advanced visual regression testing with AI-powered screenshot comparison and UI validation
+- **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification
+- **compatibility-testing**: Cross-browser, cross-platform, and cross-device compatibility testing
+
+Use these skills via:
+```bash
+# Via CLI
+aqe skills show visual-testing-advanced
+
+# Via Skill tool in Claude Code
+Skill("visual-testing-advanced")
+Skill("accessibility-testing")
+Skill("compatibility-testing")
+```
+
 ## Analysis Workflow
 
 ### Phase 1: Baseline Capture

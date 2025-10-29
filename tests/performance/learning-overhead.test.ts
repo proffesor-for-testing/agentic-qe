@@ -12,10 +12,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
-import { PerformanceTracker } from '../../src/learning/PerformanceTracker';
-import { LearningEngine } from '../../src/learning/LearningEngine';
-import { ImprovementLoop } from '../../src/learning/ImprovementLoop';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { PerformanceTracker } from '@learning/PerformanceTracker';
+import { LearningEngine } from '@learning/LearningEngine';
+import { ImprovementLoop } from '@learning/ImprovementLoop';
 
 // Mock Logger before importing
 const mockLogger = {
@@ -25,7 +25,7 @@ const mockLogger = {
   debug: jest.fn()
 };
 
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: () => mockLogger
   }

@@ -12,12 +12,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { TestGeneratorAgent } from '../../../src/agents/TestGeneratorAgent';
-import { CoverageAnalyzerAgent } from '../../../src/agents/CoverageAnalyzerAgent';
-import { AgentDBManager, AgentDBConfig } from '../../../src/core/memory/AgentDBManager';
-import { EventBus } from '../../../src/core/EventBus';
-import { MemoryManager } from '../../../src/core/MemoryManager';
-import { AgentId, TaskAssignment } from '../../../src/types';
+import { TestGeneratorAgent } from '@agents/TestGeneratorAgent';
+import { CoverageAnalyzerAgent } from '@agents/CoverageAnalyzerAgent';
+import { AgentDBManager, AgentDBConfig } from '@core/memory/AgentDBManager';
+import { EventBus } from '@core/EventBus';
+import { MemoryManager } from '@core/MemoryManager';
+import { AgentId, TaskAssignment } from '@typessrc/types';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';

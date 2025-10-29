@@ -1,0 +1,157 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-10-27T00:00:00.000Z",
+  "patterns": [
+    {
+      "id": "jest-unit-api-controller",
+      "name": "Jest Unit Test - API Controller",
+      "description": "Unit test pattern for API controller methods with mocked dependencies",
+      "category": "unit",
+      "framework": "jest",
+      "language": "typescript",
+      "template": "describe('{{ControllerName}}', () => {\n  let controller: {{ControllerName}};\n  let mockService: jest.Mocked<{{ServiceName}}>;\n\n  beforeEach(() => {\n    mockService = {\n      {{methodName}}: jest.fn()\n    } as any;\n    controller = new {{ControllerName}}(mockService);\n  });\n\n  describe('{{methodName}}', () => {\n    it('should {{expectedBehavior}}', async () => {\n      // Arrange\n      const input = {{testInput}};\n      mockService.{{methodName}}.mockResolvedValue({{mockResult}});\n\n      // Act\n      const result = await controller.{{methodName}}(input);\n\n      // Assert\n      expect(result).toEqual({{expectedResult}});\n      expect(mockService.{{methodName}}).toHaveBeenCalledWith(input);\n    });\n  });\n});",
+      "examples": [
+        "describe('UserController', () => {\n  let controller: UserController;\n  let mockUserService: jest.Mocked<UserService>;\n\n  beforeEach(() => {\n    mockUserService = {\n      getUser: jest.fn()\n    } as any;\n    controller = new UserController(mockUserService);\n  });\n\n  describe('getUser', () => {\n    it('should return user by id', async () => {\n      const userId = '123';\n      mockUserService.getUser.mockResolvedValue({ id: userId, name: 'John' });\n\n      const result = await controller.getUser(userId);\n\n      expect(result).toEqual({ id: userId, name: 'John' });\n      expect(mockUserService.getUser).toHaveBeenCalledWith(userId);\n    });\n  });\n});"
+      ],
+      "confidence": 0.92,
+      "usageCount": 145,
+      "successRate": 0.89,
+      "quality": 0.88,
+      "metadata": {
+        "createdAt": "2025-01-15T10:00:00.000Z",
+        "updatedAt": "2025-10-27T00:00:00.000Z",
+        "version": "1.2.0",
+        "tags": ["unit", "controller", "api", "mock", "dependency-injection", "jest"]
+      }
+    },
+    {
+      "id": "jest-integration-api-endpoint",
+      "name": "Jest Integration Test - API Endpoint",
+      "description": "Integration test pattern for REST API endpoints with supertest",
+      "category": "integration",
+      "framework": "jest",
+      "language": "typescript",
+      "template": "describe('{{HTTPMethod}} {{endpoint}}', () => {\n  let app: Express;\n  let server: Server;\n\n  beforeAll(async () => {\n    app = await createTestApp();\n    server = app.listen(0);\n  });\n\n  afterAll(async () => {\n    await server.close();\n    await cleanupTestDatabase();\n  });\n\n  it('should {{expectedBehavior}}', async () => {\n    const response = await request(app)\n      .{{httpMethod}}('{{endpoint}}')\n      .send({{requestBody}})\n      .expect({{expectedStatusCode}});\n\n    expect(response.body).toMatchObject({{expectedResponse}});\n  });\n});",
+      "examples": [
+        "describe('POST /api/users', () => {\n  let app: Express;\n  let server: Server;\n\n  beforeAll(async () => {\n    app = await createTestApp();\n    server = app.listen(0);\n  });\n\n  afterAll(async () => {\n    await server.close();\n    await cleanupTestDatabase();\n  });\n\n  it('should create a new user', async () => {\n    const response = await request(app)\n      .post('/api/users')\n      .send({ name: 'John Doe', email: 'john@example.com' })\n      .expect(201);\n\n    expect(response.body).toMatchObject({\n      id: expect.any(String),\n      name: 'John Doe',\n      email: 'john@example.com'\n    });\n  });\n});"
+      ],
+      "confidence": 0.87,
+      "usageCount": 98,
+      "successRate": 0.85,
+      "quality": 0.84,
+      "metadata": {
+        "createdAt": "2025-01-20T10:00:00.000Z",
+        "updatedAt": "2025-10-27T00:00:00.000Z",
+        "version": "1.1.0",
+        "tags": ["integration", "api", "endpoint", "supertest", "http", "rest"]
+      }
+    },
+    {
+      "id": "jest-unit-validation",
+      "name": "Jest Unit Test - Input Validation",
+      "description": "Unit test pattern for input validation and error handling",
+      "category": "unit",
+      "framework": "jest",
+      "language": "typescript",
+      "template": "describe('{{FunctionName}} - Validation', () => {\n  describe('valid inputs', () => {\n    it('should accept {{validCase}}', () => {\n      expect(() => {{functionName}}({{validInput}})).not.toThrow();\n    });\n  });\n\n  describe('invalid inputs', () => {\n    it('should reject {{invalidCase}}', () => {\n      expect(() => {{functionName}}({{invalidInput}}))\n        .toThrow({{ErrorType}});\n    });\n\n    it('should provide clear error message', () => {\n      expect(() => {{functionName}}({{invalidInput}}))\n        .toThrow('{{expectedErrorMessage}}');\n    });\n  });\n});",
+      "examples": [
+        "describe('validateEmail - Validation', () => {\n  describe('valid inputs', () => {\n    it('should accept valid email addresses', () => {\n      expect(() => validateEmail('user@example.com')).not.toThrow();\n    });\n  });\n\n  describe('invalid inputs', () => {\n    it('should reject invalid email format', () => {\n      expect(() => validateEmail('invalid-email'))\n        .toThrow(ValidationError);\n    });\n\n    it('should provide clear error message', () => {\n      expect(() => validateEmail('invalid-email'))\n        .toThrow('Invalid email format');\n    });\n  });\n});"
+      ],
+      "confidence": 0.94,
+      "usageCount": 203,
+      "successRate": 0.93,
+      "quality": 0.91,
+      "metadata": {
+        "createdAt": "2025-01-10T10:00:00.000Z",
+        "updatedAt": "2025-10-27T00:00:00.000Z",
+        "version": "1.3.0",
+        "tags": ["unit", "validation", "error-handling", "boundary-testing"]
+      }
+    },
+    {
+      "id": "jest-e2e-user-workflow",
+      "name": "Jest E2E Test - User Workflow",
+      "description": "End-to-end test pattern for complete user workflows",
+      "category": "e2e",
+      "framework": "jest",
+      "language": "typescript",
+      "template": "describe('{{WorkflowName}} - E2E', () => {\n  let app: Express;\n  let testUser: User;\n\n  beforeAll(async () => {\n    app = await createTestApp();\n    await setupTestDatabase();\n  });\n\n  afterAll(async () => {\n    await cleanupTestDatabase();\n  });\n\n  beforeEach(async () => {\n    testUser = await createTestUser();\n  });\n\n  it('should complete {{workflowDescription}}', async () => {\n    // Step 1: {{step1Description}}\n    const step1Response = await request(app)\n      .{{method1}}('{{endpoint1}}')\n      .send({{data1}})\n      .expect({{status1}});\n\n    // Step 2: {{step2Description}}\n    const step2Response = await request(app)\n      .{{method2}}('{{endpoint2}}')\n      .send({{data2}})\n      .expect({{status2}});\n\n    // Verify final state\n    expect({{finalState}}).toMatchObject({{expectedState}});\n  });\n});",
+      "examples": [
+        "describe('User Registration and Login - E2E', () => {\n  let app: Express;\n  let testUser: User;\n\n  beforeAll(async () => {\n    app = await createTestApp();\n    await setupTestDatabase();\n  });\n\n  afterAll(async () => {\n    await cleanupTestDatabase();\n  });\n\n  it('should complete user registration and login flow', async () => {\n    // Step 1: Register new user\n    const registerResponse = await request(app)\n      .post('/api/auth/register')\n      .send({ email: 'newuser@test.com', password: 'SecurePass123!' })\n      .expect(201);\n\n    // Step 2: Login with new credentials\n    const loginResponse = await request(app)\n      .post('/api/auth/login')\n      .send({ email: 'newuser@test.com', password: 'SecurePass123!' })\n      .expect(200);\n\n    // Verify final state\n    expect(loginResponse.body).toMatchObject({\n      token: expect.any(String),\n      user: { email: 'newuser@test.com' }\n    });\n  });\n});"
+      ],
+      "confidence": 0.85,
+      "usageCount": 67,
+      "successRate": 0.82,
+      "quality": 0.80,
+      "metadata": {
+        "createdAt": "2025-02-01T10:00:00.000Z",
+        "updatedAt": "2025-10-27T00:00:00.000Z",
+        "version": "1.0.0",
+        "tags": ["e2e", "workflow", "user-journey", "integration"]
+      }
+    },
+    {
+      "id": "jest-performance-load",
+      "name": "Jest Performance Test - Load Testing",
+      "description": "Performance test pattern for load and stress testing",
+      "category": "performance",
+      "framework": "jest",
+      "language": "typescript",
+      "template": "describe('{{OperationName}} - Performance', () => {\n  it('should handle {{loadDescription}} within SLA', async () => {\n    const iterations = {{iterationCount}};\n    const startTime = Date.now();\n    const results: number[] = [];\n\n    for (let i = 0; i < iterations; i++) {\n      const opStart = Date.now();\n      await {{operationUnderTest}}({{testInput}});\n      results.push(Date.now() - opStart);\n    }\n\n    const totalTime = Date.now() - startTime;\n    const avgTime = results.reduce((a, b) => a + b, 0) / results.length;\n    const p95 = results.sort((a, b) => a - b)[Math.floor(results.length * 0.95)];\n\n    expect(avgTime).toBeLessThan({{avgSLA}});\n    expect(p95).toBeLessThan({{p95SLA}});\n    expect(totalTime).toBeLessThan({{totalSLA}});\n  });\n});",
+      "examples": [
+        "describe('User Search - Performance', () => {\n  it('should handle 1000 concurrent searches within SLA', async () => {\n    const iterations = 1000;\n    const startTime = Date.now();\n    const results: number[] = [];\n\n    for (let i = 0; i < iterations; i++) {\n      const opStart = Date.now();\n      await userService.search('john');\n      results.push(Date.now() - opStart);\n    }\n\n    const totalTime = Date.now() - startTime;\n    const avgTime = results.reduce((a, b) => a + b, 0) / results.length;\n    const p95 = results.sort((a, b) => a - b)[Math.floor(results.length * 0.95)];\n\n    expect(avgTime).toBeLessThan(50); // 50ms average\n    expect(p95).toBeLessThan(100); // 100ms p95\n    expect(totalTime).toBeLessThan(60000); // 60s total\n  });\n});"
+      ],
+      "confidence": 0.78,
+      "usageCount": 42,
+      "successRate": 0.76,
+      "quality": 0.75,
+      "metadata": {
+        "createdAt": "2025-02-10T10:00:00.000Z",
+        "updatedAt": "2025-10-27T00:00:00.000Z",
+        "version": "1.0.0",
+        "tags": ["performance", "load-testing", "sla", "benchmarking"]
+      }
+    },
+    {
+      "id": "jest-security-auth",
+      "name": "Jest Security Test - Authentication",
+      "description": "Security test pattern for authentication and authorization",
+      "category": "security",
+      "framework": "jest",
+      "language": "typescript",
+      "template": "describe('{{EndpointName}} - Security', () => {\n  describe('authentication', () => {\n    it('should reject unauthenticated requests', async () => {\n      const response = await request(app)\n        .{{method}}('{{endpoint}}')\n        .expect(401);\n\n      expect(response.body.error).toContain('authentication');\n    });\n\n    it('should reject invalid tokens', async () => {\n      const response = await request(app)\n        .{{method}}('{{endpoint}}')\n        .set('Authorization', 'Bearer invalid-token')\n        .expect(401);\n    });\n  });\n\n  describe('authorization', () => {\n    it('should reject unauthorized user roles', async () => {\n      const token = await getTokenForRole('{{unauthorizedRole}}');\n      const response = await request(app)\n        .{{method}}('{{endpoint}}')\n        .set('Authorization', `Bearer ${token}`)\n        .expect(403);\n    });\n  });\n});",
+      "examples": [
+        "describe('DELETE /api/users/:id - Security', () => {\n  describe('authentication', () => {\n    it('should reject unauthenticated requests', async () => {\n      const response = await request(app)\n        .delete('/api/users/123')\n        .expect(401);\n\n      expect(response.body.error).toContain('authentication');\n    });\n\n    it('should reject invalid tokens', async () => {\n      const response = await request(app)\n        .delete('/api/users/123')\n        .set('Authorization', 'Bearer invalid-token')\n        .expect(401);\n    });\n  });\n\n  describe('authorization', () => {\n    it('should reject regular user roles', async () => {\n      const token = await getTokenForRole('user');\n      const response = await request(app)\n        .delete('/api/users/123')\n        .set('Authorization', `Bearer ${token}`)\n        .expect(403);\n    });\n  });\n});"
+      ],
+      "confidence": 0.91,
+      "usageCount": 87,
+      "successRate": 0.88,
+      "quality": 0.86,
+      "metadata": {
+        "createdAt": "2025-01-25T10:00:00.000Z",
+        "updatedAt": "2025-10-27T00:00:00.000Z",
+        "version": "1.1.0",
+        "tags": ["security", "authentication", "authorization", "access-control"]
+      }
+    }
+  ],
+  "statistics": {
+    "totalPatterns": 6,
+    "byCategory": {
+      "unit": 2,
+      "integration": 1,
+      "e2e": 1,
+      "performance": 1,
+      "security": 1
+    },
+    "byFramework": {
+      "jest": 6
+    },
+    "byLanguage": {
+      "typescript": 6
+    },
+    "averageConfidence": 0.878,
+    "averageSuccessRate": 0.855,
+    "averageQuality": 0.840
+  }
+}

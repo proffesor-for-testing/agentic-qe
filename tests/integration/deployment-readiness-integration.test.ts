@@ -11,19 +11,19 @@
  * - End-to-end deployment workflows
  */
 
-import { DeploymentReadinessAgent } from '../../src/agents/DeploymentReadinessAgent';
-import { QualityGateAgent } from '../../src/agents/QualityGateAgent';
-import { PerformanceTesterAgent } from '../../src/agents/PerformanceTesterAgent';
-import { SecurityScannerAgent } from '../../src/agents/SecurityScannerAgent';
-import { EventBus } from '../../src/core/EventBus';
-import { MemoryManager } from '../../src/core/MemoryManager';
-import { Database } from '../../src/utils/Database';
-import { Logger } from '../../src/utils/Logger';
-import { QEAgentType, AgentStatus, WEEK2_EVENT_TYPES } from '../../src/types';
+import { DeploymentReadinessAgent } from '@agents/DeploymentReadinessAgent';
+import { QualityGateAgent } from '@agents/QualityGateAgent';
+import { PerformanceTesterAgent } from '@agents/PerformanceTesterAgent';
+import { SecurityScannerAgent } from '@agents/SecurityScannerAgent';
+import { EventBus } from '@core/EventBus';
+import { MemoryManager } from '@core/MemoryManager';
+import { Database } from '@utils/Database';
+import { Logger } from '@utils/Logger';
+import { QEAgentType, AgentStatus, WEEK2_EVENT_TYPES } from '@typessrc/types';
 
 // Mock external dependencies
-jest.mock('../../src/utils/Database');
-jest.mock('../../src/utils/Logger');
+jest.mock('@utils/Database');
+jest.mock('@utils/Logger');
 
 // Helper function to create task assignments
 function createTaskAssignment(task: any, agentId: string) {

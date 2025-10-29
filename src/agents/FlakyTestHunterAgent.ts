@@ -882,7 +882,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         }
 
         // Convert AgentDB memories to FlakyTestResult format
-        return result.memories.map(m => {
+        return result.memories.map((m: any) => {
           const data = JSON.parse(m.pattern_data);
           return {
             testName: data.testName,

@@ -29,7 +29,12 @@
       "@cli/*": ["src/cli/*"],
       "@utils/*": ["src/utils/*"],
       "@types/*": ["src/types/*"],
-      "@mcp/*": ["src/mcp/*"]
+      "@mcp/*": ["src/mcp/*"],
+      "@learning/*": ["src/learning/*"],
+      "@reasoning/*": ["src/reasoning/*"],
+      "@streaming/*": ["src/streaming/*"],
+      "@routing/*": ["src/core/routing/*"],
+      "@memory/*": ["src/memory/*"]
     }
   },
   "include": [

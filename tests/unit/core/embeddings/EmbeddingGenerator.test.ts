@@ -5,8 +5,8 @@
  * caching, and batch processing.
  */
 
-import { EmbeddingGenerator, EmbeddingOptions } from '../../../../src/core/embeddings/EmbeddingGenerator';
-import { EmbeddingCache } from '../../../../src/core/embeddings/EmbeddingCache';
+import { EmbeddingGenerator, EmbeddingOptions } from '@core/embeddings/EmbeddingGenerator';
+import { EmbeddingCache } from '@core/embeddings/EmbeddingCache';
 
 describe('EmbeddingGenerator', () => {
   let generator: EmbeddingGenerator;

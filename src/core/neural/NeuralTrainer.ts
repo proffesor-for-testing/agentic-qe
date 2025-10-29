@@ -253,7 +253,7 @@ export class NeuralTrainer {
       });
 
       // Extract actions and Q-values from similar experiences
-      const actions = retrievalResult.memories.map(memory => {
+      const actions = retrievalResult.memories.map((memory: any) => {
         const data = JSON.parse(memory.pattern_data);
         return {
           action: data.action,
@@ -267,7 +267,7 @@ export class NeuralTrainer {
 
       // Calculate confidence based on similarity scores
       const confidence = actions.length > 0
-        ? actions.reduce((sum, a) => sum + a.similarity, 0) / actions.length
+        ? actions.reduce((sum: number, a: any) => sum + a.similarity, 0) / actions.length
         : 0.5;
 
       return {
@@ -275,7 +275,7 @@ export class NeuralTrainer {
         confidence,
         qValue: bestAction.qValue,
         algorithm: predictionAlgorithm,
-        alternativeActions: actions.slice(0, 3).map(a => ({
+        alternativeActions: actions.slice(0, 3).map((a: any) => ({
           action: a.action,
           qValue: a.qValue,
           confidence: a.similarity

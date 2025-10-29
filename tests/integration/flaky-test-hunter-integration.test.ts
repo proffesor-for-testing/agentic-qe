@@ -17,8 +17,8 @@
  */
 
 import { EventEmitter } from 'events';
-import { FlakyTestHunterAgent, TestHistory } from '../../src/agents/FlakyTestHunterAgent';
-import { BaseAgentConfig } from '../../src/agents/BaseAgent';
+import { FlakyTestHunterAgent, TestHistory } from '@agents/FlakyTestHunterAgent';
+import { BaseAgentConfig } from '@agents/BaseAgent';
 import {
   QEAgentType,
   AgentStatus,
@@ -26,7 +26,7 @@ import {
   MemoryStore,
   AgentContext,
   QETask
-} from '../../src/types';
+} from '@typessrc/types';
 
 // ============================================================================
 // Mock Implementations for Integration Testing

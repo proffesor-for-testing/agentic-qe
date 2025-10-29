@@ -13,9 +13,9 @@
  */
 
 import { EventEmitter } from 'events';
-import { FlakyTestHunterAgent, FlakyTestResult, QuarantineRecord, ReliabilityScore, TestHistory } from '../../src/agents/FlakyTestHunterAgent';
-import { BaseAgentConfig } from '../../src/agents/BaseAgent';
-import { QEAgentType, AgentStatus, FlakyTestHunterConfig, MemoryStore, AgentContext } from '../../src/types';
+import { FlakyTestHunterAgent, FlakyTestResult, QuarantineRecord, ReliabilityScore, TestHistory } from '@agents/FlakyTestHunterAgent';
+import { BaseAgentConfig } from '@agents/BaseAgent';
+import { QEAgentType, AgentStatus, FlakyTestHunterConfig, MemoryStore, AgentContext } from '@types';
 
 // ============================================================================
 // Mock Implementations

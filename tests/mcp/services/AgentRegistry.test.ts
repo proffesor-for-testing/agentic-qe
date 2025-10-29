@@ -9,18 +9,18 @@
  * @group services
  */
 
-import { AgentRegistry, AgentSpawnConfig, RegisteredAgent } from '../../../src/mcp/services/AgentRegistry';
-import { QEAgentType, AgentStatus } from '../../../src/types';
-import { BaseAgent } from '../../../src/agents/BaseAgent';
-import { Logger } from '../../../src/utils/Logger';
-import { EventBus } from '../../../src/core/EventBus';
-import { MemoryManager } from '../../../src/core/MemoryManager';
+import { AgentRegistry, AgentSpawnConfig, RegisteredAgent } from '@mcp/services/AgentRegistry';
+import { QEAgentType, AgentStatus } from '@types';
+import { BaseAgent } from '@agents/BaseAgent';
+import { Logger } from '@utils/Logger';
+import { EventBus } from '@core/EventBus';
+import { MemoryManager } from '@core/MemoryManager';
 
 // Mock dependencies
-jest.mock('../../../src/utils/Logger');
-jest.mock('../../../src/core/EventBus');
-jest.mock('../../../src/core/MemoryManager');
-jest.mock('../../../src/agents/BaseAgent');
+jest.mock('@utils/Logger');
+jest.mock('@core/EventBus');
+jest.mock('@core/MemoryManager');
+jest.mock('@agents/BaseAgent');
 
 describe('AgentRegistry', () => {
   let registry: AgentRegistry;

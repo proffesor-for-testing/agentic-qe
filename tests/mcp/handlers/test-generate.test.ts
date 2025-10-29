@@ -3,7 +3,7 @@
  * Complete coverage for test generation functionality
  */
 
-import { TestGenerateHandler, TestGenerateArgs, TestSuite, TestCase } from '../../../src/mcp/handlers/test-generate';
+import { TestGenerateHandler, TestGenerateArgs, TestSuite, TestCase } from '@mcp/handlers/test-generate';
 
 describe('TestGenerateHandler', () => {
   let handler: TestGenerateHandler;

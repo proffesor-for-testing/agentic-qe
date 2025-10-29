@@ -7,7 +7,7 @@
 import * as fs from 'fs-extra';
 
 // Mock Logger to prevent undefined errors in Database
-jest.mock('../../src/utils/Logger', () => ({
+jest.mock('@utils/Logger', () => ({
   Logger: {
     getInstance: jest.fn(() => ({
       info: jest.fn(),
@@ -17,12 +17,12 @@ jest.mock('../../src/utils/Logger', () => ({
     }))
   }
 }));
-import { ConfigInitCommand } from '../../src/cli/commands/config/init';
-import { ConfigValidateCommand } from '../../src/cli/commands/config/validate';
-import { ConfigSetCommand } from '../../src/cli/commands/config/set';
-import { ConfigGetCommand } from '../../src/cli/commands/config/get';
-import { ConfigExportCommand } from '../../src/cli/commands/config/export';
-import { ConfigImportCommand } from '../../src/cli/commands/config/import';
+import { ConfigInitCommand } from '@cli/commands/config/init';
+import { ConfigValidateCommand } from '@cli/commands/config/validate';
+import { ConfigSetCommand } from '@cli/commands/config/set';
+import { ConfigGetCommand } from '@cli/commands/config/get';
+import { ConfigExportCommand } from '@cli/commands/config/export';
+import { ConfigImportCommand } from '@cli/commands/config/import';
 
 jest.mock('fs-extra');
 jest.mock('ora', () => {

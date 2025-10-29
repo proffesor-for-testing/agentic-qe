@@ -11,11 +11,11 @@
  * @version 1.0.0
  */
 
-import { TestGenerateEnhancedHandler, TestGenerateEnhancedArgs } from '../../../../src/mcp/handlers/test/test-generate-enhanced';
-import { TestExecuteParallelHandler, TestExecuteParallelArgs } from '../../../../src/mcp/handlers/test/test-execute-parallel';
-import { TestOptimizeSublinearHandler, TestOptimizeSublinearArgs } from '../../../../src/mcp/handlers/test/test-optimize-sublinear';
-import { TestReportComprehensiveHandler, TestReportComprehensiveArgs } from '../../../../src/mcp/handlers/test/test-report-comprehensive';
-import { TestCoverageDetailedHandler, TestCoverageDetailedArgs } from '../../../../src/mcp/handlers/test/test-coverage-detailed';
+import { TestGenerateEnhancedHandler, TestGenerateEnhancedArgs } from '@mcp/handlers/test/test-generate-enhanced';
+import { TestExecuteParallelHandler, TestExecuteParallelArgs } from '@mcp/handlers/test/test-execute-parallel';
+import { TestOptimizeSublinearHandler, TestOptimizeSublinearArgs } from '@mcp/handlers/test/test-optimize-sublinear';
+import { TestReportComprehensiveHandler, TestReportComprehensiveArgs } from '@mcp/handlers/test/test-report-comprehensive';
+import { TestCoverageDetailedHandler, TestCoverageDetailedArgs } from '@mcp/handlers/test/test-coverage-detailed';
 
 describe('Enhanced Test MCP Tools - Complete Test Suite', () => {
 
