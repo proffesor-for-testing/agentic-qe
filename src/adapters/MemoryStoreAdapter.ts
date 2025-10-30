@@ -117,9 +117,19 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
    * Delete entry
    * Maps to MemoryStore.delete() with partition support
    */
-  async delete(key: string, partition: string = 'default', _options: DeleteOptions = {}): Promise<void> {
+  async delete(key: string, partitionOrOptions?: string | DeleteOptions, options: DeleteOptions = {}): Promise<boolean> {
+    // Handle legacy API: delete(key, partition, options) or delete(key, namespace)
+    let partition = 'default';
+
+    if (typeof partitionOrOptions === 'string') {
+      partition = partitionOrOptions;
+    } else if (partitionOrOptions) {
+      // If it's DeleteOptions, we ignore it for now since MemoryStore delete doesn't use it
+      partition = 'default';
+    }
+
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
-    await this.memoryStore.delete(namespacedKey);
+    return await this.memoryStore.delete(namespacedKey, partition);
   }
 
   /**

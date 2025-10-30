@@ -16,9 +16,36 @@ import {
   QEAgentType,
   AgentCapability,
   QETask,
-  PostTaskData
+  PostTaskData,
+  TaskAssignment
 } from '../types';
 import { EventEmitter } from 'events';
+
+// ============================================================================
+// Simple Logger Interface
+// ============================================================================
+
+interface Logger {
+  info(message: string, ...args: any[]): void;
+  warn(message: string, ...args: any[]): void;
+  error(message: string, ...args: any[]): void;
+  debug(message: string, ...args: any[]): void;
+}
+
+class ConsoleLogger implements Logger {
+  info(message: string, ...args: any[]): void {
+    console.log(`[INFO] ${message}`, ...args);
+  }
+  warn(message: string, ...args: any[]): void {
+    console.warn(`[WARN] ${message}`, ...args);
+  }
+  error(message: string, ...args: any[]): void {
+    console.error(`[ERROR] ${message}`, ...args);
+  }
+  debug(message: string, ...args: any[]): void {
+    console.debug(`[DEBUG] ${message}`, ...args);
+  }
+}
 
 // ============================================================================
 // Configuration
@@ -81,6 +108,7 @@ export interface ComplexityAnalysisResult {
 // ============================================================================
 
 export class CodeComplexityAnalyzerAgent extends BaseAgent {
+  protected readonly logger: Logger = new ConsoleLogger();
   private thresholds: {
     cyclomaticComplexity: number;
     cognitiveComplexity: number;
@@ -527,14 +555,22 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
   }
 
   // ============================================================================
-  // Task Execution Interface
+  // BaseAgent Abstract Methods (Required)
   // ============================================================================
 
   /**
-   * Execute a task (called by BaseAgent)
+   * Initialize agent components - Called during initialization
    */
-  protected async executeTask(task: QETask): Promise<ComplexityAnalysisResult> {
-    this.logger.info('Executing complexity analysis task', {
+  protected async initializeComponents(): Promise<void> {
+    this.logger.info('Initializing complexity analyzer components');
+    // Agent-specific initialization can go here
+  }
+
+  /**
+   * Perform task - Called by BaseAgent.executeTask()
+   */
+  protected async performTask(task: QETask): Promise<ComplexityAnalysisResult> {
+    this.logger.info('Performing complexity analysis task', {
       taskId: task.id,
       type: task.type
     });
@@ -561,20 +597,10 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
   }
 
   /**
-   * Restore agent state - Called during initialization
+   * Clean up agent resources - Called during termination
    */
-  protected async restoreState(): Promise<void> {
-    this.logger.info('Restoring complexity analyzer state');
-
-    // Restore any in-progress analyses
-    const inProgress = await this.memoryStore.retrieve(
-      `aqe/complexity/${this.agentId.id}/in-progress`
-    );
-
-    if (inProgress) {
-      this.logger.debug('Found in-progress analysis to resume', {
-        count: inProgress.length
-      });
-    }
+  protected async cleanup(): Promise<void> {
+    this.logger.info('Cleaning up complexity analyzer resources');
+    // Clean up any resources (e.g., temp files, connections)
   }
 }

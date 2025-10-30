@@ -502,7 +502,7 @@ export class SwarmMemoryManager {
     this.initialized = true;
   }
 
-  async store(key: string, value: any, options: StoreOptions = {}): Promise<void> {
+  async store(key: string, value: any, options: StoreOptions | number = {}): Promise<void> {
     // Auto-initialize if not initialized
     if (!this.initialized) {
       await this.initialize();
@@ -512,12 +512,17 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized. Call initialize() first.');
     }
 
-    const partition = options.partition || 'default';
-    const owner = options.owner || 'system';
-    const accessLevel = options.accessLevel || AccessLevel.PRIVATE;
+    // Handle legacy API: store(key, value, ttl)
+    const storeOptions: StoreOptions = typeof options === 'number'
+      ? { ttl: options }
+      : options;
+
+    const partition = storeOptions.partition || 'default';
+    const owner = storeOptions.owner || 'system';
+    const accessLevel = storeOptions.accessLevel || AccessLevel.PRIVATE;
     const createdAt = Date.now();
-    const expiresAt = options.ttl ? createdAt + (options.ttl * 1000) : null;
-    const metadata = options.metadata ? JSON.stringify(options.metadata) : null;
+    const expiresAt = storeOptions.ttl ? createdAt + (storeOptions.ttl * 1000) : null;
+    const metadata = storeOptions.metadata ? JSON.stringify(storeOptions.metadata) : null;
 
     // Check write permission if updating existing entry
     const existing = await this.queryOne<any>(
@@ -525,16 +530,16 @@ export class SwarmMemoryManager {
       [key, partition]
     );
 
-    if (existing && options.owner) {
+    if (existing && storeOptions.owner) {
       // Verify write permission
       const permCheck = this.accessControl.checkPermission({
-        agentId: options.owner,
+        agentId: storeOptions.owner,
         resourceOwner: existing.owner,
         accessLevel: existing.access_level as AccessLevel,
         permission: Permission.WRITE,
-        teamId: options.teamId,
+        teamId: storeOptions.teamId,
         resourceTeamId: existing.team_id,
-        swarmId: options.swarmId,
+        swarmId: storeOptions.swarmId,
         resourceSwarmId: existing.swarm_id
       });
 
@@ -556,8 +561,8 @@ export class SwarmMemoryManager {
         expiresAt,
         owner,
         accessLevel,
-        options.teamId || null,
-        options.swarmId || null
+        storeOptions.teamId || null,
+        storeOptions.swarmId || null
       ]
     );
 
@@ -689,34 +694,47 @@ export class SwarmMemoryManager {
     }));
   }
 
-  async delete(key: string, partition: string = 'default', options: DeleteOptions = {}): Promise<void> {
+  async delete(key: string, partitionOrOptions?: string | DeleteOptions, options: DeleteOptions = {}): Promise<boolean> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
+    // Handle legacy API: delete(key, partition, options) or delete(key, namespace)
+    let partition = 'default';
+    let deleteOptions = options;
+
+    if (typeof partitionOrOptions === 'string') {
+      partition = partitionOrOptions;
+    } else if (partitionOrOptions) {
+      deleteOptions = partitionOrOptions;
+    }
+
+    // Check if entry exists
+    const existing = await this.queryOne<any>(
+      `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
+      [key, partition]
+    );
+
+    if (!existing) {
+      return false; // Entry doesn't exist
+    }
+
     // Check delete permission if agentId provided
-    if (options.agentId) {
-      const row = await this.queryOne<any>(
-        `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
-        [key, partition]
-      );
+    if (deleteOptions.agentId) {
+      const permCheck = this.accessControl.checkPermission({
+        agentId: deleteOptions.agentId,
+        resourceOwner: existing.owner,
+        accessLevel: existing.access_level as AccessLevel,
+        permission: Permission.DELETE,
+        teamId: deleteOptions.teamId,
+        resourceTeamId: existing.team_id,
+        swarmId: deleteOptions.swarmId,
+        resourceSwarmId: existing.swarm_id,
+        isSystemAgent: deleteOptions.isSystemAgent
+      });
 
-      if (row) {
-        const permCheck = this.accessControl.checkPermission({
-          agentId: options.agentId,
-          resourceOwner: row.owner,
-          accessLevel: row.access_level as AccessLevel,
-          permission: Permission.DELETE,
-          teamId: options.teamId,
-          resourceTeamId: row.team_id,
-          swarmId: options.swarmId,
-          resourceSwarmId: row.swarm_id,
-          isSystemAgent: options.isSystemAgent
-        });
-
-        if (!permCheck.allowed) {
-          throw new AccessControlError(`Delete denied: ${permCheck.reason}`);
-        }
+      if (!permCheck.allowed) {
+        throw new AccessControlError(`Delete denied: ${permCheck.reason}`);
       }
     }
 
@@ -726,6 +744,8 @@ export class SwarmMemoryManager {
     const resourceId = `${partition}:${key}`;
     await this.run(`DELETE FROM memory_acl WHERE resource_id = ?`, [resourceId]);
     this.aclCache.delete(resourceId);
+
+    return true; // Successfully deleted
   }
 
   async clear(partition: string = 'default'): Promise<void> {
