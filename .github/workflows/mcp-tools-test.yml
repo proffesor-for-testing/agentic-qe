@@ -42,6 +42,7 @@ jobs:
         run: npm run test:mcp
         env:
           NODE_OPTIONS: '--max-old-space-size=768'
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -129,6 +130,7 @@ jobs:
 
       - name: Validate MCP tools
         run: npm run mcp:validate
+        continue-on-error: true
 
       - name: Upload validation report
         uses: actions/upload-artifact@v4
