@@ -80,7 +80,7 @@ npm install /path/to/agentic-qe-cf  # or npm install agentic-qe@latest
 npx aqe init
 
 # 4. Verify initialization
-ls -la .claude/agents/        # Should show all 17 QE agents
+ls -la .claude/agents/        # Should show all 18 QE agents
 ls -la .claude/skills/        # Should show all QE skills
 cat .claude/CLAUDE.md        # Should contain fleet configuration
 cat .agentic-qe/config/fleet.json  # Should contain fleet config
@@ -97,7 +97,7 @@ npx aqe agent spawn qe-test-generator --task "Generate unit test for simple func
 ```
 
 **Verification Success Criteria**:
-- ✅ All 17 QE agents present in `.claude/agents/`
+- ✅ All 18 QE agents present in `.claude/agents/`
 - ✅ All QE skills present in `.claude/skills/`
 - ✅ CLAUDE.md contains fleet configuration with agent descriptions
 - ✅ Fleet config file exists and is valid JSON
@@ -169,7 +169,7 @@ This policy prevents workspace crashes that occurred in previous sessions due to
 
 ## 🤖 Agentic Quality Engineering Fleet
 
-This project uses the **Agentic QE Fleet** - a distributed swarm of 17 AI agents for comprehensive software testing and quality assurance.
+This project uses the **Agentic QE Fleet** - a distributed swarm of 18 AI agents for comprehensive software testing and quality assurance.
 
 ### Available Agents
 
@@ -548,7 +548,7 @@ aqe improve cycle
 
 ## 📚 Documentation
 
-- **Agent Definitions**: \`.claude/agents/\` - 17 specialized QE agents
+- **Agent Definitions**: \`.claude/agents/\` - 18 specialized QE agents
 - **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16)
 - **Fleet Config**: \`.agentic-qe/config/fleet.json\`
 - **Routing Config**: \`.agentic-qe/config/routing.json\` (Multi-Model Router settings)

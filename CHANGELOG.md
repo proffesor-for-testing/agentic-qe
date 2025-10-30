@@ -5,6 +5,43 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] - 2025-10-30
+
+### 🔒 Security & UX Improvements
+
+#### Security Fixes
+- **eval() Removal**: Replaced unsafe `eval()` in TestDataArchitectAgent with safe expression evaluator
+  - Supports comparison operators (===, !==, ==, !=, >=, <=, >, <)
+  - Supports logical operators (&&, ||)
+  - Eliminates arbitrary code execution vulnerability
+  - File: `src/agents/TestDataArchitectAgent.ts`
+
+#### UX Enhancements
+- **CLAUDE.md Append Strategy**: User-friendly placement of AQE instructions
+  - Interactive mode: Prompts user to choose prepend or append
+  - `--yes` mode: Defaults to append (less disruptive)
+  - Clear visual separator (---) between sections
+  - Backup existing CLAUDE.md automatically
+  - File: `src/cli/commands/init.ts`
+
+- **CLI Skills Count Fix**: Accurate display of installed skills
+  - Dynamic counting instead of hardcoded values
+  - Now shows correct "34/34" instead of "8/17"
+  - Future-proof (auto-updates when skills added)
+  - File: `src/cli/commands/skills/index.ts`
+
+#### Additional Improvements
+- **CodeComplexityAnalyzerAgent**: Cherry-picked from PR #22 with full integration
+- **TypeScript Compilation**: All errors resolved (0 compilation errors)
+- **Documentation**: Comprehensive fix reports and verification
+
+### Testing
+- ✅ TypeScript compilation: 0 errors
+- ✅ All three fixes verified and working
+- ✅ Backward compatible changes only
+
+---
+
 ## [1.3.5] - 2025-10-27
 
 ### ✨ Features Complete - Production Ready Release

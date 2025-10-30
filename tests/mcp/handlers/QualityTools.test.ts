@@ -13,13 +13,13 @@
  */
 
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
-import { QualityGateExecuteHandler } from '@mcp/handlers/quality/quality-gate-execute.js';
-import { QualityValidateMetricsHandler } from '@mcp/handlers/quality/quality-validate-metrics.js';
-import { QualityRiskAssessHandler } from '@mcp/handlers/quality/quality-risk-assess.js';
-import { QualityDecisionMakeHandler } from '@mcp/handlers/quality/quality-decision-make.js';
-import { QualityPolicyCheckHandler } from '@mcp/handlers/quality/quality-policy-check.js';
-import { AgentRegistry } from '@mcp/services/AgentRegistry.js';
-import { HookExecutor } from '@mcp/services/HookExecutor.js';
+import { QualityGateExecuteHandler } from '@mcp/handlers/quality/quality-gate-execute';
+import { QualityValidateMetricsHandler } from '@mcp/handlers/quality/quality-validate-metrics';
+import { QualityRiskAssessHandler } from '@mcp/handlers/quality/quality-risk-assess';
+import { QualityDecisionMakeHandler } from '@mcp/handlers/quality/quality-decision-make';
+import { QualityPolicyCheckHandler } from '@mcp/handlers/quality/quality-policy-check';
+import { AgentRegistry } from '@mcp/services/AgentRegistry';
+import { HookExecutor } from '@mcp/services/HookExecutor';
 
 // Mock services
 vi.mock('../../../src/mcp/services/AgentRegistry.js');

@@ -78,12 +78,32 @@ export class AgentRegistry {
     this.eventBus = new EventBus();
     this.memoryStore = new MemoryManager();
 
+    // Initialize memory store database (non-blocking initialization)
+    // This prevents "Database not initialized" warnings when agents spawn
+    this.initializeMemoryStore().catch(error => {
+      this.logger.warn('Failed to initialize memory store:', error);
+    });
+
     // Create factory with infrastructure
     this.factory = new QEAgentFactory({
       eventBus: this.eventBus,
       memoryStore: this.memoryStore,
       context: this.createDefaultContext()
     });
+  }
+
+  /**
+   * Initialize the memory store database
+   * Called automatically in constructor, but can be called explicitly if needed
+   */
+  private async initializeMemoryStore(): Promise<void> {
+    try {
+      await this.memoryStore.initialize();
+      this.logger.info('AgentRegistry memory store initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize AgentRegistry memory store:', error);
+      // Don't throw - allow graceful degradation (memory will work without database)
+    }
   }
 
   /**

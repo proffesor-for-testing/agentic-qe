@@ -1488,12 +1488,110 @@ export class TestDataArchitectAgent extends BaseAgent {
         expression = expression.replace(new RegExp(`\\b${field}\\b`, 'g'), String(value));
       }
 
-      // Simple evaluation (in production, use safe expression evaluator)
-      return eval(expression);
+      // Safe expression evaluation (replaces eval() - Security Fix v1.3.7)
+      return this.safeEvaluateExpression(expression);
     } catch (error) {
       console.error(`Error evaluating constraint: ${constraint.expression}`, error);
       return false;
     }
+  }
+
+  /**
+   * Safe expression evaluator (replaces eval() - Security Fix v1.3.7)
+   * Supports basic comparison and arithmetic operations without code execution
+   */
+  private safeEvaluateExpression(expression: string): boolean {
+    try {
+      // Remove whitespace
+      const expr = expression.trim();
+
+      // Support common comparison operators
+      const comparisonMatch = expr.match(/^(.+?)\s*(===|!==|==|!=|>=|<=|>|<)\s*(.+)$/);
+      if (comparisonMatch) {
+        const [, left, operator, right] = comparisonMatch;
+        const leftVal = this.parseValue(left.trim());
+        const rightVal = this.parseValue(right.trim());
+
+        switch (operator) {
+          case '===':
+          case '==':
+            return leftVal == rightVal;
+          case '!==':
+          case '!=':
+            return leftVal != rightVal;
+          case '>':
+            return Number(leftVal) > Number(rightVal);
+          case '<':
+            return Number(leftVal) < Number(rightVal);
+          case '>=':
+            return Number(leftVal) >= Number(rightVal);
+          case '<=':
+            return Number(leftVal) <= Number(rightVal);
+          default:
+            return false;
+        }
+      }
+
+      // Support logical AND
+      if (expr.includes('&&')) {
+        const parts = expr.split('&&').map(p => p.trim());
+        return parts.every(part => this.safeEvaluateExpression(part));
+      }
+
+      // Support logical OR
+      if (expr.includes('||')) {
+        const parts = expr.split('||').map(p => p.trim());
+        return parts.some(part => this.safeEvaluateExpression(part));
+      }
+
+      // Support boolean values
+      if (expr === 'true') return true;
+      if (expr === 'false') return false;
+
+      // Default: try to parse as number comparison
+      const numMatch = expr.match(/^(\d+\.?\d*)\s*(>|<|>=|<=)\s*(\d+\.?\d*)$/);
+      if (numMatch) {
+        const [, left, op, right] = numMatch;
+        const leftNum = parseFloat(left);
+        const rightNum = parseFloat(right);
+        switch (op) {
+          case '>':
+            return leftNum > rightNum;
+          case '<':
+            return leftNum < rightNum;
+          case '>=':
+            return leftNum >= rightNum;
+          case '<=':
+            return leftNum <= rightNum;
+        }
+      }
+
+      // If we can't safely evaluate, return false
+      console.warn(`Cannot safely evaluate expression: ${expression}`);
+      return false;
+    } catch (error) {
+      console.error(`Error in safe evaluation: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * Parse a value from string (helper for safe evaluation)
+   */
+  private parseValue(value: string): any {
+    // Try to parse as number
+    if (/^-?\d+\.?\d*$/.test(value)) {
+      return parseFloat(value);
+    }
+    // Try to parse as boolean
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    // Try to parse as string (remove quotes)
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      return value.slice(1, -1);
+    }
+    // Return as-is
+    return value;
   }
 
   // ============================================================================

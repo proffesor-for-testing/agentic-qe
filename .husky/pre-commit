@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# CRITICAL: This pre-commit hook is DISABLED by default to respect CLAUDE.md policy.
+# Git operations policy: NEVER auto-commit without explicit user request.
+
+# To enable MCP validation on commit, user must explicitly uncomment the lines below.
+
+# echo "🔍 Running MCP validation (pre-commit)..."
+# npm run mcp:validate -- --bail --findRelatedTests
+
+# For now, just a reminder:
+echo "ℹ️  Pre-commit hook exists but is disabled per CLAUDE.md policy."
+echo "ℹ️  To enable MCP validation, edit .husky/pre-commit and uncomment validation lines."

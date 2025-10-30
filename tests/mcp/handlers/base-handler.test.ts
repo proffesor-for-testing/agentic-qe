@@ -442,17 +442,11 @@ describe('BaseHandler', () => {
 
   describe('Edge Cases and Error Conditions', () => {
     it('should handle null args gracefully', async () => {
-      const response = await handler.handle(null);
-
-      expect(response.success).toBe(false);
-      expect(response.error).toContain('Missing required fields');
+      await expect(handler.handle(null)).rejects.toThrow('Invalid arguments: expected object, got null');
     });
 
     it('should handle undefined args gracefully', async () => {
-      const response = await handler.handle(undefined);
-
-      expect(response.success).toBe(false);
-      expect(response.error).toContain('Missing required fields');
+      await expect(handler.handle(undefined)).rejects.toThrow('Invalid arguments: expected object, got undefined');
     });
 
     it('should handle empty required fields array', () => {

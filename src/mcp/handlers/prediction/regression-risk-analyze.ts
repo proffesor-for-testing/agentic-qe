@@ -14,7 +14,8 @@ import { HookExecutor } from '../../services/HookExecutor.js';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface RegressionRiskAnalyzeArgs {
-  changeSet: {
+  // Support both 'changeSet' (structured) and 'changes' (simplified) formats
+  changeSet?: {
     repository: string;
     baseBranch: string;
     compareBranch: string;
@@ -25,6 +26,13 @@ export interface RegressionRiskAnalyzeArgs {
       changeType: 'added' | 'modified' | 'deleted' | 'renamed';
     }>;
   };
+  // Alternative simplified format
+  changes?: Array<{
+    file: string;
+    type: 'add' | 'modify' | 'delete' | 'rename' | 'refactor';
+    complexity?: number;
+    linesChanged: number;
+  }>;
   analysisConfig?: {
     depth: 'basic' | 'standard' | 'comprehensive';
     includeHistoricalData?: boolean;
@@ -157,21 +165,33 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
     try {
       this.log('info', 'Starting regression risk analysis', { requestId, args });
 
-      // Validate input
-      this.validateRequired(args, ['changeSet']);
-      if (!args.changeSet.repository) {
-        throw new Error('Repository is required');
+      // Validate input - accept either 'changeSet' or 'changes'
+      if (!args.changeSet && !args.changes) {
+        throw new Error('Either "changeSet" or "changes" parameter is required');
+      }
+
+      // Transform 'changes' to 'changeSet' if needed
+      const normalizedArgs = this.normalizeArgs(args);
+
+      // Validate normalized changeSet
+      if (!normalizedArgs.changeSet?.repository) {
+        this.log('warn', 'Repository not provided, using "current" as default');
+        normalizedArgs.changeSet = normalizedArgs.changeSet || {
+          repository: 'current',
+          baseBranch: 'main',
+          compareBranch: 'HEAD'
+        };
       }
 
       // Execute pre-task hook
       await this.hookExecutor.executeHook('pre-task', {
         taskId: requestId,
         taskType: 'regression-risk-analyze',
-        metadata: args
+        metadata: normalizedArgs
       });
 
       // Run regression risk analysis
-      const result = await this.analyzeRegressionRisk(args, requestId);
+      const result = await this.analyzeRegressionRisk(normalizedArgs, requestId);
 
       // Execute post-task hook
       await this.hookExecutor.executeHook('post-task', {
@@ -198,6 +218,52 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
   }
 
   /**
+   * Normalize arguments to support both 'changes' and 'changeSet' formats
+   */
+  private normalizeArgs(args: RegressionRiskAnalyzeArgs): RegressionRiskAnalyzeArgs {
+    // If changeSet is already provided, return as-is
+    if (args.changeSet) {
+      return args;
+    }
+
+    // Transform 'changes' array to 'changeSet' structure
+    if (args.changes && args.changes.length > 0) {
+      const files = args.changes.map(change => {
+        // Map change type
+        let changeType: 'added' | 'modified' | 'deleted' | 'renamed' = 'modified';
+        if (change.type === 'add') changeType = 'added';
+        else if (change.type === 'delete') changeType = 'deleted';
+        else if (change.type === 'rename') changeType = 'renamed';
+        else if (change.type === 'refactor' || change.type === 'modify') changeType = 'modified';
+
+        // Estimate linesAdded/linesRemoved from linesChanged
+        const linesAdded = changeType === 'added' ? change.linesChanged : Math.floor(change.linesChanged * 0.6);
+        const linesRemoved = changeType === 'deleted' ? change.linesChanged : Math.floor(change.linesChanged * 0.4);
+
+        return {
+          path: change.file,
+          linesAdded,
+          linesRemoved,
+          changeType
+        };
+      });
+
+      return {
+        ...args,
+        changeSet: {
+          repository: 'current',
+          baseBranch: 'main',
+          compareBranch: 'HEAD',
+          files
+        }
+      };
+    }
+
+    // No valid input
+    throw new Error('Either "changeSet" or "changes" parameter is required');
+  }
+
+  /**
    * Analyze regression risk
    */
   private async analyzeRegressionRisk(
@@ -207,8 +273,9 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
     const analysisStartTime = performance.now();
     const depth = args.analysisConfig?.depth || 'standard';
 
-    // Get files to analyze
-    const files = args.changeSet.files || await this.detectChangedFiles(args.changeSet);
+    // Get files to analyze (args.changeSet is guaranteed to exist after normalization)
+    const changeSet = args.changeSet!;
+    const files = changeSet.files || await this.detectChangedFiles(changeSet);
 
     // Analyze each file
     const fileRisks = await Promise.all(

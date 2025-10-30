@@ -416,7 +416,7 @@ describe('Prediction MCP Tools', () => {
       expect(result.data.impactAnalysis).toBeDefined();
     });
 
-    it('should fail without repository', async () => {
+    it('should use default repository when not provided', async () => {
       const args = {
         changeSet: {
           repository: '',
@@ -427,8 +427,9 @@ describe('Prediction MCP Tools', () => {
 
       const result = await handler.handle(args);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Repository is required');
+      // Now gracefully handles empty repository by using "current" as default
+      expect(result.success).toBe(true);
+      expect(result.data.overallRisk).toBeDefined();
     });
 
     it('should calculate risk factors', async () => {
@@ -509,6 +510,117 @@ describe('Prediction MCP Tools', () => {
       expect(result.success).toBe(true);
       expect(result.data.recommendations).toBeDefined();
       expect(Array.isArray(result.data.recommendations)).toBe(true);
+    });
+
+    // Test new 'changes' parameter format
+    it('should accept simplified "changes" parameter format', async () => {
+      const args = {
+        changes: [
+          {
+            file: 'src/core/memory/SwarmMemoryManager.ts',
+            type: 'refactor' as const,
+            complexity: 187,
+            linesChanged: 1838
+          }
+        ]
+      };
+
+      const result = await handler.handle(args);
+
+      expect(result.success).toBe(true);
+      expect(result.data.overallRisk).toBeDefined();
+      expect(result.data.fileRisks).toBeDefined();
+      expect(result.data.fileRisks.length).toBeGreaterThan(0);
+      expect(result.data.fileRisks[0].file).toBe('src/core/memory/SwarmMemoryManager.ts');
+    });
+
+    it('should transform "changes" to "changeSet" correctly', async () => {
+      const args = {
+        changes: [
+          {
+            file: 'src/payment.ts',
+            type: 'modify' as const,
+            linesChanged: 100
+          },
+          {
+            file: 'src/auth.ts',
+            type: 'add' as const,
+            linesChanged: 50
+          },
+          {
+            file: 'src/legacy.ts',
+            type: 'delete' as const,
+            linesChanged: 200
+          }
+        ]
+      };
+
+      const result = await handler.handle(args);
+
+      expect(result.success).toBe(true);
+      expect(result.data.fileRisks.length).toBe(3);
+
+      // Verify transformation logic
+      const paymentFile = result.data.fileRisks.find((f: any) => f.file === 'src/payment.ts');
+      const authFile = result.data.fileRisks.find((f: any) => f.file === 'src/auth.ts');
+      const legacyFile = result.data.fileRisks.find((f: any) => f.file === 'src/legacy.ts');
+
+      expect(paymentFile).toBeDefined();
+      expect(authFile).toBeDefined();
+      expect(legacyFile).toBeDefined();
+    });
+
+    it('should fail when neither "changes" nor "changeSet" is provided', async () => {
+      const args = {};
+
+      const result = await handler.handle(args);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Either "changeSet" or "changes" parameter is required');
+    });
+
+    it('should prefer "changeSet" when both formats are provided', async () => {
+      const args = {
+        changeSet: {
+          repository: 'test/repo',
+          baseBranch: 'main',
+          compareBranch: 'feature',
+          files: [
+            { path: 'src/preferred.ts', linesAdded: 50, linesRemoved: 10, changeType: 'modified' as const }
+          ]
+        },
+        changes: [
+          {
+            file: 'src/ignored.ts',
+            type: 'modify' as const,
+            linesChanged: 100
+          }
+        ]
+      };
+
+      const result = await handler.handle(args);
+
+      expect(result.success).toBe(true);
+      expect(result.data.fileRisks[0].file).toBe('src/preferred.ts');
+      expect(result.data.fileRisks.length).toBe(1);
+    });
+
+    it('should handle complex changes with multiple types', async () => {
+      const args = {
+        changes: [
+          { file: 'src/payment.ts', type: 'refactor' as const, complexity: 150, linesChanged: 500 },
+          { file: 'src/validator.ts', type: 'modify' as const, linesChanged: 80 },
+          { file: 'src/config.ts', type: 'rename' as const, linesChanged: 30 },
+          { file: 'src/utils.ts', type: 'add' as const, linesChanged: 120 }
+        ]
+      };
+
+      const result = await handler.handle(args);
+
+      expect(result.success).toBe(true);
+      expect(result.data.fileRisks.length).toBe(4);
+      expect(result.data.impactAnalysis).toBeDefined();
+      expect(result.data.testingStrategy).toBeDefined();
     });
   });
 

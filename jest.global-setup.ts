@@ -8,17 +8,11 @@
 const path = require('path');
 
 module.exports = async () => {
-  // Set working directory explicitly
-  const WORKSPACE_ROOT = '/workspaces/agentic-qe-cf';
+  // Determine workspace root dynamically
+  const WORKSPACE_ROOT = process.cwd();
 
-  try {
-    process.chdir(WORKSPACE_ROOT);
-    console.log('✅ Global test environment initialized');
-    console.log(`   Working directory: ${process.cwd()}`);
-  } catch (error) {
-    console.error('❌ Failed to set working directory:', error);
-    throw error;
-  }
+  console.log('✅ Global test environment initialized');
+  console.log(`   Working directory: ${WORKSPACE_ROOT}`);
 
   // Set environment variables
   process.env.INIT_CWD = WORKSPACE_ROOT;
