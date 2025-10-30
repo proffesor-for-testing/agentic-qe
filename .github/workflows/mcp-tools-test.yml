@@ -86,7 +86,7 @@ jobs:
         run: npm ci
 
       - name: Run MCP integration tests
-        run: npm run test:integration:mcp
+        run: npm run test:mcp:integration
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
         continue-on-error: true
