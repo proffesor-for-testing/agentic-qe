@@ -116,6 +116,7 @@ hive-mind-prompt-*.txt
 
 # Cloned repositories for analysis (keep only reports)
 midstream/*
-\!midstream/COMPLEXITY_ANALYSIS_REPORT.md
+!midstream/COMPLEXITY_ANALYSIS_REPORT.md
+!midstream/COMPREHENSIVE_MULTI_BRANCH_ANALYSIS.md
 traccar/*
-\!traccar/COMPLEXITY_ANALYSIS_REPORT.md
+!traccar/COMPLEXITY_ANALYSIS_REPORT.md
