@@ -927,7 +927,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private startAutoScalingMonitor(): void {
     this.autoScalingMonitorInterval = setInterval(async () => {
-      if (this.status !== AgentStatus.ACTIVE) return;
+      if (this.lifecycleManager.getStatus() !== AgentStatus.ACTIVE) return;
 
       const decision = await this.makeScalingDecision();
 
@@ -1009,7 +1009,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private startHeartbeatMonitoring(): void {
     this.heartbeatMonitorInterval = setInterval(async () => {
-      if (this.status !== AgentStatus.ACTIVE) return;
+      if (this.lifecycleManager.getStatus() !== AgentStatus.ACTIVE) return;
 
       const now = new Date();
       const timeout = this.config.faultTolerance?.heartbeatTimeout || 15000;

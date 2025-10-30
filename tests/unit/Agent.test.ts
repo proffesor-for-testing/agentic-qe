@@ -9,7 +9,7 @@ import { EventBus } from '@core/EventBus';
 import { Logger } from '@utils/Logger';
 
 // Mock implementations
-// Note: Logger is globally mocked in jest.setup.ts - no need to mock here
+jest.mock('@utils/Logger'); // Activate manual mock for Logger
 jest.mock('@core/EventBus');
 
 // Test Agent implementation
@@ -87,7 +87,12 @@ describe('Agent', () => {
   let mockTask: jest.Mocked<Task>;
 
   beforeEach(() => {
-    // Clear all mocks
+    // Reset Logger singleton to ensure clean state
+    if ((Logger as any).resetInstance) {
+      (Logger as any).resetInstance();
+    }
+
+    // Clear all mocks BEFORE getting logger instance
     jest.clearAllMocks();
 
     // Create mock EventBus
@@ -100,7 +105,7 @@ describe('Agent', () => {
       getEvent: jest.fn()
     } as any;
 
-    // Logger is globally mocked in jest.setup.ts - just get the instance
+    // Get mocked Logger instance
     mockLogger = Logger.getInstance() as jest.Mocked<Logger>;
 
     // Create mock Task

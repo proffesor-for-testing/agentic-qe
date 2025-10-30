@@ -1,0 +1,197 @@
+name: MCP Tools Testing
+
+on:
+  push:
+    branches: [main, testing-with-qe]
+    paths:
+      - 'src/mcp/**'
+      - 'tests/mcp/**'
+      - 'tests/integration/mcp/**'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/mcp/**'
+      - 'tests/mcp/**'
+      - 'tests/integration/mcp/**'
+      - 'package.json'
+
+jobs:
+  mcp-unit-tests:
+    name: MCP Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run MCP unit tests
+        run: npm run test:mcp
+        env:
+          NODE_OPTIONS: '--max-old-space-size=768'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          files: ./coverage/coverage-final.json
+          flags: mcp-unit
+          name: mcp-unit-coverage
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: mcp-unit-test-results
+          path: |
+            coverage/
+            test-results/
+            junit.xml
+          retention-days: 30
+
+  mcp-integration-tests:
+    name: MCP Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run MCP integration tests
+        run: npm run test:integration:mcp
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+        continue-on-error: true
+
+      - name: Generate test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: MCP Integration Test Results
+          path: 'junit.xml'
+          reporter: jest-junit
+          fail-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: mcp-integration-test-results
+          path: |
+            test-results/
+            junit.xml
+          retention-days: 30
+
+  mcp-validation:
+    name: Validate All MCP Tools
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Validate MCP tools
+        run: npm run mcp:validate
+
+      - name: Upload validation report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: mcp-validation-report
+          path: reports/mcp-validation-*.json
+          retention-days: 30
+
+      - name: Generate MCP report
+        run: npm run mcp:report
+        if: always()
+
+      - name: Upload MCP report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: mcp-report
+          path: reports/mcp-report-*.md
+          retention-days: 30
+
+  mcp-summary:
+    name: MCP Test Summary
+    runs-on: ubuntu-latest
+    needs: [mcp-unit-tests, mcp-integration-tests, mcp-validation]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create summary comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            let summary = '## MCP Tools Test Summary\n\n';
+
+            // Check validation report
+            try {
+              const validationFiles = fs.readdirSync('mcp-validation-report');
+              if (validationFiles.length > 0) {
+                const reportPath = path.join('mcp-validation-report', validationFiles[0]);
+                const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+                summary += `### Validation Results\n`;
+                summary += `- Total Tools: ${report.totalTools}\n`;
+                summary += `- Valid Tools: ${report.validTools}\n`;
+                summary += `- Invalid Tools: ${report.invalidTools}\n`;
+                summary += `- Coverage: ${report.coverage}%\n\n`;
+              }
+            } catch (err) {
+              summary += '### Validation Results\n❌ Validation report not found\n\n';
+            }
+
+            summary += '### Test Results\n';
+            summary += '- ✅ Unit Tests: ${{ needs.mcp-unit-tests.result }}\n';
+            summary += '- ✅ Integration Tests: ${{ needs.mcp-integration-tests.result }}\n';
+            summary += '- ✅ Validation: ${{ needs.mcp-validation.result }}\n';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

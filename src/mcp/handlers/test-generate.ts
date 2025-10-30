@@ -111,15 +111,32 @@ export class TestGenerateHandler extends BaseHandler {
       // Execute test generation via agent
       const { result: testSuite, executionTime } = await this.measureExecutionTime(
         async () => {
+          // Create proper TaskAssignment for BaseAgent validation
+          const taskAssignment = {
+            id: requestId,
+            task: {
+              id: requestId,
+              type: 'generate-tests',
+              description: `Generate ${args.spec.type} tests for ${args.spec.sourceCode.repositoryUrl}`,
+              priority: 'medium' as const,
+              input: args.spec,
+              requirements: {
+                capabilities: ['test-generation', 'code-analysis']
+              },
+              context: {
+                requestId,
+                timestamp: new Date().toISOString(),
+                framework: args.spec.frameworks?.[0] || 'jest',
+                coverageTarget: args.spec.coverageTarget
+              }
+            },
+            agentId: agentId!,
+            assignedAt: new Date(),
+            status: 'assigned' as const
+          };
+
           // Use agent registry to execute task
-          const result = await this.registry.executeTask(agentId!, {
-            taskType: 'generate-tests',
-            input: args.spec,
-            context: {
-              requestId,
-              timestamp: new Date().toISOString()
-            }
-          });
+          const result = await this.registry.executeTask(agentId!, taskAssignment);
 
           // Also run legacy generation for backward compatibility
           const legacyResult = await this.generateTestSuite(args.spec, agentId);

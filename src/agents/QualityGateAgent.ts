@@ -17,15 +17,15 @@ import {
 export interface QualityGateRequest {
   testResults: QETestResult[];
   metrics: QualityMetrics;
-  context: {
-    deploymentTarget: 'development' | 'staging' | 'production';
-    criticality: 'low' | 'medium' | 'high' | 'critical';
-    changes: Array<{
+  context?: {
+    deploymentTarget?: 'development' | 'staging' | 'production';
+    criticality?: 'low' | 'medium' | 'high' | 'critical';
+    changes?: Array<{
       file: string;
       type: 'added' | 'modified' | 'deleted';
       complexity: number;
     }>;
-    environment: string;
+    environment?: string;
   };
   customCriteria?: QualityCriterion[];
 }
@@ -189,9 +189,17 @@ export class QualityGateAgent extends EventEmitter {
     try {
       this.status = AgentStatus.ACTIVE;
 
+      // Provide default context if missing
+      const context = request.context || {
+        deploymentTarget: 'development' as const,
+        criticality: 'medium' as const,
+        changes: [],
+        environment: process.env.NODE_ENV || 'development'
+      };
+
       // Phase 1: Initialize Decision Tree using Consciousness Framework
       const decisionTree = await this.consciousnessEngine.buildDecisionTree({
-        context: request.context,
+        context,
         historicalDecisions: await this.getHistoricalGateDecisions(),
         adaptationLevel: 0.8
       });
@@ -211,7 +219,7 @@ export class QualityGateAgent extends EventEmitter {
           context: {
             testResults: request.testResults,
             metrics: normalizedMetrics,
-            deploymentContext: request.context,
+            deploymentContext: context,
             complexityFactors: complexityIndicators
           },
           depth: 5
@@ -224,13 +232,13 @@ export class QualityGateAgent extends EventEmitter {
             score: reasoningResult.confidence,
             threshold: 0.7,
             criteriaEvaluations: [],
-            riskFactors: await this.analyzeRiskFactors(request.context, []),
+            riskFactors: await this.analyzeRiskFactors(context, []),
             explanation: reasoningResult.reasoning,
             recommendations: ['Human review required due to complex quality state'],
             confidence: reasoningResult.confidence,
             metadata: {
               evaluationTime: new Date(),
-              context: request.context,
+              context,
               decisionTreeVersion: decisionTree.version
             }
           };
@@ -252,7 +260,7 @@ export class QualityGateAgent extends EventEmitter {
           value: metricValue,
           passed,
           score,
-          impact: await this.calculateImpact(criterion, metricValue, request.context)
+          impact: await this.calculateImpact(criterion, metricValue, context)
         };
 
         evaluationResults.push(evaluationResult);
@@ -261,7 +269,7 @@ export class QualityGateAgent extends EventEmitter {
 
       // Phase 5: Apply Dynamic Threshold Adjustment
       const adjustedThreshold = await this.calculateDynamicThreshold(
-        request.context,
+        context,
         normalizedMetrics
       );
 
@@ -269,14 +277,14 @@ export class QualityGateAgent extends EventEmitter {
       const baseDecision = totalScore >= adjustedThreshold ? 'PASS' : 'FAIL';
 
       // Phase 7: Apply Risk-Based Overrides
-      const riskFactors = await this.analyzeRiskFactors(request.context, evaluationResults);
+      const riskFactors = await this.analyzeRiskFactors(context, evaluationResults);
       const finalDecision = await this.applyRiskBasedLogic(baseDecision, riskFactors);
 
       // Phase 8: Generate Explanation and Recommendations
       const explanation = await this.generateDecisionExplanation(evaluationResults, finalDecision);
       const recommendations = await this.generateQualityRecommendations(
         evaluationResults,
-        request.context
+        context
       );
 
       const gateDecision: QualityGateDecision = {
@@ -290,7 +298,7 @@ export class QualityGateAgent extends EventEmitter {
         confidence: await this.calculateDecisionConfidence(evaluationResults),
         metadata: {
           evaluationTime: new Date(),
-          context: request.context,
+          context,
           decisionTreeVersion: decisionTree.version
         }
       };
@@ -345,21 +353,24 @@ export class QualityGateAgent extends EventEmitter {
   private async calculateDynamicThreshold(context: any, _metrics: any): Promise<number> {
     let baseThreshold = 0.8; // Default threshold
 
-    // Adjust based on deployment criticality
-    if (context.criticality === 'critical') {
+    // Adjust based on deployment criticality (with safe access)
+    const criticality = context?.criticality || 'medium';
+    if (criticality === 'critical') {
       baseThreshold += 0.1;
-    } else if (context.criticality === 'low') {
+    } else if (criticality === 'low') {
       baseThreshold -= 0.05;
     }
 
-    // Adjust based on historical performance
-    const historicalPerformance = await this.getHistoricalPerformance(context.environment);
+    // Adjust based on historical performance (with safe access)
+    const environment = context?.environment || 'development';
+    const historicalPerformance = await this.getHistoricalPerformance(environment);
     if (historicalPerformance > 0.9) {
       baseThreshold -= 0.02; // Slight relaxation for stable systems
     }
 
-    // Adjust based on change magnitude
-    const changeMagnitude = await this.calculateChangeMagnitude(context.changes);
+    // Adjust based on change magnitude (with safe access)
+    const changes = context?.changes || [];
+    const changeMagnitude = await this.calculateChangeMagnitude(changes);
     if (changeMagnitude > 0.5) {
       baseThreshold += 0.05; // Higher standards for large changes
     }
@@ -375,8 +386,13 @@ export class QualityGateAgent extends EventEmitter {
   private async analyzeRiskFactors(context: any, evaluations: CriterionEvaluation[]): Promise<RiskFactor[]> {
     const riskFactors: RiskFactor[] = [];
 
+    // Safe access to context fields
+    const deploymentTarget = context?.deploymentTarget || 'development';
+    const criticality = context?.criticality || 'medium';
+    const changes = context?.changes || [];
+
     // Analyze deployment risk
-    if (context.deploymentTarget === 'production' && context.criticality === 'critical') {
+    if (deploymentTarget === 'production' && criticality === 'critical') {
       riskFactors.push({
         type: 'deployment-risk',
         severity: 'high',
@@ -386,8 +402,8 @@ export class QualityGateAgent extends EventEmitter {
       });
     }
 
-    // Analyze change risk
-    const highComplexityChanges = context.changes.filter((c: any) => c.complexity > 8);
+    // Analyze change risk (using safe changes variable)
+    const highComplexityChanges = changes.filter((c: any) => c.complexity > 8);
     if (highComplexityChanges.length > 0) {
       riskFactors.push({
         type: 'complexity-risk',

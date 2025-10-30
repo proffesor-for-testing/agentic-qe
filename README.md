@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.5** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.3.6** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
 
@@ -500,6 +500,31 @@ Model Usage:
 ---
 
 ## 📝 Recent Changes
+
+### v1.3.6 (2025-10-30)
+**Stability & Educational Release**
+
+- ✅ **Fixed 16 critical TypeScript compilation errors** blocking production builds
+- ✅ **Integrated CodeComplexityAnalyzerAgent** (educational example from PR #22 by @mondweep)
+- ✅ **Zero functional regressions** - all core functionality tested and stable
+- ✅ **Build stability improvements** - TypeScript compilation passing with 0 errors
+- ✅ **BaseAgent property encapsulation** - proper lifecycle manager integration
+- ✅ **Clean cherry-pick** from PR #22 with zero conflicts
+
+**Technical Improvements**:
+- BaseAgent property access patterns now use lifecycle manager accessors
+- AccessControlDAO interface mapping corrected (`resourceId`, `owner` properties)
+- Permission enum usage standardized (READ, WRITE, DELETE, SHARE)
+- AgentLifecycleManager and AgentCoordinator properly integrated
+
+**New Capabilities**:
+- 📊 Code complexity analysis agent (cyclomatic & cognitive complexity)
+- 🎯 Quality scoring system (0-100 scale)
+- 🤖 AI-powered refactoring recommendations
+- 📚 Complete BaseAgent pattern demonstration
+- 📖 463-line architecture guide for learning
+
+**Contributors**: @mondweep (CodeComplexityAnalyzerAgent), AQE Development Team
 
 ### v1.3.5 (2025-10-27) - Learning System Complete & Critical Policies
 

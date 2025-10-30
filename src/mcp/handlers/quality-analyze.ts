@@ -18,8 +18,14 @@ export interface QualityAnalyzeArgs {
   params: QualityAnalysisParams;
   dataSource?: {
     testResults?: string;
-    codeMetrics?: string;
+    codeMetrics?: string | any; // Allow object for structured metrics
     performanceData?: string;
+    context?: {
+      deploymentTarget?: 'development' | 'staging' | 'production';
+      criticality?: 'low' | 'medium' | 'high' | 'critical';
+      environment?: string;
+      changes?: any[];
+    };
   };
 }
 
@@ -292,10 +298,28 @@ export class QualityAnalyzeHandler extends BaseHandler {
       // Execute quality analysis through agent
       const { result: qualityReport, executionTime } = await this.measureExecutionTime(
         async () => {
+          // Ensure dataSource has a default context if missing
+          const dataSourceWithContext = args.dataSource ? {
+            ...args.dataSource,
+            context: args.dataSource.context || {
+              deploymentTarget: 'development' as const,
+              criticality: 'medium' as const,
+              environment: process.env.NODE_ENV || 'development',
+              changes: []
+            }
+          } : {
+            context: {
+              deploymentTarget: 'development' as const,
+              criticality: 'medium' as const,
+              environment: process.env.NODE_ENV || 'development',
+              changes: []
+            }
+          };
+
           const taskResult = await this.registry.executeTask(agentId!, {
             taskType: 'analyze-quality',
             input: args.params,
-            dataSource: args.dataSource
+            dataSource: dataSourceWithContext
           });
 
           // If agent returns a quality report, use it; otherwise, perform analysis locally

@@ -166,7 +166,7 @@ export class InitCommand {
       spinner.text = 'Creating CLAUDE.md documentation...';
 
       // Create or update CLAUDE.md with agent documentation
-      await this.createClaudeMd(fleetConfig);
+      await this.createClaudeMd(fleetConfig, (options as any).yes);
 
       // Initialize Claude Flow coordination
       await this.initializeCoordination(fleetConfig);
@@ -1260,18 +1260,46 @@ echo "[AQE] Post-execution coordination complete"
     await fs.ensureDir('.agentic-qe/state/coordination');
   }
 
-  private static async createClaudeMd(config: FleetConfig): Promise<void> {
+  private static async createClaudeMd(config: FleetConfig, isYesMode: boolean = false): Promise<void> {
     const claudeMdPath = 'CLAUDE.md';
     const agentCount = await this.countAgentFiles('.claude/agents');
 
     // Check if CLAUDE.md exists
     const exists = await fs.pathExists(claudeMdPath);
+    let existingContent = '';
+    let appendPosition = 'append'; // default for --yes mode (v1.3.7 fix)
 
     if (exists) {
       // Backup existing CLAUDE.md
       const backupPath = 'CLAUDE.md.backup';
       await fs.copy(claudeMdPath, backupPath);
       console.log(chalk.yellow(`  ℹ️  Existing CLAUDE.md backed up to ${backupPath}`));
+
+      // Read existing content
+      existingContent = await fs.readFile(claudeMdPath, 'utf8');
+
+      // In interactive mode, ask where to add AQE instructions (v1.3.7 fix)
+      if (!isYesMode) {
+        const { position } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'position',
+            message: 'Existing CLAUDE.md detected. Where should we add AQE instructions?',
+            choices: [
+              {
+                name: 'At the end (append) - Recommended',
+                value: 'append',
+              },
+              {
+                name: 'At the beginning (prepend)',
+                value: 'prepend',
+              },
+            ],
+            default: 'append',
+          },
+        ]);
+        appendPosition = position;
+      }
     }
 
     const claudeMdContent = `# Claude Code Configuration - Agentic QE Fleet
@@ -1725,7 +1753,22 @@ tail -f .agentic-qe/logs/fleet.log
 **Fleet Topology**: ${config.topology}
 `;
 
-    await fs.writeFile(claudeMdPath, claudeMdContent);
+    // Write CLAUDE.md based on append strategy (v1.3.7 fix)
+    let finalContent: string;
+    if (exists && existingContent) {
+      const separator = '\n\n---\n\n';
+      if (appendPosition === 'append') {
+        finalContent = existingContent + separator + claudeMdContent;
+        console.log(chalk.green(`  ✓ AQE instructions appended to existing CLAUDE.md`));
+      } else {
+        finalContent = claudeMdContent + separator + existingContent;
+        console.log(chalk.green(`  ✓ AQE instructions prepended to existing CLAUDE.md`));
+      }
+    } else {
+      finalContent = claudeMdContent;
+    }
+
+    await fs.writeFile(claudeMdPath, finalContent);
   }
 
   // ============================================================================
