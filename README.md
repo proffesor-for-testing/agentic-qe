@@ -56,7 +56,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
-- ✅ 17 Specialized agent definitions
+- ✅ 18 Specialized agent definitions (including qe-code-complexity)
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -65,7 +65,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ## ✨ Features
 
 ### 🤖 Autonomous Agent Fleet
-- **17 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing)
+- **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -205,6 +205,9 @@ claude "Use qe-chaos-engineer to inject random failures and validate system resi
 
 # Flaky test detection with ML
 claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify flaky tests with ML-powered root cause analysis"
+
+# Code complexity analysis
+claude "Use qe-code-complexity to analyze src/ directory and get refactoring recommendations for complex code"
 ```
 
 ### Example 6: Fleet Coordination at Scale
