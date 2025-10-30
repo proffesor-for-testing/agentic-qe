@@ -5,6 +5,36 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.7] - 2025-10-30
+
+### 📚 Documentation Updates
+
+#### README Improvements
+- **Updated agent count**: 17 → 18 specialized agents (added qe-code-complexity)
+- **Added qe-code-complexity agent** to initialization section
+- **Added 34 QE skills library** to "What gets initialized" section
+- **Updated Agent Types table**: Core Testing Agents (5 → 6 agents)
+- **Added usage example** for code complexity analysis in Example 5
+
+#### Agent Documentation
+- **qe-code-complexity**: Educational agent demonstrating AQE Fleet architecture
+  - Cyclomatic complexity analysis
+  - Cognitive complexity metrics
+  - AI-powered refactoring recommendations
+  - Complete BaseAgent pattern demonstration
+
+### Changed
+- README.md: Version 1.3.6 → 1.3.7
+- Agent count references updated throughout documentation
+- Skills library properly documented in initialization
+
+### Quality
+- **Release Type**: Documentation-only patch release
+- **Breaking Changes**: None
+- **Migration Required**: None (automatic on npm install)
+
+---
+
 ## [1.3.6] - 2025-10-30
 
 ### 🔒 Security & UX Improvements
