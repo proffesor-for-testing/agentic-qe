@@ -1,4 +1,6 @@
 name: MCP Tools Testing
+permissions:
+  contents: read
 
 on:
   push:
