@@ -57,6 +57,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ 18 Specialized agent definitions (including qe-code-complexity)
+- ✅ 34 World-class QE skills library
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -361,7 +362,7 @@ Model Usage:
 ## 🤖 Agent Types
 
 <details>
-<summary><b>Core Testing Agents (5 agents)</b></summary>
+<summary><b>Core Testing Agents (6 agents)</b></summary>
 
 | Agent | Purpose | Key Features | Phase 2 Enhancements |
 |-------|---------|-------------|---------------------|
@@ -370,6 +371,7 @@ Model Usage:
 | **coverage-analyzer** | Real-time gap analysis | O(log n) algorithms, trend tracking | ✅ Learning, Pattern recommendations |
 | **quality-gate** | Intelligent validation | ML-driven decisions, risk assessment | ✅ Flaky test metrics |
 | **quality-analyzer** | Metrics analysis | ESLint, SonarQube, Lighthouse integration | - |
+| **code-complexity** | Complexity analysis | Cyclomatic/cognitive metrics, refactoring recommendations | ✅ Educational agent |
 
 </details>
 
@@ -426,7 +428,7 @@ Model Usage:
 
 </details>
 
-**Total: 17 Agents** (16 QE-specific + 1 general-purpose)
+**Total: 19 Agents** (18 QE-specific + 1 general-purpose)
 
 ---
 
