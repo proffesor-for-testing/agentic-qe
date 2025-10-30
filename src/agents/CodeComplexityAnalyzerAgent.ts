@@ -16,10 +16,8 @@ import {
   QEAgentType,
   AgentCapability,
   QETask,
-  PostTaskData,
-  TaskAssignment
+  PostTaskData
 } from '../types';
-import { EventEmitter } from 'events';
 
 // ============================================================================
 // Simple Logger Interface
@@ -259,7 +257,7 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
     // Count decision points: if, for, while, case, catch, &&, ||
     const decisionPoints = [
       ...(file.content.match(/\b(if|for|while|case|catch)\b/g) || []),
-      ...(file.content.match(/(\&\&|\|\|)/g) || [])
+      ...(file.content.match(/(&&|\|\|)/g) || [])
     ].length;
     const cyclomaticComplexity = decisionPoints + 1;
 
