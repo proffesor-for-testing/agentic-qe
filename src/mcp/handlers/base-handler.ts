@@ -69,7 +69,10 @@ export abstract class BaseHandler {
    * Validate required parameters
    */
   protected validateRequired(args: any, requiredFields: string[]): void {
-    const missing = requiredFields.filter(field => !args[field]);
+    if (args === null || args === undefined || typeof args !== 'object' || Array.isArray(args)) {
+      throw new Error(`Invalid arguments: expected object, got ${args === null ? 'null' : typeof args}`);
+    }
+    const missing = requiredFields.filter(field => !(field in args) || args[field] === undefined || args[field] === null);
     if (missing.length > 0) {
       throw new Error(`Missing required fields: ${missing.join(', ')}`);
     }
