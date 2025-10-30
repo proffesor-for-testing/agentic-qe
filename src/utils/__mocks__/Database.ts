@@ -13,14 +13,14 @@ import { jest } from '@jest/globals';
  */
 export const mockDatabase = {
   // Core lifecycle methods
-  initialize: jest.fn().mockResolvedValue(undefined),
-  close: jest.fn().mockResolvedValue(undefined),
+  initialize: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  close: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
   // Query methods (synchronous for better-sqlite3 compatibility)
-  query: jest.fn().mockReturnValue({ rows: [] }),
+  query: jest.fn<() => { rows: any[] }>().mockReturnValue({ rows: [] }),
 
   // Prepared statement support
-  prepare: jest.fn().mockReturnValue({
+  prepare: jest.fn<() => any>().mockReturnValue({
     run: jest.fn().mockReturnValue({ changes: 1, lastInsertRowid: 1 }),
     get: jest.fn().mockReturnValue(undefined),
     all: jest.fn().mockReturnValue([]),
@@ -32,31 +32,31 @@ export const mockDatabase = {
   get: jest.fn().mockReturnValue(undefined),
   all: jest.fn().mockReturnValue([]),
   exec: jest.fn().mockReturnValue(undefined),
-  each: jest.fn().mockReturnValue(undefined),
+  each: jest.fn<() => void>().mockReturnValue(undefined),
 
   // Utility methods
-  pragma: jest.fn().mockReturnValue(undefined),
-  stats: jest.fn().mockResolvedValue({
+  pragma: jest.fn<() => any>().mockReturnValue(undefined),
+  stats: jest.fn<() => Promise<any>>().mockResolvedValue({
     total: 0,
     active: 0,
     size: 1024,
     tables: 15,
     lastModified: new Date()
   }),
-  compact: jest.fn().mockResolvedValue(undefined),
+  compact: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
   // Transaction support
-  transaction: jest.fn((callback) => callback()),
-  beginTransaction: jest.fn().mockResolvedValue(undefined),
-  commit: jest.fn().mockResolvedValue(undefined),
-  rollback: jest.fn().mockResolvedValue(undefined),
+  transaction: jest.fn<(callback: () => void) => void>((callback: () => void) => callback()),
+  beginTransaction: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  commit: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  rollback: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
   // Domain-specific methods (from real Database class)
-  upsertFleet: jest.fn().mockResolvedValue(undefined),
-  upsertAgent: jest.fn().mockResolvedValue(undefined),
-  upsertTask: jest.fn().mockResolvedValue(undefined),
-  insertEvent: jest.fn().mockResolvedValue(undefined),
-  insertMetric: jest.fn().mockResolvedValue(undefined),
+  upsertFleet: jest.fn<(fleet: any) => Promise<void>>().mockResolvedValue(undefined),
+  upsertAgent: jest.fn<(agent: any) => Promise<void>>().mockResolvedValue(undefined),
+  upsertTask: jest.fn<(task: any) => Promise<void>>().mockResolvedValue(undefined),
+  insertEvent: jest.fn<(event: any) => Promise<void>>().mockResolvedValue(undefined),
+  insertMetric: jest.fn<(metric: any) => Promise<void>>().mockResolvedValue(undefined),
 
   // Additional helper methods for testing
   _resetMocks: () => {
@@ -80,20 +80,20 @@ export class Database {
 
   // Lifecycle
   async initialize(): Promise<void> {
-    return mockDatabase.initialize();
+    return mockDatabase.initialize() as Promise<void>;
   }
 
   async close(): Promise<void> {
-    return mockDatabase.close();
+    return mockDatabase.close() as Promise<void>;
   }
 
   // Query methods
   exec(sql: string): void {
-    return mockDatabase.exec(sql);
+    mockDatabase.exec();
   }
 
   async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
-    const result = mockDatabase.run(sql, params);
+    const result = mockDatabase.run() as { lastInsertRowid?: number; changes?: number };
     return {
       lastID: result.lastInsertRowid || 0,
       changes: result.changes || 0
@@ -101,51 +101,51 @@ export class Database {
   }
 
   async get(sql: string, params: any[] = []): Promise<any> {
-    return mockDatabase.get(sql, params);
+    return mockDatabase.get();
   }
 
   async all(sql: string, params: any[] = []): Promise<any[]> {
-    return mockDatabase.all(sql, params);
+    return mockDatabase.all() as any[];
   }
 
   // Prepared statements
   prepare(sql: string): any {
-    return mockDatabase.prepare(sql);
+    return mockDatabase.prepare();
   }
 
   // Utility methods
   async stats(): Promise<any> {
-    return mockDatabase.stats();
+    return mockDatabase.stats() as Promise<any>;
   }
 
   async compact(): Promise<void> {
-    return mockDatabase.compact();
+    return mockDatabase.compact() as Promise<void>;
   }
 
   // Transaction support
   transaction(callback: () => void): void {
-    return mockDatabase.transaction(callback);
+    mockDatabase.transaction(callback);
   }
 
   // Domain-specific methods
   async upsertFleet(fleet: any): Promise<void> {
-    return mockDatabase.upsertFleet(fleet);
+    return mockDatabase.upsertFleet(fleet) as Promise<void>;
   }
 
   async upsertAgent(agent: any): Promise<void> {
-    return mockDatabase.upsertAgent(agent);
+    return mockDatabase.upsertAgent(agent) as Promise<void>;
   }
 
   async upsertTask(task: any): Promise<void> {
-    return mockDatabase.upsertTask(task);
+    return mockDatabase.upsertTask(task) as Promise<void>;
   }
 
   async insertEvent(event: any): Promise<void> {
-    return mockDatabase.insertEvent(event);
+    return mockDatabase.insertEvent(event) as Promise<void>;
   }
 
   async insertMetric(metric: any): Promise<void> {
-    return mockDatabase.insertMetric(metric);
+    return mockDatabase.insertMetric(metric) as Promise<void>;
   }
 
   // Test helper
