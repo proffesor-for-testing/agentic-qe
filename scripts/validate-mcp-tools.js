@@ -59,6 +59,29 @@ function extractToolNames() {
 }
 
 /**
+ * Recursively find all JS files in a directory
+ */
+function findAllJsFiles(dir, fileList = []) {
+  if (!fileExists(dir)) {
+    return fileList;
+  }
+
+  const files = fs.readdirSync(dir);
+  files.forEach(file => {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+
+    if (stat.isDirectory()) {
+      findAllJsFiles(filePath, fileList);
+    } else if (file.endsWith('.js') && !file.endsWith('.d.ts')) {
+      fileList.push(filePath);
+    }
+  });
+
+  return fileList;
+}
+
+/**
  * Find handler file for a tool
  */
 function findHandler(toolName) {
@@ -68,19 +91,54 @@ function findHandler(toolName) {
     .replace('mcp__agentic_qe__', '')
     .replace(/_/g, '-');
 
-  const handlerPaths = [
-    path.join(HANDLERS_DIR, `${handlerName}.js`),
-    path.join(HANDLERS_DIR, `${handlerName}-handler.js`),
-    path.join(HANDLERS_DIR, toolName.replace('mcp__agentic_qe__', '') + '.js')
-  ];
+  // Also try underscore version
+  const handlerNameUnderscore = toolName
+    .replace('mcp__agentic_qe__', '')
+    .replace(/-/g, '_');
 
-  for (const handlerPath of handlerPaths) {
-    if (fileExists(handlerPath)) {
+  // Get all handler files recursively
+  const allHandlers = findAllJsFiles(HANDLERS_DIR);
+
+  // Try to find matching handler by checking file basenames
+  for (const handlerPath of allHandlers) {
+    const basename = path.basename(handlerPath, '.js');
+
+    // Check various naming patterns
+    if (
+      basename === handlerName ||
+      basename === `${handlerName}-handler` ||
+      basename === handlerNameUnderscore ||
+      basename === `${handlerNameUnderscore}-handler` ||
+      basename === toolName.replace('mcp__agentic_qe__', '')
+    ) {
       return handlerPath;
     }
   }
 
   return null;
+}
+
+/**
+ * Recursively find all test files
+ */
+function findAllTestFiles(dir, fileList = []) {
+  if (!fileExists(dir)) {
+    return fileList;
+  }
+
+  const files = fs.readdirSync(dir);
+  files.forEach(file => {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+
+    if (stat.isDirectory()) {
+      findAllTestFiles(filePath, fileList);
+    } else if (file.endsWith('.test.ts')) {
+      fileList.push(filePath);
+    }
+  });
+
+  return fileList;
 }
 
 /**
@@ -91,15 +149,31 @@ function findTests(toolName) {
     .replace('mcp__agentic_qe__', '')
     .replace(/_/g, '-');
 
-  const testPaths = [
+  // First try specific file names
+  const specificPaths = [
     path.join(TESTS_DIR, `${testName}.test.ts`),
     path.join(TESTS_DIR, `${testName}-handler.test.ts`),
     path.join(TESTS_DIR, 'handlers', `${testName}.test.ts`)
   ];
 
-  for (const testPath of testPaths) {
+  for (const testPath of specificPaths) {
     if (fileExists(testPath)) {
       return testPath;
+    }
+  }
+
+  // Search within all test files for the tool name
+  const allTestFiles = findAllTestFiles(TESTS_DIR);
+
+  for (const testFile of allTestFiles) {
+    try {
+      const content = fs.readFileSync(testFile, 'utf8');
+      // Check if the test file contains tests for this tool
+      if (content.includes(toolName) || content.includes(`'${toolName}'`) || content.includes(`"${toolName}"`)) {
+        return testFile;
+      }
+    } catch (err) {
+      // Skip files that can't be read
     }
   }
 
