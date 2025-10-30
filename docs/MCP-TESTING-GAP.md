@@ -280,7 +280,7 @@ describe('{Tool Name}', () => {
 - **Integration Tests**: 5-10 comprehensive suites
 
 ### Tracking
-- **GitHub Issue**: [To be created]
+- **GitHub Issue**: [#26](https://github.com/proffesor-for-testing/agentic-qe/issues/26)
 - **Milestone**: v1.3.7 / v1.4.0
 - **Priority**: HIGH
 - **Assignee**: TBD
