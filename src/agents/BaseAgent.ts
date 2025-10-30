@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { SecureRandom } from '../utils/SecureRandom.js';
+import { SecureRandom } from '../utils/SecureRandom';
 import {
   AgentId,
   QEAgentType as AgentType,

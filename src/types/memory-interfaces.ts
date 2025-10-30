@@ -32,10 +32,10 @@ import {
  */
 export interface IMemoryStore {
   initialize(): Promise<void>;
-  store(key: string, value: any, options?: StoreOptions): Promise<void>;
+  store(key: string, value: any, options?: StoreOptions | number): Promise<void>;
   retrieve(key: string, options?: RetrieveOptions): Promise<any>;
   query(pattern: string, options?: RetrieveOptions): Promise<MemoryEntry[]>;
-  delete(key: string, partition?: string, options?: DeleteOptions): Promise<void>;
+  delete(key: string, partition?: string | DeleteOptions, options?: DeleteOptions): Promise<boolean>;
   clear(partition?: string): Promise<void>;
   postHint(hint: { key: string; value: any; ttl?: number }): Promise<void>;
   readHints(pattern: string): Promise<Hint[]>;

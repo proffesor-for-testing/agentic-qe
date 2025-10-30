@@ -113,3 +113,9 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+
+# Cloned repositories for analysis (keep only reports)
+midstream/*
+\!midstream/COMPLEXITY_ANALYSIS_REPORT.md
+traccar/*
+\!traccar/COMPLEXITY_ANALYSIS_REPORT.md
