@@ -42,7 +42,8 @@ jobs:
         run: npm run test:mcp
         env:
           NODE_OPTIONS: '--max-old-space-size=768'
-        continue-on-error: true
+        # Note: 35/54 tools lack unit tests - tracked in issue for v1.3.7/v1.4.0
+        # Tests should pass for implemented tools (19/54)
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -130,6 +131,8 @@ jobs:
 
       - name: Validate MCP tools
         run: npm run mcp:validate
+        # Note: Will report 35/54 tools missing tests (accurate)
+        # Validation script fixed to search subdirectories recursively
         continue-on-error: true
 
       - name: Upload validation report
