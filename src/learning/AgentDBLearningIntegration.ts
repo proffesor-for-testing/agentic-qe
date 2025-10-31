@@ -283,7 +283,7 @@ export class AgentDBLearningIntegration {
       this.logger.info(`Batch training completed in ${duration}ms`, {
         agentId,
         experiencesUsed: experiences.length,
-        avgReward: experiences.reduce((sum, e) => sum + e.reward, 0) / experiences.length
+        avgReward: experiences.reduce((sum: number, e: LearningExperience) => sum + e.reward, 0) / experiences.length
       });
 
     } catch (error) {
