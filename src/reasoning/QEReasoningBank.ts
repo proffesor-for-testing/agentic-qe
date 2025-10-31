@@ -32,6 +32,8 @@
 import { createHash } from 'crypto';
 import { VectorSimilarity } from './VectorSimilarity';
 import { PatternQualityScorer, QualityComponents } from './PatternQualityScorer';
+import { Database } from '../utils/Database';
+import { PatternDatabaseAdapter } from '../core/PatternDatabaseAdapter';
 
 // ===========================================================================
 // Test Interfaces (Phase 2 spec)
@@ -96,16 +98,25 @@ export class QEReasoningBank {
   private cacheExpiryTime: number = 5 * 60 * 1000; // 5 minutes cache TTL
   private lastCacheCleanup: number = Date.now();
   private minQuality: number;
+  private database?: Database; // NEW: Database for persistence
+  private dbAdapter?: PatternDatabaseAdapter; // NEW: Database adapter for pattern operations
   private performanceMetrics: {
     lookupTimes: number[];
     cachehits: number;
     cacheMisses: number;
   };
 
-  constructor(config: { minQuality?: number } = {}) {
+  constructor(config: { minQuality?: number; database?: Database } = {}) {
     this.vectorSimilarity = new VectorSimilarity({ useIDF: true });
     this.qualityScorer = new PatternQualityScorer();
     this.minQuality = config.minQuality ?? 0.7;
+    this.database = config.database;
+
+    // Initialize database adapter if database is provided
+    if (this.database) {
+      this.dbAdapter = new PatternDatabaseAdapter(this.database);
+    }
+
     this.performanceMetrics = {
       lookupTimes: [],
       cachehits: 0,
@@ -114,7 +125,48 @@ export class QEReasoningBank {
   }
 
   /**
+   * Initialize QEReasoningBank and load patterns from database
+   * Uses PatternDatabaseAdapter for clean separation of concerns
+   */
+  public async initialize(): Promise<void> {
+    if (!this.dbAdapter) {
+      console.log('[QEReasoningBank] No database configured, running in memory-only mode');
+      return;
+    }
+
+    try {
+      // Initialize database adapter
+      await this.dbAdapter.initialize();
+
+      // Load existing patterns from database
+      const patterns = await this.dbAdapter.loadPatterns({
+        minQuality: this.minQuality
+      });
+
+      for (const pattern of patterns) {
+        // Load into memory for fast access
+        this.patterns.set(pattern.id, pattern);
+
+        // Generate and cache vector embedding
+        const patternText = this.getPatternText(pattern);
+        this.vectorSimilarity.indexDocument(patternText);
+        const vector = this.vectorSimilarity.generateEmbedding(patternText);
+        this.vectorCache.set(pattern.id, vector);
+
+        // Update indexes
+        this.updateIndex(pattern);
+      }
+
+      console.log(`[QEReasoningBank] ✅ Loaded ${patterns.length} patterns from database`);
+    } catch (error) {
+      console.error('[QEReasoningBank] ❌ Failed to initialize:', error);
+      throw new Error(`QEReasoningBank initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
    * Store a new test pattern with quality scoring and vector indexing
+   * NOW WITH DATABASE PERSISTENCE
    */
   public async storePattern(pattern: TestPattern): Promise<void> {
     // Validate pattern
@@ -143,6 +195,12 @@ export class QEReasoningBank {
       pattern.quality = qualityScore.overall;
     }
 
+    // Only store patterns above minimum quality threshold
+    if (pattern.quality < this.minQuality) {
+      console.log(`[QEReasoningBank] Skipping low-quality pattern ${pattern.id} (quality: ${pattern.quality.toFixed(2)})`);
+      return;
+    }
+
     // Version existing pattern
     if (this.patterns.has(pattern.id)) {
       const existing = this.patterns.get(pattern.id)!;
@@ -151,7 +209,7 @@ export class QEReasoningBank {
       this.versionHistory.set(pattern.id, history);
     }
 
-    // Store pattern
+    // Store pattern in memory
     this.patterns.set(pattern.id, { ...pattern });
 
     // Generate and cache vector embedding
@@ -162,6 +220,17 @@ export class QEReasoningBank {
 
     // Update index for fast lookup
     this.updateIndex(pattern);
+
+    // NEW: Persist to database using adapter
+    if (this.dbAdapter) {
+      try {
+        await this.dbAdapter.storePattern(pattern);
+        console.log(`[QEReasoningBank] ✅ Persisted pattern ${pattern.id} to database (quality: ${pattern.quality.toFixed(2)})`);
+      } catch (error) {
+        console.error(`[QEReasoningBank] ❌ Failed to persist pattern ${pattern.id}:`, error);
+        // Don't throw - pattern is still in memory and functional
+      }
+    }
   }
 
   /**
@@ -382,11 +451,18 @@ export class QEReasoningBank {
   }
 
   /**
-   * Update pattern success metrics
+   * Update pattern success metrics with usage tracking
+   * NOW WITH DATABASE PERSISTENCE VIA ADAPTER
    */
   public async updatePatternMetrics(
     patternId: string,
-    success: boolean
+    success: boolean,
+    context?: {
+      executionTimeMs?: number;
+      projectId?: string;
+      agentId?: string;
+      errorMessage?: string;
+    }
   ): Promise<void> {
     const pattern = this.patterns.get(patternId);
     if (!pattern) {
@@ -403,6 +479,31 @@ export class QEReasoningBank {
 
     // Update timestamp
     pattern.metadata.updatedAt = new Date();
+
+    // NEW: Persist updated metrics to database using adapter
+    if (this.dbAdapter) {
+      try {
+        // Update pattern metrics
+        await this.dbAdapter.updatePatternMetrics(
+          patternId,
+          pattern.usageCount,
+          pattern.successRate
+        );
+
+        // Track this usage
+        await this.dbAdapter.trackUsage(
+          patternId,
+          success,
+          context?.executionTimeMs,
+          context
+        );
+
+        console.log(`[QEReasoningBank] ✅ Updated metrics for pattern ${patternId}: usage=${pattern.usageCount}, success=${(pattern.successRate * 100).toFixed(1)}%`);
+      } catch (error) {
+        console.error(`[QEReasoningBank] ❌ Failed to update pattern metrics:`, error);
+        // Don't throw - metrics are updated in memory
+      }
+    }
   }
 
   /**

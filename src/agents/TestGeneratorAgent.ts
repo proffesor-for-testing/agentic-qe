@@ -22,6 +22,7 @@ import {
 } from '../types';
 import { QEReasoningBank, TestPattern as QETestPattern, PatternMatch } from '../reasoning/QEReasoningBank';
 import { CodeSignature as ReasoningCodeSignature } from '../reasoning/types';
+import { PatternExtractor } from '../reasoning/PatternExtractor';
 import { LearningEngine } from '../learning/LearningEngine';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
@@ -116,6 +117,7 @@ export class TestGeneratorAgent extends BaseAgent {
 
   // Pattern-based generation (Phase 2 integration)
   private reasoningBank?: QEReasoningBank;
+  private patternExtractor?: PatternExtractor;
   // Note: learningEngine and performanceTracker are inherited from BaseAgent as protected
   // We don't redeclare them here to avoid visibility conflicts
   private readonly patternConfig: {
@@ -138,8 +140,19 @@ export class TestGeneratorAgent extends BaseAgent {
 
     // Initialize pattern-based components
     if (this.patternConfig.enabled) {
-      this.reasoningBank = new QEReasoningBank();
-      this.logger.info('[TestGeneratorAgent] Pattern-based generation enabled');
+      // ReasoningBank will be initialized with database in initializeComponents()
+      this.reasoningBank = new QEReasoningBank({
+        minQuality: 0.7
+      });
+
+      // Initialize pattern extractor for learning from generated tests
+      this.patternExtractor = new PatternExtractor({
+        minConfidence: 0.7,
+        minFrequency: 1, // Store patterns from first use
+        maxPatternsPerFile: 5
+      });
+
+      this.logger.info('[TestGeneratorAgent] Pattern-based generation enabled with database persistence');
     }
 
     // Note: Learning components are initialized by BaseAgent if enableLearning is true
@@ -159,6 +172,32 @@ export class TestGeneratorAgent extends BaseAgent {
     this.consciousnessEngine = await this.createConsciousnessEngine();
     this.psychoSymbolicReasoner = await this.createPsychoSymbolicReasoner();
     this.sublinearCore = await this.createSublinearCore();
+
+    // NEW: Initialize ReasoningBank with database from memoryStore
+    if (this.reasoningBank) {
+      try {
+        // Get database from SwarmMemoryManager if available
+        const swarmMemory = this.memoryStore as any;
+        if (swarmMemory && swarmMemory.getDatabase && typeof swarmMemory.getDatabase === 'function') {
+          const db = swarmMemory.getDatabase();
+          if (db) {
+            // Re-create ReasoningBank with database
+            this.reasoningBank = new QEReasoningBank({
+              minQuality: 0.7,
+              database: db
+            });
+            this.logger.info('[TestGeneratorAgent] ReasoningBank initialized with SwarmMemoryManager database');
+          }
+        }
+
+        // Initialize and load patterns from database
+        await this.reasoningBank.initialize();
+        this.logger.info('[TestGeneratorAgent] ReasoningBank pattern database loaded');
+      } catch (error) {
+        this.logger.error('[TestGeneratorAgent] Failed to initialize ReasoningBank:', error);
+        // Continue - agent will work without pattern reuse
+      }
+    }
 
     // Note: Learning components are initialized by BaseAgent.initialize()
     // We just verify they're available
@@ -445,6 +484,27 @@ export class TestGeneratorAgent extends BaseAgent {
 
       // Store results for learning
       await this.storeGenerationResults(request, finalTestSuite, generationTime);
+
+      // NEW: Extract and store patterns from generated tests
+      if (this.reasoningBank && this.patternExtractor && finalTestSuite.tests.length > 0) {
+        try {
+          // Extract patterns from generated test suite for future reuse
+          const extractedPatterns = await this.patternExtractor.extractFromTestSuite(
+            finalTestSuite.tests,
+            request.framework
+          );
+
+          // Store each extracted pattern
+          for (const pattern of extractedPatterns) {
+            await this.reasoningBank.storePattern(pattern);
+          }
+
+          this.logger.info(`[TestGeneratorAgent] Extracted and stored ${extractedPatterns.length} patterns from generated tests`);
+        } catch (error) {
+          this.logger.warn('[TestGeneratorAgent] Failed to extract patterns:', error);
+          // Don't fail generation if pattern extraction fails
+        }
+      }
 
       // Update pattern metrics in ReasoningBank (with null checks)
       if (this.reasoningBank && applicablePatterns.length > 0) {

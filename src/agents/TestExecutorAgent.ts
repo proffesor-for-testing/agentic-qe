@@ -109,6 +109,102 @@ export class TestExecutorAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Test Execution Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load test execution history before task execution
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB loading)
+    await super.onPreTask(data);
+
+    // Load test execution history for baseline comparison
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical test execution entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting test execution task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store test results and emit events for FlakyTestHunter
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB storage, learning)
+    await super.onPostTask(data);
+
+    // Store test execution results
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        testsExecuted: data.result?.totalTests || 0,
+        testsPassed: data.result?.passedTests || 0,
+        testsFailed: data.result?.failedTests || 0
+      },
+      86400 // 24 hours
+    );
+
+    // Emit test execution event for FlakyTestHunter and other agents
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date(),
+      testResults: data.result?.testResults || []
+    });
+
+    console.log(`[${this.agentId.type}] Test execution completed`, {
+      taskId: data.assignment.id,
+      testsRun: data.result?.totalTests || 0
+    });
+  }
+
+  /**
+   * Task error hook - Log test execution failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    // Call parent implementation
+    await super.onTaskError(data);
+
+    // Store test execution error for analysis
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800 // 7 days
+    );
+
+    // Emit error event
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Test execution failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Implementation
   // ============================================================================
 
@@ -327,7 +423,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async executeIntegrationTests(data: any): Promise<any> {
     const { testPath, framework = 'jest', environment = 'test' } = data;
 
-    this.logger.info(`Executing integration tests in ${environment} environment`);
+    console.log(`Executing integration tests in ${environment} environment`);
 
     const startTime = Date.now();
 
@@ -358,7 +454,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      this.logger.error('Integration test execution failed:', error);
+      console.error('Integration test execution failed:', error);
       throw error;
     }
   }
@@ -369,7 +465,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async executeE2ETests(data: any): Promise<any> {
     const { testPath, framework = 'cypress', baseUrl, browser = 'chrome' } = data;
 
-    this.logger.info(`Executing E2E tests with ${framework} on ${browser}`);
+    console.log(`Executing E2E tests with ${framework} on ${browser}`);
 
     const startTime = Date.now();
 
@@ -402,7 +498,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      this.logger.error('E2E test execution failed:', error);
+      console.error('E2E test execution failed:', error);
       throw error;
     }
   }
@@ -413,7 +509,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async executeApiTests(data: any): Promise<any> {
     const { testPath, baseUrl, framework = 'jest' } = data;
 
-    this.logger.info(`Executing API tests against ${baseUrl}`);
+    console.log(`Executing API tests against ${baseUrl}`);
 
     const startTime = Date.now();
 
@@ -444,7 +540,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      this.logger.error('API test execution failed:', error);
+      console.error('API test execution failed:', error);
       throw error;
     }
   }
@@ -455,7 +551,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async executeRegressionTests(data: any): Promise<any> {
     const { testSuite, baseline, framework = 'jest' } = data;
 
-    this.logger.info(`Executing regression tests against baseline: ${baseline}`);
+    console.log(`Executing regression tests against baseline: ${baseline}`);
 
     const startTime = Date.now();
 
@@ -486,7 +582,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      this.logger.error('Regression test execution failed:', error);
+      console.error('Regression test execution failed:', error);
       throw error;
     }
   }
@@ -497,7 +593,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async discoverTests(data: any): Promise<any> {
     const { searchPath = './tests', frameworks = this.config.frameworks } = data;
 
-    this.logger.info(`Discovering tests in ${searchPath}`);
+    console.log(`Discovering tests in ${searchPath}`);
 
     // Simulate test discovery
     const discovered = {
@@ -524,7 +620,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async analyzeTests(data: any): Promise<any> {
     const { testPath, _includeMetrics = true } = data;
 
-    this.logger.info(`Analyzing tests in ${testPath}`);
+    console.log(`Analyzing tests in ${testPath}`);
 
     // Simulate test analysis
     const analysis = {
@@ -876,7 +972,7 @@ export class TestExecutorAgent extends BaseAgent {
    * Run tests using a specific framework - REAL IMPLEMENTATION
    */
   private async runTestFramework(framework: string, options: any): Promise<any> {
-    this.logger.info(`Running tests with ${framework}`, options);
+    console.log(`Running tests with ${framework}`, options);
 
     // Import TestFrameworkExecutor dynamically
     const { TestFrameworkExecutor } = await import('../utils/TestFrameworkExecutor.js');
@@ -906,7 +1002,7 @@ export class TestExecutorAgent extends BaseAgent {
         config: options.config
       });
 
-      this.logger.info(`Test execution completed: ${result.passedTests}/${result.totalTests} passed`);
+      console.log(`Test execution completed: ${result.passedTests}/${result.totalTests} passed`);
 
       return {
         total: result.totalTests,
@@ -920,7 +1016,7 @@ export class TestExecutorAgent extends BaseAgent {
         status: result.status
       };
     } catch (error) {
-      this.logger.error('Test execution failed:', error);
+      console.error('Test execution failed:', error);
       throw error;
     }
   }

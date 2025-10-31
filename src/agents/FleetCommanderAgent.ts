@@ -223,6 +223,104 @@ export class FleetCommanderAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Fleet Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load fleet coordination state before task execution
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB loading)
+    await super.onPreTask(data);
+
+    // Load fleet coordination state and resource allocations
+    const fleetState = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/fleet-state`
+    );
+
+    if (fleetState) {
+      console.log(`Loaded fleet state with ${fleetState.activeAgents || 0} active agents`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting fleet coordination task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store coordination results and emit fleet events
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB storage, learning)
+    await super.onPostTask(data);
+
+    // Store fleet coordination results
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        agentsCoordinated: data.result?.agentsCoordinated || 0
+      },
+      86400 // 24 hours
+    );
+
+    // Emit fleet coordination event for other agents
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date(),
+      fleetMetrics: this.fleetMetrics
+    });
+
+    console.log(`[${this.agentId.type}] Fleet coordination task completed`, {
+      taskId: data.assignment.id,
+      agentsManaged: this.fleetMetrics.totalAgents
+    });
+  }
+
+  /**
+   * Task error hook - Handle fleet coordination failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    // Call parent implementation
+    await super.onTaskError(data);
+
+    // Store fleet coordination error for analysis
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        fleetState: {
+          totalAgents: this.fleetMetrics.totalAgents,
+          activeAgents: this.fleetMetrics.activeAgents
+        }
+      },
+      604800 // 7 days
+    );
+
+    // Emit fleet error event
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Fleet coordination task failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Abstract Methods Implementation
   // ============================================================================
 

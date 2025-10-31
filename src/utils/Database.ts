@@ -242,6 +242,95 @@ export class Database {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME,
         UNIQUE(key, namespace)
+      )`,
+
+      // Test patterns for Learning System
+      `CREATE TABLE IF NOT EXISTS patterns (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        category TEXT NOT NULL CHECK(category IN ('unit', 'integration', 'e2e', 'performance', 'security')),
+        framework TEXT NOT NULL CHECK(framework IN ('jest', 'mocha', 'vitest', 'playwright', 'cypress', 'jasmine', 'ava')),
+        language TEXT NOT NULL CHECK(language IN ('typescript', 'javascript', 'python')),
+        template TEXT NOT NULL,
+        examples TEXT NOT NULL,
+        confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+        usage_count INTEGER DEFAULT 0,
+        success_rate REAL DEFAULT 0 CHECK(success_rate >= 0 AND success_rate <= 1),
+        quality REAL CHECK(quality >= 0 AND quality <= 1),
+        metadata TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Pattern usage tracking
+      `CREATE TABLE IF NOT EXISTS pattern_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pattern_id TEXT NOT NULL,
+        project_id TEXT,
+        agent_id TEXT,
+        context TEXT,
+        success BOOLEAN DEFAULT TRUE,
+        execution_time_ms INTEGER,
+        error_message TEXT,
+        used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pattern_id) REFERENCES patterns (id) ON DELETE CASCADE
+      )`,
+
+      // Q-values table for Q-learning
+      `CREATE TABLE IF NOT EXISTS q_values (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        action_key TEXT NOT NULL,
+        q_value REAL NOT NULL DEFAULT 0,
+        update_count INTEGER DEFAULT 1,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(agent_id, state_key, action_key)
+      )`,
+
+      // Learning experiences table
+      `CREATE TABLE IF NOT EXISTS learning_experiences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        task_id TEXT,
+        task_type TEXT NOT NULL,
+        state TEXT NOT NULL,
+        action TEXT NOT NULL,
+        reward REAL NOT NULL,
+        next_state TEXT NOT NULL,
+        episode_id TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE SET NULL
+      )`,
+
+      // Learning history for Q-Learning
+      `CREATE TABLE IF NOT EXISTS learning_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        pattern_id TEXT,
+        state_representation TEXT NOT NULL,
+        action TEXT NOT NULL,
+        reward REAL NOT NULL,
+        next_state_representation TEXT,
+        q_value REAL,
+        episode INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (pattern_id) REFERENCES patterns (id) ON DELETE SET NULL
+      )`,
+
+      // Learning metrics for analytics
+      `CREATE TABLE IF NOT EXISTS learning_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        metric_type TEXT NOT NULL CHECK(metric_type IN ('accuracy', 'latency', 'quality', 'success_rate', 'improvement')),
+        metric_value REAL NOT NULL,
+        baseline_value REAL,
+        improvement_percentage REAL,
+        pattern_count INTEGER,
+        context TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       )`
     ];
 
@@ -265,7 +354,41 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_metrics_agent_id ON metrics (agent_id)',
       'CREATE INDEX IF NOT EXISTS idx_metrics_type ON metrics (metric_type)',
       'CREATE INDEX IF NOT EXISTS idx_memory_store_namespace ON memory_store (namespace)',
-      'CREATE INDEX IF NOT EXISTS idx_memory_store_expires_at ON memory_store (expires_at)'
+      'CREATE INDEX IF NOT EXISTS idx_memory_store_expires_at ON memory_store (expires_at)',
+
+      // Pattern indexes for fast lookup (< 50ms requirement)
+      'CREATE INDEX IF NOT EXISTS idx_patterns_category ON patterns (category)',
+      'CREATE INDEX IF NOT EXISTS idx_patterns_framework ON patterns (framework)',
+      'CREATE INDEX IF NOT EXISTS idx_patterns_language ON patterns (language)',
+      'CREATE INDEX IF NOT EXISTS idx_patterns_quality ON patterns (quality)',
+      'CREATE INDEX IF NOT EXISTS idx_patterns_usage_count ON patterns (usage_count)',
+      'CREATE INDEX IF NOT EXISTS idx_patterns_created_at ON patterns (created_at)',
+
+      // Q-learning indexes
+      'CREATE INDEX IF NOT EXISTS idx_q_values_agent_id ON q_values (agent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_q_values_state ON q_values (state_key)',
+      'CREATE INDEX IF NOT EXISTS idx_q_values_updated ON q_values (last_updated)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_experiences_agent_id ON learning_experiences (agent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_experiences_task_type ON learning_experiences (task_type)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_experiences_timestamp ON learning_experiences (timestamp)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_history_agent_id ON learning_history (agent_id)',
+
+      // Pattern usage indexes for analytics
+      'CREATE INDEX IF NOT EXISTS idx_pattern_usage_pattern_id ON pattern_usage (pattern_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pattern_usage_agent_id ON pattern_usage (agent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_pattern_usage_used_at ON pattern_usage (used_at)',
+      'CREATE INDEX IF NOT EXISTS idx_pattern_usage_success ON pattern_usage (success)',
+
+      // Learning history indexes
+      'CREATE INDEX IF NOT EXISTS idx_learning_history_agent_id ON learning_history (agent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_history_pattern_id ON learning_history (pattern_id)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_history_timestamp ON learning_history (timestamp)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_history_episode ON learning_history (episode)',
+
+      // Learning metrics indexes
+      'CREATE INDEX IF NOT EXISTS idx_learning_metrics_agent_id ON learning_metrics (agent_id)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_metrics_type ON learning_metrics (metric_type)',
+      'CREATE INDEX IF NOT EXISTS idx_learning_metrics_timestamp ON learning_metrics (timestamp)'
     ];
 
     for (const index of indexes) {
@@ -477,5 +600,358 @@ export class Database {
       this.logger.error('Error compacting database:', error);
       throw error;
     }
+  }
+
+  /**
+   * ============================================================================
+   * Q-Learning Database Operations
+   * ============================================================================
+   */
+
+  /**
+   * Upsert Q-value for state-action pair
+   */
+  async upsertQValue(
+    agentId: string,
+    stateKey: string,
+    actionKey: string,
+    qValue: number
+  ): Promise<void> {
+    const sql = `
+      INSERT INTO q_values (agent_id, state_key, action_key, q_value, update_count, last_updated)
+      VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(agent_id, state_key, action_key) DO UPDATE SET
+        q_value = ?,
+        update_count = update_count + 1,
+        last_updated = CURRENT_TIMESTAMP
+    `;
+
+    await this.run(sql, [agentId, stateKey, actionKey, qValue, qValue]);
+  }
+
+  /**
+   * Get Q-value for state-action pair
+   */
+  async getQValue(agentId: string, stateKey: string, actionKey: string): Promise<number | null> {
+    const sql = `
+      SELECT q_value FROM q_values
+      WHERE agent_id = ? AND state_key = ? AND action_key = ?
+    `;
+
+    const row = await this.get(sql, [agentId, stateKey, actionKey]);
+    return row ? row.q_value : null;
+  }
+
+  /**
+   * Get all Q-values for an agent
+   */
+  async getAllQValues(agentId: string): Promise<Array<{
+    state_key: string;
+    action_key: string;
+    q_value: number;
+    update_count: number;
+  }>> {
+    const sql = `
+      SELECT state_key, action_key, q_value, update_count
+      FROM q_values
+      WHERE agent_id = ?
+      ORDER BY last_updated DESC
+    `;
+
+    return await this.all(sql, [agentId]) as Array<{
+      state_key: string;
+      action_key: string;
+      q_value: number;
+      update_count: number;
+    }>;
+  }
+
+  /**
+   * Get Q-values for a specific state
+   */
+  async getStateQValues(agentId: string, stateKey: string): Promise<Array<{
+    action_key: string;
+    q_value: number;
+  }>> {
+    const sql = `
+      SELECT action_key, q_value
+      FROM q_values
+      WHERE agent_id = ? AND state_key = ?
+      ORDER BY q_value DESC
+    `;
+
+    return await this.all(sql, [agentId, stateKey]) as Array<{
+      action_key: string;
+      q_value: number;
+    }>;
+  }
+
+  /**
+   * Store learning experience
+   */
+  async storeLearningExperience(experience: {
+    agentId: string;
+    taskId?: string;
+    taskType: string;
+    state: string;
+    action: string;
+    reward: number;
+    nextState: string;
+    episodeId?: string;
+  }): Promise<void> {
+    const sql = `
+      INSERT INTO learning_experiences (
+        agent_id, task_id, task_type, state, action, reward, next_state, episode_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    await this.run(sql, [
+      experience.agentId,
+      experience.taskId || null,
+      experience.taskType,
+      experience.state,
+      experience.action,
+      experience.reward,
+      experience.nextState,
+      experience.episodeId || null
+    ]);
+  }
+
+  /**
+   * Get learning experiences for an agent
+   */
+  async getLearningExperiences(
+    agentId: string,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<Array<{
+    id: number;
+    task_type: string;
+    state: string;
+    action: string;
+    reward: number;
+    next_state: string;
+    timestamp: string;
+  }>> {
+    const sql = `
+      SELECT id, task_type, state, action, reward, next_state, timestamp
+      FROM learning_experiences
+      WHERE agent_id = ?
+      ORDER BY timestamp DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    return await this.all(sql, [agentId, limit, offset]) as Array<{
+      id: number;
+      task_type: string;
+      state: string;
+      action: string;
+      reward: number;
+      next_state: string;
+      timestamp: string;
+    }>;
+  }
+
+  /**
+   * Store learning snapshot for analytics
+   */
+  async storeLearningSnapshot(snapshot: {
+    agentId: string;
+    snapshotType: 'performance' | 'q_table' | 'pattern';
+    metrics: any;
+    improvementRate?: number;
+    totalExperiences?: number;
+    explorationRate?: number;
+  }): Promise<void> {
+    const sql = `
+      INSERT INTO learning_history (
+        agent_id, state_representation, action, reward,
+        next_state_representation, q_value, episode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    // Store as learning_history entry (compatible with existing schema)
+    await this.run(sql, [
+      snapshot.agentId,
+      snapshot.snapshotType,
+      JSON.stringify(snapshot.metrics),
+      snapshot.improvementRate || 0,
+      '', // next_state_representation (unused for snapshots)
+      snapshot.explorationRate || 0,
+      snapshot.totalExperiences || 0
+    ]);
+  }
+
+  /**
+   * Get learning statistics for an agent
+   */
+  async getLearningStatistics(agentId: string): Promise<{
+    totalExperiences: number;
+    avgReward: number;
+    qTableSize: number;
+    recentImprovement: number;
+  }> {
+    const [experiencesRow, avgRewardRow, qTableRow] = await Promise.all([
+      this.get('SELECT COUNT(*) as count FROM learning_experiences WHERE agent_id = ?', [agentId]),
+      this.get('SELECT AVG(reward) as avg FROM learning_experiences WHERE agent_id = ? AND timestamp > datetime("now", "-7 days")', [agentId]),
+      this.get('SELECT COUNT(*) as count FROM q_values WHERE agent_id = ?', [agentId])
+    ]);
+
+    // Calculate recent improvement
+    const recentRewards = await this.all(
+      'SELECT reward FROM learning_experiences WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 20',
+      [agentId]
+    );
+
+    const oldRewards = await this.all(
+      'SELECT reward FROM learning_experiences WHERE agent_id = ? ORDER BY timestamp ASC LIMIT 20',
+      [agentId]
+    );
+
+    const recentAvg = recentRewards.length > 0
+      ? recentRewards.reduce((sum: number, r: any) => sum + r.reward, 0) / recentRewards.length
+      : 0;
+
+    const oldAvg = oldRewards.length > 0
+      ? oldRewards.reduce((sum: number, r: any) => sum + r.reward, 0) / oldRewards.length
+      : 0;
+
+    const improvement = oldAvg !== 0 ? ((recentAvg - oldAvg) / Math.abs(oldAvg)) * 100 : 0;
+
+    return {
+      totalExperiences: (experiencesRow as any)?.count || 0,
+      avgReward: (avgRewardRow as any)?.avg || 0,
+      qTableSize: (qTableRow as any)?.count || 0,
+      recentImprovement: improvement
+    };
+  }
+
+  /**
+   * Clear old learning experiences (keep last N)
+   */
+  async pruneOldExperiences(agentId: string, keepLast: number = 10000): Promise<number> {
+    const sql = `
+      DELETE FROM learning_experiences
+      WHERE agent_id = ? AND id NOT IN (
+        SELECT id FROM learning_experiences
+        WHERE agent_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+      )
+    `;
+
+    const result = await this.run(sql, [agentId, agentId, keepLast]);
+    return result.changes;
+  }
+
+  /**
+   * Get learning history for CLI display
+   * Returns comprehensive view of agent's learning progress
+   */
+  async getLearningHistory(
+    agentId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      includeQValues?: boolean;
+      includePatterns?: boolean;
+    } = {}
+  ): Promise<{
+    experiences: Array<{
+      id: number;
+      task_type: string;
+      state: string;
+      action: string;
+      reward: number;
+      next_state: string;
+      timestamp: string;
+      q_value?: number;
+    }>;
+    summary: {
+      totalExperiences: number;
+      avgReward: number;
+      recentAvgReward: number;
+      improvementRate: number;
+      qTableSize: number;
+      patternsStored?: number;
+    };
+  }> {
+    const limit = options.limit || 50;
+    const offset = options.offset || 0;
+
+    // Get experiences with optional Q-values
+    const experiencesSql = options.includeQValues
+      ? `
+        SELECT
+          e.id,
+          e.task_type,
+          e.state,
+          e.action,
+          e.reward,
+          e.next_state,
+          e.timestamp,
+          q.q_value
+        FROM learning_experiences e
+        LEFT JOIN q_values q ON q.agent_id = e.agent_id
+          AND q.state_key = e.state
+          AND q.action_key = e.action
+        WHERE e.agent_id = ?
+        ORDER BY e.timestamp DESC
+        LIMIT ? OFFSET ?
+      `
+      : `
+        SELECT
+          id,
+          task_type,
+          state,
+          action,
+          reward,
+          next_state,
+          timestamp
+        FROM learning_experiences
+        WHERE agent_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ? OFFSET ?
+      `;
+
+    const experiences = await this.all(experiencesSql, [agentId, limit, offset]) as any[];
+
+    // Get summary statistics
+    const stats = await this.getLearningStatistics(agentId);
+
+    // Get pattern count if requested
+    let patternsStored: number | undefined;
+    if (options.includePatterns) {
+      const patternResult = await this.get(
+        'SELECT COUNT(*) as count FROM patterns WHERE metadata LIKE ?',
+        [`%"agentId":"${agentId}"%`]
+      );
+      patternsStored = (patternResult as any)?.count || 0;
+    }
+
+    // Calculate recent average reward (last 20 experiences)
+    const recentSql = `
+      SELECT AVG(reward) as avg
+      FROM (
+        SELECT reward FROM learning_experiences
+        WHERE agent_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 20
+      )
+    `;
+    const recentResult = await this.get(recentSql, [agentId]);
+    const recentAvgReward = (recentResult as any)?.avg || 0;
+
+    return {
+      experiences,
+      summary: {
+        totalExperiences: stats.totalExperiences,
+        avgReward: stats.avgReward,
+        recentAvgReward,
+        improvementRate: stats.recentImprovement,
+        qTableSize: stats.qTableSize,
+        patternsStored
+      }
+    };
   }
 }
