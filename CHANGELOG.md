@@ -5,6 +5,63 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2025-10-31
+
+### 🚨 CRITICAL FIX - Emergency Patch Release
+
+This is an emergency patch release to fix a critical bug in v1.4.0 that prevented **all QE agents from spawning**.
+
+### Fixed
+
+- **[CRITICAL]** Fixed duplicate MCP tool names error preventing all QE agents from spawning
+  - **Root Cause**: package.json contained self-dependency `"agentic-qe": "^1.3.3"` causing duplicate tool registration
+  - **Impact**: ALL 18 QE agents failed with `API Error 400: tools: Tool names must be unique`
+  - **Fix 1**: Removed self-dependency from package.json dependencies
+  - **Fix 2**: Updated package.json "files" array to explicitly include only `.claude/agents`, `.claude/skills`, `.claude/commands`
+  - **Fix 3**: Added `.claude/settings*.json` to .npmignore to prevent shipping development configuration
+- Fixed package bundling to exclude development configuration files
+
+### Impact Assessment
+
+- **Affected Users**: All users who installed v1.4.0 from npm
+- **Severity**: CRITICAL - All agent spawning was broken in v1.4.0
+- **Workaround**: Upgrade to v1.4.1 immediately: `npm install agentic-qe@latest`
+
+### Upgrade Instructions
+
+```bash
+# If you installed v1.4.0, upgrade immediately:
+npm install agentic-qe@latest
+
+# Verify the fix:
+aqe --version  # Should show 1.4.1
+
+# Test agent spawning (should now work):
+# In Claude Code: Task("Test", "Generate a simple test", "qe-test-generator")
+```
+
+---
+
+## [1.4.0] - 2025-10-26
+
+### 🎯 Agent Memory & Learning Infrastructure Complete
+
+Phase 2 development complete with agent memory, learning systems, and pattern reuse.
+
+### Added
+
+- **Agent Memory Infrastructure**: AgentDB integration with SwarmMemoryManager
+- **Learning System**: Q-learning with 9 RL algorithms for continuous improvement
+- **Pattern Bank**: Reusable test patterns with vector search
+- **Force Flag**: `aqe init --force` to reinitialize projects
+
+### Known Issues
+
+- **v1.4.0 BROKEN**: All agents fail to spawn due to duplicate MCP tool names
+  - **Fixed in v1.4.1**: Upgrade immediately if you installed v1.4.0
+
+---
+
 ## [1.3.7] - 2025-10-30
 
 ### 📚 Documentation Updates

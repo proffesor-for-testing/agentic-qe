@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.4.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.1** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
 
@@ -506,8 +506,22 @@ Model Usage:
 
 ## 📝 Recent Changes
 
-### v1.4.0 (2025-10-31)
-**Agent Memory & Learning Infrastructure Complete**
+### v1.4.1 (2025-10-31)
+**🚨 CRITICAL FIX - Emergency Patch Release**
+
+- 🔴 **CRITICAL**: Fixed duplicate MCP tool names preventing all QE agents from spawning
+  - Root Cause: package.json self-dependency `"agentic-qe": "^1.3.3"`
+  - Impact: ALL 18 agents failed with API Error 400 in v1.4.0
+  - Fixed: Removed self-dependency, updated package bundling
+- ✅ Agents now spawn correctly via Claude Code Task tool
+- ✅ Package no longer includes development configuration files
+
+**If you installed v1.4.0, upgrade immediately**: `npm install agentic-qe@latest`
+
+---
+
+### v1.4.0 (2025-10-31) ⚠️ BROKEN - DO NOT USE
+**Agent Memory & Learning Infrastructure Complete** (but all agents fail to spawn)
 
 - ✅ **Fixed 11 agents with lifecycle hooks** - Proper memoryStore API usage (retrieve/store signatures)
 - ✅ **Comprehensive learning validation** - All 16 agents inherit BaseAgent learning (89% coverage)

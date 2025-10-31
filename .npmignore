@@ -37,6 +37,11 @@ coverage/
 Thumbs.db
 .swarm/
 
+# Claude Code development files (keep only agents, skills, commands)
+.claude/settings*.json
+.claude/aqe-fleet.json
+.claude/statusline-command.sh
+
 # Environment files
 .env
 .env.local
