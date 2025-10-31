@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.7** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
 
@@ -505,6 +505,38 @@ Model Usage:
 ---
 
 ## 📝 Recent Changes
+
+### v1.4.0 (2025-10-31)
+**Agent Memory & Learning Infrastructure Complete**
+
+- ✅ **Fixed 11 agents with lifecycle hooks** - Proper memoryStore API usage (retrieve/store signatures)
+- ✅ **Comprehensive learning validation** - All 16 agents inherit BaseAgent learning (89% coverage)
+- ✅ **AgentDB integration verified** - Vector search, HNSW indexing, neural training in onPreTask/onPostTask
+- ✅ **Added `--force` flag to `aqe init`** - Force overwrite existing agent files (like claude-flow)
+- ✅ **Full initialization tested** - Fresh project verification passed all checks
+- ✅ **Agent definitions updated** - All agents have `agentdb_enabled: true` metadata
+
+**Learning System Verified**:
+- 🧠 Q-Learning enabled by default (lr=0.1, γ=0.95, ε=0.2)
+- 📊 Experience replay buffer (10,000 experiences)
+- 🎯 20% target improvement in 100 tasks
+- 💾 Persistent memory (24h TTL for results, 7d for errors)
+- 🔄 Pattern storage with neural training every 100 patterns
+
+**Agent Coverage**:
+- ✅ 13/16 agents have complete hooks (onPreTask + onPostTask + onTaskError)
+- ✅ 16/16 agents have onPostTask (100% - critical for learning)
+- ✅ All agents inherit enableLearning: true by default
+- ✅ LearningEngine auto-initializes when enabled
+
+**Verification Results**:
+- 19 agent definitions (18 QE + 1 base template)
+- 34 specialized QE skills
+- 8 AQE slash commands
+- 7 configuration files
+- 2 SQLite databases (memory.db 216KB, patterns.db 152KB)
+
+**Contributors**: AQE Development Team
 
 ### v1.3.6 (2025-10-30)
 **Stability & Educational Release**

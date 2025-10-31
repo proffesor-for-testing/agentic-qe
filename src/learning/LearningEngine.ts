@@ -9,6 +9,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/Logger';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { QLearning, QLearningConfig } from './QLearning';
+import { StateExtractor } from './StateExtractor';
+import { RewardCalculator, TaskResult } from './RewardCalculator';
+import { Database } from '../utils/Database';
 
 // Import version from package.json to maintain consistency
 const packageJson = require('../../package.json');
@@ -57,11 +60,15 @@ export class LearningEngine {
   private patterns: Map<string, LearnedPattern>;
   private failurePatterns: Map<string, FailurePattern>;
   private taskCount: number;
+  private readonly stateExtractor: StateExtractor;
+  private readonly rewardCalculator: RewardCalculator;
+  private database?: Database;
 
   constructor(
     agentId: string,
     memoryStore: SwarmMemoryManager,
-    config: Partial<LearningConfig> = {}
+    config: Partial<LearningConfig> = {},
+    database?: Database
   ) {
     this.logger = Logger.getInstance();
     this.agentId = agentId;
@@ -73,6 +80,9 @@ export class LearningEngine {
     this.patterns = new Map();
     this.failurePatterns = new Map();
     this.taskCount = 0;
+    this.stateExtractor = new StateExtractor();
+    this.rewardCalculator = new RewardCalculator();
+    this.database = database;
   }
 
   /**
@@ -84,6 +94,11 @@ export class LearningEngine {
     // Load previous learning state if exists
     await this.loadState();
 
+    // Load Q-values from database if available
+    if (this.database) {
+      await this.loadQTableFromDatabase();
+    }
+
     // Store config in memory
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/config`,
@@ -92,6 +107,145 @@ export class LearningEngine {
     );
 
     this.logger.info('LearningEngine initialized successfully');
+  }
+
+  /**
+   * Record experience from task execution (PRODUCTION-READY WITH DATABASE PERSISTENCE)
+   * This is the main integration point for Q-learning
+   */
+  async recordExperience(task: any, result: TaskResult, feedback?: LearningFeedback): Promise<void> {
+    if (!this.config.enabled) {
+      return;
+    }
+
+    try {
+      // Extract state from task
+      const state = this.stateExtractor.extractState(task, task.context);
+
+      // Extract action from result
+      const action: AgentAction = {
+        strategy: result.metadata?.strategy || 'default',
+        toolsUsed: result.metadata?.toolsUsed || [],
+        parallelization: result.metadata?.parallelization || 0.5,
+        retryPolicy: result.metadata?.retryPolicy || 'exponential',
+        resourceAllocation: result.metadata?.resourceAllocation || 0.5
+      };
+
+      // Calculate reward using RewardCalculator
+      const reward = this.rewardCalculator.calculateReward(result, feedback);
+
+      // Create next state (after execution)
+      const nextState: TaskState = {
+        ...state,
+        previousAttempts: state.previousAttempts + 1,
+        availableResources: state.availableResources * (result.success ? 1.0 : 0.9)
+      };
+
+      // Create experience
+      const experience: TaskExperience = {
+        taskId: task.id || uuidv4(),
+        taskType: task.type,
+        state,
+        action,
+        reward,
+        nextState,
+        timestamp: new Date(),
+        agentId: this.agentId
+      };
+
+      // Store experience in memory
+      this.experiences.push(experience);
+
+      // Store experience in database (ACTUAL PERSISTENCE)
+      if (this.database) {
+        await this.database.storeLearningExperience({
+          agentId: this.agentId,
+          taskId: experience.taskId,
+          taskType: experience.taskType,
+          state: this.stateExtractor.encodeState(experience.state),
+          action: this.stateExtractor.encodeAction(experience.action),
+          reward: experience.reward,
+          nextState: this.stateExtractor.encodeState(experience.nextState),
+          episodeId: `episode-${Math.floor(this.taskCount / 10)}`
+        });
+
+        this.logger.debug(`Stored learning experience in database: task=${experience.taskId}, reward=${reward.toFixed(3)}`);
+      }
+
+      // Update Q-table with new experience
+      await this.updateQTable(experience);
+
+      // Store updated Q-value to database (ACTUAL Q-VALUE PERSISTENCE)
+      if (this.database) {
+        const stateKey = this.stateExtractor.encodeState(experience.state);
+        const actionKey = this.stateExtractor.encodeAction(experience.action);
+        const stateActions = this.qTable.get(stateKey);
+        const qValue = stateActions?.get(actionKey) || 0;
+
+        await this.database.upsertQValue(this.agentId, stateKey, actionKey, qValue);
+        this.logger.debug(`Persisted Q-value to database: Q(${stateKey}, ${actionKey}) = ${qValue.toFixed(3)}`);
+      }
+
+      // Update patterns
+      await this.updatePatterns(experience);
+
+      // Increment task count
+      this.taskCount++;
+
+      // Periodic batch update
+      if (this.taskCount % this.config.updateFrequency === 0) {
+        await this.performBatchUpdate();
+
+        // Store learning snapshot for analytics
+        if (this.database) {
+          const stats = await this.database.getLearningStatistics(this.agentId);
+          await this.database.storeLearningSnapshot({
+            agentId: this.agentId,
+            snapshotType: 'performance',
+            metrics: stats,
+            improvementRate: stats.recentImprovement,
+            totalExperiences: stats.totalExperiences,
+            explorationRate: this.config.explorationRate
+          });
+        }
+      }
+
+      // Decay exploration rate
+      this.decayExploration();
+
+      // Save state periodically
+      if (this.taskCount % 50 === 0) {
+        await this.saveState();
+      }
+
+      this.logger.info(`Recorded experience: reward=${reward.toFixed(3)}, exploration=${this.config.explorationRate.toFixed(3)}, experiences=${this.experiences.length}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to record experience:`, error);
+      // Don't throw - learning failures shouldn't break task execution
+    }
+  }
+
+  /**
+   * Load Q-table from database on initialization
+   */
+  private async loadQTableFromDatabase(): Promise<void> {
+    if (!this.database) return;
+
+    try {
+      const qValues = await this.database.getAllQValues(this.agentId);
+
+      for (const qv of qValues) {
+        if (!this.qTable.has(qv.state_key)) {
+          this.qTable.set(qv.state_key, new Map());
+        }
+        this.qTable.get(qv.state_key)!.set(qv.action_key, qv.q_value);
+      }
+
+      this.logger.info(`Loaded ${qValues.length} Q-values from database`);
+    } catch (error) {
+      this.logger.warn(`Failed to load Q-values from database:`, error);
+    }
   }
 
   /**

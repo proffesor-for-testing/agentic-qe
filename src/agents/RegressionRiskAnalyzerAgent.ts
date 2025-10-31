@@ -313,6 +313,93 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Regression Risk Analysis Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load regression analysis history
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    await super.onPreTask(data);
+
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical regression analysis entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting regression risk analysis task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store risk analysis and emit events
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    await super.onPostTask(data);
+
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        riskLevel: data.result?.riskLevel,
+        testsSelected: data.result?.selectedTests?.length || 0
+      },
+      86400
+    );
+
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date(),
+      riskAssessment: data.result?.riskAssessment
+    });
+
+    console.log(`[${this.agentId.type}] Regression risk analysis completed`, {
+      taskId: data.assignment.id,
+      riskLevel: data.result?.riskLevel
+    });
+  }
+
+  /**
+   * Task error hook - Log regression analysis failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    await super.onTaskError(data);
+
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800
+    );
+
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Regression risk analysis failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Implementation
   // ============================================================================
 

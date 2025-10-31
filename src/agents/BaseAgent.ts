@@ -101,7 +101,7 @@ export abstract class BaseAgent extends EventEmitter {
     this.context = config.context;
     this.memoryStore = config.memoryStore;
     this.eventBus = config.eventBus;
-    this.enableLearning = config.enableLearning ?? false;
+    this.enableLearning = config.enableLearning ?? true; // Changed: Default to true for all agents
     this.learningConfig = config.learningConfig;
 
     // Build AgentDB config from either agentDBConfig or shorthand properties

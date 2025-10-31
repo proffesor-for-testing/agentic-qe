@@ -151,7 +151,7 @@ export class InitCommand {
       const spinner = ora('Setting up fleet infrastructure...').start();
 
       // Create directory structure
-      await this.createDirectoryStructure();
+      await this.createDirectoryStructure(options.force);
       spinner.text = 'Creating configuration files...';
 
       // Write fleet configuration
@@ -236,7 +236,7 @@ export class InitCommand {
     }
   }
 
-  private static async createDirectoryStructure(): Promise<void> {
+  private static async createDirectoryStructure(force: boolean = false): Promise<void> {
     const dirs = [
       '.agentic-qe',
       '.agentic-qe/config',
@@ -266,7 +266,7 @@ export class InitCommand {
     }
 
     // Copy agent templates from agentic-qe package
-    await this.copyAgentTemplates();
+    await this.copyAgentTemplates(force);
 
     // Copy skill templates (only QE Fleet skills, not Claude Flow)
     await this.copySkillTemplates();
@@ -275,7 +275,7 @@ export class InitCommand {
     await this.copyCommandTemplates();
   }
 
-  private static async copyAgentTemplates(): Promise<void> {
+  private static async copyAgentTemplates(force: boolean = false): Promise<void> {
     console.log(chalk.cyan('  🔍 Searching for agent templates...'));
 
     // Find the agentic-qe package location (handles both npm install and local dev)
@@ -298,7 +298,7 @@ export class InitCommand {
     if (!sourcePath) {
       console.warn(chalk.yellow('  ⚠️  No agent templates found in package paths'));
       console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 18 agents)'));
-      await this.createBasicAgents();
+      await this.createBasicAgents(force);
       return;
     }
 
@@ -313,17 +313,36 @@ export class InitCommand {
     const targetPath = path.join(process.cwd(), '.claude/agents');
 
     let copiedFiles = 0;
+    let updatedFiles = 0;
+    let skippedFiles = 0;
     for (const templateFile of templateFiles) {
       const sourceFile = path.join(sourcePath, templateFile);
       const targetFile = path.join(targetPath, templateFile);
 
-      // Only copy if target doesn't exist
-      if (!await fs.pathExists(targetFile)) {
+      // Skip if source and target are the same file
+      const sourceResolved = path.resolve(sourceFile);
+      const targetResolved = path.resolve(targetFile);
+      if (sourceResolved === targetResolved) {
+        skippedFiles++;
+        continue;
+      }
+
+      const targetExists = await fs.pathExists(targetFile);
+
+      // Copy if target doesn't exist OR force flag is set
+      if (!targetExists || force) {
         await fs.copy(sourceFile, targetFile);
-        copiedFiles++;
+        if (targetExists) {
+          updatedFiles++;
+        } else {
+          copiedFiles++;
+        }
       }
     }
 
+    if (force && updatedFiles > 0) {
+      console.log(chalk.green(`  ✓ Updated ${updatedFiles} existing agent definitions`));
+    }
     console.log(chalk.green(`  ✓ Copied ${copiedFiles} new agent definitions`));
 
     const copiedCount = await this.countAgentFiles(targetPath);
@@ -339,13 +358,13 @@ export class InitCommand {
       const targetFiles = await fs.readdir(targetPath);
       const existingTargetFiles = targetFiles.filter(f => f.endsWith('.md'));
 
-      await this.createMissingAgents(targetPath, existingTargetFiles);
+      await this.createMissingAgents(targetPath, existingTargetFiles, force);
     } else {
       console.log(chalk.green(`  ✓ All ${expectedAgents} agents present and ready`));
     }
   }
 
-  private static async createBasicAgents(): Promise<void> {
+  private static async createBasicAgents(force: boolean = false): Promise<void> {
     try {
       console.log(chalk.cyan('  🛠️  Creating all agent definitions programmatically...'));
 
@@ -388,6 +407,12 @@ export class InitCommand {
         }
 
         const agentFile = path.join(targetPath, `${agentName}.md`);
+
+        // Skip if file exists and force is not set
+        if (!force && await fs.pathExists(agentFile)) {
+          continue;
+        }
+
         const agentType = agentName.replace('qe-', '');
         const skills = this.getAgentSkills(agentName);
 
@@ -634,7 +659,7 @@ For full capabilities, install the complete agentic-qe package.
     }
   }
 
-  private static async createMissingAgents(targetPath: string, existingFiles: string[]): Promise<void> {
+  private static async createMissingAgents(targetPath: string, existingFiles: string[], force: boolean = false): Promise<void> {
     const allAgentNames = [
       'qe-test-generator', 'qe-test-executor', 'qe-coverage-analyzer',
       'qe-quality-gate', 'qe-quality-analyzer', 'qe-performance-tester',

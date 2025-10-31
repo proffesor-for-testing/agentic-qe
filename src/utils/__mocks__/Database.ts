@@ -73,79 +73,47 @@ export const mockDatabase = {
  */
 export class Database {
   private dbPath: string;
+  public initialize: jest.Mock<() => Promise<void>>;
+  public close: jest.Mock<() => Promise<void>>;
+  public exec: jest.Mock<(sql: string) => void>;
+  public run: jest.Mock<(sql: string, params?: any[]) => Promise<{ lastID: number; changes: number }>>;
+  public get: jest.Mock<(sql: string, params?: any[]) => Promise<any>>;
+  public all: jest.Mock<(sql: string, params?: any[]) => Promise<any[]>>;
+  public prepare: jest.Mock<(sql: string) => any>;
+  public stats: jest.Mock<() => Promise<any>>;
+  public compact: jest.Mock<() => Promise<void>>;
+  public transaction: jest.Mock<(callback: () => void) => void>;
+  public upsertFleet: jest.Mock<(fleet: any) => Promise<void>>;
+  public upsertAgent: jest.Mock<(agent: any) => Promise<void>>;
+  public upsertTask: jest.Mock<(task: any) => Promise<void>>;
+  public insertEvent: jest.Mock<(event: any) => Promise<void>>;
+  public insertMetric: jest.Mock<(metric: any) => Promise<void>>;
 
   constructor(dbPath: string = './data/fleet.db') {
     this.dbPath = dbPath;
-  }
 
-  // Lifecycle
-  async initialize(): Promise<void> {
-    return mockDatabase.initialize() as Promise<void>;
-  }
-
-  async close(): Promise<void> {
-    return mockDatabase.close() as Promise<void>;
-  }
-
-  // Query methods
-  exec(sql: string): void {
-    mockDatabase.exec();
-  }
-
-  async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
-    const result = mockDatabase.run() as { lastInsertRowid?: number; changes?: number };
-    return {
-      lastID: result.lastInsertRowid || 0,
-      changes: result.changes || 0
-    };
-  }
-
-  async get(sql: string, params: any[] = []): Promise<any> {
-    return mockDatabase.get();
-  }
-
-  async all(sql: string, params: any[] = []): Promise<any[]> {
-    return mockDatabase.all() as any[];
-  }
-
-  // Prepared statements
-  prepare(sql: string): any {
-    return mockDatabase.prepare();
-  }
-
-  // Utility methods
-  async stats(): Promise<any> {
-    return mockDatabase.stats() as Promise<any>;
-  }
-
-  async compact(): Promise<void> {
-    return mockDatabase.compact() as Promise<void>;
-  }
-
-  // Transaction support
-  transaction(callback: () => void): void {
-    mockDatabase.transaction(callback);
-  }
-
-  // Domain-specific methods
-  async upsertFleet(fleet: any): Promise<void> {
-    return mockDatabase.upsertFleet(fleet) as Promise<void>;
-  }
-
-  async upsertAgent(agent: any): Promise<void> {
-    return mockDatabase.upsertAgent(agent) as Promise<void>;
-  }
-
-  async upsertTask(task: any): Promise<void> {
-    return mockDatabase.upsertTask(task) as Promise<void>;
-  }
-
-  async insertEvent(event: any): Promise<void> {
-    return mockDatabase.insertEvent(event) as Promise<void>;
-  }
-
-  async insertMetric(metric: any): Promise<void> {
-    return mockDatabase.insertMetric(metric) as Promise<void>;
+    // Assign mock functions directly to instance
+    this.initialize = mockDatabase.initialize as jest.Mock<() => Promise<void>>;
+    this.close = mockDatabase.close as jest.Mock<() => Promise<void>>;
+    this.exec = jest.fn<(sql: string) => void>(() => mockDatabase.exec());
+    this.run = jest.fn<(sql: string, params?: any[]) => Promise<{ lastID: number; changes: number }>>(async () => {
+      const result = mockDatabase.run() as { lastInsertRowid?: number; changes?: number };
+      return {
+        lastID: result.lastInsertRowid || 0,
+        changes: result.changes || 0
+      };
+    });
+    this.get = jest.fn<(sql: string, params?: any[]) => Promise<any>>(async () => mockDatabase.get());
+    this.all = jest.fn<(sql: string, params?: any[]) => Promise<any[]>>(async () => mockDatabase.all() as any[]);
+    this.prepare = jest.fn<(sql: string) => any>(() => mockDatabase.prepare());
+    this.stats = mockDatabase.stats as jest.Mock<() => Promise<any>>;
+    this.compact = mockDatabase.compact as jest.Mock<() => Promise<void>>;
+    this.transaction = jest.fn<(callback: () => void) => void>((callback: () => void) => mockDatabase.transaction(callback));
+    this.upsertFleet = mockDatabase.upsertFleet as jest.Mock<(fleet: any) => Promise<void>>;
+    this.upsertAgent = mockDatabase.upsertAgent as jest.Mock<(agent: any) => Promise<void>>;
+    this.upsertTask = mockDatabase.upsertTask as jest.Mock<(task: any) => Promise<void>>;
+    this.insertEvent = mockDatabase.insertEvent as jest.Mock<(event: any) => Promise<void>>;
+    this.insertMetric = mockDatabase.insertMetric as jest.Mock<(metric: any) => Promise<void>>;
   }
 
   // Test helper

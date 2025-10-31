@@ -221,6 +221,101 @@ export class FlakyTestHunterAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Flaky Test Detection Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load test execution history from TestExecutor events
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB loading)
+    await super.onPreTask(data);
+
+    // Load historical test execution data for flakiness analysis
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical flakiness analysis entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting flaky test detection task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store flakiness analysis and update patterns
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB storage, learning)
+    await super.onPostTask(data);
+
+    // Store flakiness analysis results
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        flakyTestsDetected: data.result?.flakyTests?.length || 0,
+        testsAnalyzed: data.result?.totalTests || 0
+      },
+      86400 // 24 hours
+    );
+
+    // Emit flaky test detection event for other agents
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date(),
+      flakyTests: data.result?.flakyTests || []
+    });
+
+    console.log(`[${this.agentId.type}] Flaky test detection completed`, {
+      taskId: data.assignment.id,
+      flakyTestsFound: data.result?.flakyTests?.length || 0
+    });
+  }
+
+  /**
+   * Task error hook - Log flakiness detection failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    // Call parent implementation
+    await super.onTaskError(data);
+
+    // Store flaky test detection error for analysis
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800 // 7 days
+    );
+
+    // Emit error event
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Flaky test detection failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // Public Interface
   // ============================================================================
 
@@ -794,7 +889,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       for (const test of flakyTests) {
         // Skip if no root cause or low confidence
         if (!test.rootCause || test.rootCause.confidence < 0.7) {
-          this.logger.debug(`[FlakyTestHunter] Skipping ${test.testName} (no root cause or low confidence)`);
+          console.log(`[FlakyTestHunter] Skipping ${test.testName} (no root cause or low confidence)`);
           continue;
         }
 
@@ -822,11 +917,11 @@ export class FlakyTestHunterAgent extends BaseAgent {
         });
 
         storedCount++;
-        this.logger.debug(`[FlakyTestHunter] ✅ Stored flaky pattern ${patternId} in AgentDB`);
+        console.log(`[FlakyTestHunter] ✅ Stored flaky pattern ${patternId} in AgentDB`);
       }
 
       const storeTime = Date.now() - startTime;
-      this.logger.info(
+      console.log(
         `[FlakyTestHunter] ✅ ACTUALLY stored ${storedCount}/${flakyTests.length} flaky patterns in AgentDB ` +
         `(${storeTime}ms, avg ${storedCount > 0 ? (storeTime / storedCount).toFixed(1) : 0}ms/pattern, QUIC sync active)`
       );
@@ -834,7 +929,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       // Report QUIC sync status
       const agentDBConfig = (this as any).agentDBConfig;
       if (agentDBConfig?.enableQUICSync) {
-        this.logger.info(
+        console.log(
           `[FlakyTestHunter] 🚀 Flaky patterns synced via QUIC to ${agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
         );
       }
@@ -866,7 +961,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       const searchTime = Date.now() - startTime;
 
       if (result.memories.length > 0) {
-        this.logger.debug(
+        console.log(
           `[FlakyTestHunter] ✅ AgentDB HNSW search: ${result.memories.length} similar patterns ` +
           `(${searchTime}ms, ${result.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
         );
@@ -875,7 +970,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         if (result.memories.length > 0) {
           const topMatch = result.memories[0];
           const matchData = JSON.parse(topMatch.pattern_data);
-          this.logger.debug(
+          console.log(
             `[FlakyTestHunter] 🎯 Top match: ${matchData.testName} ` +
             `(similarity=${topMatch.similarity.toFixed(3)}, confidence=${topMatch.confidence.toFixed(3)})`
           );
@@ -906,7 +1001,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
           } as FlakyTestResult;
         });
       } else {
-        this.logger.debug(`[FlakyTestHunter] No similar flaky patterns found in AgentDB (${searchTime}ms)`);
+        console.log(`[FlakyTestHunter] No similar flaky patterns found in AgentDB (${searchTime}ms)`);
       }
 
       return [];
