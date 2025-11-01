@@ -130,7 +130,7 @@ create_agent_config() {
     # Create memory configuration file
     cat > "$HOME/.config/claude-flow/memory.json" << 'EOF'
 {
-  "maxConcurrentAgents": 10,
+  "maxConcurrentAgents": 15,
   "agentMemoryLimitMB": 512,
   "queueEnabled": true,
   "memoryMonitoring": {
