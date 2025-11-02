@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.4.1** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.2** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
 
@@ -504,102 +504,19 @@ Model Usage:
 
 ---
 
-## 📝 Recent Changes
+## 📝 What's New in v1.4.2
 
-### v1.4.1 (2025-10-31)
-**🚨 CRITICAL FIX - Emergency Patch Release**
+🔐 **Security & Stability Release** (2025-11-02)
 
-- 🔴 **CRITICAL**: Fixed duplicate MCP tool names preventing all QE agents from spawning
-  - Root Cause: package.json self-dependency `"agentic-qe": "^1.3.3"`
-  - Impact: ALL 18 agents failed with API Error 400 in v1.4.0
-  - Fixed: Removed self-dependency, updated package bundling
-- ✅ Agents now spawn correctly via Claude Code Task tool
-- ✅ Package no longer includes development configuration files
+- **Security**: Fixed 2 critical vulnerabilities (CWE-116 regex injection, CWE-1321 prototype pollution)
+- **Critical Fix**: PerformanceTesterAgent now working - all 18 agents functional (was 17/18)
+- **Reliability**: Enhanced error handling across 20 MCP handlers with centralized safeHandle()
+- **Quality**: Added 138 new test cases (2,680 lines) + 6 test infrastructure improvements
+- **Developer Experience**: Tests now exit cleanly with --forceExit flag (no more hanging processes)
 
-**If you installed v1.4.0, upgrade immediately**: `npm install agentic-qe@latest`
+**Upgrade Recommendation**: All users should upgrade to v1.4.2 for security and stability improvements.
 
----
-
-### v1.4.0 (2025-10-31) ⚠️ BROKEN - DO NOT USE
-**Agent Memory & Learning Infrastructure Complete** (but all agents fail to spawn)
-
-- ✅ **Fixed 11 agents with lifecycle hooks** - Proper memoryStore API usage (retrieve/store signatures)
-- ✅ **Comprehensive learning validation** - All 16 agents inherit BaseAgent learning (89% coverage)
-- ✅ **AgentDB integration verified** - Vector search, HNSW indexing, neural training in onPreTask/onPostTask
-- ✅ **Added `--force` flag to `aqe init`** - Force overwrite existing agent files (like claude-flow)
-- ✅ **Full initialization tested** - Fresh project verification passed all checks
-- ✅ **Agent definitions updated** - All agents have `agentdb_enabled: true` metadata
-
-**Learning System Verified**:
-- 🧠 Q-Learning enabled by default (lr=0.1, γ=0.95, ε=0.2)
-- 📊 Experience replay buffer (10,000 experiences)
-- 🎯 20% target improvement in 100 tasks
-- 💾 Persistent memory (24h TTL for results, 7d for errors)
-- 🔄 Pattern storage with neural training every 100 patterns
-
-**Agent Coverage**:
-- ✅ 13/16 agents have complete hooks (onPreTask + onPostTask + onTaskError)
-- ✅ 16/16 agents have onPostTask (100% - critical for learning)
-- ✅ All agents inherit enableLearning: true by default
-- ✅ LearningEngine auto-initializes when enabled
-
-**Verification Results**:
-- 19 agent definitions (18 QE + 1 base template)
-- 34 specialized QE skills
-- 8 AQE slash commands
-- 7 configuration files
-- 2 SQLite databases (memory.db 216KB, patterns.db 152KB)
-
-**Contributors**: AQE Development Team
-
-### v1.3.6 (2025-10-30)
-**Stability & Educational Release**
-
-- ✅ **Fixed 16 critical TypeScript compilation errors** blocking production builds
-- ✅ **Integrated CodeComplexityAnalyzerAgent** (educational example from PR #22 by @mondweep)
-- ✅ **Zero functional regressions** - all core functionality tested and stable
-- ✅ **Build stability improvements** - TypeScript compilation passing with 0 errors
-- ✅ **BaseAgent property encapsulation** - proper lifecycle manager integration
-- ✅ **Clean cherry-pick** from PR #22 with zero conflicts
-
-**Technical Improvements**:
-- BaseAgent property access patterns now use lifecycle manager accessors
-- AccessControlDAO interface mapping corrected (`resourceId`, `owner` properties)
-- Permission enum usage standardized (READ, WRITE, DELETE, SHARE)
-- AgentLifecycleManager and AgentCoordinator properly integrated
-
-**New Capabilities**:
-- 📊 Code complexity analysis agent (cyclomatic & cognitive complexity)
-- 🎯 Quality scoring system (0-100 scale)
-- 🤖 AI-powered refactoring recommendations
-- 📚 Complete BaseAgent pattern demonstration
-- 📖 463-line architecture guide for learning
-
-**Contributors**: @mondweep (CodeComplexityAnalyzerAgent), AQE Development Team
-
-### v1.3.5 (2025-10-27) - Learning System Complete & Critical Policies
-
-**Phase 2 Features Complete:**
-- ✅ Learning System with Q-Learning (87.5% success rate, 18.7% improvement)
-- ✅ Experience Replay Buffer (10,000 experiences)
-- ✅ Pattern Bank with 247 patterns (85%+ accuracy)
-- ✅ Multi-Model Router: 85.7% cost savings (exceeds 70-81% target)
-- ✅ ML Flaky Detection (100% accuracy, 0% false positives)
-- ✅ Streaming Progress with real-time updates
-
-**Critical Policy Updates:**
-- ⚠️ Release Verification Policy (8-point checklist)
-- ⚠️ Test Execution Policy (prevents workspace crashes)
-- ⚠️ Release Tagging Policy (tags after PR merge)
-
-**Test Coverage:**
-- 237 new tests added across all Phase 2 features
-- Coverage: 50-70% (30-40x increase from 1.67%)
-- Fixed 328 import paths across 122 test files
-
-**Quality Score:** 92/100 (EXCELLENT) - Zero breaking changes, 100% backward compatible.
-
-[View Complete Changelog](CHANGELOG.md)
+[📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 
 ---
 

@@ -40,10 +40,10 @@ export class WorkflowCheckpointHandler extends BaseHandler {
   }
 
   async handle(args: WorkflowCheckpointArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Creating workflow checkpoint', { requestId, executionId: args.executionId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Creating workflow checkpoint', { requestId, executionId: args.executionId });
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['executionId']);
 
@@ -57,15 +57,7 @@ export class WorkflowCheckpointHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(checkpoint, requestId);
-    } catch (error) {
-      this.log('error', 'Checkpoint creation failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Checkpoint creation failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async createCheckpoint(args: WorkflowCheckpointArgs): Promise<Checkpoint> {

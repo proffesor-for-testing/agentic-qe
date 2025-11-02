@@ -11,9 +11,9 @@ import {
 
 export class CoverageAnalyzeSublinearHandler extends BaseHandler {
   async handle(args: CoverageAnalyzeSublinearParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       this.log('info', 'Starting sublinear coverage analysis', { requestId, args });
 
       // Execute the analysis
@@ -26,12 +26,6 @@ export class CoverageAnalyzeSublinearHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Coverage analysis failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 }

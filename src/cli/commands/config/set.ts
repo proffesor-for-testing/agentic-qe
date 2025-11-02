@@ -159,10 +159,19 @@ export class ConfigSetCommand {
       throw new Error('Invalid property key: must be a non-empty string');
     }
 
-    // The dangerous keys check is already done at the beginning of the function
-    // No need to duplicate the check here since all keys are validated upfront
+    // Security Fix (Alert #25): Additional guard against prototype pollution
+    // Ensure current is a safe object and not Object.prototype or similar
+    if (current === Object.prototype || current === Array.prototype || current === Function.prototype) {
+      throw new Error('Cannot modify built-in prototypes');
+    }
+
+    // Additional check: Ensure we're not modifying a constructor's prototype
+    if (current.constructor && current === current.constructor.prototype) {
+      throw new Error('Cannot modify constructor prototypes');
+    }
 
     // Use Object.defineProperty instead of direct assignment
+    // All dangerous keys have been validated at the beginning of the function
     Object.defineProperty(current, finalKey, {
       value: value,
       writable: true,

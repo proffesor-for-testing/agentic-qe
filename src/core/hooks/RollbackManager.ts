@@ -234,8 +234,8 @@ export class RollbackManager {
    * Clean up old snapshots
    */
   async cleanSnapshots(options: CleanupOptions = {}): Promise<number> {
-    const maxAge = options.maxAge || 24 * 60 * 60 * 1000; // 24 hours default
-    const keepMinimum = options.keepMinimum || 5;
+    const maxAge = options.maxAge !== undefined ? options.maxAge : 24 * 60 * 60 * 1000; // 24 hours default
+    const keepMinimum = options.keepMinimum !== undefined ? options.keepMinimum : 5;
 
     const snapshots = await this.listSnapshots();
     const now = Date.now();

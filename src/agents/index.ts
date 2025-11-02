@@ -213,28 +213,26 @@ export class QEAgentFactory {
         const perfConfig: PerformanceTesterConfig & BaseAgentConfig = {
           ...baseConfig,
           tools: agentConfig?.tools || {
-            loadTesting: 'k6',
+            loadTesting: 'k6' as const,
             monitoring: ['prometheus', 'grafana'],
-            apm: 'datadog'
+            apm: 'datadog' as const
           },
-          thresholds: agentConfig?.thresholds || {
-            maxLatencyP95: 500,
-            maxLatencyP99: 1000,
-            minThroughput: 1000,
-            maxErrorRate: 0.01,
-            maxCpuUsage: 80,
-            maxMemoryUsage: 85
+          thresholds: {
+            maxLatencyP95: agentConfig?.thresholds?.maxLatencyP95 ?? 500,
+            maxLatencyP99: agentConfig?.thresholds?.maxLatencyP99 ?? 1000,
+            minThroughput: agentConfig?.thresholds?.minThroughput ?? 1000,
+            maxErrorRate: agentConfig?.thresholds?.maxErrorRate ?? 0.01,
+            maxCpuUsage: agentConfig?.thresholds?.maxCpuUsage ?? 80,
+            maxMemoryUsage: agentConfig?.thresholds?.maxMemoryUsage ?? 85
           },
-          loadProfile: agentConfig?.loadProfile || {
-            virtualUsers: 100,
-            duration: 300,
-            rampUpTime: 60,
-            pattern: 'ramp-up'
+          loadProfile: {
+            virtualUsers: agentConfig?.loadProfile?.virtualUsers ?? 100,
+            duration: agentConfig?.loadProfile?.duration ?? 300,
+            rampUpTime: agentConfig?.loadProfile?.rampUpTime ?? 60,
+            pattern: (agentConfig?.loadProfile?.pattern ?? 'ramp-up') as 'constant' | 'ramp-up' | 'spike' | 'stress' | 'soak'
           }
         };
-        // TODO: Uncomment when PerformanceTesterAgent is implemented
-        // return new PerformanceTesterAgent(perfConfig);
-        throw new Error(`Agent type ${type} implementation in progress. Week 2 P0.`);
+        return new PerformanceTesterAgent(perfConfig as any);
       }
 
       case QEAgentType.SECURITY_SCANNER: {

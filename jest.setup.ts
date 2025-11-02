@@ -42,7 +42,7 @@ jest.mock('path', () => {
   const actualPath = jest.requireActual('path');
   return {
     ...actualPath,
-    join: jest.fn((...args: string[]) => {
+    join: (...args: string[]) => {
       // Handle undefined/null arguments safely
       const sanitizedArgs = args.map(arg => {
         if (arg === undefined || arg === null || arg === '') {
@@ -51,7 +51,7 @@ jest.mock('path', () => {
         return arg;
       });
       return actualPath.join(...sanitizedArgs);
-    })
+    }
   };
 });
 

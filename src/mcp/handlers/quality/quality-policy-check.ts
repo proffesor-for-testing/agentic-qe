@@ -164,11 +164,11 @@ export class QualityPolicyCheckHandler extends BaseHandler {
   }
 
   async handle(args: QualityPolicyCheckArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = Date.now();
-    this.log('info', 'Checking policy compliance', { requestId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = Date.now();
+      this.log('info', 'Checking policy compliance', { requestId });
 
-    try {
       // Validate required parameters
       this.validateRequired(args, ['metrics']);
 
@@ -258,22 +258,7 @@ export class QualityPolicyCheckHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(checkResult, requestId);
-
-    } catch (error) {
-      this.log('error', 'Policy check failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-
-      await this.hookExecutor.notify({
-        message: `Policy check failed: ${error instanceof Error ? error.message : String(error)}`,
-        level: 'error'
-      });
-
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Policy check failed',
-        requestId
-      );
-    }
+    });
   }
 
   private initializeBuiltInPolicies(): Map<string, QualityPolicy> {

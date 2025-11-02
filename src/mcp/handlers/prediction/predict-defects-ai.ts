@@ -111,10 +111,10 @@ export class PredictDefectsAIHandler extends BaseHandler {
   }
 
   async handle(args: PredictDefectsAIArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = performance.now();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = performance.now();
 
-    try {
       this.log('info', 'Starting AI defect prediction', { requestId, args });
 
       // Validate input
@@ -148,13 +148,7 @@ export class PredictDefectsAIHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(prediction, requestId);
-    } catch (error) {
-      this.log('error', 'AI defect prediction failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

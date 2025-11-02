@@ -58,10 +58,10 @@ export class WorkflowExecuteHandler extends BaseHandler {
   }
 
   async handle(args: WorkflowExecuteArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Executing workflow', { requestId, workflowId: args.workflowId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Executing workflow', { requestId, workflowId: args.workflowId });
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['workflowId']);
 
@@ -91,15 +91,7 @@ export class WorkflowExecuteHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(execution, requestId);
-    } catch (error) {
-      this.log('error', 'Workflow execution failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Workflow execution failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async executeWorkflow(args: WorkflowExecuteArgs): Promise<WorkflowExecution> {

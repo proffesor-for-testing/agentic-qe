@@ -135,10 +135,10 @@ export class FlakyTestDetectHandler extends BaseHandler {
   }
 
   async handle(args: FlakyTestDetectArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = performance.now();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = performance.now();
 
-    try {
       this.log('info', 'Starting flaky test detection', { requestId, args });
 
       // Validate input
@@ -172,13 +172,7 @@ export class FlakyTestDetectHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Flaky test detection failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

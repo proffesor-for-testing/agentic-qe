@@ -114,10 +114,10 @@ export class QualityValidateMetricsHandler extends BaseHandler {
   }
 
   async handle(args: QualityValidateMetricsArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Validating quality metrics', { requestId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Validating quality metrics', { requestId });
 
-    try {
       // Validate required parameters
       this.validateRequired(args, ['metrics']);
 
@@ -215,22 +215,7 @@ export class QualityValidateMetricsHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(validationResult, requestId);
-
-    } catch (error) {
-      this.log('error', 'Metrics validation failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-
-      await this.hookExecutor.notify({
-        message: `Metrics validation failed: ${error instanceof Error ? error.message : String(error)}`,
-        level: 'error'
-      });
-
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Metrics validation failed',
-        requestId
-      );
-    }
+    });
   }
 
   private createDefaultThresholds(): QualityMetricsThresholds {

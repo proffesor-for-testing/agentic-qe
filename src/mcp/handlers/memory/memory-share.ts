@@ -42,9 +42,9 @@ export class MemoryShareHandler extends BaseHandler {
    * Handle memory share request
    */
   async handle(args: MemoryShareParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['sourceKey', 'sourceNamespace', 'targetAgents']);
 
@@ -112,14 +112,7 @@ export class MemoryShareHandler extends BaseHandler {
         targetAgents,
         permissions
       }, requestId);
-
-    } catch (error) {
-      this.log('error', 'Failed to share memory', error);
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

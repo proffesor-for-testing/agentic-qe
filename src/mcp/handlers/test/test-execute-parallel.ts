@@ -36,14 +36,14 @@ export class TestExecuteParallelHandler extends BaseHandler {
   }
 
   async handle(args: TestExecuteParallelArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Parallel test execution started', {
-      requestId,
-      testCount: args.testFiles.length,
-      parallelism: args.parallelism || 1
-    });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Parallel test execution started', {
+        requestId,
+        testCount: args.testFiles.length,
+        parallelism: args.parallelism || 1
+      });
 
-    try {
       this.validateRequired(args, ['testFiles']);
 
       const startTime = Date.now();
@@ -73,13 +73,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
 
       this.log('info', `Parallel execution completed in ${executionTime.toFixed(2)}ms`);
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Parallel execution failed', { error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Execution failed',
-        requestId
-      );
-    }
+    });
   }
 
   private initializeWorkerPool(): void {

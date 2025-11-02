@@ -5,7 +5,7 @@ import { Task, TaskStatus } from '@core/Task';
 import { Logger } from '@utils/Logger';
 import { Database } from '@utils/Database';
 import { EventBus } from '@core/EventBus';
-import { QEAgentType, FleetConfig } from '@types';
+import { QEAgentType, FleetConfig } from '@types/index';
 
 // Mock the Database module before importing FleetManager
 jest.mock('@utils/Database');
