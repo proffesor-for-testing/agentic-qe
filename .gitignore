@@ -95,7 +95,9 @@ claude-flow.config.json
 .hive-mind/
 .claude-flow/
 memory/
+!tests/**/memory/
 coordination/
+!tests/**/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md

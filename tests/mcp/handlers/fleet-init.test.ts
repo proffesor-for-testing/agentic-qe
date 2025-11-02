@@ -8,17 +8,17 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { FleetInitHandler, FleetInitArgs, FleetInstance } from '@mcp/handlers/fleet-init';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
 // Mock services
-vi.mock('../../../src/mcp/services/AgentRegistry.js');
-vi.mock('../../../src/mcp/services/HookExecutor.js');
-vi.mock('../../../src/utils/SecureRandom.js', () => ({
+jest.mock('../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../src/mcp/services/HookExecutor.js');
+jest.mock('../../../src/utils/SecureRandom.js', () => ({
   SecureRandom: {
-    generateId: vi.fn(() => 'test-fleet-id')
+    generateId: jest.fn(() => 'test-fleet-id')
   }
 }));
 
@@ -29,15 +29,15 @@ describe('FleetInitHandler', () => {
 
   beforeEach(() => {
     mockAgentRegistry = {
-      createFleet: vi.fn(),
-      getFleet: vi.fn(),
-      listFleets: vi.fn()
+      createFleet: jest.fn(),
+      getFleet: jest.fn(),
+      listFleets: jest.fn()
     } as any;
 
     mockHookExecutor = {
-      executePreTask: vi.fn().mockResolvedValue(undefined),
-      executePostTask: vi.fn().mockResolvedValue(undefined),
-      notify: vi.fn().mockResolvedValue(undefined)
+      executePreTask: jest.fn().mockResolvedValue(undefined),
+      executePostTask: jest.fn().mockResolvedValue(undefined),
+      notify: jest.fn().mockResolvedValue(undefined)
     } as any;
 
     handler = new FleetInitHandler(mockAgentRegistry, mockHookExecutor);
@@ -341,7 +341,7 @@ describe('FleetInitHandler', () => {
   describe('Error Handling', () => {
     it('should handle registry failures gracefully', async () => {
       const mockFailingRegistry = {
-        createFleet: vi.fn().mockRejectedValue(new Error('Registry unavailable'))
+        createFleet: jest.fn().mockRejectedValue(new Error('Registry unavailable'))
       } as any;
 
       const failingHandler = new FleetInitHandler(mockFailingRegistry, mockHookExecutor);
@@ -364,8 +364,8 @@ describe('FleetInitHandler', () => {
 
     it('should handle hook execution failures', async () => {
       const mockFailingHook = {
-        executePreTask: vi.fn().mockRejectedValue(new Error('Hook failed')),
-        executePostTask: vi.fn()
+        executePreTask: jest.fn().mockRejectedValue(new Error('Hook failed')),
+        executePostTask: jest.fn()
       } as any;
 
       const failingHandler = new FleetInitHandler(mockAgentRegistry, mockFailingHook);

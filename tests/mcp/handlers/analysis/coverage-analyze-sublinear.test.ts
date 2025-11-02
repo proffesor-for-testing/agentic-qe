@@ -6,7 +6,7 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { CoverageAnalyzeSublinearHandler } from '@mcp/handlers/analysis/coverage-analyze-sublinear-handler';
 
 describe('CoverageAnalyzeSublinearHandler', () => {

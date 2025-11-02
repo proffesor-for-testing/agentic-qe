@@ -8,17 +8,17 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { AgentSpawnHandler, AgentSpawnArgs, AgentInstance } from '@mcp/handlers/agent-spawn';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
 // Mock services
-vi.mock('../../../src/mcp/services/AgentRegistry.js');
-vi.mock('../../../src/mcp/services/HookExecutor.js');
-vi.mock('../../../src/utils/SecureRandom.js', () => ({
+jest.mock('../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../src/mcp/services/HookExecutor.js');
+jest.mock('../../../src/utils/SecureRandom.js', () => ({
   SecureRandom: {
-    generateId: vi.fn(() => 'test-random-id')
+    generateId: jest.fn(() => 'test-random-id')
   }
 }));
 
@@ -29,15 +29,15 @@ describe('AgentSpawnHandler', () => {
 
   beforeEach(() => {
     mockAgentRegistry = {
-      spawnAgent: vi.fn(),
-      getAgent: vi.fn(),
-      listAgents: vi.fn()
+      spawnAgent: jest.fn(),
+      getAgent: jest.fn(),
+      listAgents: jest.fn()
     } as any;
 
     mockHookExecutor = {
-      executePreTask: vi.fn().mockResolvedValue(undefined),
-      executePostTask: vi.fn().mockResolvedValue(undefined),
-      notify: vi.fn().mockResolvedValue(undefined)
+      executePreTask: jest.fn().mockResolvedValue(undefined),
+      executePostTask: jest.fn().mockResolvedValue(undefined),
+      notify: jest.fn().mockResolvedValue(undefined)
     } as any;
 
     handler = new AgentSpawnHandler(mockAgentRegistry, mockHookExecutor);
@@ -257,7 +257,7 @@ describe('AgentSpawnHandler', () => {
   describe('Error Handling', () => {
     it('should handle registry failures gracefully', async () => {
       const mockFailingRegistry = {
-        spawnAgent: vi.fn().mockRejectedValue(new Error('Registry unavailable'))
+        spawnAgent: jest.fn().mockRejectedValue(new Error('Registry unavailable'))
       } as any;
 
       const failingHandler = new AgentSpawnHandler(mockFailingRegistry, mockHookExecutor);

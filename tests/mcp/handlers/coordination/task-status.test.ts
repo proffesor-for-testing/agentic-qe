@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * coordination/task-status Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for task status checking and progress tracking.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { TaskStatusHandler } from '@mcp/handlers/coordination/task-status';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('TaskStatusHandler', () => {
+  let handler: TaskStatusHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new TaskStatusHandler();
   });
 
   describe('Happy Path', () => {

@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/consensus-vote Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for consensus voting with quorum.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { ConsensusVoteHandler } from '@mcp/handlers/memory/consensus-vote';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('ConsensusVoteHandler', () => {
+  let handler: ConsensusVoteHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new ConsensusVoteHandler();
   });
 
   describe('Happy Path', () => {

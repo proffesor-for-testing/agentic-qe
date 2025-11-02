@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * coordination/event-emit Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for coordination event emission.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { EventEmitHandler } from '@mcp/handlers/coordination/event-emit';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('EventEmitHandler', () => {
+  let handler: EventEmitHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new EventEmitHandler();
   });
 
   describe('Happy Path', () => {

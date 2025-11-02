@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/artifact-manifest Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for artifact manifest management.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { ArtifactManifestHandler } from '@mcp/handlers/memory/artifact-manifest';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('ArtifactManifestHandler', () => {
+  let handler: ArtifactManifestHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new ArtifactManifestHandler();
   });
 
   describe('Happy Path', () => {

@@ -6,7 +6,7 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { TestOptimizeSublinearHandler } from '@mcp/handlers/test/test-optimize-sublinear';
 
 describe('TestOptimizeSublinearHandler', () => {

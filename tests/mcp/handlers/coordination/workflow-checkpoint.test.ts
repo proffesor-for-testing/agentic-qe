@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * coordination/workflow-checkpoint Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for workflow state checkpointing.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { WorkflowCheckpointHandler } from '@mcp/handlers/coordination/workflow-checkpoint';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('WorkflowCheckpointHandler', () => {
+  let handler: WorkflowCheckpointHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new WorkflowCheckpointHandler();
   });
 
   describe('Happy Path', () => {

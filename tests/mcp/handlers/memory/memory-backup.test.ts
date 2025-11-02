@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/memory-backup Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for memory namespace backup and restore.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { MemoryBackupHandler } from '@mcp/handlers/memory/memory-backup';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('MemoryBackupHandler', () => {
+  let handler: MemoryBackupHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new MemoryBackupHandler();
   });
 
   describe('Happy Path', () => {

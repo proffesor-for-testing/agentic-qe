@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/memory-store Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for memory storage with TTL.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { MemoryStoreHandler } from '@mcp/handlers/memory/memory-store';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('MemoryStoreHandler', () => {
+  let handler: MemoryStoreHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new MemoryStoreHandler();
   });
 
   describe('Happy Path', () => {

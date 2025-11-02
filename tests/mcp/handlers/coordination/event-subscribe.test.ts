@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * coordination/event-subscribe Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for event stream subscription.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { EventSubscribeHandler } from '@mcp/handlers/coordination/event-subscribe';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('EventSubscribeHandler', () => {
+  let handler: EventSubscribeHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new EventSubscribeHandler();
   });
 
   describe('Happy Path', () => {

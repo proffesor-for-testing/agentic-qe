@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/memory-query Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for memory system queries with pattern matching.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { MemoryQueryHandler } from '@mcp/handlers/memory/memory-query';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('MemoryQueryHandler', () => {
+  let handler: MemoryQueryHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new MemoryQueryHandler();
   });
 
   describe('Happy Path', () => {

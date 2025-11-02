@@ -9,14 +9,14 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { TestExecuteParallelHandler, TestExecuteParallelArgs } from '@mcp/handlers/test/test-execute-parallel';
 
 // Mock SecureRandom for deterministic tests
-vi.mock('../../../../src/utils/SecureRandom.js', () => ({
+jest.mock('../../../../src/utils/SecureRandom.js', () => ({
   SecureRandom: {
-    generateId: vi.fn(() => 'test-random-id'),
-    randomFloat: vi.fn(() => 0.5)
+    generateId: jest.fn(() => 'test-random-id'),
+    randomFloat: jest.fn(() => 0.5)
   }
 }));
 

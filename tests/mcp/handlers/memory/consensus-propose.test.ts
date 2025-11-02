@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/consensus-propose Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for consensus proposal creation.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { ConsensusProposeHandler } from '@mcp/handlers/memory/consensus-propose';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('ConsensusProposeHandler', () => {
+  let handler: ConsensusProposeHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new ConsensusProposeHandler();
   });
 
   describe('Happy Path', () => {

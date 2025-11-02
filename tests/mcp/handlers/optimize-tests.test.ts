@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { OptimizeTestsHandler } from '@mcp/handlers/optimize-tests';
 
 describe('OptimizeTestsHandler', () => {

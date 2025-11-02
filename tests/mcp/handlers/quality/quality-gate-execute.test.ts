@@ -8,7 +8,7 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import {
   QualityGateExecuteHandler,
   QualityGateExecuteArgs,
@@ -19,11 +19,11 @@ import { AgentRegistry } from '../../../../src/mcp/services/AgentRegistry.js';
 import { HookExecutor } from '../../../../src/mcp/services/HookExecutor.js';
 
 // Mock services
-vi.mock('../../../../src/mcp/services/AgentRegistry.js');
-vi.mock('../../../../src/mcp/services/HookExecutor.js');
-vi.mock('../../../../src/utils/SecureRandom.js', () => ({
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+jest.mock('../../../../src/utils/SecureRandom.js', () => ({
   SecureRandom: {
-    generateId: vi.fn(() => 'test-execution-id')
+    generateId: jest.fn(() => 'test-execution-id')
   }
 }));
 
@@ -35,20 +35,20 @@ describe('QualityGateExecuteHandler', () => {
   beforeEach(() => {
     // Setup mock AgentRegistry
     mockAgentRegistry = {
-      spawnAgent: vi.fn().mockResolvedValue({
+      spawnAgent: jest.fn().mockResolvedValue({
         id: 'agent-quality-gate-1',
         type: 'quality-gate',
         status: 'active'
       }),
-      getStatistics: vi.fn().mockReturnValue({ totalAgents: 1 })
+      getStatistics: jest.fn().mockReturnValue({ totalAgents: 1 })
     } as any;
 
     // Setup mock HookExecutor
     mockHookExecutor = {
-      executePreTask: vi.fn().mockResolvedValue(undefined),
-      executePostTask: vi.fn().mockResolvedValue(undefined),
-      executePostEdit: vi.fn().mockResolvedValue(undefined),
-      notify: vi.fn().mockResolvedValue(undefined)
+      executePreTask: jest.fn().mockResolvedValue(undefined),
+      executePostTask: jest.fn().mockResolvedValue(undefined),
+      executePostEdit: jest.fn().mockResolvedValue(undefined),
+      notify: jest.fn().mockResolvedValue(undefined)
     } as any;
 
     // Initialize handler with mocks
@@ -823,7 +823,7 @@ describe('QualityGateExecuteHandler', () => {
 
     it('should handle agent spawn failures gracefully', async () => {
       const failingRegistry = {
-        spawnAgent: vi.fn().mockRejectedValue(new Error('Agent spawn failed'))
+        spawnAgent: jest.fn().mockRejectedValue(new Error('Agent spawn failed'))
       } as any;
 
       const failingHandler = new QualityGateExecuteHandler(failingRegistry, mockHookExecutor);
@@ -849,10 +849,10 @@ describe('QualityGateExecuteHandler', () => {
 
     it('should handle hook execution failures gracefully', async () => {
       const failingHook = {
-        executePreTask: vi.fn().mockRejectedValue(new Error('Hook failed')),
-        executePostTask: vi.fn(),
-        executePostEdit: vi.fn(),
-        notify: vi.fn()
+        executePreTask: jest.fn().mockRejectedValue(new Error('Hook failed')),
+        executePostTask: jest.fn(),
+        executePostEdit: jest.fn(),
+        notify: jest.fn()
       } as any;
 
       const failingHandler = new QualityGateExecuteHandler(mockAgentRegistry, failingHook);
@@ -877,7 +877,7 @@ describe('QualityGateExecuteHandler', () => {
 
     it('should notify on execution failure', async () => {
       const failingRegistry = {
-        spawnAgent: vi.fn().mockRejectedValue(new Error('Spawn failed'))
+        spawnAgent: jest.fn().mockRejectedValue(new Error('Spawn failed'))
       } as any;
 
       const failingHandler = new QualityGateExecuteHandler(failingRegistry, mockHookExecutor);

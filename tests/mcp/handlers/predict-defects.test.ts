@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import { PredictDefectsHandler } from '@mcp/handlers/predict-defects';
 
 describe('PredictDefectsHandler', () => {

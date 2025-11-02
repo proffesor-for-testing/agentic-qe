@@ -6,7 +6,7 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { CoverageGapsDetectHandler } from '@mcp/handlers/analysis/coverage-gaps-detect-handler';
 
 describe('CoverageGapsDetectHandler', () => {

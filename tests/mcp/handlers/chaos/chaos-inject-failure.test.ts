@@ -6,7 +6,7 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { ChaosInjectFailureHandler } from '@mcp/handlers/chaos/chaos-inject-failure';
 
 describe('ChaosInjectFailureHandler', () => {

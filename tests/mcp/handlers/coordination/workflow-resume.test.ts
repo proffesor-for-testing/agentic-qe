@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * coordination/workflow-resume Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for workflow resumption from checkpoint.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { WorkflowResumeHandler } from '@mcp/handlers/coordination/workflow-resume';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('WorkflowResumeHandler', () => {
+  let handler: WorkflowResumeHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new WorkflowResumeHandler();
   });
 
   describe('Happy Path', () => {

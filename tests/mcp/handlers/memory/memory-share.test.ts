@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/memory-share Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for inter-agent memory sharing.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { MemoryShareHandler } from '@mcp/handlers/memory/memory-share';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('MemoryShareHandler', () => {
+  let handler: MemoryShareHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new MemoryShareHandler();
   });
 
   describe('Happy Path', () => {

@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/memory-retrieve Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for memory data retrieval.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { MemoryRetrieveHandler } from '@mcp/handlers/memory/memory-retrieve';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('MemoryRetrieveHandler', () => {
+  let handler: MemoryRetrieveHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new MemoryRetrieveHandler();
   });
 
   describe('Happy Path', () => {

@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * coordination/workflow-execute Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for workflow execution with OODA loop.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { WorkflowExecuteHandler } from '@mcp/handlers/coordination/workflow-execute';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('WorkflowExecuteHandler', () => {
+  let handler: WorkflowExecuteHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new WorkflowExecuteHandler();
   });
 
   describe('Happy Path', () => {

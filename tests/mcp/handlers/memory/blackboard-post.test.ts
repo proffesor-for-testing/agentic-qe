@@ -1,19 +1,19 @@
 /**
- * prediction/predict-defects-ai Test Suite
+ * memory/blackboard-post Test Suite
  *
- * Tests for AI-powered defect prediction.
+ * Tests for blackboard pattern coordination hints.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PredictDefectsAIHandler } from '@mcp/handlers/prediction/predict-defects-ai';
+import { BlackboardPostHandler } from '@mcp/handlers/memory/blackboard-post';
 
-describe('PredictDefectsAIHandler', () => {
-  let handler: PredictDefectsAIHandler;
+describe('BlackboardPostHandler', () => {
+  let handler: BlackboardPostHandler;
 
   beforeEach(() => {
-    handler = new PredictDefectsAIHandler();
+    handler = new BlackboardPostHandler();
   });
 
   describe('Happy Path', () => {
