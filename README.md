@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.4.2** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.3** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
 
-🧠 **20% Continuous Improvement** | 📚 **34 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **85.7% Cost Savings** | 🔧 **54 MCP Tools**
+🧠 **Q-Learning System** | 📚 **34 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **54 MCP Tools**
 
 </div>
 

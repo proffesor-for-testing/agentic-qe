@@ -61,6 +61,36 @@ This release addresses 2 critical security vulnerabilities discovered by GitHub 
   - File: `tests/unit/core/RollbackManager.comprehensive.test.ts`
   - Impact: 36/36 tests passing (100%)
 
+#### Learning System Fixes (4 Critical Issues - Post-Release)
+
+- **LearningEngine Database Auto-Initialization** (CRITICAL FIX)
+  - **Issue**: Q-values not persisting - Database instance missing in all agents
+  - **Impact**: Learning system appeared functional but no data was saved
+  - **Fix**: Auto-initialize Database when not provided and learning enabled
+  - **File**: `src/learning/LearningEngine.ts` (lines 86-101)
+  - **New Feature**: LearningPersistenceAdapter pattern for flexible storage backends
+
+- **Database Initialization**
+  - **Issue**: Auto-created Database never initialized
+  - **Fix**: Call `database.initialize()` in LearningEngine.initialize()
+  - **File**: `src/learning/LearningEngine.ts` (lines 103-106)
+
+- **Learning Experience Foreign Key**
+  - **Issue**: FK constraint `learning_experiences.task_id → tasks.id` prevented standalone learning
+  - **Architectural Fix**: Removed FK - learning should be independent of fleet tasks
+  - **File**: `src/utils/Database.ts` (line 294-307)
+  - **Rationale**: task_id kept for correlation/analytics without hard dependency
+
+- **SQL Syntax Error**
+  - **Issue**: `datetime("now", "-7 days")` used wrong quotes
+  - **Fix**: Changed to `datetime('now', '-7 days')`
+  - **File**: `src/utils/Database.ts` (line 797)
+
+**Test Coverage**:
+- New integration test: `tests/integration/learning-persistence.test.ts` (468 lines, 7 tests)
+- New unit test: `tests/unit/learning/LearningEngine.database.test.ts`
+- New adapter test: `tests/unit/learning/LearningPersistenceAdapter.test.ts`
+
 #### Production Bug Fixes (3 Critical)
 
 - **jest.setup.ts**: Fixed global `path.join()` mock returning undefined
@@ -108,14 +138,15 @@ This release addresses 2 critical security vulnerabilities discovered by GitHub 
 
 ### Quality Metrics
 
-- **Files Changed**: 48
+- **Files Changed**: 48 (+ 44 MCP test files with comprehensive coverage expansion)
 - **Security Alerts Resolved**: 2 (CWE-116, CWE-1321)
 - **Test Infrastructure Fixes**: 6
 - **Production Bugs Fixed**: 3 (including PerformanceTesterAgent)
+- **Learning System Fixes**: 4 critical issues (Q-learning persistence now functional)
 - **MCP Handlers Updated**: 20
-- **New Test Suites**: 3
-- **New Test Cases**: 138
-- **Test Lines Added**: 2,680
+- **New Test Suites**: 3 original + 6 learning/memory tests = 9 total
+- **New Test Cases**: 138 original + comprehensive MCP coverage = 300+ total
+- **Test Lines Added**: ~22,000+ lines (2,680 original + ~19,000 MCP test expansion)
 - **Agent Tests**: 27/27 passing (was 21/27) - +28.6% improvement
 - **Agent Count**: 18/18 functional (was 17/18) - PerformanceTesterAgent now working
 - **TypeScript Compilation**: ✅ 0 errors

@@ -301,8 +301,9 @@ export class Database {
         reward REAL NOT NULL,
         next_state TEXT NOT NULL,
         episode_id TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE SET NULL
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        -- NOTE: No FK constraint on task_id - learning is independent of fleet tasks
+        -- task_id is kept for correlation/analytics but doesn't require task to exist in DB
       )`,
 
       // Learning history for Q-Learning
@@ -391,8 +392,18 @@ export class Database {
       'CREATE INDEX IF NOT EXISTS idx_learning_metrics_timestamp ON learning_metrics (timestamp)'
     ];
 
+    // Create indexes - skip if column doesn't exist (for schema compatibility)
     for (const index of indexes) {
-      await this.exec(index);
+      try {
+        await this.exec(index);
+      } catch (error: any) {
+        // Log warning but continue - index might reference tables from other schema managers
+        if (error.message && error.message.includes('no such column')) {
+          this.logger.warn(`Skipping index creation: ${error.message}`);
+        } else {
+          throw error;
+        }
+      }
     }
 
     this.logger.info('Database tables and indexes created successfully');
@@ -793,7 +804,7 @@ export class Database {
   }> {
     const [experiencesRow, avgRewardRow, qTableRow] = await Promise.all([
       this.get('SELECT COUNT(*) as count FROM learning_experiences WHERE agent_id = ?', [agentId]),
-      this.get('SELECT AVG(reward) as avg FROM learning_experiences WHERE agent_id = ? AND timestamp > datetime("now", "-7 days")', [agentId]),
+      this.get("SELECT AVG(reward) as avg FROM learning_experiences WHERE agent_id = ? AND timestamp > datetime('now', '-7 days')", [agentId]),
       this.get('SELECT COUNT(*) as count FROM q_values WHERE agent_id = ?', [agentId])
     ]);
 

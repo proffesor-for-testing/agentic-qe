@@ -18,17 +18,42 @@ describe('TestGenerateEnhancedHandler', () => {
 
   describe('Happy Path', () => {
     it('should handle valid input successfully', async () => {
-      const response = await handler.handle({ /* valid params */ });
+      const response = await handler.handle({
+        sourceCode: `
+          function add(a, b) {
+            return a + b;
+          }
+
+          function multiply(x, y) {
+            return x * y;
+          }
+        `,
+        language: 'javascript',
+        testType: 'unit',
+        aiEnhancement: true,
+        coverageGoal: 80,
+        detectAntiPatterns: true
+      });
 
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
+      expect(response.data.tests).toBeDefined();
+      expect(response.data.tests.length).toBeGreaterThan(0);
+      expect(response.data.antiPatterns).toBeDefined();
+      expect(response.data.aiInsights).toBeDefined();
     });
 
     it('should return expected data structure', async () => {
-      const response = await handler.handle({ /* valid params */ });
+      const response = await handler.handle({
+        sourceCode: 'const greet = (name) => `Hello ${name}`;',
+        language: 'typescript',
+        testType: 'integration'
+      });
 
       expect(response).toHaveProperty('success');
       expect(response).toHaveProperty('requestId');
+      expect(response.data).toHaveProperty('tests');
+      expect(response.data).toHaveProperty('coverage');
     });
   });
 
@@ -49,7 +74,11 @@ describe('TestGenerateEnhancedHandler', () => {
 
   describe('Error Handling', () => {
     it('should handle errors gracefully', async () => {
-      const response = await handler.handle({ /* trigger error */ } as any);
+      const response = await handler.handle({
+        sourceCode: '',
+        language: 'javascript',
+        testType: 'unit'
+      });
 
       expect(response).toHaveProperty('success');
       expect(response).toHaveProperty('requestId');
@@ -67,14 +96,37 @@ describe('TestGenerateEnhancedHandler', () => {
 
   describe('Edge Cases', () => {
     it('should handle edge case inputs', async () => {
-      const response = await handler.handle({ /* edge case */ } as any);
+      const response = await handler.handle({
+        sourceCode: `
+          var oldStyle = 'test';
+          eval('console.log("dangerous")');
+        `,
+        language: 'javascript',
+        testType: 'property-based',
+        aiEnhancement: true,
+        detectAntiPatterns: true
+      });
 
       expect(response).toHaveProperty('success');
+      if (response.success) {
+        expect(response.data.antiPatterns.length).toBeGreaterThan(0);
+        expect(response.data.antiPatterns).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: expect.stringMatching(/dangerous-eval|var-usage/)
+            })
+          ])
+        );
+      }
     });
 
     it('should handle concurrent requests', async () => {
       const promises = Array.from({ length: 10 }, () =>
-        handler.handle({ /* valid params */ })
+        handler.handle({
+          sourceCode: 'function test() { return true; }',
+          language: 'javascript',
+          testType: 'unit'
+        })
       );
 
       const results = await Promise.all(promises);
@@ -87,7 +139,15 @@ describe('TestGenerateEnhancedHandler', () => {
   describe('Performance', () => {
     it('should complete within reasonable time', async () => {
       const startTime = Date.now();
-      await handler.handle({ /* valid params */ });
+      await handler.handle({
+        sourceCode: Array.from({ length: 50 }, (_, i) =>
+          `function func${i}(arg) { return arg * ${i}; }`
+        ).join('\n'),
+        language: 'javascript',
+        testType: 'unit',
+        aiEnhancement: true,
+        detectAntiPatterns: true
+      });
       const endTime = Date.now();
 
       expect(endTime - startTime).toBeLessThan(1000);
