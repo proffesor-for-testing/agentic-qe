@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.4.3** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.2** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
 
@@ -506,12 +506,14 @@ Model Usage:
 
 ## 📝 What's New in v1.4.2
 
-🔐 **Security & Stability Release** (2025-11-02)
+🔐 **Security, Stability & Learning System Fixes** (2025-11-02)
 
 - **Security**: Fixed 2 critical vulnerabilities (CWE-116 regex injection, CWE-1321 prototype pollution)
 - **Critical Fix**: PerformanceTesterAgent now working - all 18 agents functional (was 17/18)
+- **Learning System**: Fixed Q-learning persistence - Database auto-initialization now working correctly
+- **Database**: Removed FK constraint on learning_experiences for independent learning
 - **Reliability**: Enhanced error handling across 20 MCP handlers with centralized safeHandle()
-- **Quality**: Added 138 new test cases (2,680 lines) + 6 test infrastructure improvements
+- **Quality**: Added 300+ new test cases (~22,000 lines) including comprehensive MCP handler coverage
 - **Developer Experience**: Tests now exit cleanly with --forceExit flag (no more hanging processes)
 
 **Upgrade Recommendation**: All users should upgrade to v1.4.2 for security and stability improvements.
