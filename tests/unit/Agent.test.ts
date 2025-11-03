@@ -8,9 +8,57 @@ import { Task, TaskStatus } from '@core/Task';
 import { EventBus } from '@core/EventBus';
 import { Logger } from '@utils/Logger';
 
-// Mock implementations
-jest.mock('@utils/Logger'); // Activate manual mock for Logger
-jest.mock('@core/EventBus');
+// Mock Logger with inline implementation (manual mock wasn't being loaded properly)
+jest.mock('@utils/Logger', () => {
+  let mockInstance: any = null;
+
+  return {
+    LogLevel: {
+      ERROR: 'error',
+      WARN: 'warn',
+      INFO: 'info',
+      DEBUG: 'debug'
+    },
+    Logger: class MockLogger {
+      static getInstance() {
+        if (!mockInstance) {
+          mockInstance = {
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            debug: jest.fn(),
+            log: jest.fn(),
+            setLevel: jest.fn(),
+            getLevel: jest.fn().mockReturnValue('info'),
+            child: jest.fn(function() { return mockInstance; })
+          };
+        }
+        return mockInstance;
+      }
+
+      static resetInstance() {
+        if (mockInstance) {
+          // Clear call history
+          mockInstance.info.mockClear();
+          mockInstance.warn.mockClear();
+          mockInstance.error.mockClear();
+          mockInstance.debug.mockClear();
+          mockInstance.log.mockClear();
+        }
+        // Don't reset the instance itself - keep singleton behavior
+      }
+
+      info = jest.fn();
+      warn = jest.fn();
+      error = jest.fn();
+      debug = jest.fn();
+      log = jest.fn();
+      setLevel = jest.fn();
+      getLevel = jest.fn().mockReturnValue('info');
+      child = jest.fn(function(this: any) { return this; });
+    }
+  };
+});
 
 // Test Agent implementation
 class TestAgent extends Agent {
@@ -83,17 +131,21 @@ class TestAgent extends Agent {
 describe('Agent', () => {
   let agent: TestAgent;
   let mockEventBus: jest.Mocked<EventBus>;
-  let mockLogger: jest.Mocked<Logger>;
   let mockTask: jest.Mocked<Task>;
+  let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
-    // Reset Logger singleton to ensure clean state
-    if ((Logger as any).resetInstance) {
-      (Logger as any).resetInstance();
-    }
-
-    // Clear all mocks BEFORE getting logger instance
-    jest.clearAllMocks();
+    // Create mock logger instance
+    mockLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      log: jest.fn(),
+      setLevel: jest.fn(),
+      getLevel: jest.fn().mockReturnValue('info'),
+      child: jest.fn(function() { return mockLogger; })
+    } as any;
 
     // Create mock EventBus
     mockEventBus = {
@@ -104,9 +156,6 @@ describe('Agent', () => {
       emitFleetEvent: jest.fn().mockResolvedValue('event-id-123'),
       getEvent: jest.fn()
     } as any;
-
-    // Get mocked Logger instance
-    mockLogger = Logger.getInstance() as jest.Mocked<Logger>;
 
     // Create mock Task
     mockTask = {
@@ -119,8 +168,8 @@ describe('Agent', () => {
       waitForCompletion: jest.fn().mockResolvedValue(undefined)
     } as any;
 
-    // Create test agent
-    agent = new TestAgent('agent-123', 'test-agent', { testConfig: true }, mockEventBus);
+    // Create test agent with injected mock logger
+    agent = new TestAgent('agent-123', 'test-agent', { testConfig: true }, mockEventBus, mockLogger);
   });
 
   describe('Initialization', () => {

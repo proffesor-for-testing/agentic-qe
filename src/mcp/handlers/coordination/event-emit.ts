@@ -43,10 +43,10 @@ export class EventEmitHandler extends BaseHandler {
   }
 
   async handle(args: EventEmitArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Emitting coordination event', { requestId, event: args.event });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Emitting coordination event', { requestId, event: args.event });
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['event', 'data']);
 
@@ -61,15 +61,7 @@ export class EventEmitHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(emitted, requestId);
-    } catch (error) {
-      this.log('error', 'Event emission failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Event emission failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async emitEvent(args: EventEmitArgs): Promise<EmittedEvent> {

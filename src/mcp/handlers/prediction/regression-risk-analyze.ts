@@ -159,10 +159,10 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
   }
 
   async handle(args: RegressionRiskAnalyzeArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = performance.now();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = performance.now();
 
-    try {
       this.log('info', 'Starting regression risk analysis', { requestId, args });
 
       // Validate input - accept either 'changeSet' or 'changes'
@@ -208,13 +208,7 @@ export class RegressionRiskAnalyzeHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Regression risk analysis failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

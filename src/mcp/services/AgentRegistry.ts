@@ -13,7 +13,8 @@ import { QEAgentFactory } from '../../agents';
 import { QEAgentType, AgentContext, AgentCapability, AgentStatus, MemoryStore } from '../../types';
 import { Logger } from '../../utils/Logger';
 import { EventBus } from '../../core/EventBus';
-import { MemoryManager } from '../../core/MemoryManager';
+import { SwarmMemoryManager } from '../../core/memory/SwarmMemoryManager';
+import { Database } from '../../utils/Database';
 import { SecureRandom } from '../../utils/SecureRandom';
 
 export interface AgentRegistryConfig {
@@ -63,7 +64,7 @@ export class AgentRegistry {
   private config: AgentRegistryConfig;
   private nextAgentId: number = 1;
   private eventBus: EventBus;
-  private memoryStore: MemoryManager;
+  private memoryStore: SwarmMemoryManager;
   private factory: QEAgentFactory;
 
   constructor(config: AgentRegistryConfig = {}) {
@@ -76,7 +77,9 @@ export class AgentRegistry {
 
     // Initialize infrastructure
     this.eventBus = new EventBus();
-    this.memoryStore = new MemoryManager();
+    // Create SwarmMemoryManager with database path for learning persistence
+    const dbPath = process.env.AQE_DB_PATH || '.agentic-qe/memory.db';
+    this.memoryStore = new SwarmMemoryManager(dbPath);
 
     // Initialize memory store database (non-blocking initialization)
     // This prevents "Database not initialized" warnings when agents spawn
@@ -87,7 +90,7 @@ export class AgentRegistry {
     // Create factory with infrastructure
     this.factory = new QEAgentFactory({
       eventBus: this.eventBus,
-      memoryStore: this.memoryStore,
+      memoryStore: this.memoryStore as any, // SwarmMemoryManager extends MemoryStore interface
       context: this.createDefaultContext()
     });
   }
@@ -179,7 +182,17 @@ export class AgentRegistry {
           : [],
         context: this.createAgentContext(mcpType, agentId),
         memoryStore: this.memoryStore as unknown as MemoryStore,
-        eventBus: this.eventBus
+        eventBus: this.eventBus,
+        // Enable learning and Q-learning for all agents
+        enableLearning: true,
+        learningConfig: {
+          enabled: true,
+          learningRate: 0.1,
+          discountFactor: 0.95,
+          explorationRate: 0.3,
+          minExplorationRate: 0.01,
+          explorationDecay: 0.995
+        }
       };
 
       // Create agent via factory instance method with additional config

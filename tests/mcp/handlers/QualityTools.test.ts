@@ -12,7 +12,7 @@
  * @author Agentic QE Team - Agent 2
  */
 
-import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+import { describe, it, expect, beforeEach, jest, Mock } from '@jest/globals';
 import { QualityGateExecuteHandler } from '@mcp/handlers/quality/quality-gate-execute';
 import { QualityValidateMetricsHandler } from '@mcp/handlers/quality/quality-validate-metrics';
 import { QualityRiskAssessHandler } from '@mcp/handlers/quality/quality-risk-assess';
@@ -22,8 +22,8 @@ import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
 // Mock services
-vi.mock('../../../src/mcp/services/AgentRegistry.js');
-vi.mock('../../../src/mcp/services/HookExecutor.js');
+jest.mock('../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../src/mcp/services/HookExecutor.js');
 
 describe('Quality MCP Tools', () => {
   let mockAgentRegistry: AgentRegistry;
@@ -31,15 +31,15 @@ describe('Quality MCP Tools', () => {
 
   beforeEach(() => {
     mockAgentRegistry = {
-      spawnAgent: vi.fn().mockResolvedValue({ id: 'test-agent-id' }),
-      executeTask: vi.fn().mockResolvedValue({ output: {} })
+      spawnAgent: jest.fn().mockResolvedValue({ id: 'test-agent-id' }),
+      executeTask: jest.fn().mockResolvedValue({ output: {} })
     } as any;
 
     mockHookExecutor = {
-      executePreTask: vi.fn().mockResolvedValue(undefined),
-      executePostTask: vi.fn().mockResolvedValue(undefined),
-      executePostEdit: vi.fn().mockResolvedValue(undefined),
-      notify: vi.fn().mockResolvedValue(undefined)
+      executePreTask: jest.fn().mockResolvedValue(undefined),
+      executePostTask: jest.fn().mockResolvedValue(undefined),
+      executePostEdit: jest.fn().mockResolvedValue(undefined),
+      notify: jest.fn().mockResolvedValue(undefined)
     } as any;
   });
 

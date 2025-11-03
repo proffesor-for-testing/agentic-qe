@@ -38,9 +38,9 @@ export class MemoryRetrieveHandler extends BaseHandler {
    * Handle memory retrieve request
    */
   async handle(args: MemoryRetrieveParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['key']);
 
@@ -104,13 +104,6 @@ export class MemoryRetrieveHandler extends BaseHandler {
       }
 
       return this.createSuccessResponse(response, requestId);
-
-    } catch (error) {
-      this.log('error', 'Failed to retrieve memory', error);
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 }

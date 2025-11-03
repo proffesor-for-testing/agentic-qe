@@ -40,9 +40,9 @@ export class MemoryStoreHandler extends BaseHandler {
    * Handle memory store request
    */
   async handle(args: MemoryStoreParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['key', 'value']);
 
@@ -87,14 +87,7 @@ export class MemoryStoreHandler extends BaseHandler {
         timestamp: record.timestamp,
         persistent: persist
       }, requestId);
-
-    } catch (error) {
-      this.log('error', 'Failed to store memory', error);
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

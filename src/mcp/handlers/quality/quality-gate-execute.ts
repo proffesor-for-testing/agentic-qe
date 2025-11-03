@@ -157,17 +157,17 @@ export class QualityGateExecuteHandler extends BaseHandler {
   }
 
   async handle(args: QualityGateExecuteArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = Date.now();
-    this.log('info', 'Executing quality gate', {
-      requestId,
-      projectId: args.projectId,
-      environment: args.environment
-    });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = Date.now();
+      this.log('info', 'Executing quality gate', {
+        requestId,
+        projectId: args.projectId,
+        environment: args.environment
+      });
 
-    let agentId: string | undefined;
+      let agentId: string | undefined;
 
-    try {
       // Validate required parameters
       this.validateRequired(args, ['projectId', 'buildId', 'environment', 'metrics']);
 
@@ -270,24 +270,7 @@ export class QualityGateExecuteHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(gateResult, requestId);
-
-    } catch (error) {
-      this.log('error', 'Quality gate execution failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-
-      if (agentId) {
-        await this.hookExecutor.notify({
-          message: `Quality gate execution failed: ${error instanceof Error ? error.message : String(error)}`,
-          level: 'error'
-        });
-      }
-
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Quality gate execution failed',
-        requestId
-      );
-    }
+    });
   }
 
   private createDefaultPolicy(): QualityGatePolicy {

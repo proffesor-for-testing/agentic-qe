@@ -14,9 +14,9 @@ export interface PerformanceMonitorRealtimeParams {
 
 export class PerformanceMonitorRealtimeHandler extends BaseHandler {
   async handle(args: PerformanceMonitorRealtimeParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       this.log('info', 'Starting real-time performance monitoring', { requestId, args });
 
       const duration = args.duration || 60;
@@ -31,13 +31,7 @@ export class PerformanceMonitorRealtimeHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Performance monitoring failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   private async monitor(target: string, duration: number, interval: number): Promise<any> {

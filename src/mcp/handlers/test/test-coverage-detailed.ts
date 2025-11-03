@@ -43,14 +43,14 @@ export class TestCoverageDetailedHandler extends BaseHandler {
   }
 
   async handle(args: TestCoverageDetailedArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Coverage analysis started', {
-      requestId,
-      analysisType: args.analysisType,
-      fileCount: args.coverageData.files.length
-    });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Coverage analysis started', {
+        requestId,
+        analysisType: args.analysisType,
+        fileCount: args.coverageData.files.length
+      });
 
-    try {
       this.validateRequired(args, ['coverageData', 'analysisType']);
 
       const { result, executionTime } = await this.measureExecutionTime(async () => {
@@ -95,13 +95,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
 
       this.log('info', `Coverage analysis completed in ${executionTime.toFixed(2)}ms`);
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Coverage analysis failed', { error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Coverage analysis failed',
-        requestId
-      );
-    }
+    });
   }
 
   private initializeAnalyzers(): void {

@@ -40,9 +40,9 @@ export class EventSubscribeHandler extends BaseHandler {
   }
 
   async handle(args: EventSubscribeArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       // Handle unsubscribe action
       if (args.action === 'unsubscribe') {
         if (!args.subscriptionId) {
@@ -80,15 +80,7 @@ export class EventSubscribeHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(subscription, requestId);
-    } catch (error) {
-      this.log('error', 'Event subscription failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Event subscription failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async subscribe(args: EventSubscribeArgs): Promise<Subscription> {

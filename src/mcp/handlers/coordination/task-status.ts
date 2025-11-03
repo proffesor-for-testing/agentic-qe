@@ -74,10 +74,10 @@ export class TaskStatusHandler extends BaseHandler {
   }
 
   async handle(args: TaskStatusArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Retrieving task status', { requestId, taskId: args.taskId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Retrieving task status', { requestId, taskId: args.taskId });
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['taskId']);
 
@@ -91,15 +91,7 @@ export class TaskStatusHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(status, requestId);
-    } catch (error) {
-      this.log('error', 'Task status retrieval failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Task status retrieval failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async getTaskStatus(args: TaskStatusArgs): Promise<TaskStatus> {

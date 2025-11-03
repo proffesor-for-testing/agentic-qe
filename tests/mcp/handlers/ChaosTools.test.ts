@@ -3,7 +3,7 @@
  * Tests for real fault injection mechanisms with NO MOCKS (except in test setup)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import {
   chaosInjectLatency,
   chaosInjectFailure,

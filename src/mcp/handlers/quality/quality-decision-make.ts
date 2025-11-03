@@ -108,15 +108,15 @@ export class QualityDecisionMakeHandler extends BaseHandler {
   }
 
   async handle(args: QualityDecisionMakeArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = Date.now();
-    this.log('info', 'Making deployment decision', {
-      requestId,
-      projectId: args.context.projectId,
-      environment: args.context.environment
-    });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = Date.now();
+      this.log('info', 'Making deployment decision', {
+        requestId,
+        projectId: args.context.projectId,
+        environment: args.context.environment
+      });
 
-    try {
       // Validate required parameters
       this.validateRequired(args, ['context', 'inputs']);
 
@@ -210,22 +210,7 @@ export class QualityDecisionMakeHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(decision, requestId);
-
-    } catch (error) {
-      this.log('error', 'Decision making failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-
-      await this.hookExecutor.notify({
-        message: `Decision making failed: ${error instanceof Error ? error.message : String(error)}`,
-        level: 'error'
-      });
-
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Decision making failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async evaluateDecisionFactors(args: QualityDecisionMakeArgs): Promise<DecisionFactor[]> {

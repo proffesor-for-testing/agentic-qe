@@ -13,9 +13,9 @@ export interface SecurityScanComprehensiveParams {
 
 export class SecurityScanComprehensiveHandler extends BaseHandler {
   async handle(args: SecurityScanComprehensiveParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       this.log('info', 'Starting security scan', { requestId, args });
 
       const scanType = args.scanType || 'comprehensive';
@@ -31,13 +31,7 @@ export class SecurityScanComprehensiveHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Security scan failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   private async performScan(target: string, scanType: string, depth: string): Promise<any> {

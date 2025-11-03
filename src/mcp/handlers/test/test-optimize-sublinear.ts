@@ -37,14 +37,14 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
   }
 
   async handle(args: TestOptimizeSublinearArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Sublinear optimization started', {
-      requestId,
-      algorithm: args.algorithm,
-      testCount: args.testSuite.tests.length
-    });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Sublinear optimization started', {
+        requestId,
+        algorithm: args.algorithm,
+        testCount: args.testSuite.tests.length
+      });
 
-    try {
       this.validateRequired(args, ['testSuite', 'algorithm']);
 
       const { result, executionTime } = await this.measureExecutionTime(async () => {
@@ -74,13 +74,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
 
       this.log('info', `Optimization completed in ${executionTime.toFixed(2)}ms`);
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Optimization failed', { error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Optimization failed',
-        requestId
-      );
-    }
+    });
   }
 
   private initializeAlgorithms(): void {
