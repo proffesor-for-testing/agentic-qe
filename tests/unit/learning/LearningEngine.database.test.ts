@@ -139,6 +139,7 @@ describe('LearningEngine - Database Integration Tests', () => {
 
   afterEach(async () => {
     // Cleanup
+    learningEngine.dispose(); // Clear timers first
     await database.close();
     await memoryStore.close();
 

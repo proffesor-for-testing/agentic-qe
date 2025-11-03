@@ -967,4 +967,14 @@ export class LearningEngine {
   isQLearningEnabled(): boolean {
     return this.useQLearning;
   }
+
+  /**
+   * Cleanup resources (timers, connections)
+   * Call this before destroying the LearningEngine instance
+   */
+  dispose(): void {
+    if (this.persistence && 'dispose' in this.persistence) {
+      (this.persistence as any).dispose();
+    }
+  }
 }
