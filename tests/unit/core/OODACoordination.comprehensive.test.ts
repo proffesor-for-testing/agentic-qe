@@ -5,9 +5,11 @@
 
 import { OODACoordination, OODALoop, Observation, Orientation, Decision, Action } from '@core/coordination/OODACoordination';
 import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
-import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs-extra';
+
+// Use actual path module to avoid jest.setup.ts mock issues
+const path = jest.requireActual('path');
 
 describe('OODACoordination - Comprehensive Tests', () => {
   let oodaCoordination: OODACoordination;
@@ -15,7 +17,9 @@ describe('OODACoordination - Comprehensive Tests', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(os.tmpdir(), `ooda-test-${Date.now()}`);
+    // Use os.tmpdir() directly for Jest compatibility (no __dirname dependency)
+    const tmpDir = os.tmpdir();
+    testDir = path.join(tmpDir, `ooda-test-${Date.now()}-${Math.random().toString(36).substring(7)}`);
     await fs.ensureDir(testDir);
 
     const dbPath = path.join(testDir, 'memory.db');

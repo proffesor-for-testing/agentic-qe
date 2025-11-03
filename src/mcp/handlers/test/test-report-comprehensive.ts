@@ -42,10 +42,10 @@ export class TestReportComprehensiveHandler extends BaseHandler {
   }
 
   async handle(args: TestReportComprehensiveArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Report generation started', { requestId, format: args.format });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Report generation started', { requestId, format: args.format });
 
-    try {
       this.validateRequired(args, ['results', 'format']);
 
       const { result, executionTime } = await this.measureExecutionTime(async () => {
@@ -97,13 +97,7 @@ export class TestReportComprehensiveHandler extends BaseHandler {
 
       this.log('info', `Report generated in ${executionTime.toFixed(2)}ms`);
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Report generation failed', { error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Report generation failed',
-        requestId
-      );
-    }
+    });
   }
 
   private initializeFormatters(): void {

@@ -100,13 +100,13 @@ export abstract class Agent extends EventEmitter {
   protected metrics: AgentMetrics;
   protected startTime: Date | null = null;
 
-  constructor(id: string, type: string, config: any, eventBus: EventBus) {
+  constructor(id: string, type: string, config: any, eventBus: EventBus, logger?: Logger) {
     super();
     this.id = id;
     this.type = type;
     this.config = config;
     this.eventBus = eventBus;
-    this.logger = Logger.getInstance();
+    this.logger = logger || Logger.getInstance();
     this.status = AgentStatus.INITIALIZING;
     this.metrics = {
       tasksCompleted: 0,

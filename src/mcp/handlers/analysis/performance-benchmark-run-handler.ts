@@ -13,9 +13,9 @@ export interface PerformanceBenchmarkRunParams {
 
 export class PerformanceBenchmarkRunHandler extends BaseHandler {
   async handle(args: PerformanceBenchmarkRunParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       this.log('info', 'Starting performance benchmark', { requestId, args });
 
       const iterations = args.iterations || 100;
@@ -31,13 +31,7 @@ export class PerformanceBenchmarkRunHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Performance benchmark failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   private async runBenchmark(suite: string, iterations: number, warmup: number): Promise<any> {

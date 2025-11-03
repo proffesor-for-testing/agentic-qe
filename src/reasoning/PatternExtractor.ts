@@ -125,6 +125,150 @@ export class PatternExtractor {
   }
 
   /**
+   * Extract patterns from generated test suite (in-memory Test[] objects)
+   * This is used to learn from AI-generated tests
+   * Returns patterns compatible with QEReasoningBank.TestPattern
+   */
+  async extractFromTestSuite(tests: Array<{ id: string; name: string; type: string; code?: string; assertions?: string[]; metadata?: any }>, framework: string): Promise<Array<any>> {
+    const patterns: Array<any> = [];
+
+    for (const test of tests) {
+      // Only extract from tests that have actual code
+      if (!test.code || test.code.length < 20) {
+        continue;
+      }
+
+      try {
+        // Detect pattern type from test name and code
+        const testName = test.name.toLowerCase();
+        const testCode = test.code;
+
+        let patternType: string = 'unit';
+        let confidence = 0.7;
+
+        // Classify test type
+        if (testName.includes('integration') || testName.includes('api') || testName.includes('endpoint')) {
+          patternType = 'integration';
+          confidence = 0.8;
+        } else if (testName.includes('e2e') || testName.includes('end-to-end')) {
+          patternType = 'e2e';
+          confidence = 0.75;
+        } else if (testName.includes('performance') || testName.includes('load')) {
+          patternType = 'performance';
+          confidence = 0.8;
+        } else if (testName.includes('security') || testName.includes('auth')) {
+          patternType = 'security';
+          confidence = 0.85;
+        }
+
+        // Boost confidence for edge cases and error handling
+        if (testName.includes('edge') || testName.includes('boundary') || testName.includes('null') || testName.includes('undefined')) {
+          confidence += 0.1;
+        }
+        if (testName.includes('error') || testName.includes('exception') || testName.includes('invalid')) {
+          confidence += 0.05;
+        }
+
+        // Cap confidence at 1.0
+        confidence = Math.min(confidence, 1.0);
+
+        // Extract template from code
+        const template = this.normalizeTestCode(testCode);
+
+        // Create pattern ID from test name
+        const patternId = `pattern-${crypto.createHash('md5').update(test.name + testCode.slice(0, 100)).digest('hex').slice(0, 12)}`;
+
+        const pattern = {
+          id: patternId,
+          name: `${test.name} Pattern`,
+          description: `Test pattern extracted from generated test: ${test.name}`,
+          category: patternType as any,
+          framework: this.normalizeFramework(framework) as any,
+          language: 'typescript' as const,
+          template,
+          examples: [testCode],
+          confidence,
+          usageCount: 1, // Initial usage
+          successRate: 0.0, // Will be updated as pattern is reused
+          metadata: {
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            version: '1.0.0',
+            tags: this.extractTags(testName, testCode),
+            source: 'ai-generated',
+            testType: test.type,
+            assertions: test.assertions || []
+          }
+        };
+
+        patterns.push(pattern);
+
+      } catch (error) {
+        this.logger.warn(`Failed to extract pattern from test ${test.name}:`, error);
+        // Continue with other tests
+      }
+    }
+
+    return this.deduplicatePatterns(patterns);
+  }
+
+  /**
+   * Normalize test code to create reusable template
+   */
+  private normalizeTestCode(code: string): string {
+    // Replace specific values with placeholders
+    let template = code;
+
+    // Replace string literals
+    template = template.replace(/'[^']*'/g, "'{{value}}'");
+    template = template.replace(/"[^"]*"/g, '"{{value}}"');
+
+    // Replace numeric literals (but keep simple numbers like 0, 1, 2)
+    template = template.replace(/\b\d{3,}\b/g, '{{number}}');
+
+    // Replace variable names in assertions
+    template = template.replace(/expect\((\w+)\)/g, 'expect({{result}})');
+
+    return template;
+  }
+
+  /**
+   * Extract tags from test name and code
+   */
+  private extractTags(testName: string, code: string): string[] {
+    const tags = new Set<string>();
+
+    const keywords = ['async', 'mock', 'spy', 'stub', 'api', 'http', 'rest', 'graphql',
+                      'error', 'exception', 'edge', 'boundary', 'integration', 'unit',
+                      'validation', 'auth', 'security', 'performance'];
+
+    const testNameLower = testName.toLowerCase();
+    const codeLower = code.toLowerCase();
+
+    for (const keyword of keywords) {
+      if (testNameLower.includes(keyword) || codeLower.includes(keyword)) {
+        tags.add(keyword);
+      }
+    }
+
+    return Array.from(tags);
+  }
+
+  /**
+   * Normalize framework name to enum value
+   */
+  private normalizeFramework(framework: string): 'jest' | 'mocha' | 'vitest' | 'playwright' | 'cypress' | 'jasmine' | 'ava' {
+    const lower = framework.toLowerCase();
+    if (lower.includes('mocha')) return 'mocha';
+    if (lower.includes('vitest')) return 'vitest';
+    if (lower.includes('playwright')) return 'playwright';
+    if (lower.includes('cypress')) return 'cypress';
+    if (lower.includes('jasmine')) return 'jasmine';
+    if (lower.includes('ava')) return 'ava';
+    return 'jest'; // Default
+  }
+
+  /**
    * Parse source code to AST
    */
   private parseCode(code: string, filePath: string): any {

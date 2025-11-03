@@ -22,6 +22,7 @@ import {
 } from '../types';
 import { QEReasoningBank, TestPattern as QETestPattern, PatternMatch } from '../reasoning/QEReasoningBank';
 import { CodeSignature as ReasoningCodeSignature } from '../reasoning/types';
+import { PatternExtractor } from '../reasoning/PatternExtractor';
 import { LearningEngine } from '../learning/LearningEngine';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
@@ -116,6 +117,7 @@ export class TestGeneratorAgent extends BaseAgent {
 
   // Pattern-based generation (Phase 2 integration)
   private reasoningBank?: QEReasoningBank;
+  private patternExtractor?: PatternExtractor;
   // Note: learningEngine and performanceTracker are inherited from BaseAgent as protected
   // We don't redeclare them here to avoid visibility conflicts
   private readonly patternConfig: {
@@ -138,8 +140,19 @@ export class TestGeneratorAgent extends BaseAgent {
 
     // Initialize pattern-based components
     if (this.patternConfig.enabled) {
-      this.reasoningBank = new QEReasoningBank();
-      this.logger.info('[TestGeneratorAgent] Pattern-based generation enabled');
+      // ReasoningBank will be initialized with database in initializeComponents()
+      this.reasoningBank = new QEReasoningBank({
+        minQuality: 0.7
+      });
+
+      // Initialize pattern extractor for learning from generated tests
+      this.patternExtractor = new PatternExtractor({
+        minConfidence: 0.7,
+        minFrequency: 1, // Store patterns from first use
+        maxPatternsPerFile: 5
+      });
+
+      this.logger.info('[TestGeneratorAgent] Pattern-based generation enabled with database persistence');
     }
 
     // Note: Learning components are initialized by BaseAgent if enableLearning is true
@@ -160,6 +173,32 @@ export class TestGeneratorAgent extends BaseAgent {
     this.psychoSymbolicReasoner = await this.createPsychoSymbolicReasoner();
     this.sublinearCore = await this.createSublinearCore();
 
+    // NEW: Initialize ReasoningBank with database from memoryStore
+    if (this.reasoningBank) {
+      try {
+        // Get database from SwarmMemoryManager if available
+        const swarmMemory = this.memoryStore as any;
+        if (swarmMemory && swarmMemory.getDatabase && typeof swarmMemory.getDatabase === 'function') {
+          const db = swarmMemory.getDatabase();
+          if (db) {
+            // Re-create ReasoningBank with database
+            this.reasoningBank = new QEReasoningBank({
+              minQuality: 0.7,
+              database: db
+            });
+            this.logger.info('[TestGeneratorAgent] ReasoningBank initialized with SwarmMemoryManager database');
+          }
+        }
+
+        // Initialize and load patterns from database
+        await this.reasoningBank.initialize();
+        this.logger.info('[TestGeneratorAgent] ReasoningBank pattern database loaded');
+      } catch (error) {
+        this.logger.error('[TestGeneratorAgent] Failed to initialize ReasoningBank:', error);
+        // Continue - agent will work without pattern reuse
+      }
+    }
+
     // Note: Learning components are initialized by BaseAgent.initialize()
     // We just verify they're available
     if (this.learningEngine) {
@@ -173,8 +212,41 @@ export class TestGeneratorAgent extends BaseAgent {
     await this.storeMemory('pattern-config', this.patternConfig);
   }
 
+  /**
+   * Perform test generation task with full input validation
+   * @param task - Task containing test generation requirements
+   * @returns Test generation result with generated test suite
+   * @throws {Error} If task or requirements are invalid/missing
+   */
   protected async performTask(task: QETask): Promise<TestGenerationResult> {
+    // Guard clause: Validate task object
+    if (!task) {
+      throw new Error('[TestGeneratorAgent] Task object is null or undefined');
+    }
+
+    // Guard clause: Validate requirements exist
+    if (!task.requirements) {
+      throw new Error('[TestGeneratorAgent] Task requirements are null or undefined');
+    }
+
     const request = task.requirements as TestGenerationRequest;
+
+    // Guard clause: Validate critical request fields
+    if (!request.sourceCode) {
+      throw new Error('[TestGeneratorAgent] Source code is required but missing');
+    }
+
+    if (!request.framework) {
+      throw new Error('[TestGeneratorAgent] Testing framework is required but missing');
+    }
+
+    if (!request.coverage) {
+      throw new Error('[TestGeneratorAgent] Coverage configuration is required but missing');
+    }
+
+    if (!request.constraints) {
+      throw new Error('[TestGeneratorAgent] Test constraints are required but missing');
+    }
 
     // Implement the GenerateTestsWithAI algorithm from SPARC pseudocode
     return await this.generateTestsWithAI(request);
@@ -207,6 +279,10 @@ export class TestGeneratorAgent extends BaseAgent {
    * Generate tests using AI analysis and sublinear optimization
    * Based on SPARC Phase 2 Algorithm: GenerateTestsWithAI
    * Enhanced with pattern-based generation for 20%+ performance improvement
+   *
+   * @param request - Test generation request with source code and constraints
+   * @returns Test generation result with generated test suite and metrics
+   * @throws {Error} If required request fields are invalid or processing fails
    */
   private async generateTestsWithAI(request: TestGenerationRequest): Promise<TestGenerationResult> {
     const startTime = Date.now();
@@ -216,10 +292,37 @@ export class TestGeneratorAgent extends BaseAgent {
     let appliedPatterns: string[] = [];
 
     try {
+      // Defensive: Validate source code structure
+      if (!request.sourceCode) {
+        throw new Error('[TestGeneratorAgent] Source code is required');
+      }
+
+      if (!request.sourceCode.complexityMetrics) {
+        throw new Error('[TestGeneratorAgent] Source code complexity metrics are required');
+      }
+
+      // Defensive: Validate framework and constraints
+      if (!request.framework || typeof request.framework !== 'string') {
+        throw new Error('[TestGeneratorAgent] Valid framework name is required');
+      }
+
+      if (!request.constraints || typeof request.constraints !== 'object') {
+        throw new Error('[TestGeneratorAgent] Valid constraints object is required');
+      }
+
       // Phase 1: Code Analysis using Consciousness Framework
       const codeAnalysis = await this.analyzeCodeWithConsciousness(request.sourceCode);
+
+      // Defensive: Validate code analysis result
+      if (!codeAnalysis) {
+        throw new Error('[TestGeneratorAgent] Code analysis failed - returned null/undefined');
+      }
+
       const complexityMetrics = request.sourceCode.complexityMetrics;
       const riskFactors = await this.identifyRiskFactors(codeAnalysis, complexityMetrics);
+
+      // Defensive: Ensure riskFactors is an array
+      const safeRiskFactors = Array.isArray(riskFactors) ? riskFactors : [];
 
       // Phase 2: Pattern-Based Generation (NEW - Phase 2 Integration)
       let applicablePatterns: PatternMatch[] = [];
@@ -229,20 +332,41 @@ export class TestGeneratorAgent extends BaseAgent {
         // Extract code signature for pattern matching
         const codeSignature = await this.extractCodeSignature(request.sourceCode);
 
-        // Find applicable patterns from ReasoningBank
-        applicablePatterns = await this.findApplicablePatterns(codeSignature, request.framework);
+        // Defensive: Validate code signature extraction
+        if (!codeSignature) {
+          this.logger.warn('[TestGeneratorAgent] Code signature extraction returned null, skipping pattern matching');
+        } else {
+          // Find applicable patterns from ReasoningBank
+          applicablePatterns = await this.findApplicablePatterns(codeSignature, request.framework);
 
-        patternMatchTime = Date.now() - patternStart;
-        patternMatches = applicablePatterns;
+          // Defensive: Ensure applicablePatterns is an array
+          if (!Array.isArray(applicablePatterns)) {
+            this.logger.warn('[TestGeneratorAgent] Pattern matching returned non-array, using empty array');
+            applicablePatterns = [];
+          }
 
-        this.logger.info(`[TestGeneratorAgent] Found ${applicablePatterns.length} applicable patterns in ${patternMatchTime}ms`);
+          patternMatchTime = Date.now() - patternStart;
+          patternMatches = applicablePatterns;
+
+          this.logger.info(`[TestGeneratorAgent] Found ${applicablePatterns.length} applicable patterns in ${patternMatchTime}ms`);
+        }
       }
 
       // Phase 3: Pattern Recognition (enhanced with ReasoningBank patterns)
       const patterns = await this.recognizePatterns(request.sourceCode);
 
+      // Defensive: Validate patterns result
+      if (!patterns) {
+        this.logger.warn('[TestGeneratorAgent] Pattern recognition returned null, using empty object');
+      }
+
       // Phase 4: Test Strategy Selection using Psycho-Symbolic Reasoning
-      const testStrategy = await this.selectTestStrategy(patterns, complexityMetrics, riskFactors, request.coverage);
+      const testStrategy = await this.selectTestStrategy(patterns ?? {}, complexityMetrics, safeRiskFactors, request.coverage);
+
+      // Defensive: Validate test strategy
+      if (!testStrategy) {
+        throw new Error('[TestGeneratorAgent] Test strategy selection failed - returned null/undefined');
+      }
 
       // Phase 5: Neural-Enhanced Test Candidate Suggestions
       // Note: Neural capabilities removed, AgentDB provides distributed coordination
@@ -259,45 +383,100 @@ export class TestGeneratorAgent extends BaseAgent {
         neuralTestSuggestions // Pass neural suggestions for enhancement
       );
 
+      // Defensive: Validate test candidates
+      if (!Array.isArray(testCandidates)) {
+        throw new Error('[TestGeneratorAgent] Test candidate generation failed - returned non-array');
+      }
+
+      if (testCandidates.length === 0) {
+        this.logger.warn('[TestGeneratorAgent] No test candidates generated, will return empty test suite');
+      }
+
       // Phase 7: Test Case Optimization using Sublinear Matrix Solving
       const optimalTestSet = await this.optimizeTestSelection(testCandidates, request.coverage);
+
+      // Defensive: Validate optimal test set structure
+      if (!optimalTestSet || typeof optimalTestSet !== 'object') {
+        throw new Error('[TestGeneratorAgent] Test optimization failed - returned invalid result');
+      }
+
+      // Defensive: Ensure test vector arrays exist with defaults
+      const unitTestVectors = Array.isArray(optimalTestSet.unitTestVectors) ? optimalTestSet.unitTestVectors : [];
+      const integrationVectors = Array.isArray(optimalTestSet.integrationVectors) ? optimalTestSet.integrationVectors : [];
+      const edgeCaseVectors = Array.isArray(optimalTestSet.edgeCaseVectors) ? optimalTestSet.edgeCaseVectors : [];
 
       // Phase 8: Generate Specific Test Types (with pattern acceleration and neural guidance)
       const unitTests = await this.generateUnitTests(
         request.sourceCode,
-        optimalTestSet.unitTestVectors,
+        unitTestVectors,
         applicablePatterns,
         neuralTestSuggestions
       );
-      const integrationTests = await this.generateIntegrationTests(request.sourceCode, optimalTestSet.integrationVectors);
-      const edgeCaseTests = await this.generateEdgeCaseTests(riskFactors, optimalTestSet.edgeCaseVectors);
 
-      // Count patterns actually used
-      patternsUsed = applicablePatterns.filter(p => p.applicability > 0.7).length;
+      // Defensive: Validate unit tests result
+      const safeUnitTests = Array.isArray(unitTests) ? unitTests : [];
+
+      const integrationTests = await this.generateIntegrationTests(request.sourceCode, integrationVectors);
+
+      // Defensive: Validate integration tests result
+      const safeIntegrationTests = Array.isArray(integrationTests) ? integrationTests : [];
+
+      const edgeCaseTests = await this.generateEdgeCaseTests(safeRiskFactors, edgeCaseVectors);
+
+      // Defensive: Validate edge case tests result
+      const safeEdgeCaseTests = Array.isArray(edgeCaseTests) ? edgeCaseTests : [];
+
+      // Count patterns actually used (with optional chaining for safety)
+      patternsUsed = applicablePatterns.filter(p => p?.applicability > 0.7).length;
       appliedPatterns = applicablePatterns
-        .filter(p => p.applicability > 0.7)
-        .map(p => p.pattern.id);
+        .filter(p => p?.applicability > 0.7)
+        .map(p => p?.pattern?.id)
+        .filter((id): id is string => typeof id === 'string'); // Remove undefined values
 
       // Phase 9: Test Suite Assembly
       const testSuite = await this.assembleTestSuite(
-        unitTests,
-        integrationTests,
-        edgeCaseTests,
+        safeUnitTests,
+        safeIntegrationTests,
+        safeEdgeCaseTests,
         testStrategy,
         request.coverage
       );
 
+      // Defensive: Validate test suite structure
+      if (!testSuite || typeof testSuite !== 'object') {
+        throw new Error('[TestGeneratorAgent] Test suite assembly failed - returned invalid result');
+      }
+
+      if (!Array.isArray(testSuite.tests)) {
+        throw new Error('[TestGeneratorAgent] Test suite has invalid tests array');
+      }
+
       // Phase 10: Validate Test Suite Quality
       const qualityScore = await this.validateTestSuiteQuality(testSuite);
 
+      // Defensive: Validate quality score structure
+      if (!qualityScore || typeof qualityScore !== 'object') {
+        this.logger.warn('[TestGeneratorAgent] Quality validation returned invalid result, using defaults');
+      }
+
+      const safeQualityScore = qualityScore ?? { overall: 0.5, diversity: 0.5, riskCoverage: 0.5, edgeCases: 0.5 };
+
       let finalTestSuite = testSuite;
-      if (qualityScore.overall < 0.8) {
-        finalTestSuite = await this.refineTestSuite(testSuite, qualityScore);
+      if (safeQualityScore.overall < 0.8) {
+        const refinedSuite = await this.refineTestSuite(testSuite, safeQualityScore);
+        // Defensive: Only use refined suite if it's valid
+        if (refinedSuite && Array.isArray(refinedSuite.tests)) {
+          finalTestSuite = refinedSuite;
+        } else {
+          this.logger.warn('[TestGeneratorAgent] Test suite refinement returned invalid result, using original');
+        }
       }
 
       const generationTime = Date.now() - startTime;
-      const patternHitRate = testSuite.tests.length > 0
-        ? patternsUsed / testSuite.tests.length
+
+      // Defensive: Safe calculation of pattern hit rate
+      const patternHitRate = finalTestSuite.tests.length > 0
+        ? patternsUsed / finalTestSuite.tests.length
         : 0;
 
       // Calculate time savings from pattern usage (estimated 30% faster per pattern-based test)
@@ -306,29 +485,61 @@ export class TestGeneratorAgent extends BaseAgent {
       // Store results for learning
       await this.storeGenerationResults(request, finalTestSuite, generationTime);
 
-      // Update pattern metrics in ReasoningBank
-      if (this.reasoningBank && applicablePatterns.length > 0) {
-        for (const match of applicablePatterns) {
-          const wasUsed = appliedPatterns.includes(match.pattern.id);
-          await this.reasoningBank.updatePatternMetrics(match.pattern.id, wasUsed);
+      // NEW: Extract and store patterns from generated tests
+      if (this.reasoningBank && this.patternExtractor && finalTestSuite.tests.length > 0) {
+        try {
+          // Extract patterns from generated test suite for future reuse
+          const extractedPatterns = await this.patternExtractor.extractFromTestSuite(
+            finalTestSuite.tests,
+            request.framework
+          );
+
+          // Store each extracted pattern
+          for (const pattern of extractedPatterns) {
+            await this.reasoningBank.storePattern(pattern);
+          }
+
+          this.logger.info(`[TestGeneratorAgent] Extracted and stored ${extractedPatterns.length} patterns from generated tests`);
+        } catch (error) {
+          this.logger.warn('[TestGeneratorAgent] Failed to extract patterns:', error);
+          // Don't fail generation if pattern extraction fails
         }
       }
+
+      // Update pattern metrics in ReasoningBank (with null checks)
+      if (this.reasoningBank && applicablePatterns.length > 0) {
+        for (const match of applicablePatterns) {
+          // Defensive: Validate match structure
+          if (match?.pattern?.id) {
+            const wasUsed = appliedPatterns.includes(match.pattern.id);
+            try {
+              await this.reasoningBank.updatePatternMetrics(match.pattern.id, wasUsed);
+            } catch (error) {
+              this.logger.warn(`[TestGeneratorAgent] Failed to update pattern metrics for ${match.pattern.id}:`, error);
+            }
+          }
+        }
+      }
+
+      // Defensive: Safe metadata access with nullish coalescing and optional chaining
+      const coverageProjection = finalTestSuite.metadata?.coverageProjection ?? 0;
+      const optimizationRatio = finalTestSuite.metadata?.optimizationMetrics?.optimizationRatio ?? 1.0;
 
       return {
         testSuite: finalTestSuite,
         generationMetrics: {
           generationTime,
           testsGenerated: finalTestSuite.tests.length,
-          coverageProjection: finalTestSuite.metadata.coverageProjection || 0,
-          optimizationRatio: finalTestSuite.metadata.optimizationMetrics?.optimizationRatio || 1.0,
+          coverageProjection,
+          optimizationRatio,
           patternsUsed,
           patternHitRate,
           patternMatchTime
         },
         quality: {
-          diversityScore: qualityScore.diversity,
-          riskCoverage: qualityScore.riskCoverage,
-          edgeCasesCovered: qualityScore.edgeCases
+          diversityScore: safeQualityScore.diversity,
+          riskCoverage: safeQualityScore.riskCoverage,
+          edgeCasesCovered: safeQualityScore.edgeCases
         },
         patterns: {
           matched: patternMatches,
@@ -390,6 +601,16 @@ export class TestGeneratorAgent extends BaseAgent {
   // Sublinear Test Generation
   // ============================================================================
 
+  /**
+   * Generate test candidates using sublinear optimization with defensive validation
+   * @param sourceCode - Source code to generate tests for
+   * @param framework - Testing framework to use
+   * @param constraints - Test generation constraints
+   * @param _applicablePatterns - Applicable test patterns (optional)
+   * @param neuralSuggestions - Neural test suggestions (optional, nullable)
+   * @returns Array of test candidates
+   * @throws {Error} If required parameters are invalid
+   */
   private async generateTestCandidatesSublinear(
     sourceCode: any,
     framework: string,
@@ -397,10 +618,27 @@ export class TestGeneratorAgent extends BaseAgent {
     _applicablePatterns: PatternMatch[] = [],
     neuralSuggestions: any = null
   ): Promise<Test[]> {
+    // Defensive: Validate required parameters
+    if (!sourceCode) {
+      throw new Error('[TestGeneratorAgent] Source code is required for test candidate generation');
+    }
+
+    if (!framework || typeof framework !== 'string') {
+      throw new Error('[TestGeneratorAgent] Valid framework name is required');
+    }
+
+    if (!constraints || typeof constraints !== 'object') {
+      throw new Error('[TestGeneratorAgent] Valid constraints object is required');
+    }
+
+    if (typeof constraints.maxTests !== 'number' || constraints.maxTests <= 0) {
+      throw new Error('[TestGeneratorAgent] constraints.maxTests must be a positive number');
+    }
+
     const testCandidates: Test[] = [];
 
-    // Prioritize neural suggestions if available
-    if (neuralSuggestions?.result?.suggestedTests) {
+    // Prioritize neural suggestions if available (with safe navigation)
+    if (neuralSuggestions?.result?.suggestedTests && Array.isArray(neuralSuggestions.result.suggestedTests)) {
       this.logger.info(
         `[TestGeneratorAgent] Incorporating ${neuralSuggestions.result.suggestedTests.length} neural test suggestions`
       );
@@ -427,15 +665,46 @@ export class TestGeneratorAgent extends BaseAgent {
       }
     }
 
+    // Defensive: Validate complexity metrics exist
+    if (!sourceCode.complexityMetrics) {
+      this.logger.warn('[TestGeneratorAgent] Source code missing complexity metrics, using defaults');
+      sourceCode.complexityMetrics = {
+        functionCount: 1,
+        cyclomaticComplexity: 1,
+        cognitiveComplexity: 1,
+        linesOfCode: 0
+      };
+    }
+
+    const functionCount = sourceCode.complexityMetrics.functionCount ?? 1;
+
     // Generate test vectors using Johnson-Lindenstrauss dimension reduction
-    const testVectors = await this.generateTestVectors(sourceCode.complexityMetrics.functionCount * 10);
+    const testVectors = await this.generateTestVectors(functionCount * 10);
+
+    // Defensive: Validate test vectors result
+    if (!Array.isArray(testVectors)) {
+      this.logger.error('[TestGeneratorAgent] Test vector generation returned non-array');
+      return testCandidates;
+    }
 
     for (let i = 0; i < testVectors.length && testCandidates.length < constraints.maxTests; i++) {
       const vector = testVectors[i];
-      const testCase = await this.createTestCaseFromVector(vector, sourceCode, framework);
 
-      if (testCase) {
-        testCandidates.push(testCase);
+      // Defensive: Skip invalid vectors
+      if (!Array.isArray(vector) || vector.length === 0) {
+        this.logger.warn(`[TestGeneratorAgent] Skipping invalid vector at index ${i}`);
+        continue;
+      }
+
+      try {
+        const testCase = await this.createTestCaseFromVector(vector, sourceCode, framework);
+
+        if (testCase) {
+          testCandidates.push(testCase);
+        }
+      } catch (error) {
+        this.logger.warn(`[TestGeneratorAgent] Failed to create test case from vector ${i}:`, error);
+        // Continue with next vector instead of failing completely
       }
     }
 
@@ -868,40 +1137,96 @@ export class TestGeneratorAgent extends BaseAgent {
   // ============================================================================
 
   /**
-   * Extract code signature for pattern matching
+   * Extract code signature for pattern matching with comprehensive null safety
    * Converts source code metadata into ReasoningBank-compatible signature
+   * @param sourceCode - Source code object with files and metrics
+   * @returns Partial code signature with safe defaults for missing data
    */
   private async extractCodeSignature(sourceCode: any): Promise<Partial<ReasoningCodeSignature>> {
-    const files = sourceCode.files || [];
-    const metrics = sourceCode.complexityMetrics || {};
+    // Defensive: Validate sourceCode parameter
+    if (!sourceCode || typeof sourceCode !== 'object') {
+      this.logger.warn('[TestGeneratorAgent] extractCodeSignature received invalid sourceCode, using defaults');
+      return {
+        functionName: undefined,
+        parameters: [],
+        returnType: 'any',
+        imports: [],
+        dependencies: [],
+        complexity: {
+          cyclomaticComplexity: 1,
+          cognitiveComplexity: 1,
+          linesOfCode: 0,
+          branchCount: 1
+        },
+        testStructure: {
+          describeBlocks: 1,
+          itBlocks: 1,
+          hooks: ['beforeEach', 'afterEach']
+        }
+      };
+    }
 
-    // Extract function signatures from code
-    const functions = await this.extractFunctions(sourceCode);
+    // Defensive: Safe access to files array
+    const files = Array.isArray(sourceCode.files) ? sourceCode.files : [];
+
+    // Defensive: Safe access to metrics with defaults
+    const metrics = sourceCode.complexityMetrics ?? {
+      cyclomaticComplexity: 1,
+      cognitiveComplexity: 1,
+      linesOfCode: 0,
+      functionCount: 1
+    };
+
+    // Extract function signatures from code with error handling
+    let functions: any[] = [];
+    try {
+      functions = await this.extractFunctions(sourceCode);
+      // Defensive: Ensure functions is an array
+      if (!Array.isArray(functions)) {
+        this.logger.warn('[TestGeneratorAgent] extractFunctions returned non-array, using empty array');
+        functions = [];
+      }
+    } catch (error) {
+      this.logger.warn('[TestGeneratorAgent] Failed to extract functions:', error);
+      functions = [];
+    }
+
+    // Defensive: Safe access to first function with optional chaining
+    const firstFunction = functions.length > 0 ? functions[0] : null;
+    const functionName = firstFunction?.name;
+
+    // Defensive: Safe parameter mapping with null checks
+    const parameters = firstFunction?.parameters && Array.isArray(firstFunction.parameters)
+      ? firstFunction.parameters.map((p: any) => ({
+          name: p?.name ?? 'param',
+          type: p?.type ?? 'any',
+          optional: p?.optional ?? false
+        }))
+      : [];
+
+    // Defensive: Safe file imports mapping with null checks
+    const imports = files
+      .filter((f: any) => f && typeof f === 'object')
+      .map((f: any) => ({
+        module: f.path ?? 'unknown',
+        identifiers: []
+      }));
 
     const codeSignature: Partial<ReasoningCodeSignature> = {
-      functionName: functions.length > 0 ? functions[0].name : undefined,
-      parameters: functions.length > 0
-        ? functions[0].parameters.map((p: any) => ({
-            name: p.name || 'param',
-            type: p.type || 'any',
-            optional: p.optional || false
-          }))
-        : [],
+      functionName,
+      parameters,
       returnType: 'any',
-      imports: files.map((f: any) => ({
-        module: f.path,
-        identifiers: []
-      })),
+      imports,
       dependencies: [],
       complexity: {
-        cyclomaticComplexity: metrics.cyclomaticComplexity || 1,
-        cognitiveComplexity: metrics.cognitiveComplexity || 1,
-        linesOfCode: metrics.linesOfCode,
-        branchCount: metrics.cyclomaticComplexity
+        cyclomaticComplexity: metrics.cyclomaticComplexity ?? 1,
+        cognitiveComplexity: metrics.cognitiveComplexity ?? 1,
+        linesOfCode: metrics.linesOfCode ?? 0,
+        branchCount: metrics.cyclomaticComplexity ?? 1
       },
       testStructure: {
         describeBlocks: 1,
-        itBlocks: Math.max(1, metrics.functionCount || 1),
+        itBlocks: Math.max(1, metrics.functionCount ?? 1),
         hooks: ['beforeEach', 'afterEach']
       }
     };

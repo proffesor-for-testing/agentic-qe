@@ -6,8 +6,10 @@
 import { RollbackManager, Snapshot, RollbackResult } from '@core/hooks/RollbackManager';
 import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import * as fs from 'fs-extra';
-import * as path from 'path';
-import * as os from 'os';
+
+// Use CommonJS require to avoid module resolution issues
+const pathLib = require('path');
+const osLib = require('os');
 
 describe('RollbackManager - Comprehensive Tests', () => {
   let rollbackManager: RollbackManager;
@@ -18,17 +20,17 @@ describe('RollbackManager - Comprehensive Tests', () => {
 
   beforeEach(async () => {
     // Create test directory
-    testDir = path.join(os.tmpdir(), `rollback-test-${Date.now()}`);
+    testDir = pathLib.join(osLib.tmpdir(), `rollback-test-${Date.now()}`);
     await fs.ensureDir(testDir);
 
-    testFile1 = path.join(testDir, 'test1.txt');
-    testFile2 = path.join(testDir, 'test2.txt');
+    testFile1 = pathLib.join(testDir, 'test1.txt');
+    testFile2 = pathLib.join(testDir, 'test2.txt');
 
     await fs.writeFile(testFile1, 'original content 1');
     await fs.writeFile(testFile2, 'original content 2');
 
     // Initialize memory manager
-    const dbPath = path.join(testDir, 'memory.db');
+    const dbPath = pathLib.join(testDir, 'memory.db');
     memoryManager = new SwarmMemoryManager(dbPath);
     await memoryManager.initialize();
 
@@ -58,7 +60,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should handle non-existent files gracefully', async () => {
-      const nonExistentFile = path.join(testDir, 'nonexistent.txt');
+      const nonExistentFile = pathLib.join(testDir, 'nonexistent.txt');
 
       const snapshot = await rollbackManager.createSnapshot({
         id: 'snap-2',
@@ -125,7 +127,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
 
     it('should handle large files', async () => {
       const largeContent = 'x'.repeat(1024 * 1024); // 1MB
-      const largeFile = path.join(testDir, 'large.txt');
+      const largeFile = pathLib.join(testDir, 'large.txt');
       await fs.writeFile(largeFile, largeContent);
 
       const snapshot = await rollbackManager.createSnapshot({
@@ -137,7 +139,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should handle files with special characters', async () => {
-      const specialFile = path.join(testDir, 'special-!@#$%^&().txt');
+      const specialFile = pathLib.join(testDir, 'special-!@#$%^&().txt');
       await fs.writeFile(specialFile, 'special content');
 
       const snapshot = await rollbackManager.createSnapshot({
@@ -164,7 +166,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should handle binary files', async () => {
-      const binaryFile = path.join(testDir, 'binary.bin');
+      const binaryFile = pathLib.join(testDir, 'binary.bin');
       const binaryData = Buffer.from([0x00, 0x01, 0xFF, 0xFE]);
       await fs.writeFile(binaryFile, binaryData);
 
@@ -211,8 +213,8 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should create parent directories when restoring', async () => {
-      const nestedFile = path.join(testDir, 'nested', 'deep', 'file.txt');
-      await fs.ensureDir(path.dirname(nestedFile));
+      const nestedFile = pathLib.join(testDir, 'nested', 'deep', 'file.txt');
+      await fs.ensureDir(pathLib.dirname(nestedFile));
       await fs.writeFile(nestedFile, 'nested content');
 
       const snapshot = await rollbackManager.createSnapshot({
@@ -221,7 +223,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
       });
 
       // Remove the nested directory
-      await fs.remove(path.join(testDir, 'nested'));
+      await fs.remove(pathLib.join(testDir, 'nested'));
 
       const result = await rollbackManager.restoreSnapshot('snap-nested');
 
@@ -254,7 +256,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should restore partial snapshot when some files fail', async () => {
-      const goodFile = path.join(testDir, 'good.txt');
+      const goodFile = pathLib.join(testDir, 'good.txt');
       const badFile = '/root/impossible/path/bad.txt';
 
       await fs.writeFile(goodFile, 'good content');
@@ -471,7 +473,11 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should clean old snapshots', async () => {
-      // Create old snapshots
+      // Get baseline snapshot count (from previous tests)
+      const beforeList = await rollbackManager.listSnapshots();
+      const baselineCount = beforeList.length;
+
+      // Create 10 new snapshots
       for (let i = 0; i < 10; i++) {
         await rollbackManager.createSnapshot({
           id: `snap-clean-${i}`,
@@ -479,15 +485,25 @@ describe('RollbackManager - Comprehensive Tests', () => {
         });
       }
 
+      // Total snapshots now = baselineCount + 10
+      const afterCreate = await rollbackManager.listSnapshots();
+      expect(afterCreate.length).toBe(baselineCount + 10);
+
+      // Wait a bit to ensure new snapshots have age > 0
+      await new Promise(resolve => setTimeout(resolve, 10));
+
       const cleaned = await rollbackManager.cleanSnapshots({
-        maxAge: 0, // Immediate expiry
-        keepMinimum: 5
+        maxAge: 0, // Clean snapshots older than 0ms
+        keepMinimum: 5 // Keep 5 most recent
       });
 
-      expect(cleaned).toBe(5); // Should clean 5 old snapshots (keep 5 minimum)
+      // Should clean (baselineCount + 10 - 5) = (baselineCount + 5) snapshots
+      const expectedCleaned = baselineCount + 5;
+      expect(cleaned).toBe(expectedCleaned);
 
       const remaining = await rollbackManager.listSnapshots();
-      expect(remaining.length).toBeGreaterThanOrEqual(5);
+      // Should have exactly 5 snapshots remaining (the keepMinimum)
+      expect(remaining.length).toBe(5);
     });
 
     it('should respect keepMinimum when cleaning', async () => {
@@ -563,8 +579,8 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should handle very long file paths', async () => {
-      const longPath = path.join(testDir, 'a'.repeat(200), 'long-file.txt');
-      await fs.ensureDir(path.dirname(longPath));
+      const longPath = pathLib.join(testDir, 'a'.repeat(200), 'long-file.txt');
+      await fs.ensureDir(pathLib.dirname(longPath));
       await fs.writeFile(longPath, 'long path content');
 
       const snapshot = await rollbackManager.createSnapshot({
@@ -576,7 +592,7 @@ describe('RollbackManager - Comprehensive Tests', () => {
     });
 
     it('should handle empty file content', async () => {
-      const emptyFile = path.join(testDir, 'empty.txt');
+      const emptyFile = pathLib.join(testDir, 'empty.txt');
       await fs.writeFile(emptyFile, '');
 
       const snapshot = await rollbackManager.createSnapshot({

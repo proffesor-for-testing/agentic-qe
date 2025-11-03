@@ -104,7 +104,7 @@ export class InitCommand {
 
         (fleetConfig as any).project = {
           name: projectAnswers.projectName,
-          path: process.cwd(),
+          path: '.', // Relative path - use current directory as project root
           language: projectAnswers.language.toLowerCase()
         };
 
@@ -124,7 +124,7 @@ export class InitCommand {
         // Non-interactive mode: use defaults or environment variables
         (fleetConfig as any).project = {
           name: process.env.AQE_PROJECT_NAME || path.basename(process.cwd()),
-          path: process.cwd(),
+          path: '.', // Relative path - use current directory as project root
           language: (process.env.AQE_LANGUAGE || 'typescript').toLowerCase()
         };
 
@@ -151,7 +151,7 @@ export class InitCommand {
       const spinner = ora('Setting up fleet infrastructure...').start();
 
       // Create directory structure
-      await this.createDirectoryStructure();
+      await this.createDirectoryStructure(options.force);
       spinner.text = 'Creating configuration files...';
 
       // Write fleet configuration
@@ -166,7 +166,7 @@ export class InitCommand {
       spinner.text = 'Creating CLAUDE.md documentation...';
 
       // Create or update CLAUDE.md with agent documentation
-      await this.createClaudeMd(fleetConfig);
+      await this.createClaudeMd(fleetConfig, (options as any).yes);
 
       // Initialize Claude Flow coordination
       await this.initializeCoordination(fleetConfig);
@@ -236,7 +236,7 @@ export class InitCommand {
     }
   }
 
-  private static async createDirectoryStructure(): Promise<void> {
+  private static async createDirectoryStructure(force: boolean = false): Promise<void> {
     const dirs = [
       '.agentic-qe',
       '.agentic-qe/config',
@@ -266,7 +266,7 @@ export class InitCommand {
     }
 
     // Copy agent templates from agentic-qe package
-    await this.copyAgentTemplates();
+    await this.copyAgentTemplates(force);
 
     // Copy skill templates (only QE Fleet skills, not Claude Flow)
     await this.copySkillTemplates();
@@ -275,7 +275,7 @@ export class InitCommand {
     await this.copyCommandTemplates();
   }
 
-  private static async copyAgentTemplates(): Promise<void> {
+  private static async copyAgentTemplates(force: boolean = false): Promise<void> {
     console.log(chalk.cyan('  🔍 Searching for agent templates...'));
 
     // Find the agentic-qe package location (handles both npm install and local dev)
@@ -298,7 +298,7 @@ export class InitCommand {
     if (!sourcePath) {
       console.warn(chalk.yellow('  ⚠️  No agent templates found in package paths'));
       console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 18 agents)'));
-      await this.createBasicAgents();
+      await this.createBasicAgents(force);
       return;
     }
 
@@ -313,17 +313,36 @@ export class InitCommand {
     const targetPath = path.join(process.cwd(), '.claude/agents');
 
     let copiedFiles = 0;
+    let updatedFiles = 0;
+    let skippedFiles = 0;
     for (const templateFile of templateFiles) {
       const sourceFile = path.join(sourcePath, templateFile);
       const targetFile = path.join(targetPath, templateFile);
 
-      // Only copy if target doesn't exist
-      if (!await fs.pathExists(targetFile)) {
+      // Skip if source and target are the same file
+      const sourceResolved = path.resolve(sourceFile);
+      const targetResolved = path.resolve(targetFile);
+      if (sourceResolved === targetResolved) {
+        skippedFiles++;
+        continue;
+      }
+
+      const targetExists = await fs.pathExists(targetFile);
+
+      // Copy if target doesn't exist OR force flag is set
+      if (!targetExists || force) {
         await fs.copy(sourceFile, targetFile);
-        copiedFiles++;
+        if (targetExists) {
+          updatedFiles++;
+        } else {
+          copiedFiles++;
+        }
       }
     }
 
+    if (force && updatedFiles > 0) {
+      console.log(chalk.green(`  ✓ Updated ${updatedFiles} existing agent definitions`));
+    }
     console.log(chalk.green(`  ✓ Copied ${copiedFiles} new agent definitions`));
 
     const copiedCount = await this.countAgentFiles(targetPath);
@@ -339,13 +358,13 @@ export class InitCommand {
       const targetFiles = await fs.readdir(targetPath);
       const existingTargetFiles = targetFiles.filter(f => f.endsWith('.md'));
 
-      await this.createMissingAgents(targetPath, existingTargetFiles);
+      await this.createMissingAgents(targetPath, existingTargetFiles, force);
     } else {
       console.log(chalk.green(`  ✓ All ${expectedAgents} agents present and ready`));
     }
   }
 
-  private static async createBasicAgents(): Promise<void> {
+  private static async createBasicAgents(force: boolean = false): Promise<void> {
     try {
       console.log(chalk.cyan('  🛠️  Creating all agent definitions programmatically...'));
 
@@ -388,6 +407,12 @@ export class InitCommand {
         }
 
         const agentFile = path.join(targetPath, `${agentName}.md`);
+
+        // Skip if file exists and force is not set
+        if (!force && await fs.pathExists(agentFile)) {
+          continue;
+        }
+
         const agentType = agentName.replace('qe-', '');
         const skills = this.getAgentSkills(agentName);
 
@@ -634,7 +659,7 @@ For full capabilities, install the complete agentic-qe package.
     }
   }
 
-  private static async createMissingAgents(targetPath: string, existingFiles: string[]): Promise<void> {
+  private static async createMissingAgents(targetPath: string, existingFiles: string[], force: boolean = false): Promise<void> {
     const allAgentNames = [
       'qe-test-generator', 'qe-test-executor', 'qe-coverage-analyzer',
       'qe-quality-gate', 'qe-quality-analyzer', 'qe-performance-tester',
@@ -1213,10 +1238,28 @@ For full capabilities, install the complete agentic-qe package.
     const topology = config.topology || 'hierarchical';
     const maxAgents = config.maxAgents || 10;
 
+    // Create a sanitized config with relative paths for the script
+    const scriptConfig = { ...config };
+    if ((scriptConfig as any).project) {
+      // Ensure project path is relative (always use . for portability)
+      (scriptConfig as any).project = {
+        ...(scriptConfig as any).project,
+        path: '.' // Relative path - script runs from project root
+      };
+    }
+
+    // Escape JSON for embedding in bash script
+    const configJson = JSON.stringify(scriptConfig, null, 2).replace(/\$/g, '\\$');
+
     // Create pre-execution coordination script (AQE native)
     const preExecutionScript = `#!/bin/bash
 # Agentic QE Fleet Pre-Execution Coordination
 # This script uses native AQE capabilities - no external dependencies required
+
+# Ensure we're in the project root (works from any directory)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT" || exit 1
 
 # Store fleet status before execution
 agentic-qe fleet status --json > /tmp/aqe-fleet-status-pre.json 2>/dev/null || true
@@ -1226,7 +1269,9 @@ echo "[AQE] Pre-execution coordination: Fleet topology=${topology}, Max agents=$
 
 # Store fleet config in coordination memory (via file-based state)
 mkdir -p .agentic-qe/state/coordination
-echo '${JSON.stringify(config)}' > .agentic-qe/state/coordination/fleet-config.json
+cat > .agentic-qe/state/coordination/fleet-config.json << 'FLEET_CONFIG_EOF'
+${configJson}
+FLEET_CONFIG_EOF
 
 echo "[AQE] Pre-execution coordination complete"
 `;
@@ -1235,6 +1280,11 @@ echo "[AQE] Pre-execution coordination complete"
     const postExecutionScript = `#!/bin/bash
 # Agentic QE Fleet Post-Execution Coordination
 # This script uses native AQE capabilities - no external dependencies required
+
+# Ensure we're in the project root (works from any directory)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT" || exit 1
 
 # Capture final fleet status
 agentic-qe fleet status --json > /tmp/aqe-fleet-status-post.json 2>/dev/null || true
@@ -1260,18 +1310,46 @@ echo "[AQE] Post-execution coordination complete"
     await fs.ensureDir('.agentic-qe/state/coordination');
   }
 
-  private static async createClaudeMd(config: FleetConfig): Promise<void> {
+  private static async createClaudeMd(config: FleetConfig, isYesMode: boolean = false): Promise<void> {
     const claudeMdPath = 'CLAUDE.md';
     const agentCount = await this.countAgentFiles('.claude/agents');
 
     // Check if CLAUDE.md exists
     const exists = await fs.pathExists(claudeMdPath);
+    let existingContent = '';
+    let appendPosition = 'append'; // default for --yes mode (v1.3.7 fix)
 
     if (exists) {
       // Backup existing CLAUDE.md
       const backupPath = 'CLAUDE.md.backup';
       await fs.copy(claudeMdPath, backupPath);
       console.log(chalk.yellow(`  ℹ️  Existing CLAUDE.md backed up to ${backupPath}`));
+
+      // Read existing content
+      existingContent = await fs.readFile(claudeMdPath, 'utf8');
+
+      // In interactive mode, ask where to add AQE instructions (v1.3.7 fix)
+      if (!isYesMode) {
+        const { position } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'position',
+            message: 'Existing CLAUDE.md detected. Where should we add AQE instructions?',
+            choices: [
+              {
+                name: 'At the end (append) - Recommended',
+                value: 'append',
+              },
+              {
+                name: 'At the beginning (prepend)',
+                value: 'prepend',
+              },
+            ],
+            default: 'append',
+          },
+        ]);
+        appendPosition = position;
+      }
     }
 
     const claudeMdContent = `# Claude Code Configuration - Agentic QE Fleet
@@ -1725,7 +1803,22 @@ tail -f .agentic-qe/logs/fleet.log
 **Fleet Topology**: ${config.topology}
 `;
 
-    await fs.writeFile(claudeMdPath, claudeMdContent);
+    // Write CLAUDE.md based on append strategy (v1.3.7 fix)
+    let finalContent: string;
+    if (exists && existingContent) {
+      const separator = '\n\n---\n\n';
+      if (appendPosition === 'append') {
+        finalContent = existingContent + separator + claudeMdContent;
+        console.log(chalk.green(`  ✓ AQE instructions appended to existing CLAUDE.md`));
+      } else {
+        finalContent = claudeMdContent + separator + existingContent;
+        console.log(chalk.green(`  ✓ AQE instructions prepended to existing CLAUDE.md`));
+      }
+    } else {
+      finalContent = claudeMdContent;
+    }
+
+    await fs.writeFile(claudeMdPath, finalContent);
   }
 
   // ============================================================================

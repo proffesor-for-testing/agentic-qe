@@ -142,7 +142,7 @@ export class SkillsCommand {
       }
 
       console.log(chalk.gray('\nUse "aqe skills show <name>" for details'));
-      console.log(chalk.gray(`Total QE Skills: ${qeSkills.length}/17`));
+      console.log(chalk.gray(`Total QE Skills: ${qeSkills.length}/${this.getTotalQESkillsCount()}`));
       console.log();
 
     } catch (error: any) {
@@ -331,7 +331,7 @@ export class SkillsCommand {
       spinner.succeed('Statistics calculated');
 
       console.log(chalk.blue('\n📊 QE Skill Statistics\n'));
-      console.log(`Total QE Skills: ${chalk.cyan(qeSkills.length.toString())}/17`);
+      console.log(`Total QE Skills: ${chalk.cyan(qeSkills.length.toString())}/${this.getTotalQESkillsCount()}`);
 
       console.log(chalk.blue('\n📦 By Category:\n'));
       Object.entries(categoryCounts)
@@ -369,6 +369,13 @@ export class SkillsCommand {
         skill.includes(qeName) || qeName.includes(skill)
       );
     });
+  }
+
+  /**
+   * Get total count of defined QE skills (v1.3.7 fix)
+   */
+  private static getTotalQESkillsCount(): number {
+    return QE_SKILLS.flatMap(cat => cat.skills).length;
   }
 
   /**

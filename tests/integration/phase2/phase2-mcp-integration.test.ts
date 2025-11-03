@@ -24,11 +24,13 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
   beforeEach(async () => {
     toolRegistry = new MCPToolRegistry();
     memoryManager = new SwarmMemoryManager();
+    await memoryManager.initialize();
     await memoryManager.clear('coordination');
   });
 
   afterEach(async () => {
     await memoryManager.clear('coordination');
+    await memoryManager.close();
   });
 
   // ===========================================================================

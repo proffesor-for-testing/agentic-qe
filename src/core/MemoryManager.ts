@@ -60,7 +60,10 @@ export class MemoryManager extends EventEmitter {
     }
 
     try {
-      await this.database.initialize();
+      // Initialize database if it has an initialize method (defensive programming for mocks)
+      if (typeof this.database.initialize === 'function') {
+        await this.database.initialize();
+      }
 
       // Load persistent memory from database if available
       await this.loadPersistentMemory();

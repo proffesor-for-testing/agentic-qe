@@ -108,10 +108,10 @@ export class VisualTestRegressionHandler extends BaseHandler {
   }
 
   async handle(args: VisualTestRegressionArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = performance.now();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = performance.now();
 
-    try {
       this.log('info', 'Starting visual regression testing', { requestId, args });
 
       // Validate input
@@ -149,13 +149,7 @@ export class VisualTestRegressionHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Visual regression testing failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

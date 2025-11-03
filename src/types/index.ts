@@ -361,6 +361,7 @@ export interface InitOptions extends CLIOptions {
   focus: string;
   environments: string;
   frameworks?: string;
+  force?: boolean;  // Force overwrite existing agent files
   // Phase 2 options (v1.1.0)
   enableLearning?: boolean;
   enablePatterns?: boolean;

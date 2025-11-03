@@ -49,10 +49,10 @@ export class WorkflowResumeHandler extends BaseHandler {
   }
 
   async handle(args: WorkflowResumeArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Resuming workflow from checkpoint', { requestId, checkpointId: args.checkpointId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Resuming workflow from checkpoint', { requestId, checkpointId: args.checkpointId });
 
-    try {
       // Validate required fields
       this.validateRequired(args, ['checkpointId']);
 
@@ -82,15 +82,7 @@ export class WorkflowResumeHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(resumed, requestId);
-    } catch (error) {
-      this.log('error', 'Workflow resume failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Workflow resume failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async resumeWorkflow(args: WorkflowResumeArgs): Promise<ResumedExecution> {

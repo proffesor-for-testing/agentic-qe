@@ -201,6 +201,89 @@ export class RequirementsValidatorAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Requirements Validation
+  // ============================================================================
+
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    await super.onPreTask(data);
+
+    // Load historical validation patterns
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical validation entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting requirements validation task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    await super.onPostTask(data);
+
+    // Store validation results
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        requirementsValidated: data.result?.requirementsValidated || 0,
+        issuesFound: data.result?.issues?.length || 0,
+        bddScenariosGenerated: data.result?.bddScenarios?.length || 0
+      },
+      86400
+    );
+
+    // Emit completion event
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date()
+    });
+
+    console.log(`[${this.agentId.type}] Requirements validation task completed`, {
+      taskId: data.assignment.id,
+      issuesFound: data.result?.issues?.length || 0
+    });
+  }
+
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    await super.onTaskError(data);
+
+    // Store error details
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800
+    );
+
+    // Emit error event
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Requirements validation task failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Abstract Method Implementations
   // ============================================================================
 

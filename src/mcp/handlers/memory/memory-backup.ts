@@ -48,9 +48,8 @@ export class MemoryBackupHandler extends BaseHandler {
    * Handle memory backup request
    */
   async handle(args: MemoryBackupParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-
-    try {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
       const { action } = args;
 
       switch (action) {
@@ -65,14 +64,7 @@ export class MemoryBackupHandler extends BaseHandler {
         default:
           throw new Error(`Invalid action: ${action}`);
       }
-
-    } catch (error) {
-      this.log('error', 'Failed to execute backup operation', error);
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

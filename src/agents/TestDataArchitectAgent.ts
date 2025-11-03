@@ -386,6 +386,91 @@ export class TestDataArchitectAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Test Data Generation Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load data generation history
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    await super.onPreTask(data);
+
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical test data generation entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting test data generation task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store generated datasets and emit events
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    await super.onPostTask(data);
+
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        recordsGenerated: data.result?.recordCount || 0
+      },
+      86400
+    );
+
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date()
+    });
+
+    console.log(`[${this.agentId.type}] Test data generation completed`, {
+      taskId: data.assignment.id,
+      recordsGenerated: data.result?.recordCount || 0
+    });
+  }
+
+  /**
+   * Task error hook - Log data generation failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    await super.onTaskError(data);
+
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800
+    );
+
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Test data generation failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Implementation
   // ============================================================================
 
@@ -1488,12 +1573,110 @@ export class TestDataArchitectAgent extends BaseAgent {
         expression = expression.replace(new RegExp(`\\b${field}\\b`, 'g'), String(value));
       }
 
-      // Simple evaluation (in production, use safe expression evaluator)
-      return eval(expression);
+      // Safe expression evaluation (replaces eval() - Security Fix v1.3.7)
+      return this.safeEvaluateExpression(expression);
     } catch (error) {
       console.error(`Error evaluating constraint: ${constraint.expression}`, error);
       return false;
     }
+  }
+
+  /**
+   * Safe expression evaluator (replaces eval() - Security Fix v1.3.7)
+   * Supports basic comparison and arithmetic operations without code execution
+   */
+  private safeEvaluateExpression(expression: string): boolean {
+    try {
+      // Remove whitespace
+      const expr = expression.trim();
+
+      // Support common comparison operators
+      const comparisonMatch = expr.match(/^(.+?)\s*(===|!==|==|!=|>=|<=|>|<)\s*(.+)$/);
+      if (comparisonMatch) {
+        const [, left, operator, right] = comparisonMatch;
+        const leftVal = this.parseValue(left.trim());
+        const rightVal = this.parseValue(right.trim());
+
+        switch (operator) {
+          case '===':
+          case '==':
+            return leftVal == rightVal;
+          case '!==':
+          case '!=':
+            return leftVal != rightVal;
+          case '>':
+            return Number(leftVal) > Number(rightVal);
+          case '<':
+            return Number(leftVal) < Number(rightVal);
+          case '>=':
+            return Number(leftVal) >= Number(rightVal);
+          case '<=':
+            return Number(leftVal) <= Number(rightVal);
+          default:
+            return false;
+        }
+      }
+
+      // Support logical AND
+      if (expr.includes('&&')) {
+        const parts = expr.split('&&').map(p => p.trim());
+        return parts.every(part => this.safeEvaluateExpression(part));
+      }
+
+      // Support logical OR
+      if (expr.includes('||')) {
+        const parts = expr.split('||').map(p => p.trim());
+        return parts.some(part => this.safeEvaluateExpression(part));
+      }
+
+      // Support boolean values
+      if (expr === 'true') return true;
+      if (expr === 'false') return false;
+
+      // Default: try to parse as number comparison
+      const numMatch = expr.match(/^(\d+\.?\d*)\s*(>|<|>=|<=)\s*(\d+\.?\d*)$/);
+      if (numMatch) {
+        const [, left, op, right] = numMatch;
+        const leftNum = parseFloat(left);
+        const rightNum = parseFloat(right);
+        switch (op) {
+          case '>':
+            return leftNum > rightNum;
+          case '<':
+            return leftNum < rightNum;
+          case '>=':
+            return leftNum >= rightNum;
+          case '<=':
+            return leftNum <= rightNum;
+        }
+      }
+
+      // If we can't safely evaluate, return false
+      console.warn(`Cannot safely evaluate expression: ${expression}`);
+      return false;
+    } catch (error) {
+      console.error(`Error in safe evaluation: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * Parse a value from string (helper for safe evaluation)
+   */
+  private parseValue(value: string): any {
+    // Try to parse as number
+    if (/^-?\d+\.?\d*$/.test(value)) {
+      return parseFloat(value);
+    }
+    // Try to parse as boolean
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    // Try to parse as string (remove quotes)
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      return value.slice(1, -1);
+    }
+    // Return as-is
+    return value;
   }
 
   // ============================================================================

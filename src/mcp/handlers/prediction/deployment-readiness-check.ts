@@ -118,10 +118,10 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
   }
 
   async handle(args: DeploymentReadinessCheckArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = performance.now();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = performance.now();
 
-    try {
       this.log('info', 'Starting deployment readiness check', { requestId, args });
 
       // Validate input
@@ -156,13 +156,7 @@ export class DeploymentReadinessCheckHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Deployment readiness check failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   /**

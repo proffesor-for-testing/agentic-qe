@@ -119,11 +119,11 @@ export class QualityRiskAssessHandler extends BaseHandler {
   }
 
   async handle(args: QualityRiskAssessArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    const startTime = Date.now();
-    this.log('info', 'Starting risk assessment', { requestId, projectId: args.context.projectId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      const startTime = Date.now();
+      this.log('info', 'Starting risk assessment', { requestId, projectId: args.context.projectId });
 
-    try {
       // Validate required parameters
       this.validateRequired(args, ['context', 'metrics']);
 
@@ -207,22 +207,7 @@ export class QualityRiskAssessHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(assessment, requestId);
-
-    } catch (error) {
-      this.log('error', 'Risk assessment failed', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-
-      await this.hookExecutor.notify({
-        message: `Risk assessment failed: ${error instanceof Error ? error.message : String(error)}`,
-        level: 'error'
-      });
-
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Risk assessment failed',
-        requestId
-      );
-    }
+    });
   }
 
   private async identifyRiskFactors(args: QualityRiskAssessArgs): Promise<RiskFactor[]> {

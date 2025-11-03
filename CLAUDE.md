@@ -79,31 +79,54 @@ npm install /path/to/agentic-qe-cf  # or npm install agentic-qe@latest
 # 3. Initialize AQE
 npx aqe init
 
-# 4. Verify initialization
-ls -la .claude/agents/        # Should show all 17 QE agents
-ls -la .claude/skills/        # Should show all QE skills
-cat .claude/CLAUDE.md        # Should contain fleet configuration
-cat .agentic-qe/config/fleet.json  # Should contain fleet config
+# 4. Verify initialization (CRITICAL - CHECK EVERYTHING)
+ls -la .claude/agents/        # Should show all 18 QE agents
+ls -la .claude/skills/        # Should show all 34 QE skills
+ls -la .claude/commands/      # Should show all 8 AQE slash commands
+cat .claude/CLAUDE.md         # Should contain fleet configuration
+ls -la .agentic-qe/config/    # Should show configuration files
+cat .agentic-qe/config/fleet.json  # Should contain fleet config (valid JSON)
+ls -la .agentic-qe/db/        # Should show database files (memory.db, patterns.db)
 
-# 5. Test agent functionality
+# 5. Verify databases are created and accessible
+file .agentic-qe/db/memory.db      # Should show SQLite 3.x database
+file .agentic-qe/db/patterns.db    # Should show SQLite 3.x database
+# Note: We use better-sqlite3, so use 'file' command to verify
+# Or use Node.js to query:
+node -e "const db = require('better-sqlite3')('.agentic-qe/db/memory.db'); console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\"table\"').all()); db.close();"
+node -e "const db = require('better-sqlite3')('.agentic-qe/db/patterns.db'); console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\"table\"').all()); db.close();"
+
+# 6. Test agent functionality (CRITICAL - MUST TEST AT LEAST ONE AGENT)
 npx aqe agent spawn qe-test-generator --task "Generate unit test for simple function"
 # OR use Claude Code Task tool with qe-test-generator
+# Verify agent spawns, executes task, and returns results
 
-# 6. Verify claimed features
-# - Multi-Model Router: Check routing configuration
-# - Learning System: Test aqe learn status
-# - Pattern Bank: Test aqe patterns list
-# - Flaky Detection: Verify agent has ML capabilities
+# 7. Verify claimed features work
+# - Multi-Model Router: aqe routing status
+# - Learning System: aqe learn status
+# - Pattern Bank: aqe patterns list
+# - Flaky Detection: Verify qe-flaky-test-hunter agent exists and has ML capabilities
+# - AgentDB: Verify databases created and accessible
+
+# 8. Count verification (MUST MATCH CLAIMS)
+find .claude/agents -name "*.md" | wc -l    # Should show 18 agents
+find .claude/skills -name "*.md" | wc -l    # Should show 34 skills
+find .claude/commands -name "*.md" | wc -l  # Should show 8 commands
 ```
 
 **Verification Success Criteria**:
-- ✅ All 17 QE agents present in `.claude/agents/`
-- ✅ All QE skills present in `.claude/skills/`
+- ✅ All 18 QE agents present in `.claude/agents/` (exact count verified)
+- ✅ All 34 QE skills present in `.claude/skills/` (exact count verified)
+- ✅ All 8 AQE slash commands present in `.claude/commands/` (exact count verified)
 - ✅ CLAUDE.md contains fleet configuration with agent descriptions
-- ✅ Fleet config file exists and is valid JSON
-- ✅ At least one agent successfully executes a task
-- ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, etc.)
+- ✅ Fleet config file exists at `.agentic-qe/config/fleet.json` and is valid JSON
+- ✅ Configuration directory `.agentic-qe/config/` contains all config files
+- ✅ Database files exist: `.agentic-qe/db/memory.db` and `.agentic-qe/db/patterns.db`
+- ✅ Databases are valid SQLite files with proper schema/tables
+- ✅ At least one agent successfully executes a task (qe-test-generator tested)
+- ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, AgentDB)
 - ✅ No initialization errors or missing files
+- ✅ File counts match documentation claims (18 agents, 34 skills, 8 commands)
 
 **Version Update Policy (CRITICAL)**:
 - ❌ **NEVER** create release PR without updating version numbers in ALL documentation
@@ -169,7 +192,7 @@ This policy prevents workspace crashes that occurred in previous sessions due to
 
 ## 🤖 Agentic Quality Engineering Fleet
 
-This project uses the **Agentic QE Fleet** - a distributed swarm of 17 AI agents for comprehensive software testing and quality assurance.
+This project uses the **Agentic QE Fleet** - a distributed swarm of 18 AI agents for comprehensive software testing and quality assurance.
 
 ### Available Agents
 
@@ -548,7 +571,7 @@ aqe improve cycle
 
 ## 📚 Documentation
 
-- **Agent Definitions**: \`.claude/agents/\` - 17 specialized QE agents
+- **Agent Definitions**: \`.claude/agents/\` - 18 specialized QE agents
 - **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16)
 - **Fleet Config**: \`.agentic-qe/config/fleet.json\`
 - **Routing Config**: \`.agentic-qe/config/routing.json\` (Multi-Model Router settings)

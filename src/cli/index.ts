@@ -59,6 +59,7 @@ program
   .option('--frameworks <frameworks>', 'Test frameworks', 'jest')
   .option('-y, --yes', 'Skip all prompts and use defaults (non-interactive mode)')
   .option('--non-interactive', 'Same as --yes (skip all prompts)')
+  .option('--force', 'Force overwrite existing agent files')
   .action(async (options) => {
     try {
       await InitCommand.execute(options as any);

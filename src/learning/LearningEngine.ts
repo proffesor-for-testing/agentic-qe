@@ -9,6 +9,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/Logger';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { QLearning, QLearningConfig } from './QLearning';
+import { StateExtractor } from './StateExtractor';
+import { RewardCalculator, TaskResult } from './RewardCalculator';
+import { Database } from '../utils/Database';
+import { LearningPersistence, DatabaseLearningPersistence } from './LearningPersistenceAdapter';
 
 // Import version from package.json to maintain consistency
 const packageJson = require('../../package.json');
@@ -57,11 +61,17 @@ export class LearningEngine {
   private patterns: Map<string, LearnedPattern>;
   private failurePatterns: Map<string, FailurePattern>;
   private taskCount: number;
+  private readonly stateExtractor: StateExtractor;
+  private readonly rewardCalculator: RewardCalculator;
+  private database?: Database;
+  private persistence?: LearningPersistence;
 
   constructor(
     agentId: string,
     memoryStore: SwarmMemoryManager,
-    config: Partial<LearningConfig> = {}
+    config: Partial<LearningConfig> = {},
+    database?: Database,
+    persistence?: LearningPersistence
   ) {
     this.logger = Logger.getInstance();
     this.agentId = agentId;
@@ -73,6 +83,23 @@ export class LearningEngine {
     this.patterns = new Map();
     this.failurePatterns = new Map();
     this.taskCount = 0;
+    this.stateExtractor = new StateExtractor();
+    this.rewardCalculator = new RewardCalculator();
+
+    // Initialize persistence adapter
+    if (persistence) {
+      this.persistence = persistence;
+      this.database = database; // May be undefined if using InMemoryPersistence
+    } else if (database) {
+      this.persistence = new DatabaseLearningPersistence(database);
+      this.database = database;
+    } else if (this.config.enabled && !database) {
+      // Auto-initialize database and adapter
+      const dbPath = process.env.AQE_DB_PATH || '.agentic-qe/memory.db';
+      this.database = new Database(dbPath);
+      this.persistence = new DatabaseLearningPersistence(this.database);
+      this.logger.info(`Auto-initialized learning database at ${dbPath}`);
+    }
   }
 
   /**
@@ -81,8 +108,18 @@ export class LearningEngine {
   async initialize(): Promise<void> {
     this.logger.info(`Initializing LearningEngine for agent ${this.agentId}`);
 
+    // Initialize database if auto-created
+    if (this.database) {
+      await this.database.initialize();
+    }
+
     // Load previous learning state if exists
     await this.loadState();
+
+    // Load Q-values from database if available
+    if (this.database) {
+      await this.loadQTableFromDatabase();
+    }
 
     // Store config in memory
     await this.memoryStore.store(
@@ -95,7 +132,45 @@ export class LearningEngine {
   }
 
   /**
-   * Learn from a task execution
+   * @deprecated Use learnFromExecution() instead. This method is maintained for backward compatibility.
+   * Will be removed in v2.0.0
+   *
+   * Record experience from task execution (DEPRECATED)
+   * Redirects to learnFromExecution() for consolidated implementation
+   */
+  async recordExperience(task: any, result: TaskResult, feedback?: LearningFeedback): Promise<void> {
+    this.logger.warn('[LearningEngine] recordExperience() is deprecated. Use learnFromExecution() instead. This method will be removed in v2.0.0');
+
+    // Redirect to unified method
+    await this.learnFromExecution(task, result, feedback);
+  }
+
+  /**
+   * Load Q-table from database on initialization
+   */
+  private async loadQTableFromDatabase(): Promise<void> {
+    if (!this.database) return;
+
+    try {
+      const qValues = await this.database.getAllQValues(this.agentId);
+
+      for (const qv of qValues) {
+        if (!this.qTable.has(qv.state_key)) {
+          this.qTable.set(qv.state_key, new Map());
+        }
+        this.qTable.get(qv.state_key)!.set(qv.action_key, qv.q_value);
+      }
+
+      this.logger.info(`Loaded ${qValues.length} Q-values from database`);
+    } catch (error) {
+      this.logger.warn(`Failed to load Q-values from database:`, error);
+    }
+  }
+
+  /**
+   * Learn from task execution with automatic database persistence
+   * This is the primary method called by BaseAgent.onPostTask()
+   * Consolidates learnFromExecution() and recordExperience() functionality
    */
   async learnFromExecution(
     task: any,
@@ -106,52 +181,85 @@ export class LearningEngine {
       return this.createOutcome(false, 0, 0);
     }
 
-    // Extract experience from task execution
-    const experience = this.extractExperience(task, result, feedback);
-    this.experiences.push(experience);
+    try {
+      // Extract experience from task execution
+      const experience = this.extractExperience(task, result, feedback);
+      const reward = this.calculateReward(result, feedback);
+      experience.reward = reward;
 
-    // Calculate reward
-    const reward = this.calculateReward(result, feedback);
-    experience.reward = reward;
+      // Store in memory (fast)
+      this.experiences.push(experience);
 
-    // Update Q-table
-    await this.updateQTable(experience);
+      // Update Q-table (in-memory)
+      await this.updateQTable(experience);
 
-    // Update patterns
-    await this.updatePatterns(experience);
+      // Persist to database (via adapter, batched for performance)
+      if (this.persistence) {
+        try {
+          await this.persistence.storeExperience(this.agentId, experience);
 
-    // Detect failure patterns
-    if (!result.success) {
-      await this.detectFailurePattern(experience);
+          // Persist Q-value
+          const stateKey = this.stateExtractor.encodeState(experience.state);
+          const actionKey = this.stateExtractor.encodeAction(experience.action);
+          const stateActions = this.qTable.get(stateKey);
+          const qValue = stateActions?.get(actionKey) || 0;
+
+          await this.persistence.storeQValue(this.agentId, stateKey, actionKey, qValue);
+        } catch (persistError) {
+          this.logger.warn('Persistence failed, continuing with in-memory learning:', persistError);
+          // Don't fail learning due to persistence errors
+        }
+      }
+
+      // Update patterns
+      await this.updatePatterns(experience);
+
+      // Detect failure patterns
+      if (!result.success) {
+        await this.detectFailurePattern(experience);
+      }
+
+      // Increment task count
+      this.taskCount++;
+
+      // Periodic batch update and snapshot
+      if (this.taskCount % this.config.updateFrequency === 0) {
+        await this.performBatchUpdate();
+
+        if (this.persistence) {
+          const stats = {
+            totalExperiences: this.experiences.length,
+            qTableSize: this.qTable.size,
+            recentImprovement: (await this.calculateImprovement()).improvementRate,
+            explorationRate: this.config.explorationRate
+          };
+          await this.persistence.storeLearningSnapshot(this.agentId, stats);
+        }
+      }
+
+      // Decay exploration rate
+      this.decayExploration();
+
+      // Calculate improvement
+      const improvement = await this.calculateImprovement();
+
+      // Emit learning event
+      await this.emitLearningEvent('training', {
+        experience,
+        reward,
+        improvement
+      });
+
+      // Save state periodically
+      if (this.taskCount % 50 === 0) {
+        await this.saveState();
+      }
+
+      return improvement;
+    } catch (error) {
+      this.logger.error(`Learning from execution failed:`, error);
+      return this.createOutcome(false, 0, 0);
     }
-
-    // Increment task count
-    this.taskCount++;
-
-    // Periodic model update
-    if (this.taskCount % this.config.updateFrequency === 0) {
-      await this.performBatchUpdate();
-    }
-
-    // Decay exploration rate
-    this.decayExploration();
-
-    // Calculate improvement
-    const improvement = await this.calculateImprovement();
-
-    // Emit learning event
-    await this.emitLearningEvent('training', {
-      experience,
-      reward,
-      improvement
-    });
-
-    // Save state periodically
-    if (this.taskCount % 50 === 0) {
-      await this.saveState();
-    }
-
-    return improvement;
   }
 
   /**
@@ -223,6 +331,17 @@ export class LearningEngine {
   getFailurePatterns(): FailurePattern[] {
     return Array.from(this.failurePatterns.values())
       .sort((a, b) => b.frequency - a.frequency);
+  }
+
+  /**
+   * Flush any pending batched writes to database
+   * Call this before querying the database to ensure all data is persisted
+   */
+  async flush(): Promise<void> {
+    if (this.persistence) {
+      await this.persistence.flush();
+      this.logger.debug('Flushed pending learning data to database');
+    }
   }
 
   /**
@@ -847,5 +966,15 @@ export class LearningEngine {
    */
   isQLearningEnabled(): boolean {
     return this.useQLearning;
+  }
+
+  /**
+   * Cleanup resources (timers, connections)
+   * Call this before destroying the LearningEngine instance
+   */
+  dispose(): void {
+    if (this.persistence && 'dispose' in this.persistence) {
+      (this.persistence as any).dispose();
+    }
   }
 }

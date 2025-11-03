@@ -16,8 +16,10 @@ export class Logger {
   private static mockInstance: Logger | null = null;
 
   static getInstance(): Logger {
+    console.log('[MOCK] Logger.getInstance() called');
     if (!Logger.mockInstance) {
       Logger.mockInstance = new Logger();
+      console.log('[MOCK] Created new Logger mock instance');
     }
     return Logger.mockInstance;
   }

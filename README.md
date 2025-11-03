@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.3.5** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.2** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and 85.7% cost savings through intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
 
-🧠 **20% Continuous Improvement** | 📚 **34 World-Class QE Skills** | 🎯 **100% Flaky Test Detection** | 💰 **85.7% Cost Savings** | 🔧 **54 MCP Tools**
+🧠 **Q-Learning System** | 📚 **34 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **54 MCP Tools**
 
 </div>
 
@@ -56,7 +56,8 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
-- ✅ 17 Specialized agent definitions
+- ✅ 18 Specialized agent definitions (including qe-code-complexity)
+- ✅ 34 World-class QE skills library
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -65,7 +66,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ## ✨ Features
 
 ### 🤖 Autonomous Agent Fleet
-- **17 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing)
+- **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -205,6 +206,9 @@ claude "Use qe-chaos-engineer to inject random failures and validate system resi
 
 # Flaky test detection with ML
 claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify flaky tests with ML-powered root cause analysis"
+
+# Code complexity analysis
+claude "Use qe-code-complexity to analyze src/ directory and get refactoring recommendations for complex code"
 ```
 
 ### Example 6: Fleet Coordination at Scale
@@ -358,7 +362,7 @@ Model Usage:
 ## 🤖 Agent Types
 
 <details>
-<summary><b>Core Testing Agents (5 agents)</b></summary>
+<summary><b>Core Testing Agents (6 agents)</b></summary>
 
 | Agent | Purpose | Key Features | Phase 2 Enhancements |
 |-------|---------|-------------|---------------------|
@@ -367,6 +371,7 @@ Model Usage:
 | **coverage-analyzer** | Real-time gap analysis | O(log n) algorithms, trend tracking | ✅ Learning, Pattern recommendations |
 | **quality-gate** | Intelligent validation | ML-driven decisions, risk assessment | ✅ Flaky test metrics |
 | **quality-analyzer** | Metrics analysis | ESLint, SonarQube, Lighthouse integration | - |
+| **code-complexity** | Complexity analysis | Cyclomatic/cognitive metrics, refactoring recommendations | ✅ Educational agent |
 
 </details>
 
@@ -423,7 +428,7 @@ Model Usage:
 
 </details>
 
-**Total: 17 Agents** (16 QE-specific + 1 general-purpose)
+**Total: 19 Agents** (18 QE-specific + 1 general-purpose)
 
 ---
 
@@ -499,31 +504,21 @@ Model Usage:
 
 ---
 
-## 📝 Recent Changes
+## 📝 What's New in v1.4.2
 
-### v1.3.5 (2025-10-27) - Learning System Complete & Critical Policies
+🔐 **Security, Stability & Learning System Fixes** (2025-11-02)
 
-**Phase 2 Features Complete:**
-- ✅ Learning System with Q-Learning (87.5% success rate, 18.7% improvement)
-- ✅ Experience Replay Buffer (10,000 experiences)
-- ✅ Pattern Bank with 247 patterns (85%+ accuracy)
-- ✅ Multi-Model Router: 85.7% cost savings (exceeds 70-81% target)
-- ✅ ML Flaky Detection (100% accuracy, 0% false positives)
-- ✅ Streaming Progress with real-time updates
+- **Security**: Fixed 2 critical vulnerabilities (CWE-116 regex injection, CWE-1321 prototype pollution)
+- **Critical Fix**: PerformanceTesterAgent now working - all 18 agents functional (was 17/18)
+- **Learning System**: Fixed Q-learning persistence - Database auto-initialization now working correctly
+- **Database**: Removed FK constraint on learning_experiences for independent learning
+- **Reliability**: Enhanced error handling across 20 MCP handlers with centralized safeHandle()
+- **Quality**: Added 300+ new test cases (~22,000 lines) including comprehensive MCP handler coverage
+- **Developer Experience**: Tests now exit cleanly with --forceExit flag (no more hanging processes)
 
-**Critical Policy Updates:**
-- ⚠️ Release Verification Policy (8-point checklist)
-- ⚠️ Test Execution Policy (prevents workspace crashes)
-- ⚠️ Release Tagging Policy (tags after PR merge)
+**Upgrade Recommendation**: All users should upgrade to v1.4.2 for security and stability improvements.
 
-**Test Coverage:**
-- 237 new tests added across all Phase 2 features
-- Coverage: 50-70% (30-40x increase from 1.67%)
-- Fixed 328 import paths across 122 test files
-
-**Quality Score:** 92/100 (EXCELLENT) - Zero breaking changes, 100% backward compatible.
-
-[View Complete Changelog](CHANGELOG.md)
+[📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 
 ---
 

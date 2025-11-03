@@ -41,9 +41,9 @@ export class MemoryQueryHandler extends BaseHandler {
    * Handle memory query request
    */
   async handle(args: MemoryQueryParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       const {
         namespace,
         pattern,
@@ -67,7 +67,11 @@ export class MemoryQueryHandler extends BaseHandler {
 
       // Filter by pattern
       if (pattern) {
-        const regex = new RegExp(pattern.replace('*', '.*'));
+        // Security Fix (Alert #29): Use global replace to sanitize all occurrences of '*'
+        // Previous: pattern.replace('*', '.*') - only replaced first occurrence
+        // New: pattern.replace(/\*/g, '.*') - replaces all occurrences using global regex
+        const sanitizedPattern = pattern.replace(/\*/g, '.*');
+        const regex = new RegExp(sanitizedPattern);
         records = records.filter(r => regex.test(r.key));
       }
 
@@ -118,13 +122,6 @@ export class MemoryQueryHandler extends BaseHandler {
           hasMore: offset + limit < total
         }
       }, requestId);
-
-    } catch (error) {
-      this.log('error', 'Failed to query memory', error);
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 }

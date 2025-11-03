@@ -6,19 +6,19 @@
     "--memory=8g",
     "--memory-swap=12g",
     "--memory-reservation=4g",
-    "--cpus=2",
+    "--cpus=4",
     "--oom-kill-disable=false",
     "--memory-swappiness=60"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=2048 --expose-gc",
-    "CLAUDE_FLOW_MAX_AGENTS": "3",
+    "CLAUDE_FLOW_MAX_AGENTS": "15",
     "CLAUDE_FLOW_MEMORY_LIMIT": "512",
     "CLAUDE_FLOW_TOPOLOGY": "sequential",
     "ENABLE_MEMORY_MONITORING": "true",
     "MEMORY_CHECK_INTERVAL": "5000",
     "AGENT_MEMORY_LIMIT_MB": "512",
-    "MAX_CONCURRENT_AGENTS": "3",
+    "MAX_CONCURRENT_AGENTS": "15",
     "ENABLE_AGENT_QUEUE": "true",
     "MEMORY_PRESSURE_THRESHOLD": "0.85",
     "FORCE_GC_INTERVAL": "60000"
@@ -31,8 +31,8 @@
   },
   "hostRequirements": {
     "memory": "8gb",
-    "cpus": 2,
-    "storage": "32gb"
+    "cpus": 4,
+    "storage": "48gb"
   },
   "customizations": {
     "vscode": {

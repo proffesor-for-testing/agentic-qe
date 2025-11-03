@@ -272,6 +272,93 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Production Intelligence Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load incident history
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    await super.onPreTask(data);
+
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical production intelligence entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting production intelligence task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store production patterns and emit events
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    await super.onPostTask(data);
+
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        incidentsAnalyzed: data.result?.incidentsAnalyzed || 0,
+        testScenariosGenerated: data.result?.testScenarios?.length || 0
+      },
+      86400
+    );
+
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date(),
+      testScenarios: data.result?.testScenarios || []
+    });
+
+    console.log(`[${this.agentId.type}] Production intelligence analysis completed`, {
+      taskId: data.assignment.id,
+      scenariosGenerated: data.result?.testScenarios?.length || 0
+    });
+  }
+
+  /**
+   * Task error hook - Log production intelligence failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    await super.onTaskError(data);
+
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800
+    );
+
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Production intelligence task failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Implementation
   // ============================================================================
 

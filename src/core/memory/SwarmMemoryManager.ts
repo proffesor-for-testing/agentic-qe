@@ -9,6 +9,9 @@ import {
   ACL,
   AccessControlError
 } from './AccessControl';
+
+// Re-export for external use
+export { AccessLevel, Permission, ACL, AccessControlError };
 import {
   AgentDBManager,
   createAgentDBManager,

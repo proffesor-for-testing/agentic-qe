@@ -1,21 +1,21 @@
 /**
  * EventBus Unit Tests - Comprehensive TDD Implementation
  * Testing the EventBus class with full coverage including event persistence and coordination
+ *
+ * CRITICAL FIX: Logger mock is set up globally in jest.setup.ts
+ * Do NOT add jest.mock('@utils/Logger') here as it conflicts with the global mock
  */
 
 import { EventBus, FleetEvent } from '@core/EventBus';
 import { Logger } from '@utils/Logger';
 import { createResourceCleanup } from '../helpers/cleanup';
 
-// Global mock from jest.setup.ts handles Logger
-
 describe('EventBus', () => {
   let eventBus: EventBus;
   const cleanup = createResourceCleanup();
 
   beforeEach(async () => {
-    // Global mock from jest.setup.ts already provides Logger.getInstance()
-    // Just clear any previous calls
+    // Clear mocks BEFORE creating EventBus so initialization calls are captured
     jest.clearAllMocks();
 
     eventBus = new EventBus();
@@ -38,25 +38,18 @@ describe('EventBus', () => {
 
   describe('Initialization', () => {
     it('should initialize successfully', async () => {
-      const newEventBus = new EventBus();
-      await expect(newEventBus.initialize()).resolves.not.toThrow();
-
+      // EventBus was already initialized in beforeEach
+      // Check that the logger was called during that initialization
       expect(Logger.getInstance().info).toHaveBeenCalledWith('Initializing EventBus');
       expect(Logger.getInstance().info).toHaveBeenCalledWith('EventBus initialized successfully');
     });
 
     it('should handle multiple initialization calls gracefully', async () => {
-      // Create new EventBus for idempotency test
-      const newEventBus = new EventBus();
-
-      // First initialization
-      await newEventBus.initialize();
-
-      // Clear mocks after first initialization
+      // beforeEach already initialized, now clear mocks
       jest.clearAllMocks();
 
       // Second initialization should be idempotent (no-op)
-      await newEventBus.initialize();
+      await eventBus.initialize();
 
       // Wait for event propagation
       await new Promise(resolve => setImmediate(resolve));
@@ -121,6 +114,8 @@ describe('EventBus', () => {
     });
 
     it('should log event emission details', async () => {
+      jest.clearAllMocks(); // Clear mocks from beforeEach initialization
+
       const eventData = { test: true };
 
       await eventBus.emitFleetEvent('test:event', 'test-source', eventData, 'test-target');
@@ -191,6 +186,8 @@ describe('EventBus', () => {
 
   describe('Built-in Event Handlers', () => {
     it('should log fleet lifecycle events', async () => {
+      jest.clearAllMocks(); // Clear initialization logs
+
       const fleetData = { fleetId: 'fleet-123', status: 'running' };
 
       await eventBus.emitFleetEvent('fleet:started', 'fleet-manager', fleetData);
@@ -201,6 +198,8 @@ describe('EventBus', () => {
     });
 
     it('should log agent lifecycle events', async () => {
+      jest.clearAllMocks(); // Clear initialization logs
+
       const agentData = { agentId: 'agent-123', type: 'test-executor' };
 
       await eventBus.emitFleetEvent('agent:spawned', 'fleet-manager', agentData);
@@ -214,6 +213,8 @@ describe('EventBus', () => {
     });
 
     it('should log agent errors', async () => {
+      jest.clearAllMocks(); // Clear initialization logs
+
       const errorData = { agentId: 'agent-456', error: new Error('Agent malfunction') };
 
       await eventBus.emitFleetEvent('agent:error', 'agent-456', errorData);
@@ -225,6 +226,8 @@ describe('EventBus', () => {
     });
 
     it('should log task lifecycle events', async () => {
+      jest.clearAllMocks(); // Clear initialization logs
+
       // Task submitted
       await eventBus.emitFleetEvent('task:submitted', 'client', { taskId: 'task-123' });
       expect(Logger.getInstance().info).toHaveBeenCalledWith('Task submitted: task-123');

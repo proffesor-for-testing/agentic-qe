@@ -289,6 +289,104 @@ export class PerformanceTesterAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Lifecycle Hooks for Performance Testing Coordination
+  // ============================================================================
+
+  /**
+   * Pre-task hook - Load performance baselines before task execution
+   */
+  protected async onPreTask(data: { assignment: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB loading)
+    await super.onPreTask(data);
+
+    // Load performance testing baselines for comparison
+    const history = await this.memoryStore.retrieve(
+      `aqe/${this.agentId.type}/history`
+    );
+
+    if (history) {
+      console.log(`Loaded ${history.length} historical performance test entries`);
+    }
+
+    console.log(`[${this.agentId.type}] Starting performance testing task`, {
+      taskId: data.assignment.id,
+      taskType: data.assignment.task.type
+    });
+  }
+
+  /**
+   * Post-task hook - Store performance results and detect regressions
+   */
+  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+    // Call parent implementation first (includes AgentDB storage, learning)
+    await super.onPostTask(data);
+
+    // Store performance test results
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/results/${data.assignment.id}`,
+      {
+        result: data.result,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type,
+        success: data.result?.success !== false,
+        performanceMetrics: {
+          latencyP95: data.result?.latencyP95,
+          throughput: data.result?.throughput,
+          errorRate: data.result?.errorRate
+        }
+      },
+      86400 // 24 hours
+    );
+
+    // Emit performance test event for other agents
+    this.eventBus.emit(`${this.agentId.type}:completed`, {
+      agentId: this.agentId,
+      result: data.result,
+      timestamp: new Date(),
+      regressions: data.result?.regressions || []
+    });
+
+    console.log(`[${this.agentId.type}] Performance testing completed`, {
+      taskId: data.assignment.id,
+      performanceMet: data.result?.success
+    });
+  }
+
+  /**
+   * Task error hook - Log performance test failures
+   */
+  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+    // Call parent implementation
+    await super.onTaskError(data);
+
+    // Store performance test error for analysis
+    await this.memoryStore.store(
+      `aqe/${this.agentId.type}/errors/${Date.now()}`,
+      {
+        taskId: data.assignment.id,
+        error: data.error.message,
+        stack: data.error.stack,
+        timestamp: new Date(),
+        taskType: data.assignment.task.type
+      },
+      604800 // 7 days
+    );
+
+    // Emit error event
+    this.eventBus.emit(`${this.agentId.type}:error`, {
+      agentId: this.agentId,
+      error: data.error,
+      taskId: data.assignment.id,
+      timestamp: new Date()
+    });
+
+    console.error(`[${this.agentId.type}] Performance testing failed`, {
+      taskId: data.assignment.id,
+      error: data.error.message
+    });
+  }
+
+  // ============================================================================
   // BaseAgent Implementation
   // ============================================================================
 

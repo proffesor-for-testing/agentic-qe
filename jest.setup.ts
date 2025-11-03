@@ -42,7 +42,7 @@ jest.mock('path', () => {
   const actualPath = jest.requireActual('path');
   return {
     ...actualPath,
-    join: jest.fn((...args: string[]) => {
+    join: (...args: string[]) => {
       // Handle undefined/null arguments safely
       const sanitizedArgs = args.map(arg => {
         if (arg === undefined || arg === null || arg === '') {
@@ -51,12 +51,16 @@ jest.mock('path', () => {
         return arg;
       });
       return actualPath.join(...sanitizedArgs);
-    })
+    }
   };
 });
 
 // Logger is mocked via manual mock in src/utils/__mocks__/Logger.ts
 // Jest will automatically use the manual mock when jest.mock() is called in test files
+
+// Mock Database to use the test mock in tests/__mocks__/Database.ts
+// This prevents "this.database.initialize is not a function" errors in AgentRegistry
+jest.mock('./src/utils/Database');
 
 // Mock createAgent globally with proper implementation
 // IMPORTANT: Use jest.requireActual to preserve QEAgentFactory and other exports

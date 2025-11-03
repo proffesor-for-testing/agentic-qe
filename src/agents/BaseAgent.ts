@@ -30,6 +30,9 @@ import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { LearningEngine } from '../learning/LearningEngine';
 import { LearningConfig, StrategyRecommendation } from '../learning/types';
 import { AgentDBManager, AgentDBConfig, createAgentDBManager } from '../core/memory/AgentDBManager';
+import { AgentLifecycleManager } from './lifecycle/AgentLifecycleManager';
+import { AgentCoordinator } from './coordination/AgentCoordinator';
+import { AgentMemoryService } from './memory/AgentMemoryService';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -52,12 +55,10 @@ export interface BaseAgentConfig {
 
 export abstract class BaseAgent extends EventEmitter {
   protected readonly agentId: AgentId;
-  protected status: AgentStatus = AgentStatus.INITIALIZING;
   protected readonly capabilities: Map<string, AgentCapability>;
   protected readonly context: AgentContext;
   protected readonly memoryStore: MemoryStore;
   protected readonly eventBus: EventEmitter;
-  protected readonly eventHandlers: Map<string, EventHandler[]> = new Map();
   protected currentTask?: TaskAssignment;
   protected hookManager: VerificationHookManager;
   protected performanceTracker?: PerformanceTracker; // Optional performance tracking
@@ -79,6 +80,11 @@ export abstract class BaseAgent extends EventEmitter {
   };
   private taskStartTime?: number; // Track task execution start time
 
+  // Integrated service classes (reducing BaseAgent complexity)
+  protected readonly lifecycleManager: AgentLifecycleManager;
+  protected readonly coordinator: AgentCoordinator;
+  protected readonly memoryService: AgentMemoryService;
+
   constructor(config: BaseAgentConfig) {
     super();
 
@@ -95,7 +101,7 @@ export abstract class BaseAgent extends EventEmitter {
     this.context = config.context;
     this.memoryStore = config.memoryStore;
     this.eventBus = config.eventBus;
-    this.enableLearning = config.enableLearning ?? false;
+    this.enableLearning = config.enableLearning ?? true; // Changed: Default to true for all agents
     this.learningConfig = config.learningConfig;
 
     // Build AgentDB config from either agentDBConfig or shorthand properties
@@ -120,6 +126,18 @@ export abstract class BaseAgent extends EventEmitter {
     const memoryAdapter = new MemoryStoreAdapter(this.memoryStore);
     this.hookManager = new VerificationHookManager(memoryAdapter);
 
+    // Initialize integrated service classes
+    this.lifecycleManager = new AgentLifecycleManager(this.agentId);
+    this.coordinator = new AgentCoordinator({
+      agentId: this.agentId,
+      eventBus: this.eventBus,
+      memoryStore: this.memoryStore
+    });
+    this.memoryService = new AgentMemoryService({
+      agentId: this.agentId,
+      memoryStore: this.memoryStore
+    });
+
     this.setupEventHandlers();
     this.setupLifecycleHooks();
   }
@@ -133,52 +151,57 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public async initialize(): Promise<void> {
     try {
-      this.status = AgentStatus.INITIALIZING;
+      // Delegate lifecycle initialization to lifecycleManager
+      await this.lifecycleManager.initialize({
+        onPreInitialization: async () => {
+          await this.executeHook('pre-initialization');
+        },
+        onPostInitialization: async () => {
+          // Load agent knowledge and state
+          await this.loadKnowledge();
+          const savedState = await this.memoryService.restoreState();
+          if (savedState && savedState.performanceMetrics) {
+            this.performanceMetrics = { ...this.performanceMetrics, ...savedState.performanceMetrics };
+          }
 
-      // Execute pre-initialization hooks
-      await this.executeHook('pre-initialization');
+          // Initialize PerformanceTracker if learning is enabled
+          if (this.enableLearning && this.memoryStore instanceof SwarmMemoryManager) {
+            this.performanceTracker = new PerformanceTracker(
+              this.agentId.id,
+              this.memoryStore as SwarmMemoryManager
+            );
+            await this.performanceTracker.initialize();
 
-      // Load agent knowledge and state
-      await this.loadKnowledge();
-      await this.restoreState();
+            // Initialize learning engine for Q-learning
+            this.learningEngine = new LearningEngine(
+              this.agentId.id,
+              this.memoryStore as SwarmMemoryManager,
+              this.learningConfig
+            );
+            await this.learningEngine.initialize();
+          }
 
-      // Initialize PerformanceTracker if learning is enabled
-      if (this.enableLearning && this.memoryStore instanceof SwarmMemoryManager) {
-        this.performanceTracker = new PerformanceTracker(
-          this.agentId.id,
-          this.memoryStore as SwarmMemoryManager
-        );
-        await this.performanceTracker.initialize();
+          // Initialize AgentDB if configured
+          if (this.agentDBConfig) {
+            await this.initializeAgentDB(this.agentDBConfig);
+          }
 
-        // Initialize learning engine for Q-learning
-        this.learningEngine = new LearningEngine(
-          this.agentId.id,
-          this.memoryStore as SwarmMemoryManager,
-          this.learningConfig
-        );
-        await this.learningEngine.initialize();
-      }
+          // Initialize agent-specific components
+          await this.initializeComponents();
 
-      // Initialize AgentDB if configured
-      if (this.agentDBConfig) {
-        await this.initializeAgentDB(this.agentDBConfig);
-      }
+          // Execute post-initialization hooks
+          await this.executeHook('post-initialization');
 
-      // Initialize agent-specific components
-      await this.initializeComponents();
+          this.coordinator.emitEvent('agent.initialized', { agentId: this.agentId });
 
-      // Execute post-initialization hooks
-      await this.executeHook('post-initialization');
-
-      this.status = AgentStatus.ACTIVE;
-      this.emitEvent('agent.initialized', { agentId: this.agentId });
-
-      // Report initialization to coordination system
-      await this.reportStatus('initialized');
+          // Report initialization to coordination system
+          await this.coordinator.reportStatus('initialized', this.performanceMetrics);
+        }
+      });
 
     } catch (error) {
-      this.status = AgentStatus.ERROR;
-      this.emitEvent('agent.error', { agentId: this.agentId, error });
+      this.lifecycleManager.markError(`Initialization failed: ${error}`);
+      this.coordinator.emitEvent('agent.error', { agentId: this.agentId, error });
       throw error;
     }
   }
@@ -194,7 +217,7 @@ export abstract class BaseAgent extends EventEmitter {
       this.validateTaskAssignment(assignment);
 
       this.currentTask = assignment;
-      this.status = AgentStatus.ACTIVE;
+      this.lifecycleManager.markActive();
 
       // Execute pre-task hooks with verification
       const preTaskData: PreTaskData = { assignment };
@@ -202,7 +225,7 @@ export abstract class BaseAgent extends EventEmitter {
       await this.executeHook('pre-task', preTaskData);
 
       // Broadcast task start
-      await this.broadcastMessage('task-start', assignment);
+      await this.coordinator.broadcastMessage('task-start', assignment);
 
       // Execute the actual task
       const result = await this.performTask(assignment.task);
@@ -216,17 +239,17 @@ export abstract class BaseAgent extends EventEmitter {
       this.updatePerformanceMetrics(startTime, true);
 
       // Store task completion in memory
-      await this.storeTaskResult(assignment.id, result);
+      await this.memoryService.storeTaskResult(assignment.id, result);
 
       this.currentTask = undefined;
-      this.status = AgentStatus.IDLE;
+      this.lifecycleManager.markIdle();
 
       return result;
 
     } catch (error) {
       this.updatePerformanceMetrics(startTime, false);
       this.currentTask = undefined;
-      this.status = AgentStatus.ERROR;
+      this.lifecycleManager.markError(`Task execution failed: ${error}`);
 
       // Execute error hooks
       const errorData: TaskErrorData = {
@@ -245,7 +268,7 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public async terminate(): Promise<void> {
     try {
-      this.status = AgentStatus.TERMINATING;
+      this.lifecycleManager.setStatus(AgentStatus.TERMINATING);
 
       // Execute pre-termination hooks
       await this.executeHook('pre-termination');
@@ -262,25 +285,20 @@ export abstract class BaseAgent extends EventEmitter {
       // Clean up agent-specific resources
       await this.cleanup();
 
-      // Remove all event handlers from EventBus
-      for (const [eventType, handlers] of this.eventHandlers.entries()) {
-        for (const handler of handlers) {
-          this.eventBus.off(eventType, handler.handler);
-        }
-      }
-      this.eventHandlers.clear();
+      // Remove all event handlers from EventBus using coordinator
+      this.coordinator.clearAllHandlers();
 
       // Execute post-termination hooks
       await this.executeHook('post-termination');
 
-      this.status = AgentStatus.TERMINATED;
+      this.lifecycleManager.setStatus(AgentStatus.TERMINATED);
       this.emitEvent('agent.terminated', { agentId: this.agentId });
 
       // Remove all listeners from this agent (EventEmitter)
       this.removeAllListeners();
 
     } catch (error) {
-      this.status = AgentStatus.ERROR;
+      this.lifecycleManager.setStatus(AgentStatus.ERROR);
       throw error;
     }
   }
@@ -302,7 +320,7 @@ export abstract class BaseAgent extends EventEmitter {
   } {
     return {
       agentId: this.agentId,
-      status: this.status,
+      status: this.lifecycleManager.getStatus(),
       currentTask: this.currentTask?.id,
       capabilities: Array.from(this.capabilities.keys()),
       performanceMetrics: { ...this.performanceMetrics }
@@ -475,11 +493,7 @@ export abstract class BaseAgent extends EventEmitter {
    * Register an event handler
    */
   protected registerEventHandler<T = any>(handler: EventHandler<T>): void {
-    const handlers = this.eventHandlers.get(handler.eventType) || [];
-    handlers.push(handler);
-    this.eventHandlers.set(handler.eventType, handlers);
-
-    this.eventBus.on(handler.eventType, handler.handler);
+    this.coordinator.registerEventHandler(handler);
   }
 
   /**
@@ -981,7 +995,7 @@ export abstract class BaseAgent extends EventEmitter {
   private setupLifecycleHooks(): void {
     // Setup default lifecycle behavior
     this.on('error', (error) => {
-      this.status = AgentStatus.ERROR;
+      this.lifecycleManager.setStatus(AgentStatus.ERROR);
       this.emitEvent('agent.error', { agentId: this.agentId, error });
     });
   }

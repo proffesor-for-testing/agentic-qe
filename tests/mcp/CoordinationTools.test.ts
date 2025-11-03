@@ -12,8 +12,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { AgenticQEMCPServer } from '@mcp/server.js';
-import { TOOL_NAMES } from '@mcp/tools.js';
+import { AgenticQEMCPServer } from '@mcp/server';
+import { TOOL_NAMES } from '@mcp/tools';
 
 describe('Coordination Tools', () => {
   let server: AgenticQEMCPServer;

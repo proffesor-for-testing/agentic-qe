@@ -12,9 +12,9 @@ export interface CoverageGapsDetectParams {
 
 export class CoverageGapsDetectHandler extends BaseHandler {
   async handle(args: CoverageGapsDetectParams): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
 
-    try {
       this.log('info', 'Starting coverage gap detection', { requestId, args });
 
       // Simulate gap detection logic
@@ -34,13 +34,7 @@ export class CoverageGapsDetectHandler extends BaseHandler {
       });
 
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Coverage gap detection failed', { requestId, error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Unknown error',
-        requestId
-      );
-    }
+    });
   }
 
   private detectGaps(coverageData: Record<string, any>, prioritization: string): any[] {

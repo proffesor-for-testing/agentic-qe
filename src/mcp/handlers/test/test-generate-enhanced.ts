@@ -34,10 +34,10 @@ export class TestGenerateEnhancedHandler extends BaseHandler {
   }
 
   async handle(args: TestGenerateEnhancedArgs): Promise<HandlerResponse> {
-    const requestId = this.generateRequestId();
-    this.log('info', 'Enhanced test generation started', { requestId });
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Enhanced test generation started', { requestId });
 
-    try {
       this.validateRequired(args, ['sourceCode', 'language', 'testType']);
 
       const { result, executionTime } = await this.measureExecutionTime(async () => {
@@ -74,13 +74,7 @@ export class TestGenerateEnhancedHandler extends BaseHandler {
 
       this.log('info', `Enhanced test generation completed in ${executionTime.toFixed(2)}ms`);
       return this.createSuccessResponse(result, requestId);
-    } catch (error) {
-      this.log('error', 'Enhanced test generation failed', { error });
-      return this.createErrorResponse(
-        error instanceof Error ? error.message : 'Test generation failed',
-        requestId
-      );
-    }
+    });
   }
 
   private initializeAIModels(): void {

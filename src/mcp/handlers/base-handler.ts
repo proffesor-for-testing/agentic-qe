@@ -29,6 +29,53 @@ export abstract class BaseHandler {
   abstract handle(args: any): Promise<HandlerResponse>;
 
   /**
+   * Wrapper that ensures all errors are caught and converted to HandlerResponse.
+   *
+   * This method provides consistent error handling across all MCP handlers by:
+   * - Catching ALL thrown errors (including validation errors, runtime errors, etc.)
+   * - Converting errors into properly formatted HandlerResponse objects
+   * - Logging error details for debugging
+   * - Ensuring the MCP server never crashes due to unhandled exceptions
+   *
+   * **When to use:**
+   * - Wrap your entire `handle()` implementation with this method
+   * - Use it as the outermost error boundary in your handler
+   * - Ensures consistent error response format across all handlers
+   *
+   * **Example usage:**
+   * ```typescript
+   * async handle(args: any): Promise<HandlerResponse> {
+   *   return this.safeHandle(async () => {
+   *     // Your handler logic here
+   *     this.validateRequired(args, ['requiredField']);
+   *     const result = await this.doWork(args);
+   *     return this.createSuccessResponse(result);
+   *   });
+   * }
+   * ```
+   *
+   * @param handler - Async function containing your handler implementation
+   * @returns HandlerResponse - Either success response from handler or error response if exception occurs
+   */
+  protected async safeHandle(
+    handler: () => Promise<HandlerResponse>
+  ): Promise<HandlerResponse> {
+    const requestId = this.generateRequestId();
+    try {
+      return await handler();
+    } catch (error) {
+      this.log('error', 'Handler execution failed', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      return this.createErrorResponse(
+        error instanceof Error ? error.message : 'Handler execution failed',
+        requestId
+      );
+    }
+  }
+
+  /**
    * Generate a unique request ID
    */
   protected generateRequestId(): string {
@@ -69,7 +116,10 @@ export abstract class BaseHandler {
    * Validate required parameters
    */
   protected validateRequired(args: any, requiredFields: string[]): void {
-    const missing = requiredFields.filter(field => !args[field]);
+    if (args === null || args === undefined || typeof args !== 'object' || Array.isArray(args)) {
+      throw new Error(`Invalid arguments: expected object, got ${args === null ? 'null' : typeof args}`);
+    }
+    const missing = requiredFields.filter(field => !(field in args) || args[field] === undefined || args[field] === null);
     if (missing.length > 0) {
       throw new Error(`Missing required fields: ${missing.join(', ')}`);
     }
