@@ -104,7 +104,7 @@ export class InitCommand {
 
         (fleetConfig as any).project = {
           name: projectAnswers.projectName,
-          path: process.cwd(),
+          path: '.', // Relative path - use current directory as project root
           language: projectAnswers.language.toLowerCase()
         };
 
@@ -124,7 +124,7 @@ export class InitCommand {
         // Non-interactive mode: use defaults or environment variables
         (fleetConfig as any).project = {
           name: process.env.AQE_PROJECT_NAME || path.basename(process.cwd()),
-          path: process.cwd(),
+          path: '.', // Relative path - use current directory as project root
           language: (process.env.AQE_LANGUAGE || 'typescript').toLowerCase()
         };
 
@@ -1238,10 +1238,28 @@ For full capabilities, install the complete agentic-qe package.
     const topology = config.topology || 'hierarchical';
     const maxAgents = config.maxAgents || 10;
 
+    // Create a sanitized config with relative paths for the script
+    const scriptConfig = { ...config };
+    if ((scriptConfig as any).project) {
+      // Ensure project path is relative (always use . for portability)
+      (scriptConfig as any).project = {
+        ...(scriptConfig as any).project,
+        path: '.' // Relative path - script runs from project root
+      };
+    }
+
+    // Escape JSON for embedding in bash script
+    const configJson = JSON.stringify(scriptConfig, null, 2).replace(/\$/g, '\\$');
+
     // Create pre-execution coordination script (AQE native)
     const preExecutionScript = `#!/bin/bash
 # Agentic QE Fleet Pre-Execution Coordination
 # This script uses native AQE capabilities - no external dependencies required
+
+# Ensure we're in the project root (works from any directory)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT" || exit 1
 
 # Store fleet status before execution
 agentic-qe fleet status --json > /tmp/aqe-fleet-status-pre.json 2>/dev/null || true
@@ -1251,7 +1269,9 @@ echo "[AQE] Pre-execution coordination: Fleet topology=${topology}, Max agents=$
 
 # Store fleet config in coordination memory (via file-based state)
 mkdir -p .agentic-qe/state/coordination
-echo '${JSON.stringify(config)}' > .agentic-qe/state/coordination/fleet-config.json
+cat > .agentic-qe/state/coordination/fleet-config.json << 'FLEET_CONFIG_EOF'
+${configJson}
+FLEET_CONFIG_EOF
 
 echo "[AQE] Pre-execution coordination complete"
 `;
@@ -1260,6 +1280,11 @@ echo "[AQE] Pre-execution coordination complete"
     const postExecutionScript = `#!/bin/bash
 # Agentic QE Fleet Post-Execution Coordination
 # This script uses native AQE capabilities - no external dependencies required
+
+# Ensure we're in the project root (works from any directory)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT" || exit 1
 
 # Capture final fleet status
 agentic-qe fleet status --json > /tmp/aqe-fleet-status-post.json 2>/dev/null || true
