@@ -416,6 +416,92 @@ describe('Configuration CLI Commands', () => {
         ConfigSetCommand.execute({ key: '', value: 'test' })
       ).rejects.toThrow('Invalid key');
     });
+
+    // Security Tests - Prototype Pollution Protection (Alert #25)
+    describe('prototype pollution protection', () => {
+      it('should block __proto__ key in path', async () => {
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue({ version: '1.0', fleet: {} });
+
+        await expect(
+          ConfigSetCommand.execute({ key: '__proto__.isAdmin', value: 'true' })
+        ).rejects.toThrow('Prototype pollution attempt detected');
+      });
+
+      it('should block constructor key in path', async () => {
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue({ version: '1.0', fleet: {} });
+
+        await expect(
+          ConfigSetCommand.execute({ key: 'constructor.prototype.isAdmin', value: 'true' })
+        ).rejects.toThrow('Prototype pollution attempt detected');
+      });
+
+      it('should block prototype key in path', async () => {
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue({ version: '1.0', fleet: {} });
+
+        await expect(
+          ConfigSetCommand.execute({ key: 'fleet.prototype.isAdmin', value: 'true' })
+        ).rejects.toThrow('Prototype pollution attempt detected');
+      });
+
+      it('should block __proto__ in nested path', async () => {
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue({ version: '1.0', fleet: {} });
+
+        await expect(
+          ConfigSetCommand.execute({ key: 'fleet.__proto__.isAdmin', value: 'true' })
+        ).rejects.toThrow('Prototype pollution attempt detected');
+      });
+
+      it('should block multiple dangerous keys in path', async () => {
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue({ version: '1.0', fleet: {} });
+
+        await expect(
+          ConfigSetCommand.execute({ key: 'constructor.__proto__.isAdmin', value: 'true' })
+        ).rejects.toThrow('Prototype pollution attempt detected');
+      });
+
+      it('should allow safe nested property names', async () => {
+        const existingConfig = {
+          version: '1.0',
+          fleet: { topology: 'hierarchical', maxAgents: 10 }
+        };
+
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue(existingConfig);
+
+        // These should all work fine
+        await ConfigSetCommand.execute({ key: 'fleet.protocol', value: 'http' });
+        const writtenConfig1 = mockedFs.writeJson.mock.calls[0][1] as any;
+        expect(writtenConfig1.fleet.protocol).toBe('http');
+
+        mockedFs.readJson.mockResolvedValue(writtenConfig1);
+        await ConfigSetCommand.execute({ key: 'features.constructor_mode', value: 'safe' });
+        const writtenConfig2 = mockedFs.writeJson.mock.calls[1][1] as any;
+        expect(writtenConfig2.features.constructor_mode).toBe('safe');
+      });
+
+      it('should verify Object.prototype is not polluted', async () => {
+        const existingConfig = {
+          version: '1.0',
+          fleet: { topology: 'hierarchical', maxAgents: 10 }
+        };
+
+        mockedFs.pathExists.mockResolvedValue(true);
+        mockedFs.readJson.mockResolvedValue(existingConfig);
+
+        // Attempt prototype pollution (should fail)
+        await expect(
+          ConfigSetCommand.execute({ key: '__proto__.polluted', value: 'true' })
+        ).rejects.toThrow('Prototype pollution attempt detected');
+
+        // Verify Object.prototype was not modified
+        expect((Object.prototype as any).polluted).toBeUndefined();
+      });
+    });
   });
 
   describe('config get', () => {

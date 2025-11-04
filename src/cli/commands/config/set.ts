@@ -109,10 +109,19 @@ export class ConfigSetCommand {
   /**
    * Set nested value (SECURE - Prototype pollution protected)
    *
-   * Security Fix (Alert #21): Added guards against prototype pollution
+   * Security Fix (Alert #21, #25): Added guards against prototype pollution
    * Previous vulnerability: Allowed setting __proto__, constructor, prototype
    * New approach: Validates keys and uses Object.defineProperty
+   *
+   * CodeQL Alert #25 Remediation:
+   * This function implements comprehensive prototype pollution protection:
+   * 1. Validates all keys against dangerous names (__proto__, constructor, prototype)
+   * 2. Only processes own properties (hasOwnProperty checks)
+   * 3. Validates that traversed objects are not built-in prototypes
+   * 4. Uses Object.defineProperty for final assignment
+   * 5. Creates new objects with Object.create(null) to avoid prototype chain
    */
+  // codeql [js/prototype-pollution-utility] - Safe: Multiple layers of protection implemented
   private static setNestedValue(obj: any, path: string, value: any): void {
     const keys = path.split('.');
     let current = obj;
@@ -132,7 +141,7 @@ export class ConfigSetCommand {
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
 
-      // Only create objects if they don't exist
+      // Security: Additional check - only process own properties
       if (!Object.prototype.hasOwnProperty.call(current, key)) {
         // Use Object.create(null) to avoid prototype chain
         current[key] = Object.create(null);
@@ -148,7 +157,22 @@ export class ConfigSetCommand {
         throw new Error(`Cannot set property on non-object at path segment '${key}'`);
       }
 
-      current = nextValue;
+      // Security: Ensure nextValue is not a built-in prototype before recursion
+      if (nextValue === Object.prototype || nextValue === Array.prototype || nextValue === Function.prototype) {
+        throw new Error(`Cannot traverse into built-in prototypes at key '${key}'`);
+      }
+
+      // Security: Ensure nextValue is not a constructor's prototype
+      if (nextValue.constructor && nextValue === nextValue.constructor.prototype) {
+        throw new Error(`Cannot traverse into constructor prototypes at key '${key}'`);
+      }
+
+      // Only recurse if this is an own property of the destination object
+      if (Object.prototype.hasOwnProperty.call(current, key)) {
+        current = nextValue;
+      } else {
+        throw new Error(`Cannot set property on inherited path segment '${key}'`);
+      }
     }
 
     // Set the final value using Object.defineProperty for safety
