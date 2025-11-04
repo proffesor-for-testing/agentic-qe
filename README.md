@@ -22,12 +22,9 @@
 ### Install & Initialize
 
 ```bash
-# Install globally
-npm install -g agentic-qe
-
 # Initialize your project
 cd your-project
-aqe init
+npx aqe init
 
 # Add MCP server to Claude Code (optional)
 claude mcp add agentic-qe npx aqe-mcp
