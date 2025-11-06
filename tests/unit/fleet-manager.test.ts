@@ -15,9 +15,6 @@ jest.mock('../../src/agents', () => ({
   createAgent: jest.fn()
 }));
 
-// Import the mock after jest.mock() is called
-import { mockDatabase } from '../__mocks__/Database';
-
 // Define AgentType enum for tests (mirrors QEAgentType)
 enum AgentType {
   UNIT_TEST_GENERATOR = 'unit-test-generator',
@@ -44,8 +41,25 @@ const mockLogger = {
   getInstance: jest.fn()
 } as unknown as jest.Mocked<Logger>;
 
-// Mock Logger.getInstance to return our mock
-(Logger.getInstance as jest.Mock) = jest.fn(() => mockLogger);
+// Logger is already mocked via manual mock in src/utils/__mocks__/Logger.ts
+// No need to mock it again - the manual mock handles getInstance() automatically
+
+const mockDatabase = {
+  initialize: jest.fn().mockResolvedValue(undefined),
+  close: jest.fn().mockResolvedValue(undefined),
+  run: jest.fn().mockReturnValue({ changes: 1, lastInsertRowid: 1 }),
+  get: jest.fn().mockReturnValue(undefined),
+  all: jest.fn().mockReturnValue([]),
+  prepare: jest.fn().mockReturnValue({
+    run: jest.fn().mockReturnValue({ changes: 1, lastInsertRowid: 1 }),
+    get: jest.fn().mockReturnValue(undefined),
+    all: jest.fn().mockReturnValue([])
+  }),
+  transaction: jest.fn((callback) => callback()),
+  upsertFleet: jest.fn().mockResolvedValue(undefined),
+  upsertAgent: jest.fn().mockResolvedValue(undefined),
+  upsertTask: jest.fn().mockResolvedValue(undefined)
+} as any;
 
 const mockEventBus = {
   initialize: jest.fn().mockResolvedValue(undefined),

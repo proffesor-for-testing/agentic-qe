@@ -204,6 +204,11 @@ export class AgentDBManager {
       throw new Error('AgentDBManager already initialized');
     }
 
+    // Validate dbPath for invalid characters (e.g., null bytes)
+    if (this.config.dbPath && this.config.dbPath.includes('\0')) {
+      throw new Error('Invalid dbPath: contains null byte');
+    }
+
     try {
       // Check if we're in test mode (use mock adapter)
       const isTestMode = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;

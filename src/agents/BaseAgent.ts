@@ -151,6 +151,19 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public async initialize(): Promise<void> {
     try {
+      // Guard: Skip if already initialized (ACTIVE or IDLE)
+      const currentStatus = this.lifecycleManager.getStatus();
+      if (currentStatus === AgentStatus.ACTIVE || currentStatus === AgentStatus.IDLE) {
+        console.warn(`[${this.agentId.id}] Agent already initialized (status: ${currentStatus}), skipping`);
+        return;
+      }
+
+      // Guard: Reset from ERROR state before initializing
+      if (currentStatus === AgentStatus.ERROR) {
+        console.info(`[${this.agentId.id}] Resetting agent from ERROR state before initialization`);
+        this.lifecycleManager.setStatus(AgentStatus.INITIALIZING);
+      }
+
       // Delegate lifecycle initialization to lifecycleManager
       await this.lifecycleManager.initialize({
         onPreInitialization: async () => {
@@ -349,6 +362,26 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
+   * Register a new capability dynamically
+   */
+  protected registerCapability(capability: AgentCapability): void {
+    this.capabilities.set(capability.name, capability);
+    this.emitEvent('capability.registered', {
+      agentId: this.agentId,
+      capability: capability.name
+    });
+  }
+
+  /**
+   * Register multiple capabilities at once
+   */
+  protected registerCapabilities(capabilities: AgentCapability[]): void {
+    for (const capability of capabilities) {
+      this.registerCapability(capability);
+    }
+  }
+
+  /**
    * Get Q-learning strategy recommendation
    */
   public async recommendStrategy(taskState: any): Promise<StrategyRecommendation | null> {
@@ -373,11 +406,12 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public getLearningStatus() {
     if (!this.learningEngine) return null;
+    const patterns = this.learningEngine.getPatterns();
     return {
       enabled: this.learningEngine.isEnabled(),
       totalExperiences: this.learningEngine.getTotalExperiences(),
       explorationRate: this.learningEngine.getExplorationRate(),
-      patterns: this.learningEngine.getPatterns().length
+      patterns: Array.isArray(patterns) ? patterns.length : 0
     };
   }
 
@@ -440,10 +474,27 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
-   * Start the agent (alias for initialize)
+   * Start the agent (idempotent - safe to call multiple times)
    */
   public async start(): Promise<void> {
+    const currentStatus = this.lifecycleManager.getStatus();
+
+    // If already active or idle, no need to initialize again
+    if (currentStatus === AgentStatus.ACTIVE || currentStatus === AgentStatus.IDLE) {
+      console.info(`[${this.agentId.id}] Agent already started (status: ${currentStatus})`);
+      return;
+    }
+
+    // Otherwise, initialize the agent
     await this.initialize();
+  }
+
+  /**
+   * Stop the agent (alias for terminate)
+   * Added for FleetManager compatibility
+   */
+  public async stop(): Promise<void> {
+    await this.terminate();
   }
 
   /**

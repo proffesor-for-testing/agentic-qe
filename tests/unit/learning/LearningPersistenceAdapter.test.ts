@@ -9,25 +9,18 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { Database } from '../../../src/utils/Database';
-import { TaskExperience } from '../../../src/learning/types';
 import fs from 'fs';
 import path from 'path';
 
-// ============================================================================
-// Mock Logger
-// ============================================================================
-jest.mock('../../../src/utils/Logger', () => ({
-  Logger: {
-    getInstance: jest.fn(() => ({
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
-      log: jest.fn()
-    }))
-  }
-}));
+// CRITICAL: Override jest.setup.ts bare mock with proper mock
+// This must be done BEFORE any imports that use Database
+jest.mock('../../../src/utils/Database', () => {
+  const mockMod = jest.requireActual<typeof import('../../../src/utils/__mocks__/Database')>('../../../src/utils/__mocks__/Database');
+  return mockMod;
+});
+
+import { Database } from '@utils/Database';
+import { TaskExperience } from '@learning/types';
 
 // ============================================================================
 // Persistence Adapter Interfaces (Simulating refactored design)
@@ -196,8 +189,72 @@ describe('DatabaseLearningPersistence', () => {
       fs.unlinkSync(testDbPath);
     }
 
-    // Create fresh database
+    // Create fresh database (uses the mock from jest.setup.ts)
     database = new Database(testDbPath);
+
+    // CRITICAL: Make mocks stateful to track stored data
+    const storedExperiences = new Map<string, number>(); // agentId -> count
+    const storedQValues = new Map<string, Map<string, number>>(); // agentId -> Map<stateKey:actionKey, value>
+    let databaseClosed = false;
+
+    // Track storeLearningExperience calls
+    (database.storeLearningExperience as jest.Mock).mockImplementation(async (exp: any) => {
+      if (databaseClosed) {
+        throw new Error('Database is closed');
+      }
+      const count = storedExperiences.get(exp.agentId) || 0;
+      storedExperiences.set(exp.agentId, count + 1);
+    });
+
+    // Track upsertQValue calls
+    (database.upsertQValue as jest.Mock).mockImplementation(async (agentId: string, stateKey: string, actionKey: string, qValue: number) => {
+      if (databaseClosed) {
+        throw new Error('Database is closed');
+      }
+      if (!storedQValues.has(agentId)) {
+        storedQValues.set(agentId, new Map());
+      }
+      const key = `${stateKey}:${actionKey}`;
+      storedQValues.get(agentId)!.set(key, qValue);
+    });
+
+    // Return stored experience count
+    (database.getLearningStatistics as jest.Mock).mockImplementation(async (agentId: string) => {
+      return {
+        totalExperiences: storedExperiences.get(agentId) || 0,
+        avgReward: 0,
+        qTableSize: storedQValues.get(agentId)?.size || 0,
+        recentImprovement: 0
+      };
+    });
+
+    // Return stored Q-values as array
+    (database.getAllQValues as jest.Mock).mockImplementation(async (agentId: string) => {
+      const qValues = storedQValues.get(agentId);
+      if (!qValues) return [];
+      return Array.from(qValues.entries()).map(([key, value]) => {
+        const [stateKey, actionKey] = key.split(':');
+        return { stateKey, actionKey, qValue: value };
+      });
+    });
+
+    // Return specific Q-value
+    (database.getQValue as jest.Mock).mockImplementation(async (agentId: string, stateKey: string, actionKey: string) => {
+      const qValues = storedQValues.get(agentId);
+      if (!qValues) return null;
+      const key = `${stateKey}:${actionKey}`;
+      return qValues.get(key) ?? null;
+    });
+
+    // Track close calls
+    const originalClose = (database.close as jest.Mock).getMockImplementation();
+    (database.close as jest.Mock).mockImplementation(async () => {
+      databaseClosed = true;
+      if (originalClose) {
+        await originalClose();
+      }
+    });
+
     await database.initialize();
 
     adapter = new DatabaseLearningPersistence(database, 5); // Small batch size for testing

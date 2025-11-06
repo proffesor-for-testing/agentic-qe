@@ -25,6 +25,7 @@ describe('LearningEngine Backward Compatibility', () => {
   const memoryDbPath = path.join(process.cwd(), '.test-memory-compat.db');
   let database: Database;
   let memoryManager: SwarmMemoryManager;
+  let learningEngine: LearningEngine | null = null;
 
   beforeEach(async () => {
     // Clean up test databases
@@ -43,6 +44,12 @@ describe('LearningEngine Backward Compatibility', () => {
   });
 
   afterEach(async () => {
+    // Dispose learning engine to prevent open handles
+    if (learningEngine) {
+      learningEngine.dispose();
+      learningEngine = null;
+    }
+
     // Close database connections
     try {
       if (database) await database.close();
@@ -70,13 +77,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should work with old recordExperience() API', async () => {
       const agentId = 'compat-agent-old-api';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Use OLD API (recordExperience instead of learnFromExecution)
       const task = {
@@ -102,7 +109,7 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // OLD API - should still work
-      await engine.recordExperience(task, result);
+      await learningEngine.recordExperience(task, result);
 
       // Verify data was persisted
       const stats = await database.getLearningStatistics(agentId);
@@ -113,13 +120,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should work with old recordExperience() API with feedback', async () => {
       const agentId = 'compat-agent-feedback';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       const task = {
         type: 'security-test-generation',
@@ -150,7 +157,7 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // OLD API with feedback
-      await engine.recordExperience(task, result, feedback);
+      await learningEngine.recordExperience(task, result, feedback);
 
       // Verify feedback influenced learning
       const stats = await database.getLearningStatistics(agentId);
@@ -160,13 +167,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should handle multiple calls to old API', async () => {
       const agentId = 'compat-agent-multiple';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Multiple calls using OLD API
       for (let i = 0; i < 10; i++) {
@@ -190,7 +197,7 @@ describe('LearningEngine Backward Compatibility', () => {
           }
         };
 
-        await engine.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
       }
 
       // Verify all experiences were recorded
@@ -203,13 +210,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should work with new learnFromExecution() API', async () => {
       const agentId = 'compat-agent-new-api';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Use NEW API
       const task = {
@@ -228,7 +235,7 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // NEW API - returns LearningOutcome
-      const outcome = await engine.learnFromExecution(task, result);
+      const outcome = await learningEngine.learnFromExecution(task, result);
 
       expect(outcome).toBeDefined();
       expect(outcome.newPerformance).toBeDefined();
@@ -236,19 +243,19 @@ describe('LearningEngine Backward Compatibility', () => {
       expect(outcome.patterns).toBeDefined();
 
       // Verify learning occurred (but no database persistence in learnFromExecution)
-      expect(engine.getTotalExperiences()).toBe(1);
+      expect(learningEngine.getTotalExperiences()).toBe(1);
     });
 
     it('should support both APIs in same session', async () => {
       const agentId = 'compat-agent-mixed';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       const task1 = {
         type: 'test-generation',
@@ -271,7 +278,7 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // OLD API (with database persistence)
-      await engine.recordExperience(task1, result1);
+      await learningEngine.recordExperience(task1, result1);
 
       const task2 = {
         type: 'test-generation',
@@ -287,10 +294,10 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // NEW API (in-memory only)
-      await engine.learnFromExecution(task2, result2);
+      await learningEngine.learnFromExecution(task2, result2);
 
       // Verify both APIs worked
-      expect(engine.getTotalExperiences()).toBe(2);
+      expect(learningEngine.getTotalExperiences()).toBe(2);
 
       // OLD API should have persisted to database
       const stats = await database.getLearningStatistics(agentId);
@@ -302,13 +309,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should migrate from old to new API smoothly', async () => {
       const agentId = 'compat-agent-migration';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Phase 1: Using OLD API (existing codebase)
       for (let i = 0; i < 5; i++) {
@@ -332,7 +339,7 @@ describe('LearningEngine Backward Compatibility', () => {
           }
         };
 
-        await engine.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
       }
 
       // Verify OLD API worked
@@ -355,11 +362,11 @@ describe('LearningEngine Backward Compatibility', () => {
         };
 
         // NEW API
-        await engine.learnFromExecution(task, result);
+        await learningEngine.learnFromExecution(task, result);
       }
 
       // Verify total experiences (5 old + 5 new)
-      expect(engine.getTotalExperiences()).toBe(10);
+      expect(learningEngine.getTotalExperiences()).toBe(10);
 
       // OLD API calls should still be in database
       stats = await database.getLearningStatistics(agentId);
@@ -369,13 +376,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should handle disabled learning gracefully', async () => {
       const agentId = 'compat-agent-disabled';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: false }, // Learning disabled
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       const task = {
         type: 'test-generation',
@@ -398,7 +405,7 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // Should not throw even when disabled
-      await expect(engine.recordExperience(task, result)).resolves.not.toThrow();
+      await expect(learningEngine.recordExperience(task, result)).resolves.not.toThrow();
 
       const result2 = {
         success: true,
@@ -407,10 +414,10 @@ describe('LearningEngine Backward Compatibility', () => {
         coverage: 0.85
       };
 
-      await expect(engine.learnFromExecution(task, result2)).resolves.not.toThrow();
+      await expect(learningEngine.learnFromExecution(task, result2)).resolves.not.toThrow();
 
       // No learning should have occurred
-      expect(engine.getTotalExperiences()).toBe(0);
+      expect(learningEngine.getTotalExperiences()).toBe(0);
     });
   });
 
@@ -418,13 +425,13 @@ describe('LearningEngine Backward Compatibility', () => {
     it('should handle persistence errors gracefully in old API', async () => {
       const agentId = 'compat-agent-error';
 
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       const task = {
         type: 'test-generation',
@@ -447,16 +454,16 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // Record first experience
-      await engine.recordExperience(task, result);
+      await learningEngine.recordExperience(task, result);
 
       // Close database to trigger error
       await database.close();
 
       // Should not throw - error should be caught internally
-      await expect(engine.recordExperience(task, result)).resolves.not.toThrow();
+      await expect(learningEngine.recordExperience(task, result)).resolves.not.toThrow();
 
       // Learning should continue (in-memory)
-      expect(engine.getTotalExperiences()).toBe(2);
+      expect(learningEngine.getTotalExperiences()).toBe(2);
     });
 
     it('should recover from database errors and continue learning', async () => {
@@ -467,7 +474,6 @@ describe('LearningEngine Backward Compatibility', () => {
       const badDatabase = new Database(badDbPath);
 
       // This should fail to initialize, but engine should handle it
-      let engine: LearningEngine;
       try {
         await badDatabase.initialize();
       } catch (error) {
@@ -475,7 +481,7 @@ describe('LearningEngine Backward Compatibility', () => {
       }
 
       // Create engine with bad database
-      engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
@@ -483,7 +489,7 @@ describe('LearningEngine Backward Compatibility', () => {
       );
 
       // Initialize should not throw
-      await expect(engine.initialize()).resolves.not.toThrow();
+      await expect(learningEngine.initialize()).resolves.not.toThrow();
 
       const task = {
         type: 'test-generation',
@@ -506,22 +512,36 @@ describe('LearningEngine Backward Compatibility', () => {
       };
 
       // Should not throw - error should be caught internally
-      await expect(engine.recordExperience(task, result)).resolves.not.toThrow();
+      await expect(learningEngine.recordExperience(task, result)).resolves.not.toThrow();
 
       // Learning should continue (in-memory)
-      expect(engine.getTotalExperiences()).toBeGreaterThan(0);
+      expect(learningEngine.getTotalExperiences()).toBeGreaterThan(0);
     });
   });
 
   describe('Feature Parity', () => {
+    let engine1: LearningEngine | null = null;
+    let engine2: LearningEngine | null = null;
+
+    afterEach(() => {
+      if (engine1) {
+        engine1.dispose();
+        engine1 = null;
+      }
+      if (engine2) {
+        engine2.dispose();
+        engine2 = null;
+      }
+    });
+
     it('should provide same learning capabilities in both APIs', async () => {
       const agentId1 = 'compat-agent-old-features';
       const agentId2 = 'compat-agent-new-features';
 
-      const engine1 = new LearningEngine(agentId1, memoryManager, { enabled: true }, database);
+      engine1 = new LearningEngine(agentId1, memoryManager, { enabled: true }, database);
       await engine1.initialize();
 
-      const engine2 = new LearningEngine(agentId2, memoryManager, { enabled: true }, database);
+      engine2 = new LearningEngine(agentId2, memoryManager, { enabled: true }, database);
       await engine2.initialize();
 
       const task = {

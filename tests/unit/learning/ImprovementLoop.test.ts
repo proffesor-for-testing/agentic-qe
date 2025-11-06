@@ -26,6 +26,14 @@ import { LearningEngine } from '@learning/LearningEngine';
 import { PerformanceTracker } from '@learning/PerformanceTracker';
 import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { ABTest } from '@learning/types';
+// Mock Database with explicit implementation
+jest.mock('@utils/Database', () => {
+  // Import the mock from __mocks__ directory
+  const actualMock = jest.requireActual<typeof import('../../../src/utils/__mocks__/Database')>('../../../src/utils/__mocks__/Database');
+  return actualMock;
+});
+
+import { Database } from '@utils/Database';
 
 describe('ImprovementLoop', () => {
   let improvementLoop: ImprovementLoop;
@@ -38,7 +46,8 @@ describe('ImprovementLoop', () => {
     memoryStore = new SwarmMemoryManager(':memory:');
     await memoryStore.initialize();
 
-    learningEngine = new LearningEngine(agentId, memoryStore);
+    // Create learning engine with disabled learning to avoid database auto-creation issues in tests
+    learningEngine = new LearningEngine(agentId, memoryStore, { enabled: false });
     await learningEngine.initialize();
 
     performanceTracker = new PerformanceTracker(agentId, memoryStore);
@@ -54,8 +63,11 @@ describe('ImprovementLoop', () => {
   });
 
   afterEach(async () => {
-    if (improvementLoop.isActive()) {
+    if (improvementLoop && improvementLoop.isActive && improvementLoop.isActive()) {
       await improvementLoop.stop();
+    }
+    if (learningEngine && learningEngine.dispose) {
+      await learningEngine.dispose();
     }
     try {
       await memoryStore.clear();
@@ -318,6 +330,24 @@ describe('ImprovementLoop', () => {
     });
 
     it('should analyze failure patterns during cycle', async () => {
+      // Create a learning engine with mock database for this specific test
+      const mockDb = new Database(':memory:');
+      const learningEngineWithDb = new LearningEngine(
+        agentId,
+        memoryStore,
+        { enabled: true }, // Enable learning for this test
+        mockDb
+      );
+      await learningEngineWithDb.initialize();
+
+      const improvementLoopWithLearning = new ImprovementLoop(
+        agentId,
+        memoryStore,
+        learningEngineWithDb,
+        performanceTracker
+      );
+      await improvementLoopWithLearning.initialize();
+
       // Add some failure patterns to learning engine
       const task = {
         id: 'task-1',
@@ -327,15 +357,37 @@ describe('ImprovementLoop', () => {
 
       const result = { success: false, error: 'timeout' };
 
-      await learningEngine.learnFromExecution(task, result);
+      await learningEngineWithDb.learnFromExecution(task, result);
 
-      await improvementLoop.runImprovementCycle();
+      await improvementLoopWithLearning.runImprovementCycle();
 
-      const failurePatterns = learningEngine.getFailurePatterns();
+      const failurePatterns = learningEngineWithDb.getFailurePatterns();
       expect(failurePatterns.length).toBeGreaterThan(0);
+
+      // Cleanup
+      await improvementLoopWithLearning.stop();
+      await learningEngineWithDb.dispose();
     });
 
     it('should discover optimization opportunities', async () => {
+      // Create a learning engine with mock database for this specific test
+      const mockDb = new Database(':memory:');
+      const learningEngineWithDb = new LearningEngine(
+        agentId,
+        memoryStore,
+        { enabled: true }, // Enable learning for this test
+        mockDb
+      );
+      await learningEngineWithDb.initialize();
+
+      const improvementLoopWithLearning = new ImprovementLoop(
+        agentId,
+        memoryStore,
+        learningEngineWithDb,
+        performanceTracker
+      );
+      await improvementLoopWithLearning.initialize();
+
       // Add high-confidence patterns
       const task = {
         id: 'task-1',
@@ -351,13 +403,17 @@ describe('ImprovementLoop', () => {
 
       // Learn from multiple successful executions
       for (let i = 0; i < 15; i++) {
-        await learningEngine.learnFromExecution(task, result);
+        await learningEngineWithDb.learnFromExecution(task, result);
       }
 
-      await improvementLoop.runImprovementCycle();
+      await improvementLoopWithLearning.runImprovementCycle();
 
-      const patterns = learningEngine.getPatterns();
+      const patterns = learningEngineWithDb.getPatterns();
       expect(patterns.length).toBeGreaterThan(0);
+
+      // Cleanup
+      await improvementLoopWithLearning.stop();
+      await learningEngineWithDb.dispose();
     });
 
     it('should update active A/B tests', async () => {
@@ -689,13 +745,16 @@ describe('ImprovementLoop', () => {
     });
 
     it('should handle missing performance data gracefully', async () => {
+      const newEngine = new LearningEngine('new-agent', memoryStore, { enabled: false });
+      await newEngine.initialize();
+
       const newTracker = new PerformanceTracker('new-agent', memoryStore);
       await newTracker.initialize();
 
       const newLoop = new ImprovementLoop(
         'new-agent',
         memoryStore,
-        learningEngine,
+        newEngine,
         newTracker
       );
 
@@ -716,6 +775,9 @@ describe('ImprovementLoop', () => {
 
       // Should now work with baseline data
       await expect(newLoop.runImprovementCycle()).resolves.not.toThrow();
+
+      // Cleanup
+      await newEngine.dispose();
     });
   });
 });

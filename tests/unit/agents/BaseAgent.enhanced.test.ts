@@ -21,6 +21,15 @@ import {
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
+// Mock Database to use the manual mock from __mocks__ directory
+jest.mock('../../../src/utils/Database', () => {
+  const actualMock = jest.requireActual<typeof import('../../../src/utils/__mocks__/Database')>('../../../src/utils/__mocks__/Database');
+  return actualMock;
+});
+
+// Mock LearningEngine to avoid database initialization issues
+jest.mock('../../../src/learning/LearningEngine');
+
 // Mock MemoryStore implementation for null memory scenarios
 class NullMemoryStore implements MemoryStore {
   async initialize(): Promise<void> {}
@@ -702,8 +711,9 @@ describe('BaseAgent - Enhanced Coverage (High-Risk Lines 76-157)', () => {
       // Should handle error during initialization's reportStatus call
       await agent.initialize();
 
+      // The actual error message format is "[agentId] Failed to report status:"
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Could not report status'),
+        expect.stringContaining('Failed to report status'),
         expect.any(Error)
       );
 

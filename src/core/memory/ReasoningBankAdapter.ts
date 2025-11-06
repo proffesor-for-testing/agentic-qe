@@ -79,6 +79,23 @@ export class ReasoningBankAdapter {
   }
 
   /**
+   * Get statistics about stored patterns
+   */
+  async getStats(): Promise<{ patternsCount: number; initialized: boolean }> {
+    return {
+      patternsCount: this.patterns.size,
+      initialized: this.isInitialized
+    };
+  }
+
+  /**
+   * Insert a pattern (alias for store)
+   */
+  async insertPattern(pattern: Pattern): Promise<string> {
+    return this.store(pattern);
+  }
+
+  /**
    * Close the adapter
    */
   async close(): Promise<void> {

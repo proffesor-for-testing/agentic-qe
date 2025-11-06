@@ -55,12 +55,17 @@ jest.mock('path', () => {
   };
 });
 
-// Logger is mocked via manual mock in src/utils/__mocks__/Logger.ts
-// Jest will automatically use the manual mock when jest.mock() is called in test files
+// Mock Logger globally to use the manual mock in src/utils/__mocks__/Logger.ts
+// This ensures all Logger calls use the mock throughout tests
+jest.mock('./src/utils/Logger');
 
-// Mock Database to use the test mock in tests/__mocks__/Database.ts
+// Mock Database globally with proper implementation
 // This prevents "this.database.initialize is not a function" errors in AgentRegistry
-jest.mock('./src/utils/Database');
+jest.mock('./src/utils/Database', () => {
+  // Import the proper mock implementation that has all methods
+  const mockModule = jest.requireActual<typeof import('./src/utils/__mocks__/Database')>('./src/utils/__mocks__/Database');
+  return mockModule;
+});
 
 // Mock createAgent globally with proper implementation
 // IMPORTANT: Use jest.requireActual to preserve QEAgentFactory and other exports

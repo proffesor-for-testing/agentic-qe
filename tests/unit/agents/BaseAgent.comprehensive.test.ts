@@ -18,6 +18,17 @@ import {
   TaskAssignment
 } from '../../../src/types';
 
+// Mock Database to use the manual mock from __mocks__ directory
+jest.mock('../../../src/utils/Database', () => {
+  const actualMock = jest.requireActual<typeof import('../../../src/utils/__mocks__/Database')>('../../../src/utils/__mocks__/Database');
+  return actualMock;
+});
+
+// Mock LearningEngine to avoid database initialization issues
+jest.mock('../../../src/learning/LearningEngine');
+
+// After the mock declaration, we'll configure it in beforeEach
+
 // Mock implementation for testing
 class MockAgent extends BaseAgent {
   public initCalled = false;
@@ -43,6 +54,7 @@ class MockAgent extends BaseAgent {
 
   protected async cleanup(): Promise<void> {
     this.cleanupCalled = true;
+    if (this.shouldFail) throw new Error('Cleanup failed');
   }
 
   // Expose protected methods
@@ -248,6 +260,7 @@ describe('BaseAgent - Comprehensive Test Suite', () => {
     });
 
     afterEach(async () => {
+      agent.shouldFail = false; // Reset before cleanup to avoid termination errors
       await agent.terminate();
     });
 

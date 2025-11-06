@@ -37,6 +37,9 @@ describe('CLI Learning Commands', () => {
   });
 
   afterEach(async () => {
+    if (learningEngine) {
+      await learningEngine.dispose();
+    }
     if (database) {
       await database.close();
     }

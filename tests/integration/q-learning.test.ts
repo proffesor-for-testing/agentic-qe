@@ -38,6 +38,7 @@ describe('Q-Learning Integration Tests', () => {
   let memoryManager: SwarmMemoryManager;
   let database: Database;
   let testDbPath: string;
+  let additionalEngines: LearningEngine[] = []; // Track engines created during tests
   const TEST_AGENT_ID = 'q-learning-test-agent';
 
   beforeEach(async () => {
@@ -90,9 +91,25 @@ describe('Q-Learning Integration Tests', () => {
       explorationDecay: 0.995
     });
     await learningEngine.initialize();
+
+    // Clear tracking array
+    additionalEngines = [];
   });
 
   afterEach(async () => {
+    // Dispose main learning engine
+    if (learningEngine?.dispose) {
+      await learningEngine.dispose();
+    }
+
+    // Dispose additional engines created during tests
+    for (const engine of additionalEngines) {
+      if (engine?.dispose) {
+        await engine.dispose();
+      }
+    }
+    additionalEngines = [];
+
     if (database) {
       await database.close();
     }
@@ -137,6 +154,7 @@ describe('Q-Learning Integration Tests', () => {
         learningRate: 0.1,
         discountFactor: 0.95
       });
+      additionalEngines.push(newEngine); // Track for cleanup
 
       // ❌ EXPECTED TO FAIL: Engine doesn't load Q-values from database
       await newEngine.loadFromDatabase(database);
@@ -385,6 +403,7 @@ describe('Q-Learning Integration Tests', () => {
         learningRate: 0.1,
         discountFactor: 0.95
       });
+      additionalEngines.push(newEngine); // Track for cleanup
 
       // ❌ EXPECTED TO FAIL: Learning state not restored
       await newEngine.loadFromDatabase(database);
