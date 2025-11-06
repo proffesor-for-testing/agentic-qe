@@ -479,8 +479,8 @@ describe('TestExecuteParallelHandler', () => {
       const response = await handler.handle(args);
 
       expect(response.success).toBe(true);
-      expect(response.requestId).toBeDefined();
-      expect(response.requestId).toBe('test-random-id');
+      expect(response.metadata.requestId).toBeDefined();
+      expect(response.metadata.requestId).toBe('test-random-id');
     });
 
     it('should track total duration separately from execution time', async () => {

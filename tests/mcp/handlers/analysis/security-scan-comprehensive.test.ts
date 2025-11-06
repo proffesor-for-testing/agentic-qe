@@ -927,8 +927,9 @@ describe('SecurityScanComprehensiveHandler', () => {
       });
 
       expect(response.success).toBe(true);
-      expect(response.requestId).toBeDefined();
-      expect(typeof response.requestId).toBe('string');
+      expect(response.metadata).toBeDefined();
+      expect(response.metadata.requestId).toBeDefined();
+      expect(typeof response.metadata.requestId).toBe('string');
     });
   });
 
@@ -941,7 +942,8 @@ describe('SecurityScanComprehensiveHandler', () => {
       });
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {

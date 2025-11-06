@@ -40,7 +40,8 @@ describe('PerformanceBenchmarkRunHandler', () => {
       const response = await handler.handle(params);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('suite');
       expect(response.data).toHaveProperty('iterations');
       expect(response.data).toHaveProperty('averageTime');
@@ -115,7 +116,8 @@ describe('PerformanceBenchmarkRunHandler', () => {
       const response = await handler.handle({ benchmarkSuite: null } as any);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {
@@ -154,7 +156,8 @@ describe('PerformanceBenchmarkRunHandler', () => {
       const results = await Promise.all(promises);
       results.forEach(result => {
         expect(result).toHaveProperty('success');
-        expect(result).toHaveProperty('requestId');
+        expect(result).toHaveProperty('metadata');
+        expect(result.metadata).toHaveProperty('requestId');
       });
     });
 

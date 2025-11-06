@@ -33,12 +33,14 @@ export interface MemoryStats {
 }
 
 export class MemoryManager extends EventEmitter {
+  private static instances: Set<MemoryManager> = new Set();
   private readonly storage: Map<string, MemoryRecord> = new Map();
   private readonly database: Database;
   private readonly logger: Logger;
   private readonly cleanupInterval: NodeJS.Timeout;
   private readonly defaultTTL: number = 3600000; // 1 hour in milliseconds
   private initialized: boolean = false;
+  private isShutdown: boolean = false;
 
   constructor(database?: Database) {
     super();
@@ -49,6 +51,17 @@ export class MemoryManager extends EventEmitter {
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpired();
     }, 5 * 60 * 1000);
+
+    // Track this instance for cleanup
+    MemoryManager.instances.add(this);
+
+    // Warn if too many instances exist (potential memory leak)
+    if (MemoryManager.instances.size > 10) {
+      this.logger.warn(
+        `High MemoryManager instance count: ${MemoryManager.instances.size}. ` +
+        `Potential memory leak detected. Ensure instances are properly shutdown.`
+      );
+    }
   }
 
   /**
@@ -474,8 +487,22 @@ export class MemoryManager extends EventEmitter {
    * @remarks
    * CRITICAL: This method MUST be called to prevent memory leaks.
    * Clears the cleanup interval, saves data to persistence, and closes database.
+   * This method is idempotent and safe to call multiple times.
+   *
+   * @example
+   * ```typescript
+   * const memory = new MemoryManager();
+   * await memory.initialize();
+   * // ... use memory ...
+   * await memory.shutdown(); // CRITICAL: Always call shutdown
+   * ```
    */
   async shutdown(): Promise<void> {
+    // Make shutdown idempotent - return immediately if already shutdown
+    if (this.isShutdown) {
+      return;
+    }
+
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
     }
@@ -488,6 +515,11 @@ export class MemoryManager extends EventEmitter {
     this.removeAllListeners();
 
     this.initialized = false;
+    this.isShutdown = true;
+
+    // Remove from instance tracking
+    MemoryManager.instances.delete(this);
+
     this.logger.info('MemoryManager shutdown complete');
   }
 
@@ -498,6 +530,37 @@ export class MemoryManager extends EventEmitter {
    */
   async close(): Promise<void> {
     await this.shutdown();
+  }
+
+  /**
+   * Get count of active MemoryManager instances
+   *
+   * @internal For testing and leak detection
+   * @returns Number of active instances
+   */
+  static getInstanceCount(): number {
+    return MemoryManager.instances.size;
+  }
+
+  /**
+   * Shutdown all active MemoryManager instances
+   *
+   * @internal For test cleanup and graceful shutdown
+   * @remarks This method is useful for cleaning up all instances during
+   * test teardown or application shutdown. It will attempt to shutdown
+   * all tracked instances in parallel.
+   */
+  static async shutdownAll(): Promise<void> {
+    const instances = Array.from(MemoryManager.instances);
+    await Promise.all(
+      instances.map(instance =>
+        instance.shutdown().catch(error => {
+          // Log but don't throw - we want to attempt cleanup of all instances
+          console.warn('Error shutting down MemoryManager instance:', error);
+        })
+      )
+    );
+    MemoryManager.instances.clear();
   }
 
   /**

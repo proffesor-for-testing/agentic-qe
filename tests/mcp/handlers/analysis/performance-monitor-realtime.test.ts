@@ -41,7 +41,8 @@ describe('PerformanceMonitorRealtimeHandler', () => {
       const response = await handler.handle(params);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('target');
       expect(response.data).toHaveProperty('duration');
       expect(response.data).toHaveProperty('interval');
@@ -153,7 +154,8 @@ describe('PerformanceMonitorRealtimeHandler', () => {
       const response = await handler.handle({ target: null } as any);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {
@@ -196,7 +198,8 @@ describe('PerformanceMonitorRealtimeHandler', () => {
       const results = await Promise.all(promises);
       results.forEach(result => {
         expect(result).toHaveProperty('success');
-        expect(result).toHaveProperty('requestId');
+        expect(result).toHaveProperty('metadata');
+        expect(result.metadata).toHaveProperty('requestId');
       });
     });
 

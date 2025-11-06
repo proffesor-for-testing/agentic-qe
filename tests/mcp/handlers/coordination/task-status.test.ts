@@ -638,7 +638,8 @@ describe('TaskStatusHandler', () => {
       const response = await handler.handle(args);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {
@@ -663,7 +664,8 @@ describe('TaskStatusHandler', () => {
 
       // Should either handle gracefully or report error
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
   });
 });

@@ -46,7 +46,8 @@ describe('CoverageGapsDetectHandler', () => {
       const response = await handler.handle(params);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('gaps');
       expect(response.data).toHaveProperty('prioritization');
       expect(response.data).toHaveProperty('totalGaps');
@@ -143,7 +144,8 @@ describe('CoverageGapsDetectHandler', () => {
       const response = await handler.handle({ coverageData: null } as any);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {
@@ -183,7 +185,8 @@ describe('CoverageGapsDetectHandler', () => {
       const results = await Promise.all(promises);
       results.forEach(result => {
         expect(result).toHaveProperty('success');
-        expect(result).toHaveProperty('requestId');
+        expect(result).toHaveProperty('metadata');
+        expect(result.metadata).toHaveProperty('requestId');
       });
     });
 

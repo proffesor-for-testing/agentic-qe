@@ -61,7 +61,8 @@ describe('TestCoverageDetailedHandler', () => {
       });
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('lineCoverage');
     });
   });
@@ -90,7 +91,8 @@ describe('TestCoverageDetailedHandler', () => {
       } as any);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {

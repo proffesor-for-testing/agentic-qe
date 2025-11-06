@@ -58,7 +58,8 @@ describe('ConsensusProposeHandler', () => {
       });
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('proposalId');
       expect(response.data).toHaveProperty('topic');
       expect(response.data).toHaveProperty('votingAgents');
@@ -634,8 +635,9 @@ describe('ConsensusProposeHandler', () => {
         quorum: 1.0
       });
 
-      expect(response).toHaveProperty('requestId');
-      expect(typeof response.requestId).toBe('string');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
+      expect(typeof response.metadata.requestId).toBe('string');
     });
 
     it('should provide meaningful error messages', async () => {

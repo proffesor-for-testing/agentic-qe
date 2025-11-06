@@ -692,8 +692,9 @@ describe('BlackboardReadHandler', () => {
         agentId: 'agent-1'
       });
 
-      expect(response).toHaveProperty('requestId');
-      expect(typeof response.requestId).toBe('string');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
+      expect(typeof response.metadata.requestId).toBe('string');
     });
 
     it('should include proper metadata in response', async () => {
