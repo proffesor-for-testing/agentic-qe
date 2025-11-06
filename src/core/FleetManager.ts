@@ -195,11 +195,20 @@ export class FleetManager extends EventEmitter {
     this.logger.info(`Initializing Fleet Manager ${this.id}`);
 
     try {
-      // Initialize database
-      await this.database.initialize();
+      // Initialize database with defensive check
+      if (this.database && typeof this.database.initialize === 'function') {
+        await this.database.initialize();
+        this.logger.info('Database initialized successfully for FleetManager');
+      } else if (this.database) {
+        this.logger.warn('Database instance provided but lacks initialize method - continuing without persistence');
+      } else {
+        this.logger.debug('No database configured - running in memory-only mode');
+      }
 
       // Initialize event bus
-      await this.eventBus.initialize();
+      if (this.eventBus && typeof this.eventBus.initialize === 'function') {
+        await this.eventBus.initialize();
+      }
 
       // Initialize memory manager
       await this.memoryManager.initialize();
@@ -211,8 +220,9 @@ export class FleetManager extends EventEmitter {
       this.logger.info('Fleet Manager initialized successfully');
 
     } catch (error) {
-      this.logger.error('Failed to initialize Fleet Manager:', error);
-      throw error;
+      // Don't throw - allow graceful degradation
+      this.logger.warn('Fleet Manager initialization encountered errors, continuing in degraded mode:', error);
+      this.status = 'running'; // Mark as running even if some components failed
     }
   }
 

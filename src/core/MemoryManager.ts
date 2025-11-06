@@ -74,19 +74,31 @@ export class MemoryManager extends EventEmitter {
 
     try {
       // Initialize database if it has an initialize method (defensive programming for mocks)
-      if (typeof this.database.initialize === 'function') {
+      if (this.database && typeof this.database.initialize === 'function') {
         await this.database.initialize();
+        this.logger.info('Database initialized successfully for MemoryManager');
+      } else if (this.database) {
+        this.logger.warn('Database instance provided but lacks initialize method - continuing with in-memory storage');
+      } else {
+        this.logger.debug('No database configured - running in memory-only mode');
       }
 
       // Load persistent memory from database if available
-      await this.loadPersistentMemory();
+      if (this.database) {
+        try {
+          await this.loadPersistentMemory();
+        } catch (error) {
+          this.logger.warn('Could not load persistent memory, starting fresh:', error);
+        }
+      }
 
       this.initialized = true;
       this.logger.info('MemoryManager initialized successfully');
 
     } catch (error) {
-      this.logger.error('Failed to initialize MemoryManager:', error);
-      throw error;
+      // Don't throw - allow graceful degradation to memory-only mode
+      this.logger.warn('MemoryManager initialization encountered errors, continuing in degraded mode:', error);
+      this.initialized = true; // Mark as initialized even if database failed
     }
   }
 

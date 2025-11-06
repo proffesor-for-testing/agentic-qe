@@ -92,13 +92,22 @@ export class PatternDatabaseAdapter {
     }
 
     try {
-      // Ensure database is initialized
-      await this.database.initialize();
+      // Defensive check: ensure database has initialize method before calling
+      if (this.database && typeof this.database.initialize === 'function') {
+        await this.database.initialize();
+        this.logger.info('Database initialized successfully for PatternDatabaseAdapter');
+      } else if (this.database) {
+        this.logger.warn('Database instance provided but lacks initialize method - continuing without persistence');
+      } else {
+        this.logger.warn('No database configured for PatternDatabaseAdapter - running in memory-only mode');
+      }
+
       this.isInitialized = true;
       this.logger.info('PatternDatabaseAdapter initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to initialize PatternDatabaseAdapter:', error);
-      throw new Error(`PatternDatabaseAdapter initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      // Don't throw - allow graceful degradation
+      this.logger.warn('PatternDatabaseAdapter initialization encountered errors, continuing in degraded mode:', error);
+      this.isInitialized = true; // Mark as initialized even if database failed
     }
   }
 

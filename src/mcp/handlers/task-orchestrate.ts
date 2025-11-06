@@ -123,11 +123,13 @@ export class TaskOrchestrateHandler extends BaseHandler {
   private workflowTemplates: Map<string, WorkflowStep[]> = new Map();
   private registry: AgentRegistry;
   private hookExecutor: HookExecutor;
+  private memory: any; // SwarmMemoryManager
 
-  constructor(registry: AgentRegistry, hookExecutor: HookExecutor) {
+  constructor(registry: AgentRegistry, hookExecutor: HookExecutor, memory?: any) {
     super();
     this.registry = registry;
     this.hookExecutor = hookExecutor;
+    this.memory = memory;
     this.initializeWorkflowTemplates();
   }
 
@@ -420,10 +422,41 @@ export class TaskOrchestrateHandler extends BaseHandler {
         description: `Task orchestration created: ${args.task.type}`
       }],
       createdAt: new Date().toISOString()
-    };
+    } as any;
 
-    // Store orchestration
+    // Add coordination info if blackboard pattern is requested
+    if (args.context?.useBlackboard) {
+      orchestration.coordination = {
+        pattern: 'blackboard',
+        blackboardKey: args.context.blackboardKey || `aqe/coordination/${orchestrationId}`,
+        enabled: true
+      };
+    }
+
+    // Add consensus info if consensus gating is requested
+    if (args.context?.requireConsensus) {
+      orchestration.consensus = {
+        required: true,
+        quorum: args.context.quorum || 2,
+        status: 'pending',
+        votes: []
+      };
+    }
+
+    // Store orchestration in local map
     this.activeOrchestrations.set(orchestrationId, orchestration);
+
+    // Store in shared memory for cross-handler access (TaskStatusHandler needs this)
+    if (this.memory) {
+      try {
+        await this.memory.store(`orchestration:${orchestrationId}`, orchestration, {
+          partition: 'orchestrations',
+          ttl: 86400 // 24 hours
+        });
+      } catch (error) {
+        this.log('warn', 'Failed to store orchestration in memory', { error });
+      }
+    }
 
     // Start orchestration
     await this.startOrchestration(orchestration, args);

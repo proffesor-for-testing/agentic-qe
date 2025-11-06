@@ -115,13 +115,10 @@ export class TaskStatusHandler extends BaseHandler {
     const status: TaskStatus = {
       taskId: args.taskId,
       status: task.status || 'running',
-      progress: this.calculateProgress(task)
+      progress: this.calculateProgress(task),
+      // Always include timeline if available (it's useful for debugging/monitoring)
+      timeline: task.timeline || []
     };
-
-    // Add timeline if requested
-    if (args.includeTimeline && task.timeline) {
-      status.timeline = task.timeline;
-    }
 
     // Add details if requested
     if (args.includeDetails) {
