@@ -122,7 +122,7 @@ describe('HookExecutor', () => {
       const params: HookParams = {
         description: 'Test task',
         agentType: 'test-generator'
-      });
+      };
 
       const result = await hookExecutor.executePreTask(params);
 
