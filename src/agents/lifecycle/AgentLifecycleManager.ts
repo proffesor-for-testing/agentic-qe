@@ -271,4 +271,21 @@ export class AgentLifecycleManager {
   public isTerminating(): boolean {
     return this.status === AgentStatus.TERMINATING || this.status === AgentStatus.TERMINATED;
   }
+
+  /**
+   * Reset agent lifecycle to INITIALIZING state
+   * Useful for test scenarios and agent recovery
+   * @param clearHistory Optional flag to clear transition history (default: false)
+   */
+  public reset(clearHistory: boolean = false): void {
+    const previousStatus = this.status;
+
+    // Allow reset from any state
+    this.transitionTo(AgentStatus.INITIALIZING, `Reset from ${previousStatus}`);
+
+    // Optionally clear history (useful for tests)
+    if (clearHistory) {
+      this.transitionHistory.length = 0;
+    }
+  }
 }

@@ -68,7 +68,17 @@ describe('AgentDB Learning Integration', () => {
 
   afterEach(async () => {
     await integration.clearLearningData('test-agent');
+
+    // Dispose learning engine
+    if (learningEngine?.dispose) {
+      await learningEngine.dispose();
+    }
+
     await agentDB.close();
+
+    if (memoryManager?.clear) {
+      await memoryManager.clear();
+    }
   });
 
   describe('Experience Recording', () => {

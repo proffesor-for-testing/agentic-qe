@@ -265,8 +265,9 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-1',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
         priority: 'medium',
+        status: 'pending',
         createdAt: new Date()
       };
 
@@ -328,8 +329,9 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-unit',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
         priority: 'high',
+        status: 'pending',
         createdAt: new Date()
       };
 
@@ -387,7 +389,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-integration',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -447,7 +450,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-edge',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'high',
         createdAt: new Date()
       };
@@ -544,7 +548,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-pattern',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -603,7 +608,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-hit-rate',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -661,7 +667,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-match-time',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -719,7 +726,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-savings',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -797,7 +805,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
         const task: QETask = {
           id: `test-gen-${framework}`,
           type: 'test-generation',
-          requirements: request,
+          payload: request,
+          status: 'pending',
           priority: 'medium',
           createdAt: new Date()
         };
@@ -866,7 +875,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-diversity',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -927,7 +937,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-risk',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'high',
         createdAt: new Date()
       };
@@ -990,7 +1001,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-perf',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1048,7 +1060,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-optimization',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1106,7 +1119,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-invalid',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1167,7 +1181,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-output',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1262,7 +1277,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-complex',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'high',
         createdAt: new Date()
       };
@@ -1318,7 +1334,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-multitype',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1381,7 +1398,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-high-complexity',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1433,7 +1451,8 @@ describe('TestGeneratorAgent - Comprehensive Test Suite', () => {
       const task: QETask = {
         id: 'test-gen-metadata',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'low',
         createdAt: new Date()
       };

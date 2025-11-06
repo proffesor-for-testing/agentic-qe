@@ -65,6 +65,8 @@ export class LearningEngine {
   private readonly rewardCalculator: RewardCalculator;
   private database?: Database;
   private persistence?: LearningPersistence;
+  private databaseAutoCreated: boolean = false;
+  private databaseReady: boolean = false; // Track database initialization state
 
   constructor(
     agentId: string,
@@ -86,18 +88,25 @@ export class LearningEngine {
     this.stateExtractor = new StateExtractor();
     this.rewardCalculator = new RewardCalculator();
 
-    // Initialize persistence adapter
+    // Store database reference but don't create persistence adapter yet
+    // Persistence adapter creation happens in initialize() after database is ready
     if (persistence) {
       this.persistence = persistence;
       this.database = database; // May be undefined if using InMemoryPersistence
+      // If external persistence provided, assume it's ready
+      if (persistence && database) {
+        // External persistence is considered ready immediately
+        // It's the caller's responsibility to ensure the database is initialized
+      }
     } else if (database) {
-      this.persistence = new DatabaseLearningPersistence(database);
+      // Database provided but no persistence adapter
+      // We'll create the adapter in initialize() after database init
       this.database = database;
     } else if (this.config.enabled && !database) {
-      // Auto-initialize database and adapter
+      // Auto-initialize database (adapter creation deferred to initialize())
       const dbPath = process.env.AQE_DB_PATH || '.agentic-qe/memory.db';
       this.database = new Database(dbPath);
-      this.persistence = new DatabaseLearningPersistence(this.database);
+      this.databaseAutoCreated = true; // Track that we created this database
       this.logger.info(`Auto-initialized learning database at ${dbPath}`);
     }
   }
@@ -108,16 +117,24 @@ export class LearningEngine {
   async initialize(): Promise<void> {
     this.logger.info(`Initializing LearningEngine for agent ${this.agentId}`);
 
-    // Initialize database if auto-created
+    // Initialize database if auto-created or provided
     if (this.database) {
       await this.database.initialize();
+      this.databaseReady = true; // Mark database as ready after successful initialization
+
+      // Create persistence adapter NOW that database is initialized
+      // Only if we don't already have one (e.g., from external injection)
+      if (!this.persistence) {
+        this.persistence = new DatabaseLearningPersistence(this.database);
+        this.logger.info('Created DatabaseLearningPersistence adapter after database initialization');
+      }
     }
 
     // Load previous learning state if exists
     await this.loadState();
 
-    // Load Q-values from database if available
-    if (this.database) {
+    // Load Q-values from database if available (only if database is ready)
+    if (this.database && this.databaseReady) {
       await this.loadQTableFromDatabase();
     }
 
@@ -146,13 +163,36 @@ export class LearningEngine {
   }
 
   /**
+   * Ensure database is initialized before operations
+   * Throws error if database is required but not ready
+   */
+  private ensureDatabaseReady(): void {
+    if (this.database && !this.databaseReady) {
+      throw new Error(
+        `Database not initialized for agent ${this.agentId}. ` +
+        `Call LearningEngine.initialize() before any database operations.`
+      );
+    }
+  }
+
+  /**
+   * Check if database is available and ready for operations
+   */
+  private isDatabaseAvailable(): boolean {
+    return this.database !== undefined && this.databaseReady;
+  }
+
+  /**
    * Load Q-table from database on initialization
    */
   private async loadQTableFromDatabase(): Promise<void> {
-    if (!this.database) return;
+    if (!this.isDatabaseAvailable()) {
+      this.logger.warn('Database not ready, skipping Q-table load');
+      return;
+    }
 
     try {
-      const qValues = await this.database.getAllQValues(this.agentId);
+      const qValues = await this.database!.getAllQValues(this.agentId);
 
       for (const qv of qValues) {
         if (!this.qTable.has(qv.state_key)) {
@@ -194,7 +234,8 @@ export class LearningEngine {
       await this.updateQTable(experience);
 
       // Persist to database (via adapter, batched for performance)
-      if (this.persistence) {
+      // Only if database is ready and persistence adapter is available
+      if (this.persistence && this.isDatabaseAvailable()) {
         try {
           await this.persistence.storeExperience(this.agentId, experience);
 
@@ -226,7 +267,8 @@ export class LearningEngine {
       if (this.taskCount % this.config.updateFrequency === 0) {
         await this.performBatchUpdate();
 
-        if (this.persistence) {
+        // Store learning snapshot only if database is ready
+        if (this.persistence && this.isDatabaseAvailable()) {
           const stats = {
             totalExperiences: this.experiences.length,
             qTableSize: this.qTable.size,
@@ -338,7 +380,7 @@ export class LearningEngine {
    * Call this before querying the database to ensure all data is persisted
    */
   async flush(): Promise<void> {
-    if (this.persistence) {
+    if (this.persistence && this.isDatabaseAvailable()) {
       await this.persistence.flush();
       this.logger.debug('Flushed pending learning data to database');
     }
@@ -971,10 +1013,26 @@ export class LearningEngine {
   /**
    * Cleanup resources (timers, connections)
    * Call this before destroying the LearningEngine instance
+   *
+   * This method:
+   * 1. Disposes persistence adapter (clears flush timers)
+   * 2. Closes auto-created database connections to prevent open handles
+   * 3. Resets database ready state
    */
   dispose(): void {
+    // Dispose persistence adapter (clears timers)
     if (this.persistence && 'dispose' in this.persistence) {
       (this.persistence as any).dispose();
+    }
+
+    // Close auto-created database to prevent open handles
+    // Only close if we created it (don't close externally-provided databases)
+    if (this.database && this.databaseAutoCreated) {
+      this.database.close().catch((err) => {
+        this.logger.warn(`Failed to close auto-created database during dispose: ${err.message}`);
+      });
+      this.database = undefined;
+      this.databaseReady = false; // Reset database ready state
     }
   }
 }

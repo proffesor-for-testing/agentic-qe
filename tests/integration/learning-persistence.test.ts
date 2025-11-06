@@ -27,6 +27,7 @@ describe('Learning System Database Persistence', () => {
   const memoryDbPath = path.join(process.cwd(), '.test-memory.db');
   let database: Database;
   let memoryManager: SwarmMemoryManager;
+  let learningEngine: LearningEngine | null = null;
 
   beforeEach(async () => {
     // Clean up test databases if they exist
@@ -46,6 +47,12 @@ describe('Learning System Database Persistence', () => {
   });
 
   afterEach(async () => {
+    // CRITICAL: Dispose LearningEngine instances to prevent open handles
+    if (learningEngine) {
+      learningEngine.dispose();
+      learningEngine = null;
+    }
+
     // CRITICAL: Close database connections before cleanup to prevent crashes
     try {
       if (database && typeof database.close === 'function') {
@@ -77,13 +84,13 @@ describe('Learning System Database Persistence', () => {
       const agentId = 'test-agent-explicit-db';
 
       // Create LearningEngine WITH database parameter (old way)
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database // ← Explicitly provided
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Create test task and result (NO task_id to avoid FK constraint complexity)
       const task = {
@@ -110,7 +117,7 @@ describe('Learning System Database Persistence', () => {
       };
 
       // Record experience (should persist to database)
-      await engine.recordExperience(task, result);
+      await learningEngine.recordExperience(task, result);
 
       // Verify Q-values were persisted
       const qValues = await database.getAllQValues(agentId);
@@ -129,13 +136,13 @@ describe('Learning System Database Persistence', () => {
 
       try {
         // Create LearningEngine WITHOUT database parameter (new way - should auto-init)
-        const engine = new LearningEngine(
+        learningEngine = new LearningEngine(
           agentId,
           memoryManager,
           { enabled: true }
           // ← No 4th parameter - should auto-initialize
         );
-        await engine.initialize();
+        await learningEngine.initialize();
 
         // Create test task and result
         const task = {
@@ -162,7 +169,7 @@ describe('Learning System Database Persistence', () => {
         };
 
         // Record experience (should persist to auto-initialized database)
-        await engine.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
 
         // Verify Q-values were persisted to auto-initialized database
         const qValues = await database.getAllQValues(agentId);
@@ -184,13 +191,13 @@ describe('Learning System Database Persistence', () => {
       const agentId = 'test-agent-restart';
 
       // Agent 1: Learn from multiple tasks
-      const engine1 = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine1.initialize();
+      await learningEngine.initialize();
 
       // Execute 5 tasks to build Q-table
       for (let i = 0; i < 5; i++) {
@@ -215,7 +222,7 @@ describe('Learning System Database Persistence', () => {
           }
         };
 
-        await engine1.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
       }
 
       // Get Q-table size from first agent
@@ -224,21 +231,24 @@ describe('Learning System Database Persistence', () => {
 
       expect(firstAgentQTableSize).toBeGreaterThan(0);
 
+      // Dispose first engine before creating second one
+      learningEngine.dispose();
+
       // Agent 2: Same ID, should restore previous learning
-      const engine2 = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine2.initialize();
+      await learningEngine.initialize();
 
       // Verify Q-table was restored
       const qValues2 = await database.getAllQValues(agentId);
       expect(qValues2.length).toBe(firstAgentQTableSize);
 
       // Get strategy recommendation (should use learned Q-values)
-      const recommendation = await engine2.recommendStrategy({
+      const recommendation = await learningEngine.recommendStrategy({
         taskComplexity: 0.5,
         requiredCapabilities: ['testing'],
         contextFeatures: {},
@@ -255,13 +265,13 @@ describe('Learning System Database Persistence', () => {
   describe('Experience Persistence', () => {
     it('should store learning experiences in database', async () => {
       const agentId = 'test-agent-experiences';
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Create task with feedback
       const task = {
@@ -294,7 +304,7 @@ describe('Learning System Database Persistence', () => {
       };
 
       // Record experience with feedback
-      await engine.recordExperience(task, result, feedback);
+      await learningEngine.recordExperience(task, result, feedback);
 
       // Verify experience was stored
       const stats = await database.getLearningStatistics(agentId);
@@ -304,7 +314,7 @@ describe('Learning System Database Persistence', () => {
 
     it('should handle high volume of experiences efficiently', async () => {
       const agentId = 'test-agent-volume';
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         {
@@ -314,7 +324,7 @@ describe('Learning System Database Persistence', () => {
         },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       const startTime = Date.now();
 
@@ -341,7 +351,7 @@ describe('Learning System Database Persistence', () => {
           }
         };
 
-        await engine.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
       }
 
       const duration = Date.now() - startTime;
@@ -361,13 +371,13 @@ describe('Learning System Database Persistence', () => {
   describe('Pattern Discovery Persistence', () => {
     it('should discover and persist patterns across tasks', async () => {
       const agentId = 'test-agent-patterns';
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Execute similar tasks to discover pattern
       for (let i = 0; i < 10; i++) {
@@ -392,11 +402,11 @@ describe('Learning System Database Persistence', () => {
           }
         };
 
-        await engine.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
       }
 
       // Get discovered patterns
-      const patterns = engine.getPatterns();
+      const patterns = learningEngine.getPatterns();
       expect(patterns.length).toBeGreaterThan(0);
 
       // Verify pattern has increasing confidence and high success rate
@@ -412,13 +422,13 @@ describe('Learning System Database Persistence', () => {
   describe('Learning Statistics', () => {
     it('should provide accurate statistics from database', async () => {
       const agentId = 'test-agent-stats';
-      const engine = new LearningEngine(
+      learningEngine = new LearningEngine(
         agentId,
         memoryManager,
         { enabled: true },
         database
       );
-      await engine.initialize();
+      await learningEngine.initialize();
 
       // Record mix of successful and failed experiences
       const experiences = [
@@ -452,7 +462,7 @@ describe('Learning System Database Persistence', () => {
           }
         };
 
-        await engine.recordExperience(task, result);
+        await learningEngine.recordExperience(task, result);
       }
 
       // Get statistics from database

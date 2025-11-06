@@ -36,6 +36,7 @@ describe('Phase 2 End-to-End Workflow Tests', () => {
     await fs.ensureDir(TEST_OUTPUT_DIR);
 
     memoryManager = new SwarmMemoryManager();
+    await memoryManager.initialize();
     reasoningBank = new QEReasoningBank();
     learningEngine = new LearningEngine();
     patternExtractor = new PatternExtractor();
@@ -48,6 +49,7 @@ describe('Phase 2 End-to-End Workflow Tests', () => {
 
   afterEach(async () => {
     await memoryManager.clear('coordination');
+    await memoryManager.close();
     learningEngine.clear();
   });
 

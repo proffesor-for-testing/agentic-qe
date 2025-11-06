@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 34 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 54 MCP tools, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
@@ -24,7 +24,8 @@
     "pretest:integration-serial": "node scripts/check-memory-before-test.js",
     "test:integration-serial": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest tests/integration --runInBand --detectLeaks --forceExit",
     "pretest:integration": "node scripts/check-memory-before-test.js",
-    "test:integration": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest tests/integration --runInBand --forceExit",
+    "test:integration": "bash scripts/test-integration-batched.sh",
+    "test:integration-unsafe": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest tests/integration --runInBand --forceExit",
     "pretest:performance-isolated": "node scripts/check-memory-before-test.js",
     "test:performance-isolated": "node --expose-gc --max-old-space-size=1536 --no-compilation-cache node_modules/.bin/jest tests/performance --runInBand --maxWorkers=1 --detectLeaks --forceExit --logHeapUsage",
     "pretest:performance": "node scripts/check-memory-before-test.js",

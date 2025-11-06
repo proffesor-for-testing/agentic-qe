@@ -43,6 +43,7 @@ describe('Learning System Integration Tests', () => {
   let performanceTracker: PerformanceTracker;
   let learningEngine: LearningEngine;
   let improvementLoop: ImprovementLoop;
+  let additionalEngines: LearningEngine[] = []; // Track engines created during tests
 
   const TEST_AGENT_ID = 'test-agent-001';
 
@@ -69,6 +70,9 @@ describe('Learning System Integration Tests', () => {
       performanceTracker
     );
     await improvementLoop.initialize();
+
+    // Clear tracking array
+    additionalEngines = [];
   });
 
   afterEach(async () => {
@@ -76,6 +80,20 @@ describe('Learning System Integration Tests', () => {
     if (improvementLoop?.isActive?.()) {
       await improvementLoop.stop();
     }
+
+    // Dispose main learning engine
+    if (learningEngine?.dispose) {
+      await learningEngine.dispose();
+    }
+
+    // Dispose additional engines created during tests
+    for (const engine of additionalEngines) {
+      if (engine?.dispose) {
+        await engine.dispose();
+      }
+    }
+    additionalEngines = [];
+
     if (memoryManager?.clear) {
       await memoryManager.clear();
     }
@@ -298,6 +316,9 @@ describe('Learning System Integration Tests', () => {
           discountFactor: 0.95
         });
         await engine.initialize();
+
+        // Track for cleanup
+        additionalEngines.push(engine);
 
         agents.push({ id: agentId, tracker, engine });
       }

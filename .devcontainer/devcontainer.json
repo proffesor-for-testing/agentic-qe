@@ -12,13 +12,13 @@
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=2048 --expose-gc",
-    "CLAUDE_FLOW_MAX_AGENTS": "15",
+    "CLAUDE_FLOW_MAX_AGENTS": "10",
     "CLAUDE_FLOW_MEMORY_LIMIT": "512",
     "CLAUDE_FLOW_TOPOLOGY": "sequential",
     "ENABLE_MEMORY_MONITORING": "true",
     "MEMORY_CHECK_INTERVAL": "5000",
     "AGENT_MEMORY_LIMIT_MB": "512",
-    "MAX_CONCURRENT_AGENTS": "15",
+    "MAX_CONCURRENT_AGENTS": "10",
     "ENABLE_AGENT_QUEUE": "true",
     "MEMORY_PRESSURE_THRESHOLD": "0.85",
     "FORCE_GC_INTERVAL": "60000"

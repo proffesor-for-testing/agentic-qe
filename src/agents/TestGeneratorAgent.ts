@@ -167,6 +167,9 @@ export class TestGeneratorAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
+    // Register framework-specific capabilities
+    this.registerFrameworkCapabilities();
+
     // Initialize AI engines (placeholder for actual AI integration)
     this.neuralCore = await this.createNeuralCore();
     this.consciousnessEngine = await this.createConsciousnessEngine();
@@ -224,32 +227,136 @@ export class TestGeneratorAgent extends BaseAgent {
       throw new Error('[TestGeneratorAgent] Task object is null or undefined');
     }
 
-    // Guard clause: Validate requirements exist
-    if (!task.requirements) {
-      throw new Error('[TestGeneratorAgent] Task requirements are null or undefined');
-    }
-
-    const request = task.requirements as TestGenerationRequest;
-
-    // Guard clause: Validate critical request fields
-    if (!request.sourceCode) {
-      throw new Error('[TestGeneratorAgent] Source code is required but missing');
-    }
-
-    if (!request.framework) {
-      throw new Error('[TestGeneratorAgent] Testing framework is required but missing');
-    }
-
-    if (!request.coverage) {
-      throw new Error('[TestGeneratorAgent] Coverage configuration is required but missing');
-    }
-
-    if (!request.constraints) {
-      throw new Error('[TestGeneratorAgent] Test constraints are required but missing');
-    }
+    // Extract TestGenerationRequest from task data
+    const request = this.extractTestGenerationRequest(task);
 
     // Implement the GenerateTestsWithAI algorithm from SPARC pseudocode
     return await this.generateTestsWithAI(request);
+  }
+
+  /**
+   * Extract TestGenerationRequest from task data
+   * Converts task payload (business logic data) to TestGenerationRequest format
+   *
+   * Architecture Note: Task has TWO data structures:
+   * - task.requirements: Agent selection metadata (TaskRequirements interface)
+   * - task.payload / getData(): Business logic payload
+   *
+   * Tests pass data via getData(), real tasks use task.payload.
+   * This method handles both patterns for compatibility.
+   *
+   * @param task - Task containing test generation data
+   * @returns Properly formatted TestGenerationRequest
+   * @throws {Error} If critical fields are missing or invalid
+   */
+  private extractTestGenerationRequest(task: QETask): TestGenerationRequest {
+    // Handle both test mocks (with getData()) and real QETask (with payload)
+    let taskData: any;
+
+    if (typeof (task as any).getData === 'function') {
+      // Test mock pattern: task.getData()
+      taskData = (task as any).getData();
+    } else if (task.payload) {
+      // Real QETask pattern: task.payload
+      taskData = task.payload;
+    } else if ((task as any).data) {
+      // Fallback: task.data (for other test patterns)
+      taskData = (task as any).data;
+    } else {
+      taskData = {};
+    }
+
+    // Guard clause: Validate taskData exists
+    if (!taskData || typeof taskData !== 'object') {
+      throw new Error('[TestGeneratorAgent] Task data is null, undefined, or not an object');
+    }
+
+    // Build sourceCode object with defensive defaults
+    let sourceCode: any;
+
+    if (taskData.sourceCode && typeof taskData.sourceCode === 'object') {
+      // Use provided sourceCode object
+      sourceCode = taskData.sourceCode;
+    } else {
+      // Build sourceCode from individual fields
+      sourceCode = {
+        ast: taskData.ast || {},
+        files: [],
+        complexityMetrics: taskData.complexityMetrics || {
+          cyclomaticComplexity: taskData.complexity || 1,
+          cognitiveComplexity: taskData.complexity || 1,
+          functionCount: taskData.functionCount || 1,
+          linesOfCode: taskData.linesOfCode || 0
+        }
+      };
+
+      // Build files array from various possible sources
+      if (Array.isArray(taskData.files) && taskData.files.length > 0) {
+        sourceCode.files = taskData.files;
+      } else if (taskData.sourceFile) {
+        sourceCode.files = [{
+          path: taskData.sourceFile,
+          content: taskData.sourceContent || '',
+          language: taskData.language || 'typescript'
+        }];
+      }
+    }
+
+    // Guard clause: Validate sourceCode has files
+    if (!sourceCode.files || !Array.isArray(sourceCode.files) || sourceCode.files.length === 0) {
+      throw new Error('[TestGeneratorAgent] Source code files are required but missing. Provide either sourceCode.files or sourceFile in task data.');
+    }
+
+    // Extract framework with fallback chain
+    const framework = taskData.framework || taskData.testFramework || 'jest';
+
+    // Guard clause: Validate framework
+    if (!framework || typeof framework !== 'string') {
+      throw new Error('[TestGeneratorAgent] Testing framework is required but missing or invalid');
+    }
+
+    // Build coverage object with defensive defaults
+    const coverage = taskData.coverage || {
+      target: taskData.coverageTarget || 80,
+      type: taskData.coverageType || 'line'
+    };
+
+    // Guard clause: Validate coverage target
+    if (typeof coverage.target !== 'number' || coverage.target < 0 || coverage.target > 100) {
+      throw new Error(`[TestGeneratorAgent] Coverage target must be a number between 0-100, got: ${coverage.target}`);
+    }
+
+    // Build constraints object with defensive defaults
+    const constraints = taskData.constraints || {
+      maxTests: taskData.maxTests || 100,
+      maxExecutionTime: taskData.maxExecutionTime || taskData.timeout || 30000,
+      testTypes: Array.isArray(taskData.testTypes)
+        ? taskData.testTypes
+        : (taskData.testType
+            ? [taskData.testType]
+            : [TestType.UNIT])
+    };
+
+    // Guard clause: Validate constraints
+    if (!constraints.maxTests || constraints.maxTests <= 0) {
+      throw new Error(`[TestGeneratorAgent] constraints.maxTests must be a positive number, got: ${constraints.maxTests}`);
+    }
+
+    if (!constraints.maxExecutionTime || constraints.maxExecutionTime <= 0) {
+      throw new Error(`[TestGeneratorAgent] constraints.maxExecutionTime must be a positive number, got: ${constraints.maxExecutionTime}`);
+    }
+
+    if (!Array.isArray(constraints.testTypes) || constraints.testTypes.length === 0) {
+      throw new Error('[TestGeneratorAgent] constraints.testTypes must be a non-empty array');
+    }
+
+    // Return properly formatted request
+    return {
+      sourceCode,
+      framework,
+      coverage,
+      constraints
+    };
   }
 
   protected async loadKnowledge(): Promise<void> {
@@ -1418,5 +1525,51 @@ export class TestGeneratorAgent extends BaseAgent {
       this.logger.error('[TestGeneratorAgent] Post-task learning failed:', error);
       // Don't throw - learning failures shouldn't break task completion
     }
+  }
+
+  /**
+   * Register framework-specific capabilities
+   * Called during initialization to dynamically add capabilities
+   */
+  private registerFrameworkCapabilities(): void {
+    // Register Jest test generation capability
+    this.registerCapability({
+      name: 'jest-test-generation',
+      version: '1.0.0',
+      description: 'Generate Jest unit tests with TypeScript support',
+      parameters: {
+        taskTypes: ['unit-test-generation', 'mock-generation', 'test-suite-generation'],
+        dependencies: ['jest', '@types/jest'],
+        configurable: true
+      }
+    });
+
+    // Register coverage analysis capability
+    this.registerCapability({
+      name: 'coverage-analysis',
+      version: '1.0.0',
+      description: 'Analyze test coverage and identify gaps',
+      parameters: {
+        taskTypes: ['coverage-reporting', 'coverage-gap-analysis'],
+        dependencies: ['jest'],
+        configurable: true
+      }
+    });
+
+    // Register vitest capability if configured
+    // Note: this.config property removed as part of dead code cleanup (Agent 2 investigation)
+    // Vitest support can be re-enabled by checking agent configuration from agentConfig
+    this.registerCapability({
+      name: 'vitest-test-generation',
+      version: '1.0.0',
+      description: 'Generate Vitest unit tests with TypeScript support',
+      parameters: {
+        taskTypes: ['unit-test-generation', 'mock-generation'],
+        dependencies: ['vitest'],
+        configurable: true
+      }
+    });
+
+    this.logger.info(`[TestGeneratorAgent] Registered ${this.getCapabilities().length} capabilities`);
   }
 }

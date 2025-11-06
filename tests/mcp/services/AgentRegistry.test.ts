@@ -35,7 +35,8 @@ describe('AgentRegistry', () => {
       debug: jest.fn()
     } as any;
 
-    (Logger.getInstance as jest.Mock).mockReturnValue(mockLogger);
+    // Logger is already mocked via manual mock in src/utils/__mocks__/Logger.ts
+    // No need to mock it again - the manual mock handles getInstance() automatically
 
     registry = new AgentRegistry({
       maxAgents: 10,

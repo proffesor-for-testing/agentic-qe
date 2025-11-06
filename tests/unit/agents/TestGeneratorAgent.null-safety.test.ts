@@ -363,7 +363,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-null-ast',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -407,7 +408,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-empty-files',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -420,8 +422,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] Source code files are required but missing'
+      );
     });
 
     it('should handle null file content', async () => {
@@ -457,7 +460,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-null-content',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -507,7 +511,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-undefined-path',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -552,7 +557,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-null-metrics',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -565,8 +571,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] Source code complexity metrics are required'
+      );
     });
 
     it('should handle zero complexity metrics', async () => {
@@ -602,7 +609,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-zero-complexity',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -652,7 +660,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-negative-complexity',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -731,7 +740,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-max-zero',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -744,10 +754,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment) as TestGenerationResult;
-      expect(result).toBeDefined();
-      // With maxTests = 0, should generate 0 tests
-      expect(result.generationMetrics.testsGenerated).toBe(0);
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] constraints.maxTests must be a positive number'
+      );
     });
 
     it('should handle very large maxTests', async () => {
@@ -783,7 +792,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-max-large',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -833,7 +843,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-max-negative',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -846,8 +857,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] constraints.maxTests must be a positive number'
+      );
     });
 
     it('should handle empty testTypes array', async () => {
@@ -883,7 +895,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-empty-types',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -896,8 +909,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] constraints.testTypes must be a non-empty array'
+      );
     });
 
     it('should handle maxExecutionTime = 0', async () => {
@@ -933,7 +947,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-zero-time',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -946,8 +961,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] constraints.maxExecutionTime must be a positive number'
+      );
     });
   });
 
@@ -1012,7 +1028,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-coverage-zero',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1062,7 +1079,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-coverage-full',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1112,7 +1130,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-coverage-over',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1125,8 +1144,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] Coverage target must be a number between 0-100'
+      );
     });
 
     it('should handle negative coverage target', async () => {
@@ -1162,7 +1182,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-coverage-negative',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1175,8 +1196,9 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
         status: 'assigned'
       };
 
-      const result = await agent.executeTask(assignment);
-      expect(result).toBeDefined();
+      await expect(agent.executeTask(assignment)).rejects.toThrow(
+        '[TestGeneratorAgent] Coverage target must be a number between 0-100'
+      );
     });
   });
 
@@ -1281,7 +1303,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-invalid-framework',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1332,7 +1355,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-unsupported-lang',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1413,7 +1437,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-memory-null',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };
@@ -1487,7 +1512,8 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
       const task: QETask = {
         id: 'test-pattern-null',
         type: 'test-generation',
-        requirements: request,
+        payload: request,
+        status: 'pending',
         priority: 'medium',
         createdAt: new Date()
       };

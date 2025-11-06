@@ -3,6 +3,11 @@
  * Coverage target: 90%+ of Config.ts
  */
 
+// Mock dotenv BEFORE importing Config to prevent path.resolve() errors in Node.js v22
+jest.mock('dotenv', () => ({
+  config: jest.fn(() => ({ parsed: {} }))
+}));
+
 import { Config, FleetConfig, DatabaseConfig } from '@utils/Config';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -26,6 +31,9 @@ describe('Config - Comprehensive Tests', () => {
     delete process.env.FLEET_NAME;
     delete process.env.MAX_AGENTS;
     delete process.env.CONFIG_FILE;
+
+    // Set CONFIG_FILE to non-existent path to prevent loading real config/fleet.yaml
+    process.env.CONFIG_FILE = path.join(testDir, 'nonexistent.yaml');
   });
 
   afterEach(async () => {

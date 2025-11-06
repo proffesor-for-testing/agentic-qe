@@ -31,6 +31,7 @@ jest.mock('../../src/agents', () => ({
     initialize: jest.fn().mockResolvedValue(undefined),
     assignTask: jest.fn().mockResolvedValue(undefined),
     terminate: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined), // Added for FleetManager compatibility
     getStatus: jest.fn().mockReturnValue({ status: 'idle' })
   }))
 }));
@@ -78,6 +79,7 @@ describe('FleetManager Database Initialization Tests', () => {
       type,
       config,
       status: 'idle',
+      stop: jest.fn().mockResolvedValue(undefined), // Added for FleetManager compatibility
       initialize: jest.fn().mockResolvedValue(undefined),
       assignTask: jest.fn().mockResolvedValue(undefined),
       terminate: jest.fn().mockResolvedValue(undefined),
@@ -92,7 +94,8 @@ describe('FleetManager Database Initialization Tests', () => {
       error: jest.fn(),
       debug: jest.fn()
     } as any;
-    (Logger.getInstance as jest.Mock) = jest.fn(() => mockLogger);
+    // Logger is already mocked via manual mock in src/utils/__mocks__/Logger.ts
+    // No need to mock it again - the manual mock handles getInstance() automatically
 
     // Mock database with full interface
     mockDatabase = {
@@ -142,9 +145,23 @@ describe('FleetManager Database Initialization Tests', () => {
     // This resolves the "Jest has detected 1 open handle" warning
     if (fleetManager) {
       try {
+        // Force stop the memory manager's cleanup interval before stopping fleet
+        if ((fleetManager as any).memoryManager) {
+          await (fleetManager as any).memoryManager.shutdown();
+        }
         await fleetManager.stop();
       } catch (error) {
-        // Ignore errors during cleanup
+        // Log error but continue cleanup
+        console.error('Error during cleanup:', error);
+      }
+    }
+
+    // Also close mock database if it has a cleanup interval
+    if (mockDatabase && typeof mockDatabase.close === 'function') {
+      try {
+        await mockDatabase.close();
+      } catch (error) {
+        // Ignore
       }
     }
   });

@@ -99,7 +99,7 @@ function printBenchmarkResult(result: BenchmarkResult): void {
 describe('Learning System Performance Benchmarks', () => {
   let memoryManager: SwarmMemoryManager;
   let performanceTracker: PerformanceTracker;
-  let learningEngine: LearningEngine;
+  let learningEngine: LearningEngine | null = null;
   let improvementLoop: ImprovementLoop;
 
   const TEST_AGENT_ID = 'perf-test-agent';
@@ -133,6 +133,10 @@ describe('Learning System Performance Benchmarks', () => {
   afterEach(async () => {
     if (improvementLoop.isActive()) {
       await improvementLoop.stop();
+    }
+    if (learningEngine) {
+      learningEngine.dispose();
+      learningEngine = null;
     }
     await memoryManager.clear();
   });
