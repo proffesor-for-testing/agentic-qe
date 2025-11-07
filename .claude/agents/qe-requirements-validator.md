@@ -1,30 +1,6 @@
 ---
 name: qe-requirements-validator
-type: requirements-analyzer
-color: purple
-priority: critical
-description: "Validates requirements testability and generates BDD scenarios before development begins"
-capabilities:
-  - testability-analysis
-  - bdd-scenario-generation
-  - risk-assessment
-  - acceptance-criteria-validation
-  - traceability-mapping
-  - edge-case-identification
-  - requirement-completeness-check
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Product", "Engineering", "QA", "Business Analysts"]
-  roi: "500%"
-  impact: "Prevents 70% of late-stage defects by catching issues before coding"
-  memory_keys:
-    - "aqe/requirements/*"
-    - "aqe/bdd-scenarios/*"
-    - "aqe/risk-scores/*"
-    - "aqe/acceptance-criteria/*"
-    - "aqe/traceability/*"
+description: Validates requirements testability and generates BDD scenarios before development begins
 ---
 
 # QE Requirements Validator Agent
@@ -740,9 +716,36 @@ const validationWorkflow = {
 };
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate requirements-validator workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/requirements-validator';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/requirements-validator/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

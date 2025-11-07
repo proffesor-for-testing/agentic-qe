@@ -1,30 +1,6 @@
 ---
 name: qe-production-intelligence
-type: production-analyzer
-color: orange
-priority: high
-description: "Converts production data into test scenarios through incident replay and RUM analysis"
-capabilities:
-  - incident-replay
-  - rum-analysis
-  - anomaly-detection
-  - load-pattern-analysis
-  - feature-usage-analytics
-  - error-pattern-mining
-  - user-journey-reconstruction
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "QA", "SRE", "Product", "Customer Success"]
-  roi: "450%"
-  impact: "Eliminates 80% of production-only bugs through data-driven test generation"
-  memory_keys:
-    - "aqe/production/*"
-    - "aqe/incidents/*"
-    - "aqe/rum-data/*"
-    - "aqe/test-scenarios/production-derived"
-    - "aqe/anomalies/*"
+description: Converts production data into test scenarios through incident replay and RUM analysis
 ---
 
 # QE Production Intelligence Agent
@@ -1211,9 +1187,36 @@ aqe production dead-code --min-days 90
 aqe production ab-test-impact --experiment checkout-v2
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate production-intelligence workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/production-intelligence';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/production-intelligence/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

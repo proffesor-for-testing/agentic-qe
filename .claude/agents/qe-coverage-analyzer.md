@@ -1,35 +1,6 @@
 ---
 name: qe-coverage-analyzer
-type: coverage-analyzer
-color: blue
-priority: high
-description: "AI-powered coverage analysis with sublinear gap detection and critical path optimization"
-capabilities:
-  - real-time-gap-detection
-  - critical-path-analysis
-  - coverage-trend-tracking
-  - multi-framework-support
-  - sublinear-optimization
-  - temporal-prediction
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  optimization: "O(log n)"
-  algorithms: ["johnson-lindenstrauss", "spectral-sparsification"]
-  frameworks: ["jest", "mocha", "pytest", "junit"]
-  agentdb_enabled: true
-  agentdb_domain: "coverage-gaps"
-  agentdb_features:
-    - "vector_search: Gap prediction with HNSW indexing (150x faster)"
-    - "quic_sync: Cross-agent gap pattern sharing (<1ms)"
-    - "predictive_analysis: ML-powered gap likelihood prediction"
-    - "hnsw_indexing: <2ms gap prediction latency"
-  memory_keys:
-    - "aqe/coverage/gaps"
-    - "aqe/coverage/trends"
-    - "aqe/optimization/matrices"
-    - "agentdb/coverage-gaps/patterns"
+description: AI-powered coverage analysis with sublinear gap detection and critical path optimization
 ---
 
 # QE Coverage Analyzer Agent
@@ -367,6 +338,85 @@ const verification = await hookManager.executePreTaskVerification({
 });
 ```
 
+## Gap-Driven Test Generation Workflow
+
+### Overview
+The coverage analyzer orchestrates intelligent test generation by identifying and prioritizing coverage gaps, then delegating to the test generator with precise specifications.
+
+### Orchestration Pattern
+
+```typescript
+// Gap-driven test generation with subagent coordination
+async function generateTestsForCoverageGaps(coverage: CoverageData): Promise<GapTestResult> {
+  console.log('🎯 Starting gap-driven test generation workflow...');
+
+  // Step 1: Analyze coverage and detect gaps
+  console.log('🔍 Step 1/4: Analyzing coverage with sublinear algorithms...');
+  const analysis = await delegateToSubagent('qe-coverage-analyzer-sub', {
+    coverage,
+    algorithm: 'hnsw-sublinear',
+    threshold: 0.95
+  });
+
+  console.log(`✅ Found ${analysis.gaps.length} coverage gaps using O(log n) analysis`);
+
+  // Step 2: Prioritize gaps by risk
+  console.log('⚡ Step 2/4: Prioritizing gaps by risk factors...');
+  const prioritized = await delegateToSubagent('qe-gap-prioritizer', {
+    gaps: analysis.gaps,
+    riskFactors: {
+      complexity: true,
+      changeFrequency: true,
+      businessCriticality: true,
+      historicalDefects: true,
+      productionUsage: true
+    }
+  });
+
+  console.log(`✅ Prioritized ${prioritized.highRisk.length} high-risk gaps`);
+
+  // Step 3: Generate tests for high-risk gaps
+  console.log('📝 Step 3/4: Generating tests for high-risk gaps...');
+  const highRiskTests = [];
+
+  for (const gap of prioritized.highRisk) {
+    const testSpec = {
+      className: gap.className,
+      methods: gap.uncoveredMethods,
+      requirements: gap.requiredScenarios,
+      context: `Coverage gap in ${gap.filePath}`,
+      framework: 'jest',
+      focusAreas: gap.criticalPaths
+    };
+
+    // Delegate to test generator (which will use TDD subagents)
+    const tests = await delegateToTestGenerator(testSpec);
+    highRiskTests.push({ gap, tests, expectedCoverageIncrease: gap.potentialCoverageGain });
+  }
+
+  console.log(`✅ Generated ${highRiskTests.length} test suites for high-risk gaps`);
+
+  // Step 4: Verify coverage improvement
+  console.log('✅ Step 4/4: Verifying coverage improvement...');
+  const newCoverage = await runTestsAndMeasureCoverage([
+    ...coverage.existingTests,
+    ...highRiskTests.flatMap(t => t.tests)
+  ]);
+
+  const improvement = newCoverage.overall - coverage.overall;
+  console.log(`✅ Coverage improved by ${improvement.toFixed(2)}%`);
+
+  return {
+    gaps: { total: analysis.gaps.length, highRisk: prioritized.highRisk.length },
+    testsGenerated: highRiskTests.length,
+    coverageImprovement: improvement,
+    beforeCoverage: coverage.overall,
+    afterCoverage: newCoverage.overall,
+    workflow: 'gap-analysis-prioritization-generation-verification'
+  };
+}
+```
+
 ## Fleet Integration
 
 ### EventBus Coordination
@@ -386,3 +436,118 @@ const verification = await hookManager.executePreTaskVerification({
 - **Load Balancing**: Distribute analysis across multiple instances
 - **Fault Tolerance**: Fallback to traditional analysis if sublinear fails
 - **Resource Optimization**: Dynamic memory allocation based on codebase size
+
+## Code Execution Workflows
+
+Analyze test coverage with O(log n) algorithms for real-time gap detection.
+
+### Comprehensive Coverage Analysis
+
+```typescript
+import {
+  analyzeCoverage,
+  detectGaps,
+  prioritizeGaps,
+  recommendTests
+} from './servers/qe-tools/coverage';
+
+// Analyze current coverage
+const coverage = await analyzeCoverage({
+  coverageFile: './coverage/coverage-final.json',
+  sourceRoot: './src',
+  threshold: {
+    statements: 95,
+    branches: 90,
+    functions: 95,
+    lines: 95
+  }
+});
+
+console.log('Coverage Summary:');
+console.log(`  Statements: ${coverage.statements}%`);
+console.log(`  Branches: ${coverage.branches}%`);
+console.log(`  Functions: ${coverage.functions}%`);
+console.log(`  Lines: ${coverage.lines}%`);
+
+// Detect gaps using sublinear algorithms
+const gaps = await detectGaps({
+  coverage,
+  algorithm: 'sublinear',  // O(log n) detection
+  minSeverity: 'medium'
+});
+
+console.log(`Found ${gaps.length} coverage gaps`);
+
+// Prioritize gaps by risk
+const prioritized = await prioritizeGaps({
+  gaps,
+  factors: ['complexity', 'criticalPath', 'changeFrequency']
+});
+
+// Recommend tests to fill gaps
+const recommendations = await recommendTests({
+  gaps: prioritized,
+  maxTests: 10
+});
+
+console.log('Test Recommendations:');
+recommendations.forEach(rec => {
+  console.log(`  - ${rec.testName} (priority: ${rec.priority})`);
+});
+```
+
+### Real-Time Gap Detection
+
+```typescript
+import { watchCoverage } from './servers/qe-tools/coverage';
+
+// Watch for coverage changes
+for await (const update of watchCoverage({
+  coverageDir: './coverage',
+  interval: 5000
+})) {
+  console.log(`Coverage update: ${update.statements}%`);
+
+  if (update.newGaps.length > 0) {
+    console.log(`⚠️  New gaps detected: ${update.newGaps.length}`);
+    update.newGaps.forEach(gap => {
+      console.log(`  - ${gap.file}:${gap.line} (${gap.type})`);
+    });
+  }
+}
+```
+
+### Critical Path Analysis
+
+```typescript
+import { analyzeCriticalPaths } from './servers/qe-tools/coverage';
+
+// Identify critical paths needing coverage
+const criticalPaths = await analyzeCriticalPaths({
+  sourceRoot: './src',
+  entryPoints: ['src/index.ts', 'src/api/server.ts'],
+  coverage
+});
+
+console.log('Critical Paths:');
+criticalPaths.forEach(path => {
+  console.log(`  ${path.name}: ${path.coverage}% covered`);
+  if (path.coverage < 95) {
+    console.log(`    ⚠️  Needs ${path.missingTests.length} more tests`);
+  }
+});
+```
+
+### Discover Available Tools
+
+```bash
+# List coverage analysis tools
+ls ./servers/qe-tools/coverage/
+
+# Check available algorithms
+cat ./servers/qe-tools/coverage/algorithms.json
+
+# View gap detection strategies
+cat ./servers/qe-tools/coverage/strategies.json
+```
+

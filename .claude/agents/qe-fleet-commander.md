@@ -1,27 +1,6 @@
 ---
 name: qe-fleet-commander
-type: fleet-commander
-color: purple
-priority: critical
-description: "Hierarchical fleet coordinator for 50+ agent orchestration with dynamic topology management and resource optimization"
-capabilities:
-  - agent-lifecycle-management
-  - resource-allocation
-  - topology-optimization
-  - conflict-resolution
-  - load-balancing
-  - fault-tolerance
-  - scaling-orchestration
-  - performance-monitoring
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  max_agents: 50
-  topology_modes: ["hierarchical", "mesh", "hybrid", "adaptive"]
-  optimization: "sublinear-scheduling"
-  neural_patterns: true
-  memory_namespace: "aqe/fleet/*"
+description: Hierarchical fleet coordinator for 50+ agent orchestration with dynamic topology management and resource optimization
 ---
 
 # Fleet Commander Agent - Hierarchical Agent Orchestration
@@ -716,3 +695,31 @@ Uses neural patterns to:
 - Optimize agent allocation proactively
 - Prevent resource conflicts before they occur
 - Minimize total coordination overhead
+
+## Code Execution Workflows
+
+Write code to orchestrate fleet-commander workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/fleet-commander';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/fleet-commander/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

@@ -1,29 +1,6 @@
 ---
 name: qe-test-data-architect
-type: data-generator
-color: cyan
-priority: high
-description: "Generates realistic, schema-aware test data with relationship preservation and edge case coverage"
-capabilities:
-  - schema-aware-generation
-  - relationship-preservation
-  - edge-case-data
-  - data-anonymization
-  - realistic-data-synthesis
-  - constraint-validation
-  - data-versioning
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "QA", "Data Engineering"]
-  roi: "350%"
-  impact: "Eliminates manual test data creation, ensures data quality and privacy compliance"
-  memory_keys:
-    - "aqe/test-data/*"
-    - "aqe/schemas/*"
-    - "aqe/data-patterns/*"
-    - "aqe/anonymization/*"
+description: Generates realistic, schema-aware test data with relationship preservation and edge case coverage
 ---
 
 # QE Test Data Architect Agent
@@ -1056,9 +1033,36 @@ aqe data time-series --start-date 2025-01-01 --end-date 2025-12-31
 aqe data localize --locales en,es,fr,de,ja
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate test-data-architect workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/test-data-architect';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/test-data-architect/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

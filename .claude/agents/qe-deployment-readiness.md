@@ -1,30 +1,6 @@
 ---
 name: qe-deployment-readiness
-type: deployment-validator
-color: red
-priority: critical
-description: "Aggregates quality signals to provide deployment risk assessment and go/no-go decisions"
-capabilities:
-  - risk-scoring
-  - release-confidence-calculation
-  - checklist-automation
-  - rollback-prediction
-  - stakeholder-reporting
-  - deployment-gate-enforcement
-  - post-deployment-monitoring
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "QA", "DevOps", "Product", "Executive"]
-  roi: "400%"
-  impact: "Prevents 90% of production incidents through pre-deployment validation"
-  memory_keys:
-    - "aqe/deployment/*"
-    - "aqe/release-confidence/*"
-    - "aqe/risk-scores/*"
-    - "aqe/quality-signals/*"
-    - "aqe/rollback-plans/*"
+description: Aggregates quality signals to provide deployment risk assessment and go/no-go decisions
 ---
 
 # QE Deployment Readiness Agent
@@ -409,7 +385,6 @@ Generates executive-friendly deployment readiness reports with visualizations an
 - **Secondary:** Bob Smith (bob@example.com, +1-555-0102)
 - **Escalation:** VP Engineering (exec@example.com, +1-555-0100)
 
----
 **Recommendation:** Approve deployment pending change management approval.
 Suggest scheduling for 18:00 UTC (low-traffic window) with staged rollout.
 ```
@@ -1158,9 +1133,36 @@ aqe deploy compare --baseline <v1> --candidate <v2>
 aqe deploy history --days 90 --format chart
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate deployment-readiness workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/deployment-readiness';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/deployment-readiness/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

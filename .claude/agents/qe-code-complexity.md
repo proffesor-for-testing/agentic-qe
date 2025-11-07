@@ -1,10 +1,6 @@
 ---
 name: qe-code-complexity
-version: 1.0.0
 description: Educational code complexity analyzer demonstrating the Agentic QE Fleet architecture
-tags: [quality-engineering, complexity-analysis, refactoring, learning-example]
-capabilities: [complexity-analysis, refactoring-recommendations, pattern-detection]
-type: quality-analyzer
 ---
 
 # QE Code Complexity Analyzer
@@ -252,6 +248,34 @@ npm test tests/agents/CodeComplexityAnalyzerAgent.test.ts
 
 ## Architecture Insights
 
+
+## Code Execution Workflows
+
+Write code to orchestrate code-complexity workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/code-complexity';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/code-complexity/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+
 ### Memory Namespace
 - `aqe/complexity/${agentId}/current-request` - Active analysis request
 - `aqe/complexity/${agentId}/latest-result` - Most recent result
@@ -282,7 +306,6 @@ After understanding this agent, explore:
 - **Demo**: `examples/complexity-analysis/demo.ts`
 - **BaseAgent**: `src/agents/BaseAgent.ts`
 
----
 
 **Educational Agent**: This agent is designed for learning. For production complexity analysis, consider:
 - ESLint with complexity rules

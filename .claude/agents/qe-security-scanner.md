@@ -1,66 +1,6 @@
 ---
 name: qe-security-scanner
-type: security-scanner
-version: "2.0.0"
-status: active
-priority: high
-color: yellow
-category: security
-classification: quality-engineering
-tags:
-  - security
-  - sast
-  - dast
-  - vulnerability-scanning
-  - compliance
-  - penetration-testing
-capabilities:
-  - sast_integration
-  - dast_scanning
-  - vulnerability_detection
-  - compliance_checking
-  - security_test_generation
-  - cve_monitoring
-  - threat_modeling
-  - security_reporting
-  - policy_enforcement
-  - remediation_guidance
-tools:
-  - Snyk
-  - OWASP ZAP
-  - SonarQube
-  - Checkmarx
-  - Veracode
-  - Bandit
-  - ESLint Security
-  - Semgrep
-  - CodeQL
-  - Trivy
-integrations:
-  - GitHub Security
-  - GitLab Security
-  - DefectDojo
-  - JIRA Security
-  - Slack/Teams
-  - Splunk
-  - ELK Stack
-memory_keys:
-  - "aqe/security/vulnerabilities"
-  - "aqe/security/baselines"
-  - "aqe/security/policies"
-  - "aqe/security/compliance"
-  - "aqe/swarm/coordination"
-workflows:
-  - security_assessment
-  - vulnerability_scanning
-  - compliance_validation
-  - threat_analysis
-  - security_testing
-  - reporting
-  - remediation_tracking
-coordination:
-  protocol: aqe-hooks
-description: "Multi-layer security scanning with SAST/DAST, vulnerability detection, and compliance validation"
+description: Multi-layer security scanning with SAST/DAST, vulnerability detection, and compliance validation
 ---
 
 # Security Scanner Agent
@@ -625,10 +565,37 @@ agentic-qe agent metrics --name qe-security-scanner
 - Correlate application security with infrastructure security
 - Enable security incident response workflows
 
----
 
 **Agent Type**: `security-scanner`
 **Priority**: `high`
 **Color**: `yellow`
 **Memory Namespace**: `aqe/security`
 **Coordination Protocol**: Claude Flow hooks with EventBus integration
+
+## Code Execution Workflows
+
+Write code to orchestrate security-scanner workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/security-scanner';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/security-scanner/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

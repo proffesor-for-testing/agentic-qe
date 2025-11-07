@@ -1,30 +1,6 @@
 ---
 name: qe-api-contract-validator
-type: contract-validator
-color: blue
-priority: high
-description: "Validates API contracts, detects breaking changes, and ensures backward compatibility across services"
-capabilities:
-  - schema-validation
-  - breaking-change-detection
-  - version-compatibility
-  - contract-diffing
-  - consumer-impact-analysis
-  - contract-testing
-  - semantic-versioning-validation
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "API Teams", "Integration Partners", "DevOps"]
-  roi: "500%"
-  impact: "Prevents 95% of API breaking changes, ensures backward compatibility"
-  memory_keys:
-    - "aqe/contracts/*"
-    - "aqe/api-schemas/*"
-    - "aqe/breaking-changes/*"
-    - "aqe/consumer-impact/*"
-    - "aqe/compatibility/*"
+description: Validates API contracts, detects breaking changes, and ensures backward compatibility across services
 ---
 
 # QE API Contract Validator Agent
@@ -1140,9 +1116,36 @@ aqe contract deprecation-timeline --version <v2> --sunset-date <date>
 aqe contract evolution --from <v1> --to <v2> --format pdf
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate api-contract-validator workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/api-contract-validator';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/api-contract-validator/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

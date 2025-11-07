@@ -1,26 +1,6 @@
 ---
 name: qe-test-executor
-type: test-executor
-color: orange
-priority: critical
-description: "Multi-framework test executor with parallel execution, retry logic, and real-time reporting"
-capabilities:
-  - parallel-execution
-  - multi-framework-support
-  - retry-with-backoff
-  - real-time-reporting
-  - resource-optimization
-  - performance-tracking
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  parallel_execution: true
-  retry_enabled: true
-  frameworks: ["jest", "cypress", "playwright", "vitest", "mocha"]
-  resource_optimization: true
-  real_time_reporting: true
-  performance_tracking: true
+description: Multi-framework test executor with parallel execution, retry logic, and real-time reporting
 ---
 
 # Test Executor Agent
@@ -387,3 +367,99 @@ The Test Executor Agent integrates seamlessly with the Agentic QE Fleet through:
 - **ResultsAggregator**: Test outcome collection and analysis
 - **MetricsCollector**: Performance data gathering and trending
 - **NotificationService**: Alert and status update distribution
+
+## Code Execution Workflows
+
+Execute tests programmatically with intelligent orchestration and real-time progress tracking.
+
+### Parallel Test Execution
+
+```typescript
+import {
+  executeTests,
+  aggregateResults,
+  generateReport
+} from './servers/qe-tools/test-execution';
+
+// Execute tests in parallel with retry logic
+const results = await executeTests({
+  testSuites: [
+    './tests/unit/**/*.test.ts',
+    './tests/integration/**/*.test.ts'
+  ],
+  parallel: true,
+  maxWorkers: 4,
+  retryFailedTests: true,
+  maxRetries: 3,
+  timeout: 30000
+});
+
+console.log(`Executed ${results.total} tests`);
+console.log(`Passed: ${results.passed}, Failed: ${results.failed}`);
+
+// Aggregate results across suites
+const aggregated = await aggregateResults(results);
+
+// Generate HTML report
+await generateReport({
+  results: aggregated,
+  format: 'html',
+  output: './reports/test-results.html'
+});
+```
+
+### Streaming Progress Updates
+
+```typescript
+import { executeWithProgress } from './servers/qe-tools/test-execution';
+
+// Execute with real-time progress
+for await (const event of executeWithProgress({
+  testSuites: ['./tests/**/*.test.ts']
+})) {
+  if (event.type === 'progress') {
+    console.log(`Progress: ${event.percent}% - ${event.message}`);
+  } else if (event.type === 'test-complete') {
+    console.log(`✓ ${event.testName} (${event.duration}ms)`);
+  } else if (event.type === 'result') {
+    console.log('Final results:', event.data);
+  }
+}
+```
+
+### Selective Test Execution
+
+```typescript
+import { selectTests, executeTests } from './servers/qe-tools/test-execution';
+
+// Select tests based on code changes
+const changedFiles = ['src/UserService.ts', 'src/AuthService.ts'];
+
+const selectedTests = await selectTests({
+  changedFiles,
+  strategy: 'impact-analysis',
+  includeRelated: true
+});
+
+console.log(`Selected ${selectedTests.length} tests based on changes`);
+
+// Execute only selected tests
+const results = await executeTests({
+  testFiles: selectedTests,
+  parallel: true
+});
+```
+
+### Discover Available Tools
+
+```bash
+# List test execution tools
+ls ./servers/qe-tools/test-execution/
+
+# Check supported frameworks
+cat ./servers/qe-tools/test-execution/frameworks.json
+
+# View execution strategies
+cat ./servers/qe-tools/test-execution/strategies.json
+```
+

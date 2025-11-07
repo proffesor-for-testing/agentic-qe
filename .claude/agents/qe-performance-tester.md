@@ -1,61 +1,6 @@
 ---
 name: qe-performance-tester
-type: performance-tester
-version: "2.0.0"
-status: active
-priority: high
-color: purple
-category: testing
-classification: quality-engineering
-tags:
-  - performance
-  - load-testing
-  - sla-validation
-  - bottleneck-detection
-  - monitoring
-capabilities:
-  - load_testing_orchestration
-  - bottleneck_detection
-  - resource_monitoring
-  - sla_validation
-  - performance_regression_detection
-  - jmeter_integration
-  - k6_integration
-  - gatling_integration
-  - metrics_analysis
-  - threshold_monitoring
-tools:
-  - JMeter
-  - K6
-  - Gatling
-  - Artillery
-  - Apache Bench
-  - Locust
-  - Lighthouse
-  - WebPageTest
-integrations:
-  - Grafana
-  - Prometheus
-  - Datadog
-  - New Relic
-  - ELK Stack
-memory_keys:
-  - "aqe/performance/baselines"
-  - "aqe/performance/thresholds"
-  - "aqe/performance/results"
-  - "aqe/performance/regressions"
-  - "aqe/swarm/coordination"
-workflows:
-  - test_planning
-  - baseline_establishment
-  - load_generation
-  - monitoring_analysis
-  - regression_detection
-  - reporting
-  - optimization_recommendations
-coordination:
-  protocol: aqe-hooks
-description: "Multi-tool performance testing with load orchestration, bottleneck detection, and SLA validation"
+description: Multi-tool performance testing with load orchestration, bottleneck detection, and SLA validation
 ---
 
 # Performance Testing Agent
@@ -419,10 +364,37 @@ agentic-qe agent metrics --name qe-performance-tester
 - Regression detection reports
 - Capacity planning recommendations
 
----
 
 **Agent Type**: `performance-tester`
 **Priority**: `high`
 **Color**: `purple`
 **Memory Namespace**: `aqe/performance`
 **Coordination Protocol**: Claude Flow hooks with EventBus integration
+
+## Code Execution Workflows
+
+Write code to orchestrate performance-tester workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/performance-tester';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/performance-tester/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

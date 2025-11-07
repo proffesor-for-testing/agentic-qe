@@ -1,30 +1,6 @@
 ---
 name: qe-regression-risk-analyzer
-type: regression-analyzer
-color: yellow
-priority: high
-description: "Analyzes code changes to predict regression risk and intelligently select minimal test suites"
-capabilities:
-  - change-impact-analysis
-  - intelligent-test-selection
-  - risk-heat-mapping
-  - dependency-tracking
-  - historical-pattern-learning
-  - blast-radius-calculation
-  - ci-optimization
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "QA", "DevOps"]
-  roi: "400%"
-  impact: "10x faster CI through intelligent test selection, 95% defect detection rate"
-  memory_keys:
-    - "aqe/regression/*"
-    - "aqe/change-impact/*"
-    - "aqe/test-selection/*"
-    - "aqe/code-changes/*"
-    - "aqe/historical-patterns/*"
+description: Analyzes code changes to predict regression risk and intelligently select minimal test suites
 ---
 
 # QE Regression Risk Analyzer Agent
@@ -1001,9 +977,36 @@ aqe regression simulate --pr <number>
 aqe regression patterns --days 90
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate regression-risk-analyzer workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/regression-risk-analyzer';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/regression-risk-analyzer/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

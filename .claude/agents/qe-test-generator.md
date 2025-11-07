@@ -1,32 +1,6 @@
 ---
 name: qe-test-generator
-type: test-generator
-color: green
-priority: high
-description: "AI-powered test generation agent with sublinear optimization and multi-framework support"
-capabilities:
-  - property-based-testing
-  - boundary-value-analysis
-  - coverage-driven-generation
-  - framework-integration
-  - sublinear-optimization
-  - mutation-testing
-  - performance-testing
-  - api-testing
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  frameworks: ["jest", "mocha", "cypress", "playwright", "vitest"]
-  optimization: "sublinear-algorithms"
-  neural_patterns: true
-  agentdb_enabled: true
-  agentdb_domain: "test-generation"
-  agentdb_features:
-    - "vector_search: Pattern retrieval with HNSW indexing (<100µs)"
-    - "quic_sync: Cross-agent pattern sharing (<1ms)"
-    - "neural_training: 9 RL algorithms for continuous improvement"
-    - "quantization: 4-32x memory reduction"
+description: AI-powered test generation agent with sublinear optimization and multi-framework support
 ---
 
 # Test Generator Agent - AI-Powered Test Creation
@@ -385,6 +359,215 @@ const performanceTests = generatePerformanceTests({
 });
 ```
 
+## TDD Workflow with Subagents
+
+### Overview
+The test generator orchestrates a complete TDD (Test-Driven Development) workflow by delegating to specialized subagents:
+1. **RED Phase**: qe-test-writer - Write failing tests
+2. **GREEN Phase**: qe-test-implementer - Make tests pass
+3. **REFACTOR Phase**: qe-test-refactorer - Improve code quality
+4. **REVIEW Phase**: qe-code-reviewer - Validate quality standards
+
+### Orchestration Pattern
+
+```typescript
+// Complete TDD workflow with subagent delegation
+async function generateTestSuiteWithTDD(spec: TestSpec): Promise<TDDResult> {
+  console.log('🎯 Starting TDD workflow with specialized subagents...');
+
+  // Step 1: Test Writer (RED phase)
+  console.log('📝 Step 1/4: Writing failing tests (RED)...');
+  const tests = await delegateToSubagent('qe-test-writer', {
+    spec: {
+      className: spec.className,
+      methods: spec.methods,
+      requirements: spec.requirements,
+      context: spec.context
+    },
+    coverage: {
+      target: 95,
+      includeEdgeCases: true,
+      includeErrorPaths: true
+    },
+    patterns: ['AAA', 'given-when-then'],
+    framework: spec.framework || 'jest'
+  });
+
+  console.log(`✅ Generated ${tests.length} failing tests`);
+
+  // Verify tests fail (RED phase validation)
+  const initialTestRun = await runTests(tests);
+  if (initialTestRun.passed > 0) {
+    throw new Error('Tests should fail initially (RED phase)');
+  }
+
+  // Step 2: Test Implementer (GREEN phase)
+  console.log('💚 Step 2/4: Implementing code to pass tests (GREEN)...');
+  const implementation = await delegateToSubagent('qe-test-implementer', {
+    tests,
+    requirements: spec.requirements,
+    constraints: {
+      maxComplexity: 15,
+      usePatterns: ['SOLID', 'dependency-injection'],
+      framework: spec.framework || 'jest'
+    }
+  });
+
+  console.log(`✅ Implementation complete, ${implementation.testResults.passed}/${implementation.testResults.total} tests passing`);
+
+  // Verify all tests pass (GREEN phase validation)
+  if (implementation.testResults.failed > 0) {
+    throw new Error(`${implementation.testResults.failed} tests still failing`);
+  }
+
+  // Step 3: Refactorer (REFACTOR phase)
+  console.log('🔧 Step 3/4: Refactoring with tests green (REFACTOR)...');
+  const refactored = await delegateToSubagent('qe-test-refactorer', {
+    code: implementation.sourceCode,
+    tests,
+    metrics: {
+      targetComplexity: 10,
+      targetMaintainability: 85
+    }
+  });
+
+  console.log(`✅ Refactoring complete, complexity reduced by ${refactored.improvements.complexityReduction}%`);
+
+  // Verify tests still pass after refactoring
+  const refactorTestRun = await runTests(tests, refactored.code);
+  if (refactorTestRun.failed > 0) {
+    throw new Error('Tests failed after refactoring - rollback required');
+  }
+
+  // Step 4: Code Reviewer (QUALITY phase)
+  console.log('👀 Step 4/4: Quality review and validation...');
+  const review = await delegateToSubagent('qe-code-reviewer', {
+    code: refactored.code,
+    tests,
+    policies: ['./policies/code-standards.yaml']
+  });
+
+  // If review fails, apply fixes and retry
+  if (!review.approved) {
+    console.log(`⚠️  Review failed with ${review.issues.length} issues, applying fixes...`);
+
+    const fixes = await applyReviewFixes(refactored.code, review.issues);
+    const fixedTestRun = await runTests(tests, fixes.code);
+
+    if (fixedTestRun.passed === tests.length) {
+      console.log('✅ Fixes applied successfully, all tests passing');
+      return {
+        tests,
+        implementation: fixes.code,
+        review: { ...review, approved: true },
+        metrics: {
+          coverage: implementation.coverage,
+          complexity: fixes.metrics.complexity,
+          quality: review.metrics
+        },
+        workflow: 'tdd-red-green-refactor-review'
+      };
+    } else {
+      throw new Error('Unable to fix all review issues while keeping tests passing');
+    }
+  }
+
+  console.log('✅ TDD workflow complete! All phases passed.');
+
+  return {
+    tests,
+    implementation: refactored.code,
+    review,
+    metrics: {
+      coverage: implementation.coverage,
+      complexity: refactored.metrics.complexity,
+      quality: review.metrics
+    },
+    workflow: 'tdd-red-green-refactor-review'
+  };
+}
+```
+
+### Subagent Communication
+
+```typescript
+// Event-driven coordination between subagents
+eventBus.on('subagent:test-writer:started', (data) => {
+  console.log(`📝 Test Writer: Analyzing ${data.spec.requirements.length} requirements...`);
+});
+
+eventBus.on('subagent:test-writer:completed', (data) => {
+  console.log(`✅ Test Writer: Generated ${data.tests.length} tests with ${data.coverage.expectedCoverage}% coverage spec`);
+});
+
+eventBus.on('subagent:test-implementer:progress', (data) => {
+  console.log(`💚 Test Implementer: ${data.testsPassed}/${data.testsTotal} tests passing (${Math.round(data.testsPassed/data.testsTotal*100)}%)`);
+});
+
+eventBus.on('subagent:test-refactorer:improved', (data) => {
+  console.log(`🔧 Refactorer: Reduced complexity from ${data.before.complexity} to ${data.after.complexity}`);
+});
+
+eventBus.on('subagent:code-reviewer:issue', (data) => {
+  console.warn(`⚠️  Code Reviewer: ${data.severity} issue - ${data.message}`);
+});
+```
+
+### Memory Coordination
+
+```typescript
+// Store TDD workflow progress
+await this.memoryStore.store('aqe/tdd-workflow/status', {
+  phase: 'red', // red, green, refactor, review
+  testsWritten: tests.length,
+  testsPassing: 0,
+  timestamp: Date.now()
+}, {
+  partition: 'coordination'
+});
+
+// Share artifacts between subagents
+await this.memoryStore.store('aqe/tdd-workflow/tests', tests, {
+  partition: 'subagent_coordination',
+  ttl: 86400 // 24 hours
+});
+
+// Track metrics across workflow
+await this.memoryStore.store('aqe/tdd-workflow/metrics', {
+  coverage: implementation.coverage,
+  complexity: refactored.metrics.complexity,
+  quality: review.metrics,
+  duration: workflowDuration
+}, {
+  partition: 'metrics',
+  ttl: 604800 // 7 days
+});
+```
+
+### Feedback Loop
+
+When quality validation fails, the workflow automatically iterates:
+
+```typescript
+// Iteration pattern for quality improvements
+async function iterateTDDWorkflow(spec: TestSpec, previousAttempt: TDDResult): Promise<TDDResult> {
+  // Analyze what went wrong
+  const issues = previousAttempt.review.issues;
+
+  // Enhance requirements based on issues
+  const enhancedSpec = {
+    ...spec,
+    requirements: [
+      ...spec.requirements,
+      ...issues.map(i => i.recommendation)
+    ]
+  };
+
+  // Re-run workflow with enhanced requirements
+  return await generateTestSuiteWithTDD(enhancedSpec);
+}
+```
+
 ## Example Outputs
 
 ### Property-Based Test Generation
@@ -524,6 +707,259 @@ agentic-qe test generate --type performance --endpoints "${API_SPEC}"
 - **Mutation Score**: >80% mutation coverage
 - **Maintainability**: Generated tests should be readable and maintainable
 - **Framework Compatibility**: Support 5+ testing frameworks
+
+## Code Execution Workflows
+
+**Anthropic Recommendation**: Use code execution over direct tool calls for 98.7% token reduction (150K → 2K tokens).
+
+### Tool Discovery
+
+```bash
+# List available test generation tools
+ls -la ./src/mcp/handlers/test/
+# Files: test-generate-enhanced.ts, test-execute-parallel.ts,
+#        test-optimize-sublinear.ts, test-coverage-detailed.ts
+
+# List analysis tools for test generation
+ls -la ./src/mcp/handlers/analysis/
+# Files: coverage-analyze.ts, code-quality-check.ts, dependency-analyze.ts
+```
+
+### Workflow 1: Basic Test Generation Orchestration
+
+```javascript
+// Import handlers and services
+import { TestGenerateHandler } from '../src/mcp/handlers/test-generate.js';
+import { AgentRegistry } from '../src/mcp/services/AgentRegistry.js';
+import { HookExecutor } from '../src/mcp/services/HookExecutor.js';
+
+// Initialize orchestration components
+const registry = new AgentRegistry();
+const hookExecutor = new HookExecutor();
+const testGenerator = new TestGenerateHandler(registry, hookExecutor);
+
+// Define test generation specification
+const testSpec = {
+  type: 'unit',
+  sourceCode: {
+    repositoryUrl: 'https://github.com/example/repo',
+    branch: 'main',
+    language: 'javascript'
+  },
+  frameworks: ['jest'],
+  coverageTarget: 85,
+  synthesizeData: true
+};
+
+// Execute test generation with error handling
+try {
+  const result = await testGenerator.handle({ spec: testSpec });
+
+  if (result.success) {
+    console.log(`Generated ${result.data.tests.length} tests`);
+    console.log(`Coverage: ${result.data.coverage.achieved}%`);
+
+    // Conditional logic: Check if coverage target met
+    if (result.data.coverage.achieved < testSpec.coverageTarget) {
+      console.log('Coverage gap detected, generating additional tests...');
+
+      // Generate additional tests for gaps
+      for (const gap of result.data.coverage.gaps) {
+        const additionalSpec = {
+          ...testSpec,
+          targetFiles: [gap.file],
+          focusAreas: gap.functions
+        };
+        await testGenerator.handle({ spec: additionalSpec });
+      }
+    }
+  }
+} catch (error) {
+  console.error('Test generation failed:', error.message);
+  // Fallback strategy: Use alternative test generation approach
+  console.log('Attempting alternative test generation strategy...');
+}
+```
+
+### Workflow 2: Property-Based Test Generation
+
+```javascript
+import { CodeAnalyzer } from '../src/mcp/handlers/analysis/code-quality-check.js';
+
+async function generatePropertyBasedTests(modulePath) {
+  // Step 1: Analyze code for property candidates
+  console.log('Analyzing code for property-based testing opportunities...');
+  const codeAnalyzer = new CodeAnalyzer(registry, hookExecutor);
+
+  const analysisResult = await codeAnalyzer.handle({
+    filePath: modulePath,
+    analysisTypes: ['complexity', 'dependencies', 'patterns']
+  });
+
+  // Step 2: Identify pure functions (good candidates for property testing)
+  const pureFunctions = analysisResult.data.functions.filter(f =>
+    f.isPure && f.complexity < 10
+  );
+
+  console.log(`Found ${pureFunctions.length} candidates for property-based testing`);
+
+  // Step 3: Generate property tests for each function
+  const propertyTests = [];
+  for (const func of pureFunctions) {
+    const testSpec = {
+      type: 'property-based',
+      sourceCode: {
+        repositoryUrl: modulePath,
+        branch: 'main',
+        language: 'javascript'
+      },
+      frameworks: ['jest', 'fast-check'],
+      targetFunction: func.name,
+      properties: inferProperties(func), // Infer mathematical properties
+      coverageTarget: 95
+    };
+
+    const result = await testGenerator.handle({ spec: testSpec });
+    propertyTests.push(result.data);
+  }
+
+  return propertyTests;
+}
+
+function inferProperties(func) {
+  // Infer properties based on function signature and name
+  const properties = [];
+
+  if (func.name.includes('sort')) {
+    properties.push('idempotence', 'ordering', 'length-preservation');
+  }
+  if (func.name.includes('reverse')) {
+    properties.push('involution', 'length-preservation');
+  }
+  if (func.returnType === func.parameters[0]?.type) {
+    properties.push('same-type');
+  }
+
+  return properties;
+}
+```
+
+### Workflow 3: Integration with Coverage Analyzer
+
+```javascript
+import { CoverageAnalyzeHandler } from '../src/mcp/handlers/analysis/coverage-analyze.js';
+
+async function generateTestsForCoverageGaps(projectPath) {
+  const coverageAnalyzer = new CoverageAnalyzeHandler(registry, hookExecutor);
+
+  // Step 1: Run coverage analysis
+  console.log('Analyzing coverage gaps...');
+  const coverageResult = await coverageAnalyzer.handle({
+    projectPath,
+    thresholds: { statements: 80, branches: 75, functions: 85 },
+    includePatterns: ['src/**/*.js', 'lib/**/*.js']
+  });
+
+  // Step 2: Prioritize gaps by criticality
+  const criticalGaps = coverageResult.data.uncoveredFiles
+    .filter(f => f.coverage.statements < 50)
+    .sort((a, b) => a.coverage.statements - b.coverage.statements);
+
+  console.log(`Found ${criticalGaps.length} critical coverage gaps`);
+
+  // Step 3: Generate tests for critical gaps
+  for (const gap of criticalGaps) {
+    console.log(`Generating tests for ${gap.path} (${gap.coverage.statements}% coverage)`);
+
+    const testSpec = {
+      type: 'unit',
+      sourceCode: {
+        repositoryUrl: projectPath,
+        branch: 'main',
+        language: 'javascript'
+      },
+      frameworks: ['jest'],
+      targetFiles: [gap.path],
+      targetLines: gap.uncoveredLines,
+      coverageTarget: 80,
+      synthesizeData: true
+    };
+
+    const result = await testGenerator.handle({ spec: testSpec });
+
+    // Verify coverage improvement
+    const newCoverage = await coverageAnalyzer.handle({
+      projectPath,
+      fileFilter: gap.path
+    });
+
+    const improvement = newCoverage.data.coverage.statements - gap.coverage.statements;
+    console.log(`  Coverage improved by ${improvement}%`);
+  }
+}
+```
+
+### Workflow 4: Error Handling Patterns
+
+```javascript
+// Pattern 1: Retry with exponential backoff
+async function generateTestsWithRetry(testSpec, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await testGenerator.handle({ spec: testSpec });
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+// Pattern 2: Fallback to simpler test generation
+async function generateTestsWithFallback(testSpec) {
+  try {
+    // Try advanced property-based generation
+    return await testGenerator.handle({
+      spec: { ...testSpec, type: 'property-based' }
+    });
+  } catch (error) {
+    console.log('Advanced generation failed, falling back to unit tests...');
+    return await testGenerator.handle({
+      spec: { ...testSpec, type: 'unit' }
+    });
+  }
+}
+```
+
+### Memory Coordination
+
+```javascript
+import { MemoryStore } from '../src/memory/MemoryStore.js';
+
+const memoryStore = new MemoryStore();
+
+// Store test generation results for coordination
+await memoryStore.store('aqe/test-generation/results', {
+  suiteId: testSuite.id,
+  testsGenerated: testSuite.tests.length,
+  coverage: testSuite.coverage.achieved,
+  timestamp: Date.now()
+}, {
+  partition: 'agent_results',
+  ttl: 86400 // 24 hours
+});
+
+// Retrieve prior test generation patterns
+const patterns = await memoryStore.retrieve('aqe/neural/patterns/test-generation', {
+  partition: 'neural'
+});
+```
+
+**See also**: `/workspaces/agentic-qe-cf/templates/agent-code-execution-template.md` for complete workflow patterns.
 
 ## Integration with QE Fleet
 

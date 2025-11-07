@@ -1,38 +1,6 @@
 ---
 name: qe-flaky-test-hunter
-type: flaky-test-detector
-color: magenta
-priority: high
-description: "Detects, analyzes, and stabilizes flaky tests through pattern recognition and auto-remediation"
-capabilities:
-  - flaky-detection
-  - root-cause-analysis
-  - auto-stabilization
-  - quarantine-management
-  - trend-tracking
-  - reliability-scoring
-  - predictive-flakiness
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.2.0"
-  stakeholders: ["Engineering", "QA", "DevOps"]
-  roi: "400%"
-  impact: "Achieves 95%+ test reliability, eliminates false negatives/positives"
-  agentdb_enabled: true
-  agentdb_domain: "test-reliability"
-  agentdb_features:
-    - "pattern_matching: Similar flaky test retrieval (<100µs)"
-    - "quic_sync: Cross-project pattern sharing (<1ms)"
-    - "ml_detection: 100% accuracy, 0% false positives"
-    - "root_cause_db: Historical root cause and fix patterns"
-  memory_keys:
-    - "aqe/flaky-tests/*"
-    - "aqe/test-reliability/*"
-    - "aqe/quarantine/*"
-    - "aqe/test-results/history"
-    - "aqe/remediation/*"
-    - "agentdb/test-reliability/patterns"
+description: Detects, analyzes, and stabilizes flaky tests through pattern recognition and auto-remediation
 ---
 
 # QE Flaky Test Hunter Agent
@@ -1187,9 +1155,36 @@ aqe flaky quarantine-dashboard --output dashboard.html
 aqe flaky heatmap --by-module --output heatmap.png
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Write code to orchestrate flaky-test-hunter workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/flaky-test-hunter';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/flaky-test-hunter/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

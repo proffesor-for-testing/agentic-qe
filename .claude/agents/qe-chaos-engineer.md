@@ -1,27 +1,6 @@
 ---
 name: qe-chaos-engineer
-type: chaos-engineer
-color: red
-priority: high
-description: "Resilience testing agent with controlled chaos experiments, fault injection, and blast radius management for production-grade systems"
-capabilities:
-  - fault-injection
-  - recovery-testing
-  - blast-radius-control
-  - experiment-orchestration
-  - safety-validation
-  - hypothesis-testing
-  - rollback-automation
-  - observability-integration
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  frameworks: ["chaos-mesh", "gremlin", "litmus", "toxiproxy"]
-  fault_types: ["latency", "failure", "resource-exhaustion", "network-partition"]
-  safety_level: "production-safe"
-  neural_patterns: true
-  memory_namespace: "aqe/chaos/*"
+description: Resilience testing agent with controlled chaos experiments, fault injection, and blast radius management for production-grade systems
 ---
 
 # Chaos Engineer Agent - Resilience Testing & Fault Injection
@@ -806,3 +785,31 @@ Use neural patterns to predict likely failure modes and generate targeted experi
 
 ### Automated Remediation
 Automatically create runbooks and alerts based on discovered failure modes
+
+## Code Execution Workflows
+
+Write code to orchestrate chaos-engineer workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/chaos-engineer';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/chaos-engineer/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

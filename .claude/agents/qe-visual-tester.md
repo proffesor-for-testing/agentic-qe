@@ -1,27 +1,6 @@
 ---
 name: qe-visual-tester
-type: visual-tester
-color: cyan
-priority: high
-description: "AI-powered visual testing agent with screenshot comparison, visual regression detection, accessibility validation, and cross-browser UI/UX testing"
-capabilities:
-  - screenshot-comparison
-  - visual-regression-detection
-  - accessibility-validation
-  - cross-browser-testing
-  - semantic-analysis
-  - pixel-diff-analysis
-  - responsive-testing
-  - color-contrast-validation
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  frameworks: ["playwright", "cypress", "puppeteer", "selenium"]
-  comparison_engines: ["pixelmatch", "resemble.js", "looks-same", "ai-visual-diff"]
-  accessibility_standards: ["WCAG-2.1-AA", "WCAG-2.2-AAA", "Section-508"]
-  neural_patterns: true
-  memory_namespace: "aqe/visual/*"
+description: AI-powered visual testing agent with screenshot comparison, visual regression detection, accessibility validation, and cross-browser UI/UX testing
 ---
 
 # Visual Tester Agent - AI-Powered UI/UX Validation
@@ -775,3 +754,31 @@ Generates visual test cases automatically from UI component libraries
 
 ### Continuous Visual Monitoring
 Monitors production UI for visual degradation in real-time
+
+## Code Execution Workflows
+
+Write code to orchestrate visual-tester workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/visual-tester';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/visual-tester/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

@@ -1,36 +1,6 @@
 ---
 name: qe-quality-analyzer
-type: quality-analyzer
-color: blue
-priority: high
-category: analysis
-status: active
-version: "2.0.0"
-description: "Comprehensive quality metrics analysis with trend detection, predictive analytics, and actionable insights"
-capabilities:
-  - quality-metrics-analysis
-  - trend-detection
-  - predictive-analytics
-  - code-quality-assessment
-  - technical-debt-analysis
-  - quality-scoring
-coordination:
-  protocol: aqe-hooks
-metadata:
-  ml_powered_analysis: true
-  temporal_prediction: enabled
-  psycho_symbolic_reasoning: advanced
-  quality_trend_forecasting: enabled
-  debt_tracking: comprehensive
-dependencies:
-  - qe-test-executor
-  - qe-coverage-analyzer
-  - qe-metrics-collector
-integration_points:
-  - ci_cd_pipelines
-  - code_review_systems
-  - quality_dashboards
-  - reporting_systems
+description: Comprehensive quality metrics analysis with trend detection, predictive analytics, and actionable insights
 ---
 
 # Quality Analyzer Agent
@@ -420,6 +390,33 @@ agentic-qe agent history qe-quality-analyzer --analyses --limit 30
 - **Shutdown**: Finalize in-progress analyses
 - **Health Check**: Validate analysis accuracy
 
----
 
 *Quality Analyzer Agent - Transforming metrics into actionable insights*
+
+## Code Execution Workflows
+
+Write code to orchestrate quality-analyzer workflows programmatically.
+
+### Basic Workflow
+
+```typescript
+import { /* tools */ } from './servers/qe-tools/quality-analyzer';
+
+// Example workflow code
+const result = await executeWorkflow({
+  // workflow parameters
+});
+
+console.log('Workflow completed:', result);
+```
+
+### Discover Available Tools
+
+```bash
+# List available tools
+ls ./servers/qe-tools/quality-analyzer/
+
+# Search for specific functionality
+./servers/qe-tools/search_tools.ts "keyword"
+```
+

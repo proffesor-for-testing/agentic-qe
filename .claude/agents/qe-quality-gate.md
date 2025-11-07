@@ -1,36 +1,6 @@
 ---
 name: qe-quality-gate
-type: quality-gate
-color: red
-priority: critical
-category: enforcement
-status: active
-version: "2.0.0"
-description: "Intelligent quality gate with risk assessment, policy validation, and automated decision-making"
-capabilities:
-  - quality-enforcement
-  - risk-assessment
-  - policy-validation
-  - decision-trees
-  - threshold-management
-  - automated-decisions
-coordination:
-  protocol: aqe-hooks
-metadata:
-  decision_tree_capabilities: true
-  temporal_prediction: enabled
-  psycho_symbolic_reasoning: advanced
-  ai_driven_decisions: true
-  risk_based_overrides: enabled
-dependencies:
-  - qe-metrics-analyzer
-  - qe-test-coordinator
-  - qe-risk-assessor
-integration_points:
-  - ci_cd_pipelines
-  - test_automation
-  - deployment_gates
-  - compliance_systems
+description: Intelligent quality gate with risk assessment, policy validation, and automated decision-making
 ---
 
 # Quality Gate Agent
@@ -441,6 +411,119 @@ agentic-qe agent history qe-quality-gate --decisions --limit 50
 - **Shutdown**: Graceful completion of in-flight evaluations
 - **Health Check**: Regular validation of decision accuracy
 
----
 
 *Quality Gate Agent - Ensuring excellence through intelligent quality enforcement*
+
+## Code Execution Workflows
+
+Automated quality gate validation with risk assessment and policy enforcement.
+
+### Comprehensive Quality Gate Check
+
+```typescript
+import {
+  validateQualityGate,
+  assessRisk,
+  checkPolicies,
+  generateReport
+} from './servers/qe-tools/quality-gate';
+
+// Define quality gate policies
+const policies = {
+  coverage: { statements: 95, branches: 90 },
+  security: { maxVulnerabilities: 0, maxCritical: 0 },
+  performance: { maxResponseTime: 200, maxMemory: 512 },
+  complexity: { maxCyclomaticComplexity: 15 },
+  duplication: { maxDuplicateLines: 3 }
+};
+
+// Run quality gate validation
+const result = await validateQualityGate({
+  policies,
+  sources: {
+    coverage: './coverage/coverage-final.json',
+    security: './reports/security-scan.json',
+    performance: './reports/performance.json',
+    complexity: './reports/complexity.json'
+  }
+});
+
+console.log('Quality Gate Result:', result.status);
+console.log(`Passed: ${result.passed.length} checks`);
+console.log(`Failed: ${result.failed.length} checks`);
+
+// Assess deployment risk
+const risk = await assessRisk({
+  qualityGate: result,
+  historicalData: './data/historical-quality.json'
+});
+
+console.log(`Deployment Risk: ${risk.level} (${risk.score}/100)`);
+
+if (result.status === 'FAILED') {
+  console.error('❌ Quality gate failed. Deployment blocked.');
+  result.failed.forEach(check => {
+    console.error(`  - ${check.name}: ${check.message}`);
+  });
+  process.exit(1);
+} else {
+  console.log('✅ Quality gate passed. Deployment approved.');
+}
+```
+
+### Policy Validation
+
+```typescript
+import { validatePolicies } from './servers/qe-tools/quality-gate';
+
+// Load custom policies
+const policies = require('./policies/quality-gate.json');
+
+// Validate against policies
+const validation = await validatePolicies({
+  policies,
+  metrics: {
+    testCoverage: 96,
+    codeComplexity: 12,
+    securityIssues: 0,
+    performance: { avgResponseTime: 150 }
+  }
+});
+
+validation.results.forEach(result => {
+  const icon = result.passed ? '✅' : '❌';
+  console.log(`${icon} ${result.policy}: ${result.message}`);
+});
+```
+
+### Automated Go/No-Go Decision
+
+```typescript
+import { makeDeploymentDecision } from './servers/qe-tools/quality-gate';
+
+// Make automated deployment decision
+const decision = await makeDeploymentDecision({
+  qualityGate: result,
+  risk: risk,
+  environment: 'production',
+  requireApproval: true
+});
+
+console.log('Deployment Decision:', decision.recommendation);
+console.log('Confidence:', decision.confidence);
+console.log('Reasoning:', decision.reasoning);
+```
+
+### Discover Available Tools
+
+```bash
+# List quality gate tools
+ls ./servers/qe-tools/quality-gate/
+
+# View available policies
+cat ./servers/qe-tools/quality-gate/policies.json
+
+# Check risk models
+cat ./servers/qe-tools/quality-gate/risk-models.json
+```
+

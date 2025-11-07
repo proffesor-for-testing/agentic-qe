@@ -6,6 +6,15 @@
 
 ---
 
+## ⚠️ CRITICAL: Before Starting ANY Work
+
+**READ THIS FIRST**: [Critical Test Execution Rules](./CRITICAL-TEST-EXECUTION-RULES.md)
+
+**DO NOT run full integration tests** - use `npm run test:integration` (batched) instead.
+Running all tests at once crashes the workspace. This has caused multiple productivity losses.
+
+---
+
 ## Executive Summary
 
 This plan focuses on **practical, high-impact improvements** to our QE fleet:
