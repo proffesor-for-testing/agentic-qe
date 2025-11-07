@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.4.3** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.4.4** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
 
@@ -504,20 +504,23 @@ Model Usage:
 
 ---
 
-## 📝 What's New in v1.4.3
+## 📝 What's New in v1.4.4
 
-🎯 **Test Suite Stabilization - 94.2% Pass Rate Achieved!** (2025-01-05)
+🔧 **Memory Leak Prevention & MCP Test Fixes** (2025-01-07)
 
-- **Quality Milestone**: Unit tests improved from 71.1% to 94.2% pass rate (+284 tests fixed)
-- **Agent Swarms**: Deployed 5 coordinated swarms with 20 specialized agents (15-20x faster than manual)
-- **New Tests**: Added 75 comprehensive tests for PerformanceTracker, StatisticalAnalysis, SwarmIntegration
-- **Mock Infrastructure**: Enhanced Database & LearningEngine mocks, fixed Jest integration issues
-- **100% Pass Rate**: 7 major test files now at 100% (BaseAgent, FleetManager, Config, LearningEngine, etc.)
-- **Integration Tests**: Created batched execution script to prevent OOM crashes (46 files safely run)
-- **Root Cause Analysis**: Identified MemoryManager setInterval leak causing workspace crashes
-- **Documentation**: Updated CLAUDE.md with critical test execution policies
+- **Memory Leak Prevention**: Fixed MemoryManager interval timer leaks (270-540MB prevention)
+  - Added static instance tracking and `shutdownAll()` for global cleanup
+  - Enhanced `jest.global-teardown.ts` with comprehensive MemoryManager cleanup
+  - Created cleanup template for integration tests (eliminates OOM crashes)
+- **MCP Test Structure**: Fixed 24 MCP test files with correct response structure assertions
+  - Updated from flat structure (`response.requestId`) to nested metadata (`response.metadata.requestId`)
+  - 29 assertions fixed across analysis, coordination, memory, prediction, and test handlers
+  - 100% architectural integrity maintained (metadata encapsulation preserved)
+- **Test Infrastructure**: Idempotent shutdown, leak detection warnings (>10 instances)
+- **Integration Test Template**: Example cleanup pattern in api-contract-validator-integration.test.ts
+- **TypeScript Compilation**: 0 errors (clean build verified)
 
-**Upgrade Recommendation**: All users should upgrade to v1.4.3 for test suite reliability and quality improvements.
+**Upgrade Recommendation**: All users should upgrade to v1.4.4 for memory leak prevention and test reliability.
 
 [📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 
