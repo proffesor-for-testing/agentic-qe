@@ -162,7 +162,7 @@ describe('Coordination Tools', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('circular dependency');
+      expect(result.error).toContain('Circular dependency');
     });
   });
 
@@ -228,6 +228,22 @@ describe('Coordination Tools', () => {
 
   describe('workflow_checkpoint', () => {
     it('should create workflow checkpoint', async () => {
+      // First, we need to create a workflow execution in memory
+      const memory = (server as any).memory;
+      await memory.store('workflow:execution:exec-123', {
+        executionId: 'exec-123',
+        status: 'running',
+        completedSteps: ['step1'],
+        currentStep: 'step2',
+        failedSteps: [],
+        context: {
+          variables: { testVar: 'value' },
+          project: 'test-project'
+        }
+      }, {
+        partition: 'workflow_executions'
+      });
+
       const handler = (server as any).handlers.get('mcp__agentic_qe__workflow_checkpoint');
 
       const result = await handler.handle({
@@ -243,6 +259,22 @@ describe('Coordination Tools', () => {
     });
 
     it('should capture complete workflow state', async () => {
+      // Set up execution state in memory
+      const memory = (server as any).memory;
+      await memory.store('workflow:execution:exec-456', {
+        executionId: 'exec-456',
+        status: 'running',
+        completedSteps: ['step1', 'step2'],
+        currentStep: 'step3',
+        failedSteps: [],
+        context: {
+          variables: { var1: 'test', var2: 123 },
+          project: 'test-project'
+        }
+      }, {
+        partition: 'workflow_executions'
+      });
+
       const handler = (server as any).handlers.get('mcp__agentic_qe__workflow_checkpoint');
 
       const result = await handler.handle({
@@ -258,6 +290,22 @@ describe('Coordination Tools', () => {
 
   describe('workflow_resume', () => {
     it('should resume workflow from checkpoint', async () => {
+      // Set up execution state in memory first
+      const memory = (server as any).memory;
+      await memory.store('workflow:execution:exec-789', {
+        executionId: 'exec-789',
+        status: 'running',
+        completedSteps: ['step1'],
+        currentStep: 'step2',
+        failedSteps: [],
+        context: {
+          variables: { resumeTest: 'value' },
+          project: 'test-project'
+        }
+      }, {
+        partition: 'workflow_executions'
+      });
+
       // Create checkpoint first
       const checkpointHandler = (server as any).handlers.get('mcp__agentic_qe__workflow_checkpoint');
       const checkpointResult = await checkpointHandler.handle({

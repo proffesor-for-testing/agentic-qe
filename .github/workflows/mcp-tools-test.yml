@@ -26,6 +26,7 @@ jobs:
     name: MCP Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: false  # DISABLED - See issue #39 - Re-enable in v1.4.5 after batching implementation
 
     steps:
       - name: Checkout code

@@ -65,7 +65,8 @@ describe('MemoryShareHandler', () => {
       });
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('shared');
       expect(response.data).toHaveProperty('sourceKey');
       expect(response.data).toHaveProperty('targetKeys');
@@ -651,8 +652,9 @@ describe('MemoryShareHandler', () => {
         targetAgents: ['agent-1']
       });
 
-      expect(response).toHaveProperty('requestId');
-      expect(typeof response.requestId).toBe('string');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
+      expect(typeof response.metadata.requestId).toBe('string');
     });
 
     it('should provide meaningful error messages', async () => {

@@ -39,7 +39,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
   describe('Learning Engine MCP Tools', () => {
     it('should get learning status via MCP tool', async () => {
-      const result = await toolRegistry.callTool('learning_status', {
+      const result = await toolRegistry.execute('learning_status', {
         agentId: 'test-agent-1'
       });
 
@@ -50,7 +50,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 10000);
 
     it('should record learning experience via MCP tool', async () => {
-      const result = await toolRegistry.callTool('learning_record', {
+      const result = await toolRegistry.execute('learning_record', {
         agentId: 'test-agent-2',
         experience: {
           taskId: 'task-1',
@@ -71,7 +71,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     it('should train learning engine via MCP tool', async () => {
       // First, record some experiences
       for (let i = 0; i < 10; i++) {
-        await toolRegistry.callTool('learning_record', {
+        await toolRegistry.execute('learning_record', {
           agentId: 'train-agent',
           experience: {
             taskId: `task-${i}`,
@@ -85,7 +85,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
         });
       }
 
-      const result = await toolRegistry.callTool('learning_train', {
+      const result = await toolRegistry.execute('learning_train', {
         agentId: 'train-agent',
         iterations: 5
       });
@@ -97,7 +97,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 15000);
 
     it('should get learning insights via MCP tool', async () => {
-      const result = await toolRegistry.callTool('learning_insights', {
+      const result = await toolRegistry.execute('learning_insights', {
         agentId: 'insight-agent',
         timeframe: 30 // days
       });
@@ -109,7 +109,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 10000);
 
     it('should apply learning to generate recommendations', async () => {
-      const result = await toolRegistry.callTool('learning_apply', {
+      const result = await toolRegistry.execute('learning_apply', {
         agentId: 'apply-agent',
         context: {
           framework: 'jest',
@@ -131,7 +131,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
   describe('Pattern Management MCP Tools', () => {
     it('should store pattern via MCP tool', async () => {
-      const result = await toolRegistry.callTool('pattern_store', {
+      const result = await toolRegistry.execute('pattern_store', {
         pattern: {
           id: 'mcp-pattern-1',
           name: 'MCP Test Pattern',
@@ -163,7 +163,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
     it('should find patterns via MCP tool', async () => {
       // First store some patterns
-      await toolRegistry.callTool('pattern_store', {
+      await toolRegistry.execute('pattern_store', {
         pattern: {
           id: 'find-pattern-1',
           name: 'User CRUD Pattern',
@@ -179,7 +179,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
         }
       });
 
-      const result = await toolRegistry.callTool('pattern_find', {
+      const result = await toolRegistry.execute('pattern_find', {
         query: {
           framework: 'jest',
           language: 'typescript',
@@ -195,7 +195,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 10000);
 
     it('should get pattern statistics via MCP tool', async () => {
-      const result = await toolRegistry.callTool('pattern_stats', {});
+      const result = await toolRegistry.execute('pattern_stats', {});
 
       expect(result).toBeDefined();
       expect(result.totalPatterns).toBeGreaterThanOrEqual(0);
@@ -206,7 +206,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
     it('should update pattern metrics via MCP tool', async () => {
       // Store pattern first
-      await toolRegistry.callTool('pattern_store', {
+      await toolRegistry.execute('pattern_store', {
         pattern: {
           id: 'update-pattern-1',
           name: 'Update Test Pattern',
@@ -222,7 +222,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
         }
       });
 
-      const result = await toolRegistry.callTool('pattern_update_metrics', {
+      const result = await toolRegistry.execute('pattern_update_metrics', {
         patternId: 'update-pattern-1',
         success: true,
         quality: 0.95
@@ -245,7 +245,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
         });
       `;
 
-      const result = await toolRegistry.callTool('pattern_extract', {
+      const result = await toolRegistry.execute('pattern_extract', {
         code,
         options: {
           framework: 'jest',
@@ -266,7 +266,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
   describe('Improvement Loop MCP Tools', () => {
     it('should get improvement status via MCP tool', async () => {
-      const result = await toolRegistry.callTool('improvement_status', {
+      const result = await toolRegistry.execute('improvement_status', {
         agentId: 'improve-agent-1'
       });
 
@@ -278,7 +278,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 10000);
 
     it('should run improvement cycle via MCP tool', async () => {
-      const result = await toolRegistry.callTool('improvement_cycle', {
+      const result = await toolRegistry.execute('improvement_cycle', {
         agentId: 'cycle-agent-1',
         iterations: 3
       });
@@ -290,7 +290,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 15000);
 
     it('should set improvement target via MCP tool', async () => {
-      const result = await toolRegistry.callTool('improvement_set_target', {
+      const result = await toolRegistry.execute('improvement_set_target', {
         agentId: 'target-agent-1',
         target: 0.25 // 25% improvement
       });
@@ -301,7 +301,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 10000);
 
     it('should validate improvement achievement via MCP tool', async () => {
-      const result = await toolRegistry.callTool('improvement_validate', {
+      const result = await toolRegistry.execute('improvement_validate', {
         agentId: 'validate-agent-1'
       });
 
@@ -312,7 +312,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
     }, 10000);
 
     it('should analyze improvement opportunities via MCP tool', async () => {
-      const result = await toolRegistry.callTool('improvement_analyze', {
+      const result = await toolRegistry.execute('improvement_analyze', {
         agentId: 'analyze-agent-1',
         timeframe: 30
       });
@@ -331,7 +331,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
   describe('Cross-Tool Coordination', () => {
     it('should coordinate learning → pattern storage → improvement', async () => {
       // Step 1: Record learning experience
-      const learnResult = await toolRegistry.callTool('learning_record', {
+      const learnResult = await toolRegistry.execute('learning_record', {
         agentId: 'coord-agent-1',
         experience: {
           taskId: 'coord-task-1',
@@ -347,7 +347,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
       expect(learnResult.success).toBe(true);
 
       // Step 2: Store successful pattern
-      const patternResult = await toolRegistry.callTool('pattern_store', {
+      const patternResult = await toolRegistry.execute('pattern_store', {
         pattern: {
           id: 'coord-pattern-1',
           name: 'Coordinated Pattern',
@@ -366,7 +366,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
       expect(patternResult.success).toBe(true);
 
       // Step 3: Run improvement cycle
-      const improveResult = await toolRegistry.callTool('improvement_cycle', {
+      const improveResult = await toolRegistry.execute('improvement_cycle', {
         agentId: 'coord-agent-1',
         iterations: 1
       });
@@ -376,7 +376,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
     it('should share data between MCP tools via memory', async () => {
       // Tool 1: Store learning data
-      await toolRegistry.callTool('learning_record', {
+      await toolRegistry.execute('learning_record', {
         agentId: 'shared-agent',
         experience: {
           taskId: 'shared-task',
@@ -387,12 +387,12 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
       });
 
       // Tool 2: Retrieve via pattern tool
-      const patterns = await toolRegistry.callTool('pattern_find', {
+      const patterns = await toolRegistry.execute('pattern_find', {
         query: { framework: 'jest' }
       });
 
       // Tool 3: Use in improvement analysis
-      const improvement = await toolRegistry.callTool('improvement_analyze', {
+      const improvement = await toolRegistry.execute('improvement_analyze', {
         agentId: 'shared-agent'
       });
 
@@ -406,7 +406,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
       // Call multiple tools concurrently
       for (let i = 0; i < 10; i++) {
         promises.push(
-          toolRegistry.callTool('learning_record', {
+          toolRegistry.execute('learning_record', {
             agentId: `concurrent-agent-${i}`,
             experience: {
               taskId: `concurrent-task-${i}`,
@@ -434,19 +434,19 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
   describe('MCP Tool Error Handling', () => {
     it('should handle invalid tool name gracefully', async () => {
       await expect(async () => {
-        await toolRegistry.callTool('invalid_tool_name', {});
+        await toolRegistry.execute('invalid_tool_name', {});
       }).rejects.toThrow(/not found|invalid/i);
     }, 10000);
 
     it('should validate required parameters', async () => {
       await expect(async () => {
-        await toolRegistry.callTool('learning_record', {});
+        await toolRegistry.execute('learning_record', {});
       }).rejects.toThrow(/required|missing/i);
     }, 10000);
 
     it('should handle invalid data types', async () => {
       await expect(async () => {
-        await toolRegistry.callTool('learning_record', {
+        await toolRegistry.execute('learning_record', {
           agentId: 123, // Should be string
           experience: 'invalid'
         });
@@ -468,7 +468,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
 
       for (const tool of tools) {
         const start = performance.now();
-        await toolRegistry.callTool(tool.name, tool.params);
+        await toolRegistry.execute(tool.name, tool.params);
         const elapsed = performance.now() - start;
 
         console.log(`${tool.name}: ${elapsed.toFixed(2)}ms (target: <${tool.target}ms)`);
@@ -481,7 +481,7 @@ describe('Phase 2 MCP Tool Integration Tests', () => {
       const start = performance.now();
 
       const promises = Array.from({ length: callCount }, (_, i) =>
-        toolRegistry.callTool('learning_status', { agentId: `agent-${i}` })
+        toolRegistry.execute('learning_status', { agentId: `agent-${i}` })
       );
 
       await Promise.all(promises);

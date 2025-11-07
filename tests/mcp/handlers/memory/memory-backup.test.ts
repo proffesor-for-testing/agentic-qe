@@ -64,7 +64,8 @@ describe('MemoryBackupHandler', () => {
       });
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
       expect(response.data).toHaveProperty('created');
       expect(response.data).toHaveProperty('backupId');
       expect(response.data).toHaveProperty('namespace');
@@ -709,8 +710,9 @@ describe('MemoryBackupHandler', () => {
         action: 'list'
       });
 
-      expect(response).toHaveProperty('requestId');
-      expect(typeof response.requestId).toBe('string');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
+      expect(typeof response.metadata.requestId).toBe('string');
     });
 
     it('should provide meaningful error messages', async () => {

@@ -627,7 +627,8 @@ describe('EventSubscribeHandler', () => {
       const response = await handler.handle(args);
 
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should provide meaningful error messages', async () => {
@@ -651,7 +652,8 @@ describe('EventSubscribeHandler', () => {
 
       // Should either succeed (allowing empty strings) or fail gracefully
       expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('requestId');
+      expect(response).toHaveProperty('metadata');
+      expect(response.metadata).toHaveProperty('requestId');
     });
 
     it('should handle very long event names', async () => {

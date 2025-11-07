@@ -572,7 +572,29 @@ describe('ApiContractValidatorAgent Integration', () => {
   });
 
   afterEach(async () => {
-    await agent.terminate();
+    // Terminate agent
+    if (agent) {
+      await agent.terminate();
+    }
+
+    // Clean up event bus
+    if (eventBus) {
+      eventBus.removeAllListeners();
+    }
+
+    // Clear memory store
+    if (memoryStore) {
+      await memoryStore.clear();
+    }
+
+    // Wait for pending async operations
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
   });
 
   describe('OpenAPI 3.0 parsing workflow', () => {

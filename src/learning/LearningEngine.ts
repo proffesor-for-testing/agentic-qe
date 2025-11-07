@@ -119,12 +119,24 @@ export class LearningEngine {
 
     // Initialize database if auto-created or provided
     if (this.database) {
-      await this.database.initialize();
-      this.databaseReady = true; // Mark database as ready after successful initialization
+      // Defensive check: ensure initialize method exists before calling
+      if (typeof this.database.initialize === 'function') {
+        try {
+          await this.database.initialize();
+          this.databaseReady = true; // Mark database as ready after successful initialization
+          this.logger.info('Database initialized successfully for LearningEngine');
+        } catch (error) {
+          this.logger.warn(`Database initialization failed, continuing without persistence: ${error}`);
+          this.databaseReady = false;
+        }
+      } else {
+        this.logger.warn('Database instance provided but lacks initialize method - running in memory-only mode');
+        this.databaseReady = false;
+      }
 
       // Create persistence adapter NOW that database is initialized
-      // Only if we don't already have one (e.g., from external injection)
-      if (!this.persistence) {
+      // Only if we don't already have one (e.g., from external injection) and database is ready
+      if (!this.persistence && this.databaseReady) {
         this.persistence = new DatabaseLearningPersistence(this.database);
         this.logger.info('Created DatabaseLearningPersistence adapter after database initialization');
       }
