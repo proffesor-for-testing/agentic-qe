@@ -26,6 +26,10 @@ export interface TaskOrchestrateArgs {
     branch?: string;
     environment?: string;
     requirements?: string[];
+    useBlackboard?: boolean;
+    blackboardKey?: string;
+    requireConsensus?: boolean;
+    quorum?: number;
   };
   fleetId?: string;
 }
@@ -44,6 +48,21 @@ export interface TaskOrchestration {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
+  coordination?: {
+    pattern: 'blackboard';
+    blackboardKey: string;
+    enabled: boolean;
+  };
+  consensus?: {
+    required: boolean;
+    quorum: number;
+    status: 'pending' | 'approved' | 'rejected';
+    votes: Array<{
+      agentId: string;
+      vote: 'approve' | 'reject' | 'abstain';
+      timestamp: string;
+    }>;
+  };
 }
 
 export interface WorkflowStep {
