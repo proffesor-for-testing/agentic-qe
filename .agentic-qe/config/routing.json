@@ -1,6 +1,6 @@
 {
   "multiModelRouter": {
-    "enabled": false,
+    "enabled": true,
     "version": "1.3.7",
     "defaultModel": "claude-sonnet-4.5",
     "enableCostTracking": true,

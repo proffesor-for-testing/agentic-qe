@@ -117,3 +117,4 @@ claude-flow
 hive-mind-prompt-*.txt
 .claude/agents/test-agent.json
 .claude/agents/failing-agent.json
+tests/temp/
