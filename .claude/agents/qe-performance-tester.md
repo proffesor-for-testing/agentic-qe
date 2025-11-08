@@ -373,28 +373,313 @@ agentic-qe agent metrics --name qe-performance-tester
 
 ## Code Execution Workflows
 
-Write code to orchestrate performance-tester workflows programmatically.
+Orchestrate performance testing with benchmarking, load testing, and real-time monitoring using Phase 3 performance domain tools.
 
-### Basic Workflow
+### 1. Analyze Performance Bottlenecks
+
+Detect CPU, memory, I/O bottlenecks and generate optimization recommendations:
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/performance-tester';
+import {
+  analyzePerformanceBottlenecks,
+  type BottleneckAnalysisParams
+} from './src/mcp/tools/qe/performance/analyze-bottlenecks.js';
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
+// Analyze performance metrics for bottlenecks
+const bottleneckAnalysis = await analyzePerformanceBottlenecks({
+  performanceData: {
+    responseTime: { p50: 100, p95: 500, p99: 1000, max: 2000 },
+    throughput: 100,
+    errorRate: 0.01,
+    resourceUsage: { cpu: 85, memory: 1500, disk: 500 }
+  },
+  thresholds: {
+    cpu: 80,
+    memory: 1024,
+    responseTime: 200,
+    errorRate: 0.01,
+    throughputMin: 150
+  },
+  includeRecommendations: true,
+  historicalData: [/* previous performance data */]
 });
 
-console.log('Workflow completed:', result);
+console.log(`Found ${bottleneckAnalysis.bottlenecks.length} bottlenecks`);
+console.log(`Performance score: ${bottleneckAnalysis.performanceScore}/100`);
+console.log(`Overall severity: ${bottleneckAnalysis.overallSeverity}`);
+
+// View recommendations
+bottleneckAnalysis.recommendations?.forEach(rec => {
+  console.log(`[${rec.priority}] ${rec.title}`);
+  console.log(`  Expected improvement: ${rec.expectedImpact.performanceImprovement}%`);
+  console.log(`  Implementation effort: ${rec.expectedImpact.implementationEffort} hours`);
+});
 ```
 
-### Discover Available Tools
+### 2. Generate Performance Reports
+
+Create comprehensive reports in HTML, PDF, or JSON format:
+
+```typescript
+import {
+  generatePerformanceReport,
+  type PerformanceReportParams
+} from './src/mcp/tools/qe/performance/generate-report.js';
+
+// Generate HTML report with baseline comparison
+const report = await generatePerformanceReport({
+  benchmarkResults: [
+    {
+      name: 'API Load Test',
+      timestamp: '2025-01-08T10:00:00Z',
+      metrics: {
+        responseTime: { p50: 100, p95: 200, p99: 300, max: 500 },
+        throughput: 1000,
+        errorRate: 0.001,
+        resourceUsage: { cpu: 60, memory: 512, disk: 100 }
+      },
+      config: { iterations: 100, concurrency: 10, duration: 60 }
+    }
+  ],
+  format: 'html',
+  compareBaseline: baselineData,
+  includeTrends: true,
+  includeBottleneckAnalysis: true,
+  bottleneckAnalysis: bottleneckAnalysis,
+  title: 'Q1 2025 Performance Test Report',
+  metadata: {
+    projectName: 'My API',
+    version: '2.0.0',
+    author: 'QE Team'
+  }
+});
+
+console.log(`Report generated: ${report.filePath}`);
+console.log(`Overall score: ${report.summary.overallScore}/100`);
+console.log(`Key findings: ${report.summary.keyFindings.join(', ')}`);
+```
+
+### 3. Run Performance Benchmarks
+
+Execute performance benchmarks with warmup and multiple iterations:
+
+```typescript
+import {
+  runPerformanceBenchmark,
+  type BenchmarkResult
+} from './src/mcp/tools/qe/performance/run-benchmark.js';
+
+// Run benchmark suite
+const benchmarkResult = await runPerformanceBenchmark({
+  benchmarkSuite: 'api-load-test',
+  iterations: 100,
+  warmupIterations: 10,
+  parallel: false,
+  reportFormat: 'json',
+  config: {
+    timeout: 60000,
+    memoryLimit: 1024
+  }
+});
+
+console.log(`Average time: ${benchmarkResult.averageTime}ms`);
+console.log(`Throughput: ${benchmarkResult.throughput} ops/sec`);
+console.log(`Completed: ${benchmarkResult.completed}/${benchmarkResult.iterations}`);
+console.log(`Failed: ${benchmarkResult.failed}`);
+```
+
+### 4. Monitor Performance in Real-Time
+
+Collect real-time performance metrics with alerting:
+
+```typescript
+import {
+  monitorPerformanceRealtime,
+  type RealtimeMonitoringResult
+} from './src/mcp/tools/qe/performance/monitor-realtime.js';
+
+// Monitor performance for 60 seconds
+const monitoringResult = await monitorPerformanceRealtime({
+  target: 'https://api.example.com',
+  duration: 60,
+  interval: 5,
+  metrics: ['cpu', 'memory', 'response-time', 'throughput'],
+  thresholds: {
+    cpu: 80,
+    memory: 1024,
+    'response-time': 200,
+    'throughput': 100
+  }
+});
+
+console.log(`Collected ${monitoringResult.dataPoints.length} data points`);
+console.log(`Average CPU: ${monitoringResult.summary.avgCpu?.toFixed(1)}%`);
+console.log(`Peak Memory: ${monitoringResult.summary.peaks.memory?.toFixed(0)}MB`);
+
+// Check alerts
+if (monitoringResult.alerts && monitoringResult.alerts.length > 0) {
+  console.log(`\n⚠️ ${monitoringResult.alerts.length} alerts triggered:`);
+  monitoringResult.alerts.forEach(alert => {
+    console.log(`  [${alert.severity}] ${alert.message}`);
+  });
+}
+```
+
+### 5. Complete Performance Testing Workflow
+
+Combine all tools for comprehensive analysis:
+
+```typescript
+import {
+  runPerformanceBenchmark,
+  monitorPerformanceRealtime,
+  analyzePerformanceBottlenecks,
+  generatePerformanceReport
+} from './src/mcp/tools/qe/performance/index.js';
+
+// 1. Run benchmark
+const benchmarkResult = await runPerformanceBenchmark({
+  benchmarkSuite: 'api-stress-test',
+  iterations: 1000,
+  warmupIterations: 50,
+  parallel: true
+});
+
+// 2. Monitor real-time during load
+const monitoringResult = await monitorPerformanceRealtime({
+  target: 'https://api.example.com',
+  duration: 300,
+  interval: 10,
+  metrics: ['cpu', 'memory', 'response-time', 'throughput', 'error-rate']
+});
+
+// 3. Analyze for bottlenecks
+const bottlenecks = await analyzePerformanceBottlenecks({
+  performanceData: {
+    responseTime: {
+      p50: benchmarkResult.medianTime,
+      p95: benchmarkResult.averageTime * 1.5,
+      p99: benchmarkResult.averageTime * 2,
+      max: benchmarkResult.maxTime
+    },
+    throughput: benchmarkResult.throughput,
+    errorRate: benchmarkResult.failed / benchmarkResult.iterations,
+    resourceUsage: benchmarkResult.resourceUsage || { cpu: 0, memory: 0, disk: 0 }
+  },
+  thresholds: {
+    cpu: 80,
+    memory: 1024,
+    responseTime: 200
+  },
+  includeRecommendations: true
+});
+
+// 4. Generate comprehensive report
+const report = await generatePerformanceReport({
+  benchmarkResults: [
+    {
+      name: 'API Stress Test',
+      timestamp: new Date().toISOString(),
+      metrics: {
+        responseTime: {
+          p50: benchmarkResult.medianTime,
+          p95: benchmarkResult.averageTime * 1.5,
+          p99: benchmarkResult.averageTime * 2,
+          max: benchmarkResult.maxTime
+        },
+        throughput: benchmarkResult.throughput,
+        errorRate: benchmarkResult.failed / benchmarkResult.iterations,
+        resourceUsage: benchmarkResult.resourceUsage || { cpu: 0, memory: 0, disk: 0 }
+      }
+    }
+  ],
+  format: 'html',
+  includeTrends: true,
+  includeBottleneckAnalysis: true,
+  bottleneckAnalysis: bottlenecks,
+  title: 'API Stress Test Results'
+});
+
+console.log('\n📊 Performance Test Complete:');
+console.log(`  - Benchmark iterations: ${benchmarkResult.iterations}`);
+console.log(`  - Monitoring data points: ${monitoringResult.dataPoints.length}`);
+console.log(`  - Bottlenecks detected: ${bottlenecks.bottlenecks.length}`);
+console.log(`  - Performance score: ${report.summary.overallScore}/100`);
+console.log(`  - Report: ${report.filePath}`);
+```
+
+### Performance Benchmarking
+
+```typescript
+/**
+ * Phase 3 Performance Testing Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * Import path: 'agentic-qe/tools/qe/performance'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  PerformanceBenchmarkParams,
+  RealtimeMonitorParams,
+  PerformanceMetrics,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 performance tools (coming soon)
+// import {
+//   runPerformanceBenchmark,
+//   monitorRealtime,
+//   analyzeBottlenecks
+// } from 'agentic-qe/tools/qe/performance';
+
+const benchmarkParams: PerformanceBenchmarkParams = {
+  benchmarkSuite: 'api-endpoints',
+  iterations: 1000,
+  warmupIterations: 100,
+  parallel: true,
+  reportFormat: 'json',
+  config: {
+    cpuAffinity: [0, 1, 2, 3],
+    memoryLimit: 2048,
+    timeout: 30000
+  }
+};
+
+// const results = await runPerformanceBenchmark(benchmarkParams);
+console.log('✅ Performance benchmark complete');
+```
+
+### Real-Time Monitoring
+
+```typescript
+import type { RealtimeMonitorParams } from 'agentic-qe/tools/qe/shared/types';
+
+const monitorParams: RealtimeMonitorParams = {
+  target: 'http://localhost:3000',
+  duration: 300,  // 5 minutes
+  interval: 1,  // 1 second sampling
+  metrics: ['cpu', 'memory', 'response-time', 'throughput', 'error-rate'],
+  thresholds: {
+    'cpu': 80,
+    'memory': 1024,
+    'response-time': 500,
+    'error-rate': 0.01
+  }
+};
+
+// const monitoring = await monitorRealtime(monitorParams);
+console.log('✅ Real-time monitoring complete');
+```
+
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/performance-tester/
+# Once Phase 3 is implemented:
+ls node_modules/agentic-qe/dist/mcp/tools/qe/performance/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# Via CLI (Phase 3)
+# aqe performance benchmark --suite api --iterations 1000
+# aqe performance monitor --target http://localhost:3000 --duration 300
 ```
 

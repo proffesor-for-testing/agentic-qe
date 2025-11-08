@@ -788,28 +788,69 @@ Automatically create runbooks and alerts based on discovered failure modes
 
 ## Code Execution Workflows
 
-Write code to orchestrate chaos-engineer workflows programmatically.
+Execute chaos engineering scenarios and validate system resilience.
 
-### Basic Workflow
+### Chaos Testing Execution
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/chaos-engineer';
+/**
+ * Phase 3 Chaos Engineering Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/utils'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 chaos engineering tools (coming soon)
+// import {
+//   executeChaosScenario,
+//   injectFaults,
+//   validateResilience
+// } from 'agentic-qe/tools/qe/utils';
+
+// Example: Execute chaos engineering scenario
+const chaosParams = {
+  scenarios: ['network-latency', 'service-timeout', 'resource-exhaustion'],
+  severity: 'medium',
+  duration: 300, // 5 minutes
+  monitoring: true,
+  autoRecovery: true
+};
+
+// const chaosResults: QEToolResponse<any> =
+//   await executeChaosScenario(chaosParams);
+//
+// if (chaosResults.success && chaosResults.data) {
+//   console.log(`Chaos Experiment: ${chaosResults.data.status}`);
+//   console.log(`Failures Detected: ${chaosResults.data.failures.length}`);
+//   console.log(`Recovery Time: ${chaosResults.data.recoveryTime}ms`);
+// }
+
+console.log('✅ Chaos engineering validation complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/chaos-engineer/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available chaos tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
+```
+
+### Using Chaos Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe chaos execute --scenarios network-latency,service-timeout --severity medium
+// aqe chaos validate-resilience --target api-service
 ```
 

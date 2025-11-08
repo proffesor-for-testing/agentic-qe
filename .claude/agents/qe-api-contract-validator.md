@@ -1124,28 +1124,131 @@ aqe contract evolution --from <v1> --to <v2> --format pdf
 
 ## Code Execution Workflows
 
-Write code to orchestrate api-contract-validator workflows programmatically.
+Validate API contracts and detect breaking changes with automated compatibility checking.
 
-### Basic Workflow
+### Contract Validation with Schema Analysis
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/api-contract-validator';
+/**
+ * Phase 3 API Contract Validation Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/security'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  BreakingChangeParams,
+  ContractValidationResult,
+  Vulnerability,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 contract validation tools (coming soon)
+// import {
+//   validateContract,
+//   detectBreakingChanges,
+//   analyzeBackwardCompatibility,
+//   generateContractReport
+// } from 'agentic-qe/tools/qe/security';
+
+// Example: API contract validation and breaking change detection
+const contractParams: BreakingChangeParams = {
+  currentSchema: './openapi.v2.json',
+  previousSchema: './openapi.v1.json',
+  apiType: 'rest',
+  checkBreakingChanges: true,
+  strictMode: true,
+  includeDeprecations: true
+};
+
+// const validation: QEToolResponse<ContractValidationResult> =
+//   await validateContract(contractParams);
+//
+// if (validation.success && validation.data) {
+//   console.log(`Validation: ${validation.data.isCompatible ? 'PASS' : 'FAIL'}`);
+//
+//   if (validation.data.breakingChanges.length > 0) {
+//     console.log(`Breaking changes found: ${validation.data.breakingChanges.length}`);
+//     validation.data.breakingChanges.forEach((change) => {
+//       console.log(`  - ${change.severity}: ${change.description}`);
+//     });
+//   }
+// }
+
+console.log('✅ API contract validation complete');
 ```
 
-### Discover Available Tools
+### Breaking Change Detection
+
+```typescript
+import type {
+  BreakingChangeParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 breaking change analysis (coming soon)
+// import {
+//   detectBreakingChanges,
+//   categorizeChanges,
+//   assessImpact
+// } from 'agentic-qe/tools/qe/security';
+
+// Example: Comprehensive breaking change analysis
+const changeParams: BreakingChangeParams = {
+  currentSchema: './openapi.json',
+  previousSchema: './openapi.previous.json',
+  apiType: 'rest',
+  consumers: ['frontend', 'mobile-app', 'third-party'],
+  impactAnalysis: true
+};
+
+// const changes = await detectBreakingChanges(changeParams);
+//
+// console.log('Breaking Changes Analysis:');
+// changes.data.forEach((change) => {
+//   console.log(`\n${change.type}: ${change.endpoint}`);
+//   console.log(`  Severity: ${change.severity}`);
+//   console.log(`  Impact: ${change.affectedConsumers.join(', ')}`);
+//   console.log(`  Remediation: ${change.remediation}`);
+// });
+
+console.log('✅ Breaking change detection complete');
+```
+
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/api-contract-validator/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/security/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available contract validation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/security/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "BreakingChange"
+
+# View supported API types
+node -e "import('agentic-qe/tools/qe/security').then(m => console.log(m.supportedApiTypes()))"
+```
+
+### Using Contract Validation Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_validate_api_contract', {
+//   currentSchema: './openapi.json',
+//   previousSchema: './openapi.previous.json',
+//   apiType: 'rest'
+// });
+
+// Via CLI
+// aqe contract validate --current ./openapi.json --previous ./openapi.previous.json
+// aqe contract detect-breaking --schema ./openapi.json --strict
+// aqe contract report --format html --include-impact-analysis
 ```
 

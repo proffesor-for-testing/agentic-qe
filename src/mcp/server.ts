@@ -69,6 +69,7 @@ import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager.js';
 import { TestExecuteStreamHandler } from './streaming/TestExecuteStreamHandler.js';
 import { CoverageAnalyzeStreamHandler } from './streaming/CoverageAnalyzeStreamHandler.js';
 import { Phase2ToolsHandler } from './handlers/phase2/Phase2Tools.js';
+import { Phase3DomainToolsHandler } from './handlers/phase3/Phase3DomainTools.js';
 import { EventEmitter } from 'events';
 
 /**
@@ -227,6 +228,31 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.IMPROVEMENT_AB_TEST, phase2Handler);
     this.handlers.set(TOOL_NAMES.IMPROVEMENT_FAILURES, phase2Handler);
     this.handlers.set(TOOL_NAMES.PERFORMANCE_TRACK, phase2Handler);
+
+    // Phase 3 Domain-Specific Tools Handler
+    const phase3Handler = new Phase3DomainToolsHandler(this.registry, this.hookExecutor);
+    // Coverage Domain Tools
+    this.handlers.set(TOOL_NAMES.COVERAGE_ANALYZE_WITH_RISK_SCORING, phase3Handler);
+    this.handlers.set(TOOL_NAMES.COVERAGE_DETECT_GAPS_ML, phase3Handler);
+    this.handlers.set(TOOL_NAMES.COVERAGE_RECOMMEND_TESTS, phase3Handler);
+    this.handlers.set(TOOL_NAMES.COVERAGE_CALCULATE_TRENDS, phase3Handler);
+    // Flaky Detection Tools
+    this.handlers.set(TOOL_NAMES.FLAKY_DETECT_STATISTICAL, phase3Handler);
+    this.handlers.set(TOOL_NAMES.FLAKY_ANALYZE_PATTERNS, phase3Handler);
+    this.handlers.set(TOOL_NAMES.FLAKY_STABILIZE_AUTO, phase3Handler);
+    // Performance Tools
+    this.handlers.set(TOOL_NAMES.PERFORMANCE_ANALYZE_BOTTLENECKS, phase3Handler);
+    this.handlers.set(TOOL_NAMES.PERFORMANCE_GENERATE_REPORT, phase3Handler);
+    this.handlers.set(TOOL_NAMES.PERFORMANCE_RUN_BENCHMARK, phase3Handler);
+    // Security Tools
+    this.handlers.set(TOOL_NAMES.SECURITY_VALIDATE_AUTH, phase3Handler);
+    this.handlers.set(TOOL_NAMES.SECURITY_CHECK_AUTHZ, phase3Handler);
+    this.handlers.set(TOOL_NAMES.SECURITY_SCAN_DEPENDENCIES, phase3Handler);
+    this.handlers.set(TOOL_NAMES.SECURITY_GENERATE_REPORT, phase3Handler);
+    // Visual Testing Tools
+    this.handlers.set(TOOL_NAMES.VISUAL_COMPARE_SCREENSHOTS, phase3Handler);
+    this.handlers.set(TOOL_NAMES.VISUAL_VALIDATE_ACCESSIBILITY, phase3Handler);
+    this.handlers.set(TOOL_NAMES.VISUAL_DETECT_REGRESSION, phase3Handler);
   }
 
   /**
@@ -332,6 +358,70 @@ export class AgenticQEMCPServer {
             default:
               throw new McpError(ErrorCode.MethodNotFound, `Unknown improvement tool: ${name}`);
           }
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        // Phase 3 Domain-Specific Tools routing
+        if (name.startsWith('mcp__agentic_qe__coverage_') ||
+            name.startsWith('mcp__agentic_qe__flaky_') ||
+            name.startsWith('mcp__agentic_qe__performance_') ||
+            name.startsWith('mcp__agentic_qe__security_') ||
+            name.startsWith('mcp__agentic_qe__visual_')) {
+          const phase3Handler = handler as Phase3DomainToolsHandler;
+          const safeArgs = args || {};
+          let result;
+
+          // Coverage Domain Tools
+          if (name === TOOL_NAMES.COVERAGE_ANALYZE_WITH_RISK_SCORING) {
+            result = await phase3Handler.handleCoverageAnalyzeWithRiskScoring(safeArgs);
+          } else if (name === TOOL_NAMES.COVERAGE_DETECT_GAPS_ML) {
+            result = await phase3Handler.handleCoverageDetectGapsML(safeArgs);
+          } else if (name === TOOL_NAMES.COVERAGE_RECOMMEND_TESTS) {
+            result = await phase3Handler.handleCoverageRecommendTests(safeArgs);
+          } else if (name === TOOL_NAMES.COVERAGE_CALCULATE_TRENDS) {
+            result = await phase3Handler.handleCoverageCalculateTrends(safeArgs);
+          }
+          // Flaky Detection Tools
+          else if (name === TOOL_NAMES.FLAKY_DETECT_STATISTICAL) {
+            result = await phase3Handler.handleFlakyDetectStatistical(safeArgs);
+          } else if (name === TOOL_NAMES.FLAKY_ANALYZE_PATTERNS) {
+            result = await phase3Handler.handleFlakyAnalyzePatterns(safeArgs);
+          } else if (name === TOOL_NAMES.FLAKY_STABILIZE_AUTO) {
+            result = await phase3Handler.handleFlakyStabilizeAuto(safeArgs);
+          }
+          // Performance Tools
+          else if (name === TOOL_NAMES.PERFORMANCE_ANALYZE_BOTTLENECKS) {
+            result = await phase3Handler.handlePerformanceAnalyzeBottlenecks(safeArgs);
+          } else if (name === TOOL_NAMES.PERFORMANCE_GENERATE_REPORT) {
+            result = await phase3Handler.handlePerformanceGenerateReport(safeArgs);
+          } else if (name === TOOL_NAMES.PERFORMANCE_RUN_BENCHMARK) {
+            result = await phase3Handler.handlePerformanceRunBenchmark(safeArgs);
+          } else if (name === TOOL_NAMES.PERFORMANCE_MONITOR_REALTIME_PHASE3) {
+            result = await phase3Handler.handlePerformanceMonitorRealtime(safeArgs);
+          }
+          // Security Tools
+          else if (name === TOOL_NAMES.SECURITY_VALIDATE_AUTH) {
+            result = await phase3Handler.handleSecurityValidateAuth(safeArgs);
+          } else if (name === TOOL_NAMES.SECURITY_CHECK_AUTHZ) {
+            result = await phase3Handler.handleSecurityCheckAuthz(safeArgs);
+          } else if (name === TOOL_NAMES.SECURITY_SCAN_DEPENDENCIES) {
+            result = await phase3Handler.handleSecurityScanDependencies(safeArgs);
+          } else if (name === TOOL_NAMES.SECURITY_GENERATE_REPORT) {
+            result = await phase3Handler.handleSecurityGenerateReport(safeArgs);
+          } else if (name === TOOL_NAMES.SECURITY_SCAN_COMPREHENSIVE_PHASE3) {
+            result = await phase3Handler.handleSecurityScanComprehensive(safeArgs);
+          }
+          // Visual Testing Tools
+          else if (name === TOOL_NAMES.VISUAL_COMPARE_SCREENSHOTS) {
+            result = await phase3Handler.handleVisualCompareScreenshots(safeArgs);
+          } else if (name === TOOL_NAMES.VISUAL_VALIDATE_ACCESSIBILITY) {
+            result = await phase3Handler.handleVisualValidateAccessibility(safeArgs);
+          } else if (name === TOOL_NAMES.VISUAL_DETECT_REGRESSION) {
+            result = await phase3Handler.handleVisualDetectRegression(safeArgs);
+          } else {
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown Phase 3 tool: ${name}`);
+          }
+
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 

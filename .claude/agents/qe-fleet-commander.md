@@ -698,28 +698,67 @@ Uses neural patterns to:
 
 ## Code Execution Workflows
 
-Write code to orchestrate fleet-commander workflows programmatically.
+Orchestrate QE fleet coordination and multi-agent task execution.
 
-### Basic Workflow
+### Fleet Orchestration
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/fleet-commander';
+/**
+ * Phase 3 Fleet Coordination Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/utils'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 fleet coordination tools (coming soon)
+// import {
+//   orchestrateFleet,
+//   coordinateAgents,
+//   monitorFleetHealth
+// } from 'agentic-qe/tools/qe/utils';
+
+// Example: Coordinate multi-agent testing workflow
+const fleetParams = {
+  task: 'comprehensive-testing',
+  agents: ['test-generator', 'test-executor', 'coverage-analyzer', 'quality-gate'],
+  parallelExecution: true,
+  coordinationStrategy: 'hierarchical'
+};
+
+// const orchestration: QEToolResponse<any> =
+//   await orchestrateFleet(fleetParams);
+//
+// if (orchestration.success && orchestration.data) {
+//   console.log(`Fleet Status: ${orchestration.data.status}`);
+//   console.log(`Active Agents: ${orchestration.data.activeAgents}`);
+// }
+
+console.log('✅ Fleet orchestration complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/fleet-commander/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available fleet tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
+```
+
+### Using Fleet Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe fleet orchestrate --task comprehensive-testing --agents all
+// aqe fleet status --verbose
 ```
 

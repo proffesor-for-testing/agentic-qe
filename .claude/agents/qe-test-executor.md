@@ -375,14 +375,33 @@ Execute tests programmatically with intelligent orchestration and real-time prog
 ### Parallel Test Execution
 
 ```typescript
-import {
-  executeTests,
-  aggregateResults,
-  generateReport
-} from './servers/qe-tools/test-execution';
+/**
+ * Phase 3 Test Execution Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/test-execution'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Execute tests in parallel with retry logic
-const results = await executeTests({
+import type {
+  TestExecutionParams,
+  TestResult,
+  TestResultsSummary,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 test execution tools (coming soon)
+// import {
+//   executeTests,
+//   executeWithProgress,
+//   aggregateResults,
+//   generateTestReport
+// } from 'agentic-qe/tools/qe/test-execution';
+
+// Example: Parallel test execution with retry logic
+const executionParams: TestExecutionParams = {
   testSuites: [
     './tests/unit/**/*.test.ts',
     './tests/integration/**/*.test.ts'
@@ -391,75 +410,124 @@ const results = await executeTests({
   maxWorkers: 4,
   retryFailedTests: true,
   maxRetries: 3,
-  timeout: 30000
-});
+  timeout: 30000,
+  framework: 'jest',
+  coverage: true
+};
 
-console.log(`Executed ${results.total} tests`);
-console.log(`Passed: ${results.passed}, Failed: ${results.failed}`);
+// const results: QEToolResponse<TestResultsSummary> =
+//   await executeTests(executionParams);
+//
+// if (results.success && results.data) {
+//   console.log(`Executed ${results.data.total} tests`);
+//   console.log(`Passed: ${results.data.passed}, Failed: ${results.data.failed}`);
+//   console.log(`Coverage: ${results.data.coverage.overall.toFixed(2)}%`);
+// }
 
-// Aggregate results across suites
-const aggregated = await aggregateResults(results);
-
-// Generate HTML report
-await generateReport({
-  results: aggregated,
-  format: 'html',
-  output: './reports/test-results.html'
-});
+console.log('✅ Parallel test execution complete');
 ```
 
 ### Streaming Progress Updates
 
 ```typescript
-import { executeWithProgress } from './servers/qe-tools/test-execution';
+import type {
+  TestExecutionParams
+} from 'agentic-qe/tools/qe/shared/types';
 
-// Execute with real-time progress
-for await (const event of executeWithProgress({
-  testSuites: ['./tests/**/*.test.ts']
-})) {
-  if (event.type === 'progress') {
-    console.log(`Progress: ${event.percent}% - ${event.message}`);
-  } else if (event.type === 'test-complete') {
-    console.log(`✓ ${event.testName} (${event.duration}ms)`);
-  } else if (event.type === 'result') {
-    console.log('Final results:', event.data);
-  }
+// Phase 3 streaming (coming soon)
+// import {
+//   executeWithProgress
+// } from 'agentic-qe/tools/qe/test-execution';
+
+// Example: Real-time progress tracking during execution
+async function streamTestExecution() {
+  const params: TestExecutionParams = {
+    testSuites: ['./tests/**/*.test.ts'],
+    framework: 'jest',
+    parallel: true,
+    maxWorkers: 4
+  };
+
+  // for await (const event of executeWithProgress(params)) {
+  //   if (event.type === 'progress') {
+  //     console.log(`Progress: ${event.percent}% - ${event.message}`);
+  //   } else if (event.type === 'test-complete') {
+  //     console.log(`✓ ${event.testName} (${event.duration}ms)`);
+  //   } else if (event.type === 'result') {
+  //     console.log('Final results:', event.data);
+  //   }
+  // }
+
+  console.log('✅ Real-time progress streaming complete');
 }
 ```
 
 ### Selective Test Execution
 
 ```typescript
-import { selectTests, executeTests } from './servers/qe-tools/test-execution';
+import type {
+  TestExecutionParams
+} from 'agentic-qe/tools/qe/shared/types';
 
-// Select tests based on code changes
-const changedFiles = ['src/UserService.ts', 'src/AuthService.ts'];
+// Phase 3 smart selection (coming soon)
+// import {
+//   selectTests,
+//   executeTests
+// } from 'agentic-qe/tools/qe/test-execution';
 
-const selectedTests = await selectTests({
-  changedFiles,
-  strategy: 'impact-analysis',
-  includeRelated: true
-});
-
-console.log(`Selected ${selectedTests.length} tests based on changes`);
-
-// Execute only selected tests
-const results = await executeTests({
-  testFiles: selectedTests,
+// Example: Execute only tests impacted by code changes
+const selectiveParams: TestExecutionParams = {
+  changedFiles: ['src/UserService.ts', 'src/AuthService.ts'],
+  selectionStrategy: 'impact-analysis',
+  includeRelated: true,
+  framework: 'jest',
   parallel: true
-});
+};
+
+// const selectedTests = await selectTests(selectiveParams);
+// console.log(`Selected ${selectedTests.length} tests based on changes`);
+//
+// const results = await executeTests({
+//   ...selectiveParams,
+//   testFiles: selectedTests
+// });
+
+console.log('✅ Selective test execution complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List test execution tools
-ls ./servers/qe-tools/test-execution/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/test-execution/
 
-# Check supported frameworks
-cat ./servers/qe-tools/test-execution/frameworks.json
+# List available test execution tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/test-execution/
 
-# View execution strategies
-cat ./servers/qe-tools/test-execution/strategies.json
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "TestExecution"
+
+# View supported frameworks
+node -e "import('agentic-qe/tools/qe/test-execution').then(m => console.log(m.supportedFrameworks()))"
+```
+
+### Using Test Execution Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_execute_tests_parallel', {
+//   testSuites: ['./tests/**/*.test.ts'],
+//   parallel: true,
+//   maxWorkers: 4,
+//   retryFailedTests: true
+// });
+
+// Via CLI
+// aqe execute tests --suites ./tests/**/*.test.ts --parallel --workers 4
+// aqe execute tests --select-changed --strategy impact-analysis
+// aqe execute tests --framework jest --coverage --report html
 ```
 

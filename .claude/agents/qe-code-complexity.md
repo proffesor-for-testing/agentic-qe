@@ -251,53 +251,71 @@ npm test tests/agents/CodeComplexityAnalyzerAgent.test.ts
 
 ## Code Execution Workflows
 
-Write code to orchestrate code-complexity workflows programmatically.
+Analyze code complexity and generate refactoring recommendations.
 
-### Basic Workflow
+### Code Complexity Analysis
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/code-complexity';
+/**
+ * Phase 3 Code Complexity Analysis Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/utils'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 complexity analysis tools (coming soon)
+// import {
+//   analyzeCodeComplexity,
+//   generateRefactoringRecommendations,
+//   detectComplexPatterns
+// } from 'agentic-qe/tools/qe/utils';
+
+// Example: Analyze code complexity and get refactoring suggestions
+const complexityParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  metrics: ['cyclomatic', 'cognitive', 'maintainability'],
+  generateRecommendations: true,
+  includePatternDetection: true
+};
+
+// const analysis: QEToolResponse<any> =
+//   await analyzeCodeComplexity(complexityParams);
+//
+// if (analysis.success && analysis.data) {
+//   console.log('Code Complexity Analysis:');
+//   console.log(`  Average Cyclomatic: ${analysis.data.avgCyclomatic.toFixed(2)}`);
+//   console.log(`  Cognitive Complexity: ${analysis.data.cognitiveComplexity.toFixed(2)}`);
+//   console.log(`  Recommendations: ${analysis.data.recommendations.length}`);
+// }
+
+console.log('✅ Code complexity analysis complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/code-complexity/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available complexity tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
 ```
 
-### Memory Namespace
-- `aqe/complexity/${agentId}/current-request` - Active analysis request
-- `aqe/complexity/${agentId}/latest-result` - Most recent result
-- `aqe/complexity/${agentId}/history` - Historical analyses (last 100)
-- `aqe/complexity/${agentId}/errors/*` - Error tracking
+### Using Complexity Tools via MCP (Phase 3)
 
-### Events Emitted
-- `complexity:analysis:completed` - When analysis finishes successfully
-- `complexity:analysis:stored` - When results are persisted
-
-### Capabilities Provided
-- `complexity-analysis` - Core analysis functionality
-- `refactoring-recommendations` - AI-powered suggestions
-- `pattern-detection` - Complex code pattern recognition
-
-## Next Steps
-
-After understanding this agent, explore:
-- **TestGeneratorAgent**: See how it generates tests
-- **CoverageAnalyzerAgent**: Learn about O(log n) gap detection
-- **FleetManager**: Understand multi-agent coordination
-- **LearningEngine**: Discover how agents improve over time
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe complexity analyze --files ./src/**/*.ts --metrics all
+// aqe complexity refactor --target ./src/complex-file.ts
+```
 
 ## Resources
 

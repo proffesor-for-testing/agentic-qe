@@ -1870,6 +1870,670 @@ export const agenticQETools: Tool[] = [
       },
       required: ['sourceFiles']
     }
+  },
+
+  // Phase 3: Domain-Specific Tools
+
+  // Coverage Domain Tools (4 tools)
+  {
+    name: 'mcp__agentic_qe__coverage_analyze_with_risk_scoring',
+    description: 'Analyze code coverage with ML-based risk scoring for critical paths',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        coverageData: {
+          type: 'object',
+          properties: {
+            files: { type: 'array', items: { type: 'object' } },
+            lines: { type: 'object' },
+            branches: { type: 'object' },
+            functions: { type: 'object' }
+          },
+          required: ['files']
+        },
+        riskFactors: {
+          type: 'object',
+          properties: {
+            complexity: { type: 'boolean', default: true },
+            changeFrequency: { type: 'boolean', default: true },
+            criticalPaths: { type: 'boolean', default: true },
+            historicalDefects: { type: 'boolean', default: false }
+          }
+        },
+        threshold: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          default: 0.8,
+          description: 'Coverage threshold (0-1)'
+        }
+      },
+      required: ['coverageData']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_detect_gaps_ml',
+    description: 'Detect coverage gaps using ML pattern recognition and prioritization',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        coverageData: { type: 'object', description: 'Coverage data' },
+        sourceCode: { type: 'array', items: { type: 'string' }, description: 'Source files' },
+        mlModel: {
+          type: 'string',
+          enum: ['neural', 'random-forest', 'gradient-boosting'],
+          default: 'gradient-boosting',
+          description: 'ML model for gap detection'
+        },
+        priorityScoring: {
+          type: 'object',
+          properties: {
+            complexity: { type: 'number', default: 0.4 },
+            criticality: { type: 'number', default: 0.3 },
+            changeFrequency: { type: 'number', default: 0.3 }
+          }
+        }
+      },
+      required: ['coverageData', 'sourceCode']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_recommend_tests',
+    description: 'Recommend specific tests to improve coverage based on gap analysis',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        gaps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              file: { type: 'string' },
+              lines: { type: 'array' },
+              priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] }
+            }
+          },
+          description: 'Coverage gaps'
+        },
+        testFramework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'vitest'],
+          default: 'jest'
+        },
+        generateCode: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate test code snippets'
+        },
+        includeDataGenerators: {
+          type: 'boolean',
+          default: false
+        }
+      },
+      required: ['gaps']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_calculate_trends',
+    description: 'Calculate coverage trends over time with forecasting',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        historicalData: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              timestamp: { type: 'string' },
+              coverage: { type: 'number' },
+              lines: { type: 'number' },
+              branches: { type: 'number' },
+              functions: { type: 'number' }
+            }
+          },
+          description: 'Historical coverage data'
+        },
+        forecastDays: {
+          type: 'number',
+          default: 30,
+          minimum: 7,
+          maximum: 180,
+          description: 'Days to forecast'
+        },
+        includeRegression: {
+          type: 'boolean',
+          default: true
+        },
+        anomalyDetection: {
+          type: 'boolean',
+          default: false
+        }
+      },
+      required: ['historicalData']
+    }
+  },
+
+  // Flaky Detection Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__flaky_detect_statistical',
+    description: 'Detect flaky tests using statistical analysis (chi-square, variance)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        testResults: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              testId: { type: 'string' },
+              testName: { type: 'string' },
+              status: { type: 'string', enum: ['pass', 'fail', 'skip', 'timeout'] },
+              duration: { type: 'number' },
+              timestamp: { type: 'string' }
+            }
+          },
+          description: 'Test execution results'
+        },
+        minRuns: {
+          type: 'number',
+          default: 10,
+          minimum: 5,
+          description: 'Minimum runs to analyze'
+        },
+        confidenceLevel: {
+          type: 'number',
+          default: 0.95,
+          minimum: 0.9,
+          maximum: 0.99
+        },
+        methods: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['chi-square', 'variance', 'entropy'],
+          description: 'Statistical methods to apply'
+        }
+      },
+      required: ['testResults']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__flaky_analyze_patterns',
+    description: 'Analyze patterns in flaky test behavior (timing, environment, dependencies)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        flakyTests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              testId: { type: 'string' },
+              testName: { type: 'string' },
+              failures: { type: 'array' },
+              environment: { type: 'object' }
+            }
+          }
+        },
+        analyzeTiming: { type: 'boolean', default: true },
+        analyzeEnvironment: { type: 'boolean', default: true },
+        analyzeDependencies: { type: 'boolean', default: true },
+        clusterSimilar: { type: 'boolean', default: false }
+      },
+      required: ['flakyTests']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__flaky_stabilize_auto',
+    description: 'Auto-stabilize flaky tests with retry logic, waits, and isolation',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        testCode: {
+          type: 'string',
+          description: 'Test source code'
+        },
+        flakyPattern: {
+          type: 'string',
+          enum: ['timing', 'async', 'race-condition', 'external-dependency'],
+          description: 'Type of flakiness pattern'
+        },
+        stabilizationStrategy: {
+          type: 'string',
+          enum: ['retry', 'wait', 'isolation', 'mock', 'hybrid'],
+          default: 'hybrid'
+        },
+        framework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'cypress', 'playwright'],
+          default: 'jest'
+        },
+        dryRun: {
+          type: 'boolean',
+          default: false,
+          description: 'Preview changes without applying'
+        }
+      },
+      required: ['testCode', 'flakyPattern']
+    }
+  },
+
+  // Performance Tools (4 tools)
+  {
+    name: 'mcp__agentic_qe__performance_analyze_bottlenecks',
+    description: 'Analyze performance bottlenecks using profiling data and ML',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        profileData: {
+          type: 'object',
+          properties: {
+            functions: { type: 'array' },
+            callGraph: { type: 'object' },
+            timings: { type: 'object' },
+            memory: { type: 'object' }
+          }
+        },
+        threshold: {
+          type: 'number',
+          default: 100,
+          description: 'Bottleneck threshold in ms'
+        },
+        analyzeMemory: { type: 'boolean', default: true },
+        analyzeCPU: { type: 'boolean', default: true },
+        analyzeIO: { type: 'boolean', default: false },
+        generateRecommendations: { type: 'boolean', default: true }
+      },
+      required: ['profileData']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_generate_report',
+    description: 'Generate comprehensive performance analysis reports',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        benchmarkResults: { type: 'object', description: 'Benchmark data' },
+        bottlenecks: { type: 'array', description: 'Identified bottlenecks' },
+        format: {
+          type: 'string',
+          enum: ['html', 'pdf', 'json', 'markdown'],
+          default: 'html'
+        },
+        includeCharts: { type: 'boolean', default: true },
+        includeRecommendations: { type: 'boolean', default: true },
+        compareBaseline: {
+          type: 'object',
+          description: 'Baseline performance data for comparison'
+        }
+      },
+      required: ['benchmarkResults']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_run_benchmark',
+    description: 'Run performance benchmarks with configurable scenarios',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target function or endpoint to benchmark'
+        },
+        scenarios: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              load: { type: 'number' },
+              duration: { type: 'number' },
+              rampUp: { type: 'number' }
+            }
+          }
+        },
+        iterations: { type: 'number', default: 100, minimum: 10 },
+        warmupIterations: { type: 'number', default: 10 },
+        collectMetrics: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['duration', 'memory', 'cpu']
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_monitor_realtime',
+    description: 'Real-time performance monitoring with alerting',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'Service or endpoint to monitor' },
+        duration: {
+          type: 'number',
+          default: 60,
+          minimum: 10,
+          description: 'Monitoring duration in seconds'
+        },
+        interval: {
+          type: 'number',
+          default: 5,
+          minimum: 1,
+          description: 'Sampling interval in seconds'
+        },
+        thresholds: {
+          type: 'object',
+          properties: {
+            responseTime: { type: 'number' },
+            errorRate: { type: 'number' },
+            throughput: { type: 'number' }
+          }
+        },
+        alerts: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable threshold alerts'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  // Security Tools (5 tools)
+  {
+    name: 'mcp__agentic_qe__security_validate_auth',
+    description: 'Validate authentication mechanisms (JWT, OAuth, session)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authType: {
+          type: 'string',
+          enum: ['jwt', 'oauth2', 'session', 'api-key', 'saml'],
+          description: 'Authentication type'
+        },
+        endpoint: {
+          type: 'string',
+          description: 'Authentication endpoint'
+        },
+        tests: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['token-validation', 'expiry', 'refresh', 'revocation'],
+          description: 'Authentication tests to run'
+        },
+        includeVulnerabilities: {
+          type: 'boolean',
+          default: true,
+          description: 'Check for common auth vulnerabilities'
+        }
+      },
+      required: ['authType', 'endpoint']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_check_authz',
+    description: 'Check authorization and access control (RBAC, ABAC)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authzType: {
+          type: 'string',
+          enum: ['rbac', 'abac', 'acl', 'policy-based'],
+          description: 'Authorization model'
+        },
+        resources: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              method: { type: 'string' },
+              requiredPermissions: { type: 'array' }
+            }
+          }
+        },
+        roles: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Roles to test'
+        },
+        testPrivilegeEscalation: { type: 'boolean', default: true },
+        testHorizontalAccess: { type: 'boolean', default: true }
+      },
+      required: ['authzType', 'resources']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_scan_dependencies',
+    description: 'Scan dependencies for known vulnerabilities (CVE database)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        manifestFile: {
+          type: 'string',
+          description: 'Path to package.json, requirements.txt, etc.'
+        },
+        includeTransitive: {
+          type: 'boolean',
+          default: true,
+          description: 'Include transitive dependencies'
+        },
+        severityThreshold: {
+          type: 'string',
+          enum: ['low', 'medium', 'high', 'critical'],
+          default: 'medium'
+        },
+        sources: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['nvd', 'snyk', 'github-advisory'],
+          description: 'Vulnerability databases to check'
+        },
+        generateReport: { type: 'boolean', default: true }
+      },
+      required: ['manifestFile']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_generate_report',
+    description: 'Generate comprehensive security audit reports',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        findings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              severity: { type: 'string' },
+              description: { type: 'string' },
+              remediation: { type: 'string' }
+            }
+          },
+          description: 'Security findings'
+        },
+        format: {
+          type: 'string',
+          enum: ['pdf', 'html', 'json', 'sarif'],
+          default: 'html'
+        },
+        includeOWASP: {
+          type: 'boolean',
+          default: true,
+          description: 'Include OWASP Top 10 mapping'
+        },
+        includeCVSS: {
+          type: 'boolean',
+          default: true,
+          description: 'Include CVSS scores'
+        },
+        includeRemediation: { type: 'boolean', default: true }
+      },
+      required: ['findings']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_scan_comprehensive',
+    description: 'Comprehensive security scan (SAST, DAST, dependency check)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scanType: {
+          type: 'string',
+          enum: ['sast', 'dast', 'dependency', 'comprehensive'],
+          default: 'comprehensive'
+        },
+        target: { type: 'string', description: 'Target to scan' },
+        depth: {
+          type: 'string',
+          enum: ['basic', 'standard', 'deep'],
+          default: 'standard'
+        },
+        rules: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Security rules to apply'
+        },
+        excludePatterns: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Patterns to exclude'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  // Visual Testing Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__visual_compare_screenshots',
+    description: 'Compare screenshots with AI-powered diff analysis',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        baselineImage: {
+          type: 'string',
+          description: 'Path or URL to baseline image'
+        },
+        currentImage: {
+          type: 'string',
+          description: 'Path or URL to current image'
+        },
+        threshold: {
+          type: 'number',
+          default: 0.01,
+          minimum: 0,
+          maximum: 1,
+          description: 'Acceptable difference threshold (0-1)'
+        },
+        ignoreRegions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+              width: { type: 'number' },
+              height: { type: 'number' }
+            }
+          },
+          description: 'Regions to ignore (e.g., timestamps, ads)'
+        },
+        algorithm: {
+          type: 'string',
+          enum: ['pixel-diff', 'structural-similarity', 'ai-semantic'],
+          default: 'structural-similarity'
+        }
+      },
+      required: ['baselineImage', 'currentImage']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__visual_validate_accessibility',
+    description: 'Validate visual accessibility (color contrast, text size, WCAG)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'URL or screenshot path'
+        },
+        wcagLevel: {
+          type: 'string',
+          enum: ['A', 'AA', 'AAA'],
+          default: 'AA',
+          description: 'WCAG compliance level'
+        },
+        checks: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['color-contrast', 'text-size', 'touch-targets', 'focus-indicators'],
+          description: 'Accessibility checks to perform'
+        },
+        generateReport: { type: 'boolean', default: true },
+        includeRemediation: { type: 'boolean', default: true }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__visual_detect_regression',
+    description: 'Detect visual regressions across component library or pages',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        baseline: {
+          type: 'object',
+          properties: {
+            directory: { type: 'string' },
+            branch: { type: 'string' },
+            commit: { type: 'string' }
+          },
+          description: 'Baseline configuration'
+        },
+        current: {
+          type: 'object',
+          properties: {
+            directory: { type: 'string' },
+            branch: { type: 'string' },
+            commit: { type: 'string' }
+          },
+          description: 'Current configuration'
+        },
+        components: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Specific components to check'
+        },
+        threshold: {
+          type: 'number',
+          default: 0.05,
+          description: 'Regression threshold (0-1)'
+        },
+        parallelComparisons: {
+          type: 'number',
+          default: 4,
+          minimum: 1,
+          maximum: 16
+        }
+      },
+      required: ['baseline', 'current']
+    }
   }
 ];
 
@@ -1954,7 +2618,32 @@ export const TOOL_NAMES = {
   IMPROVEMENT_CYCLE: 'mcp__agentic_qe__improvement_cycle',
   IMPROVEMENT_AB_TEST: 'mcp__agentic_qe__improvement_ab_test',
   IMPROVEMENT_FAILURES: 'mcp__agentic_qe__improvement_failures',
-  PERFORMANCE_TRACK: 'mcp__agentic_qe__performance_track'
+  PERFORMANCE_TRACK: 'mcp__agentic_qe__performance_track',
+  // Phase 3: Domain-Specific Tools
+  // Coverage Domain
+  COVERAGE_ANALYZE_WITH_RISK_SCORING: 'mcp__agentic_qe__coverage_analyze_with_risk_scoring',
+  COVERAGE_DETECT_GAPS_ML: 'mcp__agentic_qe__coverage_detect_gaps_ml',
+  COVERAGE_RECOMMEND_TESTS: 'mcp__agentic_qe__coverage_recommend_tests',
+  COVERAGE_CALCULATE_TRENDS: 'mcp__agentic_qe__coverage_calculate_trends',
+  // Flaky Detection
+  FLAKY_DETECT_STATISTICAL: 'mcp__agentic_qe__flaky_detect_statistical',
+  FLAKY_ANALYZE_PATTERNS: 'mcp__agentic_qe__flaky_analyze_patterns',
+  FLAKY_STABILIZE_AUTO: 'mcp__agentic_qe__flaky_stabilize_auto',
+  // Performance
+  PERFORMANCE_ANALYZE_BOTTLENECKS: 'mcp__agentic_qe__performance_analyze_bottlenecks',
+  PERFORMANCE_GENERATE_REPORT: 'mcp__agentic_qe__performance_generate_report',
+  PERFORMANCE_RUN_BENCHMARK: 'mcp__agentic_qe__performance_run_benchmark',
+  PERFORMANCE_MONITOR_REALTIME_PHASE3: 'mcp__agentic_qe__performance_monitor_realtime', // Note: Duplicate name, keeping both for compatibility
+  // Security
+  SECURITY_VALIDATE_AUTH: 'mcp__agentic_qe__security_validate_auth',
+  SECURITY_CHECK_AUTHZ: 'mcp__agentic_qe__security_check_authz',
+  SECURITY_SCAN_DEPENDENCIES: 'mcp__agentic_qe__security_scan_dependencies',
+  SECURITY_GENERATE_REPORT: 'mcp__agentic_qe__security_generate_report',
+  SECURITY_SCAN_COMPREHENSIVE_PHASE3: 'mcp__agentic_qe__security_scan_comprehensive', // Note: Duplicate name, keeping both for compatibility
+  // Visual Testing
+  VISUAL_COMPARE_SCREENSHOTS: 'mcp__agentic_qe__visual_compare_screenshots',
+  VISUAL_VALIDATE_ACCESSIBILITY: 'mcp__agentic_qe__visual_validate_accessibility',
+  VISUAL_DETECT_REGRESSION: 'mcp__agentic_qe__visual_detect_regression'
 } as const;
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];

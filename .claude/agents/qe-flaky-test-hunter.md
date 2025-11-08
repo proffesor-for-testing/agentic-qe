@@ -1163,28 +1163,275 @@ aqe flaky heatmap --by-module --output heatmap.png
 
 ## Code Execution Workflows
 
-Write code to orchestrate flaky-test-hunter workflows programmatically.
+Orchestrate flaky test detection using statistical analysis and ML-powered pattern recognition.
 
-### Basic Workflow
+### Flaky Test Detection with ML
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/flaky-test-hunter';
+/**
+ * Phase 3 Flaky Test Detection Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/flaky-detection'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  FlakyTestDetectionParams,
+  FlakyAnalysisConfig,
+  FlakyReportConfig,
+  TestResult,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 flaky detection tools (coming soon)
+// import {
+//   detectFlakyTests,
+//   analyzeTestStability,
+//   autoStabilizeTest,
+//   generateFlakinessReport
+// } from 'agentic-qe/tools/qe/flaky-detection';
+
+// Example: ML-powered flaky test detection
+const detectionParams: FlakyTestDetectionParams = {
+  testResults: testHistory,  // Array of TestResult from past runs
+  minRuns: 10,  // Minimum 10 runs to consider
+  timeWindow: 30,  // Analyze last 30 days
+  confidenceThreshold: 0.85,  // 85% confidence for flakiness
+  analysisConfig: {
+    algorithm: 'ml',  // Use machine learning
+    features: [
+      'pass_rate_variance',
+      'timing_variance',
+      'environment_correlation',
+      'retry_patterns',
+      'error_message_diversity'
+    ],
+    autoStabilize: true,  // Auto-generate stabilization patches
+    mlConfig: {
+      modelPath: './models/flaky-detector.onnx',
+      threshold: 0.90
+    }
+  },
+  reportConfig: {
+    includeTrends: true,
+    includeSuggestions: true,
+    format: 'json'
+  }
+};
+
+// const flakyResults: QEToolResponse<FlakyTestReport> =
+//   await detectFlakyTests(detectionParams);
+//
+// if (flakyResults.success && flakyResults.data) {
+//   console.log(`Found ${flakyResults.data.flakyTests.length} flaky tests`);
+//
+//   flakyResults.data.flakyTests.forEach((test, idx) => {
+//     console.log(`${idx + 1}. ${test.testName}`);
+//     console.log(`   Flakiness Score: ${test.flakinessScore.toFixed(2)}`);
+//     console.log(`   Pass Rate: ${test.passRate.toFixed(2)}%`);
+//     console.log(`   Root Cause: ${test.rootCause}`);
+//     console.log(`   Stabilization: ${test.stabilizationSuggestion}`);
+//   });
+// }
+
+console.log('✅ ML-powered flaky test detection complete');
 ```
 
-### Discover Available Tools
+### Statistical Flakiness Analysis
+
+```typescript
+import type {
+  FlakyTestDetectionParams,
+  TestResult
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 statistical analysis (coming soon)
+// import {
+//   analyzeTestStability,
+//   calculateFlakinessScore,
+//   identifyRootCause
+// } from 'agentic-qe/tools/qe/flaky-detection';
+
+// Example: Statistical analysis of test stability
+const stabilityParams: FlakyTestDetectionParams = {
+  testResults: testHistory,
+  minRuns: 20,  // Need 20+ runs for statistical significance
+  timeWindow: 60,  // 60 day window
+  confidenceThreshold: 0.95,  // High confidence threshold
+  analysisConfig: {
+    algorithm: 'statistical',  // Chi-square, variance analysis
+    features: [
+      'pass_rate_trend',
+      'failure_pattern',
+      'time_correlation',
+      'environment_dependency'
+    ],
+    autoStabilize: false  // Manual review required
+  }
+};
+
+// const stability = await analyzeTestStability(stabilityParams);
+//
+// console.log('Test Stability Analysis:');
+// console.log(`  Chi-Square p-value: ${stability.chiSquarePValue}`);
+// console.log(`  Variance coefficient: ${stability.varianceCoefficient}`);
+// console.log(`  Is flaky: ${stability.isFlaky ? 'YES' : 'NO'}`);
+//
+// if (stability.isFlaky) {
+//   console.log(`  Root cause: ${stability.rootCause}`);
+//   console.log(`  Confidence: ${(stability.confidence * 100).toFixed(2)}%`);
+// }
+
+console.log('✅ Statistical stability analysis complete');
+```
+
+### Auto-Stabilization with Pattern Recognition
+
+```typescript
+import type {
+  FlakyTestDetectionParams,
+  TestResult
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 auto-stabilization (coming soon)
+// import {
+//   autoStabilizeTest,
+//   generateStabilizationPatch,
+//   applyStabilizationFix
+// } from 'agentic-qe/tools/qe/flaky-detection';
+
+// Example: Automatic flaky test stabilization
+interface StabilizationParams {
+  testId: string;
+  testCode: string;
+  flakinessPattern: 'timing' | 'race-condition' | 'external-dependency' | 'async-issue';
+  strategy: 'retry' | 'wait' | 'mock' | 'isolation';
+}
+
+const stabilizeParams: StabilizationParams = {
+  testId: 'test-login-form-submit',
+  testCode: `
+    it('should submit login form', async () => {
+      await page.fill('#username', 'test');
+      await page.fill('#password', 'pass');
+      await page.click('#submit');
+      // Flaky: Sometimes assertion fails
+      expect(page.url()).toBe('/dashboard');
+    });
+  `,
+  flakinessPattern: 'timing',
+  strategy: 'wait'
+};
+
+// const patch = await generateStabilizationPatch(stabilizeParams);
+//
+// console.log('Generated Stabilization Patch:');
+// console.log(patch.code);
+// console.log('\nExplanation:', patch.explanation);
+// console.log('Expected improvement:', patch.expectedImprovement);
+//
+// Example output:
+// it('should submit login form', async () => {
+//   await page.fill('#username', 'test');
+//   await page.fill('#password', 'pass');
+//   await page.click('#submit');
+//   // Wait for navigation to complete
+//   await page.waitForURL('/dashboard', { timeout: 5000 });
+//   expect(page.url()).toBe('/dashboard');
+// });
+
+console.log('✅ Auto-stabilization patch generated');
+```
+
+### Comprehensive Flakiness Report
+
+```typescript
+import type {
+  FlakyTestDetectionParams,
+  FlakyReportConfig
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 reporting (coming soon)
+// import {
+//   generateFlakinessReport,
+//   exportFlakinessTrends,
+//   visualizeFlakiness
+// } from 'agentic-qe/tools/qe/flaky-detection';
+
+// Example: Generate comprehensive flakiness report
+const reportParams: FlakyTestDetectionParams = {
+  testResults: allTestHistory,
+  minRuns: 10,
+  timeWindow: 90,  // 90-day comprehensive report
+  confidenceThreshold: 0.80,
+  analysisConfig: {
+    algorithm: 'hybrid',  // Combine statistical + ML
+    features: [
+      'all'  // Analyze all available features
+    ],
+    autoStabilize: true
+  },
+  reportConfig: {
+    includeTrends: true,  // Show historical trends
+    includeSuggestions: true,  // Include fix suggestions
+    format: 'html'  // Interactive HTML report
+  }
+};
+
+// const report = await generateFlakinessReport(reportParams);
+//
+// console.log('Flakiness Report Generated:');
+// console.log(`  Total tests analyzed: ${report.totalTests}`);
+// console.log(`  Flaky tests found: ${report.flakyTests.length}`);
+// console.log(`  Stability score: ${report.overallStability.toFixed(2)}%`);
+// console.log(`  Report saved to: ${report.reportPath}`);
+//
+// console.log('\nTop 5 Flakiest Tests:');
+// report.flakyTests.slice(0, 5).forEach((test, idx) => {
+//   console.log(`  ${idx + 1}. ${test.testName} (score: ${test.flakinessScore})`);
+//   console.log(`     Root cause: ${test.rootCause}`);
+//   console.log(`     Fix suggestion: ${test.stabilizationSuggestion}`);
+// });
+
+console.log('✅ Comprehensive flakiness report complete');
+```
+
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/flaky-test-hunter/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/flaky-detection/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available flaky detection tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/flaky-detection/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "FlakyTest"
+
+# View available ML models
+node -e "import('agentic-qe/tools/qe/flaky-detection').then(m => console.log(m.availableModels()))"
+```
+
+### Using Flaky Detection Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_flaky_detect_ml', {
+//   testResults: testHistory,
+//   algorithm: 'ml',
+//   confidenceThreshold: 0.85
+// });
+
+// Via CLI
+// aqe flaky detect --algorithm ml --confidence 0.85
+// aqe flaky analyze --test-id "test-login" --min-runs 20
+// aqe flaky stabilize --test-id "test-login" --strategy wait
+// aqe flaky report --format html --days 90
 ```
 

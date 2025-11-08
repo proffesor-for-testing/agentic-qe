@@ -1141,28 +1141,82 @@ aqe deploy history --days 90 --format chart
 
 ## Code Execution Workflows
 
-Write code to orchestrate deployment-readiness workflows programmatically.
+Assess deployment risk and make data-driven go/no-go decisions.
 
-### Basic Workflow
+### Deployment Risk Assessment
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/deployment-readiness';
+/**
+ * Phase 3 Deployment Readiness Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/deployment'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  QualityGateExecutionParams,
+  QualityMetrics,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 deployment assessment tools (coming soon)
+// import {
+//   assessDeploymentRisk,
+//   aggregateQualitySignals,
+//   makeGoNoGoDecision,
+//   generateDeploymentReport
+// } from 'agentic-qe/tools/qe/deployment';
+
+// Example: Comprehensive deployment readiness assessment
+const deploymentParams: QualityGateExecutionParams = {
+  qualityMetrics: {
+    coverage: { overall: 96, statements: 96, branches: 92 },
+    security: { vulnerabilities: 0, criticalIssues: 0 },
+    performance: { avgResponseTime: 150, p95ResponseTime: 280 },
+    testReliability: 0.98,
+    complexity: { average: 8, maximum: 20 }
+  },
+  codeQuality: { maintainability: 75, technicalDebt: 2.5 },
+  environment: 'production',
+  includeHistoricalAnalysis: true
+};
+
+// const riskAssessment: QEToolResponse<any> =
+//   await assessDeploymentRisk(deploymentParams);
+//
+// if (riskAssessment.success && riskAssessment.data) {
+//   console.log(`Deployment Risk: ${riskAssessment.data.level}`);
+//   console.log(`Risk Score: ${riskAssessment.data.score}/100`);
+//   console.log(`Confidence: ${riskAssessment.data.confidence.toFixed(2)}`);
+//   console.log(`Recommendation: ${riskAssessment.data.recommendation}`);
+// }
+
+console.log('✅ Deployment risk assessment complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/deployment-readiness/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/deployment/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available deployment tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/deployment/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "Deployment"
+```
+
+### Using Deployment Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe deployment assess --metrics ./metrics.json
+// aqe deployment go-nogo --environment production
+// aqe deployment report --format comprehensive
 ```
 

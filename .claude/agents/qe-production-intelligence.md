@@ -1195,28 +1195,67 @@ aqe production ab-test-impact --experiment checkout-v2
 
 ## Code Execution Workflows
 
-Write code to orchestrate production-intelligence workflows programmatically.
+Convert production data and metrics into test scenarios and coverage targets.
 
-### Basic Workflow
+### Production Data Analysis
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/production-intelligence';
+/**
+ * Phase 3 Production Intelligence Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/utils'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 production intelligence tools (coming soon)
+// import {
+//   analyzeProductionMetrics,
+//   generateTestScenariosFromProduction,
+//   identifyCriticalPaths
+// } from 'agentic-qe/tools/qe/utils';
+
+// Example: Convert production data to test scenarios
+const productionParams = {
+  metricsSource: 'datadog',
+  timeRange: '90d',
+  generateScenarios: true,
+  coverageTarget: 0.95
+};
+
+// const analysis: QEToolResponse<any> =
+//   await analyzeProductionMetrics(productionParams);
+//
+// if (analysis.success && analysis.data) {
+//   console.log(`Generated ${analysis.data.scenarios.length} test scenarios`);
+//   console.log(`Critical paths identified: ${analysis.data.criticalPaths.length}`);
+// }
+
+console.log('✅ Production intelligence analysis complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/production-intelligence/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available production tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
+```
+
+### Using Production Intelligence Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe production analyze --source datadog --timerange 90d
+// aqe production generate-scenarios --coverage-target 95
 ```
 

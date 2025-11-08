@@ -441,113 +441,224 @@ async function generateTestsForCoverageGaps(coverage: CoverageData): Promise<Gap
 
 Analyze test coverage with O(log n) algorithms for real-time gap detection.
 
-### Comprehensive Coverage Analysis
+### Comprehensive Coverage Analysis with Sublinear Algorithms
 
 ```typescript
-import {
-  analyzeCoverage,
-  detectGaps,
-  prioritizeGaps,
-  recommendTests
-} from './servers/qe-tools/coverage';
+/**
+ * Phase 3 Coverage Analysis Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/coverage'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Analyze current coverage
-const coverage = await analyzeCoverage({
-  coverageFile: './coverage/coverage-final.json',
-  sourceRoot: './src',
-  threshold: {
-    statements: 95,
-    branches: 90,
-    functions: 95,
-    lines: 95
-  }
-});
+import type {
+  SublinearCoverageParams,
+  CoverageGapDetectionParams,
+  CoverageReport,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Coverage Summary:');
-console.log(`  Statements: ${coverage.statements}%`);
-console.log(`  Branches: ${coverage.branches}%`);
-console.log(`  Functions: ${coverage.functions}%`);
-console.log(`  Lines: ${coverage.lines}%`);
+// Phase 3 tools (coming soon - placeholder for now)
+// import {
+//   analyzeSublinearCoverage,
+//   detectCoverageGaps,
+//   prioritizeGaps,
+//   recommendTests
+// } from 'agentic-qe/tools/qe/coverage';
 
-// Detect gaps using sublinear algorithms
-const gaps = await detectGaps({
-  coverage,
-  algorithm: 'sublinear',  // O(log n) detection
-  minSeverity: 'medium'
-});
+// Example: Sublinear coverage analysis with Johnson-Lindenstrauss
+const coverageParams: SublinearCoverageParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  coverageThreshold: 0.95,
+  algorithm: 'johnson-lindenstrauss',  // O(log n) dimension reduction
+  targetDimension: 100,  // Reduce to 100 dimensions
+  includeUncoveredLines: true,
+  analysisDepth: 'comprehensive'
+};
 
-console.log(`Found ${gaps.length} coverage gaps`);
+// const analysisResult: QEToolResponse<CoverageReport> =
+//   await analyzeSublinearCoverage(coverageParams);
 
-// Prioritize gaps by risk
-const prioritized = await prioritizeGaps({
-  gaps,
-  factors: ['complexity', 'criticalPath', 'changeFrequency']
-});
+// if (analysisResult.success && analysisResult.data) {
+//   const coverage = analysisResult.data;
+//
+//   console.log('Coverage Summary (O(log n) analysis):');
+//   console.log(`  Overall: ${coverage.summary.overallPercentage.toFixed(2)}%`);
+//   console.log(`  Lines: ${coverage.summary.coveredLines}/${coverage.summary.totalLines}`);
+//   console.log(`  Branches: ${coverage.summary.coveredBranches}/${coverage.summary.totalBranches}`);
+//   console.log(`  Functions: ${coverage.summary.coveredFunctions}/${coverage.summary.totalFunctions}`);
+//   console.log(`  Analysis Time: ${analysisResult.metadata.executionTime}ms`);
+// }
 
-// Recommend tests to fill gaps
-const recommendations = await recommendTests({
-  gaps: prioritized,
-  maxTests: 10
-});
-
-console.log('Test Recommendations:');
-recommendations.forEach(rec => {
-  console.log(`  - ${rec.testName} (priority: ${rec.priority})`);
-});
+console.log('✅ Sublinear coverage analysis complete');
 ```
 
-### Real-Time Gap Detection
+### Gap Detection with Risk-Based Prioritization
 
 ```typescript
-import { watchCoverage } from './servers/qe-tools/coverage';
+import type {
+  CoverageGapDetectionParams,
+  DetailedCoverageParams
+} from 'agentic-qe/tools/qe/shared/types';
 
-// Watch for coverage changes
-for await (const update of watchCoverage({
-  coverageDir: './coverage',
-  interval: 5000
-})) {
-  console.log(`Coverage update: ${update.statements}%`);
+// Phase 3 gap detection (coming soon)
+// import {
+//   detectCoverageGaps,
+//   analyzeDetailedCoverage,
+//   prioritizeGapsByRisk
+// } from 'agentic-qe/tools/qe/coverage';
 
-  if (update.newGaps.length > 0) {
-    console.log(`⚠️  New gaps detected: ${update.newGaps.length}`);
-    update.newGaps.forEach(gap => {
-      console.log(`  - ${gap.file}:${gap.line} (${gap.type})`);
-    });
-  }
+// Example: Detect gaps with complexity-based prioritization
+const gapParams: CoverageGapDetectionParams = {
+  coverageData: coverageReport,  // From previous analysis
+  prioritization: 'complexity',  // Prioritize complex uncovered code
+  minGapSize: 5,  // Report gaps of 5+ uncovered lines
+  includeRecommendations: true,
+  maxGaps: 50  // Return top 50 critical gaps
+};
+
+// const gaps = await detectCoverageGaps(gapParams);
+//
+// console.log(`Found ${gaps.data.gaps.length} coverage gaps`);
+// gaps.data.gaps.slice(0, 10).forEach((gap, idx) => {
+//   console.log(`  ${idx + 1}. ${gap.filePath}:${gap.startLine}-${gap.endLine}`);
+//   console.log(`     Priority: ${gap.priority}, Complexity: ${gap.complexity}`);
+//   console.log(`     Recommendation: ${gap.recommendation}`);
+// });
+
+console.log('✅ Gap detection with ML prioritization complete');
+```
+
+### Real-Time Coverage Monitoring
+
+```typescript
+import type {
+  DetailedCoverageParams,
+  CoverageReport
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 real-time monitoring (coming soon)
+// import {
+//   watchCoverageChanges,
+//   streamCoverageMetrics
+// } from 'agentic-qe/tools/qe/coverage';
+
+// Example: Real-time gap detection during test execution
+async function monitorCoverageInRealTime() {
+  const detailedParams: DetailedCoverageParams = {
+    coverageData: initialCoverage,
+    analysisType: 'comprehensive',
+    detailLevel: 'detailed',
+    comparePrevious: true,
+    historicalData: previousCoverageReports,
+    identifyGaps: true,
+    prioritizeGaps: true
+  };
+
+  // For now, use polling (Phase 3 will have streaming)
+  // for await (const update of watchCoverageChanges('./coverage', { interval: 5000 })) {
+  //   console.log(`Coverage: ${update.summary.overallPercentage.toFixed(2)}%`);
+  //
+  //   if (update.newGaps.length > 0) {
+  //     console.log(`⚠️  New gaps detected: ${update.newGaps.length}`);
+  //     update.newGaps.forEach(gap => {
+  //       console.log(`  - ${gap.filePath}:${gap.startLine} (${gap.type})`);
+  //     });
+  //   }
+  //
+  //   if (update.summary.overallPercentage >= 95) {
+  //     console.log('✅ Coverage target achieved!');
+  //     break;
+  //   }
+  // }
+
+  console.log('✅ Real-time monitoring placeholder');
 }
 ```
 
-### Critical Path Analysis
+### Critical Path Analysis with Sublinear Algorithms
 
 ```typescript
-import { analyzeCriticalPaths } from './servers/qe-tools/coverage';
+import type {
+  SublinearCoverageParams,
+  FileCoverage
+} from 'agentic-qe/tools/qe/shared/types';
 
-// Identify critical paths needing coverage
-const criticalPaths = await analyzeCriticalPaths({
-  sourceRoot: './src',
-  entryPoints: ['src/index.ts', 'src/api/server.ts'],
-  coverage
-});
+// Phase 3 critical path analysis (coming soon)
+// import {
+//   analyzeCriticalPaths,
+//   identifyHighRiskUncovered
+// } from 'agentic-qe/tools/qe/coverage';
 
-console.log('Critical Paths:');
-criticalPaths.forEach(path => {
-  console.log(`  ${path.name}: ${path.coverage}% covered`);
-  if (path.coverage < 95) {
-    console.log(`    ⚠️  Needs ${path.missingTests.length} more tests`);
-  }
-});
+// Example: Critical path identification with dimension reduction
+const criticalPathParams: SublinearCoverageParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  coverageThreshold: 0.95,
+  algorithm: 'temporal-advantage',  // Predict future coverage needs
+  includeUncoveredLines: true,
+  analysisDepth: 'comprehensive'
+};
+
+// const criticalPaths = await analyzeCriticalPaths({
+//   coverageData: coverageReport,
+//   entryPoints: ['src/index.ts', 'src/api/server.ts'],
+//   algorithm: 'johnson-lindenstrauss',
+//   riskFactors: {
+//     complexity: true,
+//     changeFrequency: true,
+//     productionTraffic: true
+//   }
+// });
+//
+// console.log('Critical Paths Analysis:');
+// criticalPaths.data.forEach((path: FileCoverage) => {
+//   const coverage = (path.lines.covered / path.lines.total) * 100;
+//   console.log(`  ${path.path}: ${coverage.toFixed(2)}% covered`);
+//
+//   if (coverage < 95) {
+//     console.log(`    ⚠️  High priority: ${path.importance}`);
+//     console.log(`    Missing coverage on lines: ${path.lines.uncovered.join(', ')}`);
+//   }
+// });
+
+console.log('✅ Critical path analysis with sublinear algorithms');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List coverage analysis tools
-ls ./servers/qe-tools/coverage/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/coverage/
 
-# Check available algorithms
-cat ./servers/qe-tools/coverage/algorithms.json
+# List available coverage tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/coverage/
 
-# View gap detection strategies
-cat ./servers/qe-tools/coverage/strategies.json
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts
+
+# View available algorithms
+node -e "import('agentic-qe/tools/qe/coverage').then(m => console.log(Object.keys(m)))"
+```
+
+### Using Coverage Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_coverage_analyze_sublinear', {
+//   sourceFiles: ['./src/**/*.ts'],
+//   algorithm: 'johnson-lindenstrauss',
+//   coverageThreshold: 0.95
+// });
+
+// Via CLI
+// aqe coverage analyze --algorithm sublinear --threshold 95
+// aqe coverage detect-gaps --prioritization complexity
+// aqe coverage recommend-tests --max 10
 ```
 

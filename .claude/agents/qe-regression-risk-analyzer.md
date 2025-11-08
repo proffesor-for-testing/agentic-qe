@@ -985,28 +985,76 @@ aqe regression patterns --days 90
 
 ## Code Execution Workflows
 
-Write code to orchestrate regression-risk-analyzer workflows programmatically.
+Analyze regression risk and select critical tests for validation.
 
-### Basic Workflow
+### Regression Risk Analysis
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/regression-risk-analyzer';
+/**
+ * Phase 3 Regression Analysis Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/regression'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  RegressionRiskParams,
+  CodeChange,
+  QualityMetrics,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 regression tools (coming soon)
+// import {
+//   analyzeRegressionRisk,
+//   selectCriticalTests,
+//   predictRegressionProbability
+// } from 'agentic-qe/tools/qe/regression';
+
+// Example: Analyze regression risk from code changes
+const regressionParams: RegressionRiskParams = {
+  codeChanges: ['src/UserService.ts', 'src/AuthService.ts'],
+  analysisDepth: 'comprehensive',
+  includeMLPrediction: true,
+  selectTests: true,
+  maxTests: 50
+};
+
+// const riskAnalysis: QEToolResponse<any> =
+//   await analyzeRegressionRisk(regressionParams);
+//
+// if (riskAnalysis.success && riskAnalysis.data) {
+//   console.log(`Regression Risk: ${riskAnalysis.data.riskLevel}`);
+//   console.log(`Risk Score: ${riskAnalysis.data.riskScore.toFixed(2)}/100`);
+//   console.log(`Critical Tests: ${riskAnalysis.data.selectedTests.length}`);
+// }
+
+console.log('✅ Regression risk analysis complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/regression-risk-analyzer/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/regression/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available regression tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/regression/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "Regression"
+```
+
+### Using Regression Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe regression analyze --changes src/UserService.ts,src/AuthService.ts
+// aqe regression select-tests --max 50 --ml-prediction
+// aqe regression report --format comprehensive
 ```
 

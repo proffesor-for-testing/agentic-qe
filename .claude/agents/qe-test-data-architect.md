@@ -1041,28 +1041,127 @@ aqe data localize --locales en,es,fr,de,ja
 
 ## Code Execution Workflows
 
-Write code to orchestrate test-data-architect workflows programmatically.
+Generate realistic, schema-aware test data with relationship preservation and GDPR compliance.
 
-### Basic Workflow
+### Schema-Aware Data Generation
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/test-data-architect';
+/**
+ * Phase 3 Test Data Architecture Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/test-generation'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  UnitTestGenerationParams,
+  IntegrationTestGenerationParams,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 data generation tools (coming soon)
+// import {
+//   generateTestData,
+//   analyzeSchema,
+//   preserveRelationships,
+//   ensureGDPRCompliance
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Generate realistic test data from schema
+const dataParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  schemaSource: 'prisma',
+  dataCount: 1000,
+  preserveRelationships: true,
+  includeEdgeCases: true,
+  gdprCompliance: true,
+  anonymizePersonalData: true
+};
+
+// const testData: QEToolResponse<any> =
+//   await generateTestData(dataParams);
+//
+// if (testData.success && testData.data) {
+//   console.log(`Generated ${testData.data.records.length} test records`);
+//   console.log(`Relationships preserved: ${testData.data.relationshipsPreserved}`);
+//   console.log(`GDPR compliant: ${testData.data.gdprCompliant}`);
+// }
+
+console.log('✅ Schema-aware test data generation complete');
 ```
 
-### Discover Available Tools
+### Database Seeding with Constraints
+
+```typescript
+import type {
+  IntegrationTestGenerationParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 constraint-aware generation (coming soon)
+// import {
+//   generateConstrainedData,
+//   validateReferentialIntegrity
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Generate data respecting all database constraints
+const constraintParams: IntegrationTestGenerationParams = {
+  schema: './schema.prisma',
+  constraints: {
+    enforceUnique: true,
+    enforceNotNull: true,
+    enforceChecks: true,
+    enforceForeignKeys: true
+  },
+  coverage: 'comprehensive',
+  recordCount: 500
+};
+
+// const constrainedData = await generateConstrainedData(constraintParams);
+//
+// // Validate referential integrity
+// const validation = await validateReferentialIntegrity(constrainedData);
+// console.log(`Referential integrity: ${validation.isValid ? 'PASS' : 'FAIL'}`);
+// console.log(`Orphaned records: ${validation.orphanedRecords}`);
+
+console.log('✅ Constraint-aware data generation complete');
+```
+
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/test-data-architect/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/test-generation/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available data generation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/test-generation/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "TestData"
+
+# View supported schema formats
+node -e "import('agentic-qe/tools/qe/test-generation').then(m => console.log(m.supportedSchemas()))"
+```
+
+### Using Test Data Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_generate_test_data', {
+//   schemaSource: 'prisma',
+//   schemaPath: './schema.prisma',
+//   dataCount: 1000,
+//   preserveRelationships: true
+// });
+
+// Via CLI
+// aqe generate data --schema ./schema.prisma --count 1000
+// aqe generate data --preserve-relationships --gdpr-compliant
+// aqe validate data --schema ./schema.prisma --referential-integrity
 ```
 

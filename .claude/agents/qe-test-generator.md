@@ -710,262 +710,171 @@ agentic-qe test generate --type performance --endpoints "${API_SPEC}"
 
 ## Code Execution Workflows
 
-**Anthropic Recommendation**: Use code execution over direct tool calls for 98.7% token reduction (150K → 2K tokens).
+Generate comprehensive test suites using AI-powered analysis and sublinear optimization.
 
-### Tool Discovery
+### AI-Powered Test Generation
 
-```bash
-# List available test generation tools
-ls -la ./src/mcp/handlers/test/
-# Files: test-generate-enhanced.ts, test-execute-parallel.ts,
-#        test-optimize-sublinear.ts, test-coverage-detailed.ts
+```typescript
+/**
+ * Phase 3 Test Generation Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/test-generation'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-# List analysis tools for test generation
-ls -la ./src/mcp/handlers/analysis/
-# Files: coverage-analyze.ts, code-quality-check.ts, dependency-analyze.ts
-```
+import type {
+  UnitTestGenerationParams,
+  IntegrationTestGenerationParams,
+  TestSuite,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-### Workflow 1: Basic Test Generation Orchestration
+// Phase 3 test generation tools (coming soon)
+// import {
+//   generateUnitTests,
+//   generateIntegrationTests,
+//   optimizeTestSelection,
+//   generatePropertyBasedTests
+// } from 'agentic-qe/tools/qe/test-generation';
 
-```javascript
-// Import handlers and services
-import { TestGenerateHandler } from '../src/mcp/handlers/test-generate.js';
-import { AgentRegistry } from '../src/mcp/services/AgentRegistry.js';
-import { HookExecutor } from '../src/mcp/services/HookExecutor.js';
-
-// Initialize orchestration components
-const registry = new AgentRegistry();
-const hookExecutor = new HookExecutor();
-const testGenerator = new TestGenerateHandler(registry, hookExecutor);
-
-// Define test generation specification
-const testSpec = {
-  type: 'unit',
-  sourceCode: {
-    repositoryUrl: 'https://github.com/example/repo',
-    branch: 'main',
-    language: 'javascript'
-  },
-  frameworks: ['jest'],
-  coverageTarget: 85,
-  synthesizeData: true
+// Example: Unit test generation with AI analysis
+const unitTestParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  framework: 'jest',
+  coverageTarget: 0.95,
+  analysisDepth: 'comprehensive',
+  generateEdgeCases: true,
+  synthetizeData: true,
+  algorithm: 'ai-sublinear'
 };
 
-// Execute test generation with error handling
-try {
-  const result = await testGenerator.handle({ spec: testSpec });
+// const testSuites: QEToolResponse<TestSuite[]> =
+//   await generateUnitTests(unitTestParams);
+//
+// if (testSuites.success && testSuites.data) {
+//   console.log(`Generated ${testSuites.data.length} test suites`);
+//
+//   testSuites.data.forEach((suite) => {
+//     console.log(`\nSuite: ${suite.name}`);
+//     console.log(`  Tests: ${suite.tests.length}`);
+//     console.log(`  Expected Coverage: ${suite.expectedCoverage.toFixed(2)}%`);
+//   });
+// }
 
-  if (result.success) {
-    console.log(`Generated ${result.data.tests.length} tests`);
-    console.log(`Coverage: ${result.data.coverage.achieved}%`);
-
-    // Conditional logic: Check if coverage target met
-    if (result.data.coverage.achieved < testSpec.coverageTarget) {
-      console.log('Coverage gap detected, generating additional tests...');
-
-      // Generate additional tests for gaps
-      for (const gap of result.data.coverage.gaps) {
-        const additionalSpec = {
-          ...testSpec,
-          targetFiles: [gap.file],
-          focusAreas: gap.functions
-        };
-        await testGenerator.handle({ spec: additionalSpec });
-      }
-    }
-  }
-} catch (error) {
-  console.error('Test generation failed:', error.message);
-  // Fallback strategy: Use alternative test generation approach
-  console.log('Attempting alternative test generation strategy...');
-}
+console.log('✅ AI-powered test generation complete');
 ```
 
-### Workflow 2: Property-Based Test Generation
+### Property-Based Test Generation
 
-```javascript
-import { CodeAnalyzer } from '../src/mcp/handlers/analysis/code-quality-check.js';
+```typescript
+import type {
+  UnitTestGenerationParams,
+  TestSuite
+} from 'agentic-qe/tools/qe/shared/types';
 
-async function generatePropertyBasedTests(modulePath) {
-  // Step 1: Analyze code for property candidates
-  console.log('Analyzing code for property-based testing opportunities...');
-  const codeAnalyzer = new CodeAnalyzer(registry, hookExecutor);
+// Phase 3 property-based generation (coming soon)
+// import {
+//   generatePropertyBasedTests,
+//   analyzePureFunctions,
+//   generateArbitraries
+// } from 'agentic-qe/tools/qe/test-generation';
 
-  const analysisResult = await codeAnalyzer.handle({
-    filePath: modulePath,
-    analysisTypes: ['complexity', 'dependencies', 'patterns']
-  });
+// Example: Property-based testing for pure functions
+const propertyParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/utils/**/*.ts'],
+  framework: 'jest',
+  testType: 'property-based',
+  algorithm: 'fast-check-integration',
+  generateArbitraries: true,
+  shrinkingEnabled: true,
+  numExamples: 1000
+};
 
-  // Step 2: Identify pure functions (good candidates for property testing)
-  const pureFunctions = analysisResult.data.functions.filter(f =>
-    f.isPure && f.complexity < 10
-  );
+// const propertyTests: QEToolResponse<TestSuite[]> =
+//   await generatePropertyBasedTests(propertyParams);
+//
+// console.log('Property-Based Tests Generated:');
+// propertyTests.data.forEach((suite) => {
+//   console.log(`\n${suite.name}:`);
+//   suite.tests.forEach((test) => {
+//     console.log(`  - ${test.name}`);
+//     console.log(`    Arbitraries: ${test.arbitraries.join(', ')}`);
+//   });
+// });
 
-  console.log(`Found ${pureFunctions.length} candidates for property-based testing`);
-
-  // Step 3: Generate property tests for each function
-  const propertyTests = [];
-  for (const func of pureFunctions) {
-    const testSpec = {
-      type: 'property-based',
-      sourceCode: {
-        repositoryUrl: modulePath,
-        branch: 'main',
-        language: 'javascript'
-      },
-      frameworks: ['jest', 'fast-check'],
-      targetFunction: func.name,
-      properties: inferProperties(func), // Infer mathematical properties
-      coverageTarget: 95
-    };
-
-    const result = await testGenerator.handle({ spec: testSpec });
-    propertyTests.push(result.data);
-  }
-
-  return propertyTests;
-}
-
-function inferProperties(func) {
-  // Infer properties based on function signature and name
-  const properties = [];
-
-  if (func.name.includes('sort')) {
-    properties.push('idempotence', 'ordering', 'length-preservation');
-  }
-  if (func.name.includes('reverse')) {
-    properties.push('involution', 'length-preservation');
-  }
-  if (func.returnType === func.parameters[0]?.type) {
-    properties.push('same-type');
-  }
-
-  return properties;
-}
+console.log('✅ Property-based test generation complete');
 ```
 
-### Workflow 3: Integration with Coverage Analyzer
+### Sublinear-Optimized Test Selection
 
-```javascript
-import { CoverageAnalyzeHandler } from '../src/mcp/handlers/analysis/coverage-analyze.js';
+```typescript
+import type {
+  UnitTestGenerationParams
+} from 'agentic-qe/tools/qe/shared/types';
 
-async function generateTestsForCoverageGaps(projectPath) {
-  const coverageAnalyzer = new CoverageAnalyzeHandler(registry, hookExecutor);
+// Phase 3 optimization (coming soon)
+// import {
+//   optimizeTestSelection,
+//   calculateSublinearScore
+// } from 'agentic-qe/tools/qe/test-generation';
 
-  // Step 1: Run coverage analysis
-  console.log('Analyzing coverage gaps...');
-  const coverageResult = await coverageAnalyzer.handle({
-    projectPath,
-    thresholds: { statements: 80, branches: 75, functions: 85 },
-    includePatterns: ['src/**/*.js', 'lib/**/*.js']
-  });
+// Example: Generate optimal test set with sublinear algorithms
+const optimizationParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  framework: 'jest',
+  coverageTarget: 0.95,
+  timeBudget: 600, // 10 minutes max execution
+  algorithm: 'sublinear-optimization',
+  optimizationStrategy: 'pareto-frontier',
+  includeUncoveredLines: true,
+  analysisDepth: 'comprehensive'
+};
 
-  // Step 2: Prioritize gaps by criticality
-  const criticalGaps = coverageResult.data.uncoveredFiles
-    .filter(f => f.coverage.statements < 50)
-    .sort((a, b) => a.coverage.statements - b.coverage.statements);
+// const optimizedSuite: QEToolResponse<TestSuite> =
+//   await optimizeTestSelection(optimizationParams);
+//
+// console.log('Optimized Test Suite:');
+// console.log(`  Tests: ${optimizedSuite.data.tests.length}`);
+// console.log(`  Expected Coverage: ${optimizedSuite.data.expectedCoverage.toFixed(2)}%`);
+// console.log(`  Execution Time: ${optimizedSuite.data.estimatedRunTime}ms`);
+// console.log(`  Optimization Score: ${optimizedSuite.data.optimizationScore.toFixed(4)}`);
 
-  console.log(`Found ${criticalGaps.length} critical coverage gaps`);
-
-  // Step 3: Generate tests for critical gaps
-  for (const gap of criticalGaps) {
-    console.log(`Generating tests for ${gap.path} (${gap.coverage.statements}% coverage)`);
-
-    const testSpec = {
-      type: 'unit',
-      sourceCode: {
-        repositoryUrl: projectPath,
-        branch: 'main',
-        language: 'javascript'
-      },
-      frameworks: ['jest'],
-      targetFiles: [gap.path],
-      targetLines: gap.uncoveredLines,
-      coverageTarget: 80,
-      synthesizeData: true
-    };
-
-    const result = await testGenerator.handle({ spec: testSpec });
-
-    // Verify coverage improvement
-    const newCoverage = await coverageAnalyzer.handle({
-      projectPath,
-      fileFilter: gap.path
-    });
-
-    const improvement = newCoverage.data.coverage.statements - gap.coverage.statements;
-    console.log(`  Coverage improved by ${improvement}%`);
-  }
-}
+console.log('✅ Sublinear test optimization complete');
 ```
 
-### Workflow 4: Error Handling Patterns
+### Phase 3 Tool Discovery
 
-```javascript
-// Pattern 1: Retry with exponential backoff
-async function generateTestsWithRetry(testSpec, maxRetries = 3) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await testGenerator.handle({ spec: testSpec });
-    } catch (error) {
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
-    }
-  }
-}
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/test-generation/
 
-// Pattern 2: Fallback to simpler test generation
-async function generateTestsWithFallback(testSpec) {
-  try {
-    // Try advanced property-based generation
-    return await testGenerator.handle({
-      spec: { ...testSpec, type: 'property-based' }
-    });
-  } catch (error) {
-    console.log('Advanced generation failed, falling back to unit tests...');
-    return await testGenerator.handle({
-      spec: { ...testSpec, type: 'unit' }
-    });
-  }
-}
+# List available test generation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/test-generation/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "TestGeneration"
+
+# View available algorithms
+node -e "import('agentic-qe/tools/qe/test-generation').then(m => console.log(m.availableAlgorithms()))"
 ```
 
-### Memory Coordination
+### Using Test Generation Tools via MCP (Phase 3)
 
-```javascript
-import { MemoryStore } from '../src/memory/MemoryStore.js';
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
 
-const memoryStore = new MemoryStore();
+// Via MCP client
+// const result = await mcpClient.callTool('qe_generate_unit_tests', {
+//   sourceFiles: ['./src/**/*.ts'],
+//   framework: 'jest',
+//   coverageTarget: 0.95
+// });
 
-// Store test generation results for coordination
-await memoryStore.store('aqe/test-generation/results', {
-  suiteId: testSuite.id,
-  testsGenerated: testSuite.tests.length,
-  coverage: testSuite.coverage.achieved,
-  timestamp: Date.now()
-}, {
-  partition: 'agent_results',
-  ttl: 86400 // 24 hours
-});
-
-// Retrieve prior test generation patterns
-const patterns = await memoryStore.retrieve('aqe/neural/patterns/test-generation', {
-  partition: 'neural'
-});
-```
-
-**See also**: `/workspaces/agentic-qe-cf/templates/agent-code-execution-template.md` for complete workflow patterns.
-
-## Integration with QE Fleet
-
-This agent integrates seamlessly with the Agentic QE Fleet through:
-- **EventBus**: Real-time coordination with other QE agents
-- **MemoryManager**: Persistent storage of test generation patterns
-- **FleetManager**: Lifecycle management and health monitoring
-- **Neural Network**: Continuous learning from test execution results
-- **Sublinear Solver**: Optimization algorithms for efficient test selection
+// Via CLI
+// aqe generate tests --type unit --framework jest --coverage 95
+// aqe generate tests --type property-based --algorithm fast-check
+// aqe optimize tests --coverage 95 --time-budget 600

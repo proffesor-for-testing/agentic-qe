@@ -574,28 +574,138 @@ agentic-qe agent metrics --name qe-security-scanner
 
 ## Code Execution Workflows
 
-Write code to orchestrate security-scanner workflows programmatically.
+Execute multi-layer security scanning using SAST, DAST, and vulnerability detection.
 
-### Basic Workflow
+### Multi-Layer Security Scanning
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/security-scanner';
+/**
+ * Phase 3 Security Scanning Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/security'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  SecurityScanParams,
+  SecurityScanResults,
+  Vulnerability,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 security tools (coming soon)
+// import {
+//   runSASTScan,
+//   runDASTScan,
+//   detectVulnerabilities,
+//   generateSecurityReport
+// } from 'agentic-qe/tools/qe/security';
+
+// Example: Multi-layer security scanning
+const scanParams: SecurityScanParams = {
+  targetUrl: 'https://api.example.com',
+  sourceCode: './src',
+  scanTypes: ['sast', 'dast', 'dependency'],
+  frameworks: ['node', 'express'],
+  complianceStandards: ['owasp-top-10', 'pci-dss'],
+  severityThreshold: 'medium',
+  includeRecommendations: true
+};
+
+// const scanResults: QEToolResponse<SecurityScanResults> =
+//   await runSecurityScan(scanParams);
+//
+// if (scanResults.success && scanResults.data) {
+//   console.log(`Found ${scanResults.data.vulnerabilities.length} vulnerabilities`);
+//
+//   scanResults.data.vulnerabilities.forEach((vuln, idx) => {
+//     console.log(`${idx + 1}. ${vuln.title}`);
+//     console.log(`   Severity: ${vuln.severity}`);
+//     console.log(`   CVSS: ${vuln.cvss}`);
+//     console.log(`   Remediation: ${vuln.remediation}`);
+//   });
+// }
+
+console.log('✅ Multi-layer security scanning complete');
 ```
 
-### Discover Available Tools
+### Vulnerability Detection with CVSS Scoring
+
+```typescript
+import type {
+  SecurityScanParams,
+  Vulnerability
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 vulnerability detection (coming soon)
+// import {
+//   detectVulnerabilities,
+//   calculateCVSSScore,
+//   prioritizeByRisk
+// } from 'agentic-qe/tools/qe/security';
+
+// Example: Vulnerability detection with risk prioritization
+const vulnParams: SecurityScanParams = {
+  sourceCode: './src',
+  scanTypes: ['sast', 'dependency'],
+  includeDevDependencies: true,
+  checkForSecrets: true,
+  customRules: {
+    sql_injection: true,
+    xss: true,
+    csrf: true
+  }
+};
+
+// const vulnResults = await detectVulnerabilities(vulnParams);
+//
+// console.log('Vulnerability Analysis:');
+// const prioritized = vulnResults.data.vulnerabilities
+//   .sort((a, b) => parseFloat(b.cvss) - parseFloat(a.cvss));
+//
+// prioritized.forEach((vuln: Vulnerability) => {
+//   console.log(`- ${vuln.title} (CVSS: ${vuln.cvss})`);
+//   console.log(`  Affected: ${vuln.affectedComponent}`);
+//   console.log(`  Remediation: ${vuln.remediation}`);
+// });
+
+console.log('✅ Vulnerability detection with risk scoring complete');
+```
+
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/security-scanner/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/security/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available security tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/security/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "SecurityScan"
+
+# View available security checks
+node -e "import('agentic-qe/tools/qe/security').then(m => console.log(Object.keys(m)))"
+```
+
+### Using Security Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_security_scan_multi', {
+//   targetUrl: 'https://api.example.com',
+//   scanTypes: ['sast', 'dast', 'dependency']
+// });
+
+// Via CLI
+// aqe security scan --target https://api.example.com --type sast,dast
+// aqe security check-dependencies --include-dev
+// aqe security report --format html --severity medium
 ```
 

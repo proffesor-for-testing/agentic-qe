@@ -416,114 +416,146 @@ agentic-qe agent history qe-quality-gate --decisions --limit 50
 
 ## Code Execution Workflows
 
-Automated quality gate validation with risk assessment and policy enforcement.
+Validate quality gates with comprehensive metrics and risk assessment.
 
 ### Comprehensive Quality Gate Check
 
 ```typescript
-import {
-  validateQualityGate,
-  assessRisk,
-  checkPolicies,
-  generateReport
-} from './servers/qe-tools/quality-gate';
+/**
+ * Phase 3 Quality Gate Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/quality-gates'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Define quality gate policies
-const policies = {
-  coverage: { statements: 95, branches: 90 },
-  security: { maxVulnerabilities: 0, maxCritical: 0 },
-  performance: { maxResponseTime: 200, maxMemory: 512 },
-  complexity: { maxCyclomaticComplexity: 15 },
-  duplication: { maxDuplicateLines: 3 }
-};
+import type {
+  QualityGateExecutionParams,
+  QualityPolicy,
+  QualityMetrics,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-// Run quality gate validation
-const result = await validateQualityGate({
-  policies,
+// Phase 3 quality gate tools (coming soon)
+// import {
+//   validateQualityGate,
+//   assessRisk,
+//   makeMergeDecision,
+//   generateQualityReport
+// } from 'agentic-qe/tools/qe/quality-gates';
+
+// Example: Comprehensive quality gate validation
+const gateParams: QualityGateExecutionParams = {
+  policies: {
+    coverage: { statements: 95, branches: 90, functions: 95 },
+    security: { maxVulnerabilities: 0, maxCritical: 0 },
+    performance: { maxResponseTime: 200, maxMemory: 512 },
+    complexity: { maxCyclomaticComplexity: 15 },
+    duplication: { maxDuplicateLines: 3 }
+  },
   sources: {
     coverage: './coverage/coverage-final.json',
     security: './reports/security-scan.json',
-    performance: './reports/performance.json',
-    complexity: './reports/complexity.json'
-  }
-});
+    performance: './reports/performance.json'
+  },
+  environment: 'production'
+};
 
-console.log('Quality Gate Result:', result.status);
-console.log(`Passed: ${result.passed.length} checks`);
-console.log(`Failed: ${result.failed.length} checks`);
+// const gateResult: QEToolResponse<any> =
+//   await validateQualityGate(gateParams);
+//
+// if (gateResult.success && gateResult.data) {
+//   console.log('Quality Gate Result:', gateResult.data.status);
+//   console.log(`Passed: ${gateResult.data.passed.length} checks`);
+//   console.log(`Failed: ${gateResult.data.failed.length} checks`);
+//
+//   if (gateResult.data.status === 'FAILED') {
+//     gateResult.data.failed.forEach((check: any) => {
+//       console.error(`  - ${check.name}: ${check.message}`);
+//     });
+//   }
+// }
 
-// Assess deployment risk
-const risk = await assessRisk({
-  qualityGate: result,
-  historicalData: './data/historical-quality.json'
-});
-
-console.log(`Deployment Risk: ${risk.level} (${risk.score}/100)`);
-
-if (result.status === 'FAILED') {
-  console.error('❌ Quality gate failed. Deployment blocked.');
-  result.failed.forEach(check => {
-    console.error(`  - ${check.name}: ${check.message}`);
-  });
-  process.exit(1);
-} else {
-  console.log('✅ Quality gate passed. Deployment approved.');
-}
+console.log('✅ Quality gate validation complete');
 ```
 
-### Policy Validation
+### Risk Assessment and Deployment Decision
 
 ```typescript
-import { validatePolicies } from './servers/qe-tools/quality-gate';
+import type {
+  QualityGateExecutionParams,
+  QualityMetrics
+} from 'agentic-qe/tools/qe/shared/types';
 
-// Load custom policies
-const policies = require('./policies/quality-gate.json');
+// Phase 3 risk assessment (coming soon)
+// import {
+//   assessDeploymentRisk,
+//   makeMergeDecision
+// } from 'agentic-qe/tools/qe/quality-gates';
 
-// Validate against policies
-const validation = await validatePolicies({
-  policies,
-  metrics: {
-    testCoverage: 96,
-    codeComplexity: 12,
-    securityIssues: 0,
-    performance: { avgResponseTime: 150 }
-  }
-});
+// Example: Assess risk and make deployment decision
+const riskParams: QualityGateExecutionParams = {
+  qualityMetrics: {
+    coverage: { overall: 96, statements: 96, branches: 92 },
+    security: { vulnerabilities: 0, criticalIssues: 0 },
+    performance: { avgResponseTime: 150, p95ResponseTime: 280 },
+    testReliability: 0.98,
+    complexity: { average: 8, maximum: 20 }
+  },
+  historicalData: './data/historical-quality.json',
+  environment: 'production'
+};
 
-validation.results.forEach(result => {
-  const icon = result.passed ? '✅' : '❌';
-  console.log(`${icon} ${result.policy}: ${result.message}`);
-});
+// const riskAssessment = await assessDeploymentRisk(riskParams);
+//
+// console.log(`Deployment Risk: ${riskAssessment.level} (${riskAssessment.score}/100)`);
+// console.log(`Confidence: ${riskAssessment.confidence.toFixed(2)}`);
+//
+// const decision = await makeMergeDecision({
+//   ...riskAssessment,
+//   requireApproval: true
+// });
+//
+// console.log('Merge Decision:', decision.recommendation);
+// console.log('Reasoning:', decision.reasoning);
+
+console.log('✅ Risk assessment and deployment decision complete');
 ```
 
-### Automated Go/No-Go Decision
-
-```typescript
-import { makeDeploymentDecision } from './servers/qe-tools/quality-gate';
-
-// Make automated deployment decision
-const decision = await makeDeploymentDecision({
-  qualityGate: result,
-  risk: risk,
-  environment: 'production',
-  requireApproval: true
-});
-
-console.log('Deployment Decision:', decision.recommendation);
-console.log('Confidence:', decision.confidence);
-console.log('Reasoning:', decision.reasoning);
-```
-
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List quality gate tools
-ls ./servers/qe-tools/quality-gate/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/quality-gates/
 
-# View available policies
-cat ./servers/qe-tools/quality-gate/policies.json
+# List available quality gate tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/quality-gates/
 
-# Check risk models
-cat ./servers/qe-tools/quality-gate/risk-models.json
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "QualityGate"
+
+# View policy templates
+node -e "import('agentic-qe/tools/qe/quality-gates').then(m => console.log(m.availablePolicyTemplates()))"
 ```
+
+### Using Quality Gate Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Once domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_validate_quality_gate', {
+//   policies: {coverage: {statements: 95}, security: {maxVulns: 0}},
+//   sources: {...}
+// });
+
+// Via CLI
+// aqe quality gate validate --policies ./policies.json
+// aqe quality gate assess-risk --metrics ./metrics.json
+// aqe quality gate merge-decision --environment production
+```
+
 

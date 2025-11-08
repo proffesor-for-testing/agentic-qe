@@ -724,28 +724,68 @@ const validationWorkflow = {
 
 ## Code Execution Workflows
 
-Write code to orchestrate requirements-validator workflows programmatically.
+Validate requirements against INVEST criteria and generate BDD scenarios.
 
-### Basic Workflow
+### Requirements Validation
 
 ```typescript
-import { /* tools */ } from './servers/qe-tools/requirements-validator';
+/**
+ * Phase 3 Requirements Validation Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/utils'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
 
-// Example workflow code
-const result = await executeWorkflow({
-  // workflow parameters
-});
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
 
-console.log('Workflow completed:', result);
+// Phase 3 requirements validation tools (coming soon)
+// import {
+//   validateINVESTCriteria,
+//   generateBDDScenarios,
+//   analyzeRequirementCompleteness
+// } from 'agentic-qe/tools/qe/utils';
+
+// Example: Validate requirements against INVEST criteria
+const requirementValidationParams = {
+  requirements: ['User must be able to login with email and password'],
+  validateINVEST: true,
+  generateBDD: true
+};
+
+// const validation: QEToolResponse<any> =
+//   await validateINVESTCriteria(requirementValidationParams);
+//
+// if (validation.success && validation.data) {
+//   console.log('Requirement Validation:');
+//   validation.data.results.forEach((result: any) => {
+//     console.log(`  ${result.criterion}: ${result.passed ? 'PASS' : 'FAIL'}`);
+//   });
+// }
+
+console.log('✅ Requirements validation complete');
 ```
 
-### Discover Available Tools
+### Phase 3 Tool Discovery
 
 ```bash
-# List available tools
-ls ./servers/qe-tools/requirements-validator/
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
 
-# Search for specific functionality
-./servers/qe-tools/search_tools.ts "keyword"
+# List available validation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
+```
+
+### Using Requirements Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (coming soon)
+// Via CLI
+// aqe requirements validate --invest --file requirements.txt
+// aqe requirements generate-bdd --requirement "User login"
 ```
 
