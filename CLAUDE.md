@@ -582,7 +582,7 @@ aqe improve cycle
 
 ## 📚 Documentation
 
-- **Agent Definitions**: \`.claude/agents/\` - 18 specialized QE agents
+- **Agent Definitions**: \`.claude/agents/\` - 26 QE agents (18 main agents + 8 TDD subagents)
 - **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16)
 - **Fleet Config**: \`.agentic-qe/config/fleet.json\`
 - **Routing Config**: \`.agentic-qe/config/routing.json\` (Multi-Model Router settings)

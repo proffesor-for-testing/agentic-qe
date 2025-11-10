@@ -72,20 +72,30 @@ export class Phase2ToolsHandler extends BaseHandler {
       if (agentId) {
         // Get specific agent learning status
         const engine = this.learningEngines.get(agentId);
+
+        // Return empty status for agents that don't exist yet (not initialized)
         if (!engine) {
-          return this.createErrorResponse(
-            `Learning engine not found for agent: ${agentId}`,
-            requestId
-          );
+          const status = {
+            agentId,
+            enabled: false,
+            totalExperiences: 0,
+            explorationRate: 0.1,
+            patterns: [],
+            failurePatterns: []
+          };
+          return this.createSuccessResponse(status, requestId);
         }
+
+        const patterns = engine.getPatterns() || [];
+        const failurePatterns = engine.getFailurePatterns() || [];
 
         const status = {
           agentId,
           enabled: engine.isEnabled(),
           totalExperiences: engine.getTotalExperiences(),
           explorationRate: engine.getExplorationRate(),
-          patterns: detailed ? engine.getPatterns() : engine.getPatterns().slice(0, 5),
-          failurePatterns: detailed ? engine.getFailurePatterns() : engine.getFailurePatterns().slice(0, 3)
+          patterns: detailed ? patterns : patterns.slice(0, 5),
+          failurePatterns: detailed ? failurePatterns : failurePatterns.slice(0, 3)
         };
 
         return this.createSuccessResponse(status, requestId);
@@ -182,11 +192,15 @@ export class Phase2ToolsHandler extends BaseHandler {
       const experiencesKey = `phase2/learning/${agentId}/state`;
       const state = await this.memoryStore.retrieve(experiencesKey, { partition: 'learning' });
 
+      // Return empty history if no state found (agent not trained yet)
       if (!state) {
-        return this.createErrorResponse(
-          `No learning history found for agent: ${agentId}`,
-          requestId
-        );
+        return this.createSuccessResponse({
+          agentId,
+          totalExperiences: 0,
+          experiences: [],
+          patterns: [],
+          performance: {}
+        }, requestId);
       }
 
       const experiences = (state as any).experiences || [];
@@ -278,21 +292,23 @@ export class Phase2ToolsHandler extends BaseHandler {
         const stateKey = `phase2/learning/${agentId}/state`;
         const state = await this.memoryStore.retrieve(stateKey, { partition: 'learning' });
 
-        if (!state) {
-          return this.createErrorResponse(
-            `No learning data found for agent: ${agentId}`,
-            requestId
-          );
-        }
+        // Return empty data if no state found (agent not trained yet)
+        const exportData = state || {
+          agentId,
+          totalExperiences: 0,
+          experiences: [],
+          patterns: [],
+          performance: {}
+        };
 
         if (format === 'json') {
           return this.createSuccessResponse({
             format: 'json',
-            data: state
+            data: exportData
           }, requestId);
         } else {
           // Convert to CSV
-          const csv = this.convertToCSV(state as any);
+          const csv = this.convertToCSV(exportData as any);
           return this.createSuccessResponse({
             format: 'csv',
             data: csv
@@ -609,11 +625,15 @@ export class Phase2ToolsHandler extends BaseHandler {
 
       if (agentId) {
         const loop = this.improvementLoops.get(agentId);
+
+        // Return empty status for agents without improvement loop (not started yet)
         if (!loop) {
-          return this.createErrorResponse(
-            `Improvement loop not found for agent: ${agentId}`,
-            requestId
-          );
+          return this.createSuccessResponse({
+            agentId,
+            active: false,
+            activeTests: [],
+            strategies: []
+          }, requestId);
         }
 
         return this.createSuccessResponse({
@@ -622,7 +642,7 @@ export class Phase2ToolsHandler extends BaseHandler {
           activeTests: loop.getActiveTests(),
           strategies: loop.getStrategies()
         }, requestId);
-      } else {
+      } else{
         // Get all improvement loops status
         const statuses = [];
         for (const [id, loop] of this.improvementLoops.entries()) {
