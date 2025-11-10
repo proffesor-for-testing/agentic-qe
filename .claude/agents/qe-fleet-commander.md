@@ -1,27 +1,6 @@
 ---
 name: qe-fleet-commander
-type: fleet-commander
-color: purple
-priority: critical
-description: "Hierarchical fleet coordinator for 50+ agent orchestration with dynamic topology management and resource optimization"
-capabilities:
-  - agent-lifecycle-management
-  - resource-allocation
-  - topology-optimization
-  - conflict-resolution
-  - load-balancing
-  - fault-tolerance
-  - scaling-orchestration
-  - performance-monitoring
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  max_agents: 50
-  topology_modes: ["hierarchical", "mesh", "hybrid", "adaptive"]
-  optimization: "sublinear-scheduling"
-  neural_patterns: true
-  memory_namespace: "aqe/fleet/*"
+description: Hierarchical fleet coordinator for 50+ agent orchestration with dynamic topology management and resource optimization
 ---
 
 # Fleet Commander Agent - Hierarchical Agent Orchestration
@@ -716,3 +695,127 @@ Uses neural patterns to:
 - Optimize agent allocation proactively
 - Prevent resource conflicts before they occur
 - Minimize total coordination overhead
+
+## Code Execution Workflows
+
+Orchestrate QE fleet coordination and multi-agent task execution.
+
+### Fleet Orchestration
+
+```typescript
+/**
+ * Fleet Coordination Tools
+ *
+ * Import path: 'agentic-qe/tools/qe/fleet'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+import {
+  orchestrateFleet,
+  monitorFleetHealth,
+  optimizeTopology
+} from 'agentic-qe/tools/qe/fleet';
+
+// Example: Coordinate multi-agent testing workflow
+const fleetParams = {
+  task: 'comprehensive-testing',
+  agents: [
+    { type: 'test-generator', count: 3, priority: 'high' },
+    { type: 'test-executor', count: 5, priority: 'critical' },
+    { type: 'coverage-analyzer', count: 2, priority: 'medium' },
+    { type: 'quality-gate', count: 1, priority: 'high' }
+  ],
+  topology: 'hierarchical',
+  maxConcurrent: 20,
+  resourceLimits: {
+    cpuPerAgent: 0.5,
+    memoryPerAgent: '512MB'
+  },
+  coordinationStrategy: 'hierarchical'
+};
+
+const orchestration: QEToolResponse<any> =
+  await orchestrateFleet(fleetParams);
+
+if (orchestration.success && orchestration.data) {
+  console.log('Fleet Orchestration:');
+  console.log(`  Status: ${orchestration.data.status}`);
+  console.log(`  Active Agents: ${orchestration.data.activeAgents}`);
+  console.log(`  Tasks Completed: ${orchestration.data.tasksCompleted}`);
+  console.log(`  Efficiency: ${(orchestration.data.efficiency * 100).toFixed(1)}%`);
+}
+
+console.log('✅ Fleet orchestration complete');
+```
+
+### Fleet Health Monitoring
+
+```typescript
+// Monitor fleet health and performance metrics
+const healthParams = {
+  includeMetrics: true,
+  includeAgentStatus: true,
+  checkResourceUsage: true
+};
+
+const health: QEToolResponse<any> =
+  await monitorFleetHealth(healthParams);
+
+if (health.success && health.data) {
+  console.log('\nFleet Health:');
+  console.log(`  Overall Status: ${health.data.status}`);
+  console.log(`  Active Agents: ${health.data.activeAgents}/${health.data.totalAgents}`);
+  console.log(`  CPU Usage: ${health.data.resourceUsage.cpu}%`);
+  console.log(`  Memory Usage: ${health.data.resourceUsage.memory}%`);
+
+  if (health.data.issues.length > 0) {
+    console.log('\n  Issues Detected:');
+    health.data.issues.forEach((issue: any) => {
+      console.log(`    - ${issue.severity}: ${issue.description}`);
+    });
+  }
+}
+```
+
+### Topology Optimization
+
+```typescript
+// Optimize fleet topology based on workload
+const optimizeParams = {
+  currentTopology: 'hierarchical',
+  workloadAnalysis: {
+    taskComplexity: 0.7,
+    concurrentTasks: 50,
+    communicationOverhead: 0.15
+  },
+  optimizationGoal: 'minimize-time'
+};
+
+const optimization: QEToolResponse<any> =
+  await optimizeTopology(optimizeParams);
+
+if (optimization.success && optimization.data) {
+  console.log('\nTopology Optimization:');
+  console.log(`  Recommended Topology: ${optimization.data.recommendedTopology}`);
+  console.log(`  Expected Improvement: ${(optimization.data.improvement * 100).toFixed(1)}%`);
+  console.log(`  Reasoning: ${optimization.data.reasoning}`);
+}
+```
+
+### Using Fleet Tools via CLI
+
+```bash
+# Orchestrate fleet
+aqe fleet orchestrate --task comprehensive-testing --agents all --topology hierarchical
+
+# Monitor health
+aqe fleet health --verbose --realtime
+
+# Optimize topology
+aqe fleet optimize --workload-analysis --goal minimize-time
+```
+

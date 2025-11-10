@@ -1,12 +1,6 @@
 ---
 name: test-automation-strategy
 description: Build effective test automation strategy using the test pyramid and practical patterns. Use when planning automation approach, selecting tools, or optimizing test suites.
-version: 1.0.0
-category: testing
-tags: [test-automation, test-pyramid, ci-cd, automation-strategy, unit-testing, integration-testing]
-difficulty: intermediate
-estimated_time: 3-4 hours
-author: user
 ---
 
 # Test Automation Strategy

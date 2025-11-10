@@ -7,38 +7,38 @@
  * @author Agentic QE Team
  */
 
-export { PredictDefectsAIHandler } from './predict-defects-ai.js';
-export { VisualTestRegressionHandler } from './visual-test-regression.js';
-export { FlakyTestDetectHandler } from './flaky-test-detect.js';
-export { RegressionRiskAnalyzeHandler } from './regression-risk-analyze.js';
-export { DeploymentReadinessCheckHandler } from './deployment-readiness-check.js';
+export { PredictDefectsAIHandler } from './predict-defects-ai';
+export { VisualTestRegressionHandler } from './visual-test-regression';
+export { FlakyTestDetectHandler } from './flaky-test-detect';
+export { RegressionRiskAnalyzeHandler } from './regression-risk-analyze';
+export { DeploymentReadinessCheckHandler } from './deployment-readiness-check';
 
 export type {
   PredictDefectsAIArgs,
   DefectPredictionResult,
   CodeDefectPrediction
-} from './predict-defects-ai.js';
+} from './predict-defects-ai';
 
 export type {
   VisualTestRegressionArgs,
   VisualRegressionResult,
   VisualComparison
-} from './visual-test-regression.js';
+} from './visual-test-regression';
 
 export type {
   FlakyTestDetectArgs,
   FlakyTestResult,
   FlakyTest
-} from './flaky-test-detect.js';
+} from './flaky-test-detect';
 
 export type {
   RegressionRiskAnalyzeArgs,
   RegressionRiskResult,
   FileRiskAnalysis
-} from './regression-risk-analyze.js';
+} from './regression-risk-analyze';
 
 export type {
   DeploymentReadinessCheckArgs,
   DeploymentReadinessResult,
   DeploymentCheck
-} from './deployment-readiness-check.js';
+} from './deployment-readiness-check';

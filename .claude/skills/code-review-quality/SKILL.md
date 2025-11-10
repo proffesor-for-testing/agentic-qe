@@ -1,12 +1,6 @@
 ---
 name: code-review-quality
 description: Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices.
-version: 1.0.0
-category: development
-tags: [code-review, quality, feedback, security, performance, maintainability]
-difficulty: intermediate
-estimated_time: 30-45 minutes
-author: user
 ---
 
 # Code Review Quality

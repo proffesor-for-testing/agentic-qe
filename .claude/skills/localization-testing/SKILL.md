@@ -1,12 +1,6 @@
 ---
 name: localization-testing
 description: Internationalization (i18n) and localization (l10n) testing for global products including translations, locale formats, RTL languages, and cultural appropriateness. Use when launching in new markets or building multi-language products.
-version: 1.0.0
-category: specialized-testing
-tags: [i18n, l10n, localization, internationalization, translations, rtl, locale]
-difficulty: intermediate
-estimated_time: 60 minutes
-author: agentic-qe
 ---
 
 # Localization & Internationalization Testing

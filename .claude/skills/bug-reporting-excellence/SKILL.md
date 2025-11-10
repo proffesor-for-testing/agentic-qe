@@ -1,12 +1,6 @@
 ---
 name: bug-reporting-excellence
 description: Write high-quality bug reports that get fixed quickly. Use when reporting bugs, training teams on bug reporting, or establishing bug report standards.
-version: 1.0.0
-category: communication
-tags: [bug-reporting, quality-assurance, documentation, communication, defect-tracking, collaboration]
-difficulty: beginner
-estimated_time: 30 minutes
-author: user
 ---
 
 # Bug Reporting Excellence

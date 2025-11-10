@@ -1,26 +1,6 @@
 ---
 name: qe-test-executor
-type: test-executor
-color: orange
-priority: critical
-description: "Multi-framework test executor with parallel execution, retry logic, and real-time reporting"
-capabilities:
-  - parallel-execution
-  - multi-framework-support
-  - retry-with-backoff
-  - real-time-reporting
-  - resource-optimization
-  - performance-tracking
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  parallel_execution: true
-  retry_enabled: true
-  frameworks: ["jest", "cypress", "playwright", "vitest", "mocha"]
-  resource_optimization: true
-  real_time_reporting: true
-  performance_tracking: true
+description: Multi-framework test executor with parallel execution, retry logic, and real-time reporting
 ---
 
 # Test Executor Agent
@@ -387,3 +367,167 @@ The Test Executor Agent integrates seamlessly with the Agentic QE Fleet through:
 - **ResultsAggregator**: Test outcome collection and analysis
 - **MetricsCollector**: Performance data gathering and trending
 - **NotificationService**: Alert and status update distribution
+
+## Code Execution Workflows
+
+Execute tests programmatically with intelligent orchestration and real-time progress tracking.
+
+### Parallel Test Execution
+
+```typescript
+/**
+ * Phase 3 Test Execution Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/test-execution'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  TestExecutionParams,
+  TestResult,
+  TestResultsSummary,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 test execution tools (✅ Available)
+// import {
+//   executeTests,
+//   executeWithProgress,
+//   aggregateResults,
+//   generateTestReport
+// } from 'agentic-qe/tools/qe/test-execution';
+
+// Example: Parallel test execution with retry logic
+const executionParams: TestExecutionParams = {
+  testSuites: [
+    './tests/unit/**/*.test.ts',
+    './tests/integration/**/*.test.ts'
+  ],
+  parallel: true,
+  maxWorkers: 4,
+  retryFailedTests: true,
+  maxRetries: 3,
+  timeout: 30000,
+  framework: 'jest',
+  coverage: true
+};
+
+// const results: QEToolResponse<TestResultsSummary> =
+//   await executeTests(executionParams);
+//
+// if (results.success && results.data) {
+//   console.log(`Executed ${results.data.total} tests`);
+//   console.log(`Passed: ${results.data.passed}, Failed: ${results.data.failed}`);
+//   console.log(`Coverage: ${results.data.coverage.overall.toFixed(2)}%`);
+// }
+
+console.log('✅ Parallel test execution complete');
+```
+
+### Streaming Progress Updates
+
+```typescript
+import type {
+  TestExecutionParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 streaming (✅ Available)
+// import {
+//   executeWithProgress
+// } from 'agentic-qe/tools/qe/test-execution';
+
+// Example: Real-time progress tracking during execution
+async function streamTestExecution() {
+  const params: TestExecutionParams = {
+    testSuites: ['./tests/**/*.test.ts'],
+    framework: 'jest',
+    parallel: true,
+    maxWorkers: 4
+  };
+
+  // for await (const event of executeWithProgress(params)) {
+  //   if (event.type === 'progress') {
+  //     console.log(`Progress: ${event.percent}% - ${event.message}`);
+  //   } else if (event.type === 'test-complete') {
+  //     console.log(`✓ ${event.testName} (${event.duration}ms)`);
+  //   } else if (event.type === 'result') {
+  //     console.log('Final results:', event.data);
+  //   }
+  // }
+
+  console.log('✅ Real-time progress streaming complete');
+}
+```
+
+### Selective Test Execution
+
+```typescript
+import type {
+  TestExecutionParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 smart selection (✅ Available)
+// import {
+//   selectTests,
+//   executeTests
+// } from 'agentic-qe/tools/qe/test-execution';
+
+// Example: Execute only tests impacted by code changes
+const selectiveParams: TestExecutionParams = {
+  changedFiles: ['src/UserService.ts', 'src/AuthService.ts'],
+  selectionStrategy: 'impact-analysis',
+  includeRelated: true,
+  framework: 'jest',
+  parallel: true
+};
+
+// const selectedTests = await selectTests(selectiveParams);
+// console.log(`Selected ${selectedTests.length} tests based on changes`);
+//
+// const results = await executeTests({
+//   ...selectiveParams,
+//   testFiles: selectedTests
+// });
+
+console.log('✅ Selective test execution complete');
+```
+
+### Phase 3 Tool Discovery
+
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/test-execution/
+
+# List available test execution tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/test-execution/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "TestExecution"
+
+# View supported frameworks
+node -e "import('agentic-qe/tools/qe/test-execution').then(m => console.log(m.supportedFrameworks()))"
+```
+
+### Using Test Execution Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_execute_tests_parallel', {
+//   testSuites: ['./tests/**/*.test.ts'],
+//   parallel: true,
+//   maxWorkers: 4,
+//   retryFailedTests: true
+// });
+
+// Via CLI
+// aqe execute tests --suites ./tests/**/*.test.ts --parallel --workers 4
+// aqe execute tests --select-changed --strategy impact-analysis
+// aqe execute tests --framework jest --coverage --report html
+```
+

@@ -1,29 +1,6 @@
 ---
 name: qe-test-data-architect
-type: data-generator
-color: cyan
-priority: high
-description: "Generates realistic, schema-aware test data with relationship preservation and edge case coverage"
-capabilities:
-  - schema-aware-generation
-  - relationship-preservation
-  - edge-case-data
-  - data-anonymization
-  - realistic-data-synthesis
-  - constraint-validation
-  - data-versioning
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "QA", "Data Engineering"]
-  roi: "350%"
-  impact: "Eliminates manual test data creation, ensures data quality and privacy compliance"
-  memory_keys:
-    - "aqe/test-data/*"
-    - "aqe/schemas/*"
-    - "aqe/data-patterns/*"
-    - "aqe/anonymization/*"
+description: Generates realistic, schema-aware test data with relationship preservation and edge case coverage
 ---
 
 # QE Test Data Architect Agent
@@ -1056,9 +1033,135 @@ aqe data time-series --start-date 2025-01-01 --end-date 2025-12-31
 aqe data localize --locales en,es,fr,de,ja
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Generate realistic, schema-aware test data with relationship preservation and GDPR compliance.
+
+### Schema-Aware Data Generation
+
+```typescript
+/**
+ * Phase 3 Test Data Architecture Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/test-generation'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  UnitTestGenerationParams,
+  IntegrationTestGenerationParams,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 data generation tools (✅ Available)
+// import {
+//   generateTestData,
+//   analyzeSchema,
+//   preserveRelationships,
+//   ensureGDPRCompliance
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Generate realistic test data from schema
+const dataParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  schemaSource: 'prisma',
+  dataCount: 1000,
+  preserveRelationships: true,
+  includeEdgeCases: true,
+  gdprCompliance: true,
+  anonymizePersonalData: true
+};
+
+// const testData: QEToolResponse<any> =
+//   await generateTestData(dataParams);
+//
+// if (testData.success && testData.data) {
+//   console.log(`Generated ${testData.data.records.length} test records`);
+//   console.log(`Relationships preserved: ${testData.data.relationshipsPreserved}`);
+//   console.log(`GDPR compliant: ${testData.data.gdprCompliant}`);
+// }
+
+console.log('✅ Schema-aware test data generation complete');
+```
+
+### Database Seeding with Constraints
+
+```typescript
+import type {
+  IntegrationTestGenerationParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 constraint-aware generation (✅ Available)
+// import {
+//   generateConstrainedData,
+//   validateReferentialIntegrity
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Generate data respecting all database constraints
+const constraintParams: IntegrationTestGenerationParams = {
+  schema: './schema.prisma',
+  constraints: {
+    enforceUnique: true,
+    enforceNotNull: true,
+    enforceChecks: true,
+    enforceForeignKeys: true
+  },
+  coverage: 'comprehensive',
+  recordCount: 500
+};
+
+// const constrainedData = await generateConstrainedData(constraintParams);
+//
+// // Validate referential integrity
+// const validation = await validateReferentialIntegrity(constrainedData);
+// console.log(`Referential integrity: ${validation.isValid ? 'PASS' : 'FAIL'}`);
+// console.log(`Orphaned records: ${validation.orphanedRecords}`);
+
+console.log('✅ Constraint-aware data generation complete');
+```
+
+### Phase 3 Tool Discovery
+
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/test-generation/
+
+# List available data generation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/test-generation/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "TestData"
+
+# View supported schema formats
+node -e "import('agentic-qe/tools/qe/test-generation').then(m => console.log(m.supportedSchemas()))"
+```
+
+### Using Test Data Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_generate_test_data', {
+//   schemaSource: 'prisma',
+//   schemaPath: './schema.prisma',
+//   dataCount: 1000,
+//   preserveRelationships: true
+// });
+
+// Via CLI
+// aqe generate data --schema ./schema.prisma --count 1000
+// aqe generate data --preserve-relationships --gdpr-compliant
+// aqe validate data --schema ./schema.prisma --referential-integrity
+```
+

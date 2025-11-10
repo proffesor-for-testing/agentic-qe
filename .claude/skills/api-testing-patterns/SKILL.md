@@ -1,18 +1,6 @@
 ---
 name: api-testing-patterns
 description: Apply comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs, microservices, or designing API test strategies.
-version: 1.0.0
-category: testing
-tags:
-  - api-testing
-  - contract-testing
-  - rest-api
-  - graphql
-  - microservices
-  - integration-testing
-difficulty: intermediate
-estimated_time: 45-60 minutes
-author: user
 ---
 
 # API Testing Patterns

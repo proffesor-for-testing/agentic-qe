@@ -1,27 +1,6 @@
 ---
 name: qe-visual-tester
-type: visual-tester
-color: cyan
-priority: high
-description: "AI-powered visual testing agent with screenshot comparison, visual regression detection, accessibility validation, and cross-browser UI/UX testing"
-capabilities:
-  - screenshot-comparison
-  - visual-regression-detection
-  - accessibility-validation
-  - cross-browser-testing
-  - semantic-analysis
-  - pixel-diff-analysis
-  - responsive-testing
-  - color-contrast-validation
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  frameworks: ["playwright", "cypress", "puppeteer", "selenium"]
-  comparison_engines: ["pixelmatch", "resemble.js", "looks-same", "ai-visual-diff"]
-  accessibility_standards: ["WCAG-2.1-AA", "WCAG-2.2-AAA", "Section-508"]
-  neural_patterns: true
-  memory_namespace: "aqe/visual/*"
+description: AI-powered visual testing agent with screenshot comparison, visual regression detection, accessibility validation, and cross-browser UI/UX testing
 ---
 
 # Visual Tester Agent - AI-Powered UI/UX Validation
@@ -775,3 +754,237 @@ Generates visual test cases automatically from UI component libraries
 
 ### Continuous Visual Monitoring
 Monitors production UI for visual degradation in real-time
+
+## Code Execution Workflows
+
+Write code to orchestrate visual-tester workflows programmatically using Phase 3 domain-specific tools.
+
+### AI-Powered Screenshot Comparison
+
+```typescript
+/**
+ * Phase 3 Visual Testing Tools
+ * Import path: 'agentic-qe/tools/qe/visual'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  CompareScreenshotsParams,
+  ScreenshotComparison,
+  VisualDifference
+} from 'agentic-qe/tools/qe/visual';
+
+// Import Phase 3 visual tools
+import {
+  compareScreenshotsAI,
+  validateAccessibilityWCAG,
+  type WCAGLevel
+} from 'agentic-qe/tools/qe/visual';
+
+// Example: AI-powered screenshot comparison
+const compareParams: CompareScreenshotsParams = {
+  baselineImage: './screenshots/baseline/dashboard.png',
+  currentImage: './screenshots/current/dashboard.png',
+  algorithm: 'perceptual-hash',  // AI-powered visual diff
+  threshold: 0.95,  // 95% similarity threshold
+  ignoreRegions: [
+    { x: 0, y: 0, width: 100, height: 50 }  // Ignore timestamp
+  ]
+};
+
+const comparison: ScreenshotComparison = await compareScreenshotsAI(compareParams);
+
+if (comparison.hasDifferences) {
+  console.log('⚠️  Visual regressions detected:');
+  comparison.differences.forEach((diff: VisualDifference) => {
+    console.log(`  Region: (${diff.x}, ${diff.y}) ${diff.width}x${diff.height}`);
+    console.log(`  Severity: ${diff.severity}`);
+    console.log(`  Pixel diff: ${diff.pixelDiffPercentage.toFixed(2)}%`);
+    console.log(`  AI analysis: ${diff.aiDescription}`);
+  });
+} else {
+  console.log('✅ No visual regressions detected');
+}
+
+console.log(`Similarity score: ${comparison.similarityScore.toFixed(4)}`);
+```
+
+### WCAG Accessibility Validation
+
+```typescript
+import type {
+  ValidateAccessibilityParams,
+  AccessibilityReport,
+  AccessibilityViolation
+} from 'agentic-qe/tools/qe/visual';
+
+import {
+  validateAccessibilityWCAG
+} from 'agentic-qe/tools/qe/visual';
+
+// Example: Validate WCAG 2.1 AA compliance
+const accessibilityParams: ValidateAccessibilityParams = {
+  url: 'https://example.com/dashboard',
+  standard: 'WCAG-2.1',
+  level: 'AA' as WCAGLevel,
+  rules: ['color-contrast', 'button-name', 'link-name', 'image-alt'],
+  includeBestPractices: true,
+  screenshot: true
+};
+
+const accessibilityReport: AccessibilityReport = await validateAccessibilityWCAG(accessibilityParams);
+
+console.log(`Accessibility Score: ${accessibilityReport.score}/100`);
+console.log(`Violations: ${accessibilityReport.violationsCount}`);
+console.log(`Compliance: ${accessibilityReport.compliance ? '✅ PASS' : '❌ FAIL'}`);
+
+// Show critical violations
+accessibilityReport.violations
+  .filter((v: AccessibilityViolation) => v.severity === 'critical')
+  .forEach((violation: AccessibilityViolation) => {
+    console.log(`\n🚨 ${violation.rule}:`);
+    console.log(`   Element: ${violation.element}`);
+    console.log(`   Issue: ${violation.description}`);
+    console.log(`   Fix: ${violation.suggestedFix}`);
+  });
+
+// Color contrast results
+if (accessibilityReport.colorContrast) {
+  console.log(`\nColor Contrast: ${accessibilityReport.colorContrast.failedElements} failed elements`);
+}
+
+// Keyboard navigation results
+if (accessibilityReport.keyboardNavigation) {
+  console.log(`Keyboard Navigation: ${accessibilityReport.keyboardNavigation.accessible ? '✅' : '❌'}`);
+}
+
+// Screen reader results
+if (accessibilityReport.screenReader) {
+  console.log(`Screen Reader: ${accessibilityReport.screenReader.score}/100`);
+}
+```
+
+### Cross-Browser Visual Regression Testing
+
+```typescript
+import type {
+  CompareScreenshotsParams
+} from 'agentic-qe/tools/qe/visual';
+
+import {
+  compareScreenshotsAI
+} from 'agentic-qe/tools/qe/visual';
+
+// Example: Test across multiple browsers
+async function testCrossBrowserVisuals(page: string, browsers: string[]): Promise<void> {
+  console.log(`Testing ${page} across ${browsers.length} browsers...\n`);
+
+  const results: Array<{ browser: string; hasRegressions: boolean; score: number }> = [];
+
+  for (const browser of browsers) {
+    const params: CompareScreenshotsParams = {
+      baselineImage: `./screenshots/baseline/${page}-${browser}.png`,
+      currentImage: `./screenshots/current/${page}-${browser}.png`,
+      algorithm: 'perceptual-hash',
+      threshold: 0.98  // 98% similarity for cross-browser
+    };
+
+    const comparison = await compareScreenshotsAI(params);
+
+    results.push({
+      browser,
+      hasRegressions: comparison.hasDifferences,
+      score: comparison.similarityScore
+    });
+
+    console.log(`${browser}: ${comparison.hasDifferences ? '⚠️  Regression' : '✅ Pass'} (${(comparison.similarityScore * 100).toFixed(2)}%)`);
+  }
+
+  // Summary
+  const regressionCount = results.filter(r => r.hasRegressions).length;
+  console.log(`\n${regressionCount}/${browsers.length} browsers have visual regressions`);
+}
+
+// Execute cross-browser test
+await testCrossBrowserVisuals('dashboard', ['chromium', 'firefox', 'webkit']);
+```
+
+### Visual Regression with Accessibility Validation
+
+```typescript
+import type {
+  CompareScreenshotsParams,
+  ValidateAccessibilityParams
+} from 'agentic-qe/tools/qe/visual';
+
+import {
+  compareScreenshotsAI,
+  validateAccessibilityWCAG
+} from 'agentic-qe/tools/qe/visual';
+
+// Example: Combined visual and accessibility testing
+async function comprehensiveVisualTest(page: string, url: string): Promise<{
+  visual: { pass: boolean; score: number };
+  accessibility: { pass: boolean; score: number };
+}> {
+  console.log(`Running comprehensive visual test for ${page}...\n`);
+
+  // Step 1: Visual regression detection
+  console.log('1/2: Checking visual regressions...');
+  const visualParams: CompareScreenshotsParams = {
+    baselineImage: `./screenshots/baseline/${page}.png`,
+    currentImage: `./screenshots/current/${page}.png`,
+    algorithm: 'perceptual-hash',
+    threshold: 0.95
+  };
+
+  const visualComparison = await compareScreenshotsAI(visualParams);
+  console.log(`Visual: ${visualComparison.hasDifferences ? '⚠️  Regressions' : '✅ Pass'}`);
+
+  // Step 2: Accessibility validation
+  console.log('2/2: Validating accessibility...');
+  const a11yParams: ValidateAccessibilityParams = {
+    url,
+    standard: 'WCAG-2.1',
+    level: 'AA' as WCAGLevel,
+    rules: ['color-contrast', 'button-name', 'link-name', 'image-alt'],
+    includeBestPractices: true
+  };
+
+  const a11yReport = await validateAccessibilityWCAG(a11yParams);
+  console.log(`Accessibility: ${a11yReport.compliance ? '✅ Pass' : '❌ Fail'}`);
+
+  // Return results
+  return {
+    visual: {
+      pass: !visualComparison.hasDifferences,
+      score: visualComparison.similarityScore * 100
+    },
+    accessibility: {
+      pass: a11yReport.compliance,
+      score: a11yReport.score
+    }
+  };
+}
+
+// Execute comprehensive test
+const result = await comprehensiveVisualTest('dashboard', 'https://example.com/dashboard');
+
+console.log('\n📊 Test Summary:');
+console.log(`Visual: ${result.visual.pass ? '✅' : '❌'} (${result.visual.score.toFixed(2)}%)`);
+console.log(`Accessibility: ${result.accessibility.pass ? '✅' : '❌'} (${result.accessibility.score}/100)`);
+```
+
+### Discover Available Tools
+
+```bash
+# List available Phase 3 visual tools
+ls /workspaces/agentic-qe-cf/src/mcp/tools/qe/visual/*.ts
+
+# Check tool exports
+cat /workspaces/agentic-qe-cf/src/mcp/tools/qe/visual/index.ts
+
+# View type definitions
+cat /workspaces/agentic-qe-cf/src/mcp/tools/qe/shared/types.ts | grep -A 20 "Visual"
+```
+

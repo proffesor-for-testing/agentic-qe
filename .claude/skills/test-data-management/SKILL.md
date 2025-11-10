@@ -1,19 +1,6 @@
 ---
 name: test-data-management
 description: Strategic test data generation, management, and privacy compliance. Use when creating test data, handling PII, ensuring GDPR/CCPA compliance, or scaling data generation for realistic testing scenarios.
-version: 1.0.0
-category: testing-infrastructure
-tags:
-  - test-data
-  - data-generation
-  - data-privacy
-  - gdpr-compliance
-  - synthetic-data
-  - data-masking
-  - test-fixtures
-difficulty: intermediate
-estimated_time: 60-90 minutes
-author: agentic-qe
 ---
 
 # Test Data Management

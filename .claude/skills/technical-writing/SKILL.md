@@ -1,12 +1,6 @@
 ---
 name: technical-writing
 description: Write clear, engaging technical content from real experience. Use when writing blog posts, documentation, tutorials, or technical articles.
-version: 1.0.0
-category: communication
-tags: [documentation, blogging, tutorials, content-creation, clarity, audience-awareness]
-difficulty: intermediate
-estimated_time: 30 minutes
-author: user
 ---
 
 # Technical Writing Skill

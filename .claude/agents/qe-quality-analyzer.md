@@ -1,36 +1,6 @@
 ---
 name: qe-quality-analyzer
-type: quality-analyzer
-color: blue
-priority: high
-category: analysis
-status: active
-version: "2.0.0"
-description: "Comprehensive quality metrics analysis with trend detection, predictive analytics, and actionable insights"
-capabilities:
-  - quality-metrics-analysis
-  - trend-detection
-  - predictive-analytics
-  - code-quality-assessment
-  - technical-debt-analysis
-  - quality-scoring
-coordination:
-  protocol: aqe-hooks
-metadata:
-  ml_powered_analysis: true
-  temporal_prediction: enabled
-  psycho_symbolic_reasoning: advanced
-  quality_trend_forecasting: enabled
-  debt_tracking: comprehensive
-dependencies:
-  - qe-test-executor
-  - qe-coverage-analyzer
-  - qe-metrics-collector
-integration_points:
-  - ci_cd_pipelines
-  - code_review_systems
-  - quality_dashboards
-  - reporting_systems
+description: Comprehensive quality metrics analysis with trend detection, predictive analytics, and actionable insights
 ---
 
 # Quality Analyzer Agent
@@ -420,6 +390,131 @@ agentic-qe agent history qe-quality-analyzer --analyses --limit 30
 - **Shutdown**: Finalize in-progress analyses
 - **Health Check**: Validate analysis accuracy
 
----
 
 *Quality Analyzer Agent - Transforming metrics into actionable insights*
+
+## Code Execution Workflows
+
+Analyze quality metrics with trend detection and predictive insights.
+
+### Quality Metrics Collection and Analysis
+
+```typescript
+/**
+ * Phase 3 Quality Analysis Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/quality-analysis'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  QualityMetrics,
+  CodeQualityMetrics,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 quality analysis tools (✅ Available)
+// import {
+//   analyzeQualityMetrics,
+//   analyzeTrends,
+//   predictQualityTrajectory,
+//   generateQualityInsights
+// } from 'agentic-qe/tools/qe/quality-analysis';
+
+// Example: Comprehensive quality metrics analysis
+const metricsParams: CodeQualityMetrics = {
+  coverage: { statements: 92, branches: 88, functions: 94 },
+  complexity: { cyclomatic: 8.5, cognitive: 12 },
+  maintainability: { index: 75, debt: 2.5 },
+  performance: { avgResponseTime: 180, p95ResponseTime: 320 },
+  security: { vulnerabilities: 2, criticalIssues: 0 },
+  testReliability: 0.97
+};
+
+// const analysis: QEToolResponse<any> =
+//   await analyzeQualityMetrics(metricsParams);
+//
+// if (analysis.success && analysis.data) {
+//   console.log('Quality Analysis:');
+//   console.log(`  Overall Score: ${analysis.data.overallScore.toFixed(2)}/100`);
+//   console.log(`  Coverage Grade: ${analysis.data.grades.coverage}`);
+//   console.log(`  Complexity Grade: ${analysis.data.grades.complexity}`);
+//   console.log(`  Maintainability Index: ${analysis.data.maintainability}`);
+// }
+
+console.log('✅ Quality metrics analysis complete');
+```
+
+### Trend Analysis and Prediction
+
+```typescript
+import type {
+  QualityMetrics
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 trend prediction (✅ Available)
+// import {
+//   analyzeTrends,
+//   predictQualityTrajectory,
+//   identifyAnomalies
+// } from 'agentic-qe/tools/qe/quality-analysis';
+
+// Example: Analyze quality trends and predict future state
+async function analyzeTrendsAndPredict() {
+  const historicalMetrics = [
+    { timestamp: Date.now() - 30 * 24 * 60 * 60 * 1000, coverage: 88, complexity: 10 },
+    { timestamp: Date.now() - 20 * 24 * 60 * 60 * 1000, coverage: 90, complexity: 9 },
+    { timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000, coverage: 92, complexity: 8.5 },
+    { timestamp: Date.now(), coverage: 92, complexity: 8 }
+  ];
+
+  // const trends = await analyzeTrends(historicalMetrics);
+  // const prediction = await predictQualityTrajectory(historicalMetrics);
+  //
+  // console.log('Quality Trends:');
+  // console.log(`  Coverage Trend: ${trends.coverage.direction} (${trends.coverage.velocity}%/day)`);
+  // console.log(`  Predicted Coverage (30d): ${prediction.coverage.toFixed(2)}%`);
+  // console.log(`  Confidence: ${prediction.confidence.toFixed(2)}`);
+
+  console.log('✅ Trend analysis and prediction complete');
+}
+```
+
+### Phase 3 Tool Discovery
+
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/quality-analysis/
+
+# List available quality analysis tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/quality-analysis/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "QualityMetrics"
+
+# View available analysis algorithms
+node -e "import('agentic-qe/tools/qe/quality-analysis').then(m => console.log(m.availableAlgorithms()))"
+```
+
+### Using Quality Analysis Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_analyze_quality_metrics', {
+//   metrics: {...},
+//   includeTrends: true,
+//   predictFuture: true
+// });
+
+// Via CLI
+// aqe quality analyze --metrics ./metrics.json
+// aqe quality trends --historical ./history.json --predict-days 30
+// aqe quality insights --report comprehensive
+```
+

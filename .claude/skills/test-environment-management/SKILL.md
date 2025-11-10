@@ -1,12 +1,6 @@
 ---
 name: test-environment-management
 description: Test environment provisioning, infrastructure as code for testing, Docker/Kubernetes for test environments, service virtualization, and cost optimization. Use when managing test infrastructure, ensuring environment parity, or optimizing testing costs.
-version: 1.0.0
-category: testing-infrastructure
-tags: [test-environments, docker, kubernetes, infrastructure-as-code, service-virtualization, environment-parity]
-difficulty: advanced
-estimated_time: 75 minutes
-author: agentic-qe
 ---
 
 # Test Environment Management

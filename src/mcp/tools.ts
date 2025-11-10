@@ -1870,6 +1870,1971 @@ export const agenticQETools: Tool[] = [
       },
       required: ['sourceFiles']
     }
+  },
+
+  // Phase 3: Domain-Specific Tools
+
+  // Coverage Domain Tools (4 tools)
+  {
+    name: 'mcp__agentic_qe__coverage_analyze_with_risk_scoring',
+    description: 'Analyze code coverage with ML-based risk scoring for critical paths',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        coverageData: {
+          type: 'object',
+          properties: {
+            files: { type: 'array', items: { type: 'object' } },
+            lines: { type: 'object' },
+            branches: { type: 'object' },
+            functions: { type: 'object' }
+          },
+          required: ['files']
+        },
+        riskFactors: {
+          type: 'object',
+          properties: {
+            complexity: { type: 'boolean', default: true },
+            changeFrequency: { type: 'boolean', default: true },
+            criticalPaths: { type: 'boolean', default: true },
+            historicalDefects: { type: 'boolean', default: false }
+          }
+        },
+        threshold: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          default: 0.8,
+          description: 'Coverage threshold (0-1)'
+        }
+      },
+      required: ['coverageData']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_detect_gaps_ml',
+    description: 'Detect coverage gaps using ML pattern recognition and prioritization',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        coverageData: { type: 'object', description: 'Coverage data' },
+        sourceCode: { type: 'array', items: { type: 'string' }, description: 'Source files' },
+        mlModel: {
+          type: 'string',
+          enum: ['neural', 'random-forest', 'gradient-boosting'],
+          default: 'gradient-boosting',
+          description: 'ML model for gap detection'
+        },
+        priorityScoring: {
+          type: 'object',
+          properties: {
+            complexity: { type: 'number', default: 0.4 },
+            criticality: { type: 'number', default: 0.3 },
+            changeFrequency: { type: 'number', default: 0.3 }
+          }
+        }
+      },
+      required: ['coverageData', 'sourceCode']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_recommend_tests',
+    description: 'Recommend specific tests to improve coverage based on gap analysis',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        gaps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              file: { type: 'string' },
+              lines: { type: 'array' },
+              priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] }
+            }
+          },
+          description: 'Coverage gaps'
+        },
+        testFramework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'vitest'],
+          default: 'jest'
+        },
+        generateCode: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate test code snippets'
+        },
+        includeDataGenerators: {
+          type: 'boolean',
+          default: false
+        }
+      },
+      required: ['gaps']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__coverage_calculate_trends',
+    description: 'Calculate coverage trends over time with forecasting',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        historicalData: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              timestamp: { type: 'string' },
+              coverage: { type: 'number' },
+              lines: { type: 'number' },
+              branches: { type: 'number' },
+              functions: { type: 'number' }
+            }
+          },
+          description: 'Historical coverage data'
+        },
+        forecastDays: {
+          type: 'number',
+          default: 30,
+          minimum: 7,
+          maximum: 180,
+          description: 'Days to forecast'
+        },
+        includeRegression: {
+          type: 'boolean',
+          default: true
+        },
+        anomalyDetection: {
+          type: 'boolean',
+          default: false
+        }
+      },
+      required: ['historicalData']
+    }
+  },
+
+  // Flaky Detection Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__flaky_detect_statistical',
+    description: 'Detect flaky tests using statistical analysis (chi-square, variance)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        testResults: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              testId: { type: 'string' },
+              testName: { type: 'string' },
+              status: { type: 'string', enum: ['pass', 'fail', 'skip', 'timeout'] },
+              duration: { type: 'number' },
+              timestamp: { type: 'string' }
+            }
+          },
+          description: 'Test execution results'
+        },
+        minRuns: {
+          type: 'number',
+          default: 10,
+          minimum: 5,
+          description: 'Minimum runs to analyze'
+        },
+        confidenceLevel: {
+          type: 'number',
+          default: 0.95,
+          minimum: 0.9,
+          maximum: 0.99
+        },
+        methods: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['chi-square', 'variance', 'entropy'],
+          description: 'Statistical methods to apply'
+        }
+      },
+      required: ['testResults']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__flaky_analyze_patterns',
+    description: 'Analyze patterns in flaky test behavior (timing, environment, dependencies)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        flakyTests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              testId: { type: 'string' },
+              testName: { type: 'string' },
+              failures: { type: 'array' },
+              environment: { type: 'object' }
+            }
+          }
+        },
+        analyzeTiming: { type: 'boolean', default: true },
+        analyzeEnvironment: { type: 'boolean', default: true },
+        analyzeDependencies: { type: 'boolean', default: true },
+        clusterSimilar: { type: 'boolean', default: false }
+      },
+      required: ['flakyTests']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__flaky_stabilize_auto',
+    description: 'Auto-stabilize flaky tests with retry logic, waits, and isolation',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        testCode: {
+          type: 'string',
+          description: 'Test source code'
+        },
+        flakyPattern: {
+          type: 'string',
+          enum: ['timing', 'async', 'race-condition', 'external-dependency'],
+          description: 'Type of flakiness pattern'
+        },
+        stabilizationStrategy: {
+          type: 'string',
+          enum: ['retry', 'wait', 'isolation', 'mock', 'hybrid'],
+          default: 'hybrid'
+        },
+        framework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'cypress', 'playwright'],
+          default: 'jest'
+        },
+        dryRun: {
+          type: 'boolean',
+          default: false,
+          description: 'Preview changes without applying'
+        }
+      },
+      required: ['testCode', 'flakyPattern']
+    }
+  },
+
+  // Performance Tools (4 tools)
+  {
+    name: 'mcp__agentic_qe__performance_analyze_bottlenecks',
+    description: 'Analyze performance bottlenecks using profiling data and ML',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        profileData: {
+          type: 'object',
+          properties: {
+            functions: { type: 'array' },
+            callGraph: { type: 'object' },
+            timings: { type: 'object' },
+            memory: { type: 'object' }
+          }
+        },
+        threshold: {
+          type: 'number',
+          default: 100,
+          description: 'Bottleneck threshold in ms'
+        },
+        analyzeMemory: { type: 'boolean', default: true },
+        analyzeCPU: { type: 'boolean', default: true },
+        analyzeIO: { type: 'boolean', default: false },
+        generateRecommendations: { type: 'boolean', default: true }
+      },
+      required: ['profileData']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_generate_report',
+    description: 'Generate comprehensive performance analysis reports',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        benchmarkResults: { type: 'object', description: 'Benchmark data' },
+        bottlenecks: { type: 'array', description: 'Identified bottlenecks' },
+        format: {
+          type: 'string',
+          enum: ['html', 'pdf', 'json', 'markdown'],
+          default: 'html'
+        },
+        includeCharts: { type: 'boolean', default: true },
+        includeRecommendations: { type: 'boolean', default: true },
+        compareBaseline: {
+          type: 'object',
+          description: 'Baseline performance data for comparison'
+        }
+      },
+      required: ['benchmarkResults']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_run_benchmark',
+    description: 'Run performance benchmarks with configurable scenarios',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target function or endpoint to benchmark'
+        },
+        scenarios: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              load: { type: 'number' },
+              duration: { type: 'number' },
+              rampUp: { type: 'number' }
+            }
+          }
+        },
+        iterations: { type: 'number', default: 100, minimum: 10 },
+        warmupIterations: { type: 'number', default: 10 },
+        collectMetrics: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['duration', 'memory', 'cpu']
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_monitor_realtime',
+    description: 'Real-time performance monitoring with alerting',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'Service or endpoint to monitor' },
+        duration: {
+          type: 'number',
+          default: 60,
+          minimum: 10,
+          description: 'Monitoring duration in seconds'
+        },
+        interval: {
+          type: 'number',
+          default: 5,
+          minimum: 1,
+          description: 'Sampling interval in seconds'
+        },
+        thresholds: {
+          type: 'object',
+          properties: {
+            responseTime: { type: 'number' },
+            errorRate: { type: 'number' },
+            throughput: { type: 'number' }
+          }
+        },
+        alerts: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable threshold alerts'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  // Security Tools (5 tools)
+  {
+    name: 'mcp__agentic_qe__security_validate_auth',
+    description: 'Validate authentication mechanisms (JWT, OAuth, session)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authType: {
+          type: 'string',
+          enum: ['jwt', 'oauth2', 'session', 'api-key', 'saml'],
+          description: 'Authentication type'
+        },
+        endpoint: {
+          type: 'string',
+          description: 'Authentication endpoint'
+        },
+        tests: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['token-validation', 'expiry', 'refresh', 'revocation'],
+          description: 'Authentication tests to run'
+        },
+        includeVulnerabilities: {
+          type: 'boolean',
+          default: true,
+          description: 'Check for common auth vulnerabilities'
+        }
+      },
+      required: ['authType', 'endpoint']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_check_authz',
+    description: 'Check authorization and access control (RBAC, ABAC)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authzType: {
+          type: 'string',
+          enum: ['rbac', 'abac', 'acl', 'policy-based'],
+          description: 'Authorization model'
+        },
+        resources: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              method: { type: 'string' },
+              requiredPermissions: { type: 'array' }
+            }
+          }
+        },
+        roles: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Roles to test'
+        },
+        testPrivilegeEscalation: { type: 'boolean', default: true },
+        testHorizontalAccess: { type: 'boolean', default: true }
+      },
+      required: ['authzType', 'resources']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_scan_dependencies',
+    description: 'Scan dependencies for known vulnerabilities (CVE database)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        manifestFile: {
+          type: 'string',
+          description: 'Path to package.json, requirements.txt, etc.'
+        },
+        includeTransitive: {
+          type: 'boolean',
+          default: true,
+          description: 'Include transitive dependencies'
+        },
+        severityThreshold: {
+          type: 'string',
+          enum: ['low', 'medium', 'high', 'critical'],
+          default: 'medium'
+        },
+        sources: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['nvd', 'snyk', 'github-advisory'],
+          description: 'Vulnerability databases to check'
+        },
+        generateReport: { type: 'boolean', default: true }
+      },
+      required: ['manifestFile']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_generate_report',
+    description: 'Generate comprehensive security audit reports',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        findings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              severity: { type: 'string' },
+              description: { type: 'string' },
+              remediation: { type: 'string' }
+            }
+          },
+          description: 'Security findings'
+        },
+        format: {
+          type: 'string',
+          enum: ['pdf', 'html', 'json', 'sarif'],
+          default: 'html'
+        },
+        includeOWASP: {
+          type: 'boolean',
+          default: true,
+          description: 'Include OWASP Top 10 mapping'
+        },
+        includeCVSS: {
+          type: 'boolean',
+          default: true,
+          description: 'Include CVSS scores'
+        },
+        includeRemediation: { type: 'boolean', default: true }
+      },
+      required: ['findings']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__security_scan_comprehensive',
+    description: 'Comprehensive security scan (SAST, DAST, dependency check)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scanType: {
+          type: 'string',
+          enum: ['sast', 'dast', 'dependency', 'comprehensive'],
+          default: 'comprehensive'
+        },
+        target: { type: 'string', description: 'Target to scan' },
+        depth: {
+          type: 'string',
+          enum: ['basic', 'standard', 'deep'],
+          default: 'standard'
+        },
+        rules: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Security rules to apply'
+        },
+        excludePatterns: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Patterns to exclude'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  // Visual Testing Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__visual_compare_screenshots',
+    description: 'Compare screenshots with AI-powered diff analysis',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        baselineImage: {
+          type: 'string',
+          description: 'Path or URL to baseline image'
+        },
+        currentImage: {
+          type: 'string',
+          description: 'Path or URL to current image'
+        },
+        threshold: {
+          type: 'number',
+          default: 0.01,
+          minimum: 0,
+          maximum: 1,
+          description: 'Acceptable difference threshold (0-1)'
+        },
+        ignoreRegions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              x: { type: 'number' },
+              y: { type: 'number' },
+              width: { type: 'number' },
+              height: { type: 'number' }
+            }
+          },
+          description: 'Regions to ignore (e.g., timestamps, ads)'
+        },
+        algorithm: {
+          type: 'string',
+          enum: ['pixel-diff', 'structural-similarity', 'ai-semantic'],
+          default: 'structural-similarity'
+        }
+      },
+      required: ['baselineImage', 'currentImage']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__visual_validate_accessibility',
+    description: 'Validate visual accessibility (color contrast, text size, WCAG)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'URL or screenshot path'
+        },
+        wcagLevel: {
+          type: 'string',
+          enum: ['A', 'AA', 'AAA'],
+          default: 'AA',
+          description: 'WCAG compliance level'
+        },
+        checks: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['color-contrast', 'text-size', 'touch-targets', 'focus-indicators'],
+          description: 'Accessibility checks to perform'
+        },
+        generateReport: { type: 'boolean', default: true },
+        includeRemediation: { type: 'boolean', default: true }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__visual_detect_regression',
+    description: 'Detect visual regressions across component library or pages',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        baseline: {
+          type: 'object',
+          properties: {
+            directory: { type: 'string' },
+            branch: { type: 'string' },
+            commit: { type: 'string' }
+          },
+          description: 'Baseline configuration'
+        },
+        current: {
+          type: 'object',
+          properties: {
+            directory: { type: 'string' },
+            branch: { type: 'string' },
+            commit: { type: 'string' }
+          },
+          description: 'Current configuration'
+        },
+        components: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Specific components to check'
+        },
+        threshold: {
+          type: 'number',
+          default: 0.05,
+          description: 'Regression threshold (0-1)'
+        },
+        parallelComparisons: {
+          type: 'number',
+          default: 4,
+          minimum: 1,
+          maximum: 16
+        }
+      },
+      required: ['baseline', 'current']
+    }
+  },
+
+  // ==================== Phase 3: New Domain Tools ====================
+
+  // API Contract Domain Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__qe_api_contract_validate',
+    description: 'Validate API contract (Pact/OpenAPI/GraphQL) with comprehensive schema and endpoint checking',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        contract: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['pact', 'openapi', 'graphql'],
+              description: 'Contract specification type'
+            },
+            version: {
+              type: 'string',
+              description: 'Contract version'
+            },
+            provider: {
+              type: 'string',
+              description: 'Provider service name'
+            },
+            consumer: {
+              type: 'string',
+              description: 'Consumer service name (for Pact)'
+            },
+            specification: {
+              type: 'object',
+              description: 'Contract specification object (OpenAPI/Pact JSON)'
+            },
+            timestamp: {
+              type: 'string',
+              description: 'Contract creation timestamp'
+            }
+          },
+          required: ['type', 'version', 'provider', 'specification', 'timestamp']
+        },
+        strictMode: {
+          type: 'boolean',
+          default: false,
+          description: 'Enable strict validation mode'
+        },
+        validateSchemas: {
+          type: 'boolean',
+          default: true,
+          description: 'Validate data schemas'
+        },
+        validateEndpoints: {
+          type: 'boolean',
+          default: true,
+          description: 'Validate endpoint definitions'
+        }
+      },
+      required: ['contract']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_api_contract_breaking_changes',
+    description: 'Detect breaking changes between API contract versions with semver recommendations',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        currentContract: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['pact', 'openapi', 'graphql']
+            },
+            version: { type: 'string' },
+            provider: { type: 'string' },
+            specification: { type: 'object' },
+            timestamp: { type: 'string' }
+          },
+          required: ['type', 'version', 'provider', 'specification', 'timestamp'],
+          description: 'Current API contract version'
+        },
+        previousContract: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['pact', 'openapi', 'graphql']
+            },
+            version: { type: 'string' },
+            provider: { type: 'string' },
+            specification: { type: 'object' },
+            timestamp: { type: 'string' }
+          },
+          required: ['type', 'version', 'provider', 'specification', 'timestamp'],
+          description: 'Previous API contract version'
+        },
+        calculateSemver: {
+          type: 'boolean',
+          default: true,
+          description: 'Calculate semantic version recommendation'
+        },
+        generateMigrationGuide: {
+          type: 'boolean',
+          default: false,
+          description: 'Generate migration guide for breaking changes'
+        },
+        analyzeConsumerImpact: {
+          type: 'boolean',
+          default: false,
+          description: 'Analyze impact on consumers'
+        }
+      },
+      required: ['currentContract', 'previousContract']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_api_contract_versioning',
+    description: 'Validate API versioning compatibility matrix with consumer version support',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        providerName: {
+          type: 'string',
+          description: 'Provider service name'
+        },
+        currentVersion: {
+          type: 'string',
+          description: 'Current provider version (e.g., "2.1.0")'
+        },
+        consumerVersions: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of consumer versions to validate'
+        },
+        historicalVersions: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Historical provider versions'
+        },
+        compatibilityRules: {
+          type: 'object',
+          description: 'Custom compatibility rules by version'
+        }
+      },
+      required: ['providerName', 'currentVersion']
+    }
+  },
+
+  // Test Data Domain Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__qe_test_data_generate',
+    description: 'High-speed realistic test data generation (10k+ records/sec) with referential integrity',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        schema: {
+          type: 'object',
+          description: 'Database schema (single table or multi-table with relationships)'
+        },
+        recordCount: {
+          type: 'number',
+          minimum: 1,
+          description: 'Number of records to generate'
+        },
+        includeEdgeCases: {
+          type: 'boolean',
+          default: false,
+          description: 'Include edge case data (nulls, min/max values)'
+        },
+        batchSize: {
+          type: 'number',
+          default: 1000,
+          description: 'Batch size for generation'
+        },
+        seed: {
+          type: 'number',
+          description: 'Random seed for reproducibility'
+        },
+        format: {
+          type: 'string',
+          enum: ['json', 'sql', 'csv'],
+          default: 'json',
+          description: 'Output format'
+        },
+        preserveIntegrity: {
+          type: 'boolean',
+          default: true,
+          description: 'Preserve referential integrity for foreign keys'
+        },
+        targetRate: {
+          type: 'number',
+          description: 'Target generation rate (records/sec)'
+        }
+      },
+      required: ['schema', 'recordCount']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_test_data_mask',
+    description: 'GDPR-compliant data masking with multiple anonymization strategies',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' },
+          description: 'Records to mask'
+        },
+        sensitiveFields: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              classification: {
+                type: 'string',
+                enum: ['public', 'internal', 'confidential', 'restricted', 'pii', 'sensitive']
+              },
+              type: { type: 'string' },
+              strategy: {
+                type: 'string',
+                enum: ['mask', 'hash', 'tokenize', 'generalize', 'substitute', 'redact']
+              },
+              caseSensitive: { type: 'boolean' },
+              preserveFormat: { type: 'boolean' }
+            },
+            required: ['name', 'classification', 'type', 'strategy']
+          },
+          description: 'Sensitive field definitions'
+        },
+        defaultStrategy: {
+          type: 'string',
+          enum: ['mask', 'hash', 'tokenize', 'generalize', 'substitute', 'redact'],
+          default: 'mask',
+          description: 'Default anonymization strategy'
+        },
+        gdprCompliant: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable GDPR compliance validation'
+        },
+        auditLog: {
+          type: 'boolean',
+          default: false,
+          description: 'Enable audit logging'
+        },
+        seed: {
+          type: 'number',
+          description: 'Random seed for reproducibility'
+        },
+        salt: {
+          type: 'string',
+          description: 'Salt for hashing operations'
+        },
+        kAnonymity: {
+          type: 'number',
+          minimum: 1,
+          description: 'K-anonymity minimum group size'
+        },
+        preserveIntegrity: {
+          type: 'boolean',
+          default: false,
+          description: 'Preserve referential integrity for foreign keys'
+        }
+      },
+      required: ['data', 'sensitiveFields']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_test_data_analyze_schema',
+    description: 'Comprehensive database schema analysis with optimization recommendations',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        schema: {
+          type: 'object',
+          description: 'Database schema to analyze'
+        },
+        databaseType: {
+          type: 'string',
+          enum: ['postgresql', 'mysql', 'sqlite', 'mongodb', 'generic'],
+          default: 'generic',
+          description: 'Database type'
+        },
+        analyzeConstraints: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze constraints and validation rules'
+        },
+        analyzeRelationships: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze table relationships'
+        },
+        analyzeIndexes: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze index usage and recommendations'
+        },
+        analyzeDataQuality: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze data quality issues'
+        },
+        includeRecommendations: {
+          type: 'boolean',
+          default: true,
+          description: 'Include optimization recommendations'
+        }
+      },
+      required: ['schema']
+    }
+  },
+
+  // Regression Domain Tools (2 tools)
+  {
+    name: 'mcp__agentic_qe__qe_regression_analyze_risk',
+    description: 'ML-based regression risk analysis with 95%+ accuracy and blast radius assessment',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        changes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              filePath: { type: 'string' },
+              changeType: {
+                type: 'string',
+                enum: ['added', 'modified', 'deleted', 'renamed']
+              },
+              linesAdded: { type: 'number' },
+              linesDeleted: { type: 'number' },
+              complexity: { type: 'number' }
+            },
+            required: ['filePath', 'changeType']
+          },
+          description: 'Code changes to analyze'
+        },
+        historicalData: {
+          type: 'object',
+          description: 'Historical failure patterns and metrics'
+        },
+        coverageData: {
+          type: 'object',
+          description: 'Code coverage information'
+        },
+        dependencies: {
+          type: 'object',
+          description: 'Dependency graph for blast radius analysis'
+        },
+        businessCritical: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Paths to business-critical components'
+        },
+        includeMLPrediction: {
+          type: 'boolean',
+          default: true,
+          description: 'Include ML-based risk prediction'
+        },
+        includeBlastRadius: {
+          type: 'boolean',
+          default: true,
+          description: 'Calculate blast radius'
+        }
+      },
+      required: ['changes']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_regression_select_tests',
+    description: 'Smart test selection with 70% time reduction using ML and coverage analysis',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        changes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              filePath: { type: 'string' },
+              changeType: {
+                type: 'string',
+                enum: ['added', 'modified', 'deleted', 'renamed']
+              },
+              linesAdded: { type: 'number' },
+              linesDeleted: { type: 'number' }
+            },
+            required: ['filePath', 'changeType']
+          },
+          description: 'Code changes to base selection on'
+        },
+        availableTests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              type: {
+                type: 'string',
+                enum: ['unit', 'integration', 'e2e', 'performance']
+              },
+              estimatedTime: { type: 'number' },
+              coveredPaths: {
+                type: 'array',
+                items: { type: 'string' }
+              },
+              historicalFailureRate: { type: 'number' }
+            },
+            required: ['path', 'type']
+          },
+          description: 'Available tests to select from'
+        },
+        coverageData: {
+          type: 'object',
+          description: 'Code coverage mapping'
+        },
+        selectionStrategy: {
+          type: 'string',
+          enum: ['aggressive', 'balanced', 'conservative'],
+          default: 'balanced',
+          description: 'Test selection strategy'
+        },
+        targetReduction: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          default: 0.7,
+          description: 'Target reduction rate (0-1)'
+        },
+        minConfidence: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          default: 0.95,
+          description: 'Minimum confidence for selection (0-1)'
+        },
+        includeMLPrediction: {
+          type: 'boolean',
+          default: true,
+          description: 'Include ML-predicted tests'
+        }
+      },
+      required: ['changes', 'availableTests']
+    }
+  },
+
+  // Requirements Domain Tools (2 tools)
+  {
+    name: 'mcp__agentic_qe__qe_requirements_validate',
+    description: 'INVEST criteria validation with SMART framework analysis and testability scoring',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        requirements: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              title: { type: 'string' },
+              description: { type: 'string' },
+              acceptanceCriteria: {
+                type: 'array',
+                items: { type: 'string' }
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high', 'critical']
+              },
+              type: {
+                type: 'string',
+                enum: ['functional', 'non-functional', 'technical', 'business']
+              },
+              dependencies: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            },
+            required: ['id', 'title', 'description']
+          },
+          description: 'Requirements to validate'
+        },
+        strictMode: {
+          type: 'boolean',
+          default: false,
+          description: 'Enable strict validation mode'
+        },
+        includeInvestAnalysis: {
+          type: 'boolean',
+          default: true,
+          description: 'Include INVEST criteria analysis'
+        },
+        includeSmartAnalysis: {
+          type: 'boolean',
+          default: true,
+          description: 'Include SMART framework analysis'
+        },
+        testabilityThreshold: {
+          type: 'number',
+          minimum: 0,
+          maximum: 100,
+          default: 70,
+          description: 'Minimum testability score threshold'
+        }
+      },
+      required: ['requirements']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_requirements_generate_bdd',
+    description: 'Generate Gherkin/Cucumber BDD scenarios from requirements with data-driven examples',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        requirements: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              title: { type: 'string' },
+              description: { type: 'string' },
+              acceptanceCriteria: {
+                type: 'array',
+                items: { type: 'string' }
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high', 'critical']
+              },
+              type: {
+                type: 'string',
+                enum: ['functional', 'non-functional', 'technical', 'business']
+              }
+            },
+            required: ['id', 'title', 'description']
+          },
+          description: 'Requirements to generate BDD scenarios from'
+        },
+        includeBackground: {
+          type: 'boolean',
+          default: true,
+          description: 'Include background preconditions'
+        },
+        includeScenarioOutlines: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate scenario outlines with examples'
+        },
+        includeNegativeCases: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate negative test scenarios'
+        },
+        includeEdgeCases: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate edge case scenarios'
+        },
+        examplesPerScenario: {
+          type: 'number',
+          minimum: 1,
+          default: 3,
+          description: 'Number of examples per scenario outline'
+        },
+        outputFormat: {
+          type: 'string',
+          enum: ['gherkin', 'cucumber', 'json'],
+          default: 'gherkin',
+          description: 'Output format'
+        }
+      },
+      required: ['requirements']
+    }
+  },
+
+  // Code Quality Domain Tools (2 tools)
+  {
+    name: 'mcp__agentic_qe__qe_code_quality_complexity',
+    description: 'Cyclomatic and cognitive complexity analysis with hotspot detection',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCode: {
+          type: 'string',
+          description: 'Source code to analyze'
+        },
+        filePath: {
+          type: 'string',
+          description: 'File path for context'
+        },
+        language: {
+          type: 'string',
+          enum: ['typescript', 'javascript', 'python', 'java'],
+          description: 'Programming language'
+        },
+        cyclomaticThreshold: {
+          type: 'number',
+          default: 10,
+          description: 'Cyclomatic complexity threshold for hotspot detection'
+        },
+        cognitiveThreshold: {
+          type: 'number',
+          default: 15,
+          description: 'Cognitive complexity threshold for hotspot detection'
+        },
+        includePerFunction: {
+          type: 'boolean',
+          default: true,
+          description: 'Include per-function analysis'
+        },
+        includeRecommendations: {
+          type: 'boolean',
+          default: true,
+          description: 'Include refactoring recommendations'
+        }
+      },
+      required: ['sourceCode', 'filePath', 'language']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_code_quality_metrics',
+    description: 'Calculate maintainability, reliability, and security quality metrics',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCode: {
+          type: 'string',
+          description: 'Source code to analyze'
+        },
+        filePath: {
+          type: 'string',
+          description: 'File path for context'
+        },
+        language: {
+          type: 'string',
+          enum: ['typescript', 'javascript', 'python', 'java'],
+          description: 'Programming language'
+        },
+        coveragePercentage: {
+          type: 'number',
+          minimum: 0,
+          maximum: 100,
+          description: 'Code coverage percentage'
+        },
+        codeSmells: {
+          type: 'number',
+          minimum: 0,
+          description: 'Number of code smells detected'
+        },
+        duplicationPercentage: {
+          type: 'number',
+          minimum: 0,
+          maximum: 100,
+          description: 'Code duplication percentage'
+        },
+        includeSecurityAnalysis: {
+          type: 'boolean',
+          default: true,
+          description: 'Include security score analysis'
+        },
+        includeTechnicalDebt: {
+          type: 'boolean',
+          default: true,
+          description: 'Calculate technical debt'
+        }
+      },
+      required: ['sourceCode', 'filePath', 'language']
+    }
+  },
+
+  // Fleet Coordination Domain Tools (2 tools)
+  {
+    name: 'mcp__agentic_qe__qe_fleet_coordinate',
+    description: 'Hierarchical fleet coordination with optimal task distribution and load balancing',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentCount: {
+          type: 'number',
+          minimum: 1,
+          description: 'Total agents in fleet'
+        },
+        topology: {
+          type: 'string',
+          enum: ['hierarchical', 'mesh', 'hybrid', 'adaptive'],
+          description: 'Coordination topology'
+        },
+        agentPools: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              minSize: { type: 'number' },
+              maxSize: { type: 'number' },
+              currentSize: { type: 'number' },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high', 'critical']
+              },
+              capabilities: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            },
+            required: ['type', 'minSize', 'maxSize', 'currentSize', 'priority', 'capabilities']
+          },
+          description: 'Agent pool configurations'
+        },
+        workload: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              type: { type: 'string' },
+              estimatedDuration: { type: 'number' },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high', 'critical']
+              },
+              requiredCapabilities: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            },
+            required: ['id', 'type', 'estimatedDuration', 'priority', 'requiredCapabilities']
+          },
+          description: 'Task workload to distribute'
+        },
+        resourceConstraints: {
+          type: 'object',
+          properties: {
+            totalCpuCores: { type: 'number' },
+            totalMemory: { type: 'number' },
+            cpuPerAgent: { type: 'number' },
+            memoryPerAgent: { type: 'number' },
+            maxConcurrentTasks: { type: 'number' }
+          },
+          description: 'Resource constraints'
+        },
+        enableLoadBalancing: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable load balancing'
+        },
+        enableAutoScaling: {
+          type: 'boolean',
+          default: false,
+          description: 'Enable auto-scaling recommendations'
+        },
+        includeMetrics: {
+          type: 'boolean',
+          default: true,
+          description: 'Include coordination metrics'
+        }
+      },
+      required: ['agentCount', 'topology', 'agentPools', 'workload']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_fleet_agent_status',
+    description: 'Real-time agent health monitoring with failure detection and recommendations',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        fleetId: {
+          type: 'string',
+          description: 'Fleet ID to query'
+        },
+        agentIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Agent IDs to check (empty = all agents)'
+        },
+        includeDetailedMetrics: {
+          type: 'boolean',
+          default: false,
+          description: 'Include detailed performance metrics'
+        },
+        includeHistory: {
+          type: 'boolean',
+          default: false,
+          description: 'Include historical health data'
+        },
+        historyDuration: {
+          type: 'number',
+          minimum: 1,
+          default: 60,
+          description: 'History duration in minutes'
+        },
+        healthCheckType: {
+          type: 'string',
+          enum: ['heartbeat', 'performance', 'comprehensive'],
+          default: 'comprehensive',
+          description: 'Health check type'
+        }
+      },
+      required: ['fleetId']
+    }
+  },
+
+  // Security Domain Tools (3 tools)
+  {
+    name: 'mcp__agentic_qe__qe_security_scan_comprehensive',
+    description: 'Comprehensive security scan with SAST, DAST, dependency checks, and OWASP compliance',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scanType: {
+          type: 'string',
+          enum: ['sast', 'dast', 'dependency', 'comprehensive'],
+          default: 'comprehensive',
+          description: 'Type of security scan'
+        },
+        target: {
+          type: 'string',
+          description: 'Target directory or URL to scan'
+        },
+        depth: {
+          type: 'string',
+          enum: ['basic', 'standard', 'deep'],
+          default: 'standard',
+          description: 'Scan depth level'
+        },
+        rules: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Security rules to apply (OWASP, CWE, SANS)'
+        },
+        excludePatterns: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'File patterns to exclude from scan'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_security_detect_vulnerabilities',
+    description: 'Detect and classify vulnerabilities using ML-based analysis with CVE database',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCode: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Source code files to analyze'
+        },
+        dependencies: {
+          type: 'object',
+          description: 'Dependency manifest (package.json, requirements.txt, etc.)'
+        },
+        scanDepth: {
+          type: 'string',
+          enum: ['shallow', 'moderate', 'deep'],
+          default: 'moderate',
+          description: 'Depth of vulnerability analysis'
+        },
+        severityThreshold: {
+          type: 'string',
+          enum: ['low', 'medium', 'high', 'critical'],
+          default: 'medium',
+          description: 'Minimum severity level to report'
+        },
+        includeCVE: {
+          type: 'boolean',
+          default: true,
+          description: 'Include CVE database lookup'
+        },
+        mlDetection: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable ML-based vulnerability detection'
+        }
+      },
+      required: ['sourceCode']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_security_validate_compliance',
+    description: 'Validate compliance against security standards (OWASP, CWE, SANS, ISO 27001)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        standards: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['owasp-top-10', 'cwe-top-25', 'sans-top-25', 'iso-27001', 'pci-dss', 'hipaa', 'gdpr']
+          },
+          description: 'Security standards to validate against'
+        },
+        codebase: {
+          type: 'string',
+          description: 'Path to codebase root directory'
+        },
+        includeInfrastructure: {
+          type: 'boolean',
+          default: false,
+          description: 'Include infrastructure compliance checks'
+        },
+        generateRoadmap: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate remediation roadmap for gaps'
+        },
+        certificationTarget: {
+          type: 'string',
+          enum: ['iso-27001', 'soc2', 'pci-dss', 'hipaa'],
+          description: 'Target certification (optional)'
+        }
+      },
+      required: ['standards', 'codebase']
+    }
+  },
+
+  // Test-Generation Domain Tools (4 tools)
+  {
+    name: 'mcp__agentic_qe__qe_testgen_generate_unit',
+    description: 'AI-powered unit test generation with pattern recognition and mock generation',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCode: {
+          type: 'string',
+          description: 'Source code to generate tests for'
+        },
+        language: {
+          type: 'string',
+          enum: ['javascript', 'typescript', 'python', 'java', 'go'],
+          description: 'Programming language'
+        },
+        framework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'vitest', 'pytest', 'junit', 'go-test'],
+          default: 'jest',
+          description: 'Testing framework'
+        },
+        coverageGoal: {
+          type: 'number',
+          minimum: 0,
+          maximum: 100,
+          default: 80,
+          description: 'Target code coverage percentage'
+        },
+        includeEdgeCases: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate edge case tests'
+        },
+        mockStrategy: {
+          type: 'string',
+          enum: ['auto', 'manual', 'none'],
+          default: 'auto',
+          description: 'Mock generation strategy'
+        }
+      },
+      required: ['sourceCode', 'language']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_testgen_generate_integration',
+    description: 'Integration test generation with dependency mocking and contract testing',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCode: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Source files for integration testing'
+        },
+        language: {
+          type: 'string',
+          enum: ['javascript', 'typescript', 'python', 'java', 'go'],
+          description: 'Programming language'
+        },
+        framework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'vitest', 'pytest', 'junit', 'go-test'],
+          default: 'jest',
+          description: 'Testing framework'
+        },
+        integrationPoints: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['api', 'database', 'filesystem', 'external-service'] },
+              name: { type: 'string' },
+              endpoint: { type: 'string' }
+            }
+          },
+          description: 'Integration points to test'
+        },
+        mockStrategy: {
+          type: 'string',
+          enum: ['full', 'partial', 'none'],
+          default: 'partial',
+          description: 'Dependency mocking strategy'
+        },
+        contractTesting: {
+          type: 'boolean',
+          default: false,
+          description: 'Generate contract tests (e.g., Pact)'
+        }
+      },
+      required: ['sourceCode', 'language', 'integrationPoints']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_testgen_optimize_suite',
+    description: 'Optimize test suite using sublinear algorithms (Johnson-Lindenstrauss, temporal advantage)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              executionTime: { type: 'number' },
+              coverage: { type: 'array' },
+              priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] }
+            }
+          },
+          description: 'Test suite to optimize'
+        },
+        algorithm: {
+          type: 'string',
+          enum: ['johnson-lindenstrauss', 'temporal-advantage', 'redundancy-detection'],
+          default: 'johnson-lindenstrauss',
+          description: 'Optimization algorithm'
+        },
+        targetReduction: {
+          type: 'number',
+          minimum: 0.1,
+          maximum: 0.9,
+          default: 0.3,
+          description: 'Target reduction ratio (0.3 = reduce to 30%)'
+        },
+        maintainCoverage: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          default: 0.95,
+          description: 'Minimum coverage to maintain (0-1)'
+        },
+        preserveCritical: {
+          type: 'boolean',
+          default: true,
+          description: 'Preserve critical priority tests'
+        }
+      },
+      required: ['tests']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_testgen_analyze_quality',
+    description: 'Analyze test quality with pattern detection, anti-patterns, and maintainability metrics',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tests: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              code: { type: 'string' },
+              framework: { type: 'string' }
+            }
+          },
+          description: 'Tests to analyze'
+        },
+        checkPatterns: {
+          type: 'boolean',
+          default: true,
+          description: 'Check for good test patterns'
+        },
+        checkAntiPatterns: {
+          type: 'boolean',
+          default: true,
+          description: 'Check for anti-patterns'
+        },
+        generateRecommendations: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate improvement recommendations'
+        },
+        detailLevel: {
+          type: 'string',
+          enum: ['summary', 'detailed', 'comprehensive'],
+          default: 'detailed',
+          description: 'Analysis detail level'
+        }
+      },
+      required: ['tests']
+    }
+  },
+
+  // Quality-Gates Domain Tools (4 tools)
+  {
+    name: 'mcp__agentic_qe__qe_qualitygate_evaluate',
+    description: 'Evaluate quality gate with multi-factor decision trees and policy enforcement',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'Project identifier'
+        },
+        buildId: {
+          type: 'string',
+          description: 'Build identifier'
+        },
+        environment: {
+          type: 'string',
+          enum: ['development', 'staging', 'production'],
+          description: 'Target deployment environment'
+        },
+        metrics: {
+          type: 'object',
+          properties: {
+            coverage: { type: 'object', description: 'Code coverage metrics' },
+            testResults: { type: 'object', description: 'Test execution results' },
+            security: { type: 'object', description: 'Security scan results' },
+            performance: { type: 'object', description: 'Performance benchmarks' },
+            codeQuality: { type: 'object', description: 'Code quality metrics' }
+          },
+          required: ['coverage', 'testResults', 'security']
+        },
+        policy: {
+          type: 'object',
+          description: 'Quality gate policy rules'
+        },
+        context: {
+          type: 'object',
+          description: 'Deployment context (commit, branch, changes)'
+        }
+      },
+      required: ['projectId', 'buildId', 'environment', 'metrics']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_qualitygate_assess_risk',
+    description: 'Assess deployment risk with historical analysis and ML prediction',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deployment: {
+          type: 'object',
+          properties: {
+            environment: { type: 'string' },
+            version: { type: 'string' },
+            changes: { type: 'array' }
+          },
+          description: 'Deployment configuration'
+        },
+        metrics: {
+          type: 'object',
+          description: 'Current quality metrics'
+        },
+        historicalData: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              version: { type: 'string' },
+              timestamp: { type: 'string' },
+              success: { type: 'boolean' },
+              metrics: { type: 'object' }
+            }
+          },
+          description: 'Historical deployment data'
+        },
+        riskThreshold: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+          default: 'medium',
+          description: 'Risk tolerance threshold'
+        }
+      },
+      required: ['deployment', 'metrics']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_qualitygate_validate_metrics',
+    description: 'Validate quality metrics against standards with anomaly detection',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        metrics: {
+          type: 'object',
+          properties: {
+            coverage: { type: 'number' },
+            testPassRate: { type: 'number' },
+            securityScore: { type: 'number' },
+            performanceScore: { type: 'number' },
+            codeQuality: { type: 'number' }
+          },
+          description: 'Quality metrics to validate'
+        },
+        standards: {
+          type: 'object',
+          properties: {
+            minCoverage: { type: 'number', default: 80 },
+            minTestPassRate: { type: 'number', default: 95 },
+            minSecurityScore: { type: 'number', default: 80 },
+            minPerformanceScore: { type: 'number', default: 70 },
+            minCodeQuality: { type: 'number', default: 75 }
+          },
+          description: 'Quality standards thresholds'
+        },
+        detectAnomalies: {
+          type: 'boolean',
+          default: true,
+          description: 'Detect statistical anomalies'
+        },
+        historicalData: {
+          type: 'array',
+          description: 'Historical metrics for trend analysis'
+        }
+      },
+      required: ['metrics']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__qe_qualitygate_generate_report',
+    description: 'Generate comprehensive quality report with trends, risks, and actionable recommendations',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'Project identifier'
+        },
+        buildId: {
+          type: 'string',
+          description: 'Build identifier'
+        },
+        metrics: {
+          type: 'object',
+          description: 'Quality metrics data'
+        },
+        evaluation: {
+          type: 'object',
+          description: 'Quality gate evaluation result'
+        },
+        riskAssessment: {
+          type: 'object',
+          description: 'Deployment risk assessment'
+        },
+        format: {
+          type: 'string',
+          enum: ['html', 'pdf', 'json', 'markdown'],
+          default: 'html',
+          description: 'Report output format'
+        },
+        includeCharts: {
+          type: 'boolean',
+          default: true,
+          description: 'Include visual charts'
+        },
+        includeTrends: {
+          type: 'boolean',
+          default: true,
+          description: 'Include trend analysis'
+        },
+        includeRecommendations: {
+          type: 'boolean',
+          default: true,
+          description: 'Include actionable recommendations'
+        }
+      },
+      required: ['projectId', 'buildId', 'metrics']
+    }
   }
 ];
 
@@ -1954,7 +3919,67 @@ export const TOOL_NAMES = {
   IMPROVEMENT_CYCLE: 'mcp__agentic_qe__improvement_cycle',
   IMPROVEMENT_AB_TEST: 'mcp__agentic_qe__improvement_ab_test',
   IMPROVEMENT_FAILURES: 'mcp__agentic_qe__improvement_failures',
-  PERFORMANCE_TRACK: 'mcp__agentic_qe__performance_track'
+  PERFORMANCE_TRACK: 'mcp__agentic_qe__performance_track',
+  // Phase 3: Domain-Specific Tools
+  // Coverage Domain
+  COVERAGE_ANALYZE_WITH_RISK_SCORING: 'mcp__agentic_qe__coverage_analyze_with_risk_scoring',
+  COVERAGE_DETECT_GAPS_ML: 'mcp__agentic_qe__coverage_detect_gaps_ml',
+  COVERAGE_RECOMMEND_TESTS: 'mcp__agentic_qe__coverage_recommend_tests',
+  COVERAGE_CALCULATE_TRENDS: 'mcp__agentic_qe__coverage_calculate_trends',
+  // Flaky Detection
+  FLAKY_DETECT_STATISTICAL: 'mcp__agentic_qe__flaky_detect_statistical',
+  FLAKY_ANALYZE_PATTERNS: 'mcp__agentic_qe__flaky_analyze_patterns',
+  FLAKY_STABILIZE_AUTO: 'mcp__agentic_qe__flaky_stabilize_auto',
+  // Performance
+  PERFORMANCE_ANALYZE_BOTTLENECKS: 'mcp__agentic_qe__performance_analyze_bottlenecks',
+  PERFORMANCE_GENERATE_REPORT: 'mcp__agentic_qe__performance_generate_report',
+  PERFORMANCE_RUN_BENCHMARK: 'mcp__agentic_qe__performance_run_benchmark',
+  PERFORMANCE_MONITOR_REALTIME_PHASE3: 'mcp__agentic_qe__performance_monitor_realtime', // Note: Duplicate name, keeping both for compatibility
+  // Security
+  SECURITY_VALIDATE_AUTH: 'mcp__agentic_qe__security_validate_auth',
+  SECURITY_CHECK_AUTHZ: 'mcp__agentic_qe__security_check_authz',
+  SECURITY_SCAN_DEPENDENCIES: 'mcp__agentic_qe__security_scan_dependencies',
+  SECURITY_GENERATE_REPORT: 'mcp__agentic_qe__security_generate_report',
+  SECURITY_SCAN_COMPREHENSIVE_PHASE3: 'mcp__agentic_qe__security_scan_comprehensive', // Note: Duplicate name, keeping both for compatibility
+  // Visual Testing
+  VISUAL_COMPARE_SCREENSHOTS: 'mcp__agentic_qe__visual_compare_screenshots',
+  VISUAL_VALIDATE_ACCESSIBILITY: 'mcp__agentic_qe__visual_validate_accessibility',
+  VISUAL_DETECT_REGRESSION: 'mcp__agentic_qe__visual_detect_regression',
+  // Phase 3: New Domain Tools
+  // Security Domain (3 tools)
+  QE_SECURITY_SCAN_COMPREHENSIVE: 'mcp__agentic_qe__qe_security_scan_comprehensive',
+  QE_SECURITY_DETECT_VULNERABILITIES: 'mcp__agentic_qe__qe_security_detect_vulnerabilities',
+  QE_SECURITY_VALIDATE_COMPLIANCE: 'mcp__agentic_qe__qe_security_validate_compliance',
+  // Test-Generation Domain (4 tools)
+  QE_TESTGEN_GENERATE_UNIT: 'mcp__agentic_qe__qe_testgen_generate_unit',
+  QE_TESTGEN_GENERATE_INTEGRATION: 'mcp__agentic_qe__qe_testgen_generate_integration',
+  QE_TESTGEN_OPTIMIZE_SUITE: 'mcp__agentic_qe__qe_testgen_optimize_suite',
+  QE_TESTGEN_ANALYZE_QUALITY: 'mcp__agentic_qe__qe_testgen_analyze_quality',
+  // Quality-Gates Domain (4 tools)
+  QE_QUALITYGATE_EVALUATE: 'mcp__agentic_qe__qe_qualitygate_evaluate',
+  QE_QUALITYGATE_ASSESS_RISK: 'mcp__agentic_qe__qe_qualitygate_assess_risk',
+  QE_QUALITYGATE_VALIDATE_METRICS: 'mcp__agentic_qe__qe_qualitygate_validate_metrics',
+  QE_QUALITYGATE_GENERATE_REPORT: 'mcp__agentic_qe__qe_qualitygate_generate_report',
+  // API-Contract Domain (3 tools)
+  QE_APICONTRACT_VALIDATE: 'mcp__agentic_qe__qe_apicontract_validate',
+  QE_APICONTRACT_BREAKING_CHANGES: 'mcp__agentic_qe__qe_apicontract_breaking_changes',
+  QE_APICONTRACT_VERSIONING: 'mcp__agentic_qe__qe_apicontract_versioning',
+  // Test-Data Domain (3 tools)
+  QE_TESTDATA_GENERATE: 'mcp__agentic_qe__qe_testdata_generate',
+  QE_TESTDATA_MASK: 'mcp__agentic_qe__qe_testdata_mask',
+  QE_TESTDATA_SCHEMA: 'mcp__agentic_qe__qe_testdata_schema',
+  // Regression Domain (2 tools)
+  QE_REGRESSION_ANALYZE_RISK: 'mcp__agentic_qe__qe_regression_analyze_risk',
+  QE_REGRESSION_SELECT_TESTS: 'mcp__agentic_qe__qe_regression_select_tests',
+  // Requirements Domain (2 tools)
+  QE_REQUIREMENTS_VALIDATE: 'mcp__agentic_qe__qe_requirements_validate',
+  QE_REQUIREMENTS_BDD: 'mcp__agentic_qe__qe_requirements_bdd',
+  // Code-Quality Domain (2 tools)
+  QE_CODEQUALITY_COMPLEXITY: 'mcp__agentic_qe__qe_codequality_complexity',
+  QE_CODEQUALITY_METRICS: 'mcp__agentic_qe__qe_codequality_metrics',
+  // Fleet Management Domain (2 tools)
+  QE_FLEET_COORDINATE: 'mcp__agentic_qe__qe_fleet_coordinate',
+  QE_FLEET_STATUS: 'mcp__agentic_qe__qe_fleet_status'
 } as const;
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];

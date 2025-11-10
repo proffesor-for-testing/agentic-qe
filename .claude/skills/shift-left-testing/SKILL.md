@@ -1,12 +1,6 @@
 ---
 name: shift-left-testing
 description: Move testing activities earlier (left) in software development lifecycle - unit tests, TDD, BDD, design for testability, and CI/CD integration. Use when reducing bug costs, implementing DevOps practices, or enabling continuous deployment.
-version: 1.0.0
-category: testing-methodologies
-tags: [shift-left, tdd, bdd, cicd, devops, early-testing, design-for-testability]
-difficulty: intermediate
-estimated_time: 60 minutes
-author: agentic-qe
 ---
 
 # Shift-Left Testing

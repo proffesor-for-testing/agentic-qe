@@ -1,12 +1,6 @@
 ---
 name: context-driven-testing
 description: Apply context-driven testing principles where practices are chosen based on project context, not universal "best practices". Use when making testing decisions, questioning dogma, or adapting approaches to specific project needs.
-version: 1.0.0
-category: testing
-tags: [context-driven, exploratory-testing, rapid-software-testing, test-strategy, risk-based, session-based]
-difficulty: advanced
-estimated_time: 45-60 minutes
-author: user
 ---
 
 # Context-Driven Testing

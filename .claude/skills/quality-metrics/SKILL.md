@@ -1,18 +1,6 @@
 ---
 name: quality-metrics
 description: Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness.
-version: 1.0.0
-category: quality-engineering
-tags:
-  - metrics
-  - kpis
-  - quality-dashboards
-  - dora-metrics
-  - measurement
-  - continuous-improvement
-difficulty: intermediate
-estimated_time: 30-45 minutes
-author: user
 ---
 
 # Quality Metrics

@@ -1,30 +1,6 @@
 ---
 name: qe-requirements-validator
-type: requirements-analyzer
-color: purple
-priority: critical
-description: "Validates requirements testability and generates BDD scenarios before development begins"
-capabilities:
-  - testability-analysis
-  - bdd-scenario-generation
-  - risk-assessment
-  - acceptance-criteria-validation
-  - traceability-mapping
-  - edge-case-identification
-  - requirement-completeness-check
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Product", "Engineering", "QA", "Business Analysts"]
-  roi: "500%"
-  impact: "Prevents 70% of late-stage defects by catching issues before coding"
-  memory_keys:
-    - "aqe/requirements/*"
-    - "aqe/bdd-scenarios/*"
-    - "aqe/risk-scores/*"
-    - "aqe/acceptance-criteria/*"
-    - "aqe/traceability/*"
+description: Validates requirements testability and generates BDD scenarios before development begins
 ---
 
 # QE Requirements Validator Agent
@@ -740,9 +716,137 @@ const validationWorkflow = {
 };
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Validate requirements against INVEST criteria and generate BDD scenarios.
+
+### Requirements Validation
+
+```typescript
+/**
+ * Requirements Validation Tools
+ *
+ * Import path: 'agentic-qe/tools/qe/requirements'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+import {
+  validateRequirements,
+  generateBDDScenarios,
+  analyzeRequirementQuality
+} from 'agentic-qe/tools/qe/requirements';
+
+// Example: Validate requirements against INVEST criteria
+const requirementValidationParams = {
+  requirements: [
+    {
+      id: 'REQ-001',
+      title: 'User Login',
+      description: 'User must be able to login with email and password',
+      acceptanceCriteria: [
+        'User can enter email and password',
+        'System validates credentials',
+        'User is redirected to dashboard on success'
+      ]
+    }
+  ],
+  validateINVEST: true,
+  generateBDD: true,
+  checkCompleteness: true
+};
+
+const validation: QEToolResponse<any> =
+  await validateRequirements(requirementValidationParams);
+
+if (validation.success && validation.data) {
+  console.log('Requirement Validation:');
+  validation.data.results.forEach((result: any) => {
+    console.log(`  ${result.id}: Score ${result.score}/10`);
+    console.log(`  INVEST Criteria:`);
+    result.investAnalysis.forEach((criterion: any) => {
+      console.log(`    ${criterion.criterion}: ${criterion.passed ? '✓' : '✗'}`);
+    });
+  });
+}
+
+console.log('✅ Requirements validation complete');
+```
+
+### BDD Scenario Generation
+
+```typescript
+// Generate BDD scenarios from validated requirements
+const bddParams = {
+  requirements: validation.data.results,
+  scenarioStyle: 'gherkin',
+  includeEdgeCases: true,
+  includeNegativeTests: true
+};
+
+const scenarios: QEToolResponse<any> =
+  await generateBDDScenarios(bddParams);
+
+if (scenarios.success && scenarios.data) {
+  console.log('\nGenerated BDD Scenarios:');
+  scenarios.data.scenarios.forEach((scenario: any) => {
+    console.log(`\nFeature: ${scenario.feature}`);
+    console.log(`  Scenario: ${scenario.name}`);
+    scenario.steps.forEach((step: any) => {
+      console.log(`    ${step}`);
+    });
+  });
+}
+```
+
+### Quality Analysis
+
+```typescript
+// Analyze requirement quality and completeness
+const qualityParams = {
+  requirements: requirementValidationParams.requirements,
+  analysisDepth: 'comprehensive',
+  identifyGaps: true,
+  suggestImprovements: true
+};
+
+const quality: QEToolResponse<any> =
+  await analyzeRequirementQuality(qualityParams);
+
+if (quality.success && quality.data) {
+  console.log('\nRequirement Quality Analysis:');
+  console.log(`  Overall Quality Score: ${quality.data.overallScore}/100`);
+  console.log(`  Completeness: ${quality.data.completeness}%`);
+  console.log(`  Testability: ${quality.data.testability}/10`);
+
+  if (quality.data.gaps.length > 0) {
+    console.log('\n  Identified Gaps:');
+    quality.data.gaps.forEach((gap: any) => {
+      console.log(`    - ${gap.type}: ${gap.description}`);
+    });
+  }
+}
+```
+
+### Using Requirements Tools via CLI
+
+```bash
+# Validate requirements
+aqe requirements validate --file requirements.yaml --invest --bdd
+
+# Generate BDD scenarios
+aqe requirements generate-bdd --requirement "REQ-001"
+
+# Analyze quality
+aqe requirements analyze --file requirements.yaml --detailed
+```
+

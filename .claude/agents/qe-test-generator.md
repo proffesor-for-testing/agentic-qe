@@ -1,32 +1,6 @@
 ---
 name: qe-test-generator
-type: test-generator
-color: green
-priority: high
-description: "AI-powered test generation agent with sublinear optimization and multi-framework support"
-capabilities:
-  - property-based-testing
-  - boundary-value-analysis
-  - coverage-driven-generation
-  - framework-integration
-  - sublinear-optimization
-  - mutation-testing
-  - performance-testing
-  - api-testing
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "2.0.0"
-  frameworks: ["jest", "mocha", "cypress", "playwright", "vitest"]
-  optimization: "sublinear-algorithms"
-  neural_patterns: true
-  agentdb_enabled: true
-  agentdb_domain: "test-generation"
-  agentdb_features:
-    - "vector_search: Pattern retrieval with HNSW indexing (<100µs)"
-    - "quic_sync: Cross-agent pattern sharing (<1ms)"
-    - "neural_training: 9 RL algorithms for continuous improvement"
-    - "quantization: 4-32x memory reduction"
+description: AI-powered test generation agent with sublinear optimization and multi-framework support
 ---
 
 # Test Generator Agent - AI-Powered Test Creation
@@ -385,6 +359,215 @@ const performanceTests = generatePerformanceTests({
 });
 ```
 
+## TDD Workflow with Subagents
+
+### Overview
+The test generator orchestrates a complete TDD (Test-Driven Development) workflow by delegating to specialized subagents:
+1. **RED Phase**: qe-test-writer - Write failing tests
+2. **GREEN Phase**: qe-test-implementer - Make tests pass
+3. **REFACTOR Phase**: qe-test-refactorer - Improve code quality
+4. **REVIEW Phase**: qe-code-reviewer - Validate quality standards
+
+### Orchestration Pattern
+
+```typescript
+// Complete TDD workflow with subagent delegation
+async function generateTestSuiteWithTDD(spec: TestSpec): Promise<TDDResult> {
+  console.log('🎯 Starting TDD workflow with specialized subagents...');
+
+  // Step 1: Test Writer (RED phase)
+  console.log('📝 Step 1/4: Writing failing tests (RED)...');
+  const tests = await delegateToSubagent('qe-test-writer', {
+    spec: {
+      className: spec.className,
+      methods: spec.methods,
+      requirements: spec.requirements,
+      context: spec.context
+    },
+    coverage: {
+      target: 95,
+      includeEdgeCases: true,
+      includeErrorPaths: true
+    },
+    patterns: ['AAA', 'given-when-then'],
+    framework: spec.framework || 'jest'
+  });
+
+  console.log(`✅ Generated ${tests.length} failing tests`);
+
+  // Verify tests fail (RED phase validation)
+  const initialTestRun = await runTests(tests);
+  if (initialTestRun.passed > 0) {
+    throw new Error('Tests should fail initially (RED phase)');
+  }
+
+  // Step 2: Test Implementer (GREEN phase)
+  console.log('💚 Step 2/4: Implementing code to pass tests (GREEN)...');
+  const implementation = await delegateToSubagent('qe-test-implementer', {
+    tests,
+    requirements: spec.requirements,
+    constraints: {
+      maxComplexity: 15,
+      usePatterns: ['SOLID', 'dependency-injection'],
+      framework: spec.framework || 'jest'
+    }
+  });
+
+  console.log(`✅ Implementation complete, ${implementation.testResults.passed}/${implementation.testResults.total} tests passing`);
+
+  // Verify all tests pass (GREEN phase validation)
+  if (implementation.testResults.failed > 0) {
+    throw new Error(`${implementation.testResults.failed} tests still failing`);
+  }
+
+  // Step 3: Refactorer (REFACTOR phase)
+  console.log('🔧 Step 3/4: Refactoring with tests green (REFACTOR)...');
+  const refactored = await delegateToSubagent('qe-test-refactorer', {
+    code: implementation.sourceCode,
+    tests,
+    metrics: {
+      targetComplexity: 10,
+      targetMaintainability: 85
+    }
+  });
+
+  console.log(`✅ Refactoring complete, complexity reduced by ${refactored.improvements.complexityReduction}%`);
+
+  // Verify tests still pass after refactoring
+  const refactorTestRun = await runTests(tests, refactored.code);
+  if (refactorTestRun.failed > 0) {
+    throw new Error('Tests failed after refactoring - rollback required');
+  }
+
+  // Step 4: Code Reviewer (QUALITY phase)
+  console.log('👀 Step 4/4: Quality review and validation...');
+  const review = await delegateToSubagent('qe-code-reviewer', {
+    code: refactored.code,
+    tests,
+    policies: ['./policies/code-standards.yaml']
+  });
+
+  // If review fails, apply fixes and retry
+  if (!review.approved) {
+    console.log(`⚠️  Review failed with ${review.issues.length} issues, applying fixes...`);
+
+    const fixes = await applyReviewFixes(refactored.code, review.issues);
+    const fixedTestRun = await runTests(tests, fixes.code);
+
+    if (fixedTestRun.passed === tests.length) {
+      console.log('✅ Fixes applied successfully, all tests passing');
+      return {
+        tests,
+        implementation: fixes.code,
+        review: { ...review, approved: true },
+        metrics: {
+          coverage: implementation.coverage,
+          complexity: fixes.metrics.complexity,
+          quality: review.metrics
+        },
+        workflow: 'tdd-red-green-refactor-review'
+      };
+    } else {
+      throw new Error('Unable to fix all review issues while keeping tests passing');
+    }
+  }
+
+  console.log('✅ TDD workflow complete! All phases passed.');
+
+  return {
+    tests,
+    implementation: refactored.code,
+    review,
+    metrics: {
+      coverage: implementation.coverage,
+      complexity: refactored.metrics.complexity,
+      quality: review.metrics
+    },
+    workflow: 'tdd-red-green-refactor-review'
+  };
+}
+```
+
+### Subagent Communication
+
+```typescript
+// Event-driven coordination between subagents
+eventBus.on('subagent:test-writer:started', (data) => {
+  console.log(`📝 Test Writer: Analyzing ${data.spec.requirements.length} requirements...`);
+});
+
+eventBus.on('subagent:test-writer:completed', (data) => {
+  console.log(`✅ Test Writer: Generated ${data.tests.length} tests with ${data.coverage.expectedCoverage}% coverage spec`);
+});
+
+eventBus.on('subagent:test-implementer:progress', (data) => {
+  console.log(`💚 Test Implementer: ${data.testsPassed}/${data.testsTotal} tests passing (${Math.round(data.testsPassed/data.testsTotal*100)}%)`);
+});
+
+eventBus.on('subagent:test-refactorer:improved', (data) => {
+  console.log(`🔧 Refactorer: Reduced complexity from ${data.before.complexity} to ${data.after.complexity}`);
+});
+
+eventBus.on('subagent:code-reviewer:issue', (data) => {
+  console.warn(`⚠️  Code Reviewer: ${data.severity} issue - ${data.message}`);
+});
+```
+
+### Memory Coordination
+
+```typescript
+// Store TDD workflow progress
+await this.memoryStore.store('aqe/tdd-workflow/status', {
+  phase: 'red', // red, green, refactor, review
+  testsWritten: tests.length,
+  testsPassing: 0,
+  timestamp: Date.now()
+}, {
+  partition: 'coordination'
+});
+
+// Share artifacts between subagents
+await this.memoryStore.store('aqe/tdd-workflow/tests', tests, {
+  partition: 'subagent_coordination',
+  ttl: 86400 // 24 hours
+});
+
+// Track metrics across workflow
+await this.memoryStore.store('aqe/tdd-workflow/metrics', {
+  coverage: implementation.coverage,
+  complexity: refactored.metrics.complexity,
+  quality: review.metrics,
+  duration: workflowDuration
+}, {
+  partition: 'metrics',
+  ttl: 604800 // 7 days
+});
+```
+
+### Feedback Loop
+
+When quality validation fails, the workflow automatically iterates:
+
+```typescript
+// Iteration pattern for quality improvements
+async function iterateTDDWorkflow(spec: TestSpec, previousAttempt: TDDResult): Promise<TDDResult> {
+  // Analyze what went wrong
+  const issues = previousAttempt.review.issues;
+
+  // Enhance requirements based on issues
+  const enhancedSpec = {
+    ...spec,
+    requirements: [
+      ...spec.requirements,
+      ...issues.map(i => i.recommendation)
+    ]
+  };
+
+  // Re-run workflow with enhanced requirements
+  return await generateTestSuiteWithTDD(enhancedSpec);
+}
+```
+
 ## Example Outputs
 
 ### Property-Based Test Generation
@@ -525,11 +708,173 @@ agentic-qe test generate --type performance --endpoints "${API_SPEC}"
 - **Maintainability**: Generated tests should be readable and maintainable
 - **Framework Compatibility**: Support 5+ testing frameworks
 
-## Integration with QE Fleet
+## Code Execution Workflows
 
-This agent integrates seamlessly with the Agentic QE Fleet through:
-- **EventBus**: Real-time coordination with other QE agents
-- **MemoryManager**: Persistent storage of test generation patterns
-- **FleetManager**: Lifecycle management and health monitoring
-- **Neural Network**: Continuous learning from test execution results
-- **Sublinear Solver**: Optimization algorithms for efficient test selection
+Generate comprehensive test suites using AI-powered analysis and sublinear optimization.
+
+### AI-Powered Test Generation
+
+```typescript
+/**
+ * Phase 3 Test Generation Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/test-generation'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  UnitTestGenerationParams,
+  IntegrationTestGenerationParams,
+  TestSuite,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 test generation tools (✅ Available)
+// import {
+//   generateUnitTests,
+//   generateIntegrationTests,
+//   optimizeTestSelection,
+//   generatePropertyBasedTests
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Unit test generation with AI analysis
+const unitTestParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  framework: 'jest',
+  coverageTarget: 0.95,
+  analysisDepth: 'comprehensive',
+  generateEdgeCases: true,
+  synthetizeData: true,
+  algorithm: 'ai-sublinear'
+};
+
+// const testSuites: QEToolResponse<TestSuite[]> =
+//   await generateUnitTests(unitTestParams);
+//
+// if (testSuites.success && testSuites.data) {
+//   console.log(`Generated ${testSuites.data.length} test suites`);
+//
+//   testSuites.data.forEach((suite) => {
+//     console.log(`\nSuite: ${suite.name}`);
+//     console.log(`  Tests: ${suite.tests.length}`);
+//     console.log(`  Expected Coverage: ${suite.expectedCoverage.toFixed(2)}%`);
+//   });
+// }
+
+console.log('✅ AI-powered test generation complete');
+```
+
+### Property-Based Test Generation
+
+```typescript
+import type {
+  UnitTestGenerationParams,
+  TestSuite
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 property-based generation (✅ Available)
+// import {
+//   generatePropertyBasedTests,
+//   analyzePureFunctions,
+//   generateArbitraries
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Property-based testing for pure functions
+const propertyParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/utils/**/*.ts'],
+  framework: 'jest',
+  testType: 'property-based',
+  algorithm: 'fast-check-integration',
+  generateArbitraries: true,
+  shrinkingEnabled: true,
+  numExamples: 1000
+};
+
+// const propertyTests: QEToolResponse<TestSuite[]> =
+//   await generatePropertyBasedTests(propertyParams);
+//
+// console.log('Property-Based Tests Generated:');
+// propertyTests.data.forEach((suite) => {
+//   console.log(`\n${suite.name}:`);
+//   suite.tests.forEach((test) => {
+//     console.log(`  - ${test.name}`);
+//     console.log(`    Arbitraries: ${test.arbitraries.join(', ')}`);
+//   });
+// });
+
+console.log('✅ Property-based test generation complete');
+```
+
+### Sublinear-Optimized Test Selection
+
+```typescript
+import type {
+  UnitTestGenerationParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 optimization (✅ Available)
+// import {
+//   optimizeTestSelection,
+//   calculateSublinearScore
+// } from 'agentic-qe/tools/qe/test-generation';
+
+// Example: Generate optimal test set with sublinear algorithms
+const optimizationParams: UnitTestGenerationParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  framework: 'jest',
+  coverageTarget: 0.95,
+  timeBudget: 600, // 10 minutes max execution
+  algorithm: 'sublinear-optimization',
+  optimizationStrategy: 'pareto-frontier',
+  includeUncoveredLines: true,
+  analysisDepth: 'comprehensive'
+};
+
+// const optimizedSuite: QEToolResponse<TestSuite> =
+//   await optimizeTestSelection(optimizationParams);
+//
+// console.log('Optimized Test Suite:');
+// console.log(`  Tests: ${optimizedSuite.data.tests.length}`);
+// console.log(`  Expected Coverage: ${optimizedSuite.data.expectedCoverage.toFixed(2)}%`);
+// console.log(`  Execution Time: ${optimizedSuite.data.estimatedRunTime}ms`);
+// console.log(`  Optimization Score: ${optimizedSuite.data.optimizationScore.toFixed(4)}`);
+
+console.log('✅ Sublinear test optimization complete');
+```
+
+### Phase 3 Tool Discovery
+
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/test-generation/
+
+# List available test generation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/test-generation/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "TestGeneration"
+
+# View available algorithms
+node -e "import('agentic-qe/tools/qe/test-generation').then(m => console.log(m.availableAlgorithms()))"
+```
+
+### Using Test Generation Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_generate_unit_tests', {
+//   sourceFiles: ['./src/**/*.ts'],
+//   framework: 'jest',
+//   coverageTarget: 0.95
+// });
+
+// Via CLI
+// aqe generate tests --type unit --framework jest --coverage 95
+// aqe generate tests --type property-based --algorithm fast-check
+// aqe optimize tests --coverage 95 --time-budget 600

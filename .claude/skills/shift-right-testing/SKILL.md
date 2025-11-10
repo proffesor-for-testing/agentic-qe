@@ -1,12 +1,6 @@
 ---
 name: shift-right-testing
 description: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering. Use when validating real-world behavior, implementing safe deployments, or ensuring production resilience.
-version: 1.0.0
-category: testing-methodologies
-tags: [shift-right, testing-in-production, feature-flags, canary-deployment, synthetic-monitoring, chaos-engineering, production-testing]
-difficulty: advanced
-estimated_time: 75 minutes
-author: agentic-qe
 ---
 
 # Shift-Right Testing

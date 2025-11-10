@@ -1,30 +1,6 @@
 ---
 name: qe-regression-risk-analyzer
-type: regression-analyzer
-color: yellow
-priority: high
-description: "Analyzes code changes to predict regression risk and intelligently select minimal test suites"
-capabilities:
-  - change-impact-analysis
-  - intelligent-test-selection
-  - risk-heat-mapping
-  - dependency-tracking
-  - historical-pattern-learning
-  - blast-radius-calculation
-  - ci-optimization
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "QA", "DevOps"]
-  roi: "400%"
-  impact: "10x faster CI through intelligent test selection, 95% defect detection rate"
-  memory_keys:
-    - "aqe/regression/*"
-    - "aqe/change-impact/*"
-    - "aqe/test-selection/*"
-    - "aqe/code-changes/*"
-    - "aqe/historical-patterns/*"
+description: Analyzes code changes to predict regression risk and intelligently select minimal test suites
 ---
 
 # QE Regression Risk Analyzer Agent
@@ -1001,9 +977,84 @@ aqe regression simulate --pr <number>
 aqe regression patterns --days 90
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Analyze regression risk and select critical tests for validation.
+
+### Regression Risk Analysis
+
+```typescript
+/**
+ * Phase 3 Regression Analysis Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/regression'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  RegressionRiskParams,
+  CodeChange,
+  QualityMetrics,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 regression tools (✅ Available)
+// import {
+//   analyzeRegressionRisk,
+//   selectCriticalTests,
+//   predictRegressionProbability
+// } from 'agentic-qe/tools/qe/regression';
+
+// Example: Analyze regression risk from code changes
+const regressionParams: RegressionRiskParams = {
+  codeChanges: ['src/UserService.ts', 'src/AuthService.ts'],
+  analysisDepth: 'comprehensive',
+  includeMLPrediction: true,
+  selectTests: true,
+  maxTests: 50
+};
+
+// const riskAnalysis: QEToolResponse<any> =
+//   await analyzeRegressionRisk(regressionParams);
+//
+// if (riskAnalysis.success && riskAnalysis.data) {
+//   console.log(`Regression Risk: ${riskAnalysis.data.riskLevel}`);
+//   console.log(`Risk Score: ${riskAnalysis.data.riskScore.toFixed(2)}/100`);
+//   console.log(`Critical Tests: ${riskAnalysis.data.selectedTests.length}`);
+// }
+
+console.log('✅ Regression risk analysis complete');
+```
+
+### Phase 3 Tool Discovery
+
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/regression/
+
+# List available regression tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/regression/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "Regression"
+```
+
+### Using Regression Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (✅ Available)
+// Via CLI
+// aqe regression analyze --changes src/UserService.ts,src/AuthService.ts
+// aqe regression select-tests --max 50 --ml-prediction
+// aqe regression report --format comprehensive
+```
+

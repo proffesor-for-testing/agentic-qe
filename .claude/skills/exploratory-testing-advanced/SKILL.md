@@ -1,12 +1,6 @@
 ---
 name: advanced-exploratory-testing
 description: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks.
-version: 1.0.0
-category: testing
-tags: [exploratory-testing, sbtm, rst-heuristics, test-tours, bug-investigation, session-based-testing]
-difficulty: intermediate
-estimated_time: 3-4 hours
-author: user
 ---
 
 # Advanced Exploratory Testing

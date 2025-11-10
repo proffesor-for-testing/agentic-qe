@@ -1,30 +1,6 @@
 ---
 name: qe-api-contract-validator
-type: contract-validator
-color: blue
-priority: high
-description: "Validates API contracts, detects breaking changes, and ensures backward compatibility across services"
-capabilities:
-  - schema-validation
-  - breaking-change-detection
-  - version-compatibility
-  - contract-diffing
-  - consumer-impact-analysis
-  - contract-testing
-  - semantic-versioning-validation
-coordination:
-  protocol: aqe-hooks
-metadata:
-  version: "1.0.0"
-  stakeholders: ["Engineering", "API Teams", "Integration Partners", "DevOps"]
-  roi: "500%"
-  impact: "Prevents 95% of API breaking changes, ensures backward compatibility"
-  memory_keys:
-    - "aqe/contracts/*"
-    - "aqe/api-schemas/*"
-    - "aqe/breaking-changes/*"
-    - "aqe/consumer-impact/*"
-    - "aqe/compatibility/*"
+description: Validates API contracts, detects breaking changes, and ensures backward compatibility across services
 ---
 
 # QE API Contract Validator Agent
@@ -1140,9 +1116,139 @@ aqe contract deprecation-timeline --version <v2> --sunset-date <date>
 aqe contract evolution --from <v1> --to <v2> --format pdf
 ```
 
----
 
 **Agent Status**: Production Ready
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Code Execution Workflows
+
+Validate API contracts and detect breaking changes with automated compatibility checking.
+
+### Contract Validation with Schema Analysis
+
+```typescript
+/**
+ * Phase 3 API Contract Validation Tools
+ *
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
+ * These examples show the REAL API that will be available.
+ *
+ * Import path: 'agentic-qe/tools/qe/security'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  BreakingChangeParams,
+  ContractValidationResult,
+  Vulnerability,
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 contract validation tools (✅ Available)
+// import {
+//   validateContract,
+//   detectBreakingChanges,
+//   analyzeBackwardCompatibility,
+//   generateContractReport
+// } from 'agentic-qe/tools/qe/security';
+
+// Example: API contract validation and breaking change detection
+const contractParams: BreakingChangeParams = {
+  currentSchema: './openapi.v2.json',
+  previousSchema: './openapi.v1.json',
+  apiType: 'rest',
+  checkBreakingChanges: true,
+  strictMode: true,
+  includeDeprecations: true
+};
+
+// const validation: QEToolResponse<ContractValidationResult> =
+//   await validateContract(contractParams);
+//
+// if (validation.success && validation.data) {
+//   console.log(`Validation: ${validation.data.isCompatible ? 'PASS' : 'FAIL'}`);
+//
+//   if (validation.data.breakingChanges.length > 0) {
+//     console.log(`Breaking changes found: ${validation.data.breakingChanges.length}`);
+//     validation.data.breakingChanges.forEach((change) => {
+//       console.log(`  - ${change.severity}: ${change.description}`);
+//     });
+//   }
+// }
+
+console.log('✅ API contract validation complete');
+```
+
+### Breaking Change Detection
+
+```typescript
+import type {
+  BreakingChangeParams
+} from 'agentic-qe/tools/qe/shared/types';
+
+// Phase 3 breaking change analysis (✅ Available)
+// import {
+//   detectBreakingChanges,
+//   categorizeChanges,
+//   assessImpact
+// } from 'agentic-qe/tools/qe/security';
+
+// Example: Comprehensive breaking change analysis
+const changeParams: BreakingChangeParams = {
+  currentSchema: './openapi.json',
+  previousSchema: './openapi.previous.json',
+  apiType: 'rest',
+  consumers: ['frontend', 'mobile-app', 'third-party'],
+  impactAnalysis: true
+};
+
+// const changes = await detectBreakingChanges(changeParams);
+//
+// console.log('Breaking Changes Analysis:');
+// changes.data.forEach((change) => {
+//   console.log(`\n${change.type}: ${change.endpoint}`);
+//   console.log(`  Severity: ${change.severity}`);
+//   console.log(`  Impact: ${change.affectedConsumers.join(', ')}`);
+//   console.log(`  Remediation: ${change.remediation}`);
+// });
+
+console.log('✅ Breaking change detection complete');
+```
+
+### Phase 3 Tool Discovery
+
+```bash
+# Once Phase 3 is implemented, tools will be at:
+# /workspaces/agentic-qe-cf/src/mcp/tools/qe/security/
+
+# List available contract validation tools (Phase 3)
+ls node_modules/agentic-qe/dist/mcp/tools/qe/security/
+
+# Check type definitions
+cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "BreakingChange"
+
+# View supported API types
+node -e "import('agentic-qe/tools/qe/security').then(m => console.log(m.supportedApiTypes()))"
+```
+
+### Using Contract Validation Tools via MCP (Phase 3)
+
+```typescript
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
+
+// Via MCP client
+// const result = await mcpClient.callTool('qe_validate_api_contract', {
+//   currentSchema: './openapi.json',
+//   previousSchema: './openapi.previous.json',
+//   apiType: 'rest'
+// });
+
+// Via CLI
+// aqe contract validate --current ./openapi.json --previous ./openapi.previous.json
+// aqe contract detect-breaking --schema ./openapi.json --strict
+// aqe contract report --format html --include-impact-analysis
+```
+

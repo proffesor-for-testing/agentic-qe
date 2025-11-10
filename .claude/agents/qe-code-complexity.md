@@ -1,10 +1,6 @@
 ---
 name: qe-code-complexity
-version: 1.0.0
 description: Educational code complexity analyzer demonstrating the Agentic QE Fleet architecture
-tags: [quality-engineering, complexity-analysis, refactoring, learning-example]
-capabilities: [complexity-analysis, refactoring-recommendations, pattern-detection]
-type: quality-analyzer
 ---
 
 # QE Code Complexity Analyzer
@@ -252,28 +248,121 @@ npm test tests/agents/CodeComplexityAnalyzerAgent.test.ts
 
 ## Architecture Insights
 
-### Memory Namespace
-- `aqe/complexity/${agentId}/current-request` - Active analysis request
-- `aqe/complexity/${agentId}/latest-result` - Most recent result
-- `aqe/complexity/${agentId}/history` - Historical analyses (last 100)
-- `aqe/complexity/${agentId}/errors/*` - Error tracking
 
-### Events Emitted
-- `complexity:analysis:completed` - When analysis finishes successfully
-- `complexity:analysis:stored` - When results are persisted
+## Code Execution Workflows
 
-### Capabilities Provided
-- `complexity-analysis` - Core analysis functionality
-- `refactoring-recommendations` - AI-powered suggestions
-- `pattern-detection` - Complex code pattern recognition
+Analyze code complexity and generate refactoring recommendations.
 
-## Next Steps
+### Code Complexity Analysis
 
-After understanding this agent, explore:
-- **TestGeneratorAgent**: See how it generates tests
-- **CoverageAnalyzerAgent**: Learn about O(log n) gap detection
-- **FleetManager**: Understand multi-agent coordination
-- **LearningEngine**: Discover how agents improve over time
+```typescript
+/**
+ * Code Quality Analysis Tools
+ *
+ * Import path: 'agentic-qe/tools/qe/code-quality'
+ * Type definitions: 'agentic-qe/tools/qe/shared/types'
+ */
+
+import type {
+  QEToolResponse
+} from 'agentic-qe/tools/qe/shared/types';
+
+import {
+  analyzeComplexity,
+  detectCodeSmells,
+  calculateMaintainability
+} from 'agentic-qe/tools/qe/code-quality';
+
+// Example: Analyze code complexity and get refactoring suggestions
+const complexityParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  metrics: ['cyclomatic', 'cognitive', 'maintainability'],
+  language: 'typescript',
+  thresholds: {
+    cyclomaticComplexity: 10,
+    cognitiveComplexity: 15,
+    maintainabilityIndex: 60
+  },
+  generateRecommendations: true
+};
+
+const analysis: QEToolResponse<any> =
+  await analyzeComplexity(complexityParams);
+
+if (analysis.success && analysis.data) {
+  console.log('Code Complexity Analysis:');
+  console.log(`  Average Cyclomatic: ${analysis.data.avgCyclomatic.toFixed(2)}`);
+  console.log(`  Cognitive Complexity: ${analysis.data.cognitiveComplexity.toFixed(2)}`);
+  console.log(`  Maintainability Index: ${analysis.data.maintainabilityIndex.toFixed(2)}`);
+
+  if (analysis.data.recommendations.length > 0) {
+    console.log('\n  Refactoring Recommendations:');
+    analysis.data.recommendations.forEach((rec: any) => {
+      console.log(`    - ${rec.file}: ${rec.suggestion} (Priority: ${rec.priority})`);
+    });
+  }
+}
+
+console.log('✅ Code complexity analysis complete');
+```
+
+### Code Smell Detection
+
+```typescript
+// Detect code smells and anti-patterns
+const smellParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  smellTypes: ['long-method', 'large-class', 'duplicated-code', 'complex-conditional'],
+  severity: 'medium',
+  includeExamples: true
+};
+
+const smells: QEToolResponse<any> =
+  await detectCodeSmells(smellParams);
+
+if (smells.success && smells.data) {
+  console.log('\nCode Smells Detected:');
+  smells.data.smells.forEach((smell: any) => {
+    console.log(`  ${smell.type} in ${smell.file}:${smell.line}`);
+    console.log(`    Severity: ${smell.severity}`);
+    console.log(`    Suggestion: ${smell.suggestion}`);
+  });
+}
+```
+
+### Maintainability Calculation
+
+```typescript
+// Calculate comprehensive maintainability metrics
+const maintainParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  includeHistory: true,
+  comparePrevious: true
+};
+
+const maintainability: QEToolResponse<any> =
+  await calculateMaintainability(maintainParams);
+
+if (maintainability.success && maintainability.data) {
+  console.log('\nMaintainability Analysis:');
+  console.log(`  Overall Score: ${maintainability.data.overallScore}/100`);
+  console.log(`  Technical Debt: ${maintainability.data.technicalDebt} hours`);
+  console.log(`  Trend: ${maintainability.data.trend}`);
+}
+```
+
+### Using Code Quality Tools via CLI
+
+```bash
+# Analyze complexity
+aqe code-quality analyze --files ./src/**/*.ts --metrics all
+
+# Detect code smells
+aqe code-quality detect-smells --files ./src/**/*.ts --severity medium
+
+# Calculate maintainability
+aqe code-quality maintainability --files ./src/**/*.ts --detailed
+```
 
 ## Resources
 
@@ -282,7 +371,6 @@ After understanding this agent, explore:
 - **Demo**: `examples/complexity-analysis/demo.ts`
 - **BaseAgent**: `src/agents/BaseAgent.ts`
 
----
 
 **Educational Agent**: This agent is designed for learning. For production complexity analysis, consider:
 - ESLint with complexity rules

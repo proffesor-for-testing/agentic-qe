@@ -7,11 +7,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.4.4** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.5.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
 
-🧠 **Q-Learning System** | 📚 **34 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **54 MCP Tools**
+🧠 **Q-Learning System** | 📚 **34 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
 
 </div>
 
@@ -504,23 +504,28 @@ Model Usage:
 
 ---
 
-## 📝 What's New in v1.4.4
+## 📝 What's New in v1.5.0
 
-🔧 **Memory Leak Prevention & MCP Test Fixes** (2025-01-07)
+🎯 **Phase 3: Domain-Specific Tool Refactoring** (2025-11-08)
 
-- **Memory Leak Prevention**: Fixed MemoryManager interval timer leaks (270-540MB prevention)
-  - Added static instance tracking and `shutdownAll()` for global cleanup
-  - Enhanced `jest.global-teardown.ts` with comprehensive MemoryManager cleanup
-  - Created cleanup template for integration tests (eliminates OOM crashes)
-- **MCP Test Structure**: Fixed 24 MCP test files with correct response structure assertions
-  - Updated from flat structure (`response.requestId`) to nested metadata (`response.metadata.requestId`)
-  - 29 assertions fixed across analysis, coordination, memory, prediction, and test handlers
-  - 100% architectural integrity maintained (metadata encapsulation preserved)
-- **Test Infrastructure**: Idempotent shutdown, leak detection warnings (>10 instances)
-- **Integration Test Template**: Example cleanup pattern in api-contract-validator-integration.test.ts
-- **TypeScript Compilation**: 0 errors (clean build verified)
+- **32 Domain-Specific MCP Tools** organized by QE function for better discoverability
+  - 6 QE domains: Coverage, Flaky Detection, Performance, Visual, Security, Test Generation
+  - Improved type safety with strict TypeScript (no `any` types)
+  - Enhanced tool organization based on domain intent
+- **Migration Support**: Comprehensive migration guide with backward compatibility
+  - Deprecated tools remain available until v3.0.0 (Feb 2026)
+  - Clear deprecation warnings with migration paths
+  - Zero breaking changes in v1.5.0
+- **Tool Catalog**: Complete documentation of all 32 domain-specific tools
+  - Function signatures and parameter documentation
+  - Usage examples for each tool
+  - Domain-specific best practices
+- **Agent Integration**: Updated 7 agent code execution examples with real imports
+  - Direct tool imports instead of generic MCP calls
+  - Type-safe parameter handling
+  - Better error messages
 
-**Upgrade Recommendation**: All users should upgrade to v1.4.4 for memory leak prevention and test reliability.
+**Upgrade Path**: See [Migration Guide](docs/migration/phase3-tools.md) for step-by-step instructions.
 
 [📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 

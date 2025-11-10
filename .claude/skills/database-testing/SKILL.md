@@ -1,12 +1,6 @@
 ---
 name: database-testing
 description: Database schema validation, data integrity testing, migration testing, transaction isolation, and query performance. Use when testing data persistence, ensuring referential integrity, or validating database migrations.
-version: 1.0.0
-category: specialized-testing
-tags: [database-testing, sql, schema-migration, data-integrity, transaction-testing, query-performance]
-difficulty: intermediate
-estimated_time: 75 minutes
-author: agentic-qe
 ---
 
 # Database Testing
