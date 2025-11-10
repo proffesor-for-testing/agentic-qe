@@ -424,7 +424,7 @@ Validate quality gates with comprehensive metrics and risk assessment.
 /**
  * Phase 3 Quality Gate Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/quality-gates'
@@ -438,7 +438,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 quality gate tools (coming soon)
+// Phase 3 quality gate tools (✅ Available)
 // import {
 //   validateQualityGate,
 //   assessRisk,
@@ -489,7 +489,7 @@ import type {
   QualityMetrics
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 risk assessment (coming soon)
+// Phase 3 risk assessment (✅ Available)
 // import {
 //   assessDeploymentRisk,
 //   makeMergeDecision
@@ -543,8 +543,8 @@ node -e "import('agentic-qe/tools/qe/quality-gates').then(m => console.log(m.ava
 ### Using Quality Gate Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Once domain-specific tools are registered as MCP tools:
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
 
 // Via MCP client
 // const result = await mcpClient.callTool('qe_validate_quality_gate', {

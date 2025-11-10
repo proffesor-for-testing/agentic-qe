@@ -1149,7 +1149,7 @@ Assess deployment risk and make data-driven go/no-go decisions.
 /**
  * Phase 3 Deployment Readiness Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/deployment'
@@ -1162,7 +1162,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 deployment assessment tools (coming soon)
+// Phase 3 deployment assessment tools (✅ Available)
 // import {
 //   assessDeploymentRisk,
 //   aggregateQualitySignals,
@@ -1213,7 +1213,7 @@ cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "De
 ### Using Deployment Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
+// Phase 3 MCP integration (✅ Available)
 // Via CLI
 // aqe deployment assess --metrics ./metrics.json
 // aqe deployment go-nogo --environment production

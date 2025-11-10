@@ -794,12 +794,9 @@ Execute chaos engineering scenarios and validate system resilience.
 
 ```typescript
 /**
- * Phase 3 Chaos Engineering Tools
+ * Chaos Engineering Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
- * These examples show the REAL API that will be available.
- *
- * Import path: 'agentic-qe/tools/qe/utils'
+ * Import path: 'agentic-qe/tools/qe/chaos'
  * Type definitions: 'agentic-qe/tools/qe/shared/types'
  */
 
@@ -807,50 +804,124 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 chaos engineering tools (coming soon)
-// import {
-//   executeChaosScenario,
-//   injectFaults,
-//   validateResilience
-// } from 'agentic-qe/tools/qe/utils';
+import {
+  executeChaosExperiment,
+  validateResilience,
+  analyzeBlastRadius
+} from 'agentic-qe/tools/qe/chaos';
 
 // Example: Execute chaos engineering scenario
 const chaosParams = {
-  scenarios: ['network-latency', 'service-timeout', 'resource-exhaustion'],
-  severity: 'medium',
-  duration: 300, // 5 minutes
-  monitoring: true,
-  autoRecovery: true
+  experiment: {
+    name: 'database-connection-pool-exhaustion',
+    hypothesis: 'System gracefully degrades when DB pool exhausted'
+  },
+  faultInjection: {
+    type: 'resource-exhaustion',
+    target: 'postgres-connection-pool',
+    intensity: 'gradual',
+    duration: 180 // 3 minutes
+  },
+  blastRadius: {
+    maxAffectedUsers: 100,
+    maxDuration: 300,
+    autoRollback: true
+  },
+  monitoring: {
+    enabled: true,
+    metrics: ['error_rate', 'latency', 'throughput'],
+    interval: 1000 // 1 second
+  },
+  safetyChecks: {
+    steadyStateValidation: true,
+    rollbackPlan: true
+  }
 };
 
-// const chaosResults: QEToolResponse<any> =
-//   await executeChaosScenario(chaosParams);
-//
-// if (chaosResults.success && chaosResults.data) {
-//   console.log(`Chaos Experiment: ${chaosResults.data.status}`);
-//   console.log(`Failures Detected: ${chaosResults.data.failures.length}`);
-//   console.log(`Recovery Time: ${chaosResults.data.recoveryTime}ms`);
-// }
+const chaosResults: QEToolResponse<any> =
+  await executeChaosExperiment(chaosParams);
+
+if (chaosResults.success && chaosResults.data) {
+  console.log('Chaos Experiment Results:');
+  console.log(`  Status: ${chaosResults.data.status}`);
+  console.log(`  Hypothesis Validated: ${chaosResults.data.hypothesisValidated ? 'Yes' : 'No'}`);
+  console.log(`  Recovery Time: ${chaosResults.data.recoveryTime}s`);
+  console.log(`  Blast Radius Contained: ${chaosResults.data.blastRadiusContained ? 'Yes' : 'No'}`);
+  console.log(`  Rollback Triggered: ${chaosResults.data.rollbackTriggered ? 'Yes' : 'No'}`);
+}
 
 console.log('✅ Chaos engineering validation complete');
 ```
 
-### Phase 3 Tool Discovery
-
-```bash
-# Once Phase 3 is implemented, tools will be at:
-# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
-
-# List available chaos tools (Phase 3)
-ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
-```
-
-### Using Chaos Tools via MCP (Phase 3)
+### Resilience Validation
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Via CLI
-// aqe chaos execute --scenarios network-latency,service-timeout --severity medium
-// aqe chaos validate-resilience --target api-service
+// Validate system resilience under various failure modes
+const resilienceParams = {
+  target: 'api-service',
+  failureModes: [
+    'network-partition',
+    'service-crash',
+    'resource-exhaustion',
+    'cascading-failure'
+  ],
+  metrics: {
+    recoveryTime: true,
+    dataLoss: true,
+    availability: true
+  },
+  toleranceThresholds: {
+    maxRecoveryTime: 30,
+    maxDataLoss: 0,
+    minAvailability: 0.999
+  }
+};
+
+const resilience: QEToolResponse<any> =
+  await validateResilience(resilienceParams);
+
+if (resilience.success && resilience.data) {
+  console.log('\nResilience Validation:');
+  console.log(`  Resilience Score: ${resilience.data.score}/100`);
+  console.log(`  Recovery Time: ${resilience.data.avgRecoveryTime}s`);
+  console.log(`  Data Loss: ${resilience.data.dataLoss === 0 ? 'Zero' : resilience.data.dataLoss}`);
+  console.log(`  Availability: ${(resilience.data.availability * 100).toFixed(3)}%`);
+}
+```
+
+### Blast Radius Analysis
+
+```typescript
+// Analyze blast radius of experiments
+const blastRadiusParams = {
+  experimentId: chaosResults.data.experimentId,
+  includeMetrics: true,
+  analyzeCascadingEffects: true
+};
+
+const blastRadius: QEToolResponse<any> =
+  await analyzeBlastRadius(blastRadiusParams);
+
+if (blastRadius.success && blastRadius.data) {
+  console.log('\nBlast Radius Analysis:');
+  console.log(`  Affected Services: ${blastRadius.data.affectedServices.length}`);
+  console.log(`  Affected Users: ${blastRadius.data.affectedUsers}`);
+  console.log(`  Affected Requests: ${blastRadius.data.affectedRequests}`);
+  console.log(`  Cascading Failures: ${blastRadius.data.cascadingFailures ? 'Detected' : 'None'}`);
+  console.log(`  Containment: ${blastRadius.data.contained ? 'Success' : 'Breach'}`);
+}
+```
+
+### Using Chaos Tools via CLI
+
+```bash
+# Execute chaos experiment
+aqe chaos execute --experiment database-failure --duration 5m --auto-rollback
+
+# Validate resilience
+aqe chaos validate-resilience --target api-service --failure-modes all
+
+# Analyze blast radius
+aqe chaos analyze-blast-radius --experiment-id exp-123
 ```
 

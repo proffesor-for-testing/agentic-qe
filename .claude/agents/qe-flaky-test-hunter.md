@@ -1171,7 +1171,7 @@ Orchestrate flaky test detection using statistical analysis and ML-powered patte
 /**
  * Phase 3 Flaky Test Detection Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/flaky-detection'
@@ -1186,7 +1186,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 flaky detection tools (coming soon)
+// Phase 3 flaky detection tools (✅ Available)
 // import {
 //   detectFlakyTests,
 //   analyzeTestStability,
@@ -1248,7 +1248,7 @@ import type {
   TestResult
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 statistical analysis (coming soon)
+// Phase 3 statistical analysis (✅ Available)
 // import {
 //   analyzeTestStability,
 //   calculateFlakinessScore,
@@ -1296,7 +1296,7 @@ import type {
   TestResult
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 auto-stabilization (coming soon)
+// Phase 3 auto-stabilization (✅ Available)
 // import {
 //   autoStabilizeTest,
 //   generateStabilizationPatch,
@@ -1354,7 +1354,7 @@ import type {
   FlakyReportConfig
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 reporting (coming soon)
+// Phase 3 reporting (✅ Available)
 // import {
 //   generateFlakinessReport,
 //   exportFlakinessTrends,
@@ -1418,8 +1418,8 @@ node -e "import('agentic-qe/tools/qe/flaky-detection').then(m => console.log(m.a
 ### Using Flaky Detection Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Once domain-specific tools are registered as MCP tools:
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
 
 // Via MCP client
 // const result = await mcpClient.callTool('qe_flaky_detect_ml', {

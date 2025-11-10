@@ -1201,12 +1201,9 @@ Convert production data and metrics into test scenarios and coverage targets.
 
 ```typescript
 /**
- * Phase 3 Production Intelligence Tools
+ * Production Intelligence Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
- * These examples show the REAL API that will be available.
- *
- * Import path: 'agentic-qe/tools/qe/utils'
+ * Import path: 'agentic-qe/tools/qe/production'
  * Type definitions: 'agentic-qe/tools/qe/shared/types'
  */
 
@@ -1214,48 +1211,108 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 production intelligence tools (coming soon)
-// import {
-//   analyzeProductionMetrics,
-//   generateTestScenariosFromProduction,
-//   identifyCriticalPaths
-// } from 'agentic-qe/tools/qe/utils';
+import {
+  analyzeProductionMetrics,
+  generateTestScenarios,
+  identifyIncidents
+} from 'agentic-qe/tools/qe/production';
 
 // Example: Convert production data to test scenarios
 const productionParams = {
   metricsSource: 'datadog',
   timeRange: '90d',
+  metrics: [
+    'error_rate',
+    'response_time',
+    'user_sessions',
+    'critical_paths'
+  ],
   generateScenarios: true,
-  coverageTarget: 0.95
+  coverageTarget: 0.95,
+  includeRUM: true,
+  includeIncidents: true
 };
 
-// const analysis: QEToolResponse<any> =
-//   await analyzeProductionMetrics(productionParams);
-//
-// if (analysis.success && analysis.data) {
-//   console.log(`Generated ${analysis.data.scenarios.length} test scenarios`);
-//   console.log(`Critical paths identified: ${analysis.data.criticalPaths.length}`);
-// }
+const analysis: QEToolResponse<any> =
+  await analyzeProductionMetrics(productionParams);
+
+if (analysis.success && analysis.data) {
+  console.log('Production Intelligence Analysis:');
+  console.log(`  Error Rate: ${(analysis.data.errorRate * 100).toFixed(2)}%`);
+  console.log(`  P95 Response Time: ${analysis.data.p95ResponseTime}ms`);
+  console.log(`  User Sessions Analyzed: ${analysis.data.sessionCount}`);
+  console.log(`  Critical Paths: ${analysis.data.criticalPaths.length}`);
+  console.log(`  Generated Scenarios: ${analysis.data.scenarios.length}`);
+}
 
 console.log('✅ Production intelligence analysis complete');
 ```
 
-### Phase 3 Tool Discovery
-
-```bash
-# Once Phase 3 is implemented, tools will be at:
-# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
-
-# List available production tools (Phase 3)
-ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
-```
-
-### Using Production Intelligence Tools via MCP (Phase 3)
+### Test Scenario Generation from Production
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Via CLI
-// aqe production analyze --source datadog --timerange 90d
-// aqe production generate-scenarios --coverage-target 95
+// Generate test scenarios from production patterns
+const scenarioParams = {
+  productionData: analysis.data,
+  scenarioTypes: ['user-journey', 'error-case', 'peak-load', 'edge-case'],
+  prioritization: 'impact',
+  includeTimings: true,
+  includeContext: true
+};
+
+const scenarios: QEToolResponse<any> =
+  await generateTestScenarios(scenarioParams);
+
+if (scenarios.success && scenarios.data) {
+  console.log('\nGenerated Test Scenarios:');
+  scenarios.data.scenarios.forEach((scenario: any) => {
+    console.log(`  - ${scenario.name} (Priority: ${scenario.priority})`);
+    console.log(`    Type: ${scenario.type}`);
+    console.log(`    Impact: ${scenario.impact}% of users`);
+    console.log(`    Steps: ${scenario.steps.length}`);
+  });
+}
+```
+
+### Incident Analysis
+
+```typescript
+// Analyze production incidents for test generation
+const incidentParams = {
+  timeRange: '30d',
+  severity: ['critical', 'high'],
+  includeRootCause: true,
+  generateReproTests: true
+};
+
+const incidents: QEToolResponse<any> =
+  await identifyIncidents(incidentParams);
+
+if (incidents.success && incidents.data) {
+  console.log('\nProduction Incidents Analysis:');
+  console.log(`  Total Incidents: ${incidents.data.totalIncidents}`);
+  console.log(`  Critical: ${incidents.data.critical}`);
+  console.log(`  High: ${incidents.data.high}`);
+
+  incidents.data.incidents.forEach((incident: any) => {
+    console.log(`\n  Incident: ${incident.id}`);
+    console.log(`    Severity: ${incident.severity}`);
+    console.log(`    Root Cause: ${incident.rootCause}`);
+    console.log(`    Generated Tests: ${incident.tests.length}`);
+  });
+}
+```
+
+### Using Production Intelligence Tools via CLI
+
+```bash
+# Analyze production metrics
+aqe production analyze --source datadog --timerange 90d --metrics all
+
+# Generate test scenarios
+aqe production generate-scenarios --priority high --coverage-target 95
+
+# Analyze incidents
+aqe production incidents --timerange 30d --severity critical,high --generate-tests
 ```
 

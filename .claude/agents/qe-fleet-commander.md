@@ -704,12 +704,9 @@ Orchestrate QE fleet coordination and multi-agent task execution.
 
 ```typescript
 /**
- * Phase 3 Fleet Coordination Tools
+ * Fleet Coordination Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
- * These examples show the REAL API that will be available.
- *
- * Import path: 'agentic-qe/tools/qe/utils'
+ * Import path: 'agentic-qe/tools/qe/fleet'
  * Type definitions: 'agentic-qe/tools/qe/shared/types'
  */
 
@@ -717,48 +714,108 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 fleet coordination tools (coming soon)
-// import {
-//   orchestrateFleet,
-//   coordinateAgents,
-//   monitorFleetHealth
-// } from 'agentic-qe/tools/qe/utils';
+import {
+  orchestrateFleet,
+  monitorFleetHealth,
+  optimizeTopology
+} from 'agentic-qe/tools/qe/fleet';
 
 // Example: Coordinate multi-agent testing workflow
 const fleetParams = {
   task: 'comprehensive-testing',
-  agents: ['test-generator', 'test-executor', 'coverage-analyzer', 'quality-gate'],
-  parallelExecution: true,
+  agents: [
+    { type: 'test-generator', count: 3, priority: 'high' },
+    { type: 'test-executor', count: 5, priority: 'critical' },
+    { type: 'coverage-analyzer', count: 2, priority: 'medium' },
+    { type: 'quality-gate', count: 1, priority: 'high' }
+  ],
+  topology: 'hierarchical',
+  maxConcurrent: 20,
+  resourceLimits: {
+    cpuPerAgent: 0.5,
+    memoryPerAgent: '512MB'
+  },
   coordinationStrategy: 'hierarchical'
 };
 
-// const orchestration: QEToolResponse<any> =
-//   await orchestrateFleet(fleetParams);
-//
-// if (orchestration.success && orchestration.data) {
-//   console.log(`Fleet Status: ${orchestration.data.status}`);
-//   console.log(`Active Agents: ${orchestration.data.activeAgents}`);
-// }
+const orchestration: QEToolResponse<any> =
+  await orchestrateFleet(fleetParams);
+
+if (orchestration.success && orchestration.data) {
+  console.log('Fleet Orchestration:');
+  console.log(`  Status: ${orchestration.data.status}`);
+  console.log(`  Active Agents: ${orchestration.data.activeAgents}`);
+  console.log(`  Tasks Completed: ${orchestration.data.tasksCompleted}`);
+  console.log(`  Efficiency: ${(orchestration.data.efficiency * 100).toFixed(1)}%`);
+}
 
 console.log('✅ Fleet orchestration complete');
 ```
 
-### Phase 3 Tool Discovery
-
-```bash
-# Once Phase 3 is implemented, tools will be at:
-# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
-
-# List available fleet tools (Phase 3)
-ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
-```
-
-### Using Fleet Tools via MCP (Phase 3)
+### Fleet Health Monitoring
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Via CLI
-// aqe fleet orchestrate --task comprehensive-testing --agents all
-// aqe fleet status --verbose
+// Monitor fleet health and performance metrics
+const healthParams = {
+  includeMetrics: true,
+  includeAgentStatus: true,
+  checkResourceUsage: true
+};
+
+const health: QEToolResponse<any> =
+  await monitorFleetHealth(healthParams);
+
+if (health.success && health.data) {
+  console.log('\nFleet Health:');
+  console.log(`  Overall Status: ${health.data.status}`);
+  console.log(`  Active Agents: ${health.data.activeAgents}/${health.data.totalAgents}`);
+  console.log(`  CPU Usage: ${health.data.resourceUsage.cpu}%`);
+  console.log(`  Memory Usage: ${health.data.resourceUsage.memory}%`);
+
+  if (health.data.issues.length > 0) {
+    console.log('\n  Issues Detected:');
+    health.data.issues.forEach((issue: any) => {
+      console.log(`    - ${issue.severity}: ${issue.description}`);
+    });
+  }
+}
+```
+
+### Topology Optimization
+
+```typescript
+// Optimize fleet topology based on workload
+const optimizeParams = {
+  currentTopology: 'hierarchical',
+  workloadAnalysis: {
+    taskComplexity: 0.7,
+    concurrentTasks: 50,
+    communicationOverhead: 0.15
+  },
+  optimizationGoal: 'minimize-time'
+};
+
+const optimization: QEToolResponse<any> =
+  await optimizeTopology(optimizeParams);
+
+if (optimization.success && optimization.data) {
+  console.log('\nTopology Optimization:');
+  console.log(`  Recommended Topology: ${optimization.data.recommendedTopology}`);
+  console.log(`  Expected Improvement: ${(optimization.data.improvement * 100).toFixed(1)}%`);
+  console.log(`  Reasoning: ${optimization.data.reasoning}`);
+}
+```
+
+### Using Fleet Tools via CLI
+
+```bash
+# Orchestrate fleet
+aqe fleet orchestrate --task comprehensive-testing --agents all --topology hierarchical
+
+# Monitor health
+aqe fleet health --verbose --realtime
+
+# Optimize topology
+aqe fleet optimize --workload-analysis --goal minimize-time
 ```
 

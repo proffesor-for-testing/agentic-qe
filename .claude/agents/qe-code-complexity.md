@@ -257,12 +257,9 @@ Analyze code complexity and generate refactoring recommendations.
 
 ```typescript
 /**
- * Phase 3 Code Complexity Analysis Tools
+ * Code Quality Analysis Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
- * These examples show the REAL API that will be available.
- *
- * Import path: 'agentic-qe/tools/qe/utils'
+ * Import path: 'agentic-qe/tools/qe/code-quality'
  * Type definitions: 'agentic-qe/tools/qe/shared/types'
  */
 
@@ -270,51 +267,101 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 complexity analysis tools (coming soon)
-// import {
-//   analyzeCodeComplexity,
-//   generateRefactoringRecommendations,
-//   detectComplexPatterns
-// } from 'agentic-qe/tools/qe/utils';
+import {
+  analyzeComplexity,
+  detectCodeSmells,
+  calculateMaintainability
+} from 'agentic-qe/tools/qe/code-quality';
 
 // Example: Analyze code complexity and get refactoring suggestions
 const complexityParams = {
   sourceFiles: ['./src/**/*.ts'],
   metrics: ['cyclomatic', 'cognitive', 'maintainability'],
-  generateRecommendations: true,
-  includePatternDetection: true
+  language: 'typescript',
+  thresholds: {
+    cyclomaticComplexity: 10,
+    cognitiveComplexity: 15,
+    maintainabilityIndex: 60
+  },
+  generateRecommendations: true
 };
 
-// const analysis: QEToolResponse<any> =
-//   await analyzeCodeComplexity(complexityParams);
-//
-// if (analysis.success && analysis.data) {
-//   console.log('Code Complexity Analysis:');
-//   console.log(`  Average Cyclomatic: ${analysis.data.avgCyclomatic.toFixed(2)}`);
-//   console.log(`  Cognitive Complexity: ${analysis.data.cognitiveComplexity.toFixed(2)}`);
-//   console.log(`  Recommendations: ${analysis.data.recommendations.length}`);
-// }
+const analysis: QEToolResponse<any> =
+  await analyzeComplexity(complexityParams);
+
+if (analysis.success && analysis.data) {
+  console.log('Code Complexity Analysis:');
+  console.log(`  Average Cyclomatic: ${analysis.data.avgCyclomatic.toFixed(2)}`);
+  console.log(`  Cognitive Complexity: ${analysis.data.cognitiveComplexity.toFixed(2)}`);
+  console.log(`  Maintainability Index: ${analysis.data.maintainabilityIndex.toFixed(2)}`);
+
+  if (analysis.data.recommendations.length > 0) {
+    console.log('\n  Refactoring Recommendations:');
+    analysis.data.recommendations.forEach((rec: any) => {
+      console.log(`    - ${rec.file}: ${rec.suggestion} (Priority: ${rec.priority})`);
+    });
+  }
+}
 
 console.log('✅ Code complexity analysis complete');
 ```
 
-### Phase 3 Tool Discovery
-
-```bash
-# Once Phase 3 is implemented, tools will be at:
-# /workspaces/agentic-qe-cf/src/mcp/tools/qe/utils/
-
-# List available complexity tools (Phase 3)
-ls node_modules/agentic-qe/dist/mcp/tools/qe/utils/
-```
-
-### Using Complexity Tools via MCP (Phase 3)
+### Code Smell Detection
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Via CLI
-// aqe complexity analyze --files ./src/**/*.ts --metrics all
-// aqe complexity refactor --target ./src/complex-file.ts
+// Detect code smells and anti-patterns
+const smellParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  smellTypes: ['long-method', 'large-class', 'duplicated-code', 'complex-conditional'],
+  severity: 'medium',
+  includeExamples: true
+};
+
+const smells: QEToolResponse<any> =
+  await detectCodeSmells(smellParams);
+
+if (smells.success && smells.data) {
+  console.log('\nCode Smells Detected:');
+  smells.data.smells.forEach((smell: any) => {
+    console.log(`  ${smell.type} in ${smell.file}:${smell.line}`);
+    console.log(`    Severity: ${smell.severity}`);
+    console.log(`    Suggestion: ${smell.suggestion}`);
+  });
+}
+```
+
+### Maintainability Calculation
+
+```typescript
+// Calculate comprehensive maintainability metrics
+const maintainParams = {
+  sourceFiles: ['./src/**/*.ts'],
+  includeHistory: true,
+  comparePrevious: true
+};
+
+const maintainability: QEToolResponse<any> =
+  await calculateMaintainability(maintainParams);
+
+if (maintainability.success && maintainability.data) {
+  console.log('\nMaintainability Analysis:');
+  console.log(`  Overall Score: ${maintainability.data.overallScore}/100`);
+  console.log(`  Technical Debt: ${maintainability.data.technicalDebt} hours`);
+  console.log(`  Trend: ${maintainability.data.trend}`);
+}
+```
+
+### Using Code Quality Tools via CLI
+
+```bash
+# Analyze complexity
+aqe code-quality analyze --files ./src/**/*.ts --metrics all
+
+# Detect code smells
+aqe code-quality detect-smells --files ./src/**/*.ts --severity medium
+
+# Calculate maintainability
+aqe code-quality maintainability --files ./src/**/*.ts --detailed
 ```
 
 ## Resources

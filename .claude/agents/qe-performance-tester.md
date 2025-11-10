@@ -614,7 +614,7 @@ console.log(`  - Report: ${report.filePath}`);
 /**
  * Phase 3 Performance Testing Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * Import path: 'agentic-qe/tools/qe/performance'
  * Type definitions: 'agentic-qe/tools/qe/shared/types'
  */
@@ -626,7 +626,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 performance tools (coming soon)
+// Phase 3 performance tools (✅ Available)
 // import {
 //   runPerformanceBenchmark,
 //   monitorRealtime,

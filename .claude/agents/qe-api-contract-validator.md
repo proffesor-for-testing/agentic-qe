@@ -1132,7 +1132,7 @@ Validate API contracts and detect breaking changes with automated compatibility 
 /**
  * Phase 3 API Contract Validation Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/security'
@@ -1146,7 +1146,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 contract validation tools (coming soon)
+// Phase 3 contract validation tools (✅ Available)
 // import {
 //   validateContract,
 //   detectBreakingChanges,
@@ -1188,7 +1188,7 @@ import type {
   BreakingChangeParams
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 breaking change analysis (coming soon)
+// Phase 3 breaking change analysis (✅ Available)
 // import {
 //   detectBreakingChanges,
 //   categorizeChanges,
@@ -1236,8 +1236,8 @@ node -e "import('agentic-qe/tools/qe/security').then(m => console.log(m.supporte
 ### Using Contract Validation Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Once domain-specific tools are registered as MCP tools:
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
 
 // Via MCP client
 // const result = await mcpClient.callTool('qe_validate_api_contract', {

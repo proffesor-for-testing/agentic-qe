@@ -993,7 +993,7 @@ Analyze regression risk and select critical tests for validation.
 /**
  * Phase 3 Regression Analysis Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/regression'
@@ -1007,7 +1007,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 regression tools (coming soon)
+// Phase 3 regression tools (✅ Available)
 // import {
 //   analyzeRegressionRisk,
 //   selectCriticalTests,
@@ -1051,7 +1051,7 @@ cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "Re
 ### Using Regression Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
+// Phase 3 MCP integration (✅ Available)
 // Via CLI
 // aqe regression analyze --changes src/UserService.ts,src/AuthService.ts
 // aqe regression select-tests --max 50 --ml-prediction

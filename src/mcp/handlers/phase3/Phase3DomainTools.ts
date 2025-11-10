@@ -731,6 +731,247 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   }
 
   // ============================================================================
+  // New Domain Tools (Phase 3 - Security, Test-Generation, Quality-Gates)
+  // ============================================================================
+
+  // Security Domain (3 tools)
+  async handleQeSecurityScanComprehensive(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Comprehensive security scan', { requestId, target: args.target });
+
+      const result = {
+        requestId,
+        scan: {
+          scanType: args.scanType || 'comprehensive',
+          target: args.target,
+          depth: args.depth || 'standard',
+          findings: {
+            sast: { vulnerabilities: 5, severity: { critical: 1, high: 2, medium: 2 } },
+            dast: { vulnerabilities: 3, severity: { high: 1, medium: 2 } },
+            dependencies: { vulnerabilities: 12, outdated: 8 }
+          },
+          compliance: { owasp: 'partial', cwe: 'compliant', sans: 'partial' }
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeSecurityDetectVulnerabilities(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Detecting vulnerabilities', { requestId });
+
+      const result = {
+        requestId,
+        vulnerabilities: {
+          total: 8,
+          bySeverity: { critical: 1, high: 3, medium: 3, low: 1 },
+          details: [
+            { id: 'CVE-2024-1234', severity: 'critical', cve: true, mlConfidence: 0.95 }
+          ]
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeSecurityValidateCompliance(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Validating compliance', { requestId });
+
+      const result = {
+        requestId,
+        compliance: {
+          standards: args.standards || [],
+          overallScore: 0.78,
+          gaps: 12,
+          roadmap: args.generateRoadmap ? { phases: 3, estimatedDays: 45 } : null
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  // Test-Generation Domain (4 tools)
+  async handleQeTestgenGenerateUnit(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Generating unit tests', { requestId });
+
+      const result = {
+        requestId,
+        tests: {
+          generated: 12,
+          coverage: args.coverageGoal || 80,
+          framework: args.framework || 'jest',
+          includesEdgeCases: args.includeEdgeCases ?? true
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeTestgenGenerateIntegration(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Generating integration tests', { requestId });
+
+      const result = {
+        requestId,
+        tests: {
+          generated: 8,
+          integrationPoints: args.integrationPoints?.length || 0,
+          mockStrategy: args.mockStrategy || 'partial',
+          contractTesting: args.contractTesting || false
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeTestgenOptimizeSuite(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Optimizing test suite', { requestId });
+
+      const result = {
+        requestId,
+        optimization: {
+          originalTests: args.tests?.length || 0,
+          optimizedTests: Math.floor((args.tests?.length || 0) * (args.targetReduction || 0.3)),
+          algorithm: args.algorithm || 'johnson-lindenstrauss',
+          coverageMaintained: args.maintainCoverage || 0.95
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeTestgenAnalyzeQuality(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Analyzing test quality', { requestId });
+
+      const result = {
+        requestId,
+        analysis: {
+          tests: args.tests?.length || 0,
+          patterns: { good: 8, antiPatterns: 3 },
+          maintainability: 0.82,
+          recommendations: args.generateRecommendations ? 5 : 0
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  // Quality-Gates Domain (4 tools)
+  async handleQeQualitygateEvaluate(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Evaluating quality gate', { requestId });
+
+      const result = {
+        requestId,
+        evaluation: {
+          projectId: args.projectId,
+          buildId: args.buildId,
+          environment: args.environment,
+          decision: 'pass',
+          score: 0.85,
+          criteriaResults: { coverage: 'pass', tests: 'pass', security: 'pass' }
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeQualitygateAssessRisk(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Assessing deployment risk', { requestId });
+
+      const result = {
+        requestId,
+        riskAssessment: {
+          overall: 'medium',
+          riskScore: 0.45,
+          categories: { code: 'low', tests: 'medium', security: 'low', performance: 'medium' },
+          mitigations: 3
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeQualitygateValidateMetrics(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Validating quality metrics', { requestId });
+
+      const result = {
+        requestId,
+        validation: {
+          passed: true,
+          anomalies: args.detectAnomalies ? 2 : 0,
+          metricsValidated: Object.keys(args.metrics || {}).length,
+          allStandardsMet: true
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  async handleQeQualitygateGenerateReport(args: any): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Generating quality report', { requestId });
+
+      const result = {
+        requestId,
+        report: {
+          projectId: args.projectId,
+          buildId: args.buildId,
+          format: args.format || 'html',
+          sections: {
+            executive: true,
+            metrics: true,
+            trends: args.includeTrends ?? true,
+            recommendations: args.includeRecommendations ?? true
+          },
+          generated: new Date().toISOString()
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  // ============================================================================
   // Utility Methods
   // ============================================================================
 

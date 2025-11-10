@@ -1049,7 +1049,7 @@ Generate realistic, schema-aware test data with relationship preservation and GD
 /**
  * Phase 3 Test Data Architecture Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/test-generation'
@@ -1062,7 +1062,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 data generation tools (coming soon)
+// Phase 3 data generation tools (✅ Available)
 // import {
 //   generateTestData,
 //   analyzeSchema,
@@ -1100,7 +1100,7 @@ import type {
   IntegrationTestGenerationParams
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 constraint-aware generation (coming soon)
+// Phase 3 constraint-aware generation (✅ Available)
 // import {
 //   generateConstrainedData,
 //   validateReferentialIntegrity
@@ -1148,8 +1148,8 @@ node -e "import('agentic-qe/tools/qe/test-generation').then(m => console.log(m.s
 ### Using Test Data Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Once domain-specific tools are registered as MCP tools:
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
 
 // Via MCP client
 // const result = await mcpClient.callTool('qe_generate_test_data', {

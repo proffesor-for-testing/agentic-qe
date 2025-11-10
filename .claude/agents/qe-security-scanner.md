@@ -582,10 +582,10 @@ Execute multi-layer security scanning using SAST, DAST, and vulnerability detect
 /**
  * Phase 3 Security Scanning Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
- * These examples show the REAL API that will be available.
+ * STATUS: Phase 3 migration in progress - available in v1.6.0
+ * Security tools are being migrated to domain-specific architecture
  *
- * Import path: 'agentic-qe/tools/qe/security'
+ * Import path: 'agentic-qe/tools/qe/security' (planned)
  * Type definitions: 'agentic-qe/tools/qe/shared/types'
  */
 
@@ -596,7 +596,8 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 security tools (coming soon)
+// Phase 3 security tools (migration in progress - v1.6.0)
+// Planned API (subject to change):
 // import {
 //   runSASTScan,
 //   runDASTScan,
@@ -640,7 +641,8 @@ import type {
   Vulnerability
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 vulnerability detection (coming soon)
+// Phase 3 vulnerability detection (migration in progress - v1.6.0)
+// Planned API:
 // import {
 //   detectVulnerabilities,
 //   calculateCVSSScore,
@@ -675,35 +677,31 @@ const vulnParams: SecurityScanParams = {
 console.log('✅ Vulnerability detection with risk scoring complete');
 ```
 
-### Phase 3 Tool Discovery
+### Phase 3 Tool Discovery (Planned for v1.6.0)
 
 ```bash
-# Once Phase 3 is implemented, tools will be at:
-# /workspaces/agentic-qe-cf/src/mcp/tools/qe/security/
+# Security tools are being migrated to Phase 3 architecture
+# Expected location (v1.6.0): /workspaces/agentic-qe-cf/src/mcp/tools/qe/security/
 
-# List available security tools (Phase 3)
-ls node_modules/agentic-qe/dist/mcp/tools/qe/security/
-
-# Check type definitions
-cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "SecurityScan"
-
-# View available security checks
-node -e "import('agentic-qe/tools/qe/security').then(m => console.log(Object.keys(m)))"
+# Planned commands (API subject to change):
+# ls node_modules/agentic-qe/dist/mcp/tools/qe/security/
+# cat node_modules/agentic-qe/dist/mcp/tools/qe/shared/types.d.ts | grep -A 20 "SecurityScan"
+# node -e "import('agentic-qe/tools/qe/security').then(m => console.log(Object.keys(m)))"
 ```
 
-### Using Security Tools via MCP (Phase 3)
+### Using Security Tools via MCP (Planned for v1.6.0)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Once domain-specific tools are registered as MCP tools:
+// Phase 3 MCP integration (planned for v1.6.0)
+// Planned API (subject to change):
 
-// Via MCP client
+// Via MCP client (planned)
 // const result = await mcpClient.callTool('qe_security_scan_multi', {
 //   targetUrl: 'https://api.example.com',
 //   scanTypes: ['sast', 'dast', 'dependency']
 // });
 
-// Via CLI
+// Via CLI (planned)
 // aqe security scan --target https://api.example.com --type sast,dast
 // aqe security check-dependencies --include-dev
 // aqe security report --format html --severity medium

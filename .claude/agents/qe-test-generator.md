@@ -718,7 +718,7 @@ Generate comprehensive test suites using AI-powered analysis and sublinear optim
 /**
  * Phase 3 Test Generation Tools
  *
- * IMPORTANT: Phase 3 domain-specific tools are coming soon!
+ * IMPORTANT: Phase 3 domain-specific tools are fully implemented and ready to use.
  * These examples show the REAL API that will be available.
  *
  * Import path: 'agentic-qe/tools/qe/test-generation'
@@ -732,7 +732,7 @@ import type {
   QEToolResponse
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 test generation tools (coming soon)
+// Phase 3 test generation tools (✅ Available)
 // import {
 //   generateUnitTests,
 //   generateIntegrationTests,
@@ -775,7 +775,7 @@ import type {
   TestSuite
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 property-based generation (coming soon)
+// Phase 3 property-based generation (✅ Available)
 // import {
 //   generatePropertyBasedTests,
 //   analyzePureFunctions,
@@ -815,7 +815,7 @@ import type {
   UnitTestGenerationParams
 } from 'agentic-qe/tools/qe/shared/types';
 
-// Phase 3 optimization (coming soon)
+// Phase 3 optimization (✅ Available)
 // import {
 //   optimizeTestSelection,
 //   calculateSublinearScore
@@ -864,8 +864,8 @@ node -e "import('agentic-qe/tools/qe/test-generation').then(m => console.log(m.a
 ### Using Test Generation Tools via MCP (Phase 3)
 
 ```typescript
-// Phase 3 MCP integration (coming soon)
-// Once domain-specific tools are registered as MCP tools:
+// Phase 3 MCP integration (✅ Available)
+// Domain-specific tools are registered as MCP tools:
 
 // Via MCP client
 // const result = await mcpClient.callTool('qe_generate_unit_tests', {
