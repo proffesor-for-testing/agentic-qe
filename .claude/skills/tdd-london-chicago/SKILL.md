@@ -1,12 +1,6 @@
 ---
 name: tdd-london-chicago
 description: Apply both London and Chicago school TDD approaches. Use when practicing test-driven development, understanding different TDD philosophies, or choosing the right testing style for your context.
-version: 1.0.0
-category: development
-tags: [tdd, test-driven-development, london-school, chicago-school, mocking, red-green-refactor]
-difficulty: intermediate
-estimated_time: 2-4 hours
-author: user
 ---
 
 # Test-Driven Development: London & Chicago Schools

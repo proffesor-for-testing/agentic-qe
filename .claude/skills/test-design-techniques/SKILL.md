@@ -1,12 +1,6 @@
 ---
 name: test-design-techniques
 description: Systematic test design with boundary value analysis, equivalence partitioning, decision tables, state transition testing, and combinatorial testing. Use when designing comprehensive test cases, reducing redundant tests, or ensuring systematic coverage.
-version: 1.0.0
-category: testing-methodologies
-tags: [test-design, bva, equivalence-partitioning, decision-tables, combinatorial-testing, pairwise]
-difficulty: intermediate
-estimated_time: 75 minutes
-author: agentic-qe
 ---
 
 # Test Design Techniques

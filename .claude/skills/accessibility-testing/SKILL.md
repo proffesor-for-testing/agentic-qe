@@ -1,19 +1,6 @@
 ---
 name: accessibility-testing
 description: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification. Use when ensuring legal compliance (ADA, Section 508), testing for disabilities, or building accessible applications for 1 billion disabled users globally.
-version: 1.0.0
-category: specialized-testing
-tags:
-  - accessibility
-  - a11y
-  - wcag
-  - screen-readers
-  - aria
-  - inclusive-design
-  - ada-compliance
-difficulty: intermediate
-estimated_time: 75-90 minutes
-author: agentic-qe
 ---
 
 # Accessibility Testing

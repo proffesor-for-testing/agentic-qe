@@ -1,12 +1,6 @@
 ---
 name: contract-testing
 description: Consumer-driven contract testing for microservices using Pact, schema validation, API versioning, and backward compatibility testing. Use when testing API contracts, preventing breaking changes, or coordinating distributed teams.
-version: 1.0.0
-category: specialized-testing
-tags: [contract-testing, pact, microservices, api-versioning, consumer-driven, schema-validation]
-difficulty: advanced
-estimated_time: 90 minutes
-author: agentic-qe
 ---
 
 # Contract Testing

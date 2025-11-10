@@ -1,12 +1,6 @@
 ---
 name: agentic-quality-engineering
 description: Using AI agents as force multipliers in quality work. Use when designing autonomous testing systems, implementing PACT principles, or scaling quality engineering with intelligent agents. Core skill for all QE agents in the fleet.
-version: 1.0.0
-category: quality-engineering
-tags: [ai-agents, pact-principles, autonomous-testing, multi-agent-systems, test-automation, quality-engineering]
-difficulty: advanced
-estimated_time: 4-6 hours
-author: user
 ---
 
 # Agentic Quality Engineering

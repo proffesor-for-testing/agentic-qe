@@ -1,12 +1,6 @@
 ---
 name: refactoring-patterns
 description: Apply safe refactoring patterns to improve code structure without changing behavior. Use when cleaning up code, reducing technical debt, or improving maintainability.
-version: 1.0.0
-category: development
-tags: [refactoring, clean-code, technical-debt, code-quality, patterns, design]
-difficulty: intermediate
-estimated_time: 35-50 minutes
-author: user
 ---
 
 # Refactoring Patterns

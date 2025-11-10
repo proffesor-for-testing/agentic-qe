@@ -1,12 +1,6 @@
 ---
 name: security-testing
 description: Test for security vulnerabilities using OWASP principles and security testing techniques. Use when conducting security audits, testing authentication/authorization, or implementing security practices.
-version: 1.0.0
-category: testing
-tags: [security, owasp, penetration-testing, vulnerability-scanning, authentication, authorization]
-difficulty: advanced
-estimated_time: 60 minutes
-author: user
 ---
 
 # Security Testing

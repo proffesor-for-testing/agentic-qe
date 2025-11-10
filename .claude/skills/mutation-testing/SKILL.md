@@ -1,12 +1,6 @@
 ---
 name: mutation-testing
 description: Test quality validation through mutation testing, assessing test suite effectiveness by introducing code mutations and measuring kill rate. Use when evaluating test quality, identifying weak tests, or proving tests actually catch bugs.
-version: 1.0.0
-category: testing-methodologies
-tags: [mutation-testing, test-quality, mutation-score, stryker, test-effectiveness]
-difficulty: advanced
-estimated_time: 60 minutes
-author: agentic-qe
 ---
 
 # Mutation Testing

@@ -1,19 +1,6 @@
 ---
 name: mobile-testing
 description: Comprehensive mobile testing for iOS and Android platforms including gestures, sensors, permissions, device fragmentation, and performance. Use when testing native apps, hybrid apps, or mobile web, ensuring quality across 1000+ device variants.
-version: 1.0.0
-category: specialized-testing
-tags:
-  - mobile-testing
-  - ios
-  - android
-  - appium
-  - device-fragmentation
-  - mobile-performance
-  - gestures
-difficulty: intermediate
-estimated_time: 90-120 minutes
-author: agentic-qe
 ---
 
 # Mobile Testing

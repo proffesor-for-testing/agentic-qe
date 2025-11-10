@@ -1,12 +1,6 @@
 ---
 name: xp-practices
 description: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices.
-version: 1.0.0
-category: development
-tags: [xp, pair-programming, ensemble-programming, continuous-integration, sustainable-pace, agile, teamwork]
-difficulty: intermediate
-estimated_time: 2-3 hours
-author: user
 ---
 
 # Extreme Programming (XP) Practices

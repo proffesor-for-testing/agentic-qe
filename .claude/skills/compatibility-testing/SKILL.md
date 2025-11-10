@@ -1,12 +1,6 @@
 ---
 name: compatibility-testing
 description: Cross-browser, cross-platform, and cross-device compatibility testing ensuring consistent experience across environments. Use when validating browser support, testing responsive design, or ensuring platform compatibility.
-version: 1.0.0
-category: specialized-testing
-tags: [compatibility, cross-browser, cross-platform, responsive-design, browser-testing]
-difficulty: intermediate
-estimated_time: 60 minutes
-author: agentic-qe
 ---
 
 # Compatibility Testing

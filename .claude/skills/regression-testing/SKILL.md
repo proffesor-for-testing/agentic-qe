@@ -1,18 +1,6 @@
 ---
 name: regression-testing
 description: Strategic regression testing with test selection, impact analysis, and continuous regression management. Use when verifying fixes don't break existing functionality, planning regression suites, or optimizing test execution for faster feedback.
-version: 1.0.0
-category: testing
-tags:
-  - regression-testing
-  - test-selection
-  - impact-analysis
-  - change-based-testing
-  - continuous-testing
-  - test-optimization
-difficulty: intermediate
-estimated_time: 60-90 minutes
-author: agentic-qe
 ---
 
 # Regression Testing

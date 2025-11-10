@@ -1,18 +1,6 @@
 ---
 name: risk-based-testing
 description: Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions.
-version: 1.0.0
-category: testing
-tags:
-  - risk-assessment
-  - test-strategy
-  - prioritization
-  - quality-management
-  - decision-making
-  - resource-allocation
-difficulty: intermediate
-estimated_time: 45-60 minutes
-author: user
 ---
 
 # Risk-Based Testing

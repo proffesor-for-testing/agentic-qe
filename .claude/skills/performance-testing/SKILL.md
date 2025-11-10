@@ -1,12 +1,6 @@
 ---
 name: performance-testing
 description: Test application performance, scalability, and resilience. Use when planning load testing, stress testing, or optimizing system performance.
-version: 1.0.0
-category: testing
-tags: [performance, load-testing, stress-testing, scalability, optimization, monitoring]
-difficulty: intermediate
-estimated_time: 45 minutes
-author: user
 ---
 
 # Performance Testing

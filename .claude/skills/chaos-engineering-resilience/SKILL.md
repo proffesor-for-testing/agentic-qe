@@ -1,12 +1,6 @@
 ---
 name: chaos-engineering-resilience
 description: Chaos engineering principles, controlled failure injection, resilience testing, and system recovery validation. Use when testing distributed systems, building confidence in fault tolerance, or validating disaster recovery.
-version: 1.0.0
-category: specialized-testing
-tags: [chaos-engineering, resilience, fault-injection, disaster-recovery, distributed-systems]
-difficulty: advanced
-estimated_time: 90 minutes
-author: agentic-qe
 ---
 
 # Chaos Engineering & Resilience Testing

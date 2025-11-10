@@ -1,12 +1,6 @@
 ---
 name: compliance-testing
 description: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, PCI-DSS and industry-specific regulations. Use when ensuring legal compliance, preparing for audits, or handling sensitive data.
-version: 1.0.0
-category: specialized-testing
-tags: [compliance, gdpr, ccpa, hipaa, soc2, pci-dss, regulatory, audit]
-difficulty: advanced
-estimated_time: 90 minutes
-author: agentic-qe
 ---
 
 # Compliance Testing

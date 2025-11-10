@@ -1,12 +1,6 @@
 ---
 name: holistic-testing-with-pact-principles
 description: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices.
-version: 1.0.0
-category: quality-engineering
-tags: [pact-principles, holistic-testing, test-strategy, whole-team-quality, agile-testing, quality-culture]
-difficulty: intermediate
-estimated_time: 2-3 hours
-author: user
 ---
 
 # Holistic Testing Model with PACT Principles

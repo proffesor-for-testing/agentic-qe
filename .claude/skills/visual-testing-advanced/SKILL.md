@@ -1,12 +1,6 @@
 ---
 name: visual-testing-advanced
 description: Advanced visual regression testing with pixel-perfect comparison, AI-powered diff analysis, responsive design validation, and cross-browser visual consistency. Use when detecting UI regressions, validating designs, or ensuring visual consistency.
-version: 1.0.0
-category: specialized-testing
-tags: [visual-testing, visual-regression, pixel-perfect, screenshot-testing, ui-testing]
-difficulty: intermediate
-estimated_time: 60 minutes
-author: agentic-qe
 ---
 
 # Advanced Visual Testing

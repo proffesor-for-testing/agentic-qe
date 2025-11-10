@@ -1,12 +1,6 @@
 ---
 name: consultancy-practices
 description: Apply effective software quality consultancy practices. Use when consulting, advising clients, or establishing consultancy workflows.
-version: 1.0.0
-category: professional
-tags: [consulting, advisory, client-engagement, strategy, transformation, coaching]
-difficulty: advanced
-estimated_time: 2 hours
-author: user
 ---
 
 # Consultancy Practices
