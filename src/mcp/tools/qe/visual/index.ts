@@ -17,7 +17,7 @@ export {
   type CompareScreenshotsParams,
   type ScreenshotComparison,
   type VisualDifference
-} from './compare-screenshots.js';
+} from './compare-screenshots'
 
 // Accessibility Validation
 export {
@@ -30,7 +30,7 @@ export {
   type ScreenReaderResults,
   type AccessibilityRecommendation,
   type WCAGLevel
-} from './validate-accessibility.js';
+} from './validate-accessibility'
 
 // Visual Regression Detection (migrated from handlers/prediction)
-export type { VisualTestRegressionArgs, VisualRegressionResult } from './detect-regression.js';
+export type { VisualTestRegressionArgs, VisualRegressionResult } from './detect-regression'

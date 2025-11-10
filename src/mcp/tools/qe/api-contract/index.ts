@@ -6,8 +6,8 @@
  * @module qe-tools/api-contract
  */
 
-import type { QEToolResponse } from '../shared/types.js';
-import { SecureRandom } from '../../../../utils/SecureRandom.js';
+import type { QEToolResponse } from '../shared/types'
+import { SecureRandom } from '../../../../utils/SecureRandom'
 
 const VERSION = '1.5.0';
 

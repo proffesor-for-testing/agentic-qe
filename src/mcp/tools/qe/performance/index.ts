@@ -17,7 +17,7 @@ export {
   type ResourceUtilizationSummary,
   type OptimizationRecommendation,
   type TrendAnalysis
-} from './analyze-bottlenecks.js';
+} from './analyze-bottlenecks'
 
 // Report generation
 export {
@@ -27,13 +27,13 @@ export {
   type ReportMetadata,
   type PerformanceReport,
   type ReportSummary
-} from './generate-report.js';
+} from './generate-report'
 
 // Benchmark execution
 export {
   runPerformanceBenchmark,
   type BenchmarkResult
-} from './run-benchmark.js';
+} from './run-benchmark'
 
 // Real-time monitoring
 export {
@@ -42,4 +42,4 @@ export {
   type DataPoint,
   type MonitoringSummary,
   type Alert
-} from './monitor-realtime.js';
+} from './monitor-realtime'

@@ -20,7 +20,7 @@ export {
   type ComplianceMapping,
   type SecurityRecommendation,
   type ScanMetadata
-} from './scan-comprehensive.js';
+} from './scan-comprehensive'
 
 // Vulnerability detection and classification
 export {
@@ -36,7 +36,7 @@ export {
   type RemediationPlan,
   type RemediationAction,
   type MLDetectionMetrics
-} from './detect-vulnerabilities.js';
+} from './detect-vulnerabilities'
 
 // Compliance validation
 export {
@@ -54,13 +54,13 @@ export {
   type Milestone,
   type SuccessMetric,
   type ValidationMetadata
-} from './validate-compliance.js';
+} from './validate-compliance'
 
 // ==================== Security Tools API ====================
 
-import { scanComprehensiveSecurity } from './scan-comprehensive.js';
-import { detectVulnerabilities } from './detect-vulnerabilities.js';
-import { validateCompliance } from './validate-compliance.js';
+import { scanComprehensiveSecurity } from './scan-comprehensive'
+import { detectVulnerabilities } from './detect-vulnerabilities'
+import { validateCompliance } from './validate-compliance'
 
 /**
  * Security domain tools aggregated API

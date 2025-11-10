@@ -28,7 +28,7 @@ export {
   type AffectedArea,
   type MLPredictionMetadata,
   type RiskRecommendation
-} from './analyze-risk.js';
+} from './analyze-risk'
 
 // Test Selection
 export {
@@ -43,13 +43,13 @@ export {
   type ConfidenceFactor,
   type CIOptimization,
   type AvailableTest
-} from './select-tests.js';
+} from './select-tests'
 
 // Import for internal use
-import { analyzeRegressionRisk } from './analyze-risk.js';
-import { selectRegressionTests } from './select-tests.js';
+import { analyzeRegressionRisk } from './analyze-risk'
+import { selectRegressionTests } from './select-tests'
 
-import type { QEToolResponse } from '../shared/types.js';
+import type { QEToolResponse } from '../shared/types'
 
 const VERSION = '2.0.0';
 

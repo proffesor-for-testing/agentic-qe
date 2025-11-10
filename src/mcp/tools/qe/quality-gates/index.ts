@@ -30,7 +30,7 @@ export {
   type PolicyWarning,
   type EvaluationMetadata,
   type ComplexityIndicators
-} from './evaluate-quality-gate.js';
+} from './evaluate-quality-gate'
 
 // Deployment Risk Assessment
 export {
@@ -45,7 +45,7 @@ export {
   type MitigationStrategy,
   type ReadinessIndicators,
   type PredictionAnalysis
-} from './assess-deployment-risk.js';
+} from './assess-deployment-risk'
 
 // Quality Metrics Validation
 export {
@@ -60,7 +60,7 @@ export {
   type CategoryTrend,
   type Recommendation,
   type ValidationSummary
-} from './validate-quality-metrics.js';
+} from './validate-quality-metrics'
 
 // Quality Report Generation
 export {
@@ -91,13 +91,13 @@ export {
   type SecurityVulnerability,
   type PerformanceBottleneck,
   type CodeQualityIssue
-} from './generate-quality-report.js';
+} from './generate-quality-report'
 
 // Import for internal use
-import { evaluateQualityGate } from './evaluate-quality-gate.js';
-import { assessDeploymentRisk } from './assess-deployment-risk.js';
-import { validateQualityMetrics } from './validate-quality-metrics.js';
-import { generateQualityReport } from './generate-quality-report.js';
+import { evaluateQualityGate } from './evaluate-quality-gate'
+import { assessDeploymentRisk } from './assess-deployment-risk'
+import { validateQualityMetrics } from './validate-quality-metrics'
+import { generateQualityReport } from './generate-quality-report'
 
 /**
  * Quality Gates Domain API

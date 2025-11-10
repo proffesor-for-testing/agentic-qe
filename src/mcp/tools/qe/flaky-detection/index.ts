@@ -30,7 +30,7 @@ export {
   type MLMetrics,
   type RootCauseAnalysis,
   type FixRecommendation
-} from './detect-statistical.js';
+} from './detect-statistical'
 
 // Pattern Analysis
 export {
@@ -49,7 +49,7 @@ export {
   type PatternCorrelation,
   type PatternTrend,
   type TrendDataPoint
-} from './analyze-patterns.js';
+} from './analyze-patterns'
 
 // Auto-Stabilization
 export {
@@ -66,12 +66,12 @@ export {
   type CodePatch,
   type ValidationResult,
   type BeforeAfterComparison
-} from './stabilize-auto.js';
+} from './stabilize-auto'
 
 // Import statements for internal use
-import { detectFlakyTestsStatistical } from './detect-statistical.js';
-import { analyzeFlakyTestPatterns } from './analyze-patterns.js';
-import { stabilizeFlakyTestAuto } from './stabilize-auto.js';
+import { detectFlakyTestsStatistical } from './detect-statistical'
+import { analyzeFlakyTestPatterns } from './analyze-patterns'
+import { stabilizeFlakyTestAuto } from './stabilize-auto'
 
 /**
  * Flaky Detection Domain API

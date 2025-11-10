@@ -16,7 +16,7 @@ export {
   type SecurityScanComprehensiveResult,
   type SecurityVulnerability,
   type ComplianceCheck
-} from './scan-comprehensive.js';
+} from './scan-comprehensive';
 
 // Authentication Validation
 export {
@@ -26,7 +26,7 @@ export {
   type AuthValidationResult,
   type AuthTestCase,
   type AuthFinding
-} from './validate-auth.js';
+} from './validate-auth';
 
 // Authorization Checking
 export {
@@ -36,7 +36,7 @@ export {
   type AuthzCheckResult,
   type AuthorizationPolicy,
   type AuthzFinding
-} from './check-authz.js';
+} from './check-authz';
 
 // Dependency Vulnerability Scanning
 export {
@@ -47,7 +47,7 @@ export {
   type DependencyVulnerability,
   type LicenseIssue,
   type OutdatedPackage
-} from './scan-dependencies.js';
+} from './scan-dependencies';
 
 // Security Report Generation
 export {
@@ -56,7 +56,7 @@ export {
   type GenerateSecurityReportParams,
   type SecurityReport,
   type SecurityScanData
-} from './generate-report.js';
+} from './generate-report';
 
 /**
  * Security Domain Tool Registry

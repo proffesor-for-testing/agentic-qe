@@ -10,7 +10,7 @@
  * @version 1.0.0
  */
 
-import type { QEToolResponse } from '../shared/types.js';
+import type { QEToolResponse } from '../shared/types'
 
 const VERSION = '1.5.0';
 
@@ -37,7 +37,7 @@ export {
   GeneratedRecord,
   GenerateTestDataResult,
   generateTestData
-} from './generate-test-data.js';
+} from './generate-test-data'
 
 // Mask Sensitive Data Tool
 export {
@@ -50,7 +50,7 @@ export {
   MaskSensitiveDataResult,
   MaskingAuditEntry,
   maskSensitiveData
-} from './mask-sensitive-data.js';
+} from './mask-sensitive-data'
 
 // Analyze Schema Tool
 export {
@@ -68,7 +68,7 @@ export {
   RelationshipAnalysis,
   AnalyzeSchemaResult,
   analyzeSchema
-} from './analyze-schema.js';
+} from './analyze-schema'
 
 /**
  * Tool metadata

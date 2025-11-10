@@ -14,7 +14,7 @@ export {
   type ComplexityMetric,
   type FunctionComplexity,
   type ComplexityHotspot
-} from './analyze-complexity.js';
+} from './analyze-complexity'
 
 export {
   calculateQualityMetrics,
@@ -24,10 +24,10 @@ export {
   type ReliabilityScore,
   type SecurityScore,
   type TechnicalDebt
-} from './calculate-quality-metrics.js';
+} from './calculate-quality-metrics'
 
 // Response helper
-import type { QEToolResponse } from '../shared/types.js';
+import type { QEToolResponse } from '../shared/types'
 
 const VERSION = '1.5.0';
 

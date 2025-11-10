@@ -10,8 +10,8 @@ import type {
   QEToolResponse,
   ResponseMetadata,
   QEError
-} from '../shared/types.js';
-import { SecureRandom } from '../../../../utils/SecureRandom.js';
+} from '../shared/types'
+import { SecureRandom } from '../../../../utils/SecureRandom'
 
 // ============================================================================
 // Fleet Coordination Types

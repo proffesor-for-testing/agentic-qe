@@ -13,14 +13,14 @@ export {
   generateUnitTests,
   type GeneratedUnitTest,
   type UnitTestGenerationResult
-} from './generate-unit-tests.js';
+} from './generate-unit-tests'
 
 // Integration test generation
 export {
   generateIntegrationTests,
   type GeneratedIntegrationTest,
   type IntegrationTestGenerationResult
-} from './generate-integration-tests.js';
+} from './generate-integration-tests'
 
 // Test suite optimization
 export {
@@ -29,7 +29,7 @@ export {
   type TestInput,
   type OptimizedTest,
   type TestSuiteOptimizationResult
-} from './optimize-test-suite.js';
+} from './optimize-test-suite'
 
 // Test quality analysis
 export {
@@ -37,13 +37,13 @@ export {
   type TestQualityAnalysisParams,
   type TestQualityInput,
   type TestQualityAnalysisResult
-} from './analyze-test-quality.js';
+} from './analyze-test-quality'
 
 // Re-import for TestGenerationTools object
-import { generateUnitTests } from './generate-unit-tests.js';
-import { generateIntegrationTests } from './generate-integration-tests.js';
-import { optimizeTestSuite } from './optimize-test-suite.js';
-import { analyzeTestQuality } from './analyze-test-quality.js';
+import { generateUnitTests } from './generate-unit-tests'
+import { generateIntegrationTests } from './generate-integration-tests'
+import { optimizeTestSuite } from './optimize-test-suite'
+import { analyzeTestQuality } from './analyze-test-quality'
 
 /**
  * Test Generation Tools API

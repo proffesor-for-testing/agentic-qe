@@ -14,7 +14,7 @@ export {
   type RequirementValidationResult,
   type BatchValidationResult,
   type ValidateRequirementsParams
-} from './validate-requirements.js';
+} from './validate-requirements'
 
 // BDD scenario generation (Gherkin/Cucumber)
 export {
@@ -22,13 +22,13 @@ export {
   type GeneratedFeature,
   type BatchBddGenerationResult,
   type GenerateBddScenariosParams
-} from './generate-bdd-scenarios.js';
+} from './generate-bdd-scenarios'
 
 // Re-import for RequirementsTools object
-import { validateRequirements } from './validate-requirements.js';
-import { generateBddScenarios } from './generate-bdd-scenarios.js';
+import { validateRequirements } from './validate-requirements'
+import { generateBddScenarios } from './generate-bdd-scenarios'
 
-import type { QEToolResponse } from '../shared/types.js';
+import type { QEToolResponse } from '../shared/types'
 
 /**
  * Requirements Validation Tools API

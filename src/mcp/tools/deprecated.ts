@@ -14,18 +14,18 @@ import { z } from 'zod';
 import {
   analyzeWithRiskScoring as analyzeCoverageWithRiskScoring,
   detectGapsML as identifyUncoveredRiskAreas
-} from './qe/coverage/index.js';
+} from './qe/coverage/index';
 
 import {
   detectFlakyTestsStatistical,
   analyzeFlakyTestPatterns,
   stabilizeFlakyTestAuto
-} from './qe/flaky-detection/index.js';
+} from './qe/flaky-detection/index';
 
 import {
   runPerformanceBenchmark,
   monitorPerformanceRealtime as monitorRealtimePerformance
-} from './qe/performance/index.js';
+} from './qe/performance/index';
 
 // Security domain tools
 import {
@@ -33,19 +33,19 @@ import {
   validateAuthenticationFlow,
   checkAuthorizationRules,
   scanDependenciesVulnerabilities
-} from '../handlers/security/index.js';
+} from '../handlers/security/index';
 
 // Advanced domain tools (API-Contract, Requirements)
 import {
   apiBreakingChanges,
   requirementsValidate,
   requirementsGenerateBDD
-} from '../handlers/advanced/index.js';
+} from '../handlers/advanced/index';
 
 // Integration domain tools (Contract validation)
 import {
   contractValidate
-} from '../handlers/integration/index.js';
+} from '../handlers/integration/index';
 
 // Placeholder functions for Phase 3 domains (to be implemented)
 // Test-Data domain
@@ -87,17 +87,17 @@ async function generateVersioningMatrix(params: any): Promise<any> {
 }
 
 // Test generation tools - import from individual files
-import { generateUnitTests } from '../handlers/test/generate-unit-tests.js';
-import { generateIntegrationTests } from '../handlers/test/generate-integration-tests.js';
-import { optimizeTestSuite } from '../handlers/test/optimize-test-suite.js';
+import { generateUnitTests } from '../handlers/test/generate-unit-tests';
+import { generateIntegrationTests } from '../handlers/test/generate-integration-tests';
+import { optimizeTestSuite } from '../handlers/test/optimize-test-suite';
 
 // Quality gate tools (using handlers - no standalone functions)
-import { QualityGateExecuteHandler } from '../handlers/quality/quality-gate-execute.js';
-import { QualityRiskAssessHandler } from '../handlers/quality/quality-risk-assess.js';
-import { QualityValidateMetricsHandler } from '../handlers/quality/quality-validate-metrics.js';
+import { QualityGateExecuteHandler } from '../handlers/quality/quality-gate-execute';
+import { QualityRiskAssessHandler } from '../handlers/quality/quality-risk-assess';
+import { QualityValidateMetricsHandler } from '../handlers/quality/quality-validate-metrics';
 
 // Visual regression handler not exported as function - use handler pattern
-import type { VisualTestRegressionArgs, VisualRegressionResult } from './qe/visual/index.js';
+import type { VisualTestRegressionArgs, VisualRegressionResult } from './qe/visual/index';
 
 // ============================================================================
 // Deprecation Warning Helper
