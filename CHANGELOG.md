@@ -5,6 +5,35 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2025-11-10
+
+### 🔒 Security Hotfix
+
+This is a security hotfix release addressing CodeQL alert #35 (HIGH severity) regarding insecure randomness usage.
+
+### Fixed
+
+#### Security
+- **CodeQL Alert #35**: Replaced `Math.random()` with cryptographically secure `crypto.randomBytes()` in security scanning tool
+  - Location: `src/mcp/tools/qe/security/scan-comprehensive.ts`
+  - Impact: 16 occurrences replaced with secure random number generation
+  - Added `secureRandom()` helper function using Node.js `crypto` module
+  - Context: Code was generating mock/test data (false positive), but fixed to satisfy security scanner requirements
+  - PR: [Link to PR]
+
+### Technical Details
+
+- Added crypto import for secure random generation
+- Created `secureRandom()` function that uses `crypto.randomBytes(4)` instead of `Math.random()`
+- All random number generation in security scanning tool now uses cryptographically secure methods
+- Zero functional changes - only security compliance improvement
+- Build: ✅ TypeScript compilation successful
+- Tests: ✅ Module loads correctly
+
+### Notes
+
+While the original usage was for generating simulated security scan results (not actual secrets), this fix ensures compliance with security best practices and eliminates the CodeQL warning.
+
 ## [1.5.0] - 2025-11-08
 
 ### 🎯 Phase 3: Domain-Specific Tool Refactoring (MAJOR RELEASE)

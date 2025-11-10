@@ -18,6 +18,7 @@
  * @date 2025-11-09
  */
 
+import crypto from 'crypto';
 import type {
   SecurityScanParams,
   SecurityScanResults,
@@ -301,6 +302,26 @@ export interface ScanMetadata {
   scannerVersions: Record<string, string>;
 }
 
+// ==================== Utility Functions ====================
+
+/**
+ * Generate cryptographically secure random number between 0 and 1
+ *
+ * SECURITY FIX: Replaces secureRandom() with crypto.randomBytes()
+ * to satisfy CodeQL security scanning requirements.
+ *
+ * Note: This is used for generating mock/test data, not actual
+ * security-sensitive values. However, using crypto.randomBytes()
+ * eliminates the security scanner warning.
+ *
+ * @returns Secure random number between 0 and 1
+ */
+function secureRandom(): number {
+  const buffer = crypto.randomBytes(4);
+  const value = buffer.readUInt32BE(0);
+  return value / 0xFFFFFFFF; // Normalize to 0-1 range
+}
+
 // ==================== SAST Scanning ====================
 
 /**
@@ -353,10 +374,10 @@ async function performSASTScan(
   ];
 
   // Simulate findings based on depth
-  const findingCount = Math.floor(Math.random() * (depth === 'deep' ? 20 : depth === 'standard' ? 10 : 5)) + 3;
+  const findingCount = Math.floor(secureRandom() * (depth === 'deep' ? 20 : depth === 'standard' ? 10 : 5)) + 3;
 
   for (let i = 0; i < findingCount; i++) {
-    const pattern = vulnerabilityPatterns[Math.floor(Math.random() * vulnerabilityPatterns.length)];
+    const pattern = vulnerabilityPatterns[Math.floor(secureRandom() * vulnerabilityPatterns.length)];
     const severity: Priority = calculateSeverity(pattern.confidence);
 
     findings.push({
@@ -364,8 +385,8 @@ async function performSASTScan(
       type: pattern.type,
       severity,
       file: `${target}/src/api/handler-${i % 5 + 1}.ts`,
-      line: Math.floor(Math.random() * 500) + 10,
-      column: Math.floor(Math.random() * 80) + 1,
+      line: Math.floor(secureRandom() * 500) + 10,
+      column: Math.floor(secureRandom() * 80) + 1,
       codeSnippet: generateCodeSnippet(pattern.type),
       description: pattern.description,
       cwe: pattern.cwe,
@@ -411,7 +432,7 @@ async function performDASTScan(
   const findings: DASTFinding[] = [];
 
   // Simulate DAST scanning
-  const findingCount = Math.floor(Math.random() * (depth === 'deep' ? 15 : depth === 'standard' ? 8 : 4)) + 2;
+  const findingCount = Math.floor(secureRandom() * (depth === 'deep' ? 15 : depth === 'standard' ? 8 : 4)) + 2;
 
   const vulnerabilityTypes: DASTFinding['type'][] = [
     'sql-injection',
@@ -424,7 +445,7 @@ async function performDASTScan(
   ];
 
   for (let i = 0; i < findingCount; i++) {
-    const type = vulnerabilityTypes[Math.floor(Math.random() * vulnerabilityTypes.length)];
+    const type = vulnerabilityTypes[Math.floor(secureRandom() * vulnerabilityTypes.length)];
     const severity: Priority = type === 'sql-injection' || type === 'command-injection' ? 'critical' : 'high';
 
     findings.push({
@@ -432,7 +453,7 @@ async function performDASTScan(
       type,
       severity,
       endpoint: `${target}/api/v1/endpoint-${i % 10 + 1}`,
-      method: ['GET', 'POST', 'PUT', 'DELETE'][Math.floor(Math.random() * 4)],
+      method: ['GET', 'POST', 'PUT', 'DELETE'][Math.floor(secureRandom() * 4)],
       requestPayload: type === 'sql-injection' ? "id=1' OR '1'='1" : undefined,
       responseEvidence: `Server responded with error indicating ${type}`,
       description: `${type.replace(/-/g, ' ')} vulnerability detected`,
@@ -491,11 +512,11 @@ async function scanDependencies(
   const vulnerabilities: DependencyVulnerability[] = [];
 
   // Simulate dependency scanning
-  const vulnCount = Math.floor(Math.random() * (depth === 'deep' ? 25 : depth === 'standard' ? 15 : 8)) + 3;
+  const vulnCount = Math.floor(secureRandom() * (depth === 'deep' ? 25 : depth === 'standard' ? 15 : 8)) + 3;
 
   for (let i = 0; i < vulnCount; i++) {
-    const severity: Priority = ['critical', 'high', 'medium', 'low'][Math.floor(Math.random() * 4)] as Priority;
-    const cvssScore = severity === 'critical' ? 9.0 + Math.random() : severity === 'high' ? 7.0 + Math.random() * 2 : severity === 'medium' ? 4.0 + Math.random() * 3 : Math.random() * 4;
+    const severity: Priority = ['critical', 'high', 'medium', 'low'][Math.floor(secureRandom() * 4)] as Priority;
+    const cvssScore = severity === 'critical' ? 9.0 + secureRandom() : severity === 'high' ? 7.0 + secureRandom() * 2 : severity === 'medium' ? 4.0 + secureRandom() * 3 : secureRandom() * 4;
 
     vulnerabilities.push({
       package: `vulnerable-package-${i % 20 + 1}`,
@@ -506,7 +527,7 @@ async function scanDependencies(
       severity,
       cvssScore: Math.round(cvssScore * 10) / 10,
       description: `Security vulnerability in package causing ${severity} severity issue`,
-      exploitAvailable: severity === 'critical' || (severity === 'high' && Math.random() > 0.5),
+      exploitAvailable: severity === 'critical' || (severity === 'high' && secureRandom() > 0.5),
       remediation: 'Update to patched version or find alternative package',
       dependencyChain: ['root', `dep-level-1-${i % 5}`, `vulnerable-package-${i % 20 + 1}`]
     });
@@ -527,7 +548,7 @@ async function analyzeCodeQualitySecurity(
   const issues: CodeQualityIssue[] = [];
 
   // Simulate code quality security analysis
-  const issueCount = Math.floor(Math.random() * (depth === 'deep' ? 15 : depth === 'standard' ? 8 : 4)) + 2;
+  const issueCount = Math.floor(secureRandom() * (depth === 'deep' ? 15 : depth === 'standard' ? 8 : 4)) + 2;
 
   const issueTypes: CodeQualityIssue['type'][] = [
     'hardcoded-secret',
@@ -538,16 +559,16 @@ async function analyzeCodeQualitySecurity(
   ];
 
   for (let i = 0; i < issueCount; i++) {
-    const type = issueTypes[Math.floor(Math.random() * issueTypes.length)];
+    const type = issueTypes[Math.floor(secureRandom() * issueTypes.length)];
     const severity: Priority = type === 'hardcoded-secret' ? 'critical' : 'medium';
 
     issues.push({
       type,
       severity,
       file: `${target}/src/config/settings-${i % 5 + 1}.ts`,
-      line: Math.floor(Math.random() * 200) + 10,
+      line: Math.floor(secureRandom() * 200) + 10,
       description: getCodeQualityDescription(type),
-      secretType: type === 'hardcoded-secret' ? (['api-key', 'password', 'token'][Math.floor(Math.random() * 3)] as CodeQualityIssue['secretType']) : undefined,
+      secretType: type === 'hardcoded-secret' ? (['api-key', 'password', 'token'][Math.floor(secureRandom() * 3)] as CodeQualityIssue['secretType']) : undefined,
       remediation: getCodeQualityRemediation(type)
     });
   }
@@ -744,7 +765,7 @@ function generateSecurityRecommendations(
  * Calculate severity based on confidence
  */
 function calculateSeverity(confidence: number): Priority {
-  const rand = Math.random();
+  const rand = secureRandom();
   if (confidence > 0.9 && rand > 0.7) return 'critical';
   if (confidence > 0.8 && rand > 0.5) return 'high';
   if (confidence > 0.6) return 'medium';
@@ -870,8 +891,8 @@ export async function scanComprehensiveSecurity(
       startTime: new Date(startTime).toISOString(),
       endTime: new Date(endTime).toISOString(),
       duration,
-      filesScanned: Math.floor(Math.random() * 500) + 100,
-      linesOfCode: Math.floor(Math.random() * 50000) + 10000,
+      filesScanned: Math.floor(secureRandom() * 500) + 100,
+      linesOfCode: Math.floor(secureRandom() * 50000) + 10000,
       scannerVersions: {
         sast: '2.5.0',
         dast: '1.8.3',
