@@ -54,6 +54,11 @@ logs/
 
 # Testing
 coverage/
+# But allow Phase 3 QE tool directories
+!src/mcp/tools/qe/coverage/
+!src/mcp/tools/qe/flaky-detection/
+!src/mcp/tools/qe/performance/
+!src/mcp/tools/qe/visual/
 .nyc_output/
 
 # Misc
