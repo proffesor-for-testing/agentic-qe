@@ -293,6 +293,120 @@ this.registerEventHandler({
 });
 ```
 
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-requirements-validator",
+  taskType: "requirements-validation",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results
+    requirementsValidated: 12,
+    testabilityScore: 8.5,
+    bddScenariosGenerated: 32,
+    executionTime: 4200
+  },
+  metadata: {
+    // Additional context
+    validationFramework: "invest-smart",
+    strictMode: true,
+    criteriaChecked: ["invest", "smart", "5w"]
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-requirements-validator",
+  stateKey: "requirements-validation-state",
+  actionKey: "invest-analysis",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details
+    validationStrategy: "invest-smart-combined",
+    accuracy: 0.95,
+    completeness: 0.92
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-requirements-validator",
+  pattern: "Vague performance requirements converted to specific percentile-based metrics",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "requirements",
+  metadata: {
+    // Pattern context
+    requirementPatterns: ["vague-nfr", "missing-metrics", "unclear-sla"],
+    testabilityPrediction: 0.92
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-requirements-validator",
+  taskType: "requirements-validation",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "requirements-validation-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "requirements")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (All requirements testable, 100% INVEST compliance, <3s validation)
+- **0.9**: Excellent (95%+ testable, 95%+ INVEST compliance, <5s validation)
+- **0.7**: Good (90%+ testable, 90%+ INVEST compliance, <10s validation)
+- **0.5**: Acceptable (80%+ testable, 80%+ INVEST compliance)
+- **<0.5**: Needs improvement (Low testability, poor INVEST compliance)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
 ## Integration Points
 
 ### Upstream Dependencies

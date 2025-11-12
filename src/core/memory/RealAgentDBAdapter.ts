@@ -1,13 +1,17 @@
 /**
  * Real AgentDB Adapter
- * Uses actual agentdb package (sqlite-vector) for production operations
+ * Uses actual agentdb package v1.6.1 for production operations
+ * Updated to use createDatabase, WASMVectorSearch, and HNSWIndex
  */
 
 import type { Pattern, RetrievalOptions, RetrievalResult } from './ReasoningBankAdapter';
 import { SecureRandom } from '../../utils/SecureRandom.js';
+import { createDatabase, WASMVectorSearch, HNSWIndex } from 'agentdb';
 
 export class RealAgentDBAdapter {
-  private db: any; // SqliteVectorDB from agentdb
+  private db: any; // Database from createDatabase()
+  private wasmSearch: WASMVectorSearch | null = null;
+  private hnswIndex: HNSWIndex | null = null;
   private isInitialized = false;
   private dbPath: string;
   private dimension: number;
@@ -18,7 +22,7 @@ export class RealAgentDBAdapter {
   }
 
   /**
-   * Initialize with real AgentDB (sqlite-vector)
+   * Initialize with real AgentDB v1.6.1 (createDatabase + WASMVectorSearch)
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -26,29 +30,56 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      // Import real AgentDB (note: SQLiteVectorDB with capital L)
-      const { SQLiteVectorDB, Presets } = await import('agentdb');
+      // Create database with agentdb v1.6.1 API
+      this.db = await createDatabase(this.dbPath);
 
-      // Create database with appropriate preset
-      // Note: AgentDB constructor, not .new() method
-      if (this.dbPath === ':memory:') {
-        this.db = new SQLiteVectorDB(Presets.inMemory(this.dimension));
-      } else {
-        this.db = new SQLiteVectorDB(
-          Presets.smallDataset(this.dimension, this.dbPath)
-        );
-      }
+      // Create patterns table
+      await this.createPatternsTable();
 
-      // Initialize if needed
-      if (typeof this.db.init === 'function') {
-        await this.db.init();
-      }
+      // Initialize WASM vector search
+      this.wasmSearch = new WASMVectorSearch(this.db, {
+        enableWASM: true,
+        enableSIMD: true,
+        batchSize: 100,
+        indexThreshold: 1000
+      });
+
+      // Initialize HNSW index for fast search
+      this.hnswIndex = new HNSWIndex(this.db, {
+        M: 16,
+        efConstruction: 200,
+        efSearch: 100,
+        metric: 'cosine',
+        dimension: this.dimension,
+        maxElements: 100000,
+        persistIndex: false, // In-memory for now
+        rebuildThreshold: 0.1
+      });
 
       this.isInitialized = true;
-      console.log('[RealAgentDBAdapter] Initialized with real AgentDB at', this.dbPath);
+      console.log('[RealAgentDBAdapter] Initialized with AgentDB v1.6.1 at', this.dbPath);
     } catch (error: any) {
       throw new Error(`Failed to initialize real AgentDB: ${error.message}`);
     }
+  }
+
+  /**
+   * Create patterns table
+   */
+  private async createPatternsTable(): Promise<void> {
+    const sql = `
+      CREATE TABLE IF NOT EXISTS patterns (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        embedding BLOB,
+        metadata TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )
+    `;
+
+    await this.db.exec(sql);
+    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_type ON patterns(type)');
   }
 
   /**
@@ -69,19 +100,30 @@ export class RealAgentDBAdapter {
         );
       }
 
-      // Insert into AgentDB using correct Vector interface
-      // AgentDB expects: { id?, embedding: number[], metadata? }
-      const insertData = {
-        id: pattern.id,
-        embedding: pattern.embedding, // Use regular number[] array, not Float32Array
-        metadata: {
-          type: pattern.type,
-          confidence: pattern.confidence || 0.5,
-          ...pattern.metadata
-        }
-      };
+      // Convert to Float32Array
+      const embedding = new Float32Array(pattern.embedding);
 
-      const result = await this.db.insert(insertData);
+      // Insert into database
+      const sql = `
+        INSERT OR REPLACE INTO patterns (id, type, confidence, embedding, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, unixepoch())
+      `;
+
+      await this.db.run(sql, [
+        pattern.id,
+        pattern.type,
+        pattern.confidence || 0.5,
+        Buffer.from(embedding.buffer),
+        JSON.stringify(pattern.metadata || {})
+      ]);
+
+      // Add to HNSW index
+      if (this.hnswIndex && this.hnswIndex.isReady()) {
+        const result = await this.db.get('SELECT rowid FROM patterns WHERE id = ?', [pattern.id]);
+        if (result) {
+          this.hnswIndex.addVector(result.rowid, embedding);
+        }
+      }
 
       return pattern.id;
     } catch (error: any) {
@@ -98,24 +140,25 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      const vectors = patterns.map(p => ({
-        id: p.id,
-        embedding: p.embedding || Array.from({ length: this.dimension }, () => SecureRandom.randomFloat()),
-        metadata: {
-          type: p.type,
-          confidence: p.confidence || 0.5,
-          ...p.metadata
-        }
-      }));
+      await this.db.exec('BEGIN TRANSACTION');
 
-      // insertBatch returns string[] of IDs
-      const resultIds = await this.db.insertBatch(vectors);
-      console.log(
-        `[RealAgentDBAdapter] Inserted ${resultIds.length} patterns`
-      );
+      const ids: string[] = [];
+      for (const pattern of patterns) {
+        const id = await this.store(pattern);
+        ids.push(id);
+      }
 
-      return resultIds;
+      await this.db.exec('COMMIT');
+
+      // Rebuild HNSW index if needed
+      if (this.hnswIndex && this.hnswIndex.needsRebuild()) {
+        await this.hnswIndex.buildIndex('patterns');
+      }
+
+      console.log(`[RealAgentDBAdapter] Inserted ${ids.length} patterns`);
+      return ids;
     } catch (error: any) {
+      await this.db.exec('ROLLBACK');
       throw new Error(`Failed to store batch: ${error.message}`);
     }
   }
@@ -139,33 +182,41 @@ export class RealAgentDBAdapter {
         queryEmbedding = Array.from({ length: this.dimension }, () => SecureRandom.randomFloat());
       }
 
-      // Search using AgentDB
-      // API expects: search(queryEmbedding: number[], k?, metric?, threshold?)
+      const queryVector = new Float32Array(queryEmbedding);
       const topK = options.topK || 10;
-      const threshold = options.threshold || 0.0;
+      const threshold = options.threshold || 0.7;
 
-      const results = await this.db.search(
-        queryEmbedding, // Pass embedding array directly, not wrapped in object
-        topK,
-        'cosine',
-        threshold
-      );
+      // Search using HNSW if available, otherwise WASM vector search
+      let searchResults;
+      if (this.hnswIndex && this.hnswIndex.isReady()) {
+        searchResults = await this.hnswIndex.search(queryVector, topK, { threshold });
+      } else if (this.wasmSearch) {
+        searchResults = await this.wasmSearch.findKNN(queryVector, topK, 'patterns', { threshold });
+      } else {
+        throw new Error('No search backend available');
+      }
 
       const queryTime = Date.now() - startTime;
 
-      // Convert AgentDB results to Pattern format
-      // AgentDB SearchResult has: { id, score, embedding, metadata }
-      const patterns: Pattern[] = results.map((r: any) => ({
-        id: r.id,
-        type: r.metadata?.type || 'unknown',
-        data: r.metadata || {},
-        embedding: r.embedding,
-        confidence: r.metadata?.confidence || r.score,
-        metadata: {
-          ...r.metadata,
-          similarity: r.score // AgentDB uses 'score' not 'similarity'
+      // Convert results to Pattern format
+      const patterns: Pattern[] = [];
+      for (const result of searchResults) {
+        const row = await this.db.get('SELECT * FROM patterns WHERE rowid = ?', [result.id]);
+        if (row) {
+          patterns.push({
+            id: row.id,
+            type: row.type,
+            data: row.metadata ? JSON.parse(row.metadata) : {},
+            embedding: queryEmbedding, // Use query embedding as placeholder
+            confidence: row.confidence,
+            metadata: {
+              ...JSON.parse(row.metadata || '{}'),
+              similarity: result.similarity,
+              distance: result.distance
+            }
+          });
         }
-      }));
+      }
 
       return {
         memories: patterns,
@@ -173,9 +224,10 @@ export class RealAgentDBAdapter {
         context: {
           query: 'vector similarity search',
           resultsCount: patterns.length,
-          avgSimilarity: results.length > 0
-            ? results.reduce((sum: number, r: any) => sum + r.score, 0) / results.length
-            : 0
+          avgSimilarity: patterns.length > 0
+            ? patterns.reduce((sum, p) => sum + (p.metadata?.similarity || 0), 0) / patterns.length
+            : 0,
+          queryTime
         }
       };
     } catch (error: any) {
@@ -192,16 +244,15 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      // AgentDB method is stats() not getStats()
-      const dbStats = this.db.stats();
+      const countResult = await this.db.get('SELECT COUNT(*) as count FROM patterns');
+      const totalVectors = countResult?.count || 0;
 
-      // Convert to expected format
       return {
-        totalVectors: dbStats.count || 0,
+        totalVectors,
         dimension: this.dimension,
         mode: this.dbPath === ':memory:' ? 'memory' : 'file',
-        memoryUsageBytes: dbStats.size || 0,
-        dbSizeBytes: dbStats.size || 0
+        hnswStats: this.hnswIndex?.getStats(),
+        wasmStats: this.wasmSearch?.getStats()
       };
     } catch (error: any) {
       throw new Error(`Failed to get stats: ${error.message}`);
@@ -212,6 +263,12 @@ export class RealAgentDBAdapter {
    * Close the adapter
    */
   async close(): Promise<void> {
+    if (this.hnswIndex) {
+      this.hnswIndex.clear();
+    }
+    if (this.wasmSearch) {
+      this.wasmSearch.clearIndex();
+    }
     if (this.db) {
       await this.db.close();
       console.log('[RealAgentDBAdapter] Closed');

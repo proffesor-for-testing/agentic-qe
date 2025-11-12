@@ -298,6 +298,121 @@ notifyTestCompletion({
 });
 ```
 
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-executor",
+  taskType: "test-execution",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    testsRun: 250,
+    passRate: 0.98,
+    failedTests: 5,
+    executionTime: 45000,
+    parallelism: 8
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    framework: "jest",
+    parallelism: 8,
+    retryCount: 3
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-test-executor",
+  stateKey: "test-execution-state",
+  actionKey: "parallel-execution",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    executionStrategy: "parallel-8-workers",
+    resourceUsage: "optimal",
+    efficiency: 0.92
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-test-executor",
+  pattern: "Parallel execution with 8 workers provides 4x speedup for test suites >200 tests",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "test-execution",
+  metadata: {
+    // Pattern context (agent-specific)
+    executionPatterns: ["parallel-8-workers", "retry-on-failure"],
+    reliability: 0.98
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-test-executor",
+  taskType: "test-execution",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "test-execution-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "test-execution")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (100% pass rate, <30s execution, zero flakes)
+- **0.9**: Excellent (98%+ pass rate, <60s execution, <2% flakes)
+- **0.7**: Good (95%+ pass rate, <120s execution, <5% flakes)
+- **0.5**: Acceptable (90%+ pass rate, completed successfully)
+- **<0.5**: Needs improvement (Low pass rate, slow execution, many flakes)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
 ## Error Handling & Recovery
 
 ### Graceful Degradation

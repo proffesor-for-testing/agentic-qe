@@ -545,4 +545,70 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
   getAccessControl(): any {
     return null; // Not implemented in basic adapter
   }
+
+  // ============================================================================
+  // Learning Operations (no-op implementations for basic MemoryStore adapter)
+  // ============================================================================
+
+  async storeLearningExperience(_experience: {
+    agentId: string;
+    taskId?: string;
+    taskType: string;
+    state: string;
+    action: string;
+    reward: number;
+    nextState: string;
+    episodeId?: string;
+  }): Promise<void> {
+    // No-op: basic MemoryStore doesn't support learning operations
+    // Use SwarmMemoryManager directly for learning features
+  }
+
+  async upsertQValue(
+    _agentId: string,
+    _stateKey: string,
+    _actionKey: string,
+    _qValue: number
+  ): Promise<void> {
+    // No-op: basic MemoryStore doesn't support learning operations
+  }
+
+  async getAllQValues(_agentId: string): Promise<Array<{
+    state_key: string;
+    action_key: string;
+    q_value: number;
+    update_count: number;
+  }>> {
+    return [];
+  }
+
+  async getQValue(_agentId: string, _stateKey: string, _actionKey: string): Promise<number | null> {
+    return null;
+  }
+
+  async storeLearningSnapshot(_snapshot: {
+    agentId: string;
+    snapshotType: 'performance' | 'q_table' | 'pattern';
+    metrics: any;
+    improvementRate?: number;
+    totalExperiences?: number;
+    explorationRate?: number;
+  }): Promise<void> {
+    // No-op: basic MemoryStore doesn't support learning operations
+  }
+
+  async getLearningHistory(_agentId: string, _limit?: number): Promise<Array<{
+    id: number;
+    agent_id: string;
+    pattern_id?: string;
+    state_representation: string;
+    action: string;
+    reward: number;
+    next_state_representation?: string;
+    q_value?: number;
+    episode?: number;
+    timestamp: string;
+  }>> {
+    return [];
+  }
 }

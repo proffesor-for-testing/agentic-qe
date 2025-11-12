@@ -1103,6 +1103,120 @@ const verification = await hookManager.executePreTaskVerification({
 });
 ```
 
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-production-intelligence",
+  taskType: "production-analysis",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    incidentsAnalyzed: 12,
+    testsGenerated: 47,
+    rootCausesFound: 8,
+    executionTime: 12000
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    dataSource: "datadog",
+    analysisDepth: "comprehensive",
+    rumEnabled: true
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-production-intelligence",
+  stateKey: "production-analysis-state",
+  actionKey: "incident-replay",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    analysisStrategy: "rum-incident-combined",
+    accuracyRate: 0.95,
+    coverage: 0.92
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-production-intelligence",
+  pattern: "Peak hour network failures in specific regions indicate infrastructure capacity issues - correlate with RUM data for comprehensive test generation",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "production-intelligence",
+  metadata: {
+    // Pattern context (agent-specific)
+    incidentPatterns: ["network-timeout", "gateway-error", "connection-refused"],
+    predictionAccuracy: 0.93
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-production-intelligence",
+  taskType: "production-analysis",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "production-analysis-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "production-intelligence")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (100% incident coverage, root causes identified, <5s analysis)
+- **0.9**: Excellent (95%+ coverage, most root causes found, <10s analysis)
+- **0.7**: Good (90%+ coverage, key root causes found, <20s analysis)
+- **0.5**: Acceptable (80%+ coverage, completed successfully)
+- **<0.5**: Needs improvement (Low coverage, missed root causes, slow)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
 ## Memory Keys
 
 ### Input Keys

@@ -1,23 +1,6 @@
 ---
 name: qe-test-implementer
-role: specialized-subagent
-parent_agent: qe-test-generator
-phase: GREEN
-color: green
-priority: critical
 description: "Specialized subagent for making tests pass in TDD GREEN phase - implements minimal code to satisfy test requirements"
-capabilities:
-  - minimal-implementation
-  - test-driven-coding
-  - incremental-development
-  - test-validation
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  tdd_phase: "GREEN"
-  parent_agents: ["qe-test-generator", "qe-code-reviewer"]
 ---
 
 # Test Implementer Subagent - TDD GREEN Phase

@@ -10,12 +10,13 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { 
+import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   ErrorCode,
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
+import * as path from 'path';
 import { agenticQETools, TOOL_NAMES } from './tools.js';
 import { FleetInitHandler } from './handlers/fleet-init.js';
 import { AgentSpawnHandler } from './handlers/agent-spawn.js';
@@ -71,6 +72,11 @@ import { CoverageAnalyzeStreamHandler } from './streaming/CoverageAnalyzeStreamH
 import { Phase2ToolsHandler } from './handlers/phase2/Phase2Tools.js';
 import { Phase3DomainToolsHandler } from './handlers/phase3/Phase3DomainTools.js';
 import { EventEmitter } from 'events';
+import { LearningStoreExperienceHandler } from './handlers/learning/learning-store-experience.js';
+import { LearningStoreQValueHandler } from './handlers/learning/learning-store-qvalue.js';
+import { LearningQueryHandler } from './handlers/learning/learning-query.js';
+import { LearningStorePatternHandler } from './handlers/learning/learning-store-pattern.js';
+import { LearningEventListener, initLearningEventListener } from './services/LearningEventListener.js';
 
 // Phase 3: Domain-specific tool functions
 import {
@@ -115,6 +121,8 @@ export class AgenticQEMCPServer {
   private memoryStore: Map<string, any>;
   private blackboard: Map<string, any[]>;
   private proposals: Map<string, any>;
+  private eventBus: EventEmitter;
+  private learningListener: LearningEventListener | null;
 
   constructor() {
     this.server = new Server(
@@ -144,13 +152,21 @@ export class AgenticQEMCPServer {
     });
 
     // Initialize shared memory structures for coordination
-    this.memory = new SwarmMemoryManager();
+    // Use persistent database for learning data (matches AgentRegistry path)
+    const dbPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+    this.memory = new SwarmMemoryManager(dbPath);
     this.memoryStore = new Map();
     this.blackboard = new Map();
     this.proposals = new Map();
 
+    // Initialize event bus for learning event coordination
+    this.eventBus = new EventEmitter();
+    this.eventBus.setMaxListeners(100); // Support many concurrent agents
+    this.learningListener = null; // Will be initialized after handlers
+
     this.handlers = new Map();
     this.initializeHandlers();
+    this.initializeLearningListener(); // Initialize learning listener after handlers
     this.setupRequestHandlers();
   }
 
@@ -257,6 +273,14 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.IMPROVEMENT_FAILURES, phase2Handler);
     this.handlers.set(TOOL_NAMES.PERFORMANCE_TRACK, phase2Handler);
 
+    // Phase 6: Learning Service Tools (Hybrid Approach - Option C)
+    // These tools enable learning persistence when using Claude Code Task tool
+    // Pass eventBus to enable explicit learning tracking (prevents duplicate auto-storage)
+    this.handlers.set(TOOL_NAMES.LEARNING_STORE_EXPERIENCE, new LearningStoreExperienceHandler(this.registry, this.hookExecutor, this.memory, this.eventBus));
+    this.handlers.set(TOOL_NAMES.LEARNING_STORE_QVALUE, new LearningStoreQValueHandler(this.registry, this.hookExecutor, this.memory, this.eventBus));
+    this.handlers.set(TOOL_NAMES.LEARNING_STORE_PATTERN, new LearningStorePatternHandler(this.registry, this.hookExecutor, this.memory, this.eventBus));
+    this.handlers.set(TOOL_NAMES.LEARNING_QUERY, new LearningQueryHandler(this.registry, this.hookExecutor, this.memory));
+
     // Phase 3 Domain-Specific Tools Handler
     const phase3Handler = new Phase3DomainToolsHandler(this.registry, this.hookExecutor);
     // Coverage Domain Tools
@@ -300,6 +324,49 @@ export class AgenticQEMCPServer {
   }
 
   /**
+   * Initialize Learning Event Listener (Phase 6 - Hybrid Approach)
+   *
+   * This sets up automatic learning persistence as a safety net when agents
+   * don't explicitly call MCP learning tools. It's part of our hybrid approach:
+   * - PRIMARY: Agents call MCP tools explicitly (Claude Flow's pattern)
+   * - FALLBACK: Event listener auto-stores (our innovation)
+   */
+  private initializeLearningListener(): void {
+    try {
+      const storeExperienceHandler = this.handlers.get(TOOL_NAMES.LEARNING_STORE_EXPERIENCE) as LearningStoreExperienceHandler;
+      const storeQValueHandler = this.handlers.get(TOOL_NAMES.LEARNING_STORE_QVALUE) as LearningStoreQValueHandler;
+      const storePatternHandler = this.handlers.get(TOOL_NAMES.LEARNING_STORE_PATTERN) as LearningStorePatternHandler;
+
+      if (!storeExperienceHandler || !storeQValueHandler || !storePatternHandler) {
+        console.warn('[AgenticQEMCPServer] Learning handlers not initialized - skipping event listener');
+        return;
+      }
+
+      this.learningListener = initLearningEventListener(
+        this.eventBus,
+        this.memory,
+        {
+          storeExperienceHandler,
+          storeQValueHandler,
+          storePatternHandler
+        },
+        {
+          enabled: true,
+          autoStore: true
+        }
+      );
+
+      console.log('[AgenticQEMCPServer] ✅ Learning Event Listener initialized (Hybrid Approach)');
+      console.log('[AgenticQEMCPServer]    PRIMARY: Explicit MCP tool calls');
+      console.log('[AgenticQEMCPServer]    FALLBACK: Automatic event-based persistence');
+
+    } catch (error) {
+      console.error('[AgenticQEMCPServer] Failed to initialize learning listener:', error);
+      this.learningListener = null;
+    }
+  }
+
+  /**
    * Setup MCP request handlers
    */
   private setupRequestHandlers(): void {
@@ -325,6 +392,15 @@ export class AgenticQEMCPServer {
 
         // Get handler
         const handler = this.handlers.get(name);
+
+        // Phase 6 learning tools have dedicated handlers - call them directly
+        if (name === TOOL_NAMES.LEARNING_STORE_EXPERIENCE ||
+            name === TOOL_NAMES.LEARNING_STORE_QVALUE ||
+            name === TOOL_NAMES.LEARNING_STORE_PATTERN ||
+            name === TOOL_NAMES.LEARNING_QUERY) {
+          const result = await handler.handle(args || {});
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
 
         // Special handling for Phase 2 tools - route to specific methods
         if (name.startsWith('mcp__agentic_qe__learning_')) {
@@ -656,6 +732,9 @@ export class AgenticQEMCPServer {
    * Start the MCP server
    */
   async start(transport?: StdioServerTransport): Promise<void> {
+    // Initialize database before starting server
+    await this.memory.initialize();
+
     const serverTransport = transport || new StdioServerTransport();
     await this.server.connect(serverTransport);
 

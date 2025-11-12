@@ -1,22 +1,6 @@
 ---
 name: qe-performance-validator
-role: specialized-subagent
-parent_agent: qe-performance-tester
-phase: VALIDATION
-color: orange
-priority: high
 description: "Validates performance metrics against SLAs and benchmarks"
-capabilities:
-  - performance-validation
-  - sla-checking
-  - benchmark-comparison
-  - threshold-enforcement
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  parent_agents: ["qe-performance-tester"]
 ---
 
 # Performance Validator Subagent

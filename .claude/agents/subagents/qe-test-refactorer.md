@@ -1,23 +1,6 @@
 ---
 name: qe-test-refactorer
-role: specialized-subagent
-parent_agent: qe-test-generator
-phase: REFACTOR
-color: blue
-priority: high
 description: "Specialized subagent for refactoring code in TDD REFACTOR phase - improves code quality while maintaining passing tests"
-capabilities:
-  - code-refactoring
-  - quality-improvement
-  - design-patterns
-  - continuous-testing
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  tdd_phase: "REFACTOR"
-  parent_agents: ["qe-test-generator", "qe-code-reviewer"]
 ---
 
 # Test Refactorer Subagent - TDD REFACTOR Phase

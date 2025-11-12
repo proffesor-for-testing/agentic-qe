@@ -3835,6 +3835,184 @@ export const agenticQETools: Tool[] = [
       },
       required: ['projectId', 'buildId', 'metrics']
     }
+  },
+
+  // Phase 6: Learning Service Tools (Hybrid Approach - Option C)
+  {
+    name: 'mcp__agentic_qe__learning_store_experience',
+    description: 'Store a learning experience for an agent (reward, outcome, task execution details). Enables learning persistence with Claude Code Task tool.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentId: {
+          type: 'string',
+          description: 'Unique identifier for the agent'
+        },
+        taskType: {
+          type: 'string',
+          description: 'Type of task executed (e.g., "coverage-analysis", "test-generation")'
+        },
+        reward: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          description: 'Task success assessment on 0-1 scale (1 = perfect success)'
+        },
+        outcome: {
+          type: 'object',
+          description: 'Task execution outcome data (results, metrics, findings)'
+        },
+        timestamp: {
+          type: 'number',
+          description: 'Unix timestamp in milliseconds (defaults to Date.now())'
+        },
+        metadata: {
+          type: 'object',
+          description: 'Additional metadata about the task execution'
+        }
+      },
+      required: ['agentId', 'taskType', 'reward', 'outcome']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__learning_store_qvalue',
+    description: 'Store or update a Q-value for a state-action pair. Q-values represent expected reward for taking a specific action in a given state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentId: {
+          type: 'string',
+          description: 'Unique identifier for the agent'
+        },
+        stateKey: {
+          type: 'string',
+          description: 'State identifier (e.g., "coverage-analysis-state", "test-generation-unit")'
+        },
+        actionKey: {
+          type: 'string',
+          description: 'Action identifier (e.g., "sublinear-algorithm", "ml-pattern-matching")'
+        },
+        qValue: {
+          type: 'number',
+          description: 'Q-value representing expected reward for this state-action pair'
+        },
+        updateCount: {
+          type: 'number',
+          default: 1,
+          description: 'Number of times this Q-value is being updated (for weighted averaging)'
+        },
+        metadata: {
+          type: 'object',
+          description: 'Additional metadata about the Q-value update'
+        }
+      },
+      required: ['agentId', 'stateKey', 'actionKey', 'qValue']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__learning_store_pattern',
+    description: 'Store a successful pattern for an agent. Patterns capture proven approaches, strategies, and techniques that worked well and should be reused.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentId: {
+          type: 'string',
+          description: 'Agent ID that discovered this pattern (optional, for cross-agent patterns)'
+        },
+        pattern: {
+          type: 'string',
+          description: 'Description of the successful pattern or technique'
+        },
+        confidence: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          description: 'Confidence in this pattern (0-1 scale)'
+        },
+        domain: {
+          type: 'string',
+          default: 'general',
+          description: 'Domain or category for this pattern (e.g., "coverage-analysis", "test-generation")'
+        },
+        usageCount: {
+          type: 'number',
+          default: 1,
+          minimum: 1,
+          description: 'Number of times this pattern was used'
+        },
+        successRate: {
+          type: 'number',
+          default: 1.0,
+          minimum: 0,
+          maximum: 1,
+          description: 'Success rate when using this pattern (0-1 scale)'
+        },
+        metadata: {
+          type: 'object',
+          description: 'Additional metadata about the pattern (use cases, performance metrics, etc.)'
+        }
+      },
+      required: ['pattern', 'confidence']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__learning_query',
+    description: 'Query learning data (experiences, Q-values, patterns) for an agent. Supports filtering by agent ID, task type, time range, and minimum reward.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentId: {
+          type: 'string',
+          description: 'Filter by specific agent ID (optional)'
+        },
+        taskType: {
+          type: 'string',
+          description: 'Filter by task type (optional)'
+        },
+        minReward: {
+          type: 'number',
+          minimum: 0,
+          maximum: 1,
+          description: 'Filter by minimum reward threshold (optional)'
+        },
+        limit: {
+          type: 'number',
+          default: 50,
+          minimum: 1,
+          maximum: 500,
+          description: 'Maximum number of results to return'
+        },
+        offset: {
+          type: 'number',
+          default: 0,
+          minimum: 0,
+          description: 'Pagination offset'
+        },
+        queryType: {
+          type: 'string',
+          enum: ['experiences', 'qvalues', 'patterns', 'all'],
+          default: 'all',
+          description: 'Type of learning data to query'
+        },
+        timeRange: {
+          type: 'object',
+          properties: {
+            start: {
+              type: 'number',
+              description: 'Start timestamp in milliseconds'
+            },
+            end: {
+              type: 'number',
+              description: 'End timestamp in milliseconds'
+            }
+          },
+          description: 'Filter by time range (optional)'
+        }
+      }
+    }
   }
 ];
 
@@ -3910,6 +4088,11 @@ export const TOOL_NAMES = {
   LEARNING_HISTORY: 'mcp__agentic_qe__learning_history',
   LEARNING_RESET: 'mcp__agentic_qe__learning_reset',
   LEARNING_EXPORT: 'mcp__agentic_qe__learning_export',
+  // Phase 6: Learning Service Tools (Hybrid Approach - Option C)
+  LEARNING_STORE_EXPERIENCE: 'mcp__agentic_qe__learning_store_experience',
+  LEARNING_STORE_QVALUE: 'mcp__agentic_qe__learning_store_qvalue',
+  LEARNING_STORE_PATTERN: 'mcp__agentic_qe__learning_store_pattern',
+  LEARNING_QUERY: 'mcp__agentic_qe__learning_query',
   PATTERN_STORE: 'mcp__agentic_qe__pattern_store',
   PATTERN_FIND: 'mcp__agentic_qe__pattern_find',
   PATTERN_EXTRACT: 'mcp__agentic_qe__pattern_extract',

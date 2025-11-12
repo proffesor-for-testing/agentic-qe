@@ -191,36 +191,123 @@ This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero e
 
 **Automatic Lifecycle Hooks:**
 ```typescript
-// Automatically called by BaseAgent
+// Called automatically by BaseAgent
 protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
   // Load fleet topology and active agents
   const topology = await this.memoryStore.retrieve('aqe/fleet/topology');
   const activeAgents = await this.memoryStore.retrieve('aqe/fleet/agents/active');
 
+  // Verify environment for fleet orchestration
+  const verification = await this.hookManager.executePreTaskVerification({
+    task: 'fleet-orchestration',
+    context: {
+      requiredVars: ['FLEET_MODE', 'MAX_AGENTS'],
+      minMemoryMB: 2048,
+      requiredKeys: ['aqe/fleet/topology']
+    }
+  });
+
+  // Emit fleet coordination starting event
+  this.eventBus.emit('fleet-commander:starting', {
+    agentId: this.agentId,
+    topology: topology?.mode || 'hierarchical',
+    activeAgents: activeAgents?.length || 0
+  });
+
   this.logger.info('Fleet coordination initialized', {
     topology: topology?.mode || 'hierarchical',
     activeAgents: activeAgents?.length || 0,
-    maxAgents: 50
+    maxAgents: 50,
+    verification: verification.passed
   });
 }
 
 protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
   // Store coordination results and fleet metrics
-  await this.memoryStore.store('aqe/fleet/coordination/results', data.result.coordinationOutcomes);
-  await this.memoryStore.store('aqe/fleet/metrics/performance', data.result.fleetMetrics);
-  await this.memoryStore.store('aqe/fleet/agents/active', data.result.activeAgents);
+  await this.memoryStore.store('aqe/fleet/coordination/results', data.result.coordinationOutcomes, {
+    partition: 'agent_results',
+    ttl: 86400 // 24 hours
+  });
 
-  // Emit fleet coordination event
-  this.eventBus.emit('fleet-commander:coordinated', {
+  await this.memoryStore.store('aqe/fleet/metrics/performance', data.result.fleetMetrics, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  await this.memoryStore.store('aqe/fleet/agents/active', data.result.activeAgents, {
+    partition: 'coordination',
+    ttl: 3600 // 1 hour
+  });
+
+  // Store fleet coordination metrics
+  await this.memoryStore.store('aqe/fleet/metrics/coordination', {
+    timestamp: Date.now(),
     agentsOrchestrated: data.result.activeAgents.length,
     throughput: data.result.fleetMetrics.throughput,
     efficiency: data.result.fleetMetrics.efficiency
+  }, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit completion event with fleet coordination results
+  this.eventBus.emit('fleet-commander:coordinated', {
+    agentId: this.agentId,
+    agentsOrchestrated: data.result.activeAgents.length,
+    throughput: data.result.fleetMetrics.throughput,
+    efficiency: data.result.fleetMetrics.efficiency
+  });
+
+  // Validate fleet coordination results
+  const validation = await this.hookManager.executePostTaskValidation({
+    task: 'fleet-orchestration',
+    result: {
+      output: data.result,
+      activeAgents: data.result.activeAgents,
+      metrics: {
+        throughput: data.result.fleetMetrics.throughput,
+        efficiency: data.result.fleetMetrics.efficiency
+      }
+    }
+  });
+
+  this.logger.info('Fleet coordination completed', {
+    agentsOrchestrated: data.result.activeAgents.length,
+    throughput: data.result.fleetMetrics.throughput,
+    validated: validation.passed
+  });
+}
+
+protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
+  // Store error for fleet analysis
+  await this.memoryStore.store(`aqe/errors/${data.assignment.task.id}`, {
+    error: data.error.message,
+    timestamp: Date.now(),
+    agent: this.agentId,
+    taskType: 'fleet-coordination',
+    topology: data.assignment.task.metadata.topology
+  }, {
+    partition: 'errors',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit error event for fleet coordination
+  this.eventBus.emit('fleet-commander:error', {
+    agentId: this.agentId,
+    error: data.error.message,
+    taskId: data.assignment.task.id
+  });
+
+  this.logger.error('Fleet coordination failed', {
+    error: data.error.message,
+    stack: data.error.stack
   });
 }
 ```
 
 **Advanced Verification (Optional):**
 ```typescript
+// Use VerificationHookManager for comprehensive validation
 const hookManager = new VerificationHookManager(this.memoryStore);
 const verification = await hookManager.executePreTaskVerification({
   task: 'fleet-orchestration',
@@ -230,6 +317,118 @@ const verification = await hookManager.executePreTaskVerification({
     requiredKeys: ['aqe/fleet/topology']
   }
 });
+```
+
+## Learning Integration (Phase 6)
+
+This agent integrates with the **Learning Engine** to continuously improve fleet orchestration and resource allocation.
+
+### Learning Protocol
+
+```typescript
+import { LearningEngine } from '@/learning/LearningEngine';
+
+// Initialize learning engine
+const learningEngine = new LearningEngine({
+  agentId: 'qe-fleet-commander',
+  taskType: 'fleet-coordination',
+  domain: 'fleet-coordination',
+  learningRate: 0.01,
+  epsilon: 0.1,
+  discountFactor: 0.95
+});
+
+await learningEngine.initialize();
+
+// Record fleet coordination episode
+await learningEngine.recordEpisode({
+  state: {
+    topology: 'hierarchical',
+    activeAgents: 47,
+    workloadComplexity: 0.75,
+    resourceUtilization: 0.68
+  },
+  action: {
+    topologyChange: 'none',
+    agentAllocation: {
+      'test-executor': 15,
+      'test-generator': 8,
+      'coverage-analyzer': 4
+    },
+    loadBalancing: 'sublinear'
+  },
+  reward: fleetEfficiency * 2.0 - resourceWaste * 0.5,
+  nextState: {
+    throughput: 6561,
+    efficiency: 0.85,
+    conflictsResolved: 12
+  }
+});
+
+// Learn from fleet coordination outcomes
+await learningEngine.learn();
+
+// Get learned fleet optimization
+const prediction = await learningEngine.predict({
+  topology: 'hierarchical',
+  activeAgents: 47,
+  workloadComplexity: 0.75
+});
+```
+
+### Reward Function
+
+```typescript
+function calculateFleetReward(outcome: FleetCoordinationOutcome): number {
+  let reward = 0;
+
+  // Base reward for fleet efficiency
+  reward += outcome.efficiency * 2.0;
+
+  // Reward for high throughput
+  const throughputNormalized = outcome.throughput / 10000; // Normalize
+  reward += throughputNormalized * 1.0;
+
+  // Penalty for resource waste
+  const wasteRatio = 1 - outcome.resourceUtilization;
+  reward -= wasteRatio * 0.5;
+
+  // Reward for conflict resolution
+  reward += outcome.conflictsResolved * 0.1;
+
+  // Penalty for agent failures
+  reward -= outcome.agentFailures * 0.3;
+
+  // Bonus for meeting SLA
+  if (outcome.slaCompliance > 0.99) {
+    reward += 0.5;
+  }
+
+  // Penalty for coordination overhead
+  reward -= outcome.coordinationOverhead * 0.2;
+
+  return reward;
+}
+```
+
+### Learning Metrics
+
+Track learning progress:
+- **Fleet Efficiency**: Overall coordination efficiency
+- **Throughput**: Tasks completed per hour
+- **Resource Utilization**: Percentage of resources actively used
+- **Conflict Resolution**: Time to resolve resource conflicts
+- **Topology Optimization**: Effectiveness of topology switches
+
+```bash
+# View learning metrics
+aqe learn status --agent qe-fleet-commander
+
+# Export learning history
+aqe learn export --agent qe-fleet-commander --format json
+
+# Analyze fleet efficiency trends
+aqe learn analyze --agent qe-fleet-commander --metric efficiency
 ```
 
 ## Memory Keys
@@ -299,6 +498,120 @@ const allocation = await this.neuralManager.predict({
   input: workloadAnalysis
 });
 ```
+
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-fleet-commander",
+  taskType: "fleet-coordination",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    agentsCoordinated: 47,
+    tasksDistributed: 5000,
+    efficiency: 0.85,
+    executionTime: 12000
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    topology: "hierarchical",
+    maxAgents: 50,
+    loadBalancing: true
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-fleet-commander",
+  stateKey: "fleet-coordination-state",
+  actionKey: "hierarchical-coordination",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    coordinationStrategy: "hierarchical",
+    efficiency: 0.85,
+    resourceUtilization: 0.68
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-fleet-commander",
+  pattern: "Hierarchical coordination with 3-tier architecture achieved 85% efficiency for 50+ agents",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "fleet-management",
+  metadata: {
+    // Pattern context (agent-specific)
+    coordinationPatterns: ["hierarchical", "load-balancing", "conflict-resolution"],
+    scalability: 50
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-fleet-commander",
+  taskType: "fleet-coordination",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "fleet-coordination-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "fleet-management")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (50+ agents coordinated, 100% efficiency, optimal load)
+- **0.9**: Excellent (40+ agents, 95%+ efficiency, good load balance)
+- **0.7**: Good (30+ agents, 90%+ efficiency, acceptable balance)
+- **0.5**: Acceptable (20+ agents, 80%+ efficiency, completed)
+- **<0.5**: Needs improvement (Few agents, low efficiency, poor balance)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after coordinating agent fleet
+- ✅ **ALWAYS** after optimizing topology
+- ✅ When discovering new effective coordination strategies
+- ✅ When achieving exceptional fleet performance metrics
 
 ## Hierarchical Coordination Patterns
 

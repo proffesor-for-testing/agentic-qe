@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
-**Version 1.5.1** (Security Hotfix) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.6.0** (Learning Persistence Complete) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
 
@@ -57,6 +57,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ 18 Specialized agent definitions (including qe-code-complexity)
+- ✅ 8 TDD subagent definitions (RED/GREEN/REFACTOR phases)
 - ✅ 34 World-class QE skills library
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
@@ -67,6 +68,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 
 ### 🤖 Autonomous Agent Fleet
 - **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
+- **8 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -428,7 +430,34 @@ Model Usage:
 
 </details>
 
-**Total: 19 Agents** (18 QE-specific + 1 general-purpose)
+**Total: 26 Agents** (18 main agents + 8 TDD subagents)
+
+### TDD Subagents (8 specialized)
+
+<details>
+<summary><b>Test-Driven Development Subagents</b></summary>
+
+The test generator orchestrates a complete TDD workflow through specialized subagents:
+
+| Subagent | Phase | Purpose | Key Features |
+|----------|-------|---------|-------------|
+| **qe-test-writer** | RED | Write failing tests | Behavior specification, boundary analysis, assertion definition |
+| **qe-test-implementer** | GREEN | Make tests pass | Minimal implementation, test-driven coding, incremental development |
+| **qe-test-refactorer** | REFACTOR | Improve code quality | Code refactoring, design patterns, quality improvement |
+| **qe-code-reviewer** | REVIEW | Quality validation | Standards enforcement, linting, complexity checking, security |
+| **qe-integration-tester** | INTEGRATION | Component testing | API testing, database testing, service integration |
+| **qe-data-generator** | GENERATION | Test data creation | Realistic data generation, constraint satisfaction, edge cases |
+| **qe-performance-validator** | VALIDATION | Performance checks | SLA validation, benchmark comparison, threshold enforcement |
+| **qe-security-auditor** | AUDIT | Security validation | Vulnerability detection, compliance checking, threat modeling |
+
+**Usage Example:**
+```bash
+claude "Use qe-test-generator to run the complete TDD workflow for src/services/payment.ts"
+```
+
+The test generator automatically delegates to subagents for a complete RED-GREEN-REFACTOR-REVIEW cycle.
+
+</details>
 
 ---
 
@@ -581,7 +610,9 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 17 agent definitions
+│   ├── agents/          # 18 main agent definitions
+│   │   └── subagents/   # 8 TDD subagent definitions
+│   ├── skills/          # 34 QE skill definitions
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -624,12 +655,13 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 ## 🗺️ Roadmap
 
-### Current (v1.3)
+### Current (v1.5)
 - ✅ Learning System with Q-learning
 - ✅ Pattern Bank with cross-project sharing
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Continuous Improvement Loop
-- ✅ 17 specialized agents
+- ✅ 18 specialized agents + 8 TDD subagents
+- ✅ Complete TDD workflow automation (RED/GREEN/REFACTOR/REVIEW)
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis
 - ✅ MCP integration

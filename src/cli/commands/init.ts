@@ -252,6 +252,7 @@ export class InitCommand {
       '.agentic-qe/state/coordination',  // Coordination state
       '.claude',              // For Claude Code integration
       '.claude/agents',       // Where agent definitions live
+      '.claude/agents/subagents', // Where subagent definitions live (8 TDD subagents)
       '.claude/skills',       // Where QE skill definitions live (35 QE skills)
       '.claude/commands',     // Where AQE slash commands live (8 commands)
       'tests/unit',
@@ -338,6 +339,42 @@ export class InitCommand {
           copiedFiles++;
         }
       }
+    }
+
+    // Copy subagents folder if it exists
+    const subagentsSourcePath = path.join(sourcePath, 'subagents');
+    const subagentsTargetPath = path.join(targetPath, 'subagents');
+
+    if (await fs.pathExists(subagentsSourcePath)) {
+      console.log(chalk.cyan('  📦 Copying subagent definitions...'));
+      await fs.ensureDir(subagentsTargetPath);
+
+      const subagentFiles = await fs.readdir(subagentsSourcePath);
+      const subagentTemplates = subagentFiles.filter(f => f.endsWith('.md'));
+
+      let subagentsCopied = 0;
+      let subagentsUpdated = 0;
+
+      for (const subagentFile of subagentTemplates) {
+        const sourceFile = path.join(subagentsSourcePath, subagentFile);
+        const targetFile = path.join(subagentsTargetPath, subagentFile);
+
+        const targetExists = await fs.pathExists(targetFile);
+
+        if (!targetExists || force) {
+          await fs.copy(sourceFile, targetFile);
+          if (targetExists) {
+            subagentsUpdated++;
+          } else {
+            subagentsCopied++;
+          }
+        }
+      }
+
+      if (force && subagentsUpdated > 0) {
+        console.log(chalk.green(`  ✓ Updated ${subagentsUpdated} existing subagent definitions`));
+      }
+      console.log(chalk.green(`  ✓ Copied ${subagentsCopied} new subagent definitions (${subagentTemplates.length} total subagents)`));
     }
 
     if (force && updatedFiles > 0) {
@@ -1763,7 +1800,8 @@ aqe improve cycle
 
 ## 📚 Documentation
 
-- **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents
+- **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents (18 main + 8 TDD subagents)
+- **Subagent Definitions**: \\\`.claude/agents/subagents/\\\` - 8 specialized TDD subagents for test generation workflow
 - **Skills**: \\\`.claude/skills/\\\` - 34 specialized QE skills for agents (Phase 1: 17 + Phase 2: 17)
 - **Fleet Config**: \\\`.agentic-qe/config/fleet.json\\\`
 - **Routing Config**: \\\`.agentic-qe/config/routing.json\\\` (Multi-Model Router settings)

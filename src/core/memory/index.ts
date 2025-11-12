@@ -38,7 +38,8 @@ export type {
   TrainingMetrics
 } from './AgentDBManager';
 
-// AgentDBService - Production-ready vector database wrapper
+// AgentDBService - Production-ready vector database wrapper (v2.0.0)
+// Updated for agentdb@1.6.1 with WASMVectorSearch and HNSWIndex
 export { AgentDBService, createAgentDBService } from './AgentDBService';
 export type {
   QEPattern,
