@@ -175,7 +175,7 @@ npx ts-node scripts/migrate-patterns-table.ts
   - 580+ lines: Learning fixes documentation
 
 - **Build Status**: ✅ Clean TypeScript compilation (0 errors)
-- **MCP Server**: ✅ All 98 tools loading successfully
+- **MCP Server**: ✅ All 102 tools loading successfully
 - **Database Migration**: ✅ Successfully adds 3 columns
 - **Test Discovery**: ✅ Roo Code testing revealed both bugs
 - **Breaking Changes**: None (migration is automatic and backward compatible)
