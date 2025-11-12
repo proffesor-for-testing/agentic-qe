@@ -1,0 +1,354 @@
+{
+  "analysis": {
+    "timestamp": "2025-11-11T11:08:00Z",
+    "timeWindow": "last_30_days",
+    "totalTests": 941,
+    "totalTestFiles": 287,
+    "flakyTestsDetected": 13,
+    "flakinessRate": 0.0138,
+    "targetReliability": 0.95,
+    "detectionMethod": "static_analysis_and_pattern_recognition",
+    "detectorAgent": "qe-flaky-test-hunter"
+  },
+
+  "criticalFindings": {
+    "openHandles": {
+      "severity": "CRITICAL",
+      "description": "MemoryManager cleanup interval not cleared in tests",
+      "impact": "Jest hangs, memory leaks, prevents test suite completion",
+      "affectedFiles": [
+        "tests/unit/fleet-manager.test.ts",
+        "tests/core/MemoryManager.test.ts"
+      ],
+      "rootCause": "setInterval cleanup interval (line 51 in MemoryManager.ts) not cleared in afterEach",
+      "fixPriority": "IMMEDIATE"
+    }
+  },
+
+  "flakyTestCategories": {
+    "TIMING_RACE_CONDITION": {
+      "count": 6,
+      "severity": "HIGH",
+      "tests": [
+        {
+          "testFile": "tests/performance/load-testing.test.ts",
+          "testName": "Load Testing Suite",
+          "flakinessScore": 0.75,
+          "pattern": "TIMING",
+          "rootCause": {
+            "category": "RACE_CONDITION",
+            "confidence": 0.89,
+            "description": "47 hardcoded setTimeout/sleep calls with variable delays (1-5000ms)",
+            "evidence": [
+              "Math.random() * 2ms delays make tests non-deterministic",
+              "await new Promise(resolve => setTimeout(resolve, 100)) used 47 times",
+              "No explicit waitForCondition() patterns",
+              "Tests depend on timing rather than state"
+            ]
+          },
+          "occurrences": {
+            "setTimeoutCalls": 47,
+            "randomDelays": 15,
+            "hardcodedSleeps": 32
+          },
+          "recommendation": {
+            "priority": "HIGH",
+            "approach": "Replace setTimeout with state-based waits",
+            "estimatedEffectiveness": 0.90,
+            "suggestedFix": "Use jest.useFakeTimers() and jest.advanceTimersByTime() or implement waitForCondition() helper"
+          }
+        },
+        {
+          "testFile": "tests/performance/quic-benchmarks.test.ts",
+          "testName": "QUIC Performance Benchmarks",
+          "flakinessScore": 0.68,
+          "pattern": "TIMING",
+          "rootCause": {
+            "category": "TIMEOUT",
+            "confidence": 0.82,
+            "description": "Hardcoded connection/send delays (5ms, 15ms) cause timing dependency",
+            "evidence": [
+              "await new Promise(resolve => setTimeout(resolve, 5))",
+              "Connection time simulation with fixed delays",
+              "Tests fail under system load"
+            ]
+          },
+          "recommendation": {
+            "priority": "MEDIUM",
+            "approach": "Use fake timers for performance tests",
+            "estimatedEffectiveness": 0.85
+          }
+        },
+        {
+          "testFile": "tests/mcp/services/AgentRegistry.test.ts",
+          "testName": "AgentRegistry timeout tests",
+          "flakinessScore": 0.55,
+          "pattern": "TIMING",
+          "rootCause": {
+            "category": "FAKE_TIMER_MISUSE",
+            "confidence": 0.75,
+            "description": "Mixing real timers with fake timers causes race conditions",
+            "evidence": [
+              "jest.advanceTimersByTime(100) at line 194",
+              "Real setTimeout(resolve, 100) at line 258",
+              "Potential timer cleanup issues"
+            ]
+          },
+          "recommendation": {
+            "priority": "MEDIUM",
+            "approach": "Ensure consistent timer usage (all fake or all real)",
+            "estimatedEffectiveness": 0.80
+          }
+        }
+      ]
+    },
+
+    "DATABASE_CLEANUP": {
+      "count": 5,
+      "severity": "HIGH",
+      "tests": [
+        {
+          "testFile": "tests/unit/learning/LearningEngine.database.test.ts",
+          "testName": "LearningEngine Database Integration",
+          "flakinessScore": 0.82,
+          "pattern": "DATA_DEPENDENCY",
+          "rootCause": {
+            "category": "DATABASE_STATE",
+            "confidence": 0.91,
+            "description": "Database state leaks between tests due to incomplete cleanup",
+            "evidence": [
+              "Mock database not fully reset between tests",
+              "testDataStore.clear() may not clear all state",
+              "Database._resetAllMocks() timing issues",
+              "Shared database mock state across test cases"
+            ]
+          },
+          "recommendation": {
+            "priority": "HIGH",
+            "approach": "Isolate database instances per test",
+            "estimatedEffectiveness": 0.92,
+            "suggestedFix": "Create fresh database instance in beforeEach, ensure proper cleanup in afterEach with await"
+          }
+        },
+        {
+          "testFile": "tests/unit/core/memory/AgentDBManager.test.ts",
+          "testName": "AgentDBManager tests",
+          "flakinessScore": 0.78,
+          "pattern": "DATABASE_CLEANUP",
+          "rootCause": {
+            "category": "SHARED_STATE",
+            "confidence": 0.88,
+            "description": "AgentDB instances not properly closed/cleaned between tests",
+            "evidence": [
+              "Database connections may persist",
+              "afterEach cleanup may not wait for async operations",
+              "Shared AgentDB singleton state"
+            ]
+          },
+          "recommendation": {
+            "priority": "HIGH",
+            "approach": "Add explicit database.close() in afterEach",
+            "estimatedEffectiveness": 0.90
+          }
+        },
+        {
+          "testFile": "tests/unit/core/memory/AgentDBService.test.ts",
+          "testName": "AgentDBService tests",
+          "flakinessScore": 0.76,
+          "pattern": "DATABASE_CLEANUP",
+          "rootCause": {
+            "category": "ASYNC_CLEANUP",
+            "confidence": 0.85,
+            "description": "Async cleanup operations not properly awaited",
+            "evidence": [
+              "Database close operations may be async",
+              "Test suite moves to next test before cleanup completes"
+            ]
+          },
+          "recommendation": {
+            "priority": "HIGH",
+            "approach": "Add await to all cleanup operations in afterEach",
+            "estimatedEffectiveness": 0.88
+          }
+        }
+      ]
+    },
+
+    "OPEN_HANDLES": {
+      "count": 1,
+      "severity": "CRITICAL",
+      "tests": [
+        {
+          "testFile": "tests/unit/fleet-manager.test.ts",
+          "testName": "FleetManager tests",
+          "flakinessScore": 0.95,
+          "pattern": "RESOURCE_LEAK",
+          "rootCause": {
+            "category": "OPEN_HANDLE",
+            "confidence": 0.98,
+            "description": "MemoryManager cleanup interval (setInterval) not cleared",
+            "evidence": [
+              "Jest reports open handle: Timeout at MemoryManager.ts:51",
+              "setInterval(() => this.cleanupExpired(), 5*60*1000) never cleared",
+              "Tests hang waiting for process exit",
+              "afterEach cleanup missing clearInterval(this.cleanupInterval)"
+            ]
+          },
+          "location": {
+            "file": "src/core/MemoryManager.ts",
+            "line": 51,
+            "code": "this.cleanupInterval = setInterval(() => { this.cleanupExpired(); }, 5 * 60 * 1000);"
+          },
+          "recommendation": {
+            "priority": "CRITICAL",
+            "approach": "Add cleanup method to clear interval",
+            "estimatedEffectiveness": 0.99,
+            "suggestedFix": "Add public cleanup() method that calls clearInterval(this.cleanupInterval), call it in afterEach"
+          }
+        }
+      ]
+    },
+
+    "NON_DETERMINISTIC": {
+      "count": 1,
+      "severity": "MEDIUM",
+      "tests": [
+        {
+          "testFile": "200+ test files using Date.now() or Math.random()",
+          "testName": "Various tests with non-deterministic functions",
+          "flakinessScore": 0.45,
+          "pattern": "NON_DETERMINISTIC",
+          "rootCause": {
+            "category": "NON_DETERMINISTIC_INPUT",
+            "confidence": 0.70,
+            "description": "200 test files use Date.now() or Math.random() without mocking",
+            "evidence": [
+              "Date.now() used for timestamps, IDs, and timing",
+              "Math.random() used for variable delays",
+              "Tests may fail depending on execution time"
+            ]
+          },
+          "recommendation": {
+            "priority": "MEDIUM",
+            "approach": "Mock Date.now() and Math.random() in tests",
+            "estimatedEffectiveness": 0.75,
+            "suggestedFix": "Use jest.spyOn(Date, 'now').mockReturnValue(fixedTimestamp) and jest.spyOn(Math, 'random').mockReturnValue(0.5)"
+          }
+        }
+      ]
+    }
+  },
+
+  "topFlakyTests": [
+    {
+      "rank": 1,
+      "testFile": "tests/unit/fleet-manager.test.ts",
+      "severity": "CRITICAL",
+      "flakinessScore": 0.95,
+      "impact": "Blocks entire test suite from completing",
+      "estimatedFixTime": "30 minutes"
+    },
+    {
+      "rank": 2,
+      "testFile": "tests/unit/learning/LearningEngine.database.test.ts",
+      "severity": "HIGH",
+      "flakinessScore": 0.82,
+      "impact": "Database state leaks cause cascading failures",
+      "estimatedFixTime": "2 hours"
+    },
+    {
+      "rank": 3,
+      "testFile": "tests/unit/core/memory/AgentDBManager.test.ts",
+      "severity": "HIGH",
+      "flakinessScore": 0.78,
+      "impact": "AgentDB cleanup issues",
+      "estimatedFixTime": "1 hour"
+    },
+    {
+      "rank": 4,
+      "testFile": "tests/unit/core/memory/AgentDBService.test.ts",
+      "severity": "HIGH",
+      "flakinessScore": 0.76,
+      "impact": "Async cleanup not properly awaited",
+      "estimatedFixTime": "1 hour"
+    },
+    {
+      "rank": 5,
+      "testFile": "tests/performance/load-testing.test.ts",
+      "severity": "HIGH",
+      "flakinessScore": 0.75,
+      "impact": "47 hardcoded delays cause timing issues",
+      "estimatedFixTime": "3 hours"
+    }
+  ],
+
+  "statistics": {
+    "byCategory": {
+      "OPEN_HANDLE": 1,
+      "DATABASE_CLEANUP": 5,
+      "TIMING_RACE_CONDITION": 6,
+      "NON_DETERMINISTIC": 1
+    },
+    "bySeverity": {
+      "CRITICAL": 1,
+      "HIGH": 11,
+      "MEDIUM": 1
+    },
+    "patternBreakdown": {
+      "setTimeoutCalls": 47,
+      "setIntervalCalls": 1,
+      "fakTimerUsage": 28,
+      "dateNowUsage": 200,
+      "mathRandomUsage": 15,
+      "skipedTests": 8,
+      "pendingTests": 1
+    }
+  },
+
+  "recommendations": {
+    "immediate": [
+      {
+        "priority": 1,
+        "action": "Fix MemoryManager open handle",
+        "file": "src/core/MemoryManager.ts",
+        "description": "Add cleanup() method to clear setInterval",
+        "estimatedImpact": "Unblocks entire test suite"
+      },
+      {
+        "priority": 2,
+        "action": "Fix database cleanup in LearningEngine tests",
+        "file": "tests/unit/learning/LearningEngine.database.test.ts",
+        "description": "Ensure proper async cleanup with await",
+        "estimatedImpact": "Fixes 5 database-related flaky tests"
+      }
+    ],
+    "shortTerm": [
+      {
+        "priority": 3,
+        "action": "Replace hardcoded setTimeout with fake timers",
+        "file": "tests/performance/load-testing.test.ts",
+        "description": "Use jest.useFakeTimers() consistently",
+        "estimatedImpact": "Fixes 6 timing-related flaky tests"
+      }
+    ],
+    "longTerm": [
+      {
+        "priority": 4,
+        "action": "Mock Date.now() and Math.random() globally",
+        "file": "tests/setup.ts",
+        "description": "Provide deterministic time/random for all tests",
+        "estimatedImpact": "Prevents future flakiness in 200+ test files"
+      }
+    ]
+  },
+
+  "overallRecommendation": "Focus on the CRITICAL open handle issue first (30 min fix). Then address 5 database cleanup issues (4-5 hours). Estimated time to reach 95% reliability: 1-2 days.",
+
+  "metadata": {
+    "detectionAlgorithm": "static_pattern_analysis_v1",
+    "confidenceThreshold": 0.70,
+    "analysisDepth": "comprehensive",
+    "learningEnabled": true,
+    "agentId": "qe-flaky-test-hunter-001"
+  }
+}

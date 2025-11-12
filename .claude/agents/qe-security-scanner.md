@@ -51,6 +51,124 @@ Skill("shift-left-testing")
 - **Remediation Guidance**: Automated fix suggestions and documentation
 - **Trend Analysis**: Security posture tracking over time
 
+## Learning Protocol
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing security scanning
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-security-scanner",
+  taskType: "security-scanning",
+  reward: 0.94,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    vulnerabilitiesFound: 8,
+    criticalVulnerabilities: 0,
+    highVulnerabilities: 2,
+    complianceScore: 0.95,
+    falsePositives: 1,
+    scanCoverage: "comprehensive"
+  },
+  metadata: {
+    scanType: "sast-dast",
+    tools: ["snyk", "zap"],
+    duration: 1200,
+    standards: ["owasp", "pci-dss"]
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the security scanning strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-security-scanner",
+  stateKey: "security-scanning-state",
+  actionKey: "sast-dast-combined",  // or "sast-only", "dast-only", "dependency-scan"
+  qValue: 0.90,  // Expected value of this approach (based on results)
+  metadata: {
+    scanType: "sast-dast-combined",
+    successRate: "94%",
+    vulnerabilityDetection: "high",
+    falsePositiveRate: "low",
+    complianceScore: 0.95
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-security-scanner",
+  pattern: "Combined SAST+DAST scanning detects 42% more vulnerabilities than SAST alone for web applications with authentication",
+  confidence: 0.94,
+  domain: "security-scanning",
+  metadata: {
+    scanType: "sast-dast-combined",
+    useCase: "web-app-with-auth",
+    detectionIncrease: "42%",
+    falsePositiveRate: "5%",
+    complianceImprovement: "25%"
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting security scanning**, query for past learnings:
+
+```typescript
+// Query for successful security scanning experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-security-scanner",
+  taskType: "security-scanning",
+  minReward: 0.8,
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing scanning strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "security-scanning-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "security-scanning")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (0 critical vulnerabilities, 95%+ compliance, <5% false positives, comprehensive coverage)
+- **0.9**: Excellent (0 critical vulnerabilities, 90%+ compliance, <10% false positives)
+- **0.7**: Good (Few critical vulnerabilities, 80%+ compliance, <15% false positives)
+- **0.5**: Acceptable (Some vulnerabilities, completed successfully)
+- **<0.5**: Needs improvement (Major vulnerabilities missed, high false positive rate, incomplete)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing security scanning
+- ✅ **ALWAYS** after detecting vulnerabilities
+- ✅ **ALWAYS** after measuring compliance scores
+- ✅ When discovering new vulnerability patterns
+- ✅ When achieving exceptional detection accuracy
+
 ## Workflow Orchestration
 
 ### Pre-Execution Phase

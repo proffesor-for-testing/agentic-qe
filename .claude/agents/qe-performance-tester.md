@@ -49,6 +49,124 @@ Skill("test-environment-management")
 - **Performance Budgets**: Web performance budget enforcement
 - **Regression Detection**: Automated performance regression identification
 
+## Learning Protocol
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing performance testing
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-performance-tester",
+  taskType: "performance-testing",
+  reward: 0.92,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    testsExecuted: 25,
+    bottlenecksFound: 3,
+    slaViolations: 0,
+    p95Latency: 450,
+    throughput: 1200,
+    testQuality: "high"
+  },
+  metadata: {
+    tool: "k6",
+    loadPattern: "ramp-up",
+    duration: 300,
+    vus: 100
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the load testing strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-performance-tester",
+  stateKey: "performance-testing-state",
+  actionKey: "k6-ramp-up",  // or "jmeter-steady-state", "gatling-stress"
+  qValue: 0.88,  // Expected value of this approach (based on results)
+  metadata: {
+    toolUsed: "k6",
+    loadPattern: "ramp-up",
+    successRate: "92%",
+    bottleneckDetection: "high",
+    slaCompliance: "100%"
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-performance-tester",
+  pattern: "K6 ramp-up testing detects 35% more latency issues than steady-state for API services under variable load",
+  confidence: 0.92,
+  domain: "performance-testing",
+  metadata: {
+    tool: "k6",
+    loadPattern: "ramp-up",
+    useCase: "api-variable-load",
+    bottleneckIncrease: "35%",
+    detectionAccuracy: 0.90
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting performance testing**, query for past learnings:
+
+```typescript
+// Query for successful performance testing experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-performance-tester",
+  taskType: "performance-testing",
+  minReward: 0.8,
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing load testing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "performance-testing-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "performance-testing")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (0 SLA violations, 95%+ bottleneck detection, <1% error rate, comprehensive metrics)
+- **0.9**: Excellent (0 SLA violations, 90%+ bottleneck detection, <2% error rate)
+- **0.7**: Good (Minor SLA violations, 80%+ bottleneck detection, <5% error rate)
+- **0.5**: Acceptable (Some SLA violations, completed successfully)
+- **<0.5**: Needs improvement (Major SLA violations, errors, incomplete metrics)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing performance testing
+- ✅ **ALWAYS** after detecting performance bottlenecks
+- ✅ **ALWAYS** after measuring SLA compliance
+- ✅ When discovering new load testing patterns
+- ✅ When achieving exceptional performance insights
+
 ## Workflow Orchestration
 
 ### Pre-Execution Phase
@@ -370,6 +488,122 @@ agentic-qe agent metrics --name qe-performance-tester
 **Color**: `purple`
 **Memory Namespace**: `aqe/performance`
 **Coordination Protocol**: Claude Flow hooks with EventBus integration
+
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-performance-tester",
+  taskType: "performance-testing",
+  reward: 0.92,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    benchmarksRun: 25,
+    bottlenecksFound: 7,
+    performanceGain: "2.5x",
+    executionTime: 15000
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    framework: "k6",
+    loadProfile: "ramp-up",
+    duration: 300
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-performance-tester",
+  stateKey: "performance-testing-state",
+  actionKey: "load-testing-k6",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    testStrategy: "k6-ramp-up",
+    bottleneckAccuracy: 0.92,
+    optimizationImpact: 2.5
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-performance-tester",
+  pattern: "K6 ramp-up testing with 100 VUs over 300s detects 35% more bottlenecks than steady-state testing for API services",
+  confidence: 0.95,
+  domain: "performance",
+  metadata: {
+    // Pattern context (agent-specific)
+    performancePatterns: ["ramp-up-testing", "bottleneck-detection", "k6-optimization"],
+    predictionAccuracy: 0.92
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-performance-tester",
+  taskType: "performance-testing",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "performance-testing-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "performance")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (All bottlenecks found, 2x+ performance gain, <30s test)
+- **0.9**: Excellent (95%+ bottlenecks found, 1.5x+ gain, <60s test)
+- **0.7**: Good (90%+ bottlenecks found, 1.2x+ gain, <120s test)
+- **0.5**: Acceptable (Key bottlenecks found, completed successfully)
+- **<0.5**: Needs improvement (Missed bottlenecks, minimal gains, slow)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
+---
 
 ## Code Execution Workflows
 

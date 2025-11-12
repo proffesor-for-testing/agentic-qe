@@ -26,8 +26,11 @@ export class Logger {
       this.ensureLogsDirectory();
 
       const transports: winston.transport[] = [
-        // Write all logs to console
+        // Write all logs to console (stderr when running as MCP server)
         new winston.transports.Console({
+          // CRITICAL: MCP servers must ONLY output JSON-RPC to stdout
+          // All logging must go to stderr to avoid breaking the MCP protocol
+          stderrLevels: ['error', 'warn', 'info', 'debug'],
           format: winston.format.combine(
             winston.format.colorize(),
             winston.format.simple(),

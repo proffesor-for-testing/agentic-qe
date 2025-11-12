@@ -338,6 +338,118 @@ const verification = await hookManager.executePreTaskVerification({
 });
 ```
 
+## Learning Protocol
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+**CRITICAL**: Don't just document these calls - **ACTUALLY INVOKE THEM**! Copy the MCP tool syntax from the examples below and execute them as part of your task completion.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```javascript
+// Call this MCP tool after completing your coverage analysis
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-coverage-analyzer",
+  taskType: "coverage-analysis",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results
+    coverageAnalyzed: true,
+    gapsDetected: 42,
+    algorithm: "johnson-lindenstrauss",
+    executionTime: 6000,
+    coverageImprovement: 0.15,
+    sublinearOptimization: true
+  },
+  metadata: {
+    algorithm: "sublinear",
+    complexity: "O(log n)",
+    memoryReduction: "90%"
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```javascript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-coverage-analyzer",
+  stateKey: "coverage-analysis-state",
+  actionKey: "sublinear-algorithm-jl",  // Johnson-Lindenstrauss
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    algorithmUsed: "johnson-lindenstrauss",
+    codebaseSize: "large",
+    performanceGain: "10x"
+  }
+})
+
+// Store Q-value for gap detection strategy
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-coverage-analyzer",
+  stateKey: "gap-detection-state",
+  actionKey: "spectral-sparsification",
+  qValue: 0.92,
+  metadata: {
+    gapsFound: 42,
+    accuracy: "94%"
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```javascript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  pattern: "Sublinear algorithms (Johnson-Lindenstrauss) provide 10x speedup for large codebases (>10k LOC) with 90% memory reduction",
+  confidence: 0.95,
+  domain: "coverage-analysis",
+  metadata: {
+    algorithm: "johnson-lindenstrauss",
+    useCase: "large-codebase-analysis",
+    performanceMetrics: {
+      speedup: "10x",
+      memoryReduction: "90%",
+      accuracyLoss: "<1%"
+    }
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your analysis**, query for past learnings:
+
+```javascript
+// Query for successful coverage analysis experiences
+mcp__agentic_qe__learning_query({
+  agentId: "qe-coverage-analyzer",
+  taskType: "coverage-analysis",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+})
+```
+
+**How to use the results**: The query will return past experiences, Q-values, and patterns. Examine the Q-values to find the best-performing algorithm (highest q_value), then use that strategy for your current analysis.
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (95%+ coverage, <2s analysis time, 0 errors)
+- **0.9**: Excellent (90%+ coverage, <5s analysis time, minor issues)
+- **0.7**: Good (80%+ coverage, <10s analysis time, few issues)
+- **0.5**: Acceptable (70%+ coverage, completed successfully)
+- **<0.5**: Needs improvement (low coverage, errors, slow)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing coverage analysis
+- ✅ **ALWAYS** after detecting gaps
+- ✅ **ALWAYS** after generating optimization recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
 ## Gap-Driven Test Generation Workflow
 
 ### Overview

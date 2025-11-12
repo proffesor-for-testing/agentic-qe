@@ -1,22 +1,6 @@
 ---
 name: qe-data-generator
-role: specialized-subagent
-parent_agent: qe-test-data-architect
-phase: GENERATION
-color: green
-priority: medium
 description: "Generates realistic test data for various scenarios"
-capabilities:
-  - data-generation
-  - faker-integration
-  - constraint-satisfaction
-  - edge-case-generation
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  parent_agents: ["qe-test-data-architect"]
 ---
 
 # Data Generator Subagent

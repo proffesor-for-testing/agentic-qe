@@ -28,6 +28,124 @@ Skill("test-data-management")
 Skill("database-testing")
 ```
 
+## Learning Protocol
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing test data generation
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-data-architect",
+  taskType: "test-data-generation",
+  reward: 0.91,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    recordsGenerated: 1000,
+    schemasProcessed: 5,
+    edgeCasesIncluded: 50,
+    relationshipsPreserved: "100%",
+    constraintCompliance: "100%",
+    anonymizationQuality: "high"
+  },
+  metadata: {
+    schemaType: "postgresql",
+    generationStrategy: "realistic-synthesis",
+    includeEdgeCases: true,
+    anonymize: true
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the data generation strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-test-data-architect",
+  stateKey: "data-generation-state",
+  actionKey: "realistic-synthesis",  // or "faker-based", "production-anonymization"
+  qValue: 0.87,  // Expected value of this approach (based on results)
+  metadata: {
+    generationStrategy: "realistic-synthesis",
+    successRate: "91%",
+    dataRealism: "high",
+    constraintCompliance: "100%",
+    edgeCaseCoverage: "95%"
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-test-data-architect",
+  pattern: "Realistic synthesis with production pattern analysis generates 45% more realistic test data than faker-based generation for financial applications",
+  confidence: 0.91,
+  domain: "test-data-generation",
+  metadata: {
+    generationStrategy: "realistic-synthesis",
+    useCase: "financial-applications",
+    realismIncrease: "45%",
+    edgeCaseBoost: "30%",
+    constraintCompliance: "100%"
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting test data generation**, query for past learnings:
+
+```typescript
+// Query for successful data generation experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-test-data-architect",
+  taskType: "test-data-generation",
+  minReward: 0.8,
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing generation strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "data-generation-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "test-data-generation")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (100% constraint compliance, 95%+ edge case coverage, realistic data, 100% relationships preserved)
+- **0.9**: Excellent (100% constraint compliance, 90%+ edge case coverage, highly realistic)
+- **0.7**: Good (95%+ constraint compliance, 80%+ edge case coverage, realistic)
+- **0.5**: Acceptable (90%+ constraint compliance, completed successfully)
+- **<0.5**: Needs improvement (Constraint violations, poor realism, incomplete)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing test data generation
+- ✅ **ALWAYS** after validating constraint compliance
+- ✅ **ALWAYS** after measuring data realism
+- ✅ When discovering new generation patterns
+- ✅ When achieving exceptional data quality
+
 ## Core Capabilities
 
 ### 1. Schema-Aware Generation
@@ -871,6 +989,122 @@ this.registerEventHandler({
   }
 });
 ```
+
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-data-architect",
+  taskType: "test-data-generation",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    recordsGenerated: 10000,
+    generationRate: 12500,
+    integrityPreserved: true,
+    executionTime: 800,
+    schemaCompliance: "100%",
+    edgeCaseCoverage: 0.95
+  },
+  metadata: {
+    schema: { tables: ["users", "orders", "products"], relationships: 5 },
+    format: "sql",
+    edgeCasesIncluded: true,
+    anonymizationApplied: true
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-test-data-architect",
+  stateKey: "data-generation-state",
+  actionKey: "high-speed-generation",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    generationStrategy: "realistic-synthesis",
+    quality: 0.95,
+    performance: 0.90,
+    constraintCompliance: "100%"
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-test-data-architect",
+  pattern: "High-speed realistic data generation with relationship preservation achieves 10k+ records/sec while maintaining 100% referential integrity",
+  confidence: 0.95,
+  domain: "test-data",
+  metadata: {
+    dataPatterns: ["realistic-names", "valid-emails", "constrained-dates"],
+    realism: 0.92,
+    performanceGain: "12.5k records/sec",
+    integrityMaintained: "100%"
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-test-data-architect",
+  taskType: "test-data-generation",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "data-generation-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "test-data")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (10k+ records/sec, 100% integrity, realistic data, <5s)
+- **0.9**: Excellent (8k+ records/sec, 99%+ integrity, high realism, <10s)
+- **0.7**: Good (5k+ records/sec, 95%+ integrity, good realism, <20s)
+- **0.5**: Acceptable (3k+ records/sec, 90%+ integrity, completed)
+- **<0.5**: Needs improvement (Slow generation, low integrity, unrealistic)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
 
 ## Integration Points
 

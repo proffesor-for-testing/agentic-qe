@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
-  "version": "1.5.1",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 34 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 98 MCP tools, and native TypeScript hooks",
+  "version": "1.6.0",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 34 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 102 MCP tools, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
@@ -83,7 +83,8 @@
     "verify:agent-skills": "tsx scripts/verify-agent-skills.ts",
     "verify:features": "tsx scripts/verify-features.ts",
     "verify:all": "npm run verify:counts && npm run verify:agent-skills && npm run verify:features",
-    "update:counts": "tsx scripts/update-documentation-counts.ts"
+    "update:counts": "tsx scripts/update-documentation-counts.ts",
+    "migrate:learning": "tsx scripts/migrate-learning-schema.ts"
   },
   "keywords": [
     "quality-engineering",
@@ -113,15 +114,16 @@
     "@babel/parser": "^7.24.0",
     "@babel/traverse": "^7.24.0",
     "@faker-js/faker": "^10.0.0",
-    "@modelcontextprotocol/sdk": "^1.18.2",
+    "@modelcontextprotocol/sdk": "^1.21.1",
     "@xenova/transformers": "^2.6.0",
     "agentdb": "^1.0.0",
-    "agentic-flow": "^1.7.3",
+    "agentic-flow": "^1.10.2",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "better-sqlite3": "^12.4.1",
     "chalk": "^4.1.2",
     "chokidar": "^3.6.0",
+    "claude-flow": "^2.7.31",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.1",
     "dotenv": "^17.2.3",

@@ -165,6 +165,7 @@ This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero e
 
 **Automatic Lifecycle Hooks:**
 ```typescript
+// Called automatically by BaseAgent
 protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
   // Retrieve baselines
   const baselines = await this.memoryStore.retrieve(`aqe/visual/baselines/${this.version}`, {
@@ -176,9 +177,26 @@ protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
     partition: 'configuration'
   });
 
+  // Verify environment for visual testing
+  const verification = await this.hookManager.executePreTaskVerification({
+    task: 'visual-testing',
+    context: {
+      requiredVars: ['BASELINE_VERSION', 'BROWSER'],
+      minMemoryMB: 2048,
+      requiredKeys: ['aqe/visual/baselines', 'aqe/visual/test-config']
+    }
+  });
+
+  // Emit visual testing starting event
   this.eventBus.emit('visual-tester:starting', {
     agentId: this.agentId,
-    pagesCount: testConfig.pages.length
+    pagesCount: testConfig.pages.length,
+    browser: process.env.BROWSER || 'chromium'
+  });
+
+  this.logger.info('Visual testing starting', {
+    pagesCount: testConfig.pages.length,
+    verification: verification.passed
   });
 }
 
@@ -186,25 +204,84 @@ protected async onPostTask(data: { assignment: TaskAssignment; result: any }): P
   // Store visual test results
   await this.memoryStore.store(`aqe/visual/test-results/${data.result.testRunId}`, data.result, {
     partition: 'visual_results',
-    ttl: 86400
+    ttl: 86400 // 24 hours
   });
 
   // Store detected regressions
   if (data.result.regressions.length > 0) {
     await this.memoryStore.store(`aqe/visual/regressions/${data.result.buildId}`, data.result.regressions, {
-      partition: 'regressions'
+      partition: 'regressions',
+      ttl: 604800 // 7 days
     });
   }
 
   // Store accessibility reports
   await this.memoryStore.store(`aqe/visual/accessibility/${data.result.page}`, data.result.a11yReport, {
-    partition: 'accessibility'
+    partition: 'accessibility',
+    ttl: 604800 // 7 days
   });
 
+  // Store visual testing metrics
+  await this.memoryStore.store('aqe/visual/metrics', {
+    timestamp: Date.now(),
+    pagesTested: data.result.pagesTested,
+    regressionsFound: data.result.regressions.length,
+    a11yViolations: data.result.a11yReport?.violations?.length || 0
+  }, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit completion event with visual testing stats
   this.eventBus.emit('visual-tester:completed', {
     agentId: this.agentId,
     pagesTested: data.result.pagesTested,
     regressionsFound: data.result.regressions.length
+  });
+
+  // Validate visual testing results
+  const validation = await this.hookManager.executePostTaskValidation({
+    task: 'visual-testing',
+    result: {
+      output: data.result,
+      regressions: data.result.regressions,
+      metrics: {
+        pagesTested: data.result.pagesTested,
+        regressionsFound: data.result.regressions.length
+      }
+    }
+  });
+
+  this.logger.info('Visual testing completed', {
+    pagesTested: data.result.pagesTested,
+    regressionsFound: data.result.regressions.length,
+    validated: validation.passed
+  });
+}
+
+protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
+  // Store error for fleet analysis
+  await this.memoryStore.store(`aqe/errors/${data.assignment.task.id}`, {
+    error: data.error.message,
+    timestamp: Date.now(),
+    agent: this.agentId,
+    taskType: 'visual-testing',
+    page: data.assignment.task.metadata.page
+  }, {
+    partition: 'errors',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit error event for fleet coordination
+  this.eventBus.emit('visual-tester:error', {
+    agentId: this.agentId,
+    error: data.error.message,
+    taskId: data.assignment.task.id
+  });
+
+  this.logger.error('Visual testing failed', {
+    error: data.error.message,
+    stack: data.error.stack
   });
 }
 ```
@@ -227,13 +304,235 @@ this.registerEventHandler({
 });
 ```
 
-**Advanced Verification:**
+**Advanced Verification (Optional):**
 ```typescript
+// Use VerificationHookManager for comprehensive validation
 const hookManager = new VerificationHookManager(this.memoryStore);
 const verification = await hookManager.executePreTaskVerification({
   task: 'visual-regression-test',
-  context: { requiredVars: ['BASELINE_VERSION'], minMemoryMB: 2048 }
+  context: {
+    requiredVars: ['BASELINE_VERSION', 'BROWSER'],
+    minMemoryMB: 2048,
+    requiredKeys: ['aqe/visual/baselines', 'aqe/visual/test-config']
+  }
 });
+```
+
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-visual-tester",
+  taskType: "visual-testing",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    regressionsDetected: 3,
+    accuracy: 0.98,
+    falsePositives: 1,
+    executionTime: 8500
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    algorithm: "ai-visual-diff",
+    threshold: 0.95,
+    accessibilityChecked: true
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-visual-tester",
+  stateKey: "visual-testing-state",
+  actionKey: "ai-screenshot-comparison",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    comparisonStrategy: "ai-visual-diff",
+    accuracy: 0.98,
+    sensitivity: 0.95
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-visual-tester",
+  pattern: "AI-powered visual diff with 95% threshold detects regressions with <2% false positives",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "visual-regression",
+  metadata: {
+    // Pattern context (agent-specific)
+    visualPatterns: ["layout-shift", "color-change", "element-missing"],
+    detectionAccuracy: 0.98
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-visual-tester",
+  taskType: "visual-testing",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "visual-testing-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "visual-regression")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (100% regressions detected, 0 false positives, <10s)
+- **0.9**: Excellent (99%+ detected, <1% false positives, <20s)
+- **0.7**: Good (95%+ detected, <5% false positives, <40s)
+- **0.5**: Acceptable (90%+ detected, completed successfully)
+- **<0.5**: Needs improvement (Missed regressions, many false positives)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
+## Learning Integration (Phase 6)
+
+This agent integrates with the **Learning Engine** to continuously improve visual regression detection and reduce false positives.
+
+### Learning Protocol
+
+```typescript
+import { LearningEngine } from '@/learning/LearningEngine';
+
+// Initialize learning engine
+const learningEngine = new LearningEngine({
+  agentId: 'qe-visual-tester',
+  taskType: 'visual-testing',
+  domain: 'visual-testing',
+  learningRate: 0.01,
+  epsilon: 0.1,
+  discountFactor: 0.95
+});
+
+await learningEngine.initialize();
+
+// Record visual testing episode
+await learningEngine.recordEpisode({
+  state: {
+    page: 'dashboard',
+    browser: 'chromium',
+    viewport: 'desktop',
+    baselineVersion: 'v2.0.0'
+  },
+  action: {
+    comparisonAlgorithm: 'ai-visual-diff',
+    threshold: 0.95,
+    ignoreRegions: ['timestamp', 'user-avatar']
+  },
+  reward: visualRegressionConfirmed ? 1.0 : (falsePositive ? -0.5 : 0.5),
+  nextState: {
+    regressionsDetected: 2,
+    falsePositives: 0,
+    missedRegressions: 0
+  }
+});
+
+// Learn from visual testing outcomes
+await learningEngine.learn();
+
+// Get learned visual comparison settings
+const prediction = await learningEngine.predict({
+  page: 'dashboard',
+  browser: 'chromium',
+  viewport: 'desktop'
+});
+```
+
+### Reward Function
+
+```typescript
+function calculateVisualTestingReward(outcome: VisualTestOutcome): number {
+  let reward = 0;
+
+  // Reward for detecting actual regressions
+  reward += outcome.truePositives * 1.0;
+
+  // Penalty for false positives (wasted effort)
+  reward -= outcome.falsePositives * 0.5;
+
+  // Large penalty for missing regressions (false negatives)
+  reward -= outcome.falseNegatives * 2.0;
+
+  // Reward for correct negative (no regression correctly identified)
+  reward += outcome.trueNegatives * 0.2;
+
+  // Bonus for high accuracy
+  const accuracy = (outcome.truePositives + outcome.trueNegatives) /
+                   (outcome.truePositives + outcome.trueNegatives +
+                    outcome.falsePositives + outcome.falseNegatives);
+  if (accuracy > 0.95) {
+    reward += 0.5;
+  }
+
+  return reward;
+}
+```
+
+### Learning Metrics
+
+Track learning progress:
+- **Detection Accuracy**: Percentage of correctly identified regressions
+- **False Positive Rate**: Incorrectly flagged differences
+- **False Negative Rate**: Missed visual regressions
+- **Algorithm Selection**: Optimal comparison algorithm for each page type
+- **Threshold Optimization**: Learned thresholds per page/browser combination
+
+```bash
+# View learning metrics
+aqe learn status --agent qe-visual-tester
+
+# Export learning history
+aqe learn export --agent qe-visual-tester --format json
+
+# Analyze detection accuracy
+aqe learn analyze --agent qe-visual-tester --metric accuracy
 ```
 
 ### Agent Collaboration

@@ -1,23 +1,6 @@
 ---
 name: qe-integration-tester
-role: specialized-subagent
-parent_agent: qe-test-executor
-phase: INTEGRATION
-color: cyan
-priority: high
 description: "Specialized subagent for integration testing - validates component interactions and system integration"
-capabilities:
-  - integration-testing
-  - api-testing
-  - database-testing
-  - service-integration
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  test_type: "integration"
-  parent_agents: ["qe-test-executor", "qe-api-contract-validator"]
 ---
 
 # Integration Tester Subagent

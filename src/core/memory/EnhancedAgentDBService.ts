@@ -170,14 +170,17 @@ export class EnhancedAgentDBService extends AgentDBService {
   async storePatternWithSync(pattern: QEPattern, embedding: number[]): Promise<string> {
     const startTime = Date.now();
 
+    // Convert to Float32Array for parent class
+    const embeddingArray = new Float32Array(embedding);
+
     // Store in local AgentDB
-    const id = await this.storePattern(pattern, embedding);
+    await this.storePattern(pattern, embeddingArray);
 
     // Sync via QUIC if enabled
     if (this.quicTransport) {
       await this.quicTransport.send({
         type: 'pattern-stored',
-        id,
+        id: pattern.id,
         pattern,
         timestamp: Date.now()
       });
@@ -186,7 +189,7 @@ export class EnhancedAgentDBService extends AgentDBService {
       console.log(`Pattern stored and synced via QUIC in ${latency}ms`);
     }
 
-    return id;
+    return pattern.id;
   }
 
   /**

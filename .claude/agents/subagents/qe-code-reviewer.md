@@ -1,9 +1,5 @@
 ---
 name: qe-code-reviewer
-role: specialized-subagent
-parent: qe-test-generator
-specialization: quality-validation
-phase: review
 description: "Enforce quality standards, linting, complexity, and security"
 ---
 

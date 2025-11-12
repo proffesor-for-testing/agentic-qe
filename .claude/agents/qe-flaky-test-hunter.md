@@ -1004,6 +1004,121 @@ const verification = await hookManager.executePreTaskVerification({
 });
 ```
 
+## Learning Protocol
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing flaky test detection
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-flaky-test-hunter",
+  taskType: "flaky-detection",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    flakyTestsDetected: 13,
+    reliability: 0.9862,
+    autoStabilized: 8,
+    executionTime: 12000,
+    falsePositives: 1
+  },
+  metadata: {
+    algorithm: "statistical-analysis",
+    confidenceLevel: 0.99,
+    method: "ml-pattern-matching"
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the detection strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-flaky-test-hunter",
+  stateKey: "flaky-detection-state",
+  actionKey: "statistical-analysis",  // or "ml-pattern-matching", "historical-analysis"
+  qValue: 0.92,  // Expected value of this approach
+  metadata: {
+    detectionMethod: "statistical-analysis",
+    falsePositiveRate: "2%",
+    stabilizationSuccess: "80%",
+    confidence: 0.99
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-flaky-test-hunter",
+  pattern: "Statistical analysis with 100-run sampling achieves 98% detection accuracy with <2% false positives for async tests",
+  confidence: 0.98,
+  domain: "flaky-detection",
+  metadata: {
+    detectionMethod: "statistical-analysis",
+    sampleSize: 100,
+    accuracy: "98%",
+    falsePositiveRate: "2%",
+    testType: "async"
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting flaky test detection**, query for past learnings:
+
+```typescript
+// Query for successful flaky detection experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-flaky-test-hunter",
+  taskType: "flaky-detection",
+  minReward: 0.8,
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing detection strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "flaky-detection-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "flaky-detection")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (100% detection accuracy, 0 false positives, <5s analysis)
+- **0.9**: Excellent (98%+ detection accuracy, <2% false positives, auto-stabilization successful)
+- **0.7**: Good (95%+ detection accuracy, <5% false positives)
+- **0.5**: Acceptable (90%+ detection accuracy, completed successfully)
+- **<0.5**: Needs improvement (low accuracy, many false positives, stabilization failed)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing flaky test detection
+- ✅ **ALWAYS** after auto-stabilization attempts
+- ✅ **ALWAYS** after measuring detection accuracy
+- ✅ When discovering new detection patterns
+- ✅ When achieving exceptional accuracy metrics
+
 ## Memory Keys
 
 ### Input Keys

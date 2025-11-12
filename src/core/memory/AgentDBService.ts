@@ -13,18 +13,15 @@
  * - Batch Insert: 2ms for 100 patterns
  *
  * @module AgentDBService
+ * @version 2.0.0 - Updated for agentdb@1.6.1
  */
 
 import {
-  SQLiteVectorDB,
-  createVectorDB,
-  Vector,
-  SearchResult,
-  SimilarityMetric,
-  Pattern as AgentDBPattern,
-  ExtendedDatabaseConfig,
-  HNSWConfig,
-  DEFAULT_HNSW_CONFIG
+  createDatabase,
+  WASMVectorSearch,
+  HNSWIndex,
+  type HNSWConfig,
+  type HNSWSearchResult
 } from 'agentdb';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -84,8 +81,8 @@ export interface PatternSearchOptions {
   /** Number of results to return */
   k?: number;
 
-  /** Similarity metric */
-  metric?: SimilarityMetric;
+  /** Distance metric: 'cosine', 'l2' (euclidean), 'ip' (inner product) */
+  metric?: 'cosine' | 'l2' | 'ip';
 
   /** Minimum similarity threshold (0-1) */
   threshold?: number;
@@ -120,18 +117,31 @@ export interface PatternSearchResult {
 }
 
 /**
- * AgentDB Service - Core implementation
+ * AgentDB Service - Core implementation (v2.0.0)
+ * Updated for agentdb@1.6.1 with WASMVectorSearch and HNSWIndex
  */
 export class AgentDBService {
-  private db: SQLiteVectorDB | null = null;
+  private db: any = null; // Database instance from createDatabase()
+  private wasmSearch: WASMVectorSearch | null = null;
+  private hnswIndex: HNSWIndex | null = null;
   private config: AgentDBServiceConfig;
   private isInitialized: boolean = false;
   private logger: Console;
+  private queryCache: Map<string, { result: PatternSearchResult[]; timestamp: number }> = new Map();
 
   constructor(config: AgentDBServiceConfig) {
     this.config = {
       ...config,
-      hnswConfig: config.hnswConfig || DEFAULT_HNSW_CONFIG,
+      hnswConfig: config.hnswConfig || {
+        M: 16,
+        efConstruction: 200,
+        efSearch: 100,
+        metric: 'cosine' as const,
+        dimension: config.embeddingDim,
+        maxElements: 100000,
+        persistIndex: true,
+        rebuildThreshold: 0.1
+      },
       cacheSize: config.cacheSize || 1000,
       cacheTTL: config.cacheTTL || 3600000,
       quantizationBits: config.quantizationBits || 8
@@ -154,221 +164,117 @@ export class AgentDBService {
         fs.mkdirSync(dbDir, { recursive: true });
       }
 
-      // Create database configuration
-      const dbConfig: ExtendedDatabaseConfig = {
-        path: this.config.dbPath,
-        memoryMode: false,
-        walMode: true,
-        cacheSize: this.config.cacheSize,
-        queryCache: {
-          enabled: this.config.enableCache,
-          maxSize: this.config.cacheSize,
-          ttl: this.config.cacheTTL,
-          enableStats: true
-        },
-        quantization: this.config.enableQuantization ? {
-          enabled: true,
-          dimensions: this.config.embeddingDim,
-          subvectors: 8,
-          bits: this.config.quantizationBits ?? 8, // Default to 8 bits if not specified
-          trainOnInsert: true,
-          minVectorsForTraining: 100
-        } : undefined
-      };
+      // Create database with agentdb@1.6.1 API
+      this.db = await createDatabase(this.config.dbPath);
 
-      // Create vector database
-      this.db = await createVectorDB(dbConfig);
+      // Create patterns table
+      await this.createPatternsTable();
 
-      // Initialize database schema
-      await this.initializeSchema();
+      // Initialize WASM vector search
+      this.wasmSearch = new WASMVectorSearch(this.db, {
+        enableWASM: true,
+        enableSIMD: true,
+        batchSize: 100,
+        indexThreshold: 1000
+      });
+
+      // Initialize HNSW index if enabled
+      if (this.config.enableHNSW && this.config.hnswConfig) {
+        this.hnswIndex = new HNSWIndex(this.db, this.config.hnswConfig);
+        await this.hnswIndex.buildIndex('patterns');
+        this.logger.log('[AgentDBService] HNSW index built successfully');
+      }
 
       this.isInitialized = true;
-      this.logger.info('AgentDBService initialized successfully', {
+      this.logger.log('[AgentDBService] Initialized successfully', {
         dbPath: this.config.dbPath,
-        enableHNSW: this.config.enableHNSW,
-        enableCache: this.config.enableCache,
-        enableQuantization: this.config.enableQuantization
+        hnswEnabled: this.config.enableHNSW,
+        embeddingDim: this.config.embeddingDim
       });
-    } catch (error: any) {
-      throw new Error(`Failed to initialize AgentDBService: ${error.message}`);
+    } catch (error) {
+      this.logger.error('[AgentDBService] Initialization failed:', error);
+      throw error;
     }
   }
 
   /**
-   * Initialize database schema for patterns
+   * Create patterns table with vector embeddings
    */
-  private async initializeSchema(): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
-    }
+  private async createPatternsTable(): Promise<void> {
+    const sql = `
+      CREATE TABLE IF NOT EXISTS patterns (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        data TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        usage_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        embedding BLOB,
+        created_at INTEGER NOT NULL,
+        last_used INTEGER NOT NULL,
+        metadata TEXT
+      )
+    `;
 
-    try {
-      // The SQLiteVectorDB creates the vectors table automatically
-      // We'll use the metadata field to store pattern information
-      this.logger.info('Database schema initialized');
-    } catch (error: any) {
-      throw new Error(`Failed to initialize schema: ${error.message}`);
-    }
+    await this.db.exec(sql);
+
+    // Create indexes for fast filtering
+    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_type ON patterns(type)');
+    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_domain ON patterns(domain)');
+    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence)');
   }
 
   /**
-   * Store a pattern with its embedding
+   * Store a pattern with vector embedding
    */
-  async storePattern(pattern: QEPattern, embedding: number[]): Promise<string> {
+  async storePattern(pattern: QEPattern, embedding: Float32Array): Promise<void> {
     this.ensureInitialized();
 
     try {
-      const startTime = Date.now();
+      const sql = `
+        INSERT OR REPLACE INTO patterns
+        (id, type, domain, data, confidence, usage_count, success_count, embedding, created_at, last_used, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
 
-      // Validate embedding dimension
-      if (embedding.length !== this.config.embeddingDim) {
-        throw new Error(
-          `Embedding dimension mismatch: expected ${this.config.embeddingDim}, got ${embedding.length}`
-        );
+      await this.db.run(sql, [
+        pattern.id,
+        pattern.type,
+        pattern.domain,
+        JSON.stringify(pattern.data),
+        pattern.confidence,
+        pattern.usageCount,
+        pattern.successCount,
+        Buffer.from(embedding.buffer),
+        pattern.createdAt,
+        pattern.lastUsed,
+        pattern.metadata ? JSON.stringify(pattern.metadata) : null
+      ]);
+
+      // Add to HNSW index if enabled
+      if (this.hnswIndex && this.hnswIndex.isReady()) {
+        // Get the row ID for the pattern
+        const result = await this.db.get('SELECT rowid FROM patterns WHERE id = ?', [pattern.id]);
+        if (result) {
+          this.hnswIndex.addVector(result.rowid, embedding);
+        }
       }
 
-      // Create vector with metadata
-      const vector: Vector = {
-        id: pattern.id,
-        embedding: embedding,
-        metadata: {
-          type: pattern.type,
-          domain: pattern.domain,
-          data: JSON.stringify(pattern.data),
-          confidence: pattern.confidence,
-          usageCount: pattern.usageCount,
-          successCount: pattern.successCount,
-          createdAt: pattern.createdAt,
-          lastUsed: pattern.lastUsed,
-          ...pattern.metadata
-        },
-        timestamp: pattern.createdAt
-      };
-
-      // Insert into AgentDB
-      const insertedId = this.db!.insert(vector);
-
-      const duration = Date.now() - startTime;
-      this.logger.info('Pattern stored successfully', {
-        id: insertedId,
-        type: pattern.type,
-        domain: pattern.domain,
-        duration: `${duration}ms`
-      });
-
-      return insertedId;
-    } catch (error: any) {
-      this.logger.error('Failed to store pattern', { error: error.message });
-      throw new Error(`Failed to store pattern: ${error.message}`);
+      // Clear cache
+      if (this.config.enableCache) {
+        this.queryCache.clear();
+      }
+    } catch (error) {
+      this.logger.error('[AgentDBService] Failed to store pattern:', error);
+      throw error;
     }
   }
 
   /**
-   * Retrieve a pattern by ID
+   * Batch store patterns for better performance
    */
-  async retrievePattern(id: string): Promise<QEPattern | null> {
-    this.ensureInitialized();
-
-    try {
-      const vector = this.db!.get(id);
-
-      if (!vector || !vector.metadata) {
-        return null;
-      }
-
-      return this.vectorToPattern(vector);
-    } catch (error: any) {
-      this.logger.error('Failed to retrieve pattern', { id, error: error.message });
-      throw new Error(`Failed to retrieve pattern: ${error.message}`);
-    }
-  }
-
-  /**
-   * Search for similar patterns using HNSW
-   */
-  async searchSimilar(
-    queryEmbedding: number[],
-    options: PatternSearchOptions = {}
-  ): Promise<PatternSearchResult[]> {
-    this.ensureInitialized();
-
-    try {
-      const startTime = Date.now();
-
-      // Validate embedding dimension
-      if (queryEmbedding.length !== this.config.embeddingDim) {
-        throw new Error(
-          `Query embedding dimension mismatch: expected ${this.config.embeddingDim}, got ${queryEmbedding.length}`
-        );
-      }
-
-      const {
-        k = 10,
-        metric = 'cosine',
-        threshold = 0.0,
-        domain,
-        type,
-        minConfidence
-      } = options;
-
-      // Perform vector search
-      const results = this.db!.search(queryEmbedding, k, metric, threshold);
-
-      // Convert to pattern results and apply filters
-      let patternResults = results
-        .map(result => {
-          const pattern = this.vectorToPattern({
-            id: result.id,
-            embedding: result.embedding,
-            metadata: result.metadata
-          });
-
-          return {
-            pattern,
-            similarity: result.score,
-            distance: 1 - result.score // Convert similarity to distance
-          };
-        })
-        .filter(result => {
-          // Apply domain filter
-          if (domain && result.pattern.domain !== domain) {
-            return false;
-          }
-
-          // Apply type filter
-          if (type && result.pattern.type !== type) {
-            return false;
-          }
-
-          // Apply confidence filter
-          if (minConfidence !== undefined && result.pattern.confidence < minConfidence) {
-            return false;
-          }
-
-          return true;
-        });
-
-      const duration = Date.now() - startTime;
-      this.logger.info('Pattern search completed', {
-        resultsCount: patternResults.length,
-        duration: `${duration}ms`,
-        filters: { domain, type, minConfidence }
-      });
-
-      return patternResults;
-    } catch (error: any) {
-      this.logger.error('Failed to search patterns', { error: error.message });
-      throw new Error(`Failed to search patterns: ${error.message}`);
-    }
-  }
-
-  /**
-   * Store multiple patterns in a batch (high performance)
-   */
-  async storeBatch(
-    patterns: QEPattern[],
-    embeddings: number[][]
-  ): Promise<BatchResult> {
+  async storePatternsInBatch(patterns: Array<{ pattern: QEPattern; embedding: Float32Array }>): Promise<BatchResult> {
     this.ensureInitialized();
 
     const startTime = Date.now();
@@ -376,212 +282,221 @@ export class AgentDBService {
     const errors: Array<{ index: number; error: string }> = [];
 
     try {
-      // Validate inputs
-      if (patterns.length !== embeddings.length) {
-        throw new Error('Patterns and embeddings arrays must have the same length');
+      // Begin transaction
+      await this.db.exec('BEGIN TRANSACTION');
+
+      for (let i = 0; i < patterns.length; i++) {
+        try {
+          await this.storePattern(patterns[i].pattern, patterns[i].embedding);
+          insertedIds.push(patterns[i].pattern.id);
+        } catch (error) {
+          errors.push({
+            index: i,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
       }
 
-      // Create vectors for batch insert
-      const vectors: Vector[] = patterns.map((pattern, index) => {
-        // Validate embedding dimension
-        if (embeddings[index].length !== this.config.embeddingDim) {
-          errors.push({
-            index,
-            error: `Embedding dimension mismatch: expected ${this.config.embeddingDim}, got ${embeddings[index].length}`
-          });
-          return null;
-        }
+      // Commit transaction
+      await this.db.exec('COMMIT');
 
-        return {
-          id: pattern.id,
-          embedding: embeddings[index],
-          metadata: {
-            type: pattern.type,
-            domain: pattern.domain,
-            data: JSON.stringify(pattern.data),
-            confidence: pattern.confidence,
-            usageCount: pattern.usageCount,
-            successCount: pattern.successCount,
-            createdAt: pattern.createdAt,
-            lastUsed: pattern.lastUsed,
-            ...pattern.metadata
-          },
-          timestamp: pattern.createdAt
-        };
-      }).filter(v => v !== null) as Vector[];
-
-      // Batch insert
-      const ids = this.db!.insertBatch(vectors);
-      insertedIds.push(...ids);
-
-      const duration = Date.now() - startTime;
-      const success = errors.length === 0;
-
-      this.logger.info('Batch insert completed', {
-        totalPatterns: patterns.length,
-        inserted: insertedIds.length,
-        errors: errors.length,
-        duration: `${duration}ms`,
-        throughput: `${(patterns.length / (duration / 1000)).toFixed(0)} patterns/sec`
-      });
+      // Rebuild HNSW index if needed
+      if (this.hnswIndex && this.hnswIndex.needsRebuild()) {
+        await this.hnswIndex.buildIndex('patterns');
+      }
 
       return {
-        success,
+        success: errors.length === 0,
         insertedIds,
         errors,
-        duration
+        duration: Date.now() - startTime
       };
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      this.logger.error('Batch insert failed', { error: error.message });
-
-      return {
-        success: false,
-        insertedIds,
-        errors: [{ index: -1, error: error.message }],
-        duration
-      };
+    } catch (error) {
+      // Rollback on error
+      await this.db.exec('ROLLBACK');
+      throw error;
     }
   }
 
   /**
-   * Delete a pattern by ID
+   * Search for similar patterns using HNSW or WASM vector search
    */
-  async deletePattern(id: string): Promise<boolean> {
+  async searchPatterns(queryEmbedding: Float32Array, options: PatternSearchOptions = {}): Promise<PatternSearchResult[]> {
     this.ensureInitialized();
 
-    try {
-      const deleted = this.db!.delete(id);
+    const {
+      k = 10,
+      threshold = 0.7,
+      metric = 'cosine',
+      domain,
+      type,
+      minConfidence
+    } = options;
 
-      if (deleted) {
-        this.logger.info('Pattern deleted', { id });
+    // Check cache
+    const cacheKey = `${queryEmbedding.toString()}-${k}-${threshold}-${domain}-${type}-${minConfidence}`;
+    if (this.config.enableCache) {
+      const cached = this.queryCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < (this.config.cacheTTL || 3600000)) {
+        return cached.result;
+      }
+    }
+
+    try {
+      let searchResults: HNSWSearchResult[];
+
+      // Use HNSW index if available and built
+      if (this.hnswIndex && this.hnswIndex.isReady()) {
+        searchResults = await this.hnswIndex.search(queryEmbedding, k, {
+          threshold,
+          filters: this.buildFilters(domain, type, minConfidence)
+        });
+      } else if (this.wasmSearch) {
+        // Fallback to WASM vector search
+        searchResults = await this.wasmSearch.findKNN(queryEmbedding, k, 'patterns', {
+          threshold,
+          filters: this.buildFilters(domain, type, minConfidence)
+        });
+      } else {
+        throw new Error('No search backend available');
       }
 
-      return deleted;
-    } catch (error: any) {
-      this.logger.error('Failed to delete pattern', { id, error: error.message });
-      throw new Error(`Failed to delete pattern: ${error.message}`);
+      // Convert search results to PatternSearchResult
+      const results: PatternSearchResult[] = [];
+      for (const result of searchResults) {
+        const pattern = await this.getPatternById(result.id);
+        if (pattern) {
+          results.push({
+            pattern,
+            similarity: result.similarity,
+            distance: result.distance
+          });
+        }
+      }
+
+      // Cache results
+      if (this.config.enableCache) {
+        this.queryCache.set(cacheKey, {
+          result: results,
+          timestamp: Date.now()
+        });
+
+        // Evict old entries if cache is full
+        if (this.queryCache.size > (this.config.cacheSize || 1000)) {
+          const firstKey = this.queryCache.keys().next().value;
+          if (firstKey !== undefined) {
+            this.queryCache.delete(firstKey);
+          }
+        }
+      }
+
+      return results;
+    } catch (error) {
+      this.logger.error('[AgentDBService] Pattern search failed:', error);
+      throw error;
     }
   }
 
   /**
-   * Get database statistics
+   * Get pattern by ID
+   */
+  private async getPatternById(rowId: number): Promise<QEPattern | null> {
+    const sql = 'SELECT * FROM patterns WHERE rowid = ?';
+    const row = await this.db.get(sql, [rowId]);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      type: row.type,
+      domain: row.domain,
+      data: JSON.parse(row.data),
+      confidence: row.confidence,
+      usageCount: row.usage_count,
+      successCount: row.success_count,
+      createdAt: row.created_at,
+      lastUsed: row.last_used,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+    };
+  }
+
+  /**
+   * Build SQL filters for pattern search
+   */
+  private buildFilters(domain?: string, type?: string, minConfidence?: number): Record<string, any> {
+    const filters: Record<string, any> = {};
+
+    if (domain) filters.domain = domain;
+    if (type) filters.type = type;
+    if (minConfidence !== undefined) filters.confidence_gte = minConfidence;
+
+    return filters;
+  }
+
+  /**
+   * Get service statistics
    */
   async getStats(): Promise<{
-    count: number;
-    size: number;
-    cacheStats?: any;
-    compressionStats?: any;
+    totalPatterns: number;
+    hnswEnabled: boolean;
+    hnswStats?: any;
+    wasmStats?: any;
+    cacheSize: number;
   }> {
     this.ensureInitialized();
 
-    try {
-      const stats = this.db!.stats();
-      const cacheStats = this.db!.getCacheStats();
-      const compressionStats = this.db!.getCompressionStats();
+    const countResult = await this.db.get('SELECT COUNT(*) as count FROM patterns');
+    const totalPatterns = countResult?.count || 0;
 
-      return {
-        count: stats.count,
-        size: stats.size,
-        cacheStats,
-        compressionStats
-      };
-    } catch (error: any) {
-      this.logger.error('Failed to get stats', { error: error.message });
-      throw new Error(`Failed to get stats: ${error.message}`);
-    }
+    return {
+      totalPatterns,
+      hnswEnabled: this.config.enableHNSW,
+      hnswStats: this.hnswIndex?.getStats(),
+      wasmStats: this.wasmSearch?.getStats(),
+      cacheSize: this.queryCache.size
+    };
   }
 
   /**
    * Clear query cache
    */
   clearCache(): void {
-    this.ensureInitialized();
-
-    try {
-      this.db!.clearCache();
-      this.logger.info('Cache cleared');
-    } catch (error: any) {
-      this.logger.error('Failed to clear cache', { error: error.message });
-    }
+    this.queryCache.clear();
   }
 
   /**
-   * Close database connection
+   * Close database and cleanup
    */
   async close(): Promise<void> {
-    if (!this.isInitialized || !this.db) {
-      return;
+    if (this.hnswIndex) {
+      this.hnswIndex.clear();
     }
-
-    try {
-      this.db.close();
-      this.db = null;
-      this.isInitialized = false;
-      this.logger.info('AgentDBService closed');
-    } catch (error: any) {
-      throw new Error(`Failed to close AgentDBService: ${error.message}`);
+    if (this.wasmSearch) {
+      this.wasmSearch.clearIndex();
     }
-  }
-
-  /**
-   * Convert AgentDB vector to QE pattern
-   */
-  private vectorToPattern(vector: Vector): QEPattern {
-    const metadata = vector.metadata || {};
-
-    return {
-      id: vector.id!,
-      type: metadata.type || 'unknown',
-      domain: metadata.domain || 'unknown',
-      data: metadata.data ? JSON.parse(metadata.data) : {},
-      confidence: metadata.confidence || 0,
-      usageCount: metadata.usageCount || 0,
-      successCount: metadata.successCount || 0,
-      createdAt: metadata.createdAt || vector.timestamp || Date.now(),
-      lastUsed: metadata.lastUsed || vector.timestamp || Date.now(),
-      metadata: {
-        ...metadata,
-        // Remove duplicates
-        type: undefined,
-        domain: undefined,
-        data: undefined,
-        confidence: undefined,
-        usageCount: undefined,
-        successCount: undefined,
-        createdAt: undefined,
-        lastUsed: undefined
-      }
-    };
+    if (this.db) {
+      await this.db.close();
+    }
+    this.isInitialized = false;
   }
 
   /**
    * Ensure service is initialized
    */
   private ensureInitialized(): void {
-    if (!this.isInitialized || !this.db) {
+    if (!this.isInitialized) {
       throw new Error('AgentDBService not initialized. Call initialize() first.');
     }
   }
 }
 
 /**
- * Create AgentDB service with default configuration
+ * Factory function to create and initialize AgentDBService
  */
-export function createAgentDBService(
-  overrides: Partial<AgentDBServiceConfig> = {}
-): AgentDBService {
-  const defaultConfig: AgentDBServiceConfig = {
-    dbPath: '.agentic-qe/agentdb/patterns.db',
-    embeddingDim: 384, // all-MiniLM-L6-v2 dimension
-    enableHNSW: true,
-    enableCache: true,
-    cacheSize: 1000,
-    cacheTTL: 3600000, // 1 hour
-    enableQuantization: false, // Disabled by default for accuracy
-    quantizationBits: 8
-  };
-
-  const config = { ...defaultConfig, ...overrides };
-  return new AgentDBService(config);
+export async function createAgentDBService(config: AgentDBServiceConfig): Promise<AgentDBService> {
+  const service = new AgentDBService(config);
+  await service.initialize();
+  return service;
 }

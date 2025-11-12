@@ -11,8 +11,6 @@ import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { QLearning, QLearningConfig } from './QLearning';
 import { StateExtractor } from './StateExtractor';
 import { RewardCalculator, TaskResult } from './RewardCalculator';
-import { Database } from '../utils/Database';
-import { LearningPersistence, DatabaseLearningPersistence } from './LearningPersistenceAdapter';
 
 // Import version from package.json to maintain consistency
 const packageJson = require('../../package.json');
@@ -63,17 +61,11 @@ export class LearningEngine {
   private taskCount: number;
   private readonly stateExtractor: StateExtractor;
   private readonly rewardCalculator: RewardCalculator;
-  private database?: Database;
-  private persistence?: LearningPersistence;
-  private databaseAutoCreated: boolean = false;
-  private databaseReady: boolean = false; // Track database initialization state
 
   constructor(
     agentId: string,
     memoryStore: SwarmMemoryManager,
-    config: Partial<LearningConfig> = {},
-    database?: Database,
-    persistence?: LearningPersistence
+    config: Partial<LearningConfig> = {}
   ) {
     this.logger = Logger.getInstance();
     this.agentId = agentId;
@@ -88,67 +80,29 @@ export class LearningEngine {
     this.stateExtractor = new StateExtractor();
     this.rewardCalculator = new RewardCalculator();
 
-    // Store database reference but don't create persistence adapter yet
-    // Persistence adapter creation happens in initialize() after database is ready
-    if (persistence) {
-      this.persistence = persistence;
-      this.database = database; // May be undefined if using InMemoryPersistence
-      // If external persistence provided, assume it's ready
-      if (persistence && database) {
-        // External persistence is considered ready immediately
-        // It's the caller's responsibility to ensure the database is initialized
-      }
-    } else if (database) {
-      // Database provided but no persistence adapter
-      // We'll create the adapter in initialize() after database init
-      this.database = database;
-    } else if (this.config.enabled && !database) {
-      // Auto-initialize database (adapter creation deferred to initialize())
-      const dbPath = process.env.AQE_DB_PATH || '.agentic-qe/memory.db';
-      this.database = new Database(dbPath);
-      this.databaseAutoCreated = true; // Track that we created this database
-      this.logger.info(`Auto-initialized learning database at ${dbPath}`);
-    }
+    // Architecture Improvement: LearningEngine now uses shared SwarmMemoryManager
+    // instead of auto-creating Database instances. This ensures:
+    // 1. All learning data persists to the shared database
+    // 2. No duplicate Database connections
+    // 3. Consistent data across the fleet
+    // 4. Proper resource management
+    this.logger.info(`LearningEngine initialized for agent ${agentId} - using shared memoryStore for persistence`);
   }
 
   /**
    * Initialize the learning engine
+   *
+   * Architecture: Uses shared memoryStore (SwarmMemoryManager) for all persistence.
+   * No database initialization needed - memoryStore handles the database connection.
    */
   async initialize(): Promise<void> {
     this.logger.info(`Initializing LearningEngine for agent ${this.agentId}`);
 
-    // Initialize database if auto-created or provided
-    if (this.database) {
-      // Defensive check: ensure initialize method exists before calling
-      if (typeof this.database.initialize === 'function') {
-        try {
-          await this.database.initialize();
-          this.databaseReady = true; // Mark database as ready after successful initialization
-          this.logger.info('Database initialized successfully for LearningEngine');
-        } catch (error) {
-          this.logger.warn(`Database initialization failed, continuing without persistence: ${error}`);
-          this.databaseReady = false;
-        }
-      } else {
-        this.logger.warn('Database instance provided but lacks initialize method - running in memory-only mode');
-        this.databaseReady = false;
-      }
-
-      // Create persistence adapter NOW that database is initialized
-      // Only if we don't already have one (e.g., from external injection) and database is ready
-      if (!this.persistence && this.databaseReady) {
-        this.persistence = new DatabaseLearningPersistence(this.database);
-        this.logger.info('Created DatabaseLearningPersistence adapter after database initialization');
-      }
-    }
-
     // Load previous learning state if exists
     await this.loadState();
 
-    // Load Q-values from database if available (only if database is ready)
-    if (this.database && this.databaseReady) {
-      await this.loadQTableFromDatabase();
-    }
+    // Load Q-values from memoryStore if available
+    await this.loadQTableFromMemoryStore();
 
     // Store config in memory
     await this.memoryStore.store(
@@ -175,36 +129,20 @@ export class LearningEngine {
   }
 
   /**
-   * Ensure database is initialized before operations
-   * Throws error if database is required but not ready
+   * Load Q-table from memoryStore on initialization
+   *
+   * Architecture: Uses SwarmMemoryManager.getAllQValues() instead of direct Database access.
+   * This ensures we read from the shared database used by the fleet.
    */
-  private ensureDatabaseReady(): void {
-    if (this.database && !this.databaseReady) {
-      throw new Error(
-        `Database not initialized for agent ${this.agentId}. ` +
-        `Call LearningEngine.initialize() before any database operations.`
-      );
-    }
-  }
-
-  /**
-   * Check if database is available and ready for operations
-   */
-  private isDatabaseAvailable(): boolean {
-    return this.database !== undefined && this.databaseReady;
-  }
-
-  /**
-   * Load Q-table from database on initialization
-   */
-  private async loadQTableFromDatabase(): Promise<void> {
-    if (!this.isDatabaseAvailable()) {
-      this.logger.warn('Database not ready, skipping Q-table load');
+  private async loadQTableFromMemoryStore(): Promise<void> {
+    // Check if memoryStore is SwarmMemoryManager (has getAllQValues method)
+    if (!(this.memoryStore instanceof SwarmMemoryManager)) {
+      this.logger.warn('memoryStore is not SwarmMemoryManager, skipping Q-table load');
       return;
     }
 
     try {
-      const qValues = await this.database!.getAllQValues(this.agentId);
+      const qValues = await this.memoryStore.getAllQValues(this.agentId);
 
       for (const qv of qValues) {
         if (!this.qTable.has(qv.state_key)) {
@@ -213,9 +151,9 @@ export class LearningEngine {
         this.qTable.get(qv.state_key)!.set(qv.action_key, qv.q_value);
       }
 
-      this.logger.info(`Loaded ${qValues.length} Q-values from database`);
+      this.logger.info(`Loaded ${qValues.length} Q-values from memoryStore`);
     } catch (error) {
-      this.logger.warn(`Failed to load Q-values from database:`, error);
+      this.logger.warn(`Failed to load Q-values from memoryStore:`, error);
     }
   }
 
@@ -223,6 +161,9 @@ export class LearningEngine {
    * Learn from task execution with automatic database persistence
    * This is the primary method called by BaseAgent.onPostTask()
    * Consolidates learnFromExecution() and recordExperience() functionality
+   *
+   * Architecture: Uses SwarmMemoryManager for all persistence (storeLearningExperience,
+   * upsertQValue, storeLearningSnapshot) instead of LearningPersistence adapter.
    */
   async learnFromExecution(
     task: any,
@@ -245,11 +186,20 @@ export class LearningEngine {
       // Update Q-table (in-memory)
       await this.updateQTable(experience);
 
-      // Persist to database (via adapter, batched for performance)
-      // Only if database is ready and persistence adapter is available
-      if (this.persistence && this.isDatabaseAvailable()) {
+      // Persist to database via memoryStore (replaces persistence adapter)
+      // Only if memoryStore is SwarmMemoryManager
+      if (this.memoryStore instanceof SwarmMemoryManager) {
         try {
-          await this.persistence.storeExperience(this.agentId, experience);
+          // Store experience
+          await this.memoryStore.storeLearningExperience({
+            agentId: this.agentId,
+            taskId: experience.taskId,
+            taskType: experience.taskType,
+            state: JSON.stringify(experience.state),
+            action: JSON.stringify(experience.action),
+            reward: experience.reward,
+            nextState: JSON.stringify(experience.nextState)
+          });
 
           // Persist Q-value
           const stateKey = this.stateExtractor.encodeState(experience.state);
@@ -257,7 +207,12 @@ export class LearningEngine {
           const stateActions = this.qTable.get(stateKey);
           const qValue = stateActions?.get(actionKey) || 0;
 
-          await this.persistence.storeQValue(this.agentId, stateKey, actionKey, qValue);
+          await this.memoryStore.upsertQValue(
+            this.agentId,
+            stateKey,
+            actionKey,
+            qValue
+          );
         } catch (persistError) {
           this.logger.warn('Persistence failed, continuing with in-memory learning:', persistError);
           // Don't fail learning due to persistence errors
@@ -279,15 +234,19 @@ export class LearningEngine {
       if (this.taskCount % this.config.updateFrequency === 0) {
         await this.performBatchUpdate();
 
-        // Store learning snapshot only if database is ready
-        if (this.persistence && this.isDatabaseAvailable()) {
-          const stats = {
+        // Store learning snapshot via memoryStore
+        if (this.memoryStore instanceof SwarmMemoryManager) {
+          const improvement = await this.calculateImprovement();
+          await this.memoryStore.storeLearningSnapshot({
+            agentId: this.agentId,
+            snapshotType: 'performance',
+            metrics: {
+              qTableSize: this.qTable.size
+            },
             totalExperiences: this.experiences.length,
-            qTableSize: this.qTable.size,
-            recentImprovement: (await this.calculateImprovement()).improvementRate,
+            improvementRate: improvement.improvementRate,
             explorationRate: this.config.explorationRate
-          };
-          await this.persistence.storeLearningSnapshot(this.agentId, stats);
+          });
         }
       }
 
@@ -385,17 +344,6 @@ export class LearningEngine {
   getFailurePatterns(): FailurePattern[] {
     return Array.from(this.failurePatterns.values())
       .sort((a, b) => b.frequency - a.frequency);
-  }
-
-  /**
-   * Flush any pending batched writes to database
-   * Call this before querying the database to ensure all data is persisted
-   */
-  async flush(): Promise<void> {
-    if (this.persistence && this.isDatabaseAvailable()) {
-      await this.persistence.flush();
-      this.logger.debug('Flushed pending learning data to database');
-    }
   }
 
   /**
@@ -1026,25 +974,11 @@ export class LearningEngine {
    * Cleanup resources (timers, connections)
    * Call this before destroying the LearningEngine instance
    *
-   * This method:
-   * 1. Disposes persistence adapter (clears flush timers)
-   * 2. Closes auto-created database connections to prevent open handles
-   * 3. Resets database ready state
+   * Architecture: No cleanup needed - LearningEngine no longer manages Database instances.
+   * The shared SwarmMemoryManager handles database lifecycle management.
    */
   dispose(): void {
-    // Dispose persistence adapter (clears timers)
-    if (this.persistence && 'dispose' in this.persistence) {
-      (this.persistence as any).dispose();
-    }
-
-    // Close auto-created database to prevent open handles
-    // Only close if we created it (don't close externally-provided databases)
-    if (this.database && this.databaseAutoCreated) {
-      this.database.close().catch((err) => {
-        this.logger.warn(`Failed to close auto-created database during dispose: ${err.message}`);
-      });
-      this.database = undefined;
-      this.databaseReady = false; // Reset database ready state
-    }
+    // No resources to clean up - memoryStore is managed externally
+    this.logger.debug(`LearningEngine disposed for agent ${this.agentId}`);
   }
 }

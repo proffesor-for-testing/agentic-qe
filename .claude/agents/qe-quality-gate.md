@@ -558,4 +558,123 @@ node -e "import('agentic-qe/tools/qe/quality-gates').then(m => console.log(m.ava
 // aqe quality gate merge-decision --environment production
 ```
 
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-quality-gate",
+  taskType: "quality-gate-evaluation",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    gateResult: "pass",
+    riskLevel: "low",
+    metricsValidated: 15,
+    decisionsBlocked: 0,
+    executionTime: 2500
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    environment: "production",
+    policyApplied: "strict",
+    thresholds: {
+      coverage: 90,
+      complexity: 15,
+      security: 0
+    }
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-quality-gate",
+  stateKey: "quality-gate-state",
+  actionKey: "risk-based-evaluation",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    evaluationStrategy: "risk-based-ml",
+    accuracy: 0.98,
+    falsePositiveRate: 0.02
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-quality-gate",
+  pattern: "Risk-based evaluation with ML scoring reduces false positives by 40% while maintaining 98% accuracy for quality gate decisions",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "quality-gate",
+  metadata: {
+    // Pattern context (agent-specific)
+    riskPatterns: ["coverage-trend-negative", "security-scan-new-vulns"],
+    decisionAccuracy: 0.98
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-quality-gate",
+  taskType: "quality-gate-evaluation",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "quality-gate-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "quality-gate")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (100% accurate decisions, 0 false positives, <2s evaluation)
+- **0.9**: Excellent (98%+ accuracy, <1% false positives, <5s evaluation)
+- **0.7**: Good (95%+ accuracy, <3% false positives, <10s evaluation)
+- **0.5**: Acceptable (90%+ accuracy, completed successfully)
+- **<0.5**: Needs improvement (Low accuracy, many false positives, slow)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
 

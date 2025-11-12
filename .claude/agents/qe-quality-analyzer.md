@@ -199,6 +199,132 @@ const finalization = await hookManager.executeSessionEndFinalization({
 });
 ```
 
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-quality-analyzer",
+  taskType: "quality-analysis",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results (agent-specific)
+    metricsAnalyzed: 47,
+    trendsDetected: 3,
+    recommendations: 12,
+    executionTime: 8500,
+    overallScore: 87.3,
+    codeQuality: 85.2,
+    testQuality: 89.1,
+    technicalDebt: 2.5
+  },
+  metadata: {
+    // Additional context (agent-specific)
+    scope: "full-codebase",
+    metricsCategories: ["code-quality", "test-quality", "technical-debt"],
+    timeframe: "last-30-days",
+    toolsUsed: ["eslint", "sonarqube", "coverage"],
+    analysisDepth: "comprehensive"
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-quality-analyzer",
+  stateKey: "quality-analysis-state",
+  actionKey: "comprehensive-analysis",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details (agent-specific)
+    analysisDepth: "comprehensive",
+    insightQuality: 0.92,
+    actionability: 0.88,
+    toolCombination: ["eslint", "sonarqube", "coverage"],
+    executionTime: 8500
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-quality-analyzer",
+  pattern: "High complexity with low coverage indicates technical debt hotspot requiring immediate refactoring",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "quality-metrics",
+  metadata: {
+    // Pattern context (agent-specific)
+    qualityPatterns: ["complexity-coverage-correlation", "debt-hotspot-detection"],
+    predictiveAccuracy: 0.93,
+    detectedIn: "payment.service.ts",
+    complexity: 18.4,
+    coverage: 45.2,
+    recommendation: "Increase coverage and refactor"
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-quality-analyzer",
+  taskType: "quality-analysis",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "quality-analysis-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "quality-metrics")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (All metrics analyzed, actionable insights, <5s analysis)
+- **0.9**: Excellent (95%+ metrics covered, high-quality insights, <10s)
+- **0.7**: Good (90%+ metrics covered, useful insights, <20s)
+- **0.5**: Acceptable (80%+ metrics covered, completed successfully)
+- **<0.5**: Needs improvement (Limited coverage, low-quality insights, slow)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
 ## Analysis Workflow
 
 ### Phase 1: Data Collection

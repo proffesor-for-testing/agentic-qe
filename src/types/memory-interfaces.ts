@@ -140,4 +140,87 @@ export interface ISwarmMemoryManager extends IMemoryStore {
   blockAgent(resourceId: string, agentId: string): Promise<void>;
   unblockAgent(resourceId: string, agentId: string): Promise<void>;
   getAccessControl(): any;
+
+  // Learning operations (Q-learning and experience storage)
+  /**
+   * Store a learning experience for Q-learning
+   * @param experience The learning experience containing state, action, reward, and next state
+   */
+  storeLearningExperience(experience: {
+    agentId: string;
+    taskId?: string;
+    taskType: string;
+    state: string;
+    action: string;
+    reward: number;
+    nextState: string;
+    episodeId?: string;
+  }): Promise<void>;
+
+  /**
+   * Upsert a Q-value for a state-action pair
+   * @param agentId The agent ID
+   * @param stateKey The state key
+   * @param actionKey The action key
+   * @param qValue The Q-value
+   */
+  upsertQValue(
+    agentId: string,
+    stateKey: string,
+    actionKey: string,
+    qValue: number
+  ): Promise<void>;
+
+  /**
+   * Get all Q-values for an agent
+   * @param agentId The agent ID
+   * @returns Array of Q-values with state/action keys
+   */
+  getAllQValues(agentId: string): Promise<Array<{
+    state_key: string;
+    action_key: string;
+    q_value: number;
+    update_count: number;
+  }>>;
+
+  /**
+   * Get Q-value for a specific state-action pair
+   * @param agentId The agent ID
+   * @param stateKey The state key
+   * @param actionKey The action key
+   * @returns The Q-value or null if not found
+   */
+  getQValue(agentId: string, stateKey: string, actionKey: string): Promise<number | null>;
+
+  /**
+   * Store a learning performance snapshot
+   * @param snapshot The learning snapshot containing metrics and performance data
+   */
+  storeLearningSnapshot(snapshot: {
+    agentId: string;
+    snapshotType: 'performance' | 'q_table' | 'pattern';
+    metrics: any;
+    improvementRate?: number;
+    totalExperiences?: number;
+    explorationRate?: number;
+  }): Promise<void>;
+
+  /**
+   * Get learning history for an agent
+   * @param agentId The agent ID
+   * @param limit Maximum number of records to return
+   * @returns Array of learning history records
+   */
+  getLearningHistory(agentId: string, limit?: number): Promise<Array<{
+    id: number;
+    agent_id: string;
+    pattern_id?: string;
+    state_representation: string;
+    action: string;
+    reward: number;
+    next_state_representation?: string;
+    q_value?: number;
+    episode?: number;
+    timestamp: string;
+  }>>;
 }

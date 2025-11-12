@@ -502,6 +502,72 @@ export class SwarmMemoryManager {
     await this.run(`CREATE INDEX IF NOT EXISTS idx_agent_status ON agent_registry(status)`);
     await this.run(`CREATE INDEX IF NOT EXISTS idx_ooda_phase ON ooda_cycles(phase)`);
 
+    // Table 13: Q-values (Q-learning)
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS q_values (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        action_key TEXT NOT NULL,
+        q_value REAL NOT NULL DEFAULT 0,
+        update_count INTEGER NOT NULL DEFAULT 1,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(agent_id, state_key, action_key)
+      )
+    `);
+
+    // Table 14: Learning Experiences
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS learning_experiences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        task_id TEXT,
+        task_type TEXT NOT NULL,
+        state TEXT NOT NULL,
+        action TEXT NOT NULL,
+        reward REAL NOT NULL,
+        next_state TEXT NOT NULL,
+        episode_id TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table 15: Learning History (snapshots and metrics)
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS learning_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        pattern_id TEXT,
+        state_representation TEXT NOT NULL,
+        action TEXT NOT NULL,
+        reward REAL NOT NULL,
+        next_state_representation TEXT,
+        q_value REAL,
+        episode INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table 16: Learning Metrics (aggregated performance data)
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS learning_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent_id TEXT NOT NULL,
+        metric_type TEXT NOT NULL,
+        metric_value REAL NOT NULL,
+        window_start DATETIME,
+        window_end DATETIME,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Learning indexes for performance
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_q_values_agent ON q_values(agent_id)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_learning_exp_agent ON learning_experiences(agent_id)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_learning_hist_agent ON learning_history(agent_id)`);
+    await this.run(`CREATE INDEX IF NOT EXISTS idx_learning_metrics_agent ON learning_metrics(agent_id)`);
+
     this.initialized = true;
   }
 
@@ -2204,5 +2270,192 @@ export class SwarmMemoryManager {
    */
   getAgentDBManager(): AgentDBManager | null {
     return this.agentDBManager;
+  }
+
+  // ============================================================================
+  // Learning Operations (Q-learning and Experience Storage)
+  // ============================================================================
+
+  /**
+   * Store a learning experience for Q-learning
+   * Delegates to the underlying Database instance
+   */
+  async storeLearningExperience(experience: {
+    agentId: string;
+    taskId?: string;
+    taskType: string;
+    state: string;
+    action: string;
+    reward: number;
+    nextState: string;
+    episodeId?: string;
+  }): Promise<void> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      INSERT INTO learning_experiences (
+        agent_id, task_id, task_type, state, action, reward, next_state, episode_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    this.run(sql, [
+      experience.agentId,
+      experience.taskId || null,
+      experience.taskType,
+      experience.state,
+      experience.action,
+      experience.reward,
+      experience.nextState,
+      experience.episodeId || null
+    ]);
+  }
+
+  /**
+   * Upsert a Q-value for a state-action pair
+   * Delegates to the underlying Database instance
+   */
+  async upsertQValue(
+    agentId: string,
+    stateKey: string,
+    actionKey: string,
+    qValue: number
+  ): Promise<void> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      INSERT INTO q_values (agent_id, state_key, action_key, q_value, update_count, last_updated)
+      VALUES (?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(agent_id, state_key, action_key) DO UPDATE SET
+        q_value = ?,
+        update_count = update_count + 1,
+        last_updated = CURRENT_TIMESTAMP
+    `;
+
+    this.run(sql, [agentId, stateKey, actionKey, qValue, qValue]);
+  }
+
+  /**
+   * Get all Q-values for an agent
+   */
+  async getAllQValues(agentId: string): Promise<Array<{
+    state_key: string;
+    action_key: string;
+    q_value: number;
+    update_count: number;
+  }>> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT state_key, action_key, q_value, update_count
+      FROM q_values
+      WHERE agent_id = ?
+      ORDER BY last_updated DESC
+    `;
+
+    return await this.queryAll<{
+      state_key: string;
+      action_key: string;
+      q_value: number;
+      update_count: number;
+    }>(sql, [agentId]);
+  }
+
+  /**
+   * Get Q-value for a specific state-action pair
+   */
+  async getQValue(agentId: string, stateKey: string, actionKey: string): Promise<number | null> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT q_value FROM q_values
+      WHERE agent_id = ? AND state_key = ? AND action_key = ?
+    `;
+
+    const row = await this.queryOne<{ q_value: number }>(sql, [agentId, stateKey, actionKey]);
+    return row ? row.q_value : null;
+  }
+
+  /**
+   * Store a learning performance snapshot
+   */
+  async storeLearningSnapshot(snapshot: {
+    agentId: string;
+    snapshotType: 'performance' | 'q_table' | 'pattern';
+    metrics: any;
+    improvementRate?: number;
+    totalExperiences?: number;
+    explorationRate?: number;
+  }): Promise<void> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      INSERT INTO learning_history (
+        agent_id, state_representation, action, reward,
+        next_state_representation, q_value, episode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    // Store as learning_history entry (compatible with existing schema)
+    this.run(sql, [
+      snapshot.agentId,
+      snapshot.snapshotType,
+      JSON.stringify(snapshot.metrics),
+      snapshot.improvementRate || 0,
+      '', // next_state_representation (unused for snapshots)
+      snapshot.explorationRate || 0,
+      snapshot.totalExperiences || 0
+    ]);
+  }
+
+  /**
+   * Get learning history for an agent
+   */
+  async getLearningHistory(agentId: string, limit: number = 100): Promise<Array<{
+    id: number;
+    agent_id: string;
+    pattern_id?: string;
+    state_representation: string;
+    action: string;
+    reward: number;
+    next_state_representation?: string;
+    q_value?: number;
+    episode?: number;
+    timestamp: string;
+  }>> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT id, agent_id, pattern_id, state_representation, action, reward,
+             next_state_representation, q_value, episode, timestamp
+      FROM learning_history
+      WHERE agent_id = ?
+      ORDER BY timestamp DESC
+      LIMIT ?
+    `;
+
+    return await this.queryAll<{
+      id: number;
+      agent_id: string;
+      pattern_id?: string;
+      state_representation: string;
+      action: string;
+      reward: number;
+      next_state_representation?: string;
+      q_value?: number;
+      episode?: number;
+      timestamp: string;
+    }>(sql, [agentId, limit]);
   }
 }

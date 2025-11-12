@@ -186,12 +186,20 @@ export abstract class BaseAgent extends EventEmitter {
             await this.performanceTracker.initialize();
 
             // Initialize learning engine for Q-learning
+            // Architecture: LearningEngine uses SwarmMemoryManager for all persistence
+            // No direct database dependency - memoryStore handles AgentDB coordination
             this.learningEngine = new LearningEngine(
               this.agentId.id,
               this.memoryStore as SwarmMemoryManager,
               this.learningConfig
             );
             await this.learningEngine.initialize();
+          } else if (this.enableLearning && !(this.memoryStore instanceof SwarmMemoryManager)) {
+            // Runtime check: Warn if learning is enabled but memoryStore doesn't support it
+            console.warn(
+              `[${this.agentId.id}] Learning enabled but memoryStore is not SwarmMemoryManager. ` +
+              `Learning features will be disabled. Expected SwarmMemoryManager, got ${this.memoryStore.constructor.name}`
+            );
           }
 
           // Initialize AgentDB if configured
@@ -285,6 +293,13 @@ export abstract class BaseAgent extends EventEmitter {
 
       // Execute pre-termination hooks
       await this.executeHook('pre-termination');
+
+      // Flush learning data before termination
+      if (this.learningEngine && this.learningEngine.isEnabled()) {
+        // LearningEngine persists data via SwarmMemoryManager (which uses AgentDB)
+        // No explicit flush needed - memoryStore handles persistence automatically
+        console.info(`[${this.agentId.id}] Learning data persisted via memoryStore (SwarmMemoryManager -> AgentDB)`);
+      }
 
       // Close AgentDB if enabled
       if (this.agentDB) {

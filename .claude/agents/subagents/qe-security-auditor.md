@@ -1,22 +1,6 @@
 ---
 name: qe-security-auditor
-role: specialized-subagent
-parent_agent: qe-security-scanner
-phase: AUDIT
-color: red
-priority: critical
 description: "Audits code for security vulnerabilities and compliance"
-capabilities:
-  - security-audit
-  - vulnerability-detection
-  - compliance-checking
-  - threat-modeling
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  parent_agents: ["qe-security-scanner"]
 ---
 
 # Security Auditor Subagent

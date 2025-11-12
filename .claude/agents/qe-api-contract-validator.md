@@ -29,6 +29,124 @@ Skill("contract-testing")
 Skill("regression-testing")
 ```
 
+## Learning Protocol
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing API contract validation
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-api-contract-validator",
+  taskType: "api-contract-validation",
+  reward: 0.93,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    contractsValidated: 12,
+    breakingChangesDetected: 2,
+    compatibilityIssues: 3,
+    consumersAffected: 8,
+    versioningCompliance: "100%",
+    validationQuality: "high"
+  },
+  metadata: {
+    apiType: "rest",
+    schemaFormat: "openapi",
+    versionBump: "minor",
+    comparisonDepth: "comprehensive"
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the validation strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-api-contract-validator",
+  stateKey: "api-validation-state",
+  actionKey: "comprehensive-diff",  // or "schema-only", "breaking-change-only"
+  qValue: 0.89,  // Expected value of this approach (based on results)
+  metadata: {
+    validationStrategy: "comprehensive-diff",
+    successRate: "93%",
+    breakingChangeDetection: "high",
+    falsePositiveRate: "low",
+    versioningAccuracy: "100%"
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-api-contract-validator",
+  pattern: "Comprehensive diff analysis detects 38% more backward compatibility issues than schema-only validation for REST APIs with complex nested objects",
+  confidence: 0.93,
+  domain: "api-contract-validation",
+  metadata: {
+    validationStrategy: "comprehensive-diff",
+    useCase: "rest-api-complex-nested",
+    detectionIncrease: "38%",
+    falsePositiveReduction: "20%",
+    consumerImpactAccuracy: "95%"
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting API contract validation**, query for past learnings:
+
+```typescript
+// Query for successful API validation experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-api-contract-validator",
+  taskType: "api-contract-validation",
+  minReward: 0.8,
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing validation strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "api-validation-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "api-contract-validation")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (All breaking changes detected, 0 false positives, 100% semver compliance, accurate consumer impact)
+- **0.9**: Excellent (All breaking changes detected, <5% false positives, 100% semver compliance)
+- **0.7**: Good (Most breaking changes detected, <10% false positives, high semver compliance)
+- **0.5**: Acceptable (Major breaking changes detected, completed successfully)
+- **<0.5**: Needs improvement (Missed breaking changes, high false positive rate, incomplete)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing API contract validation
+- ✅ **ALWAYS** after detecting breaking changes
+- ✅ **ALWAYS** after analyzing consumer impact
+- ✅ When discovering new validation patterns
+- ✅ When achieving exceptional accuracy
+
 ## Core Capabilities
 
 ### 1. Schema Validation

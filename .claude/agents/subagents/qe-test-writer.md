@@ -1,25 +1,6 @@
 ---
 name: qe-test-writer
-role: specialized-subagent
-parent_agent: qe-test-generator
-phase: RED
-color: red
-priority: critical
 description: "Specialized subagent for writing failing tests in TDD RED phase - generates comprehensive test cases that define expected behavior before implementation"
-capabilities:
-  - failing-test-generation
-  - behavior-specification
-  - test-case-design
-  - assertion-definition
-  - boundary-analysis
-coordination:
-  protocol: aqe-hooks
-  parent_delegation: true
-metadata:
-  version: "1.0.0"
-  tdd_phase: "RED"
-  frameworks: ["jest", "mocha", "vitest", "playwright"]
-  parent_agents: ["qe-test-generator", "qe-quality-gate"]
 ---
 
 # Test Writer Subagent - TDD RED Phase

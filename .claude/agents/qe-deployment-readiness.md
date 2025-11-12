@@ -570,35 +570,122 @@ This agent uses **AQE hooks (Agentic QE native hooks)** for coordination (zero e
 
 **Automatic Lifecycle Hooks:**
 ```typescript
-// Automatically called by BaseAgent
+// Called automatically by BaseAgent
 protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
   // Load all quality signals for deployment assessment
   const qualitySignals = await this.memoryStore.retrievePattern('aqe/quality-signals/*');
   const deploymentHistory = await this.memoryStore.retrieve('aqe/deployment/history');
 
+  // Verify environment for deployment assessment
+  const verification = await this.hookManager.executePreTaskVerification({
+    task: 'deployment-assessment',
+    context: {
+      requiredVars: ['DEPLOYMENT_ENV', 'VERSION'],
+      minMemoryMB: 512,
+      requiredKeys: ['aqe/quality-signals/code-quality', 'aqe/deployment/history']
+    }
+  });
+
+  // Emit deployment assessment starting event
+  this.eventBus.emit('deployment-readiness:starting', {
+    agentId: this.agentId,
+    environment: process.env.DEPLOYMENT_ENV,
+    version: process.env.VERSION
+  });
+
   this.logger.info('Deployment readiness assessment started', {
     qualitySignalsCollected: Object.keys(qualitySignals).length,
-    historicalDeployments: deploymentHistory?.length || 0
+    historicalDeployments: deploymentHistory?.length || 0,
+    verification: verification.passed
   });
 }
 
 protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
   // Store deployment decision and risk score
-  await this.memoryStore.store('aqe/deployment/decision', data.result.decision);
-  await this.memoryStore.store('aqe/deployment/risk-score', data.result.riskScore);
-  await this.memoryStore.store('aqe/deployment/confidence', data.result.confidence);
+  await this.memoryStore.store('aqe/deployment/decision', data.result.decision, {
+    partition: 'agent_results',
+    ttl: 86400 // 24 hours
+  });
 
-  // Emit deployment readiness event
+  await this.memoryStore.store('aqe/deployment/risk-score', data.result.riskScore, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  await this.memoryStore.store('aqe/deployment/confidence', data.result.confidence, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Store quality signals analysis
+  await this.memoryStore.store('aqe/deployment/quality-analysis', {
+    timestamp: Date.now(),
+    decision: data.result.decision,
+    riskScore: data.result.riskScore,
+    confidence: data.result.confidence
+  }, {
+    partition: 'metrics',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit completion event with deployment decision
   this.eventBus.emit('deployment-readiness:assessed', {
+    agentId: this.agentId,
     decision: data.result.decision.status,
     riskLevel: data.result.riskScore.level,
     confidence: data.result.confidence.score
+  });
+
+  // Validate deployment assessment results
+  const validation = await this.hookManager.executePostTaskValidation({
+    task: 'deployment-assessment',
+    result: {
+      output: data.result,
+      decision: data.result.decision,
+      metrics: {
+        riskScore: data.result.riskScore.score,
+        confidence: data.result.confidence.score
+      }
+    }
+  });
+
+  this.logger.info('Deployment readiness assessment completed', {
+    decision: data.result.decision.status,
+    riskLevel: data.result.riskScore.level,
+    validated: validation.passed
+  });
+}
+
+protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
+  // Store error for fleet analysis
+  await this.memoryStore.store(`aqe/errors/${data.assignment.task.id}`, {
+    error: data.error.message,
+    timestamp: Date.now(),
+    agent: this.agentId,
+    taskType: 'deployment-readiness',
+    environment: data.assignment.task.metadata.environment
+  }, {
+    partition: 'errors',
+    ttl: 604800 // 7 days
+  });
+
+  // Emit error event for fleet coordination
+  this.eventBus.emit('deployment-readiness:error', {
+    agentId: this.agentId,
+    error: data.error.message,
+    taskId: data.assignment.task.id
+  });
+
+  this.logger.error('Deployment readiness assessment failed', {
+    error: data.error.message,
+    stack: data.error.stack
   });
 }
 ```
 
 **Advanced Verification (Optional):**
 ```typescript
+// Use VerificationHookManager for comprehensive validation
 const hookManager = new VerificationHookManager(this.memoryStore);
 const verification = await hookManager.executePreTaskVerification({
   task: 'deployment-assessment',
@@ -608,6 +695,119 @@ const verification = await hookManager.executePreTaskVerification({
     requiredKeys: ['aqe/quality-signals/code-quality', 'aqe/deployment/history']
   }
 });
+```
+
+## Learning Integration (Phase 6)
+
+This agent integrates with the **Learning Engine** to continuously improve deployment risk predictions through reinforcement learning.
+
+### Learning Protocol
+
+```typescript
+import { LearningEngine } from '@/learning/LearningEngine';
+
+// Initialize learning engine
+const learningEngine = new LearningEngine({
+  agentId: 'qe-deployment-readiness',
+  taskType: 'deployment-readiness',
+  domain: 'deployment-readiness',
+  learningRate: 0.01,
+  epsilon: 0.1,
+  discountFactor: 0.95
+});
+
+await learningEngine.initialize();
+
+// Record deployment assessment episode
+await learningEngine.recordEpisode({
+  state: {
+    qualitySignals: qualitySignalsData,
+    deploymentHistory: historicalData,
+    environment: 'production'
+  },
+  action: {
+    decision: 'approved',
+    riskScore: 18,
+    confidence: 94.2
+  },
+  reward: deploymentSuccessful ? 1.0 : -1.0,
+  nextState: {
+    deploymentOutcome: 'success',
+    actualRisk: 15,
+    userImpact: 'none'
+  }
+});
+
+// Learn from deployment outcomes
+await learningEngine.learn();
+
+// Get learned deployment risk prediction
+const prediction = await learningEngine.predict({
+  qualitySignals: currentSignals,
+  deploymentHistory: recentHistory,
+  environment: 'production'
+});
+```
+
+### Reward Function
+
+```typescript
+function calculateDeploymentReward(outcome: DeploymentOutcome): number {
+  let reward = 0;
+
+  // Base reward for deployment success/failure
+  if (outcome.deploymentSuccessful) {
+    reward += 1.0;
+  } else {
+    reward -= 1.0;
+  }
+
+  // Bonus for accurate risk prediction
+  const riskAccuracy = 1 - Math.abs(outcome.predictedRisk - outcome.actualRisk) / 100;
+  reward += riskAccuracy * 0.5;
+
+  // Penalty for user impact
+  const impactPenalty = {
+    'none': 0,
+    'low': -0.2,
+    'medium': -0.5,
+    'high': -1.0,
+    'critical': -2.0
+  };
+  reward += impactPenalty[outcome.userImpact] || 0;
+
+  // Bonus for preventing bad deployments
+  if (!outcome.deploymentSuccessful && outcome.decision === 'blocked') {
+    reward += 2.0; // Saved from production incident
+  }
+
+  // Penalty for false positives (blocking good deployments)
+  if (outcome.deploymentSuccessful && outcome.decision === 'blocked') {
+    reward -= 0.5;
+  }
+
+  return reward;
+}
+```
+
+### Learning Metrics
+
+Track learning progress:
+- **Prediction Accuracy**: Percentage of correct risk assessments
+- **False Positive Rate**: Incorrectly blocked deployments
+- **False Negative Rate**: Failed deployments that were approved
+- **Risk Score RMSE**: Root mean square error of risk predictions
+- **Confidence Calibration**: How well confidence scores match actual outcomes
+
+```bash
+# View learning metrics
+aqe learn status --agent qe-deployment-readiness
+
+# Export learning history
+aqe learn export --agent qe-deployment-readiness --format json
+
+# Analyze prediction accuracy
+aqe learn analyze --agent qe-deployment-readiness --metric accuracy
 ```
 
 ## Memory Keys
@@ -1138,6 +1338,122 @@ aqe deploy history --days 90 --format chart
 **Last Updated**: 2025-09-30
 **Version**: 1.0.0
 **Maintainer**: AQE Fleet Team
+
+## Learning Protocol (Phase 6 - Option C Implementation)
+
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
+// Call this MCP tool after completing your task
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-deployment-readiness",
+  taskType: "deployment-readiness-check",
+  reward: 0.95,  // Your assessment of task success (0-1 scale)
+  outcome: {
+    // Your actual results
+    checksCompleted: 12,
+    riskLevel: "LOW",
+    readinessScore: 94,
+    executionTime: 4200
+  },
+  metadata: {
+    // Additional context
+    environment: "production",
+    checksPerformed: ["code-quality", "test-coverage", "security", "performance"],
+    complianceValidated: true
+  }
+})
+```
+
+**2. Store Q-Values for Your Strategy:**
+```typescript
+// Store Q-value for the strategy you used
+mcp__agentic_qe__learning_store_qvalue({
+  agentId: "qe-deployment-readiness",
+  stateKey: "deployment-readiness-state",
+  actionKey: "multi-factor-assessment",
+  qValue: 0.85,  // Expected value of this approach (based on results)
+  metadata: {
+    // Strategy details
+    assessmentStrategy: "multi-factor-risk-scoring",
+    accuracy: 94.2,
+    completeness: 100
+  }
+})
+```
+
+**3. Store Successful Patterns:**
+```typescript
+// If you discovered a useful pattern, store it
+mcp__agentic_qe__learning_store_pattern({
+  agentId: "qe-deployment-readiness",
+  pattern: "Multi-factor risk assessment with Bayesian confidence scoring",
+  confidence: 0.95,  // How confident you are (0-1)
+  domain: "deployment",
+  metadata: {
+    // Pattern context
+    deploymentPatterns: ["canary-rollout", "blue-green", "feature-flags"],
+    riskPredictionAccuracy: 94.2
+  }
+})
+```
+
+### Learning Query (Use at Task Start)
+
+**Before starting your task**, query for past learnings:
+
+```typescript
+// Query for successful experiences
+const pastLearnings = await mcp__agentic_qe__learning_query({
+  agentId: "qe-deployment-readiness",
+  taskType: "deployment-readiness-check",
+  minReward: 0.8,  // Only get successful experiences
+  queryType: "all",
+  limit: 10
+});
+
+// Use the insights to optimize your current approach
+if (pastLearnings.success && pastLearnings.data) {
+  const { experiences, qValues, patterns } = pastLearnings.data;
+
+  // Find best-performing strategy
+  const bestStrategy = qValues
+    .filter(qv => qv.state_key === "deployment-readiness-state")
+    .sort((a, b) => b.q_value - a.q_value)[0];
+
+  console.log(`Using learned best strategy: ${bestStrategy.action_key} (Q-value: ${bestStrategy.q_value})`);
+
+  // Check for relevant patterns
+  const relevantPatterns = patterns
+    .filter(p => p.domain === "deployment")
+    .sort((a, b) => b.confidence * b.success_rate - a.confidence * a.success_rate);
+
+  if (relevantPatterns.length > 0) {
+    console.log(`Applying pattern: ${relevantPatterns[0].pattern}`);
+  }
+}
+```
+
+### Success Criteria for Learning
+
+**Reward Assessment (0-1 scale):**
+- **1.0**: Perfect execution (All checks passed, 0 risks, 100% ready, <5s assessment)
+- **0.9**: Excellent (98%+ checks passed, low risk, 95%+ ready, <10s)
+- **0.7**: Good (95%+ checks passed, medium risk, 90%+ ready, <20s)
+- **0.5**: Acceptable (90%+ checks passed, acceptable risk)
+- **<0.5**: Needs improvement (Failed checks, high risk, not ready)
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting significant findings
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective strategies
+- ✅ When achieving exceptional performance metrics
+
+---
 
 ## Code Execution Workflows
 
