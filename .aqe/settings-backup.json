@@ -1,0 +1,153 @@
+
+{
+  "env": {
+    "CLAUDE_FLOW_AUTO_COMMIT": "false",
+    "CLAUDE_FLOW_AUTO_PUSH": "false",
+    "CLAUDE_FLOW_HOOKS_ENABLED": "true",
+    "CLAUDE_FLOW_TELEMETRY_ENABLED": "true",
+    "CLAUDE_FLOW_REMOTE_EXECUTION": "true",
+    "CLAUDE_FLOW_CHECKPOINTS_ENABLED": "true",
+    "AGENTDB_LEARNING_ENABLED": "true",
+    "AGENTDB_REASONING_ENABLED": "true",
+    "AGENTDB_AUTO_TRAIN": "true"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx claude-flow:*)",
+      "Bash(npx agentdb:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run test:*)",
+      "Bash(npm test:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git config:*)",
+      "Bash(git tag:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(jq:*)",
+      "Bash(node:*)",
+      "Bash(which:*)",
+      "Bash(pwd)",
+      "Bash(ls:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | jq -r '.tool_input.command // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks pre-command --command '{}' --validate-safety true --prepare-resources true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "description": "3. Semantic Search Memory - Query similar successful past edits",
+            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; echo \"🔍 Semantic Search: Querying similar successful edits for $FILE...\"; npx agentdb@latest query --domain \"successful-edits\" --query \"file:$FILE\" --k 5 --min-confidence 0.8 --format json 2>/dev/null || echo \"{}\" | jq -r \".memories[]? | \\\"💡 Past Success: \\(.pattern.summary // \\\"No similar patterns found\\\")\\\" \" 2>/dev/null; npx claude-flow@alpha hooks pre-edit --file \"$FILE\" --auto-assign-agents true --load-context true'"
+          },
+          {
+            "type": "command",
+            "description": "5. Failure Pattern Recognition - Warn about known failure patterns",
+            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; echo \"⚠️ Failure Detection: Checking for known failure patterns...\"; npx agentdb@latest query --domain \"failed-edits\" --query \"file:$FILE\" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r \".memories[]? | \\\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\\"unknown\\\")\\\" \" 2>/dev/null || true'"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "description": "4. Trajectory Prediction - Predict optimal task sequence",
+            "command": "cat | jq -r '.tool_input.prompt // .tool_input.task // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'TASK=\"{}\"; echo \"🎯 Trajectory Prediction: Analyzing optimal workflow for task...\"; npx agentdb@latest query --domain \"task-trajectories\" --query \"task:$TASK\" --k 3 --min-confidence 0.75 --format json 2>/dev/null | jq -r \".memories[]? | \\\"📋 Predicted Steps: \\(.pattern.trajectory // \\\"No trajectory data\\\") (Success Rate: \\(.confidence // 0))\\\" \" 2>/dev/null || echo \"📋 No historical trajectory data - learning from this task...\"; npx claude-flow@alpha hooks pre-task --description \"$TASK\" --auto-spawn-agents true --load-memory true'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | jq -r '.tool_input.command // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks post-command --command '{}' --track-metrics true --store-results true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "description": "1. Experience Replay Developer - Capture edit as RL experience",
+            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; echo \"💾 Experience Replay: Storing edit experience for $FILE...\"; TIMESTAMP=$(date +%s); npx agentdb@latest store-pattern --type \"experience\" --domain \"code-edits\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"timestamp\\\":$TIMESTAMP,\\\"action\\\":\\\"edit\\\",\\\"state\\\":\\\"pre-test\\\"}\" --confidence 0.5 2>/dev/null || true; npx claude-flow@alpha hooks post-edit --file \"$FILE\" --format true --update-memory true --train-patterns true'"
+          },
+          {
+            "type": "command",
+            "description": "2. Verdict-Based Quality - Async verdict assignment after tests",
+            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; (sleep 2; TEST_RESULT=$(npm test --silent 2>&1 | grep -q \"pass\" && echo \"ACCEPT\" || echo \"REJECT\"); REWARD=$([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"1.0\" || echo \"-1.0\"); echo \"⚖️ Verdict: $TEST_RESULT (reward: $REWARD) for $FILE\"; npx agentdb@latest store-pattern --type \"verdict\" --domain \"code-quality\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"verdict\\\":\\\"$TEST_RESULT\\\",\\\"reward\\\":$REWARD}\" --confidence $([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"0.95\" || echo \"0.3\") 2>/dev/null; if [ \"$TEST_RESULT\" = \"ACCEPT\" ]; then npx agentdb@latest store-pattern --type \"success\" --domain \"successful-edits\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"summary\\\":\\\"Edit passed tests\\\"}\" --confidence 0.9 2>/dev/null; else npx agentdb@latest store-pattern --type \"failure\" --domain \"failed-edits\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"reason\\\":\\\"Tests failed\\\"}\" --confidence 0.8 2>/dev/null; fi) &'"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "description": "4. Trajectory Storage - Record task trajectory for learning",
+            "command": "cat | jq -r '.tool_input.prompt // .tool_input.task // empty, .result.success // \"unknown\"' | tr '\\n' '\\0' | xargs -0 bash -c 'TASK=\"$1\"; SUCCESS=\"$2\"; echo \"📊 Trajectory Storage: Recording task workflow...\"; CONFIDENCE=$([ \"$SUCCESS\" = \"true\" ] && echo \"0.95\" || echo \"0.5\"); npx agentdb@latest store-pattern --type \"trajectory\" --domain \"task-trajectories\" --pattern \"{\\\"task\\\":\\\"$TASK\\\",\\\"success\\\":$SUCCESS,\\\"trajectory\\\":\\\"search→scaffold→test→refine\\\"}\" --confidence \"$CONFIDENCE\" 2>/dev/null || true; npx claude-flow@alpha hooks post-task --analyze-performance true --store-decisions true --export-learnings true' _"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash -c 'INPUT=$(cat); CUSTOM=$(echo \"$INPUT\" | jq -r \".custom_instructions // \\\"\\\"\"); echo \"🔄 PreCompact Guidance:\"; echo \"📋 IMPORTANT: Review CLAUDE.md in project root for:\"; echo \"   • 54 available agents and concurrent usage patterns\"; echo \"   • Swarm coordination strategies (hierarchical, mesh, adaptive)\"; echo \"   • SPARC methodology workflows with batchtools optimization\"; echo \"   • Critical concurrent execution rules (GOLDEN RULE: 1 MESSAGE = ALL OPERATIONS)\"; if [ -n \"$CUSTOM\" ]; then echo \"🎯 Custom compact instructions: $CUSTOM\"; fi; echo \"✅ Ready for compact operation\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact Guidance (Context Window Full):\"; echo \"📋 CRITICAL: Before compacting, ensure you understand:\"; echo \"   • All 54 agents available in .claude/agents/ directory\"; echo \"   • Concurrent execution patterns from CLAUDE.md\"; echo \"   • Batchtools optimization for 300% performance gains\"; echo \"   • Swarm coordination strategies for complex tasks\"; echo \"⚡ Apply GOLDEN RULE: Always batch operations in single messages\"; echo \"✅ Auto-compact proceeding with full agent context\"'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "description": "Session end - Train models and compress learnings",
+            "command": "bash -c 'echo \"🎓 Session End: Training models on accumulated experiences...\"; npx agentdb@latest train --domain \"code-edits\" --epochs 10 --batch-size 32 2>/dev/null || echo \"⚠️ Training skipped (insufficient data)\"; echo \"🧠 Memory Distillation: Compressing session learnings...\"; npx agentdb@latest optimize-memory --compress true --consolidate-patterns true 2>/dev/null || true; npx claude-flow@alpha hooks session-end --generate-summary true --persist-state true --export-metrics true'"
+          }
+        ]
+      }
+    ]
+  },
+  "includeCoAuthoredBy": true,
+  "enabledMcpjsonServers": ["claude-flow", "ruv-swarm", "agentic-qe"],
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/statusline-command.sh"
+  }
+}

@@ -2,6 +2,11 @@
 # Agentic QE Fleet Post-Execution Coordination
 # This script uses native AQE capabilities - no external dependencies required
 
+# Ensure we're in the project root (works from any directory)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT" || exit 1
+
 # Capture final fleet status
 agentic-qe fleet status --json > /tmp/aqe-fleet-status-post.json 2>/dev/null || true
 
