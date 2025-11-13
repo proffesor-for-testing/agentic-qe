@@ -5,6 +5,7 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { InitOptions, FleetConfig } from '../../types';
+import { generateCondensedClaudeMd } from './init-claude-md-template';
 
 // Import version from package.json to maintain consistency
 const packageJson = require('../../../package.json');
@@ -820,14 +821,14 @@ For full capabilities, install the complete agentic-qe package.
   }
 
   /**
-   * Copy all 35 QE Fleet skills (filters out Claude Flow skills)
+   * Copy all 37 QE Fleet skills (filters out Claude Flow skills)
    */
   private static async copySkillTemplates(): Promise<void> {
     console.log(chalk.cyan('  🎯 Initializing QE Fleet skills...'));
 
-    // Define all 34 QE Fleet skills (Phase 1: 17 original + Phase 2: 17 new = 34 total)
+    // Define all 37 QE Fleet skills (Phase 1: 18 + Phase 2: 16 + Phase 3: 3 = 37 total)
     const QE_FLEET_SKILLS = [
-      // Phase 1: Original Quality Practices (17 skills)
+      // Phase 1: Original Quality Practices (18 skills)
       // Core Quality Practices (3)
       'agentic-quality-engineering',
       'context-driven-testing',
@@ -855,7 +856,7 @@ For full capabilities, install the complete agentic-qe package.
       'technical-writing',
       'consultancy-practices',
 
-      // Phase 2: Expanded QE Skills Library (17 skills)
+      // Phase 2: Expanded QE Skills Library (16 skills)
       // Testing Methodologies (6)
       'regression-testing',
       'shift-left-testing',
@@ -875,9 +876,15 @@ For full capabilities, install the complete agentic-qe package.
       'compliance-testing',
       'visual-testing-advanced',
 
-      // Testing Infrastructure (2)
+      // Testing Infrastructure (1)
       'test-environment-management',
-      'test-reporting-analytics'
+      'test-reporting-analytics',
+
+      // Phase 3: Advanced Quality Engineering Skills (3 skills)
+      // Strategic Testing Methodologies (3)
+      'six-thinking-hats',
+      'brutal-honesty-review',
+      'cicd-pipeline-qe-orchestrator'
     ];
 
     // Find the agentic-qe package location
@@ -953,11 +960,11 @@ For full capabilities, install the complete agentic-qe package.
 
     console.log(chalk.cyan(`  📋 Total QE skills initialized: ${finalSkillCount}`));
 
-    // Verify we have exactly 34 QE skills
-    if (finalSkillCount === 34) {
-      console.log(chalk.green('  ✅ All 34 QE Fleet skills successfully initialized'));
-    } else if (finalSkillCount < 34) {
-      console.warn(chalk.yellow(`  ⚠️  Expected 34 QE skills, found ${finalSkillCount}`));
+    // Verify we have exactly 37 QE skills
+    if (finalSkillCount === 37) {
+      console.log(chalk.green('  ✅ All 37 QE Fleet skills successfully initialized'));
+    } else if (finalSkillCount < 37) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 37 QE skills, found ${finalSkillCount}`));
       const missingSkills = QE_FLEET_SKILLS.filter(skill => {
         return !fs.existsSync(path.join(targetPath, skill));
       });
@@ -1417,6 +1424,19 @@ echo "[AQE] Post-execution coordination complete"
       }
     }
 
+    // Generate condensed CLAUDE.md using template
+    const claudeMdContent = generateCondensedClaudeMd({
+      agentCount,
+      topology: config.topology,
+      maxAgents: config.maxAgents,
+      testingFocus: config.testingFocus,
+      environments: config.environments,
+      frameworks: config.frameworks,
+      routing: config.routing,
+      streaming: config.streaming,
+    }, PACKAGE_VERSION);
+
+    /* OLD TEMPLATE - Replaced with condensed version
     const claudeMdContent = `# Claude Code Configuration - Agentic QE Fleet
 
 ## 🤖 Agentic Quality Engineering Fleet
@@ -1669,9 +1689,9 @@ for await (const event of handler.execute(params)) {
 
 ## 🎯 Claude Code Skills Integration
 
-This fleet includes **34 specialized QE skills** that agents can use:
+This fleet includes **37 specialized QE skills** that agents can use:
 
-### Phase 1: Original Quality Engineering Skills (17 skills)
+### Phase 1: Original Quality Engineering Skills (18 skills)
 
 #### Core Testing (3 skills)
 - **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
@@ -1802,7 +1822,7 @@ aqe improve cycle
 
 - **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents (18 main + 8 TDD subagents)
 - **Subagent Definitions**: \\\`.claude/agents/subagents/\\\` - 8 specialized TDD subagents for test generation workflow
-- **Skills**: \\\`.claude/skills/\\\` - 34 specialized QE skills for agents (Phase 1: 17 + Phase 2: 17)
+- **Skills**: \\\`.claude/skills/\\\` - 37 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16 + Phase 3: 3)
 - **Fleet Config**: \\\`.agentic-qe/config/fleet.json\\\`
 - **Routing Config**: \\\`.agentic-qe/config/routing.json\\\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \\\`.agentic-qe/config/aqe-hooks.json\\\` (zero dependencies, 100-500x faster)
@@ -1867,7 +1887,7 @@ tail -f .agentic-qe/logs/fleet.log
 **Generated by**: Agentic QE Fleet v${PACKAGE_VERSION}
 **Initialization Date**: ${new Date().toISOString()}
 **Fleet Topology**: ${config.topology}
-`;
+`; */ // End of old template comment
 
     // Write CLAUDE.md based on append strategy (v1.3.7 fix)
     let finalContent: string;

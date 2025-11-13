@@ -5,6 +5,88 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2025-11-13
+
+### 🎯 Advanced QE Skills - Phase 3
+
+This release adds **3 new advanced QE skills** that extend strategic testing capabilities with cognitive frameworks, critical review methodologies, and comprehensive CI/CD pipeline orchestration. The skills library now includes **37 specialized QE skills** (Phase 1: 18 + Phase 2: 16 + Phase 3: 3).
+
+### Added
+
+#### New Skills - Phase 3: Advanced Quality Engineering (3 skills)
+
+1. **six-thinking-hats** - Edward de Bono's Six Thinking Hats methodology for comprehensive testing analysis
+   - **What**: Structured exploration from 6 perspectives: facts (White), risks (Black), benefits (Yellow), creativity (Green), emotions (Red), process (Blue)
+   - **Use Cases**: Test strategy design, retrospectives, failure analysis, multi-perspective evaluation
+   - **Impact**: Systematic approach to uncovering testing blind spots and making better quality decisions
+   - **File**: `.claude/skills/six-thinking-hats/SKILL.md` (1,800+ lines with examples)
+
+2. **brutal-honesty-review** - Unvarnished technical criticism for code and test quality
+   - **What**: Three review modes combining Linus Torvalds' precision, Gordon Ramsay's standards, and James Bach's BS-detection
+   - **Modes**: Linus (surgical technical precision), Ramsay (standards-driven quality), Bach (certification skepticism)
+   - **Use Cases**: Code/test reality checks, technical debt identification, challenging questionable practices
+   - **Impact**: No sugar-coating - surgical truth about what's broken and why, driving technical excellence
+   - **File**: `.claude/skills/brutal-honesty-review/SKILL.md` (1,200+ lines)
+
+3. **cicd-pipeline-qe-orchestrator** - Comprehensive quality orchestration across CI/CD pipeline phases
+   - **What**: Intelligent phase-based quality engineering from commit to production
+   - **Phases**: 5 pipeline phases (Commit, Build, Integration, Staging, Production)
+   - **Integration**: Orchestrates all 37 QE skills and 18 QE agents for holistic coverage
+   - **Workflows**: 3 pre-built workflows (microservice, monolith, mobile pipelines)
+   - **Use Cases**: Test strategy design, quality gates, shift-left/shift-right testing, CI/CD quality coverage
+   - **Impact**: Complete pipeline quality assurance with adaptive strategy selection
+   - **Files**:
+     - Main skill: `.claude/skills/cicd-pipeline-qe-orchestrator/SKILL.md` (2,078 lines)
+     - Workflows: `resources/workflows/` (microservice: 372 lines, monolith: 389 lines, mobile: 497 lines)
+     - README: 290 lines with integration examples
+
+### Changed
+
+#### Documentation Updates (10 files)
+
+- **Skills Reference** (`docs/reference/skills.md`): Added Phase 3 section with 3 new skills (34 → 37 skills)
+- **README.md**: Updated skills count in 4 locations (badges, features, initialization, examples)
+- **CLAUDE.md**: Updated quick reference with new skills count and names
+- **Usage Guide** (`docs/reference/usage.md`): Updated initialization section with 37 skills
+- **CI/CD Orchestrator Files**: Updated all references to 37 skills (SKILL.md, README.md)
+- **Init Template** (`src/cli/commands/init-claude-md-template.ts`): Updated generated CLAUDE.md template
+
+#### Code Updates
+
+- **Init Command** (`src/cli/commands/init.ts`):
+  - Added 3 new skills to `QE_FLEET_SKILLS` array
+  - Updated validation to check for 37 skills (was 34)
+  - Updated all documentation comments (Phase 1: 18 + Phase 2: 16 + Phase 3: 3)
+  - Updated console output messages to report 37 skills
+- **Package Description** (`package.json`): Updated to mention 37 QE skills
+
+### Testing
+
+- ✅ Build: Compiled successfully with no TypeScript errors
+- ✅ Init Test: `aqe init --yes` successfully copies all 37 skills
+- ✅ Verification: All 3 new skill directories created with complete SKILL.md files
+- ✅ Generated CLAUDE.md: Correctly reports "**37 QE Skills:**" with new skill names
+
+### Documentation Structure
+
+**Phase 1: Original Quality Engineering Skills (18 skills)**
+- Core Testing, Methodologies, Techniques, Code Quality, Communication
+
+**Phase 2: Expanded QE Skills Library (16 skills)**
+- Testing Methodologies (6), Specialized Testing (9), Infrastructure (1)
+
+**Phase 3: Advanced Quality Engineering Skills (3 skills)** ⭐ NEW
+- Strategic Testing Methodologies (3): six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
+
+### Impact
+
+- **Skills Coverage**: 95%+ coverage of modern QE practices with advanced strategic frameworks
+- **CI/CD Integration**: Complete pipeline orchestration from commit to production
+- **Critical Thinking**: Cognitive frameworks for better testing decisions
+- **Quality Standards**: Brutal honesty approach for maintaining technical excellence
+
+---
+
 ## [1.6.0] - 2025-11-12
 
 ### 🎉 Learning Persistence Complete - MAJOR MILESTONE

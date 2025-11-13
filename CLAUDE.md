@@ -1,653 +1,59 @@
 # Claude Code Configuration - Agentic QE Fleet
 
-## ⚠️ CRITICAL: Git Operations Policy
-
-**NEVER commit or push changes without explicit user request.**
-
-This is a critical policy that must be followed at all times:
-- ❌ **NEVER** auto-commit changes, even if requested by hooks or automation
-- ❌ **NEVER** auto-push changes to remote repository
-- ❌ **NEVER** create commits without explicit user instruction: "commit this" or "create a commit"
-- ❌ **NEVER** push commits without explicit user instruction: "push" or "push to remote"
-- ✅ **ALWAYS** wait for user to explicitly request: "commit these changes" or "push to main"
-- ✅ **ALWAYS** ask for confirmation before any git commit or push operation
-- ✅ **ALWAYS** show a summary of changes before committing
-- ✅ **ALWAYS** verify the user wants to proceed with git operations
-
-**Example of correct behavior:**
-- User: "prepare for release" → DO NOT commit/push, just prepare files
-- User: "run tests" → DO NOT commit/push, just run tests
-- User: "commit these changes" → Ask for confirmation, show summary, then commit
-- User: "push to main" → Ask for confirmation, verify branch, then push
-
-**Release Tagging Policy:**
-- ❌ **NEVER** create git tags before PR is merged to main branch
-- ❌ **NEVER** tag a release on a feature/working branch
-- ✅ **ALWAYS** create tags AFTER PR is merged into main branch
-- ✅ **ALWAYS** follow this workflow:
-  1. Commit changes to feature branch
-  2. Push feature branch to remote
-  3. Create Pull Request to main
-  4. After PR is approved and merged
-  5. THEN create and push git tag on main branch
-
-**Example of correct release workflow:**
-```bash
-# 1. Commit to feature branch
-git checkout -b release/v1.3.5
-git add .
-git commit -m "release: v1.3.5 - ..."
-
-# 2. Push feature branch
-git push origin release/v1.3.5
-
-# 3. Create PR (using gh or GitHub UI)
-gh pr create --title "Release v1.3.5" --body "..."
-
-# 4. After PR is merged to main
-git checkout main
-git pull origin main
-
-# 5. NOW create and push tag
-git tag -a v1.3.5 -m "Release v1.3.5"
-git push origin v1.3.5
-```
-
-This policy applies to all agents, hooks, automation, and CI/CD workflows.
-
-## ⚠️ CRITICAL: Release Verification Policy
-
-**ALWAYS verify release candidates with full initialization test BEFORE committing any release.**
-
-This is a critical policy to ensure release quality:
-- ❌ **NEVER** commit a release candidate (RC) without running `aqe init` verification
-- ❌ **NEVER** tag a version without testing agent functionality
-- ✅ **ALWAYS** create a fresh test project and run `aqe init` before any release
-- ✅ **ALWAYS** verify all agents/commands/skills/config/CLAUDE.md are initialized properly
-- ✅ **ALWAYS** test at least one QE agent to verify claimed features work
-- ✅ **ALWAYS** document verification results before proceeding with release
-
-**Release Verification Checklist**:
-```bash
-# 1. Create clean test project
-mkdir /tmp/aqe-test-release && cd /tmp/aqe-test-release
-npm init -y
-
-# 2. Install release candidate
-npm install /path/to/agentic-qe-cf  # or npm install agentic-qe@latest
-
-# 3. Initialize AQE
-npx aqe init
-
-# 4. Verify initialization (CRITICAL - CHECK EVERYTHING)
-ls -la .claude/agents/        # Should show all 18 QE agents
-ls -la .claude/skills/        # Should show all 34 QE skills
-ls -la .claude/commands/      # Should show all 8 AQE slash commands
-cat .claude/CLAUDE.md         # Should contain fleet configuration
-ls -la .agentic-qe/config/    # Should show configuration files
-cat .agentic-qe/config/fleet.json  # Should contain fleet config (valid JSON)
-ls -la .agentic-qe/db/        # Should show database files (memory.db, patterns.db)
-
-# 5. Verify databases are created and accessible
-file .agentic-qe/db/memory.db      # Should show SQLite 3.x database
-file .agentic-qe/db/patterns.db    # Should show SQLite 3.x database
-# Note: We use better-sqlite3, so use 'file' command to verify
-# Or use Node.js to query:
-node -e "const db = require('better-sqlite3')('.agentic-qe/db/memory.db'); console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\"table\"').all()); db.close();"
-node -e "const db = require('better-sqlite3')('.agentic-qe/db/patterns.db'); console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\"table\"').all()); db.close();"
-
-# 6. Test agent functionality (CRITICAL - MUST TEST AT LEAST ONE AGENT)
-npx aqe agent spawn qe-test-generator --task "Generate unit test for simple function"
-# OR use Claude Code Task tool with qe-test-generator
-# Verify agent spawns, executes task, and returns results
-
-# 7. Verify claimed features work
-# - Multi-Model Router: aqe routing status
-# - Learning System: aqe learn status
-# - Pattern Bank: aqe patterns list
-# - Flaky Detection: Verify qe-flaky-test-hunter agent exists and has ML capabilities
-# - AgentDB: Verify databases created and accessible
-
-# 8. Count verification (MUST MATCH CLAIMS)
-find .claude/agents -name "*.md" | wc -l    # Should show 18 agents
-find .claude/skills -name "*.md" | wc -l    # Should show 34 skills
-find .claude/commands -name "*.md" | wc -l  # Should show 8 commands
-```
-
-**Verification Success Criteria**:
-- ✅ All 18 QE agents present in `.claude/agents/` (exact count verified)
-- ✅ All 34 QE skills present in `.claude/skills/` (exact count verified)
-- ✅ All 8 AQE slash commands present in `.claude/commands/` (exact count verified)
-- ✅ CLAUDE.md contains fleet configuration with agent descriptions
-- ✅ Fleet config file exists at `.agentic-qe/config/fleet.json` and is valid JSON
-- ✅ Configuration directory `.agentic-qe/config/` contains all config files
-- ✅ Database files exist: `.agentic-qe/db/memory.db` and `.agentic-qe/db/patterns.db`
-- ✅ Databases are valid SQLite files with proper schema/tables
-- ✅ At least one agent successfully executes a task (qe-test-generator tested)
-- ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, AgentDB)
-- ✅ No initialization errors or missing files
-- ✅ File counts match documentation claims (18 agents, 34 skills, 8 commands)
-
-**Version Update Policy (CRITICAL)**:
-- ❌ **NEVER** create release PR without updating version numbers in ALL documentation
-- ✅ **ALWAYS** update version numbers BEFORE creating release PR
-- ✅ **ALWAYS** check and update these files:
-  - `README.md` (line ~10: "**Version X.X.X**")
-  - `README.md` (Recent Changes section)
-  - `package.json` (already updated by npm version or manually)
-  - Any other docs referencing current version
-- ✅ **ALWAYS** search for old version: `grep -r "v1.x.x" README.md docs/`
-
-**Version Update Workflow**:
-```bash
-# 1. Search for old version references (excluding historical docs)
-grep -r "v1.3.4\|Version 1.3.4" README.md --exclude-dir=docs/releases
-
-# 2. Update all found references to new version
-# - README.md header: Version X.X.X
-# - README.md tagline: Update cost savings if changed
-# - README.md Recent Changes: Add new version section
-
-# 3. THEN run release verification and create PR
-```
-
-**Example of correct behavior**:
-- User: "prepare release 1.3.5" → Update versions FIRST, verify, then prepare
-- User: "commit RC 1.3.5" → STOP, verify "Have you updated README.md version?"
-- User: "create PR" → STOP, verify "README.md shows correct version?"
-- User: "commit RC 1.3.5" → STOP, verify "Have you run aqe init verification?"
-- User: "tag v1.3.5" → STOP, verify "Have you completed release verification checklist?"
-
-This policy prevents releasing broken initialization, non-functional agents, or incorrect version numbers to users.
-
-## ⚠️ CRITICAL: Test Execution Policy
-
-**ALWAYS run tests in batches to avoid memory overload in constrained environments (DevPod, Codespaces, etc.).**
-
-This is a critical policy to prevent workspace crashes:
-- ❌ **NEVER** run all tests in parallel without memory constraints
-- ❌ **NEVER** use `npm test` without understanding memory impact
-- ❌ **NEVER** run `npm run test:integration-unsafe` (direct Jest execution)
-- ✅ **ALWAYS** use batched test scripts: `npm run test:unit`, `npm run test:integration`, `npm run test:agents`, etc.
-- ✅ **ALWAYS** run tests sequentially with `--runInBand` in memory-constrained environments
-- ✅ **ALWAYS** monitor memory usage before running large test suites
-- ✅ **INTEGRATION TESTS**: Always use `npm run test:integration` which runs `scripts/test-integration-batched.sh`
-
-**Example of correct behavior:**
-- User: "run all tests" → Run batched: `npm run test:unit && npm run test:integration && npm run test:agents`
-- User: "test everything" → Use sequential batched execution with memory limits
-- User: "run integration tests" → Use `npm run test:integration` (runs batched script)
-- ❌ BAD: `npm test` (runs all 959 tests in parallel, causes OOM)
-- ❌ BAD: `npm run test:integration-unsafe` (loads 46 files, causes OOM)
-- ✅ GOOD: `npm run test:unit` then `npm run test:integration` (batched with memory limits)
-
-**Available Batched Test Scripts** (see package.json):
-```bash
-npm run test:unit              # Unit tests only (512MB limit)
-npm run test:integration       # Integration tests BATCHED (scripts/test-integration-batched.sh)
-npm run test:agents            # Agent tests (512MB limit)
-npm run test:cli               # CLI tests (512MB limit)
-npm run test:mcp               # MCP tests (512MB limit)
-npm run test:performance       # Performance tests (1536MB limit)
-npm run test:agentdb           # AgentDB tests (1024MB limit)
-```
-
-**Why Integration Tests Need Batching**:
-- 46 integration test files (40 main + 6 phase2)
-- Each file creates Database instances, agents, FleetManagers
-- Running all 46 at once exceeds 768MB memory limit
-- `scripts/test-integration-batched.sh` runs in batches of 5 files with cleanup between batches
-- Phase2 tests run individually (heavier memory usage)
-
-This policy prevents workspace crashes that occurred in previous sessions due to running all tests simultaneously.
-
-## 🤖 Agentic Quality Engineering Fleet
-
-This project uses the **Agentic QE Fleet** - a distributed swarm of 18 AI agents for comprehensive software testing and quality assurance.
-
-### Available Agents
-
-#### Core Testing (5 agents)
-- **qe-test-generator**: AI-powered test generation with sublinear optimization
-- **qe-test-executor**: Multi-framework test execution with parallel processing
-- **qe-coverage-analyzer**: Real-time gap detection with O(log n) algorithms
-- **qe-quality-gate**: Intelligent quality gate with risk assessment
-- **qe-quality-analyzer**: Comprehensive quality metrics analysis
-
-#### Performance & Security (2 agents)
-- **qe-performance-tester**: Load testing with k6, JMeter, Gatling integration
-- **qe-security-scanner**: Multi-layer security with SAST/DAST scanning
-
-#### Strategic Planning (3 agents)
-- **qe-requirements-validator**: INVEST criteria validation and BDD generation
-- **qe-production-intelligence**: Production data to test scenarios conversion
-- **qe-fleet-commander**: Hierarchical fleet coordination (50+ agents)
-
-#### Deployment (1 agent)
-- **qe-deployment-readiness**: Multi-factor risk assessment for deployments
-
-#### Advanced Testing (4 agents)
-- **qe-regression-risk-analyzer**: Smart test selection with ML patterns
-- **qe-test-data-architect**: High-speed realistic data generation (10k+ records/sec)
-- **qe-api-contract-validator**: Breaking change detection across API versions
-- **qe-flaky-test-hunter**: Statistical flakiness detection and auto-stabilization
-
-#### Specialized (2 agents)
-- **qe-visual-tester**: Visual regression with AI-powered comparison
-- **qe-chaos-engineer**: Resilience testing with controlled fault injection
-
-## 🚀 Quick Start
-
-### Using Agents via Claude Code Task Tool (Recommended)
-
-\`\`\`javascript
-// Spawn agents directly in Claude Code
-Task("Generate tests", "Create comprehensive test suite for UserService", "qe-test-generator")
-Task("Analyze coverage", "Find gaps using O(log n) algorithms", "qe-coverage-analyzer")
-Task("Quality check", "Run quality gate validation", "qe-quality-gate")
-\`\`\`
-
-### Using MCP Tools
-
-\`\`\`bash
-# Check MCP connection
-claude mcp list
-# Should show: agentic-qe: npm run mcp:start - ✓ Connected
-
-# Use MCP tools in Claude Code
-mcp__agentic_qe__test_generate({ type: "unit", framework: "jest" })
-mcp__agentic_qe__test_execute({ parallel: true, coverage: true })
-mcp__agentic_qe__quality_analyze({ scope: "full" })
-\`\`\`
-
-### Using CLI
-
-\`\`\`bash
-# Quick commands
-aqe test <module-name>        # Generate tests
-aqe coverage                   # Analyze coverage
-aqe quality                    # Run quality gate
-aqe status                     # Check fleet status
-\`\`\`
-
-## 🔄 Agent Coordination
-
-All agents coordinate through **AQE hooks** (Agentic QE native hooks - zero external dependencies, 100-500x faster):
-
-### Automatic Lifecycle Hooks
-
-Agents extend \`BaseAgent\` and override lifecycle methods:
-
-\`\`\`typescript
-protected async onPreTask(data: { assignment: TaskAssignment }): Promise<void> {
-  // Load context before task execution
-  const context = await this.memoryStore.retrieve('aqe/context', {
-    partition: 'coordination'
-  });
-
-  this.logger.info('Pre-task hook complete');
-}
-
-protected async onPostTask(data: { assignment: TaskAssignment; result: any }): Promise<void> {
-  // Store results after task completion
-  await this.memoryStore.store('aqe/' + this.agentId.type + '/results', data.result, {
-    partition: 'agent_results',
-    ttl: 86400 // 24 hours
-  });
-
-  // Emit completion event
-  this.eventBus.emit('task:completed', {
-    agentId: this.agentId,
-    result: data.result
-  });
-
-  this.logger.info('Post-task hook complete');
-}
-
-protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
-  // Handle task errors
-  await this.memoryStore.store('aqe/errors/' + data.assignment.id, {
-    error: data.error.message,
-    stack: data.error.stack,
-    timestamp: Date.now()
-  }, {
-    partition: 'errors',
-    ttl: 604800 // 7 days
-  });
-
-  this.logger.error('Task failed', { error: data.error });
-}
-\`\`\`
-
-### Performance Comparison
-
-| Feature | AQE Hooks | External Hooks |
-|---------|-----------|----------------|
-| **Speed** | <1ms | 100-500ms |
-| **Dependencies** | Zero | External package |
-| **Type Safety** | Full TypeScript | Shell strings |
-| **Integration** | Direct API | Shell commands |
-| **Performance** | 100-500x faster | Baseline |
-
-## 📋 Memory Namespace
-
-Agents share state through the **\`aqe/*\` memory namespace**:
-
-- \`aqe/test-plan/*\` - Test planning and requirements
-- \`aqe/coverage/*\` - Coverage analysis and gaps
-- \`aqe/quality/*\` - Quality metrics and gates
-- \`aqe/performance/*\` - Performance test results
-- \`aqe/security/*\` - Security scan findings
-- \`aqe/swarm/coordination\` - Cross-agent coordination
-
-## 🎯 Fleet Configuration
-
-**Topology**: hierarchical
-**Max Agents**: 10
-**Testing Focus**: unit, integration
-**Environments**: development
-**Frameworks**: jest
-
-## 💰 Multi-Model Router (v1.3.3)
-
-**Status**: ⚠️  Disabled (opt-in)
-
-The Multi-Model Router provides **70-81% cost savings** by intelligently selecting AI models based on task complexity.
-
-### Features
-
-- ✅ Intelligent model selection (GPT-3.5, GPT-4, Claude Sonnet 4.5, Claude Haiku)
-- ✅ Real-time cost tracking and aggregation
-- ✅ Automatic fallback chains for resilience
-- ✅ Feature flags for safe rollout
-- ✅ Zero breaking changes (disabled by default)
-
-### Enabling Routing
-
-**Option 1: Via Configuration**
-\`\`\`json
-// .agentic-qe/config/routing.json
-{
-  "multiModelRouter": {
-    "enabled": true
-  }
-}
-\`\`\`
-
-**Option 2: Via Environment Variable**
-\`\`\`bash
-export AQE_ROUTING_ENABLED=true
-\`\`\`
-
-### Model Selection Rules
-
-| Task Complexity | Model | Est. Cost | Use Case |
-|----------------|-------|-----------|----------|
-| **Simple** | GPT-3.5 | $0.0004 | Unit tests, basic validation |
-| **Moderate** | GPT-3.5 | $0.0008 | Integration tests, mocks |
-| **Complex** | GPT-4 | $0.0048 | Property-based, edge cases |
-| **Critical** | Claude Sonnet 4.5 | $0.0065 | Security, architecture review |
-
-### Cost Savings Example
-
-**Before Routing** (always GPT-4):
-- 100 simple tasks: $0.48
-- 50 complex tasks: $0.24
-- **Total**: $0.72
-
-**After Routing**:
-- 100 simple → GPT-3.5: $0.04
-- 50 complex → GPT-4: $0.24
-- **Total**: $0.28
-- **Savings**: $0.44 (61%)
-
-### Monitoring Costs
-
-\`\`\`bash
-# View cost dashboard
-aqe routing dashboard
-
-# Export cost report
-aqe routing report --format json
-
-# Check savings
-aqe routing stats
-\`\`\`
-
-## 📊 Streaming Progress (v1.3.3)
-
-**Status**: ✅ Enabled
-
-Real-time progress updates for long-running operations using AsyncGenerator pattern.
-
-### Features
-
-- ✅ Real-time progress percentage
-- ✅ Current operation visibility
-- ✅ for-await-of compatibility
-- ✅ Backward compatible (non-streaming still works)
-
-### Example Usage
-
-\`\`\`javascript
-// Using streaming MCP tool
-const handler = new TestExecuteStreamHandler();
-
-for await (const event of handler.execute(params)) {
-  if (event.type === 'progress') {
-    console.log(\`Progress: \${event.percent}% - \${event.message}\`);
-  } else if (event.type === 'result') {
-    console.log('Completed:', event.data);
-  }
-}
-\`\`\`
-
-### Supported Operations
-
-- ✅ Test execution (test-by-test progress)
-- ✅ Coverage analysis (incremental gap detection)
-- ⚠️  Test generation (coming in v1.1.0)
-- ⚠️  Security scanning (coming in v1.1.0)
-
-## 🎯 Claude Code Skills Integration
-
-This fleet includes **34 specialized QE skills** that agents can use:
-
-### Phase 1: Original Quality Engineering Skills (18 skills)
-
-#### Core Testing (3 skills)
-- **agentic-quality-engineering**: Using AI agents as force multipliers in quality work - autonomous testing systems, PACT principles, scaling quality engineering with intelligent agents
-- **context-driven-testing**: Apply context-driven testing principles where practices are chosen based on project context, not universal "best practices"
-- **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles
-
-#### Testing Methodologies (4 skills)
-- **tdd-london-chicago**: Apply both London and Chicago school TDD approaches - understanding different TDD philosophies and choosing the right testing style
-- **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace
-- **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment and prioritization
-- **test-automation-strategy**: Design and implement comprehensive test automation strategies
-
-#### Testing Techniques (4 skills)
-- **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing
-- **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours
-- **performance-testing**: Test application performance, scalability, and resilience with load testing and stress testing
-- **security-testing**: Test for security vulnerabilities using OWASP principles and security testing techniques
-
-#### Code Quality (3 skills)
-- **code-review-quality**: Conduct context-driven code reviews focusing on quality, testability, and maintainability
-- **refactoring-patterns**: Apply safe refactoring patterns to improve code structure without changing behavior
-- **quality-metrics**: Measure quality effectively with actionable metrics and KPIs
-
-#### Communication (3 skills)
-- **bug-reporting-excellence**: Write high-quality bug reports that get fixed quickly - includes templates, examples, and best practices
-- **technical-writing**: Create clear, concise technical documentation
-- **consultancy-practices**: Apply effective software quality consultancy practices
-
-### Phase 2: Expanded QE Skills Library (16 skills)
-
-#### Testing Methodologies (6 skills)
-- **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management
-- **shift-left-testing**: Move testing activities earlier in development lifecycle with TDD, BDD, and design for testability
-- **shift-right-testing**: Testing in production with feature flags, canary deployments, synthetic monitoring, and chaos engineering
-- **test-design-techniques**: Advanced test design using equivalence partitioning, boundary value analysis, and decision tables
-- **mutation-testing**: Test quality validation through mutation testing and measuring test suite effectiveness
-- **test-data-management**: Realistic test data generation, GDPR compliance, and data masking strategies
-
-#### Specialized Testing (9 skills)
-- **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification
-- **mobile-testing**: Comprehensive mobile testing for iOS and Android including gestures, sensors, and device fragmentation
-- **database-testing**: Database schema validation, data integrity testing, migration testing, and query performance
-- **contract-testing**: Consumer-driven contract testing for microservices using Pact and API versioning
-- **chaos-engineering-resilience**: Chaos engineering principles, controlled failure injection, and resilience testing
-- **compatibility-testing**: Cross-browser, cross-platform, and cross-device compatibility testing
-- **localization-testing**: Internationalization (i18n) and localization (l10n) testing for global products
-- **compliance-testing**: Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS
-- **visual-testing-advanced**: Advanced visual regression testing with AI-powered screenshot comparison and UI validation
-
-#### Testing Infrastructure (2 skills)
-- **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
-- **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
-
-### Using Skills
-
-#### Via CLI
-\`\`\`bash
-# List all available skills
-aqe skills list
-
-# Search for specific skills
-aqe skills search "testing"
-
-# Show skill details
-aqe skills show agentic-quality-engineering
-
-# Show skill statistics
-aqe skills stats
-\`\`\`
-
-#### Via Skill Tool in Claude Code
-\`\`\`javascript
-// Execute a skill
-Skill("agentic-quality-engineering")
-Skill("tdd-london-chicago")
-Skill("api-testing-patterns")
-\`\`\`
-
-#### Integration with Agents
-All QE agents automatically have access to relevant skills based on their specialization:
-- **Test generators** use: agentic-quality-engineering, api-testing-patterns, tdd-london-chicago
-- **Coverage analyzers** use: agentic-quality-engineering, quality-metrics, risk-based-testing
-- **Flaky test hunters** use: agentic-quality-engineering, exploratory-testing-advanced
-- **Performance testers** use: agentic-quality-engineering, performance-testing, quality-metrics
-- **Security scanners** use: agentic-quality-engineering, security-testing, risk-based-testing
-
-## 🧠 Q-Learning Integration (Phase 2)
-
-All agents automatically learn from task execution through Q-learning:
-
-### Observability
-\`\`\`bash
-# Check learning status
-aqe learn status --agent test-gen
-
-# View learned patterns
-aqe learn history --agent test-gen --limit 50
-
-# Export learning data
-aqe learn export --agent test-gen --output learning.json
-\`\`\`
-
-### Pattern Management
-\`\`\`bash
-# List test patterns
-aqe patterns list --framework jest
-
-# Search patterns
-aqe patterns search "api validation"
-
-# Extract patterns from tests
-aqe patterns extract ./tests --framework jest
-\`\`\`
-
-### Improvement Loop
-\`\`\`bash
-# Start continuous improvement
-aqe improve start
-
-# Check improvement status
-aqe improve status
-
-# Run single improvement cycle
-aqe improve cycle
-\`\`\`
-
-## 📚 Documentation
-
-- **Agent Definitions**: \`.claude/agents/\` - 26 QE agents (18 main agents + 8 TDD subagents)
-- **Skills**: \`.claude/skills/\` - 34 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16)
-- **Fleet Config**: \`.agentic-qe/config/fleet.json\`
-- **Routing Config**: \`.agentic-qe/config/routing.json\` (Multi-Model Router settings)
-- **AQE Hooks Config**: \`.agentic-qe/config/aqe-hooks.json\` (zero dependencies, 100-500x faster)
-
-## 🔧 Advanced Usage
-
-### Parallel Agent Execution
-
-\`\`\`javascript
-// Execute multiple agents concurrently
-Task("Test Generation", "Generate unit tests", "qe-test-generator")
-Task("Coverage Analysis", "Analyze current coverage", "qe-coverage-analyzer")
-Task("Security Scan", "Run security checks", "qe-security-scanner")
-Task("Performance Test", "Load test critical paths", "qe-performance-tester")
-\`\`\`
-
-### Agent Coordination Example
-
-\`\`\`javascript
-// Test generator stores results
-Task("Generate tests", "Create tests and store in memory at aqe/test-plan/generated", "qe-test-generator")
-
-// Test executor reads from memory
-Task("Execute tests", "Read test plan from aqe/test-plan/generated and execute", "qe-test-executor")
-
-// Coverage analyzer processes results
-Task("Analyze coverage", "Check coverage from aqe/coverage/results", "qe-coverage-analyzer")
-\`\`\`
-
-## 💡 Best Practices
-
-1. **Use Task Tool**: Claude Code's Task tool is the primary way to spawn agents
-2. **Batch Operations**: Always spawn multiple related agents in a single message
-3. **Memory Keys**: Use the \`aqe/*\` namespace for agent coordination
-4. **AQE Hooks**: Agents automatically use native AQE hooks for coordination (100-500x faster)
-5. **Parallel Execution**: Leverage concurrent agent execution for speed
-
-## 🆘 Troubleshooting
-
-### Check MCP Connection
-\`\`\`bash
-claude mcp list
-\`\`\`
-
-### View Agent Definitions
-\`\`\`bash
-ls -la .claude/agents/
-\`\`\`
-
-### Check Fleet Status
-\`\`\`bash
-aqe status --verbose
-\`\`\`
-
-### View Logs
-\`\`\`bash
-tail -f .agentic-qe/logs/fleet.log
-\`\`\`
+## ⚠️ CRITICAL POLICIES
+
+### Git Operations
+- ❌ NEVER auto-commit/push without explicit user request
+- ✅ ALWAYS wait for: "commit this" or "push to main"
+- 📋 **Full policy:** [docs/policies/git-operations.md](docs/policies/git-operations.md)
+
+### Release Verification
+- ❌ NEVER release without `aqe init` verification
+- ✅ ALWAYS test at least one agent with real database queries
+- 📋 **Full checklist:** [docs/policies/release-verification.md](docs/policies/release-verification.md)
+
+### Test Execution
+- ❌ NEVER run `npm test` (OOM risk in DevPod/Codespaces)
+- ✅ ALWAYS use batched scripts: `npm run test:unit`, `npm run test:integration`
+- 📋 **Full policy:** [docs/policies/test-execution.md](docs/policies/test-execution.md)
+
+### File Organization
+- ❌ NEVER save working files to root folder
+- ✅ ALWAYS use: `/docs`, `/tests`, `/src`, `/scripts`, `/examples`
 
 ---
 
-**Generated by**: Agentic QE Fleet v1.3.3
-**Initialization Date**: 2025-10-26T08:08:10.902Z
-**Fleet Topology**: hierarchical
+## 🤖 Agentic QE Fleet Quick Reference
+
+**18 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
+**37 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
+**8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
+
+### 📚 Complete Documentation
+
+- **[Agent Reference](docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
+- **[Skills Reference](docs/reference/skills.md)** - All 37 QE skills organized by category
+- **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
+
+### 🎯 Quick Start
+
+**Spawn agents:**
+```javascript
+Task("Generate tests", "Create test suite for UserService", "qe-test-generator")
+Task("Analyze coverage", "Find gaps using O(log n)", "qe-coverage-analyzer")
+```
+
+**Check learning status:**
+```bash
+aqe learn status --agent test-gen
+aqe patterns list --framework jest
+```
+
+### 💡 Key Principles
+- Use Task tool for agent execution (not just MCP)
+- Batch all operations in single messages (TodoWrite, file ops, etc.)
+- Test with actual databases, not mocks
+- Document only what actually works
 
 ---
 
@@ -854,10 +260,10 @@ Flow-Nexus extends MCP capabilities with 70+ cloud-based orchestration tools:
   Task("Test Engineer", "Write Jest tests. Check memory for API contracts.", "tester")
   Task("DevOps Engineer", "Setup Docker and CI/CD. Document in memory.", "cicd-engineer")
   Task("Security Auditor", "Review authentication. Report findings via hooks.", "reviewer")
-  
+
   // All todos batched together
   TodoWrite { todos: [...8-10 todos...] }
-  
+
   // All file operations together
   Write "backend/server.js"
   Write "frontend/App.jsx"
@@ -906,7 +312,7 @@ npx claude-flow@alpha hooks session-end --export-metrics true
   Task("Database agent", "Design and implement database schema. Store decisions in memory.", "code-analyzer")
   Task("Tester agent", "Create comprehensive test suite with 90% coverage.", "tester")
   Task("Reviewer agent", "Review code quality and security. Document findings.", "reviewer")
-  
+
   // Batch ALL todos in ONE call
   TodoWrite { todos: [
     {id: "1", content: "Research API patterns", status: "in_progress", priority: "high"},
@@ -918,7 +324,7 @@ npx claude-flow@alpha hooks session-end --export-metrics true
     {id: "7", content: "API documentation", status: "pending", priority: "low"},
     {id: "8", content: "Performance optimization", status: "pending", priority: "low"}
   ]}
-  
+
   // Parallel file operations
   Bash "mkdir -p app/{src,tests,docs,config}"
   Write "app/package.json"

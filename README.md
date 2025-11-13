@@ -6,12 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+<img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
-**Version 1.6.0** (Learning Persistence Complete) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (34 QE skills), and intelligent model routing.
+**Version 1.6.1** (Advanced QE Skills - Phase 3) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-🧠 **Q-Learning System** | 📚 **34 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
+> Enterprise-grade test automation with AI learning, comprehensive skills library (37 QE skills), and intelligent model routing.
+
+🧠 **Q-Learning System** | 📚 **37 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
 
 </div>
 
@@ -58,7 +60,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ 18 Specialized agent definitions (including qe-code-complexity)
 - ✅ 8 TDD subagent definitions (RED/GREEN/REFACTOR phases)
-- ✅ 34 World-class QE skills library
+- ✅ 37 World-class QE skills library
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -94,7 +96,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 34 QE Skills Library (v1.3.0)
+### 🎓 37 QE Skills Library (v1.3.0)
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -111,6 +113,9 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Testing Methodologies (6)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management
 - **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
+
+**Phase 3: Advanced Quality Engineering Skills (3 skills)**
+- **Strategic Testing Methodologies (3)**: six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
 
 </details>
 
@@ -172,10 +177,11 @@ Agents automatically leverage skills:
 claude "Use qe-test-generator with shift-left-testing and test-design-techniques skills to create tests before implementing the new payment feature"
 ```
 
-**Available skills** (agents auto-select from 34):
+**Available skills** (agents auto-select from 37):
 - TDD, API testing, performance, security
 - Accessibility, mobile, chaos engineering
 - Regression, shift-left/right, compliance
+- Six thinking hats, brutal honesty reviews, CI/CD orchestration
 
 ### Example 4: Full Quality Pipeline
 
