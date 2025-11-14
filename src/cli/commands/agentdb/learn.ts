@@ -46,13 +46,27 @@ export function createLearnCommand(): Command {
 }
 
 /**
- * Get AgentDB configuration from .agentic-qe/config/agentdb.json
+ * Get AgentDB configuration from .agentic-qe/config/learning.json
+ * Falls back to defaults if config doesn't exist
  */
 async function loadAgentDBConfig(): Promise<any> {
-  const configPath = path.join(process.cwd(), '.agentic-qe', 'config', 'agentdb.json');
+  const configPath = path.join(process.cwd(), '.agentic-qe', 'config', 'learning.json');
   try {
     const content = await fs.readFile(configPath, 'utf-8');
-    return JSON.parse(content);
+    const learningConfig = JSON.parse(content);
+
+    // Map learning.json structure to expected format
+    return {
+      learning: {
+        enabled: learningConfig.enabled ?? false,
+        algorithm: 'q-learning',
+        enableQuicSync: false,
+        storePatterns: true,
+        batchSize: learningConfig.batchSize ?? 32,
+        trainingFrequency: learningConfig.updateFrequency ?? 10,
+        useVectorSearch: true
+      }
+    };
   } catch {
     // Return defaults if config doesn't exist
     return {
