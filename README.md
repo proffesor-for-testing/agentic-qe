@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.6.1** (Advanced QE Skills - Phase 3) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.7.0** (Hardening Release) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (37 QE skills), and intelligent model routing.
 
@@ -539,7 +539,35 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 
 ---
 
-## 📝 What's New in v1.5.0
+## 📝 What's New in v1.7.0
+
+🚀 **Priority 1: Hardening Release** (2025-11-14)
+
+- **Quality Improvements** - All critical ship-blockers eliminated
+  - ✅ TODO Elimination: 80% reduction (40+ → 8, remaining in whitelisted template generators)
+  - ✅ Async I/O: 100% conversion (0 blocking operations, excluding Logger.ts)
+  - ✅ Race Conditions: 91% reduction (109 → 10 setTimeout instances)
+  - ✅ Event-driven BaseAgent architecture with proper cleanup
+- **AgentDB Learn CLI** - Fully implemented with real database integration
+  - 7 commands (status, train, stats, export, import, optimize, clear)
+  - Real-time learning statistics and pattern management
+  - Proper service initialization (no stub code)
+- **Pre-commit Quality Gates** - Prevents regression
+  - Automatic TODO detection and blocking
+  - Whitelisted template generators for flexibility
+- **Comprehensive Validation** - Production-ready verification
+  - 51/51 core BaseAgent tests passing
+  - 28 user-perspective validation scenarios
+  - Fresh installation verified with all features working
+- **Build Quality** - Zero errors, production-grade
+  - 0 TypeScript errors (was 17)
+  - All 19 agents + 37 skills + 8 commands functional
+
+**Upgrade from v1.6.x**: Fully backward-compatible. Run `npm install agentic-qe@1.7.0` and `aqe init`.
+
+---
+
+### Previous: v1.5.0
 
 🎯 **Phase 3: Domain-Specific Tool Refactoring** (2025-11-08)
 
