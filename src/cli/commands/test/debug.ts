@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
@@ -72,7 +72,7 @@ export function createDebugCommand(): Command {
       }
 
       if (options.saveLogs) {
-        const logFile = saveDebugLogs(debugInfo);
+        const logFile = await saveDebugLogs(debugInfo);
         console.log(chalk.green(`\nSaving logs to: ${logFile}`));
       }
 
@@ -170,16 +170,16 @@ function loadExecutionData(testId: string): {
   };
 }
 
-function saveDebugLogs(debugInfo: unknown): string {
+async function saveDebugLogs(debugInfo: unknown): Promise<string> {
   const logDir = path.join(process.cwd(), 'debug-logs');
-  if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-  }
+
+  // Ensure directory exists (async)
+  await fs.mkdir(logDir, { recursive: true });
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const logFile = path.join(logDir, `debug-${timestamp}.json`);
 
-  fs.writeFileSync(logFile, JSON.stringify(debugInfo, null, 2));
+  await fs.writeFile(logFile, JSON.stringify(debugInfo, null, 2));
 
   return logFile;
 }

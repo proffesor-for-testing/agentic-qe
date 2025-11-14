@@ -32,10 +32,18 @@ export class AgentLifecycleManager {
   private readonly agentId: AgentId;
   private readonly transitionHistory: StateTransition[] = [];
   private readonly validTransitions: Map<AgentStatus, Set<AgentStatus>>;
+  private statusChangeCallback?: (status: AgentStatus) => void;
 
   constructor(agentId: AgentId) {
     this.agentId = agentId;
     this.validTransitions = this.buildTransitionMap();
+  }
+
+  /**
+   * Set callback for status change events (for event-driven coordination)
+   */
+  public setStatusChangeCallback(callback: (status: AgentStatus) => void): void {
+    this.statusChangeCallback = callback;
   }
 
   /**
@@ -186,6 +194,11 @@ export class AgentLifecycleManager {
 
     this.status = newStatus;
     this.transitionHistory.push(transition);
+
+    // Emit status change event for event-driven coordination
+    if (this.statusChangeCallback) {
+      this.statusChangeCallback(newStatus);
+    }
   }
 
   /**

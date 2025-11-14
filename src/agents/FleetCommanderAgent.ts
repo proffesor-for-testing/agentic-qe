@@ -455,16 +455,9 @@ export class FleetCommanderAgent extends BaseAgent {
   protected async cleanup(): Promise<void> {
     console.log('[FleetCommander] Cleaning up fleet resources');
 
-    // Clear timers
-    if (this.heartbeatMonitorInterval) {
-      clearInterval(this.heartbeatMonitorInterval);
-      this.heartbeatMonitorInterval = undefined;
-    }
-
-    if (this.autoScalingMonitorInterval) {
-      clearInterval(this.autoScalingMonitorInterval);
-      this.autoScalingMonitorInterval = undefined;
-    }
+    // REFACTORED: No longer need to clear intervals
+    // Async loops will terminate when status !== ACTIVE
+    // (Lifecycle-driven cleanup, no manual timer management)
 
     // Save current state
     await this.memoryStore.store('aqe/fleet/topology', this.topologyState);
@@ -1023,10 +1016,18 @@ export class FleetCommanderAgent extends BaseAgent {
     };
   }
 
-  private startAutoScalingMonitor(): void {
-    this.autoScalingMonitorInterval = setInterval(async () => {
-      if (this.lifecycleManager.getStatus() !== AgentStatus.ACTIVE) return;
+  /**
+   * Start auto-scaling monitor using async event loop
+   *
+   * REFACTORED: Event-driven async loop replaces setInterval
+   * Old pattern: setInterval with status check inside
+   * New pattern: while loop checks status before each iteration
+   * Benefit: Clean shutdown, no orphaned intervals, deterministic behavior
+   */
+  private async startAutoScalingMonitor(): Promise<void> {
+    const cooldownPeriod = this.config.autoScaling?.cooldownPeriod || 60000;
 
+    while (this.lifecycleManager.getStatus() === AgentStatus.ACTIVE) {
       const decision = await this.makeScalingDecision();
 
       if (decision.action !== 'no-action') {
@@ -1038,7 +1039,13 @@ export class FleetCommanderAgent extends BaseAgent {
           count: Math.abs(decision.targetCount - decision.currentCount)
         });
       }
-    }, this.config.autoScaling?.cooldownPeriod || 60000);
+
+      // Wait for next check (event-driven: status change or timeout)
+      await Promise.race([
+        this.waitForEvent('fleet-pool-changed', cooldownPeriod),
+        new Promise<void>(resolve => setTimeout(resolve, cooldownPeriod))
+      ]);
+    }
   }
 
   private async makeScalingDecision(): Promise<ScalingDecision> {
@@ -1105,12 +1112,20 @@ export class FleetCommanderAgent extends BaseAgent {
   // Fault Tolerance
   // ============================================================================
 
-  private startHeartbeatMonitoring(): void {
-    this.heartbeatMonitorInterval = setInterval(async () => {
-      if (this.lifecycleManager.getStatus() !== AgentStatus.ACTIVE) return;
+  /**
+   * Start heartbeat monitoring using async event loop
+   *
+   * REFACTORED: Event-driven async loop replaces setInterval
+   * Old pattern: setInterval with status check inside
+   * New pattern: while loop checks status before each iteration
+   * Benefit: Clean shutdown, no orphaned intervals, deterministic behavior
+   */
+  private async startHeartbeatMonitoring(): Promise<void> {
+    const heartbeatInterval = this.config.faultTolerance?.heartbeatInterval || 5000;
+    const timeout = this.config.faultTolerance?.heartbeatTimeout || 15000;
 
+    while (this.lifecycleManager.getStatus() === AgentStatus.ACTIVE) {
       const now = new Date();
-      const timeout = this.config.faultTolerance?.heartbeatTimeout || 15000;
 
       for (const [agentId, lastHeartbeat] of this.agentHealthChecks.entries()) {
         const elapsed = now.getTime() - lastHeartbeat.getTime();
@@ -1120,7 +1135,10 @@ export class FleetCommanderAgent extends BaseAgent {
           await this.handleAgentFailure(agentId);
         }
       }
-    }, this.config.faultTolerance?.heartbeatInterval || 5000);
+
+      // Wait for next heartbeat check
+      await new Promise<void>(resolve => setTimeout(resolve, heartbeatInterval));
+    }
   }
 
   private async handleAgentFailure(agentId: string): Promise<void> {

@@ -387,7 +387,7 @@ export class LearningEngine {
       requiredCapabilities: task.requirements?.capabilities || [],
       contextFeatures: task.context || {},
       previousAttempts: task.previousAttempts || 0,
-      availableResources: 0.8, // TODO: get from system
+      availableResources: this.stateExtractor.extractState(task).availableResources,
       timeConstraint: task.timeout
     };
 

@@ -73,10 +73,17 @@ export class ArtifactWorkflow {
   constructor(memory: SwarmMemoryManager, artifactsDir: string = '.aqe/artifacts') {
     this.memory = memory;
     this.artifactsDir = artifactsDir;
+    // Note: Directory creation moved to async initialize() method
+  }
 
-    // Ensure artifacts directory exists
-    if (!fs.existsSync(this.artifactsDir)) {
-      fs.mkdirSync(this.artifactsDir, { recursive: true });
+  /**
+   * Initialize the artifact workflow (creates directory structure)
+   */
+  async initialize(): Promise<void> {
+    try {
+      await fs.promises.access(this.artifactsDir);
+    } catch {
+      await fs.promises.mkdir(this.artifactsDir, { recursive: true });
     }
   }
 
@@ -115,11 +122,13 @@ export class ArtifactWorkflow {
     const fileDir = path.dirname(filePath);
 
     // Create nested directories if needed
-    if (!fs.existsSync(fileDir)) {
-      fs.mkdirSync(fileDir, { recursive: true });
+    try {
+      await fs.promises.access(fileDir);
+    } catch {
+      await fs.promises.mkdir(fileDir, { recursive: true });
     }
 
-    fs.writeFileSync(filePath, content, 'utf-8');
+    await fs.promises.writeFile(filePath, content, 'utf-8');
 
     // Create manifest (small metadata)
     const manifest: ArtifactManifest = {
@@ -163,11 +172,13 @@ export class ArtifactWorkflow {
     // Read artifact content from file
     const filePath = path.join(this.artifactsDir, manifest.path);
 
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.promises.access(filePath);
+    } catch {
       throw new Error(`Artifact file not found: ${filePath}`);
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = await fs.promises.readFile(filePath, 'utf-8');
 
     // Verify SHA256 integrity
     const computedHash = crypto.createHash('sha256').update(content).digest('hex');
@@ -306,11 +317,13 @@ export class ArtifactWorkflow {
     const fileDir = path.dirname(filePath);
 
     // Create nested directories if needed
-    if (!fs.existsSync(fileDir)) {
-      fs.mkdirSync(fileDir, { recursive: true });
+    try {
+      await fs.promises.access(fileDir);
+    } catch {
+      await fs.promises.mkdir(fileDir, { recursive: true });
     }
 
-    fs.writeFileSync(filePath, content, 'utf-8');
+    await fs.promises.writeFile(filePath, content, 'utf-8');
 
     // Create new manifest with version link
     const newManifest: ArtifactManifest = {
@@ -417,8 +430,11 @@ export class ArtifactWorkflow {
 
     // Delete file
     const filePath = path.join(this.artifactsDir, manifest.path);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    try {
+      await fs.promises.access(filePath);
+      await fs.promises.unlink(filePath);
+    } catch {
+      // File doesn't exist, nothing to delete
     }
 
     // Delete manifest from database

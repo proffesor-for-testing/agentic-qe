@@ -28,7 +28,7 @@
   },
   "project": {
     "name": "agentic-qe-cf",
-    "path": "/workspaces/agentic-qe-cf",
+    "path": ".",
     "language": "typescript"
   }
 }

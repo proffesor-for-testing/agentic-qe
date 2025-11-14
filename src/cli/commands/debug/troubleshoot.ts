@@ -3,7 +3,7 @@
  * Troubleshoots specific issues with diagnosis and suggestions
  */
 
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 export interface TroubleshootOptions {
@@ -80,7 +80,7 @@ export async function troubleshoot(options: TroubleshootOptions): Promise<Troubl
     let reportPath: string | undefined;
     if (options.export) {
       const outputDir = options.outputDir || path.join(process.cwd(), '.swarm', 'reports');
-      fs.mkdirSync(outputDir, { recursive: true });
+      await fs.mkdir(outputDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const report = {
@@ -96,11 +96,11 @@ export async function troubleshoot(options: TroubleshootOptions): Promise<Troubl
 
       if (options.export === 'json') {
         reportPath = path.join(outputDir, `troubleshoot-${timestamp}.json`);
-        fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+        await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
       } else if (options.export === 'yaml') {
         const yaml = await import('yaml');
         reportPath = path.join(outputDir, `troubleshoot-${timestamp}.yaml`);
-        fs.writeFileSync(reportPath, yaml.stringify(report));
+        await fs.writeFile(reportPath, yaml.stringify(report));
       }
     }
 
@@ -269,8 +269,18 @@ async function analyzeErrorLogs(options: TroubleshootOptions) {
   let diagnosis = 'No errors found in logs';
   const suggestions: string[] = [];
 
-  if (options.logFile && fs.existsSync(options.logFile)) {
-    const logContent = fs.readFileSync(options.logFile, 'utf-8');
+  if (options.logFile) {
+    // Check if log file exists (async)
+    let logFileExists = false;
+    try {
+      await fs.access(options.logFile);
+      logFileExists = true;
+    } catch {
+      logFileExists = false;
+    }
+
+    if (logFileExists) {
+      const logContent = await fs.readFile(options.logFile, 'utf-8');
     const lines = logContent.split('\n');
 
     // Common error patterns
@@ -292,11 +302,14 @@ async function analyzeErrorLogs(options: TroubleshootOptions) {
       }
     }
 
-    if (errorPatterns.length > 0) {
-      diagnosis = `Found ${errorPatterns.length} error pattern(s) in logs`;
-      suggestions.push('Review error patterns above');
-      suggestions.push('Check for common causes of each error type');
-      suggestions.push('Fix most frequent errors first');
+      if (errorPatterns.length > 0) {
+        diagnosis = `Found ${errorPatterns.length} error pattern(s) in logs`;
+        suggestions.push('Review error patterns above');
+        suggestions.push('Check for common causes of each error type');
+        suggestions.push('Fix most frequent errors first');
+      }
+    } else {
+      suggestions.push('Provide valid log file path to analyze errors');
     }
   } else {
     suggestions.push('Provide log file path to analyze errors');

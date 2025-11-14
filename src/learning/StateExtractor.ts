@@ -5,6 +5,7 @@
  * reinforcement learning. Handles different agent types and task complexities.
  */
 
+import * as os from 'os';
 import { TaskState, AgentAction } from './types';
 import { QETask } from '../types';
 
@@ -180,20 +181,40 @@ export class StateExtractor {
   }
 
   /**
-   * Estimate available resources
+   * Estimate available resources using real system monitoring
    */
   private estimateAvailableResources(context?: any): number {
-    // TODO: Integrate with actual system resource monitoring
-    // For now, use simple heuristics
+    // Real-time system resource monitoring using Node.js os module
+    const cpus = os.cpus();
+    const totalCpus = cpus.length;
+    const loadAvg = os.loadavg()[0]; // 1-minute load average
 
-    if (!context) return 0.8;
+    // CPU availability: normalized by CPU count (0-1 scale)
+    const cpuAvailability = Math.max(0, 1 - (loadAvg / totalCpus));
 
-    let resources = 0.8; // baseline
+    // Memory availability (0-1 scale)
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const memoryAvailability = freeMemory / totalMemory;
 
-    // Check for resource indicators in context
-    if (context.highLoad) resources -= 0.2;
-    if (context.lowMemory) resources -= 0.2;
-    if (context.cpuIntensive) resources -= 0.1;
+    // Process-specific memory usage
+    const processMemory = process.memoryUsage();
+    const heapUsageRatio = processMemory.heapUsed / processMemory.heapTotal;
+    const processMemoryAvailability = 1 - heapUsageRatio;
+
+    // Weighted average of resource indicators
+    let resources = (
+      cpuAvailability * 0.4 +
+      memoryAvailability * 0.3 +
+      processMemoryAvailability * 0.3
+    );
+
+    // Apply context-based adjustments if provided
+    if (context) {
+      if (context.highLoad) resources *= 0.7;
+      if (context.lowMemory) resources *= 0.7;
+      if (context.cpuIntensive) resources *= 0.8;
+    }
 
     return Math.min(1.0, Math.max(0.0, resources));
   }

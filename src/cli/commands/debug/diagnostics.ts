@@ -3,7 +3,7 @@
  * Runs comprehensive system diagnostics
  */
 
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
@@ -78,7 +78,7 @@ export async function runDiagnostics(options: DiagnosticsOptions): Promise<Diagn
     let reportPath: string | undefined;
     if (options.export) {
       const outputDir = options.outputDir || path.join(process.cwd(), '.swarm', 'reports');
-      fs.mkdirSync(outputDir, { recursive: true });
+      await fs.mkdir(outputDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const report = {
@@ -94,15 +94,15 @@ export async function runDiagnostics(options: DiagnosticsOptions): Promise<Diagn
 
       if (options.export === 'json') {
         reportPath = path.join(outputDir, `diagnostics-${timestamp}.json`);
-        fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+        await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
       } else if (options.export === 'yaml') {
         const yaml = await import('yaml');
         reportPath = path.join(outputDir, `diagnostics-${timestamp}.yaml`);
-        fs.writeFileSync(reportPath, yaml.stringify(report));
+        await fs.writeFile(reportPath, yaml.stringify(report));
       } else if (options.export === 'html') {
         reportPath = path.join(outputDir, `diagnostics-${timestamp}.html`);
         const html = generateHTMLReport(report);
-        fs.writeFileSync(reportPath, html);
+        await fs.writeFile(reportPath, html);
       }
     }
 
@@ -235,7 +235,16 @@ async function checkNetwork(): Promise<DiagnosticCheck> {
 async function checkDependencies(): Promise<DiagnosticCheck> {
   const packageJsonPath = path.join(process.cwd(), 'package.json');
 
-  if (!fs.existsSync(packageJsonPath)) {
+  // Check if package.json exists (async)
+  let packageJsonExists = false;
+  try {
+    await fs.access(packageJsonPath);
+    packageJsonExists = true;
+  } catch {
+    packageJsonExists = false;
+  }
+
+  if (!packageJsonExists) {
     return {
       name: 'dependencies',
       status: 'warning',
@@ -244,12 +253,22 @@ async function checkDependencies(): Promise<DiagnosticCheck> {
     };
   }
 
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+  const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
   const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
 
   const nodeModules = path.join(process.cwd(), 'node_modules');
-  const installed = fs.existsSync(nodeModules)
-    ? fs.readdirSync(nodeModules).filter(d => !d.startsWith('.'))
+
+  // Check if node_modules exists (async)
+  let nodeModulesExists = false;
+  try {
+    await fs.access(nodeModules);
+    nodeModulesExists = true;
+  } catch {
+    nodeModulesExists = false;
+  }
+
+  const installed = nodeModulesExists
+    ? (await fs.readdir(nodeModules)).filter(d => !d.startsWith('.'))
     : [];
 
   const missing = Object.keys(deps).filter(dep => !installed.includes(dep));
@@ -270,7 +289,16 @@ async function checkDependencies(): Promise<DiagnosticCheck> {
 async function checkAgents(): Promise<DiagnosticCheck> {
   const agentDir = path.join(process.cwd(), '.claude', 'agents');
 
-  if (!fs.existsSync(agentDir)) {
+  // Check if agents directory exists (async)
+  let agentDirExists = false;
+  try {
+    await fs.access(agentDir);
+    agentDirExists = true;
+  } catch {
+    agentDirExists = false;
+  }
+
+  if (!agentDirExists) {
     return {
       name: 'agents',
       status: 'warning',
@@ -280,7 +308,7 @@ async function checkAgents(): Promise<DiagnosticCheck> {
     };
   }
 
-  const agents = fs.readdirSync(agentDir).filter(f => f.endsWith('.json'));
+  const agents = (await fs.readdir(agentDir)).filter(f => f.endsWith('.json'));
 
   return {
     name: 'agents',

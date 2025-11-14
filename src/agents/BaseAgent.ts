@@ -138,6 +138,11 @@ export abstract class BaseAgent extends EventEmitter {
       memoryStore: this.memoryStore
     });
 
+    // Connect lifecycle manager to event emitter for event-driven coordination
+    this.lifecycleManager.setStatusChangeCallback((status) => {
+      this.emitStatusChange(status);
+    });
+
     this.setupEventHandlers();
     this.setupLifecycleHooks();
   }
@@ -353,6 +358,86 @@ export abstract class BaseAgent extends EventEmitter {
       capabilities: Array.from(this.capabilities.keys()),
       performanceMetrics: { ...this.performanceMetrics }
     };
+  }
+
+  // ============================================================================
+  // Event-Driven Coordination (Race Condition Elimination)
+  // ============================================================================
+
+  /**
+   * Wait for agent to reach a specific status with timeout
+   * Replaces: setTimeout(() => { expect(agent.status).toBe('ready') }, 5000)
+   * Use: await agent.waitForStatus('ready')
+   */
+  public async waitForStatus(status: AgentStatus, timeout: number = 10000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Already at target status
+      if (this.lifecycleManager.getStatus() === status) {
+        return resolve();
+      }
+
+      const timer = setTimeout(() => {
+        this.removeListener('status-changed', listener);
+        reject(new Error(`Agent ${this.agentId.id} did not reach status '${status}' within ${timeout}ms`));
+      }, timeout);
+
+      const listener = (newStatus: AgentStatus) => {
+        if (newStatus === status) {
+          clearTimeout(timer);
+          this.removeListener('status-changed', listener);
+          resolve();
+        }
+      };
+
+      this.on('status-changed', listener);
+    });
+  }
+
+  /**
+   * Wait for agent to be ready (initialized and idle)
+   * Replaces: await new Promise(resolve => setTimeout(resolve, 5000))
+   * Use: await agent.waitForReady()
+   */
+  public async waitForReady(timeout: number = 10000): Promise<void> {
+    const currentStatus = this.lifecycleManager.getStatus();
+    if (currentStatus === AgentStatus.IDLE || currentStatus === AgentStatus.ACTIVE) {
+      return; // Already ready
+    }
+    return this.waitForStatus(AgentStatus.IDLE, timeout);
+  }
+
+  /**
+   * Wait for a specific event to be emitted
+   * Generic event waiter for custom coordination
+   */
+  public async waitForEvent<T = any>(eventName: string, timeout: number = 10000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.removeListener(eventName, listener);
+        reject(new Error(`Event '${eventName}' not received within ${timeout}ms`));
+      }, timeout);
+
+      const listener = (data: T) => {
+        clearTimeout(timer);
+        this.removeListener(eventName, listener);
+        resolve(data);
+      };
+
+      this.once(eventName, listener);
+    });
+  }
+
+  /**
+   * Emit status change events for event-driven coordination
+   * Called by lifecycle manager when status changes
+   */
+  protected emitStatusChange(newStatus: AgentStatus): void {
+    this.emit('status-changed', newStatus);
+    this.coordinator.emitEvent('agent.status-changed', {
+      agentId: this.agentId,
+      status: newStatus,
+      timestamp: Date.now()
+    });
   }
 
   /**

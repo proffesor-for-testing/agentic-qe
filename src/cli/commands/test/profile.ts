@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
@@ -40,13 +40,13 @@ export function createProfileCommand(): Command {
 
       // Export if requested
       if (options.export) {
-        exportProfile(profileData, options.export);
+        await exportProfile(profileData, options.export);
         console.log(chalk.green(`\n✓ Exported to: ${options.export}`));
       }
 
       // Generate flame graph if requested
       if (options.flameGraph) {
-        generateFlameGraph(profileData);
+        await generateFlameGraph(profileData);
         console.log(chalk.green('✓ Generated flame graph: flame-graph.html'));
       }
     });
@@ -136,7 +136,7 @@ function displayProfileResults(data: ProfileData[], options: ProfileOptions): vo
   console.log(chalk.gray('\n' + '─'.repeat(80)));
 }
 
-function exportProfile(data: ProfileData[], filename: string): void {
+async function exportProfile(data: ProfileData[], filename: string): Promise<void> {
   const exportData = {
     timestamp: new Date().toISOString(),
     tests: data,
@@ -147,10 +147,10 @@ function exportProfile(data: ProfileData[], filename: string): void {
     }
   };
 
-  fs.writeFileSync(filename, JSON.stringify(exportData, null, 2));
+  await fs.writeFile(filename, JSON.stringify(exportData, null, 2));
 }
 
-function generateFlameGraph(data: ProfileData[]): void {
+async function generateFlameGraph(data: ProfileData[]): Promise<void> {
   const html = `
 <!DOCTYPE html>
 <html>
@@ -179,7 +179,7 @@ function generateFlameGraph(data: ProfileData[]): void {
 </html>
   `.trim();
 
-  fs.writeFileSync('flame-graph.html', html);
+  await fs.writeFile('flame-graph.html', html);
 }
 
 function formatBytes(bytes: number): string {

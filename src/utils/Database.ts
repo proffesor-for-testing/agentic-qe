@@ -7,7 +7,7 @@
 
 import BetterSqlite3 from 'better-sqlite3';
 import { dirname } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { promises as fs } from 'fs';
 import { Logger } from './Logger';
 
 export interface DatabaseRow {
@@ -36,8 +36,10 @@ export class Database {
     try {
       // Ensure data directory exists
       const dbDir = dirname(this.dbPath);
-      if (!existsSync(dbDir)) {
-        mkdirSync(dbDir, { recursive: true });
+      try {
+        await fs.access(dbDir);
+      } catch {
+        await fs.mkdir(dbDir, { recursive: true });
       }
 
       // Create database connection (better-sqlite3 is synchronous)
