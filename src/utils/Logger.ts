@@ -7,7 +7,8 @@
 
 import winston from 'winston';
 import path from 'path';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
+import * as fssync from 'fs';
 
 export enum LogLevel {
   ERROR = 'error',
@@ -177,7 +178,7 @@ export class Logger {
   }
 
   /**
-   * Ensure logs directory exists
+   * Ensure logs directory exists (synchronous for constructor compatibility)
    */
   private ensureLogsDirectory(): void {
     // Skip in test environment
@@ -188,8 +189,8 @@ export class Logger {
     try {
       const logsDir = path.join(process.cwd(), 'logs');
 
-      if (!fs.existsSync(logsDir)) {
-        fs.mkdirSync(logsDir, { recursive: true });
+      if (!fssync.existsSync(logsDir)) {
+        fssync.mkdirSync(logsDir, { recursive: true });
       }
     } catch (error) {
       // Silently fail - will use console-only logging

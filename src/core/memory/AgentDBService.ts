@@ -24,7 +24,7 @@ import {
   type HNSWSearchResult
 } from 'agentdb';
 import * as path from 'path';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 
 /**
  * Pattern data structure for QE agents
@@ -160,8 +160,10 @@ export class AgentDBService {
     try {
       // Ensure database directory exists
       const dbDir = path.dirname(this.config.dbPath);
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
+      try {
+        await fs.access(dbDir);
+      } catch {
+        await fs.mkdir(dbDir, { recursive: true });
       }
 
       // Create database with agentdb@1.6.1 API

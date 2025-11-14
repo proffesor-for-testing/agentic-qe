@@ -3,7 +3,7 @@
  * Traces test execution flow with timing and call stack
  */
 
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 export interface TraceOptions {
@@ -83,17 +83,17 @@ export async function traceExecution(options: TraceOptions): Promise<TraceResult
     let exportPath: string | undefined;
     if (options.export) {
       const outputDir = options.outputDir || path.join(process.cwd(), '.swarm', 'reports');
-      fs.mkdirSync(outputDir, { recursive: true });
+      await fs.mkdir(outputDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
       if (options.export === 'json') {
         exportPath = path.join(outputDir, `trace-${timestamp}.json`);
-        fs.writeFileSync(exportPath, JSON.stringify({ trace }, null, 2));
+        await fs.writeFile(exportPath, JSON.stringify({ trace }, null, 2));
       } else if (options.export === 'chrome-devtools') {
         exportPath = path.join(outputDir, `trace-${timestamp}.json`);
         const chromeTrace = convertToChromeDeveloperTools(trace);
-        fs.writeFileSync(exportPath, JSON.stringify(chromeTrace, null, 2));
+        await fs.writeFile(exportPath, JSON.stringify(chromeTrace, null, 2));
       }
     }
 

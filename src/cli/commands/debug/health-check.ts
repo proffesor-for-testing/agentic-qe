@@ -3,7 +3,7 @@
  * Performs system health checks with export capabilities
  */
 
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
@@ -99,7 +99,7 @@ export async function healthCheck(options: HealthCheckOptions): Promise<HealthCh
     let reportPath: string | undefined;
     if (options.export) {
       const outputDir = options.outputDir || path.join(process.cwd(), '.swarm', 'reports');
-      fs.mkdirSync(outputDir, { recursive: true });
+      await fs.mkdir(outputDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const report = {
@@ -113,11 +113,11 @@ export async function healthCheck(options: HealthCheckOptions): Promise<HealthCh
 
       if (options.export === 'json') {
         reportPath = path.join(outputDir, `health-check-${timestamp}.json`);
-        fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+        await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
       } else if (options.export === 'yaml') {
         const yaml = await import('yaml');
         reportPath = path.join(outputDir, `health-check-${timestamp}.yaml`);
-        fs.writeFileSync(reportPath, yaml.stringify(report));
+        await fs.writeFile(reportPath, yaml.stringify(report));
       }
     }
 
@@ -230,8 +230,8 @@ async function checkDiskHealth(options: HealthCheckOptions): Promise<ComponentHe
   try {
     // Try to write a test file
     const testFile = path.join(tmpDir, 'health-check-test');
-    fs.writeFileSync(testFile, 'test');
-    fs.unlinkSync(testFile);
+    await fs.writeFile(testFile, 'test');
+    await fs.unlink(testFile);
 
     metrics.writable = true;
     status = 'healthy';
@@ -257,7 +257,16 @@ async function checkDiskHealth(options: HealthCheckOptions): Promise<ComponentHe
 async function checkAgentHealth(options: HealthCheckOptions): Promise<ComponentHealth> {
   const agentDir = path.join(process.cwd(), '.claude', 'agents');
 
-  if (!fs.existsSync(agentDir)) {
+  // Check if agents directory exists (async)
+  let agentDirExists = false;
+  try {
+    await fs.access(agentDir);
+    agentDirExists = true;
+  } catch {
+    agentDirExists = false;
+  }
+
+  if (!agentDirExists) {
     return {
       name: 'agents',
       status: 'degraded',
@@ -266,7 +275,7 @@ async function checkAgentHealth(options: HealthCheckOptions): Promise<ComponentH
     };
   }
 
-  const agents = fs.readdirSync(agentDir).filter(f => f.endsWith('.json'));
+  const agents = (await fs.readdir(agentDir)).filter(f => f.endsWith('.json'));
 
   return {
     name: 'agents',
@@ -298,7 +307,16 @@ async function checkNetworkHealth(options: HealthCheckOptions): Promise<Componen
 async function checkDependencyHealth(options: HealthCheckOptions): Promise<ComponentHealth> {
   const packageJsonPath = path.join(process.cwd(), 'package.json');
 
-  if (!fs.existsSync(packageJsonPath)) {
+  // Check if package.json exists (async)
+  let packageJsonExists = false;
+  try {
+    await fs.access(packageJsonPath);
+    packageJsonExists = true;
+  } catch {
+    packageJsonExists = false;
+  }
+
+  if (!packageJsonExists) {
     return {
       name: 'dependencies',
       status: 'degraded',
@@ -307,7 +325,15 @@ async function checkDependencyHealth(options: HealthCheckOptions): Promise<Compo
   }
 
   const nodeModules = path.join(process.cwd(), 'node_modules');
-  const hasNodeModules = fs.existsSync(nodeModules);
+
+  // Check if node_modules exists (async)
+  let hasNodeModules = false;
+  try {
+    await fs.access(nodeModules);
+    hasNodeModules = true;
+  } catch {
+    hasNodeModules = false;
+  }
 
   return {
     name: 'dependencies',
@@ -320,7 +346,16 @@ async function checkDependencyHealth(options: HealthCheckOptions): Promise<Compo
 async function checkDatabaseHealth(options: HealthCheckOptions): Promise<ComponentHealth> {
   const dbPath = path.join(process.cwd(), '.swarm', 'memory.db');
 
-  if (!fs.existsSync(dbPath)) {
+  // Check if database exists (async)
+  let dbExists = false;
+  try {
+    await fs.access(dbPath);
+    dbExists = true;
+  } catch {
+    dbExists = false;
+  }
+
+  if (!dbExists) {
     return {
       name: 'database',
       status: 'degraded',
@@ -330,7 +365,7 @@ async function checkDatabaseHealth(options: HealthCheckOptions): Promise<Compone
   }
 
   try {
-    const stats = fs.statSync(dbPath);
+    const stats = await fs.stat(dbPath);
     return {
       name: 'database',
       status: 'healthy',

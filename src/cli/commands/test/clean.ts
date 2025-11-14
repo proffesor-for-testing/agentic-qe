@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 interface CleanOptions {
@@ -28,8 +28,16 @@ export function createCleanCommand(): Command {
       let totalSize = 0;
 
       for (const artifact of artifacts) {
-        const exists = fs.existsSync(artifact.path);
-        const size = exists ? getDirectorySize(artifact.path) : 0;
+        // Check if artifact exists (async)
+        let exists = false;
+        try {
+          await fs.access(artifact.path);
+          exists = true;
+        } catch {
+          exists = false;
+        }
+
+        const size = exists ? await getDirectorySize(artifact.path) : 0;
 
         if (exists) {
           totalSize += size;
@@ -37,7 +45,7 @@ export function createCleanCommand(): Command {
           if (options.dryRun) {
             console.log(chalk.yellow(`Would clean: ${artifact.name}`));
           } else {
-            fs.rmSync(artifact.path, { recursive: true, force: true });
+            await fs.rm(artifact.path, { recursive: true, force: true });
             console.log(chalk.green(`✓ Cleaned: ${artifact.name}`));
           }
 
@@ -82,19 +90,28 @@ function getArtifactPaths(options: CleanOptions): Array<{ name: string; path: st
   return artifacts;
 }
 
-function getDirectorySize(dirPath: string): number {
+async function getDirectorySize(dirPath: string): Promise<number> {
   let size = 0;
 
   try {
-    if (fs.existsSync(dirPath)) {
-      const stats = fs.statSync(dirPath);
+    // Check if path exists (async)
+    let exists = false;
+    try {
+      await fs.access(dirPath);
+      exists = true;
+    } catch {
+      exists = false;
+    }
+
+    if (exists) {
+      const stats = await fs.stat(dirPath);
 
       if (stats.isFile()) {
         size = stats.size;
       } else if (stats.isDirectory()) {
-        const files = fs.readdirSync(dirPath);
+        const files = await fs.readdir(dirPath);
         for (const file of files) {
-          size += getDirectorySize(path.join(dirPath, file));
+          size += await getDirectorySize(path.join(dirPath, file));
         }
       }
     }

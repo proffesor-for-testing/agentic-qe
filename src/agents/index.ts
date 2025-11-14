@@ -204,8 +204,6 @@ export class QEAgentFactory {
             requiredMetrics: ['coverage', 'quality-score', 'security-scan']
           }
         };
-        // TODO: Uncomment when DeploymentReadinessAgent is implemented
-        // return new DeploymentReadinessAgent(deploymentConfig);
         throw new Error(`Agent type ${type} implementation in progress. Week 2 P0.`);
       }
 

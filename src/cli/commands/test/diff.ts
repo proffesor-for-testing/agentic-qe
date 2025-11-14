@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 
 interface DiffOptions {
   detailed: boolean;
@@ -67,7 +67,7 @@ export function createDiffCommand(): Command {
 
       // Export if requested
       if (options.export) {
-        exportDiff(runA, runB, options.export);
+        await exportDiff(runA, runB, options.export);
         console.log(chalk.green(`\n✓ Exported to: ${options.export}`));
       }
     });
@@ -227,7 +227,7 @@ function formatDiff(diff: number, inverse: boolean = false): string {
   return color(`(${sign}${diff})`);
 }
 
-function exportDiff(runA: TestRun, runB: TestRun, filename: string): void {
+async function exportDiff(runA: TestRun, runB: TestRun, filename: string): Promise<void> {
   const diffData = {
     timestamp: new Date().toISOString(),
     runs: {
@@ -242,5 +242,5 @@ function exportDiff(runA: TestRun, runB: TestRun, filename: string): void {
     }
   };
 
-  fs.writeFileSync(filename, JSON.stringify(diffData, null, 2));
+  await fs.writeFile(filename, JSON.stringify(diffData, null, 2));
 }

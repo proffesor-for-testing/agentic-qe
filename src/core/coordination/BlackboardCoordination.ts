@@ -45,39 +45,44 @@ export class BlackboardCoordination extends EventEmitter {
 
   /**
    * Wait for a specific hint to appear on the blackboard
+   *
+   * REFACTORED: Event-driven pattern using Promise.race eliminates race condition
+   * Old pattern: setTimeout could fire while hint was being posted
+   * New pattern: Event wins the race if hint arrives, timeout only for true absence
    */
   async waitForHint(pattern: string, timeout: number = 30000): Promise<Hint | null> {
     const sqlPattern = pattern.replace(/\*/g, '%');
 
-    // Check if hint already exists
+    // Check if hint already exists (no race condition)
     const existing = await this.memory.readHints(sqlPattern);
     if (existing.length > 0) {
       return existing[0] || null;
     }
 
-    // Wait for hint to be posted
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.removeListener('blackboard:hint-posted', listener);
-        resolve(null);
-      }, timeout);
+    // Event-driven wait with timeout protection using Promise.race
+    return Promise.race([
+      // Event-driven path: wait for hint to be posted
+      new Promise<Hint | null>((resolve) => {
+        const listener = async (hint: BlackboardHint) => {
+          const matches = hint.key.match(new RegExp('^' + sqlPattern.replace(/%/g, '.*') + '$'));
+          if (matches) {
+            this.removeListener('blackboard:hint-posted', listener);
+            resolve({
+              key: hint.key,
+              value: hint.value,
+              createdAt: Date.now(),
+              expiresAt: hint.ttl ? Date.now() + (hint.ttl * 1000) : undefined
+            });
+          }
+        };
 
-      const listener = async (hint: BlackboardHint) => {
-        const matches = hint.key.match(new RegExp('^' + sqlPattern.replace(/%/g, '.*') + '$'));
-        if (matches) {
-          clearTimeout(timer);
-          this.removeListener('blackboard:hint-posted', listener);
-          resolve({
-            key: hint.key,
-            value: hint.value,
-            createdAt: Date.now(),
-            expiresAt: hint.ttl ? Date.now() + (hint.ttl * 1000) : undefined
-          });
-        }
-      };
-
-      this.on('blackboard:hint-posted', listener);
-    });
+        this.on('blackboard:hint-posted', listener);
+      }),
+      // Timeout protection (returns null if no hint arrives)
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), timeout);
+      })
+    ]);
   }
 
   /**

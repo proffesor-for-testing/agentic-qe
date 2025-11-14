@@ -5,7 +5,7 @@
  * including environment variables, config files, and defaults.
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import yaml from 'yaml';
 import dotenv from 'dotenv';
@@ -140,9 +140,10 @@ export class Config {
                           process.env.CONFIG_FILE ||
                           join(process.cwd(), 'config', 'fleet.yaml');
 
-    if (existsSync(configFilePath)) {
+    try {
+      await fs.access(configFilePath);
       try {
-        const configFileContent = readFileSync(configFilePath, 'utf8');
+        const configFileContent = await fs.readFile(configFilePath, 'utf8');
         if (configFilePath.endsWith('.yaml') || configFilePath.endsWith('.yml')) {
           fileConfig = yaml.parse(configFileContent);
         } else if (configFilePath.endsWith('.json')) {
@@ -151,6 +152,8 @@ export class Config {
       } catch (error) {
         console.warn(`Failed to load config file ${configFilePath}:`, error);
       }
+    } catch {
+      // Config file doesn't exist, skip loading
     }
 
     // Merge configurations (file config overrides defaults, env vars override both)
@@ -267,9 +270,13 @@ export class Config {
    * Save configuration to file
    */
   public static async save(config: Partial<FleetConfig>, filePath: string): Promise<void> {
-    const fs = await import('fs-extra');
-    await fs.ensureDir(dirname(filePath));
-    await fs.writeJson(filePath, config, { spaces: 2 });
+    const fsp = (await import('fs')).promises;
+    try {
+      await fsp.access(dirname(filePath));
+    } catch {
+      await fsp.mkdir(dirname(filePath), { recursive: true });
+    }
+    await fsp.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
   }
 
   /**

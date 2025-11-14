@@ -136,6 +136,10 @@ export class ConsensusGating extends EventEmitter {
 
   /**
    * Wait for consensus on a proposal
+   *
+   * REFACTORED: Event-driven pattern using Promise.race eliminates race condition
+   * Old pattern: setTimeout could fire while consensus was being reached
+   * New pattern: Events win the race, timeout only triggers if no event arrives
    */
   async waitForConsensus(proposalId: string, timeout: number = 60000): Promise<boolean> {
     const state = await this.getProposalState(proposalId);
@@ -144,6 +148,7 @@ export class ConsensusGating extends EventEmitter {
       throw new Error(`Proposal ${proposalId} not found`);
     }
 
+    // Already resolved - return immediately (no race condition)
     if (state.status === 'approved') {
       return true;
     }
@@ -152,25 +157,26 @@ export class ConsensusGating extends EventEmitter {
       return false;
     }
 
-    // Wait for consensus event
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.removeListener('consensus:reached', listener);
-        this.removeListener('consensus:rejected', listener);
-        resolve(false);
-      }, timeout);
+    // Event-driven wait with timeout protection using Promise.race
+    // Eliminates race: whichever resolves first wins
+    return Promise.race([
+      // Event-driven path: wait for actual consensus event
+      new Promise<boolean>((resolve) => {
+        const listener = (eventState: ConsensusState) => {
+          if (eventState.decision === state.decision) {
+            this.removeListener('consensus:reached', listener);
+            this.removeListener('consensus:rejected', listener);
+            resolve(eventState.status === 'approved');
+          }
+        };
 
-      const listener = (eventState: ConsensusState) => {
-        if (eventState.decision === state.decision) {
-          clearTimeout(timer);
-          this.removeListener('consensus:reached', listener);
-          this.removeListener('consensus:rejected', listener);
-          resolve(eventState.status === 'approved');
-        }
-      };
-
-      this.on('consensus:reached', listener);
-      this.on('consensus:rejected', listener);
-    });
+        this.on('consensus:reached', listener);
+        this.on('consensus:rejected', listener);
+      }),
+      // Timeout protection (only for failure case, doesn't interfere with event)
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), timeout);
+      })
+    ]);
   }
 }

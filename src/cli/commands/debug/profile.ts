@@ -3,7 +3,7 @@
  * Profiles test performance with CPU and memory profiling
  */
 
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as v8 from 'v8';
 import { performance } from 'perf_hooks';
@@ -156,21 +156,21 @@ export async function profilePerformance(options: ProfileOptions): Promise<Profi
 
     if (options.export) {
       const outputDir = options.outputDir || path.join(process.cwd(), '.swarm', 'reports');
-      fs.mkdirSync(outputDir, { recursive: true });
+      await fs.mkdir(outputDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
       if (options.export === 'v8') {
         exportPath = path.join(outputDir, `profile-${timestamp}.cpuprofile`);
         const v8Profile = convertToV8Format(profile);
-        fs.writeFileSync(exportPath, JSON.stringify(v8Profile, null, 2));
+        await fs.writeFile(exportPath, JSON.stringify(v8Profile, null, 2));
       } else if (options.export === 'chrome-devtools') {
         exportPath = path.join(outputDir, `profile-${timestamp}.json`);
         const chromeProfile = convertToChromeDevToolsFormat(profile);
-        fs.writeFileSync(exportPath, JSON.stringify(chromeProfile, null, 2));
+        await fs.writeFile(exportPath, JSON.stringify(chromeProfile, null, 2));
       } else if (options.export === 'json') {
         exportPath = path.join(outputDir, `profile-${timestamp}.json`);
-        fs.writeFileSync(exportPath, JSON.stringify(profile, null, 2));
+        await fs.writeFile(exportPath, JSON.stringify(profile, null, 2));
       }
     }
 
@@ -433,14 +433,14 @@ function convertToChromeDevToolsFormat(profile: Profile): any {
 
 async function generateFlamegraph(profile: Profile, options: ProfileOptions): Promise<string> {
   const outputDir = options.outputDir || path.join(process.cwd(), '.swarm', 'reports');
-  fs.mkdirSync(outputDir, { recursive: true });
+  await fs.mkdir(outputDir, { recursive: true });
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const flamegraphPath = path.join(outputDir, `flamegraph-${timestamp}.svg`);
 
   // Generate simple SVG flamegraph
   const svg = generateSVGFlamegraph(profile);
-  fs.writeFileSync(flamegraphPath, svg);
+  await fs.writeFile(flamegraphPath, svg);
 
   return flamegraphPath;
 }

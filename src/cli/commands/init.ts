@@ -4,6 +4,7 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import * as fssync from 'fs';
 import { InitOptions, FleetConfig } from '../../types';
 import { generateCondensedClaudeMd } from './init-claude-md-template';
 
@@ -914,14 +915,18 @@ For full capabilities, install the complete agentic-qe package.
 
     // List all available skills
     const availableDirs = await fs.readdir(sourcePath);
-    const availableSkills = availableDirs.filter(name => {
+    const availableSkills: string[] = [];
+    for (const name of availableDirs) {
       const skillPath = path.join(sourcePath, name);
       try {
-        return fs.statSync(skillPath).isDirectory();
+        const stats = await fs.stat(skillPath);
+        if (stats.isDirectory()) {
+          availableSkills.push(name);
+        }
       } catch {
-        return false;
+        // Skip items that can't be stat'd
       }
-    });
+    }
 
     console.log(chalk.cyan(`  📦 Found ${availableSkills.length} total skills in source`));
 
@@ -965,9 +970,17 @@ For full capabilities, install the complete agentic-qe package.
       console.log(chalk.green('  ✅ All 37 QE Fleet skills successfully initialized'));
     } else if (finalSkillCount < 37) {
       console.warn(chalk.yellow(`  ⚠️  Expected 37 QE skills, found ${finalSkillCount}`));
-      const missingSkills = QE_FLEET_SKILLS.filter(skill => {
-        return !fs.existsSync(path.join(targetPath, skill));
-      });
+
+      // Check missing skills asynchronously
+      const missingSkills: string[] = [];
+      for (const skill of QE_FLEET_SKILLS) {
+        try {
+          await fs.access(path.join(targetPath, skill));
+        } catch {
+          missingSkills.push(skill);
+        }
+      }
+
       console.warn(chalk.yellow(`  ℹ️  Missing skills: ${missingSkills.join(', ')}`));
     }
   }
@@ -982,7 +995,8 @@ For full capabilities, install the complete agentic-qe package.
     for (const item of items) {
       const itemPath = path.join(dirPath, item);
       try {
-        if (fs.statSync(itemPath).isDirectory()) {
+        const stats = await fs.stat(itemPath);
+        if (stats.isDirectory()) {
           count++;
         }
       } catch {

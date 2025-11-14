@@ -69,7 +69,7 @@ export class RealSecurityScanner {
       };
 
       const configPath = path.join(this.workingDir, '.eslintrc.security.json');
-      fs.writeFileSync(configPath, JSON.stringify(eslintConfig, null, 2));
+      await fs.promises.writeFile(configPath, JSON.stringify(eslintConfig, null, 2));
 
       // Run ESLint
       const result = spawnSync('npx', [

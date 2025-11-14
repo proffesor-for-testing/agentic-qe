@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 interface TraceOptions {
@@ -50,7 +50,7 @@ export function createTraceCommand(): Command {
 
       // Save if requested
       if (options.save) {
-        saveTraces(traces, options.save);
+        await saveTraces(traces, options.save);
         console.log(chalk.green(`\n✓ Saved trace to: ${options.save}`));
       }
     });
@@ -158,7 +158,7 @@ function displayTimeline(traces: TraceEvent[]): void {
   console.log(chalk.gray(`  0ms${' '.repeat(50)}${maxTime}ms`));
 }
 
-function saveTraces(traces: TraceEvent[], filename: string): void {
+async function saveTraces(traces: TraceEvent[], filename: string): Promise<void> {
   const data = {
     timestamp: new Date().toISOString(),
     traces,
@@ -169,5 +169,5 @@ function saveTraces(traces: TraceEvent[], filename: string): void {
     }
   };
 
-  fs.writeFileSync(filename, JSON.stringify(data, null, 2));
+  await fs.writeFile(filename, JSON.stringify(data, null, 2));
 }
