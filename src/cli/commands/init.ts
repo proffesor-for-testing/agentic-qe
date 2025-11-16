@@ -822,12 +822,12 @@ For full capabilities, install the complete agentic-qe package.
   }
 
   /**
-   * Copy all 37 QE Fleet skills (filters out Claude Flow skills)
+   * Copy all 38 QE Fleet skills (filters out Claude Flow skills)
    */
   private static async copySkillTemplates(): Promise<void> {
     console.log(chalk.cyan('  🎯 Initializing QE Fleet skills...'));
 
-    // Define all 37 QE Fleet skills (Phase 1: 18 + Phase 2: 16 + Phase 3: 3 = 37 total)
+    // Define all 38 QE Fleet skills (Phase 1: 18 + Phase 2: 16 + Phase 3: 4 = 38 total)
     const QE_FLEET_SKILLS = [
       // Phase 1: Original Quality Practices (18 skills)
       // Core Quality Practices (3)
@@ -881,10 +881,11 @@ For full capabilities, install the complete agentic-qe package.
       'test-environment-management',
       'test-reporting-analytics',
 
-      // Phase 3: Advanced Quality Engineering Skills (3 skills)
-      // Strategic Testing Methodologies (3)
+      // Phase 3: Advanced Quality Engineering Skills (4 skills)
+      // Strategic Testing Methodologies (4)
       'six-thinking-hats',
       'brutal-honesty-review',
+      'sherlock-review',
       'cicd-pipeline-qe-orchestrator'
     ];
 
@@ -965,11 +966,11 @@ For full capabilities, install the complete agentic-qe package.
 
     console.log(chalk.cyan(`  📋 Total QE skills initialized: ${finalSkillCount}`));
 
-    // Verify we have exactly 37 QE skills
-    if (finalSkillCount === 37) {
-      console.log(chalk.green('  ✅ All 37 QE Fleet skills successfully initialized'));
-    } else if (finalSkillCount < 37) {
-      console.warn(chalk.yellow(`  ⚠️  Expected 37 QE skills, found ${finalSkillCount}`));
+    // Verify we have exactly 38 QE skills
+    if (finalSkillCount === 38) {
+      console.log(chalk.green('  ✅ All 38 QE Fleet skills successfully initialized'));
+    } else if (finalSkillCount < 38) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 38 QE skills, found ${finalSkillCount}`));
 
       // Check missing skills asynchronously
       const missingSkills: string[] = [];
@@ -1703,7 +1704,7 @@ for await (const event of handler.execute(params)) {
 
 ## 🎯 Claude Code Skills Integration
 
-This fleet includes **37 specialized QE skills** that agents can use:
+This fleet includes **38 specialized QE skills** that agents can use:
 
 ### Phase 1: Original Quality Engineering Skills (18 skills)
 
@@ -1758,6 +1759,14 @@ This fleet includes **37 specialized QE skills** that agents can use:
 #### Testing Infrastructure (2 skills)
 - **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
 - **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+### Phase 3: Advanced Quality Engineering Skills (4 skills)
+
+#### Strategic Testing Methodologies (4 skills)
+- **six-thinking-hats**: Apply De Bono's Six Thinking Hats methodology to quality engineering for comprehensive analysis from multiple perspectives
+- **brutal-honesty-review**: Unvarnished technical criticism combining Linus Torvalds' precision, Gordon Ramsay's standards, and James Bach's BS-detection
+- **sherlock-review**: Evidence-based investigative code review using deductive reasoning to determine what actually happened versus what was claimed
+- **cicd-pipeline-qe-orchestrator**: Orchestrate comprehensive quality engineering across CI/CD pipeline phases with intelligent agent coordination
 
 ### Using Skills
 
@@ -1836,7 +1845,7 @@ aqe improve cycle
 
 - **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents (18 main + 8 TDD subagents)
 - **Subagent Definitions**: \\\`.claude/agents/subagents/\\\` - 8 specialized TDD subagents for test generation workflow
-- **Skills**: \\\`.claude/skills/\\\` - 37 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16 + Phase 3: 3)
+- **Skills**: \\\`.claude/skills/\\\` - 38 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16 + Phase 3: 4)
 - **Fleet Config**: \\\`.agentic-qe/config/fleet.json\\\`
 - **Routing Config**: \\\`.agentic-qe/config/routing.json\\\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \\\`.agentic-qe/config/aqe-hooks.json\\\` (zero dependencies, 100-500x faster)

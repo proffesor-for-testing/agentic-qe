@@ -11,9 +11,9 @@
 
 **Version 1.7.0** (Hardening Release) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (37 QE skills), and intelligent model routing.
+> Enterprise-grade test automation with AI learning, comprehensive skills library (38 QE skills), and intelligent model routing.
 
-🧠 **Q-Learning System** | 📚 **37 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
+🧠 **Q-Learning System** | 📚 **38 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
 
 </div>
 
@@ -60,7 +60,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ 18 Specialized agent definitions (including qe-code-complexity)
 - ✅ 8 TDD subagent definitions (RED/GREEN/REFACTOR phases)
-- ✅ 37 World-class QE skills library
+- ✅ 38 World-class QE skills library
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
 
@@ -96,7 +96,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 37 QE Skills Library (v1.3.0)
+### 🎓 38 QE Skills Library (v1.3.0)
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -114,8 +114,8 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
 
-**Phase 3: Advanced Quality Engineering Skills (3 skills)**
-- **Strategic Testing Methodologies (3)**: six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
+**Phase 3: Advanced Quality Engineering Skills (4 skills)**
+- **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
 
 </details>
 
@@ -561,7 +561,7 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
   - Fresh installation verified with all features working
 - **Build Quality** - Zero errors, production-grade
   - 0 TypeScript errors (was 17)
-  - All 19 agents + 37 skills + 8 commands functional
+  - All 19 agents + 38 skills + 8 commands functional
 
 **Upgrade from v1.6.x**: Fully backward-compatible. Run `npm install agentic-qe@1.7.0` and `aqe init`.
 

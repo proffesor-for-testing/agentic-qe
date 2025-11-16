@@ -5,6 +5,18 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### New QE Skill: sherlock-review
+- **Evidence-based investigative code review** using Holmesian deductive reasoning
+- Systematic observation and claims verification
+- Deductive analysis framework for investigating what actually happened vs. what was claimed
+- Investigation templates for bug fixes, features, and performance claims
+- Integration with existing QE agents (code-reviewer, security-auditor, performance-validator)
+- **Skills count**: 37 → 38 specialized QE skills
+
 ## [1.7.0] - 2025-11-14
 
 ### 🎯 Priority 1: Production-Ready Implementation
