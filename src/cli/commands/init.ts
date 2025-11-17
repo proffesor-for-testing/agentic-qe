@@ -1951,6 +1951,9 @@ tail -f .agentic-qe/logs/fleet.log
       quantizationType: 'scalar'
     });
 
+    // CRITICAL: Must initialize before calling getStats()
+    await agentDB.initialize();
+
     // Verify initialization
     const stats = await agentDB.getStats();
     await agentDB.close();
