@@ -1219,6 +1219,45 @@ export class SwarmMemoryManager {
     }));
   }
 
+  /**
+   * Query patterns by agent ID and minimum confidence
+   * Filters patterns to only those belonging to the specified agent
+   * @param agentId Agent ID to filter by
+   * @param minConfidence Minimum confidence threshold (default: 0)
+   * @returns Array of patterns belonging to the agent
+   */
+  async queryPatternsByAgent(agentId: string, minConfidence: number = 0): Promise<Pattern[]> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const now = Date.now();
+    const rows = await this.queryAll<any>(
+      `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
+       FROM patterns
+       WHERE confidence >= ?
+         AND (expires_at IS NULL OR expires_at > ?)
+         AND (metadata LIKE ? OR metadata LIKE ?)
+       ORDER BY confidence DESC`,
+      [
+        minConfidence,
+        now,
+        `%"agent_id":"${agentId}"%`,
+        `%"agentId":"${agentId}"%`
+      ]
+    );
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      pattern: row.pattern,
+      confidence: row.confidence,
+      usageCount: row.usage_count,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      ttl: row.ttl,
+      createdAt: row.created_at
+    }));
+  }
+
   // ============================================================================
   // Table 6: Consensus State (TTL: 7 days)
   // ============================================================================

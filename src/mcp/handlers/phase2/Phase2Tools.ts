@@ -86,7 +86,7 @@ export class Phase2ToolsHandler extends BaseHandler {
           return this.createSuccessResponse(status, requestId);
         }
 
-        const patterns = engine.getPatterns() || [];
+        const patterns = (await engine.getPatterns()) || [];
         const failurePatterns = engine.getFailurePatterns() || [];
 
         const status = {
@@ -108,7 +108,7 @@ export class Phase2ToolsHandler extends BaseHandler {
             enabled: engine.isEnabled(),
             totalExperiences: engine.getTotalExperiences(),
             explorationRate: engine.getExplorationRate(),
-            patternsCount: engine.getPatterns().length,
+            patternsCount: (await engine.getPatterns()).length,
             failurePatternsCount: engine.getFailurePatterns().length
           });
         }

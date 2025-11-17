@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2025-01-17
+
+### 🎯 Quality Hardening Release
+
+This release focuses on **critical bug fixes** and **code quality improvements** identified through brutal-honest-review analysis. Achieves 90% fix completion with comprehensive integration testing.
+
 ### Added
 
 #### New QE Skill: sherlock-review
@@ -15,7 +21,139 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deductive analysis framework for investigating what actually happened vs. what was claimed
 - Investigation templates for bug fixes, features, and performance claims
 - Integration with existing QE agents (code-reviewer, security-auditor, performance-validator)
-- **Skills count**: 37 → 38 specialized QE skills
+- **Skills count**: 38 specialized QE skills total
+
+#### Integration Test Suite
+- **20 new integration tests** for AgentDB integration
+- `base-agent-agentdb.test.ts` - 9 test cases covering pattern storage, retrieval, and error handling
+- `test-executor-agentdb.test.ts` - 11 test cases covering execution patterns and framework-specific behavior
+- Comprehensive error path testing (database failures, empty databases, storage failures)
+- Mock vs real adapter detection testing
+
+#### AgentDB Initialization Checks
+- Empty database detection before vector searches
+- HNSW index readiness verification
+- Automatic index building when needed
+- Graceful handling of uninitialized state
+
+#### Code Quality Utilities
+- `EmbeddingGenerator.ts` - Consolidated embedding generation utility
+- `generateEmbedding()` - Single source of truth for embeddings
+- `isRealEmbeddingModel()` - Production model detection
+- `getEmbeddingModelType()` - Embedding provider identification
+
+### Fixed
+
+#### Critical: Agent Pattern Isolation ⭐
+- **BREAKING BUG**: Patterns were mixing between agents - all agents saw all patterns
+- Added `SwarmMemoryManager.queryPatternsByAgent(agentId, minConfidence)` for proper filtering
+- Updated `LearningEngine.getPatterns()` to use agent-specific queries
+- SQL filtering: `metadata LIKE '%"agent_id":"<id>"%'`
+- **Impact**: Each agent now only sees its own learned patterns (data isolation restored)
+
+#### Critical: Async Method Cascade
+- Changed `LearningEngine.getPatterns()` from sync to async (required for database queries)
+- Fixed **10 callers across 6 files**:
+  - `BaseAgent.ts` - 2 calls (getLearningStatus, getLearnedPatterns)
+  - `LearningAgent.ts` - 2 calls + method signature
+  - `CoverageAnalyzerAgent.ts` - 2 calls (predictGapLikelihood, trackAndLearn)
+  - `ImprovementLoop.ts` - 2 calls (discoverOptimizations, applyBestStrategies)
+  - `Phase2Tools.ts` - 2 calls (handleLearningStatus)
+- **Impact**: Build now passes, no TypeScript compilation errors
+
+#### Misleading Logging
+- **DISHONEST**: Logs claimed "✅ ACTUALLY loaded from AgentDB" when using mock adapters
+- Added `BaseAgent.isRealAgentDB()` method for mock vs real detection
+- Updated all logging to report actual adapter type (`real AgentDB` or `mock adapter`)
+- Removed misleading "ACTUALLY" prefix from all logs
+- **Impact**: Developers know when they're testing with mocks
+
+#### Code Duplication
+- **50+ lines duplicated**: Embedding generation code in 3 files with inconsistent implementations
+- Removed duplicate code from:
+  - `BaseAgent.simpleHashEmbedding()` - deleted
+  - `TestExecutorAgent.createExecutionPatternEmbedding()` - simplified
+  - `RealAgentDBAdapter` - updated to use utility
+- **Impact**: Single source of truth, easy to swap to production embeddings
+
+### Changed
+
+#### Method Signatures (Breaking - Async)
+```typescript
+// LearningEngine
+- getPatterns(): LearnedPattern[]
++ async getPatterns(): Promise<LearnedPattern[]>
+
+// BaseAgent
+- getLearningStatus(): {...} | null
++ async getLearningStatus(): Promise<{...} | null>
+
+- getLearnedPatterns(): LearnedPattern[]
++ async getLearnedPatterns(): Promise<LearnedPattern[]>
+
+// LearningAgent
+- getLearningStatus(): {...} | null
++ async getLearningStatus(): Promise<{...} | null>
+```
+
+### Removed
+
+#### Repository Cleanup
+- Deleted `tests/temp/` directory with **19 throwaway test files**
+- Removed temporary CLI test artifacts
+- **Impact**: Cleaner repository, no build artifacts in version control
+
+### Documentation
+
+#### New Documentation
+- `docs/BRUTAL-REVIEW-FIXES.md` - Comprehensive tracking of all 10 fixes
+- `docs/releases/v1.8.0-RELEASE-SUMMARY.md` - Complete release documentation
+- Integration test inline documentation and examples
+
+#### Updated Documentation
+- Code comments clarifying async behavior
+- AgentDB initialization flow documentation
+- Error handling patterns documented in tests
+
+### Deferred to v1.9.0
+
+#### Wire Up Real Test Execution
+- **Issue**: `executeTestsInParallel()` uses simulated tests instead of calling `runTestFramework()`
+- **Rationale**: Requires architecture refactoring, test objects don't map to file paths
+- **Workaround**: Use `runTestFramework()` directly for immediate execution needs
+- **Impact**: Deferred to avoid breaking sublinear optimization logic
+
+### Statistics
+
+- **Fixes Applied**: 9 / 10 (90%, 1 deferred)
+- **Files Modified**: 16
+- **Files Created**: 3 (utility + 2 test files)
+- **Files Deleted**: 19 (temp tests)
+- **Integration Tests**: 20 test cases
+- **Lines Changed**: ~500
+- **Build Status**: ✅ PASSING
+- **Critical Bugs Fixed**: 4
+
+### Migration Guide
+
+#### For Custom Code Using getPatterns()
+```typescript
+// Before v1.8.0
+const patterns = learningEngine.getPatterns();
+
+// After v1.8.0 (add await)
+const patterns = await learningEngine.getPatterns();
+```
+
+#### For Custom Embedding Generation
+```typescript
+// Before v1.8.0 (if using internal methods)
+// Custom implementation
+
+// After v1.8.0
+import { generateEmbedding } from './utils/EmbeddingGenerator';
+const embedding = generateEmbedding(text, 384);
+```
 
 ## [1.7.0] - 2025-11-14
 

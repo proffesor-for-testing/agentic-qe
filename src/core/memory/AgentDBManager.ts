@@ -397,6 +397,25 @@ export class AgentDBManager {
     const queryEmbedding = Array.from({ length: 384 }, () => SecureRandom.randomFloat());
     return this.retrieve(queryEmbedding, options);
   }
+
+  /**
+   * Execute raw SQL query on the database
+   * For CLI queries and advanced analytics
+   */
+  async query(sql: string, params: any[] = []): Promise<any[]> {
+    this.ensureInitialized();
+
+    try {
+      if (this.adapter && typeof this.adapter.query === 'function') {
+        return await this.adapter.query(sql, params);
+      }
+
+      // Fallback for adapters without direct query support
+      throw new Error('Direct SQL queries not supported by current adapter');
+    } catch (error: any) {
+      throw new Error(`Failed to execute query: ${error.message}`);
+    }
+  }
 }
 
 /**
@@ -406,7 +425,8 @@ export function createAgentDBManager(
   overrides: Partial<AgentDBConfig> = {}
 ): AgentDBManager {
   const defaultConfig: AgentDBConfig = {
-    dbPath: '.agentdb/reasoningbank.db',
+    // Updated default path to use .agentic-qe directory for consolidation
+    dbPath: '.agentic-qe/agentdb.db',
     enableQUICSync: false,
     syncPort: 4433,
     syncPeers: [],

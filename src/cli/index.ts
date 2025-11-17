@@ -701,6 +701,20 @@ learnCommand
     }
   });
 
+learnCommand
+  .command('metrics')
+  .description('Show learning improvement metrics from AgentDB')
+  .option('--agent <name>', 'Filter by agent type')
+  .option('--days <n>', 'Last N days', '7')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnMetrics(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Learning metrics failed:'), error);
+      process.exit(1);
+    }
+  });
+
 /**
  * Patterns commands (Phase 2)
  * Manage test patterns in the QEReasoningBank

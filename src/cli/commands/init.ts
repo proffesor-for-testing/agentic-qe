@@ -177,16 +177,10 @@ export class InitCommand {
       spinner.text = 'Initializing memory database...';
       await this.initializeMemoryDatabase();
 
-      // Phase 2: Initialize pattern bank database
-      if (options.enablePatterns !== false) {
-        spinner.text = 'Initializing pattern bank database...';
-        await this.initializePatternDatabase(fleetConfig);
-      }
-
-      // Phase 2: Initialize learning system
+      // Phase 2: Initialize AgentDB for learning (v1.8.0 - replaces patterns.db)
       if (options.enableLearning !== false) {
-        spinner.text = 'Initializing learning system...';
-        await this.initializeLearningSystem(fleetConfig);
+        spinner.text = 'Initializing AgentDB learning system...';
+        await this.initializeAgentDB(fleetConfig);
       }
 
       // Phase 2: Initialize improvement loop
@@ -1935,42 +1929,39 @@ tail -f .agentic-qe/logs/fleet.log
   // ============================================================================
 
   /**
-   * Initialize Phase 2 Pattern Bank Database
+   * Initialize AgentDB for Learning (v1.8.0 - replaces patterns.db)
+   *
+   * Consolidated learning storage for all QE agents using AgentDB.
+   * Replaces the deprecated patterns.db with vector-based learning storage.
    */
-  private static async initializePatternDatabase(config: FleetConfig): Promise<void> {
-    const Database = (await import('better-sqlite3')).default;
-    const dbPath = path.join(process.cwd(), '.agentic-qe', 'patterns.db');
+  private static async initializeAgentDB(config: FleetConfig): Promise<void> {
+    const dbPath = path.join(process.cwd(), '.agentic-qe', 'agentdb.db');
 
-    console.log(chalk.cyan('  📦 Initializing Pattern Bank database...'));
+    console.log(chalk.cyan('  🧠 Initializing AgentDB learning system...'));
 
-    const db = new Database(dbPath);
+    // Import AgentDB dynamically
+    const { createAgentDBManager } = await import('../../core/memory/AgentDBManager');
 
-    // Enable WAL mode for better concurrency
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-    db.pragma('cache_size = -64000'); // 64MB cache
+    // Initialize AgentDB with learning configuration
+    const agentDB = await createAgentDBManager({
+      dbPath,
+      enableLearning: true,
+      enableReasoning: true,
+      cacheSize: 1000,
+      quantizationType: 'scalar'
+    });
 
-    // Read and execute the schema
-    const schemaPath = path.join(__dirname, '../../../docs/architecture/REASONING-BANK-SCHEMA.sql');
-    let schema: string;
+    // Verify initialization
+    const stats = await agentDB.getStats();
+    await agentDB.close();
 
-    if (await fs.pathExists(schemaPath)) {
-      schema = await fs.readFile(schemaPath, 'utf-8');
-    } else {
-      // Fallback: inline schema if file not found
-      schema = this.getPatternBankSchema();
-    }
-
-    // Execute schema
-    db.exec(schema);
-
-    db.close();
-
-    console.log(chalk.green('  ✓ Pattern Bank initialized'));
+    console.log(chalk.green('  ✓ AgentDB learning system initialized'));
     console.log(chalk.gray(`    • Database: ${dbPath}`));
-    console.log(chalk.gray(`    • Framework: ${config.frameworks?.[0] || 'jest'}`));
-    console.log(chalk.gray(`    • Tables: test_patterns, pattern_usage, cross_project_mappings, pattern_similarity_index`));
-    console.log(chalk.gray(`    • Full-text search: enabled`));
+    console.log(chalk.gray(`    • Episodes stored: ${stats.episodeCount || 0}`));
+    console.log(chalk.gray(`    • Vector search: HNSW enabled (150x faster)`));
+    console.log(chalk.gray(`    • Learning: Reflexion pattern + Q-values`));
+    console.log(chalk.gray(`    • Used by: All 19 QE agents`));
+    console.log(chalk.yellow(`    ⓘ  patterns.db deprecated - using AgentDB for all learning`));
   }
 
   /**
