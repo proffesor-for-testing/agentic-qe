@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Skills Reference
 
-This document provides comprehensive reference for all 37 specialized QE skills available to agents.
+This document provides comprehensive reference for all 38 specialized QE skills available to agents.
 
 ## Overview
 
@@ -640,9 +640,9 @@ Skill("test-reporting-analytics")
 
 ---
 
-## Phase 3: Advanced Quality Engineering Skills (3 skills)
+## Phase 3: Advanced Quality Engineering Skills (4 skills)
 
-### Strategic Testing Methodologies (3 skills)
+### Strategic Testing Methodologies (4 skills)
 
 #### six-thinking-hats
 **Edward de Bono's Six Thinking Hats for comprehensive testing analysis**
@@ -694,10 +694,36 @@ Skill("brutal-honesty-review")
 
 ---
 
+#### sherlock-review
+**Evidence-based investigative code review using deductive reasoning**
+
+Conducts methodical, evidence-based investigation of code, tests, and system behavior using Holmesian deductive reasoning. Investigates what actually happened versus what was claimed, seeing what others miss through systematic observation.
+
+**Key Topics:**
+- Evidence collection
+- Deductive reasoning
+- Claims verification
+- Root cause investigation
+- Systematic observation
+
+**Usage:**
+```javascript
+Skill("sherlock-review")
+```
+
+**Use Cases:**
+- Verifying implementation claims
+- Investigating bugs and fixes
+- Validating performance claims
+- Conducting root cause analysis
+- Evidence-based code review
+
+---
+
 #### cicd-pipeline-qe-orchestrator
 **Comprehensive quality orchestration across CI/CD pipeline phases**
 
-Intelligently select QE skills and coordinate specialized agents for holistic quality coverage throughout the software delivery lifecycle. Integrates all 37 AQE skills and 18 agents.
+Intelligently select QE skills and coordinate specialized agents for holistic quality coverage throughout the software delivery lifecycle. Integrates all 38 AQE skills and 18 agents.
 
 **Key Topics:**
 - Pipeline phase analysis

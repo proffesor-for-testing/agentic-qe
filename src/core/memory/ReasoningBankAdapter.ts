@@ -96,6 +96,29 @@ export class ReasoningBankAdapter {
   }
 
   /**
+   * Execute raw SQL query (mock implementation)
+   */
+  async query(sql: string, params: any[] = []): Promise<any[]> {
+    // Simple mock implementation for testing
+    // Supports basic SELECT queries on patterns table
+    const sqlLower = sql.toLowerCase();
+
+    if (sqlLower.includes('select') && sqlLower.includes('from patterns')) {
+      // Return mock query results based on patterns
+      const patternsArray = Array.from(this.patterns.values());
+      return patternsArray.map(p => ({
+        id: p.id,
+        type: p.type,
+        confidence: p.confidence || 0.5,
+        created_at: Math.floor(Date.now() / 1000) - 86400 * 7, // 7 days ago
+        metadata: JSON.stringify(p.metadata || {})
+      }));
+    }
+
+    return [];
+  }
+
+  /**
    * Close the adapter
    */
   async close(): Promise<void> {

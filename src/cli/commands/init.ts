@@ -177,16 +177,10 @@ export class InitCommand {
       spinner.text = 'Initializing memory database...';
       await this.initializeMemoryDatabase();
 
-      // Phase 2: Initialize pattern bank database
-      if (options.enablePatterns !== false) {
-        spinner.text = 'Initializing pattern bank database...';
-        await this.initializePatternDatabase(fleetConfig);
-      }
-
-      // Phase 2: Initialize learning system
+      // Phase 2: Initialize AgentDB for learning (v1.8.0 - replaces patterns.db)
       if (options.enableLearning !== false) {
-        spinner.text = 'Initializing learning system...';
-        await this.initializeLearningSystem(fleetConfig);
+        spinner.text = 'Initializing AgentDB learning system...';
+        await this.initializeAgentDB(fleetConfig);
       }
 
       // Phase 2: Initialize improvement loop
@@ -822,12 +816,12 @@ For full capabilities, install the complete agentic-qe package.
   }
 
   /**
-   * Copy all 37 QE Fleet skills (filters out Claude Flow skills)
+   * Copy all 38 QE Fleet skills (filters out Claude Flow skills)
    */
   private static async copySkillTemplates(): Promise<void> {
     console.log(chalk.cyan('  🎯 Initializing QE Fleet skills...'));
 
-    // Define all 37 QE Fleet skills (Phase 1: 18 + Phase 2: 16 + Phase 3: 3 = 37 total)
+    // Define all 38 QE Fleet skills (Phase 1: 18 + Phase 2: 16 + Phase 3: 4 = 38 total)
     const QE_FLEET_SKILLS = [
       // Phase 1: Original Quality Practices (18 skills)
       // Core Quality Practices (3)
@@ -881,10 +875,11 @@ For full capabilities, install the complete agentic-qe package.
       'test-environment-management',
       'test-reporting-analytics',
 
-      // Phase 3: Advanced Quality Engineering Skills (3 skills)
-      // Strategic Testing Methodologies (3)
+      // Phase 3: Advanced Quality Engineering Skills (4 skills)
+      // Strategic Testing Methodologies (4)
       'six-thinking-hats',
       'brutal-honesty-review',
+      'sherlock-review',
       'cicd-pipeline-qe-orchestrator'
     ];
 
@@ -965,11 +960,11 @@ For full capabilities, install the complete agentic-qe package.
 
     console.log(chalk.cyan(`  📋 Total QE skills initialized: ${finalSkillCount}`));
 
-    // Verify we have exactly 37 QE skills
-    if (finalSkillCount === 37) {
-      console.log(chalk.green('  ✅ All 37 QE Fleet skills successfully initialized'));
-    } else if (finalSkillCount < 37) {
-      console.warn(chalk.yellow(`  ⚠️  Expected 37 QE skills, found ${finalSkillCount}`));
+    // Verify we have exactly 38 QE skills
+    if (finalSkillCount === 38) {
+      console.log(chalk.green('  ✅ All 38 QE Fleet skills successfully initialized'));
+    } else if (finalSkillCount < 38) {
+      console.warn(chalk.yellow(`  ⚠️  Expected 38 QE skills, found ${finalSkillCount}`));
 
       // Check missing skills asynchronously
       const missingSkills: string[] = [];
@@ -1703,7 +1698,7 @@ for await (const event of handler.execute(params)) {
 
 ## 🎯 Claude Code Skills Integration
 
-This fleet includes **37 specialized QE skills** that agents can use:
+This fleet includes **38 specialized QE skills** that agents can use:
 
 ### Phase 1: Original Quality Engineering Skills (18 skills)
 
@@ -1758,6 +1753,14 @@ This fleet includes **37 specialized QE skills** that agents can use:
 #### Testing Infrastructure (2 skills)
 - **test-environment-management**: Manage test environments, infrastructure as code, and environment provisioning
 - **test-reporting-analytics**: Comprehensive test reporting with metrics, trends, and actionable insights
+
+### Phase 3: Advanced Quality Engineering Skills (4 skills)
+
+#### Strategic Testing Methodologies (4 skills)
+- **six-thinking-hats**: Apply De Bono's Six Thinking Hats methodology to quality engineering for comprehensive analysis from multiple perspectives
+- **brutal-honesty-review**: Unvarnished technical criticism combining Linus Torvalds' precision, Gordon Ramsay's standards, and James Bach's BS-detection
+- **sherlock-review**: Evidence-based investigative code review using deductive reasoning to determine what actually happened versus what was claimed
+- **cicd-pipeline-qe-orchestrator**: Orchestrate comprehensive quality engineering across CI/CD pipeline phases with intelligent agent coordination
 
 ### Using Skills
 
@@ -1836,7 +1839,7 @@ aqe improve cycle
 
 - **Agent Definitions**: \\\`.claude/agents/\\\` - ${agentCount} specialized QE agents (18 main + 8 TDD subagents)
 - **Subagent Definitions**: \\\`.claude/agents/subagents/\\\` - 8 specialized TDD subagents for test generation workflow
-- **Skills**: \\\`.claude/skills/\\\` - 37 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16 + Phase 3: 3)
+- **Skills**: \\\`.claude/skills/\\\` - 38 specialized QE skills for agents (Phase 1: 18 + Phase 2: 16 + Phase 3: 4)
 - **Fleet Config**: \\\`.agentic-qe/config/fleet.json\\\`
 - **Routing Config**: \\\`.agentic-qe/config/routing.json\\\` (Multi-Model Router settings)
 - **AQE Hooks Config**: \\\`.agentic-qe/config/aqe-hooks.json\\\` (zero dependencies, 100-500x faster)
@@ -1926,42 +1929,42 @@ tail -f .agentic-qe/logs/fleet.log
   // ============================================================================
 
   /**
-   * Initialize Phase 2 Pattern Bank Database
+   * Initialize AgentDB for Learning (v1.8.0 - replaces patterns.db)
+   *
+   * Consolidated learning storage for all QE agents using AgentDB.
+   * Replaces the deprecated patterns.db with vector-based learning storage.
    */
-  private static async initializePatternDatabase(config: FleetConfig): Promise<void> {
-    const Database = (await import('better-sqlite3')).default;
-    const dbPath = path.join(process.cwd(), '.agentic-qe', 'patterns.db');
+  private static async initializeAgentDB(config: FleetConfig): Promise<void> {
+    const dbPath = path.join(process.cwd(), '.agentic-qe', 'agentdb.db');
 
-    console.log(chalk.cyan('  📦 Initializing Pattern Bank database...'));
+    console.log(chalk.cyan('  🧠 Initializing AgentDB learning system...'));
 
-    const db = new Database(dbPath);
+    // Import AgentDB dynamically
+    const { createAgentDBManager } = await import('../../core/memory/AgentDBManager');
 
-    // Enable WAL mode for better concurrency
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-    db.pragma('cache_size = -64000'); // 64MB cache
+    // Initialize AgentDB with learning configuration
+    const agentDB = await createAgentDBManager({
+      dbPath,
+      enableLearning: true,
+      enableReasoning: true,
+      cacheSize: 1000,
+      quantizationType: 'scalar'
+    });
 
-    // Read and execute the schema
-    const schemaPath = path.join(__dirname, '../../../docs/architecture/REASONING-BANK-SCHEMA.sql');
-    let schema: string;
+    // CRITICAL: Must initialize before calling getStats()
+    await agentDB.initialize();
 
-    if (await fs.pathExists(schemaPath)) {
-      schema = await fs.readFile(schemaPath, 'utf-8');
-    } else {
-      // Fallback: inline schema if file not found
-      schema = this.getPatternBankSchema();
-    }
+    // Verify initialization
+    const stats = await agentDB.getStats();
+    await agentDB.close();
 
-    // Execute schema
-    db.exec(schema);
-
-    db.close();
-
-    console.log(chalk.green('  ✓ Pattern Bank initialized'));
+    console.log(chalk.green('  ✓ AgentDB learning system initialized'));
     console.log(chalk.gray(`    • Database: ${dbPath}`));
-    console.log(chalk.gray(`    • Framework: ${config.frameworks?.[0] || 'jest'}`));
-    console.log(chalk.gray(`    • Tables: test_patterns, pattern_usage, cross_project_mappings, pattern_similarity_index`));
-    console.log(chalk.gray(`    • Full-text search: enabled`));
+    console.log(chalk.gray(`    • Episodes stored: ${stats.episodeCount || 0}`));
+    console.log(chalk.gray(`    • Vector search: HNSW enabled (150x faster)`));
+    console.log(chalk.gray(`    • Learning: Reflexion pattern + Q-values`));
+    console.log(chalk.gray(`    • Used by: All 19 QE agents`));
+    console.log(chalk.yellow(`    ⓘ  patterns.db deprecated - using AgentDB for all learning`));
   }
 
   /**

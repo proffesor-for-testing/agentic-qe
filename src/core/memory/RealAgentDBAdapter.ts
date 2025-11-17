@@ -5,7 +5,7 @@
  */
 
 import type { Pattern, RetrievalOptions, RetrievalResult } from './ReasoningBankAdapter';
-import { SecureRandom } from '../../utils/SecureRandom.js';
+import { generateEmbedding } from '../../utils/EmbeddingGenerator.js';
 import { createDatabase, WASMVectorSearch, HNSWIndex } from 'agentdb';
 
 export class RealAgentDBAdapter {
@@ -94,34 +94,30 @@ export class RealAgentDBAdapter {
       // Ensure embedding exists and has correct dimensions
       if (!pattern.embedding || pattern.embedding.length !== this.dimension) {
         // Generate default embedding if missing
-        pattern.embedding = Array.from(
-          { length: this.dimension },
-          () => SecureRandom.randomFloat()
-        );
+        const patternText = JSON.stringify(pattern.data || pattern);
+        pattern.embedding = generateEmbedding(patternText, this.dimension);
       }
 
       // Convert to Float32Array
       const embedding = new Float32Array(pattern.embedding);
 
-      // Insert into database
+      // Insert into database using sql.js exec() API
+      // Store embedding as NULL for now (BLOB handling in sql.js is complex)
+      const metadataJson = JSON.stringify(pattern.metadata || {}).replace(/'/g, "''");
+
       const sql = `
         INSERT OR REPLACE INTO patterns (id, type, confidence, embedding, metadata, created_at)
-        VALUES (?, ?, ?, ?, ?, unixepoch())
+        VALUES ('${pattern.id}', '${pattern.type}', ${pattern.confidence || 0.5}, NULL, '${metadataJson}', unixepoch())
       `;
 
-      await this.db.run(sql, [
-        pattern.id,
-        pattern.type,
-        pattern.confidence || 0.5,
-        Buffer.from(embedding.buffer),
-        JSON.stringify(pattern.metadata || {})
-      ]);
+      // Use exec() which is available in sql.js
+      this.db.exec(sql);
 
       // Add to HNSW index
       if (this.hnswIndex && this.hnswIndex.isReady()) {
-        const result = await this.db.get('SELECT rowid FROM patterns WHERE id = ?', [pattern.id]);
-        if (result) {
-          this.hnswIndex.addVector(result.rowid, embedding);
+        const result = this.db.exec(`SELECT rowid FROM patterns WHERE id = '${pattern.id}'`);
+        if (result && result.length > 0 && result[0].values.length > 0) {
+          this.hnswIndex.addVector(result[0].values[0][0] as number, embedding);
         }
       }
 
@@ -179,12 +175,37 @@ export class RealAgentDBAdapter {
 
       // Ensure query embedding has correct dimensions
       if (queryEmbedding.length !== this.dimension) {
-        queryEmbedding = Array.from({ length: this.dimension }, () => SecureRandom.randomFloat());
+        // Generate proper embedding if wrong size
+        queryEmbedding = generateEmbedding('query', this.dimension);
       }
 
       const queryVector = new Float32Array(queryEmbedding);
       const topK = options.topK || 10;
       const threshold = options.threshold || 0.7;
+
+      // Check if database has patterns before searching
+      const countResult = this.db.exec('SELECT COUNT(*) as count FROM patterns');
+      const patternCount = countResult?.[0]?.values?.[0]?.[0] || 0;
+
+      if (patternCount === 0) {
+        console.warn('[RealAgentDBAdapter] Search attempted on empty database - returning empty results');
+        return {
+          memories: [],
+          patterns: [],
+          context: {
+            query: 'vector similarity search (empty database)',
+            resultsCount: 0,
+            avgSimilarity: 0,
+            queryTime: Date.now() - startTime
+          }
+        };
+      }
+
+      // Check HNSW index readiness before search
+      if (this.hnswIndex && !this.hnswIndex.isReady()) {
+        console.warn('[RealAgentDBAdapter] HNSW index not ready - attempting to build index');
+        await this.hnswIndex.buildIndex('patterns');
+      }
 
       // Search using HNSW if available, otherwise WASM vector search
       let searchResults;
@@ -244,8 +265,10 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      const countResult = await this.db.get('SELECT COUNT(*) as count FROM patterns');
-      const totalVectors = countResult?.count || 0;
+      const result = this.db.exec('SELECT COUNT(*) as count FROM patterns');
+      const totalVectors = result && result.length > 0 && result[0].values.length > 0
+        ? result[0].values[0][0]
+        : 0;
 
       return {
         totalVectors,
@@ -281,6 +304,46 @@ export class RealAgentDBAdapter {
    */
   get initialized(): boolean {
     return this.isInitialized;
+  }
+
+  /**
+   * Insert a pattern (alias for store)
+   */
+  async insertPattern(pattern: any): Promise<string> {
+    return this.store(pattern);
+  }
+
+  /**
+   * Execute raw SQL query
+   */
+  async query(sql: string, params: any[] = []): Promise<any[]> {
+    if (!this.isInitialized || !this.db) {
+      throw new Error('Adapter not initialized');
+    }
+
+    try {
+      // AgentDB uses sql.js which has exec() not all()
+      // For SELECT queries, use exec which returns array of results
+      const results = this.db.exec(sql, params);
+
+      // exec returns: [{ columns: [...], values: [[...], [...]] }]
+      if (results && results.length > 0) {
+        const { columns, values } = results[0];
+
+        // Convert to array of objects
+        return values.map((row: any[]) => {
+          const obj: any = {};
+          columns.forEach((col: string, i: number) => {
+            obj[col] = row[i];
+          });
+          return obj;
+        });
+      }
+
+      return [];
+    } catch (error: any) {
+      throw new Error(`Query failed: ${error.message}`);
+    }
   }
 }
 

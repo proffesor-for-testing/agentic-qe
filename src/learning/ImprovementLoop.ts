@@ -346,7 +346,7 @@ export class ImprovementLoop {
     const opportunities: StrategyRecommendation[] = [];
 
     // Get learned patterns
-    const patterns = this.learningEngine.getPatterns();
+    const patterns = await this.learningEngine.getPatterns();
 
     // Find underutilized high-confidence patterns
     for (const pattern of patterns) {
@@ -389,7 +389,7 @@ export class ImprovementLoop {
     }
 
     // Only apply strategies with very high confidence (>0.9) and success rate (>0.8)
-    const patterns = this.learningEngine.getPatterns()
+    const patterns = (await this.learningEngine.getPatterns())
       .filter(p => p.confidence > 0.9 && p.successRate > 0.8)
       .slice(0, 3);
 

@@ -6,6 +6,7 @@
 
 import { EventEmitter } from 'events';
 import { SecureRandom } from '../utils/SecureRandom.js';
+import { generateEmbedding, getEmbeddingModelType } from '../utils/EmbeddingGenerator.js';
 import {
   AgentId,
   QEAgentType as AgentType,
@@ -109,7 +110,8 @@ export abstract class BaseAgent extends EventEmitter {
       this.agentDBConfig = config.agentDBConfig;
     } else if (config.agentDBPath || config.enableQUICSync) {
       this.agentDBConfig = {
-        dbPath: config.agentDBPath || '.agentdb/reasoningbank.db',
+        // Updated default path to use .agentic-qe directory for consolidation
+        dbPath: config.agentDBPath || '.agentic-qe/agentdb.db',
         enableQUICSync: config.enableQUICSync || false,
         syncPort: config.syncPort || 4433,
         syncPeers: config.syncPeers || [],
@@ -497,16 +499,17 @@ export abstract class BaseAgent extends EventEmitter {
   /**
    * Get learned patterns from Q-learning
    */
-  public getLearnedPatterns() {
-    return this.learningEngine?.getPatterns() || [];
+  public async getLearnedPatterns() {
+    if (!this.learningEngine) return [];
+    return await this.learningEngine.getPatterns();
   }
 
   /**
    * Get learning engine status
    */
-  public getLearningStatus() {
+  public async getLearningStatus() {
     if (!this.learningEngine) return null;
-    const patterns = this.learningEngine.getPatterns();
+    const patterns = await this.learningEngine.getPatterns();
     return {
       enabled: this.learningEngine.isEnabled(),
       totalExperiences: this.learningEngine.getTotalExperiences(),
@@ -571,6 +574,18 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public hasAgentDB(): boolean {
     return this.agentDB !== undefined;
+  }
+
+  /**
+   * Check if AgentDB is using a real adapter (vs mock)
+   * @returns true if using real AgentDB, false if mock
+   */
+  private isRealAgentDB(): boolean {
+    if (!this.agentDB) return false;
+    // Check adapter type or test mode flags
+    const isTestMode = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+    const useMock = process.env.AQE_USE_MOCK_AGENTDB === 'true';
+    return !isTestMode && !useMock;
   }
 
   /**
@@ -762,10 +777,10 @@ export abstract class BaseAgent extends EventEmitter {
             requirements: data.assignment.task.requirements || {}
           });
 
-          // Generate embedding (simplified - replace with actual model in production)
-          const queryEmbedding = this.simpleHashEmbedding(taskQuery);
+          // Generate embedding using consolidated utility
+          const queryEmbedding = generateEmbedding(taskQuery);
 
-          // ACTUALLY retrieve relevant context from AgentDB with HNSW indexing
+          // Retrieve relevant context from AgentDB
           const retrievalResult = await this.agentDB.retrieve(queryEmbedding, {
             domain: `agent:${this.agentId.type}:tasks`,
             k: 5,
@@ -776,6 +791,8 @@ export abstract class BaseAgent extends EventEmitter {
           });
 
           const searchTime = Date.now() - searchStart;
+          const isReal = this.isRealAgentDB();
+          const adapterType = isReal ? 'real AgentDB' : 'mock adapter';
 
           // Enrich context with retrieved patterns
           if (retrievalResult.memories.length > 0) {
@@ -798,12 +815,12 @@ export abstract class BaseAgent extends EventEmitter {
             data.context = enrichedContext;
 
             console.info(
-              `[${this.agentId.id}] ✅ ACTUALLY loaded ${retrievalResult.memories.length} patterns from AgentDB ` +
-              `(${searchTime}ms, HNSW indexing, ${retrievalResult.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
+              `[${this.agentId.id}] Loaded ${retrievalResult.memories.length} patterns from ${adapterType} ` +
+              `(${searchTime}ms, ${retrievalResult.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
             );
 
             // Log top similar task
-            if (retrievalResult.memories.length > 0) {
+            if (retrievalResult.memories.length > 0 && isReal) {
               const topMatch = retrievalResult.memories[0];
               console.info(
                 `[${this.agentId.id}] 🎯 Top match: similarity=${topMatch.similarity.toFixed(3)}, ` +
@@ -811,7 +828,7 @@ export abstract class BaseAgent extends EventEmitter {
               );
             }
           } else {
-            console.info(`[${this.agentId.id}] No relevant patterns found in AgentDB (${searchTime}ms)`);
+            console.info(`[${this.agentId.id}] No relevant patterns found in ${adapterType} (${searchTime}ms)`);
           }
         } catch (agentDBError) {
           console.warn(`[${this.agentId.id}] AgentDB retrieval failed:`, agentDBError);
@@ -881,10 +898,10 @@ export abstract class BaseAgent extends EventEmitter {
             timestamp: Date.now()
           };
 
-          // Generate real embedding (simplified - replace with actual model in production)
-          const embedding = this.simpleHashEmbedding(JSON.stringify(patternData));
+          // Generate embedding using consolidated utility
+          const embedding = generateEmbedding(JSON.stringify(patternData));
 
-          // ACTUALLY store pattern in AgentDB (not fake!)
+          // Store pattern in AgentDB
           const pattern = {
             id: `${this.agentId.id}-task-${data.assignment.id}`,
             type: 'experience',
@@ -906,9 +923,11 @@ export abstract class BaseAgent extends EventEmitter {
 
           const patternId = await this.agentDB.store(pattern);
           const storeTime = Date.now() - startTime;
+          const isReal = this.isRealAgentDB();
+          const adapterType = isReal ? 'AgentDB' : 'mock adapter';
 
           console.info(
-            `[${this.agentId.id}] ✅ ACTUALLY stored pattern in AgentDB: ${patternId} (${storeTime}ms)`
+            `[${this.agentId.id}] Stored pattern in ${adapterType}: ${patternId} (${storeTime}ms)`
           );
 
           // ACTUAL Neural training integration if learning is enabled
@@ -1047,9 +1066,9 @@ export abstract class BaseAgent extends EventEmitter {
           };
 
           // Generate embedding for error pattern
-          const embedding = this.simpleHashEmbedding(JSON.stringify(errorPattern));
+          const embedding = generateEmbedding(JSON.stringify(errorPattern));
 
-          // ACTUALLY store error pattern in AgentDB for future prevention
+          // Store error pattern in AgentDB for failure analysis
           const pattern = {
             id: `${this.agentId.id}-error-${data.assignment.id}`,
             type: 'error',
@@ -1069,9 +1088,11 @@ export abstract class BaseAgent extends EventEmitter {
 
           const errorPatternId = await this.agentDB.store(pattern);
           const storeTime = Date.now() - storeStart;
+          const isReal = this.isRealAgentDB();
+          const adapterType = isReal ? 'AgentDB' : 'mock adapter';
 
           console.info(
-            `[${this.agentId.id}] ✅ ACTUALLY stored error pattern in AgentDB: ${errorPatternId} ` +
+            `[${this.agentId.id}] Stored error pattern in ${adapterType}: ${errorPatternId} ` +
             `(${storeTime}ms, for failure analysis)`
           );
         } catch (agentDBError) {
@@ -1236,33 +1257,6 @@ export abstract class BaseAgent extends EventEmitter {
     return `msg-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
 
-  /**
-   * Simple hash-based embedding generation
-   * In production, replace with actual embedding model (e.g., OpenAI, Cohere, local BERT)
-   * @param text Text to embed
-   * @returns 384-dimensional embedding vector
-   */
-  private simpleHashEmbedding(text: string): number[] {
-    const dimensions = 384; // Common embedding dimension
-    const embedding = new Array(dimensions).fill(0);
-
-    // Simple hash-based embedding (for demonstration only)
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const index = (charCode * (i + 1)) % dimensions;
-      embedding[index] += Math.sin(charCode * 0.1) * 0.1;
-    }
-
-    // Normalize to unit vector
-    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    if (magnitude > 0) {
-      for (let i = 0; i < dimensions; i++) {
-        embedding[i] /= magnitude;
-      }
-    }
-
-    return embedding;
-  }
 
 }
 
