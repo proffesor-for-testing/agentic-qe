@@ -13,7 +13,7 @@
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (38 QE skills), and intelligent model routing.
 
-🧠 **Q-Learning System** | 📚 **38 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
+🧠 **QE Agent Learning System** | 📚 **38 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
 
 </div>
 
@@ -76,7 +76,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
 
 ### 🧠 Intelligence & Learning (v1.1.0)
-- **Q-Learning System**: 20% improvement target with automatic strategy optimization
+- **QE Agent Learning System**: Q-Learning integrated with AgentDB's 9 RL algorithms, 20% improvement target with automatic strategy optimization
 - **Pattern Bank**: 85%+ matching accuracy across 6 test frameworks (Jest, Mocha, Cypress, Vitest, Jasmine, AVA)
 - **ML Flaky Detection**: 100% accuracy with root cause analysis and automated fix recommendations
 - **Continuous Improvement**: A/B testing framework with 95%+ statistical confidence
