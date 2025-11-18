@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.8.0** (Quality Hardening & MCP Optimization) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.8.1** (Safety & Test Quality) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Enterprise-grade test automation with AI learning, comprehensive skills library (38 QE skills), and intelligent model routing.
 
@@ -539,72 +539,43 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 
 ---
 
-## 📝 What's New in v1.8.0
+## 📝 What's New in v1.8.1
 
-🚀 **Quality Hardening & MCP Optimization Release** (2025-01-17)
+🛡️ **Safety & Test Quality Patch Release** (2025-11-18)
 
-### Part 1: Quality Hardening
-- **Quality Improvements** - All critical ship-blockers eliminated
-  - ✅ TODO Elimination: 80% reduction (40+ → 8, remaining in whitelisted template generators)
-  - ✅ Async I/O: 100% conversion (0 blocking operations, excluding Logger.ts)
-  - ✅ Race Conditions: 91% reduction (109 → 10 setTimeout instances)
-  - ✅ Event-driven BaseAgent architecture with proper cleanup
-- **AgentDB Learn CLI** - Fully implemented with real database integration
-  - 7 commands (status, train, stats, export, import, optimize, clear)
-  - Real-time learning statistics and pattern management
-  - Proper service initialization (no stub code)
-- **New QE Skill: sherlock-review** - Evidence-based investigative code review
-  - Deductive reasoning for root cause analysis
-  - Verifies implementation claims vs. actual behavior
-  - Bug investigation and fix validation
+This patch release addresses critical runtime guards, error handling, and test isolation issues identified in brutal-honesty code reviews.
 
-### Part 2: MCP Server Performance Optimization
-- **Phase 1: Client-Side Data Filtering (QW-1)** - 98.1% token reduction
-  - 6 new filtered handlers for coverage, performance, security, quality, flaky detection
-  - Smart statistical summaries (avg, std, min, max, percentiles)
-  - Priority-based filtering (high/medium/low relevance)
-  - $187,887/year cost savings
-- **Phase 1: Batch Tool Operations (QW-2)** - 75.6% latency reduction
-  - Parallel execution with concurrency control (max 5 concurrent)
-  - Exponential backoff retry (3 attempts, 1s→2s→4s delays)
-  - $31,250/year developer time savings
-- **Phase 2: Prompt Caching Infrastructure (CO-1)** - 60% cache hit rate target
-  - SHA-256 content-addressable caching with 5-minute TTL
-  - 25% write premium, 90% read discount
-  - $10,939/year cost savings
-- **Phase 2: PII Tokenization Layer (CO-2)** - Enterprise compliance
-  - Bidirectional tokenization with reverse mapping
-  - GDPR/CCPA/PCI-DSS/HIPAA compliant
-  - $50,000/year avoided security incidents
+### Key Improvements
+- **P0 - Simulation Mode Runtime Guards** - Prevents accidental test simulation in production
+  - ✅ Requires `AQE_ALLOW_SIMULATION=true` environment variable
+  - ✅ Explicit error if simulation mode is used without env flag
+  - ✅ Clear warnings when using simulated execution
 
-**Combined Impact**: $280,076/year total savings, 141 new tests (26 quality + 115 MCP), 17 new files
+- **P2 - Explicit Error Handling** - Database query failures now fail loudly with actionable diagnostics
+  - ✅ Replaced silent fallbacks with explicit validation
+  - ✅ Detailed error messages for faster debugging
+  - ✅ Schema mismatch detection
 
-**Upgrade from v1.7.x**: Fully backward-compatible. Run `npm install agentic-qe@1.8.0` and `aqe init`.
+- **P1 - Test Isolation** - UUID-based database paths prevent race conditions
+  - ✅ Replaced `Date.now()` with `randomUUID()` for collision-free paths
+  - ✅ OS temp directory usage for proper cleanup
+  - ✅ Parallel test execution without conflicts
 
----
+### Files Changed
+- **Source**: `TestExecutorAgent.ts` (+13 lines), `RealAgentDBAdapter.ts` (+17 lines)
+- **Tests**: 2 integration test files (+10 lines for UUID imports)
+- **Documentation**: Complete release notes, code review, and changelog updates
 
-### Previous: v1.5.0
+### Impact
+✅ **Build Status**: Passing (0 errors)
+✅ **Runtime Safety**: Improved (guards added)
+✅ **Error Handling**: Improved (explicit errors)
+✅ **Test Isolation**: Improved (UUID-based)
+❌ **Breaking Changes**: None
 
-🎯 **Phase 3: Domain-Specific Tool Refactoring** (2025-11-08)
+**Upgrade from v1.8.0**: Fully backward-compatible. Run `npm install agentic-qe@1.8.1` and `aqe init`.
 
-- **32 Domain-Specific MCP Tools** organized by QE function for better discoverability
-  - 6 QE domains: Coverage, Flaky Detection, Performance, Visual, Security, Test Generation
-  - Improved type safety with strict TypeScript (no `any` types)
-  - Enhanced tool organization based on domain intent
-- **Migration Support**: Comprehensive migration guide with backward compatibility
-  - Deprecated tools remain available until v3.0.0 (Feb 2026)
-  - Clear deprecation warnings with migration paths
-  - Zero breaking changes in v1.5.0
-- **Tool Catalog**: Complete documentation of all 32 domain-specific tools
-  - Function signatures and parameter documentation
-  - Usage examples for each tool
-  - Domain-specific best practices
-- **Agent Integration**: Updated 7 agent code execution examples with real imports
-  - Direct tool imports instead of generic MCP calls
-  - Type-safe parameter handling
-  - Better error messages
-
-**Upgrade Path**: See [Migration Guide](docs/migration/phase3-tools.md) for step-by-step instructions.
+**Previous Releases**: See [docs/releases/](docs/releases/) for detailed release notes.
 
 [📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 

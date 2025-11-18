@@ -3,6 +3,8 @@
  *
  * Provides persistent storage and retrieval for agent coordination
  * with 5-level access control system
+ *
+ * @version 2.0.0 - Explicit adapter configuration with fail-fast validation
  */
 
 export { SwarmMemoryManager } from './SwarmMemoryManager';
@@ -23,6 +25,27 @@ export type {
   CreateACLParams,
   UpdateACLParams
 } from './AccessControl';
+
+// Adapter Configuration (v2.0.0)
+export {
+  AdapterType,
+  AdapterConfigValidator,
+  AdapterConfigHelper,
+  AdapterConfigurationError
+} from './AdapterConfig';
+export type {
+  AdapterConfig,
+  ValidationResult
+} from './AdapterConfig';
+
+// Adapter Factory (v2.0.0)
+export {
+  AdapterFactory
+} from './AdapterFactory';
+export type {
+  IAdapter,
+  AdapterCreationResult
+} from './AdapterFactory';
 
 // AgentDB Integration (Optional - for distributed coordination)
 export {

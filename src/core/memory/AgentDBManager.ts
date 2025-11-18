@@ -1,9 +1,20 @@
 import { SecureRandom } from '../../utils/SecureRandom.js';
+import {
+  AdapterConfig,
+  AdapterType,
+  AdapterConfigHelper,
+  AdapterConfigurationError
+} from './AdapterConfig';
+import { AdapterFactory, IAdapter } from './AdapterFactory';
 
 /**
  * AgentDB Manager - Production-Ready Memory Management
  *
- * Replaces custom QUIC and Neural code with AgentDB's production implementation.
+ * Architecture v2.0: Explicit Adapter Configuration
+ * - No silent fallbacks to mock adapters
+ * - Fail-fast on misconfiguration
+ * - Clear error messages for troubleshooting
+ *
  * Features:
  * - QUIC synchronization (<1ms latency)
  * - Neural training (9 RL algorithms)
@@ -17,14 +28,18 @@ import { SecureRandom } from '../../utils/SecureRandom.js';
  * - Batch Insert: 2ms for 100 patterns
  *
  * @module AgentDBManager
+ * @version 2.0.0
  */
 
 /**
  * AgentDB Configuration Interface
  */
 export interface AgentDBConfig {
-  /** Path to SQLite database file */
-  dbPath: string;
+  /** Adapter configuration (REQUIRED in v2.0.0+) */
+  adapter?: AdapterConfig;
+
+  /** Path to SQLite database file (DEPRECATED - use adapter.dbPath) */
+  dbPath?: string;
 
   /** Enable QUIC synchronization (<1ms latency) */
   enableQUICSync: boolean;
@@ -182,71 +197,111 @@ export interface TrainingOptions {
 /**
  * AgentDB Manager
  *
- * Production-ready implementation using agentic-flow/reasoningbank.
+ * Production-ready implementation with explicit adapter configuration.
  * Replaces 2,290 lines of custom QUIC and Neural code.
+ *
+ * @version 2.0.0 - Explicit adapter configuration with fail-fast validation
  */
 export class AgentDBManager {
-  private adapter: any; // Will be typed once agentic-flow is imported
+  private adapter: IAdapter | null = null;
   private config: AgentDBConfig;
+  private adapterConfig: AdapterConfig;
   private isInitialized: boolean = false;
   private logger: any;
 
   constructor(config: AgentDBConfig) {
     this.config = config;
     this.logger = { warn: console.warn, info: console.info, error: console.error };
+
+    // Resolve adapter configuration
+    this.adapterConfig = this.resolveAdapterConfig(config);
   }
 
   /**
-   * Initialize AgentDB adapter
+   * Resolve adapter configuration from AgentDBConfig
+   */
+  private resolveAdapterConfig(config: AgentDBConfig): AdapterConfig {
+    // If adapter config is provided, use it directly
+    if (config.adapter) {
+      return config.adapter;
+    }
+
+    // Legacy support: derive from dbPath (DEPRECATED)
+    if (config.dbPath) {
+      console.warn(
+        '[AgentDBManager] Using legacy dbPath configuration. ' +
+        'Please migrate to explicit adapter configuration:\n' +
+        '  adapter: { type: AdapterType.REAL, dbPath: "..." }'
+      );
+
+      return {
+        type: AdapterType.REAL,
+        dbPath: config.dbPath,
+        dimension: 384,
+        failFast: true,
+        validateOnStartup: true
+      };
+    }
+
+    // No configuration provided - use environment defaults
+    console.warn(
+      '[AgentDBManager] No adapter configuration provided. ' +
+      'Using environment-based defaults. ' +
+      'Set AQE_ADAPTER_TYPE=real or AQE_ADAPTER_TYPE=mock to be explicit.'
+    );
+
+    return AdapterConfigHelper.fromEnvironment();
+  }
+
+  /**
+   * Initialize AgentDB adapter with explicit configuration
+   *
+   * @throws {AdapterConfigurationError} If adapter configuration is invalid
+   * @throws {Error} If adapter initialization fails
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
       throw new Error('AgentDBManager already initialized');
     }
 
-    // Validate dbPath for invalid characters (e.g., null bytes)
-    if (this.config.dbPath && this.config.dbPath.includes('\0')) {
-      throw new Error('Invalid dbPath: contains null byte');
-    }
-
     try {
-      // Check if we're in test mode (use mock adapter)
-      const isTestMode = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
-      const useMock = process.env.AQE_USE_MOCK_AGENTDB === 'true';
+      // Create adapter using factory
+      const result = await AdapterFactory.create(this.adapterConfig);
+      this.adapter = result.adapter;
 
-      if (isTestMode || useMock) {
-        // Use mock adapter for testing
-        const { createMockReasoningBankAdapter } = await import('./ReasoningBankAdapter');
-        this.adapter = createMockReasoningBankAdapter();
-        await this.adapter.initialize();
-        this.isInitialized = true;
-        console.log('[AgentDBManager] Using mock adapter (test mode)');
-        return;
-      }
+      // Validate adapter
+      await AdapterFactory.validate(this.adapter);
 
-      // Try to use real AgentDB (agentdb package)
-      try {
-        const { createRealAgentDBAdapter } = await import('./RealAgentDBAdapter');
-        this.adapter = createRealAgentDBAdapter({
-          dbPath: this.config.dbPath,
-          dimension: 384 // Standard dimension for embeddings
-        });
-        await this.adapter.initialize();
-        this.isInitialized = true;
-        console.log('[AgentDBManager] Using real AgentDB adapter');
-        return;
-      } catch (realError: any) {
-        console.warn('[AgentDBManager] Real AgentDB not available, trying fallback:', realError.message);
-      }
-
-      // Fallback to mock if real AgentDB fails
-      console.warn('[AgentDBManager] Using mock adapter as fallback');
-      const { createMockReasoningBankAdapter } = await import('./ReasoningBankAdapter');
-      this.adapter = createMockReasoningBankAdapter();
-      await this.adapter.initialize();
       this.isInitialized = true;
+
+      console.log('[AgentDBManager] Initialized successfully', {
+        adapterType: result.type,
+        dbPath: result.config.dbPath,
+        dimension: result.config.dimension
+      });
     } catch (error: any) {
-      throw new Error(`Failed to initialize AgentDB: ${error.message}`);
+      // Enhanced error message with troubleshooting guidance
+      if (error instanceof AdapterConfigurationError) {
+        throw error; // Already has detailed message
+      }
+
+      const errorMessage = [
+        'Failed to initialize AgentDBManager:',
+        `  ${error.message}`,
+        '',
+        'Current configuration:',
+        `  Adapter Type: ${this.adapterConfig.type}`,
+        `  Database Path: ${this.adapterConfig.dbPath || 'N/A'}`,
+        `  Fail Fast: ${this.adapterConfig.failFast !== false}`,
+        '',
+        'Troubleshooting:',
+        '  1. For production: Set AQE_ADAPTER_TYPE=real and ensure agentdb is installed',
+        '  2. For testing: Set AQE_ADAPTER_TYPE=mock',
+        '  3. Check database file permissions and disk space',
+        '  4. See docs/architecture/adapters.md for configuration guide'
+      ].join('\n');
+
+      throw new Error(errorMessage);
     }
   }
 
@@ -255,6 +310,7 @@ export class AgentDBManager {
    */
   async store(pattern: MemoryPattern): Promise<string> {
     this.ensureInitialized();
+    if (!this.adapter) throw new Error('Adapter not initialized');
 
     try {
       const patternId = await this.adapter.insertPattern(pattern);
@@ -272,6 +328,7 @@ export class AgentDBManager {
     options: RetrievalOptions
   ): Promise<RetrievalResult> {
     this.ensureInitialized();
+    if (!this.adapter) throw new Error('Adapter not initialized');
 
     try {
       const startTime = Date.now();
@@ -316,9 +373,14 @@ export class AgentDBManager {
    */
   async train(options: TrainingOptions): Promise<TrainingMetrics> {
     this.ensureInitialized();
+    if (!this.adapter) throw new Error('Adapter not initialized');
 
     if (!this.config.enableLearning) {
       throw new Error('Learning is not enabled. Set enableLearning: true in config.');
+    }
+
+    if (!this.adapter.train) {
+      throw new Error('Adapter does not support training');
     }
 
     try {
@@ -340,6 +402,7 @@ export class AgentDBManager {
    */
   async getStats(): Promise<any> {
     this.ensureInitialized();
+    if (!this.adapter) throw new Error('Adapter not initialized');
 
     try {
       return await this.adapter.getStats();

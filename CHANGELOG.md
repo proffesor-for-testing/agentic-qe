@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2025-11-18
+
+### 🛡️ Safety & Test Quality Improvements
+
+This patch release addresses critical safety issues and test quality gaps identified in Issue #55. Implements runtime guards to prevent silent simulation mode, explicit error handling, and test isolation improvements.
+
+**References**:
+- [Issue #55 - Test Quality & Safety Improvements](https://github.com/proffesor-for-testing/agentic-qe/issues/55)
+- [Brutal Honesty Code Review - Issue #52](docs/reviews/BRUTAL-HONESTY-ISSUE-52-CODE-REVIEW.md)
+
+### Fixed
+
+#### P0 - Critical: Simulation Mode Runtime Guards
+- **TestExecutorAgent** - Added safety guard to prevent accidental simulation in production
+  - Requires `AQE_ALLOW_SIMULATION=true` environment variable to enable simulated execution
+  - Throws explicit error if simulation mode is used without env flag
+  - Logs warning message when simulation is active
+  - **Impact**: Prevents silent test simulation in production environments
+  - **Files**: `src/agents/TestExecutorAgent.ts` (lines 541-553)
+
+#### P2 - Medium: Explicit Error Handling
+- **RealAgentDBAdapter** - Added explicit error handling for database query failures
+  - Fails loudly instead of silently returning 0 on query errors
+  - Validates query result structure and data types
+  - Provides actionable error messages (schema corruption, migration needed)
+  - **Impact**: Easier debugging, faster root cause identification
+  - **Files**: `src/core/memory/RealAgentDBAdapter.ts` (lines 218-234)
+
+#### P1 - High: Test Isolation
+- **Integration Tests** - Fixed race conditions in parallel test execution
+  - Replaced `Date.now()` with `randomUUID()` for guaranteed uniqueness
+  - Uses OS temp directory (`os.tmpdir()`) for proper cleanup
+  - Added safety check to verify file doesn't exist before test
+  - **Impact**: Tests can run in parallel without database path collisions
+  - **Files**:
+    - `tests/integration/base-agent-agentdb.test.ts`
+    - `tests/integration/test-executor-agentdb.test.ts`
+
+### Changed
+- **Imports**: Added `os` and `crypto.randomUUID` to integration tests for UUID-based paths
+
+### 🔗 Related Issues
+- Closes partial fixes from #55 (P0, P1, P2 completed)
+- Follow-up work tracked in #57 (P1 assertion improvements, mutation testing)
+
+### 📊 Impact Metrics
+
+| Metric | Before | After |
+|--------|--------|-------|
+| **Runtime Safety** | Silent simulation | Explicit guards (env var required) |
+| **Error Handling** | Silent fallback (returns 0) | Explicit error with diagnostics |
+| **Test Isolation** | `Date.now()` (race-prone) | `UUID` (collision-free) |
+| **Build Status** | ✅ Passing | ✅ Passing |
+
+---
+
+## [1.8.0] - 2025-01-17 (Quality Hardening)
+
+### 🧹 Code Cleanup
+
+#### Removed
+- **Deprecated MCP Tools** (#52) - Removed 1520 lines of deprecated code
+  - Removed `src/mcp/tools/deprecated.ts` (1128 lines) - All 31 deprecated tool wrappers
+  - Removed `tests/mcp/tools/deprecated.test.ts` (288 lines) - Deprecated tool tests
+  - Removed `scripts/test-deprecated-tools.sh` (104 lines) - Verification script
+  - Removed deprecated `setStatus()` method from `AgentLifecycleManager`
+  - Zero deprecation warnings in build output (eliminated log pollution)
+
+#### Changed
+- **AgentLifecycleManager** - Made `transitionTo()` public for proper lifecycle management
+- **BaseAgent** - Migrated from deprecated `setStatus()` to lifecycle hooks and `transitionTo()`
+  - Initialization now uses `lifecycleManager.reset()` for ERROR state recovery
+  - Termination now uses `lifecycleManager.terminate()` with proper hooks
+  - Error handling now uses `transitionTo()` with descriptive reasons
+
+### 🔄 Breaking Changes
+
+**Removed Deprecated Tool Exports**:
+- All 31 deprecated tool wrappers removed (available since v1.5.0)
+- External packages importing deprecated tools will see build errors
+- **Migration**: Use new implementations from respective domains
+  - Coverage: `analyzeCoverageWithRiskScoring()`, `identifyUncoveredRiskAreas()`
+  - Flaky Detection: `detectFlakyTestsStatistical()`, `analyzeFlakyTestPatterns()`, `stabilizeFlakyTestAuto()`
+  - Performance: `runPerformanceBenchmark()`, `monitorRealtimePerformance()`
+  - Security: `securityScanComprehensive()`, `validateAuthenticationFlow()`, `checkAuthorizationRules()`
+  - Test Generation: `generateUnitTests()`, `generateIntegrationTests()`, `optimizeTestSuite()`
+  - Quality Gates: `QualityGateExecuteHandler`, `QualityRiskAssessHandler`, `QualityValidateMetricsHandler`
+  - Visual: `detectVisualRegression()`
+  - API Contract: `contractValidate()`, `apiBreakingChanges()`
+  - And 13+ more tools - See `docs/migration/phase3-tools.md` for complete guide
+
+**Removed API Methods**:
+- `AgentLifecycleManager.setStatus()` - Use `transitionTo()` or specific methods (`markActive()`, `markIdle()`, etc.)
+
 ## [1.8.0] - 2025-01-17
 
 ### 🎯 Quality Hardening & MCP Optimization Release

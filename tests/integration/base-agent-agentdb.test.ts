@@ -9,6 +9,8 @@ import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
 import { RealAgentDBAdapter } from '../../src/core/memory/RealAgentDBAdapter';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
+import { randomUUID } from 'crypto';
 
 // Test agent implementation
 class TestAgent extends BaseAgent {
@@ -31,8 +33,14 @@ describe('BaseAgent AgentDB Integration', () => {
   let memoryManager: SwarmMemoryManager;
 
   beforeEach(async () => {
-    // Create unique test database path
-    testDbPath = path.join(process.cwd(), `.test-agentdb-${Date.now()}.db`);
+    // P1 FIX: Use UUID for guaranteed uniqueness + OS temp dir for proper cleanup
+    // Prevents race conditions in parallel test execution
+    testDbPath = path.join(os.tmpdir(), `test-agentdb-${randomUUID()}.db`);
+
+    // Safety check: Verify file doesn't exist (should never happen with UUID)
+    if (fs.existsSync(testDbPath)) {
+      throw new Error(`Test database already exists: ${testDbPath}. This should not happen with UUID.`);
+    }
 
     // Create agent with memory manager
     const agentId: AgentId = {

@@ -3,6 +3,12 @@
  *
  * Implements parallel test execution with retry logic and sublinear optimization
  * Based on SPARC Phase 2 Pseudocode Section 4.2: Parallel Test Execution
+ *
+ * MODE OF OPERATION:
+ * - REAL MODE (default): Executes tests via Jest/Mocha/Playwright/Cypress using child_process
+ * - SIMULATION MODE (demo only): Simulates test results with random pass/fail
+ *
+ * Configure via TestExecutorConfig.simulationMode flag.
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
@@ -28,6 +34,16 @@ export interface TestExecutorConfig extends BaseAgentConfig {
   retryAttempts: number;
   retryBackoff: number;
   sublinearOptimization: boolean;
+  /**
+   * Enable simulation mode for demos (default: false)
+   * When false, real test frameworks are executed via child_process
+   * When true, test results are simulated with random pass/fail
+   */
+  simulationMode?: boolean;
+  /**
+   * Working directory for test execution (default: process.cwd())
+   */
+  workingDir?: string;
 }
 
 // Create a simple logger interface
@@ -59,6 +75,7 @@ export class TestExecutorAgent extends BaseAgent {
   protected readonly logger: Logger = new ConsoleLogger();
   private activeExecutions: Map<string, Promise<QETestResult>> = new Map();
   private retryStrategies: Map<string, (error: Error) => boolean> = new Map();
+  private testFrameworkExecutor?: any; // TestFrameworkExecutor instance (lazy loaded)
 
   constructor(config: TestExecutorConfig) {
     super({
@@ -103,10 +120,19 @@ export class TestExecutorAgent extends BaseAgent {
       reportFormat: config.reportFormat || 'json',
       retryAttempts: config.retryAttempts || 3,
       retryBackoff: config.retryBackoff || 1000,
-      sublinearOptimization: config.sublinearOptimization !== undefined ? config.sublinearOptimization : true
+      sublinearOptimization: config.sublinearOptimization !== undefined ? config.sublinearOptimization : true,
+      simulationMode: config.simulationMode !== undefined ? config.simulationMode : false, // Default: REAL execution
+      workingDir: config.workingDir || process.cwd()
     };
 
     this.setupRetryStrategies();
+
+    // Log execution mode on initialization
+    if (this.config.simulationMode) {
+      console.warn('[TestExecutor] ⚠️  SIMULATION MODE ENABLED - Tests will NOT be executed for real');
+    } else {
+      console.log('[TestExecutor] ✅ REAL EXECUTION MODE - Tests will be executed via test frameworks');
+    }
   }
 
   // ============================================================================
@@ -213,11 +239,14 @@ export class TestExecutorAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`TestExecutorAgent ${this.agentId.id} initializing with frameworks: ${this.config.frameworks.join(', ')}`);
+    const mode = this.config.simulationMode ? 'SIMULATION' : 'REAL';
+    console.log(`TestExecutorAgent ${this.agentId.id} initializing in ${mode} mode with frameworks: ${this.config.frameworks.join(', ')}`);
 
-    // Validate test frameworks are available
-    for (const framework of this.config.frameworks) {
-      await this.validateFramework(framework);
+    // Validate test frameworks are available (only in real mode)
+    if (!this.config.simulationMode) {
+      for (const framework of this.config.frameworks) {
+        await this.validateFramework(framework);
+      }
     }
 
     // Initialize parallel execution pools
@@ -228,7 +257,7 @@ export class TestExecutorAgent extends BaseAgent {
       await this.initializeSublinearOptimization();
     }
 
-    console.log(`TestExecutorAgent ${this.agentId.id} initialized successfully`);
+    console.log(`TestExecutorAgent ${this.agentId.id} initialized successfully in ${mode} mode`);
   }
 
   protected async performTask(task: QETask): Promise<any> {
@@ -366,6 +395,7 @@ export class TestExecutorAgent extends BaseAgent {
 
   /**
    * Execute a single test with intelligent retry logic
+   * FIXED: Memory leak prevention with proper cleanup in all paths
    */
   private async executeTestWithRetry(test: Test): Promise<QETestResult> {
     const testId = `${test.id}-${Date.now()}`;
@@ -378,14 +408,13 @@ export class TestExecutorAgent extends BaseAgent {
         this.activeExecutions.set(testId, executionPromise);
 
         const result = await executionPromise;
-        this.activeExecutions.delete(testId);
 
-        // If successful, return immediately
+        // If successful, return immediately (cleanup in finally)
         if (result.status === 'passed') {
           return result;
         }
 
-        // If failed but on last attempt, return the failure
+        // If failed but on last attempt, return the failure (cleanup in finally)
         if (attempt === this.config.retryAttempts) {
           return result;
         }
@@ -393,17 +422,16 @@ export class TestExecutorAgent extends BaseAgent {
         // Analyze failure and decide if retry is worthwhile
         const shouldRetry = this.shouldRetryTest(test, result, attempt);
         if (!shouldRetry) {
-          return result;
+          return result; // cleanup in finally
         }
 
         // Apply backoff strategy
         await this.applyRetryBackoff(attempt);
 
       } catch (error) {
-        this.activeExecutions.delete(testId);
         lastError = error as Error;
 
-        // If on last attempt, throw error
+        // If on last attempt, throw error (cleanup in finally)
         if (attempt === this.config.retryAttempts) {
           throw error;
         }
@@ -411,14 +439,185 @@ export class TestExecutorAgent extends BaseAgent {
         // Check if error is retryable
         const shouldRetry = this.isRetryableError(lastError);
         if (!shouldRetry) {
-          throw error;
+          throw error; // cleanup in finally
         }
 
         await this.applyRetryBackoff(attempt);
+      } finally {
+        // CRITICAL FIX: Always cleanup activeExecutions entry
+        // This prevents memory leaks on all exit paths (success, failure, early return)
+        this.activeExecutions.delete(testId);
       }
     }
 
+    // This should never be reached due to throw in catch block
     throw lastError || new Error('Test execution failed after all retry attempts');
+  }
+
+  /**
+   * Execute a single test - REAL or SIMULATED based on config
+   */
+  private async executeSingleTestInternal(test: Test): Promise<QETestResult> {
+    const startTime = Date.now();
+
+    // Check if simulation mode is enabled
+    if (this.config.simulationMode) {
+      return await this.executeSimulatedTest(test, startTime);
+    }
+
+    // REAL TEST EXECUTION
+    try {
+      // Initialize test framework executor if needed
+      if (!this.testFrameworkExecutor) {
+        const { TestFrameworkExecutor } = await import('../utils/TestFrameworkExecutor.js');
+        this.testFrameworkExecutor = new TestFrameworkExecutor();
+      }
+
+      // Select appropriate framework for test type
+      const framework = this.selectFramework(test);
+
+      // Build test pattern from test metadata
+      const testPattern = this.buildTestPattern(test);
+
+      // Execute test with real framework
+      const result = await this.testFrameworkExecutor.execute({
+        framework: framework as 'jest' | 'mocha' | 'playwright' | 'cypress',
+        testPattern,
+        workingDir: this.config.workingDir!,
+        timeout: this.config.timeout,
+        coverage: false, // Individual test coverage disabled for performance
+        environment: 'test',
+        config: test.parameters?.find(p => p.name === 'configPath')?.value as string
+      });
+
+      // Convert TestExecutionResult to QETestResult
+      return {
+        id: test.id,
+        type: test.type,
+        status: result.status === 'passed' ? 'passed' : 'failed',
+        duration: result.duration,
+        assertions: result.tests.length,
+        coverage: result.coverage ? {
+          lines: result.coverage.lines.pct,
+          branches: result.coverage.branches.pct,
+          functions: result.coverage.functions.pct
+        } : undefined,
+        errors: result.status === 'failed'
+          ? result.tests.filter((t: { status: string }) => t.status === 'failed').flatMap((t: { failureMessages?: string[] }) => t.failureMessages || [])
+          : [],
+        metadata: {
+          framework,
+          retries: 0,
+          totalTests: result.totalTests,
+          passedTests: result.passedTests,
+          failedTests: result.failedTests,
+          exitCode: result.exitCode
+        }
+      };
+
+    } catch (error) {
+      console.error('[TestExecutor] Real test execution failed:', error);
+
+      return {
+        id: test.id,
+        type: test.type,
+        status: 'failed',
+        duration: Date.now() - startTime,
+        assertions: 0,
+        errors: [(error as Error).message],
+        metadata: {
+          framework: this.selectFramework(test),
+          error: 'execution_failed'
+        }
+      };
+    }
+  }
+
+  /**
+   * Execute simulated test (for demo/testing purposes)
+   * SAFETY: Requires AQE_ALLOW_SIMULATION=true to prevent accidental simulation in production
+   */
+  private async executeSimulatedTest(test: Test, startTime: number): Promise<QETestResult> {
+    // P0 SAFETY GUARD: Prevent silent simulation mode in production
+    if (!process.env.AQE_ALLOW_SIMULATION) {
+      throw new Error(
+        '[TestExecutorAgent] Test simulation mode is disabled for safety. ' +
+        'Set AQE_ALLOW_SIMULATION=true environment variable to enable simulated execution, ' +
+        'or configure simulationMode=false to use real test framework execution.'
+      );
+    }
+
+    console.warn(
+      `[TestExecutorAgent] ⚠️  USING SIMULATED TEST EXECUTION (not real tests) for test ${test.id}. ` +
+      'This is for demo/testing purposes only. Use simulationMode=false for production.'
+    );
+
+    try {
+      // Simulate test execution based on test type
+      const duration = this.estimateTestDuration(test);
+      await new Promise(resolve => setTimeout(resolve, duration));
+
+      // Simulate test result based on test characteristics
+      const success = SecureRandom.randomFloat() > 0.1; // 90% success rate
+      const assertions = test.assertions?.length || Math.floor(SecureRandom.randomFloat() * 10) + 1;
+
+      return {
+        id: test.id,
+        type: test.type,
+        status: success ? 'passed' : 'failed',
+        duration: Date.now() - startTime,
+        assertions,
+        coverage: this.simulateCoverage(),
+        errors: success ? [] : ['[SIMULATED] Test assertion failed'],
+        metadata: {
+          framework: this.selectFramework(test),
+          retries: 0,
+          simulated: true
+        }
+      };
+
+    } catch (error) {
+      return {
+        id: test.id,
+        type: test.type,
+        status: 'failed',
+        duration: Date.now() - startTime,
+        assertions: 0,
+        errors: [`[SIMULATED] ${(error as Error).message}`],
+        metadata: {
+          framework: this.selectFramework(test),
+          simulated: true
+        }
+      };
+    }
+  }
+
+  /**
+   * Build test pattern from test metadata
+   */
+  private buildTestPattern(test: Test): string {
+    // Check if test has explicit file path
+    const filePath = test.parameters?.find(p => p.name === 'filePath')?.value as string;
+    if (filePath) {
+      return filePath;
+    }
+
+    // Check if test has explicit pattern
+    const pattern = test.parameters?.find(p => p.name === 'pattern')?.value as string;
+    if (pattern) {
+      return pattern;
+    }
+
+    // Build pattern from test type and name
+    const typePatterns: Record<string, string> = {
+      'unit': '**/*.test.{js,ts}',
+      'integration': '**/*.integration.test.{js,ts}',
+      'e2e': '**/*.e2e.test.{js,ts}',
+      'performance': '**/*.perf.test.{js,ts}',
+      'security': '**/*.security.test.{js,ts}'
+    };
+
+    return typePatterns[test.type] || '**/*.test.{js,ts}';
   }
 
   /**
@@ -592,30 +791,92 @@ export class TestExecutorAgent extends BaseAgent {
   }
 
   /**
-   * Discover test files
+   * Discover test files - REAL or SIMULATED
    */
   private async discoverTests(data: any): Promise<any> {
     const { searchPath = './tests', frameworks = this.config.frameworks } = data;
 
     console.log(`Discovering tests in ${searchPath}`);
 
-    // Simulate test discovery
-    const discovered = {
-      unitTests: Math.floor(SecureRandom.randomFloat() * 50) + 10,
-      integrationTests: Math.floor(SecureRandom.randomFloat() * 20) + 5,
-      e2eTests: Math.floor(SecureRandom.randomFloat() * 15) + 3,
-      apiTests: Math.floor(SecureRandom.randomFloat() * 25) + 8
-    };
+    // Check if simulation mode is enabled
+    if (this.config.simulationMode) {
+      // Simulate test discovery
+      const discovered = {
+        unitTests: Math.floor(SecureRandom.randomFloat() * 50) + 10,
+        integrationTests: Math.floor(SecureRandom.randomFloat() * 20) + 5,
+        e2eTests: Math.floor(SecureRandom.randomFloat() * 15) + 3,
+        apiTests: Math.floor(SecureRandom.randomFloat() * 25) + 8
+      };
 
-    const total = Object.values(discovered).reduce((sum, count) => sum + count, 0);
+      const total = Object.values(discovered).reduce((sum, count) => sum + count, 0);
 
-    return {
-      searchPath,
-      frameworks,
-      discovered,
-      total,
-      summary: `Discovered ${total} tests across ${frameworks.length} frameworks`
-    };
+      return {
+        searchPath,
+        frameworks,
+        discovered,
+        total,
+        summary: `[SIMULATED] Discovered ${total} tests across ${frameworks.length} frameworks`,
+        simulated: true
+      };
+    }
+
+    // REAL TEST DISCOVERY
+    try {
+      const { promises: fs } = await import('fs');
+      const path = await import('path');
+      const { glob } = await import('glob');
+
+      const testPatterns = [
+        '**/*.test.js',
+        '**/*.test.ts',
+        '**/*.spec.js',
+        '**/*.spec.ts',
+        '**/*.integration.test.js',
+        '**/*.integration.test.ts',
+        '**/*.e2e.test.js',
+        '**/*.e2e.test.ts'
+      ];
+
+      const discovered = {
+        unitTests: 0,
+        integrationTests: 0,
+        e2eTests: 0,
+        apiTests: 0
+      };
+
+      const workingDir = path.join(this.config.workingDir!, searchPath);
+
+      for (const pattern of testPatterns) {
+        const files = await glob(pattern, { cwd: workingDir, ignore: ['**/node_modules/**'] });
+
+        files.forEach(file => {
+          if (file.includes('.integration.')) {
+            discovered.integrationTests++;
+          } else if (file.includes('.e2e.')) {
+            discovered.e2eTests++;
+          } else if (file.includes('.api.')) {
+            discovered.apiTests++;
+          } else {
+            discovered.unitTests++;
+          }
+        });
+      }
+
+      const total = Object.values(discovered).reduce((sum, count) => sum + count, 0);
+
+      return {
+        searchPath,
+        frameworks,
+        discovered,
+        total,
+        summary: `Discovered ${total} tests across ${frameworks.length} frameworks`,
+        simulated: false
+      };
+
+    } catch (error) {
+      console.error('[TestExecutor] Test discovery failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -813,45 +1074,6 @@ export class TestExecutorAgent extends BaseAgent {
     }
 
     return batches;
-  }
-
-  private async executeSingleTestInternal(test: Test): Promise<QETestResult> {
-    const startTime = Date.now();
-
-    try {
-      // Simulate test execution based on test type
-      const duration = this.estimateTestDuration(test);
-      await new Promise(resolve => setTimeout(resolve, duration));
-
-      // Simulate test result based on test characteristics
-      const success = SecureRandom.randomFloat() > 0.1; // 90% success rate
-      const assertions = test.assertions?.length || Math.floor(SecureRandom.randomFloat() * 10) + 1;
-
-      return {
-        id: test.id,
-        type: test.type,
-        status: success ? 'passed' : 'failed',
-        duration: Date.now() - startTime,
-        assertions,
-        coverage: this.simulateCoverage(),
-        errors: success ? [] : ['Test assertion failed'],
-        metadata: {
-          framework: this.selectFramework(test),
-          retries: 0
-        }
-      };
-
-    } catch (error) {
-      return {
-        id: test.id,
-        type: test.type,
-        status: 'failed',
-        duration: Date.now() - startTime,
-        assertions: 0,
-        errors: [(error as Error).message],
-        metadata: { framework: this.selectFramework(test) }
-      };
-    }
   }
 
   private estimateTestDuration(test: Test): number {

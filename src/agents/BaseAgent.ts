@@ -80,6 +80,7 @@ export abstract class BaseAgent extends EventEmitter {
     lastActivity: new Date()
   };
   private taskStartTime?: number; // Track task execution start time
+  private initializationMutex?: Promise<void>; // Thread-safe initialization guard
 
   // Integrated service classes (reducing BaseAgent complexity)
   protected readonly lifecycleManager: AgentLifecycleManager;
@@ -155,20 +156,34 @@ export abstract class BaseAgent extends EventEmitter {
 
   /**
    * Initialize the agent - must be called after construction
+   * Thread-safe: Multiple concurrent calls will wait for the first to complete
    */
   public async initialize(): Promise<void> {
-    try {
-      // Guard: Skip if already initialized (ACTIVE or IDLE)
-      const currentStatus = this.lifecycleManager.getStatus();
-      if (currentStatus === AgentStatus.ACTIVE || currentStatus === AgentStatus.IDLE) {
-        console.warn(`[${this.agentId.id}] Agent already initialized (status: ${currentStatus}), skipping`);
-        return;
-      }
+    // Thread-safety: If initialization is in progress, wait for it
+    if (this.initializationMutex) {
+      console.info(`[${this.agentId.id}] Initialization already in progress, waiting for completion`);
+      await this.initializationMutex;
+      return;
+    }
 
+    // Guard: Skip if already initialized (ACTIVE or IDLE)
+    const currentStatus = this.lifecycleManager.getStatus();
+    if (currentStatus === AgentStatus.ACTIVE || currentStatus === AgentStatus.IDLE) {
+      console.warn(`[${this.agentId.id}] Agent already initialized (status: ${currentStatus}), skipping`);
+      return;
+    }
+
+    // Create initialization mutex - lock acquired
+    let resolveMutex: () => void;
+    this.initializationMutex = new Promise<void>((resolve) => {
+      resolveMutex = resolve;
+    });
+
+    try {
       // Guard: Reset from ERROR state before initializing
       if (currentStatus === AgentStatus.ERROR) {
         console.info(`[${this.agentId.id}] Resetting agent from ERROR state before initialization`);
-        this.lifecycleManager.setStatus(AgentStatus.INITIALIZING);
+        this.lifecycleManager.reset(false);
       }
 
       // Delegate lifecycle initialization to lifecycleManager
@@ -231,6 +246,10 @@ export abstract class BaseAgent extends EventEmitter {
       this.lifecycleManager.markError(`Initialization failed: ${error}`);
       this.coordinator.emitEvent('agent.error', { agentId: this.agentId, error });
       throw error;
+    } finally {
+      // Release mutex lock - allow future initializations
+      resolveMutex!();
+      this.initializationMutex = undefined;
     }
   }
 
@@ -296,44 +315,44 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public async terminate(): Promise<void> {
     try {
-      this.lifecycleManager.setStatus(AgentStatus.TERMINATING);
+      // Use lifecycle manager's terminate method instead of manual status setting
+      await this.lifecycleManager.terminate({
+        onPreTermination: async () => {
+          await this.executeHook('pre-termination');
 
-      // Execute pre-termination hooks
-      await this.executeHook('pre-termination');
+          // Flush learning data before termination
+          if (this.learningEngine && this.learningEngine.isEnabled()) {
+            // LearningEngine persists data via SwarmMemoryManager (which uses AgentDB)
+            // No explicit flush needed - memoryStore handles persistence automatically
+            console.info(`[${this.agentId.id}] Learning data persisted via memoryStore (SwarmMemoryManager -> AgentDB)`);
+          }
 
-      // Flush learning data before termination
-      if (this.learningEngine && this.learningEngine.isEnabled()) {
-        // LearningEngine persists data via SwarmMemoryManager (which uses AgentDB)
-        // No explicit flush needed - memoryStore handles persistence automatically
-        console.info(`[${this.agentId.id}] Learning data persisted via memoryStore (SwarmMemoryManager -> AgentDB)`);
-      }
+          // Close AgentDB if enabled
+          if (this.agentDB) {
+            await this.agentDB.close();
+            this.agentDB = undefined;
+          }
 
-      // Close AgentDB if enabled
-      if (this.agentDB) {
-        await this.agentDB.close();
-        this.agentDB = undefined;
-      }
+          // Save current state
+          await this.saveState();
 
-      // Save current state
-      await this.saveState();
+          // Clean up agent-specific resources
+          await this.cleanup();
 
-      // Clean up agent-specific resources
-      await this.cleanup();
+          // Remove all event handlers from EventBus using coordinator
+          this.coordinator.clearAllHandlers();
+        },
+        onPostTermination: async () => {
+          await this.executeHook('post-termination');
+          this.emitEvent('agent.terminated', { agentId: this.agentId });
 
-      // Remove all event handlers from EventBus using coordinator
-      this.coordinator.clearAllHandlers();
-
-      // Execute post-termination hooks
-      await this.executeHook('post-termination');
-
-      this.lifecycleManager.setStatus(AgentStatus.TERMINATED);
-      this.emitEvent('agent.terminated', { agentId: this.agentId });
-
-      // Remove all listeners from this agent (EventEmitter)
-      this.removeAllListeners();
+          // Remove all listeners from this agent (EventEmitter)
+          this.removeAllListeners();
+        }
+      });
 
     } catch (error) {
-      this.lifecycleManager.setStatus(AgentStatus.ERROR);
+      this.lifecycleManager.transitionTo(AgentStatus.ERROR, `Termination failed: ${error}`);
       throw error;
     }
   }
@@ -1167,7 +1186,7 @@ export abstract class BaseAgent extends EventEmitter {
   private setupLifecycleHooks(): void {
     // Setup default lifecycle behavior
     this.on('error', (error) => {
-      this.lifecycleManager.setStatus(AgentStatus.ERROR);
+      this.lifecycleManager.transitionTo(AgentStatus.ERROR, `Error event: ${error}`);
       this.emitEvent('agent.error', { agentId: this.agentId, error });
     });
   }
