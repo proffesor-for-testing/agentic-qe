@@ -117,9 +117,6 @@ memory/agents/*
 coordination/memory_bank/*
 coordination/subtasks/*
 coordination/orchestration/*
-# Explicitly allow src/core/memory and src/agents/memory
-!src/core/memory/
-!src/agents/memory/
 *.db
 *.db-journal
 *.db-wal
@@ -129,3 +126,4 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+.agentic-qe/memory/
