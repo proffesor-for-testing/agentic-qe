@@ -106,8 +106,9 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-memory/
-coordination/
+# Ignore memory directories but allow source code
+/memory/
+/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -116,6 +117,9 @@ memory/agents/*
 coordination/memory_bank/*
 coordination/subtasks/*
 coordination/orchestration/*
+# Explicitly allow src/core/memory and src/agents/memory
+!src/core/memory/
+!src/agents/memory/
 *.db
 *.db-journal
 *.db-wal
