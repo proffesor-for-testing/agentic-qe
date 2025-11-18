@@ -106,8 +106,9 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-memory/
-coordination/
+# Ignore memory directories but allow source code
+/memory/
+/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -125,3 +126,4 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+.agentic-qe/memory/

@@ -184,7 +184,7 @@ export class AgentLifecycleManager {
   /**
    * Internal method to perform state transition
    */
-  private transitionTo(newStatus: AgentStatus, reason?: string): void {
+  public transitionTo(newStatus: AgentStatus, reason?: string): void {
     const transition: StateTransition = {
       from: this.status,
       to: newStatus,
@@ -268,14 +268,6 @@ export class AgentLifecycleManager {
       timeInCurrentStatus: this.getTimeInCurrentStatus(),
       statusBreakdown
     };
-  }
-
-  /**
-   * Set agent status directly (for backward compatibility)
-   * @deprecated Use transitionTo() or specific methods like markActive() instead
-   */
-  public setStatus(newStatus: AgentStatus): void {
-    this.status = newStatus;
   }
 
   /**

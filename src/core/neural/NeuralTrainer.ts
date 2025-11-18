@@ -23,6 +23,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { SecureRandom } from '../../utils/SecureRandom.js';
 import { Logger } from '../../utils/Logger';
+import { generateEmbedding } from '../../utils/EmbeddingGenerator.js';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
 import { AgentDBManager, MemoryPattern } from '../memory/AgentDBManager';
 import {
@@ -512,18 +513,18 @@ export class NeuralTrainer {
   }
 
   /**
-   * Generate state embedding (simplified - use actual embedding model in production)
+   * Generate state embedding using consolidated utility
    */
   private async generateStateEmbedding(state: State): Promise<number[]> {
     // Convert state to string representation
     const stateStr = JSON.stringify(state);
 
-    // Use simple hash-based embedding (replace with actual model in production)
-    return this.simpleHashEmbedding(stateStr);
+    // Use consolidated embedding utility
+    return generateEmbedding(stateStr);
   }
 
   /**
-   * Generate experience embedding
+   * Generate experience embedding using consolidated utility
    */
   private generateExperienceEmbedding(experience: Experience): number[] {
     const expStr = JSON.stringify({
@@ -532,31 +533,8 @@ export class NeuralTrainer {
       reward: experience.reward
     });
 
-    return this.simpleHashEmbedding(expStr);
-  }
-
-  /**
-   * Simple hash-based embedding (replace with actual model in production)
-   */
-  private simpleHashEmbedding(text: string): number[] {
-    const dimensions = 384;
-    const embedding = new Array(dimensions).fill(0);
-
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const index = (charCode * (i + 1)) % dimensions;
-      embedding[index] += Math.sin(charCode * 0.1) * 0.1;
-    }
-
-    // Normalize
-    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    if (magnitude > 0) {
-      for (let i = 0; i < dimensions; i++) {
-        embedding[i] /= magnitude;
-      }
-    }
-
-    return embedding;
+    // Use consolidated embedding utility (384 dimensions by default)
+    return generateEmbedding(expStr);
   }
 
   /**

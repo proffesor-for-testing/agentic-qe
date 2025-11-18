@@ -91,6 +91,21 @@ export class RealAgentDBAdapter {
     }
 
     try {
+      // Input validation and sanitization
+      if (!pattern.id || typeof pattern.id !== 'string') {
+        throw new Error('Invalid pattern ID: must be a non-empty string');
+      }
+      if (!pattern.type || typeof pattern.type !== 'string') {
+        throw new Error('Invalid pattern type: must be a non-empty string');
+      }
+      if (typeof pattern.confidence !== 'undefined') {
+        const confidence = Number(pattern.confidence);
+        if (isNaN(confidence) || confidence < 0 || confidence > 1) {
+          throw new Error('Invalid confidence: must be a number between 0 and 1');
+        }
+        pattern.confidence = confidence;
+      }
+
       // Ensure embedding exists and has correct dimensions
       if (!pattern.embedding || pattern.embedding.length !== this.dimension) {
         // Generate default embedding if missing
@@ -101,24 +116,38 @@ export class RealAgentDBAdapter {
       // Convert to Float32Array
       const embedding = new Float32Array(pattern.embedding);
 
-      // Insert into database using sql.js exec() API
-      // Store embedding as NULL for now (BLOB handling in sql.js is complex)
-      const metadataJson = JSON.stringify(pattern.metadata || {}).replace(/'/g, "''");
+      // Validate metadata is serializable
+      const metadataJson = JSON.stringify(pattern.metadata || {});
+      if (metadataJson.length > 1000000) {
+        throw new Error('Metadata exceeds maximum size limit');
+      }
 
-      const sql = `
+      // Use parameterized query to prevent SQL injection
+      // Note: sql.js doesn't support traditional parameterized queries in exec()
+      // We'll use run() with bound parameters instead
+      const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO patterns (id, type, confidence, embedding, metadata, created_at)
-        VALUES ('${pattern.id}', '${pattern.type}', ${pattern.confidence || 0.5}, NULL, '${metadataJson}', unixepoch())
-      `;
+        VALUES (?, ?, ?, NULL, ?, unixepoch())
+      `);
 
-      // Use exec() which is available in sql.js
-      this.db.exec(sql);
+      stmt.run([
+        pattern.id,
+        pattern.type,
+        pattern.confidence || 0.5,
+        metadataJson
+      ]);
+      stmt.free();
 
-      // Add to HNSW index
+      // Add to HNSW index - use parameterized query
       if (this.hnswIndex && this.hnswIndex.isReady()) {
-        const result = this.db.exec(`SELECT rowid FROM patterns WHERE id = '${pattern.id}'`);
-        if (result && result.length > 0 && result[0].values.length > 0) {
-          this.hnswIndex.addVector(result[0].values[0][0] as number, embedding);
+        const stmtSelect = this.db.prepare('SELECT rowid FROM patterns WHERE id = ?');
+        stmtSelect.bind([pattern.id]);
+
+        if (stmtSelect.step()) {
+          const rowid = stmtSelect.getAsObject().rowid as number;
+          this.hnswIndex.addVector(rowid, embedding);
         }
+        stmtSelect.free();
       }
 
       return pattern.id;
@@ -185,7 +214,24 @@ export class RealAgentDBAdapter {
 
       // Check if database has patterns before searching
       const countResult = this.db.exec('SELECT COUNT(*) as count FROM patterns');
-      const patternCount = countResult?.[0]?.values?.[0]?.[0] || 0;
+
+      // P2 SAFETY: Explicit error handling instead of silent fallback
+      if (!countResult || countResult.length === 0 || !countResult[0].values || countResult[0].values.length === 0) {
+        throw new Error(
+          '[RealAgentDBAdapter] Failed to query pattern count - database may be corrupted or schema mismatch. ' +
+          'Expected result format: [{ columns: [...], values: [[count]] }]. ' +
+          'Run migrations or reinitialize database.'
+        );
+      }
+
+      const patternCount = countResult[0].values[0][0] as number;
+
+      if (typeof patternCount !== 'number') {
+        throw new Error(
+          `[RealAgentDBAdapter] Pattern count query returned non-numeric value: ${patternCount} (type: ${typeof patternCount}). ` +
+          'Database schema may be corrupted.'
+        );
+      }
 
       if (patternCount === 0) {
         console.warn('[RealAgentDBAdapter] Search attempted on empty database - returning empty results');
@@ -314,7 +360,8 @@ export class RealAgentDBAdapter {
   }
 
   /**
-   * Execute raw SQL query
+   * Execute raw SQL query with parameterized values
+   * WARNING: Only use with trusted SQL. This method validates SQL to prevent injection.
    */
   async query(sql: string, params: any[] = []): Promise<any[]> {
     if (!this.isInitialized || !this.db) {
@@ -322,13 +369,29 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      // AgentDB uses sql.js which has exec() not all()
-      // For SELECT queries, use exec which returns array of results
-      const results = this.db.exec(sql, params);
+      // Validate SQL query for basic safety
+      this.validateSQL(sql);
+
+      // Use parameterized queries via prepare() for safety
+      if (params.length > 0) {
+        const stmt = this.db.prepare(sql);
+        stmt.bind(params);
+
+        const results: any[] = [];
+        while (stmt.step()) {
+          results.push(stmt.getAsObject());
+        }
+        stmt.free();
+
+        return results;
+      }
+
+      // For queries without parameters, use exec()
+      const execResults = this.db.exec(sql);
 
       // exec returns: [{ columns: [...], values: [[...], [...]] }]
-      if (results && results.length > 0) {
-        const { columns, values } = results[0];
+      if (execResults && execResults.length > 0) {
+        const { columns, values } = execResults[0];
 
         // Convert to array of objects
         return values.map((row: any[]) => {
@@ -343,6 +406,41 @@ export class RealAgentDBAdapter {
       return [];
     } catch (error: any) {
       throw new Error(`Query failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Validate SQL query for basic safety checks
+   * Prevents common SQL injection patterns
+   */
+  private validateSQL(sql: string): void {
+    const upperSQL = sql.toUpperCase().trim();
+
+    // Block dangerous operations
+    const dangerousPatterns = [
+      /;\s*DROP\s+/i,
+      /;\s*DELETE\s+FROM\s+(?!patterns)/i, // Allow DELETE FROM patterns only
+      /;\s*UPDATE\s+(?!patterns)/i,        // Allow UPDATE patterns only
+      /;\s*ALTER\s+/i,
+      /;\s*CREATE\s+(?!INDEX)/i,           // Allow CREATE INDEX only
+      /UNION\s+(?:ALL\s+)?SELECT/i,
+      /EXEC(?:UTE)?\s*\(/i,
+      /--/,                                 // SQL comments
+      /\/\*/,                               // Block comments
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(sql)) {
+        throw new Error(`SQL validation failed: potentially dangerous query pattern detected`);
+      }
+    }
+
+    // SQL must start with allowed operations
+    const allowedStarts = ['SELECT', 'INSERT', 'UPDATE PATTERNS', 'DELETE FROM PATTERNS', 'CREATE INDEX'];
+    const startsWithAllowed = allowedStarts.some(start => upperSQL.startsWith(start));
+
+    if (!startsWithAllowed) {
+      throw new Error(`SQL validation failed: query must start with SELECT, INSERT, UPDATE patterns, DELETE FROM patterns, or CREATE INDEX`);
     }
   }
 }
