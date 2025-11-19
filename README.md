@@ -59,7 +59,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ 18 Specialized agent definitions (including qe-code-complexity)
-- ✅ 8 TDD subagent definitions (RED/GREEN/REFACTOR phases)
+- ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
 - ✅ 38 World-class QE skills library
 - ✅ 8 AQE slash commands
 - ✅ Configuration directory
@@ -70,7 +70,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 
 ### 🤖 Autonomous Agent Fleet
 - **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
-- **8 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation)
+- **11 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation + analysis)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
@@ -436,9 +436,9 @@ Model Usage:
 
 </details>
 
-**Total: 26 Agents** (18 main agents + 8 TDD subagents)
+**Total: 29 Agents** (18 main agents + 11 TDD subagents)
 
-### TDD Subagents (8 specialized)
+### TDD Subagents (11 specialized)
 
 <details>
 <summary><b>Test-Driven Development Subagents</b></summary>
@@ -455,6 +455,12 @@ The test generator orchestrates a complete TDD workflow through specialized suba
 | **qe-data-generator** | GENERATION | Test data creation | Realistic data generation, constraint satisfaction, edge cases |
 | **qe-performance-validator** | VALIDATION | Performance checks | SLA validation, benchmark comparison, threshold enforcement |
 | **qe-security-auditor** | AUDIT | Security validation | Vulnerability detection, compliance checking, threat modeling |
+| **qe-flaky-investigator** | ANALYSIS | Flaky test detection | Pattern detection, timing analysis, stabilization fixes |
+| **qe-coverage-gap-analyzer** | ANALYSIS | Coverage gaps | Risk scoring, gap detection, test recommendations |
+| **qe-test-data-architect-sub** | GENERATION | High-volume data | Schema-aware generation, relationship preservation |
+
+**Coordination Protocol:**
+All subagents use a unified coordination protocol with cycle-based memory namespaces (`aqe/tdd/cycle-{id}/*`) ensuring tests written in RED are the same tests validated in GREEN and refactored in REFACTOR. See [Coordination Guide](docs/subagents/coordination-guide.md).
 
 **Usage Example:**
 ```bash
@@ -700,7 +706,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 - ✅ Pattern Bank with cross-project sharing
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Continuous Improvement Loop
-- ✅ 18 specialized agents + 8 TDD subagents
+- ✅ 18 specialized agents + 11 TDD subagents
 - ✅ Complete TDD workflow automation (RED/GREEN/REFACTOR/REVIEW)
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis

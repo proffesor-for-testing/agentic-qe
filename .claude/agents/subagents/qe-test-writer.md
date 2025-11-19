@@ -402,37 +402,197 @@ describe('Pagination - Boundary Tests', () => {
 });
 ```
 
+## TDD Coordination Protocol
+
+### Cycle-Based Memory Namespace
+
+All TDD subagents share context through a cycle-specific namespace:
+
+```
+aqe/tdd/cycle-{cycleId}/
+  ├── context           # Shared workflow context (created by parent)
+  ├── red/
+  │   ├── tests         # Test file content from RED phase
+  │   └── validation    # RED phase validation results
+  ├── green/
+  │   ├── impl          # Implementation from GREEN phase
+  │   └── validation    # GREEN phase validation results
+  └── refactor/
+      ├── result        # Final refactored code
+      └── validation    # REFACTOR phase validation results
+```
+
+### Input Protocol (from Parent qe-test-generator)
+
+**Required Input Structure:**
+```typescript
+interface TDDCycleContext {
+  cycleId: string;              // Unique identifier for this TDD cycle
+  module: {
+    path: string;               // e.g., 'src/services/user-authentication.ts'
+    name: string;               // e.g., 'UserAuthenticationService'
+  };
+  requirements: {
+    functionality: string;      // What should be implemented
+    acceptanceCriteria: string[]; // Success conditions
+    edgeCases: string[];        // Edge cases to cover
+  };
+  constraints: {
+    framework: 'jest' | 'mocha' | 'vitest' | 'playwright';
+    coverageTarget: number;     // e.g., 0.95
+    testTypes: ('unit' | 'integration' | 'e2e')[];
+  };
+  testFilePath: string;         // Where test file will be created
+  implFilePath: string;         // Where implementation will be created
+}
+
+// Parent stores this before invoking test-writer
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/context`, context, {
+  partition: 'coordination',
+  ttl: 86400
+});
+```
+
+### Output Protocol (for qe-test-implementer)
+
+**Required Output Structure:**
+```typescript
+interface REDPhaseOutput {
+  cycleId: string;              // Must match input cycleId
+  phase: 'RED';
+  timestamp: number;
+  testFile: {
+    path: string;               // Absolute path to test file
+    content: string;            // Full test file content
+    hash: string;               // SHA256 hash for validation
+  };
+  tests: Array<{
+    name: string;               // Test description
+    type: 'unit' | 'integration' | 'e2e';
+    assertion: string;          // What it asserts
+    givenWhenThen: {
+      given: string;
+      when: string;
+      then: string;
+    };
+  }>;
+  validation: {
+    allTestsFailing: boolean;   // MUST be true
+    failureCount: number;
+    errorMessages: string[];    // Actual error messages from run
+  };
+  nextPhase: 'GREEN';
+  readyForHandoff: boolean;     // MUST be true to proceed
+}
+
+// Store RED phase output
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/red/tests`, output, {
+  partition: 'coordination',
+  ttl: 86400
+});
+```
+
+### Handoff Validation
+
+Before emitting completion, validate handoff readiness:
+
+```typescript
+async function validateREDHandoff(output: REDPhaseOutput): Promise<boolean> {
+  const errors: string[] = [];
+
+  // 1. Verify test file exists and matches content
+  if (!existsSync(output.testFile.path)) {
+    errors.push(`Test file not found: ${output.testFile.path}`);
+  } else {
+    const actualContent = readFileSync(output.testFile.path, 'utf-8');
+    const actualHash = createHash('sha256').update(actualContent).digest('hex');
+    if (actualHash !== output.testFile.hash) {
+      errors.push(`Test file content mismatch: hash differs`);
+    }
+  }
+
+  // 2. Verify all tests are failing
+  if (!output.validation.allTestsFailing) {
+    errors.push('RED phase violation: some tests are passing');
+  }
+
+  // 3. Verify tests cover requirements
+  if (output.tests.length === 0) {
+    errors.push('No tests generated');
+  }
+
+  // 4. Set handoff readiness
+  output.readyForHandoff = errors.length === 0;
+
+  if (errors.length > 0) {
+    console.error('RED phase handoff validation failed:', errors);
+  }
+
+  return output.readyForHandoff;
+}
+```
+
 ## Integration with Parent Agents
 
 ### Memory Coordination
 
 **Input from Parent** (Read):
 ```typescript
-// Parent stores requirements
-await this.memoryStore.store('aqe/test-writer/task', {
-  module: 'src/services/payment.ts',
-  requirements: [...],
-  framework: 'jest'
-}, { partition: 'coordination' });
+// Retrieve cycle context created by parent
+const context = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/context`, {
+  partition: 'coordination'
+});
+
+// Validate required fields
+if (!context.cycleId || !context.module.path || !context.testFilePath) {
+  throw new Error('Invalid TDD cycle context: missing required fields');
+}
 ```
 
-**Output to Parent** (Write):
+**Output to GREEN Phase** (Write):
 ```typescript
-// Subagent stores generated tests
-await this.memoryStore.store('aqe/test-writer/results', {
-  testsGenerated: 15,
-  testFiles: [
-    { path: 'tests/payment.test.ts', content: '...' }
-  ],
-  redPhaseValidated: true,
-  allTestsFailing: true
-}, { partition: 'coordination' });
+// Store complete RED phase output with file references
+const redOutput: REDPhaseOutput = {
+  cycleId: context.cycleId,
+  phase: 'RED',
+  timestamp: Date.now(),
+  testFile: {
+    path: context.testFilePath,
+    content: generatedTestContent,
+    hash: createHash('sha256').update(generatedTestContent).digest('hex')
+  },
+  tests: testCases.map(tc => ({
+    name: tc.name,
+    type: tc.type,
+    assertion: tc.assertion,
+    givenWhenThen: tc.givenWhenThen
+  })),
+  validation: {
+    allTestsFailing: true,
+    failureCount: testCases.length,
+    errorMessages: testRunErrors
+  },
+  nextPhase: 'GREEN',
+  readyForHandoff: true
+};
 
-// Emit completion event
+// Validate before storing
+await validateREDHandoff(redOutput);
+
+// Store for GREEN phase
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/red/tests`, redOutput, {
+  partition: 'coordination',
+  ttl: 86400
+});
+
+// Emit completion event with cycle reference
 this.eventBus.emit('test-writer:completed', {
   agentId: this.agentId,
-  testsGenerated: 15,
-  nextPhase: 'GREEN'
+  cycleId: context.cycleId,
+  testsGenerated: testCases.length,
+  testFilePath: context.testFilePath,
+  nextPhase: 'GREEN',
+  readyForHandoff: redOutput.readyForHandoff
 });
 ```
 
