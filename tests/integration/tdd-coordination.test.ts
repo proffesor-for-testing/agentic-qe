@@ -380,10 +380,8 @@ describe('TDD Subagent Coordination', () => {
 
       const result = await validator.validateREFACTORPhase(cycleId);
 
-      // Validator currently doesn't compare coverage between phases
-      // This is valid as long as tests still pass
-      expect(result.valid).toBe(true);
-      // Future enhancement: add coverage comparison warning
+      expect(result.valid).toBe(true); // Still valid, but warns
+      expect(result.warnings).toContain('Coverage decreased from 95% to 85%');
     });
 
     test('should reject when tests fail after refactoring', async () => {
@@ -511,13 +509,12 @@ describe('TDD Subagent Coordination', () => {
       const result = await validator.validateCompleteCycle(cycleId);
 
       expect(result.valid).toBe(false);
-      // RED is invalid because it's missing testFile.path (only has hash)
       const redPhase = result.phases.find((p: TDDValidationResult) => p.phase === 'RED');
       const greenPhase = result.phases.find((p: TDDValidationResult) => p.phase === 'GREEN');
       const refactorPhase = result.phases.find((p: TDDValidationResult) => p.phase === 'REFACTOR');
 
-      // RED fails validation because test data lacks testFile.path
-      expect(redPhase?.valid).toBe(false);  // RED missing testFile.path
+      // RED fails because testFile.path is missing in test data
+      expect(redPhase?.valid).toBe(false);
       expect(greenPhase?.valid).toBe(false); // GREEN missing
       expect(refactorPhase?.valid).toBe(false); // REFACTOR missing
     });
