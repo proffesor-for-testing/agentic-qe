@@ -682,6 +682,586 @@ async function iterateTDDWorkflow(spec: TestSpec, previousAttempt: TDDResult): P
 }
 ```
 
+## Complete TDD Workflow Orchestration
+
+This section provides a complete TypeScript orchestration example demonstrating proper coordination between the three TDD subagents using memory coordination through the `aqe/tdd/cycle-{id}/*` namespace.
+
+### Full Orchestration Example
+
+```typescript
+import { v4 as uuidv4 } from 'uuid';
+
+// Type definitions
+interface TestSpec {
+  module: string;
+  className: string;
+  methods: string[];
+  requirements: string[];
+  framework: 'jest' | 'vitest' | 'mocha';
+  context?: string;
+}
+
+interface TDDCycleResult {
+  cycleId: string;
+  tests: string;
+  implementation: string;
+  quality: QualityMetrics;
+  phases: {
+    red: PhaseResult;
+    green: PhaseResult;
+    refactor: PhaseResult;
+  };
+}
+
+interface QualityMetrics {
+  coverage: number;
+  complexity: number;
+  maintainability: number;
+  testCount: number;
+}
+
+interface PhaseResult {
+  success: boolean;
+  duration: number;
+  artifacts: string[];
+  metrics: Record<string, number>;
+}
+
+interface RedPhaseOutput {
+  readyForHandoff: boolean;
+  allTestsFailing: boolean;
+  testFilePath: string;
+  testCount: number;
+  failureReasons: string[];
+  coverage: { expected: number };
+}
+
+interface GreenPhaseOutput {
+  readyForHandoff: boolean;
+  allTestsPassing: boolean;
+  implFilePath: string;
+  testResults: { passed: number; failed: number; total: number };
+  coverage: { actual: number };
+}
+
+interface RefactorPhaseOutput {
+  success: boolean;
+  testsStillPassing: boolean;
+  qualityMetrics: QualityMetrics;
+  improvements: {
+    complexityReduction: number;
+    maintainabilityImprovement: number;
+    refactorings: string[];
+  };
+}
+
+// Memory store interface (from AQE infrastructure)
+interface MemoryStore {
+  store(key: string, value: any, options?: { partition?: string; ttl?: number }): Promise<void>;
+  retrieve(key: string, options?: { partition?: string }): Promise<any>;
+}
+
+// Event bus interface
+interface EventBus {
+  emit(event: string, data: any): void;
+  on(event: string, handler: (data: any) => void): void;
+}
+
+/**
+ * Complete TDD Cycle Orchestrator
+ *
+ * Coordinates the RED-GREEN-REFACTOR cycle across specialized subagents
+ * with full memory coordination and phase validation.
+ */
+async function orchestrateTDDCycle(
+  spec: TestSpec,
+  memory: MemoryStore,
+  eventBus: EventBus
+): Promise<TDDCycleResult> {
+  const cycleId = uuidv4();
+  const startTime = Date.now();
+
+  console.log(`🎯 Starting TDD cycle ${cycleId} for ${spec.module}`);
+
+  // Store initial context for all subagents
+  await memory.store(`aqe/tdd/cycle-${cycleId}/context`, {
+    cycleId,
+    targetModule: spec.module,
+    className: spec.className,
+    methods: spec.methods,
+    requirements: spec.requirements,
+    framework: spec.framework,
+    context: spec.context,
+    startTime,
+    status: 'initialized'
+  }, {
+    partition: 'coordination',
+    ttl: 86400 // 24 hours
+  });
+
+  // Emit cycle start event
+  eventBus.emit('tdd:cycle:started', {
+    cycleId,
+    module: spec.module,
+    timestamp: startTime
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // RED PHASE - Write Failing Tests
+  // ═══════════════════════════════════════════════════════════════════
+  console.log(`📝 Phase 1/3: RED - Writing failing tests...`);
+
+  await memory.store(`aqe/tdd/cycle-${cycleId}/status`, {
+    phase: 'red',
+    status: 'in_progress',
+    timestamp: Date.now()
+  }, { partition: 'coordination' });
+
+  eventBus.emit('tdd:phase:started', {
+    cycleId,
+    phase: 'red',
+    agent: 'qe-test-writer'
+  });
+
+  // Spawn the test writer subagent
+  // In Claude Code, this would be: Task("Write failing tests", ..., "qe-test-writer")
+  const redResult = await executeSubagent('qe-test-writer', {
+    task: 'write-failing-tests',
+    cycleId,
+    spec: {
+      className: spec.className,
+      methods: spec.methods,
+      requirements: spec.requirements,
+      context: spec.context
+    },
+    coverage: {
+      target: 95,
+      includeEdgeCases: true,
+      includeErrorPaths: true,
+      includeBoundaryValues: true
+    },
+    patterns: ['AAA', 'given-when-then'],
+    framework: spec.framework,
+    memoryKeys: {
+      input: `aqe/tdd/cycle-${cycleId}/context`,
+      output: `aqe/tdd/cycle-${cycleId}/red/tests`
+    }
+  });
+
+  // Validate RED phase output
+  const redOutput: RedPhaseOutput = await memory.retrieve(
+    `aqe/tdd/cycle-${cycleId}/red/tests`,
+    { partition: 'coordination' }
+  );
+
+  if (!redOutput) {
+    throw new Error(`RED phase failed: No output found for cycle ${cycleId}`);
+  }
+
+  if (!redOutput.readyForHandoff) {
+    throw new Error(`RED phase incomplete: Test writer not ready for handoff`);
+  }
+
+  if (!redOutput.allTestsFailing) {
+    throw new Error(
+      `RED phase validation failed: Tests should fail initially. ` +
+      `Expected all tests to fail but some passed.`
+    );
+  }
+
+  const redDuration = Date.now() - startTime;
+  console.log(`✅ RED phase complete: ${redOutput.testCount} failing tests written`);
+  console.log(`   File: ${redOutput.testFilePath}`);
+  console.log(`   Duration: ${redDuration}ms`);
+
+  eventBus.emit('tdd:phase:completed', {
+    cycleId,
+    phase: 'red',
+    duration: redDuration,
+    testCount: redOutput.testCount
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // GREEN PHASE - Implement to Pass Tests
+  // ═══════════════════════════════════════════════════════════════════
+  console.log(`💚 Phase 2/3: GREEN - Implementing code to pass tests...`);
+
+  const greenStartTime = Date.now();
+
+  await memory.store(`aqe/tdd/cycle-${cycleId}/status`, {
+    phase: 'green',
+    status: 'in_progress',
+    timestamp: Date.now()
+  }, { partition: 'coordination' });
+
+  eventBus.emit('tdd:phase:started', {
+    cycleId,
+    phase: 'green',
+    agent: 'qe-test-implementer'
+  });
+
+  // Spawn the test implementer subagent
+  // In Claude Code, this would be: Task("Implement to pass tests", ..., "qe-test-implementer")
+  const greenResult = await executeSubagent('qe-test-implementer', {
+    task: 'implement-to-pass',
+    cycleId,
+    testFilePath: redOutput.testFilePath,
+    requirements: spec.requirements,
+    constraints: {
+      maxComplexity: 15,
+      usePatterns: ['SOLID', 'dependency-injection'],
+      minimalImplementation: true // Only write what's needed to pass
+    },
+    framework: spec.framework,
+    memoryKeys: {
+      input: `aqe/tdd/cycle-${cycleId}/red/tests`,
+      output: `aqe/tdd/cycle-${cycleId}/green/impl`
+    }
+  });
+
+  // Validate GREEN phase output
+  const greenOutput: GreenPhaseOutput = await memory.retrieve(
+    `aqe/tdd/cycle-${cycleId}/green/impl`,
+    { partition: 'coordination' }
+  );
+
+  if (!greenOutput) {
+    throw new Error(`GREEN phase failed: No output found for cycle ${cycleId}`);
+  }
+
+  if (!greenOutput.readyForHandoff) {
+    throw new Error(`GREEN phase incomplete: Implementer not ready for handoff`);
+  }
+
+  if (!greenOutput.allTestsPassing) {
+    const { passed, failed, total } = greenOutput.testResults;
+    throw new Error(
+      `GREEN phase validation failed: Not all tests passing. ` +
+      `${passed}/${total} passed, ${failed} failed.`
+    );
+  }
+
+  const greenDuration = Date.now() - greenStartTime;
+  console.log(`✅ GREEN phase complete: All ${greenOutput.testResults.total} tests passing`);
+  console.log(`   File: ${greenOutput.implFilePath}`);
+  console.log(`   Coverage: ${greenOutput.coverage.actual}%`);
+  console.log(`   Duration: ${greenDuration}ms`);
+
+  eventBus.emit('tdd:phase:completed', {
+    cycleId,
+    phase: 'green',
+    duration: greenDuration,
+    testResults: greenOutput.testResults,
+    coverage: greenOutput.coverage.actual
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // REFACTOR PHASE - Improve Code Quality
+  // ═══════════════════════════════════════════════════════════════════
+  console.log(`🔧 Phase 3/3: REFACTOR - Improving code quality...`);
+
+  const refactorStartTime = Date.now();
+
+  await memory.store(`aqe/tdd/cycle-${cycleId}/status`, {
+    phase: 'refactor',
+    status: 'in_progress',
+    timestamp: Date.now()
+  }, { partition: 'coordination' });
+
+  eventBus.emit('tdd:phase:started', {
+    cycleId,
+    phase: 'refactor',
+    agent: 'qe-test-refactorer'
+  });
+
+  // Spawn the refactorer subagent
+  // In Claude Code, this would be: Task("Refactor implementation", ..., "qe-test-refactorer")
+  const refactorResult = await executeSubagent('qe-test-refactorer', {
+    task: 'refactor-with-tests-green',
+    cycleId,
+    implFilePath: greenOutput.implFilePath,
+    testFilePath: redOutput.testFilePath,
+    metrics: {
+      targetComplexity: 10,
+      targetMaintainability: 85,
+      maxMethodLength: 20,
+      maxFileLength: 300
+    },
+    refactoringPatterns: [
+      'extract-method',
+      'rename-variable',
+      'simplify-conditional',
+      'remove-duplication'
+    ],
+    memoryKeys: {
+      input: `aqe/tdd/cycle-${cycleId}/green/impl`,
+      output: `aqe/tdd/cycle-${cycleId}/refactor/result`
+    }
+  });
+
+  // Validate REFACTOR phase output
+  const refactorOutput: RefactorPhaseOutput = await memory.retrieve(
+    `aqe/tdd/cycle-${cycleId}/refactor/result`,
+    { partition: 'coordination' }
+  );
+
+  if (!refactorOutput) {
+    throw new Error(`REFACTOR phase failed: No output found for cycle ${cycleId}`);
+  }
+
+  if (!refactorOutput.testsStillPassing) {
+    throw new Error(
+      `REFACTOR phase validation failed: Tests broke during refactoring. ` +
+      `Rolling back to pre-refactor state.`
+    );
+  }
+
+  const refactorDuration = Date.now() - refactorStartTime;
+  const totalDuration = Date.now() - startTime;
+
+  console.log(`✅ REFACTOR phase complete`);
+  console.log(`   Complexity reduced by: ${refactorOutput.improvements.complexityReduction}%`);
+  console.log(`   Maintainability improved by: ${refactorOutput.improvements.maintainabilityImprovement}%`);
+  console.log(`   Refactorings applied: ${refactorOutput.improvements.refactorings.join(', ')}`);
+  console.log(`   Duration: ${refactorDuration}ms`);
+
+  eventBus.emit('tdd:phase:completed', {
+    cycleId,
+    phase: 'refactor',
+    duration: refactorDuration,
+    improvements: refactorOutput.improvements
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // CYCLE COMPLETE - Store Final Results
+  // ═══════════════════════════════════════════════════════════════════
+  const result: TDDCycleResult = {
+    cycleId,
+    tests: redOutput.testFilePath,
+    implementation: greenOutput.implFilePath,
+    quality: refactorOutput.qualityMetrics,
+    phases: {
+      red: {
+        success: true,
+        duration: redDuration,
+        artifacts: [redOutput.testFilePath],
+        metrics: {
+          testCount: redOutput.testCount,
+          expectedCoverage: redOutput.coverage.expected
+        }
+      },
+      green: {
+        success: true,
+        duration: greenDuration,
+        artifacts: [greenOutput.implFilePath],
+        metrics: {
+          testsPassed: greenOutput.testResults.passed,
+          coverage: greenOutput.coverage.actual
+        }
+      },
+      refactor: {
+        success: true,
+        duration: refactorDuration,
+        artifacts: [greenOutput.implFilePath], // Updated in place
+        metrics: {
+          complexity: refactorOutput.qualityMetrics.complexity,
+          maintainability: refactorOutput.qualityMetrics.maintainability
+        }
+      }
+    }
+  };
+
+  // Store final cycle results
+  await memory.store(`aqe/tdd/cycle-${cycleId}/result`, result, {
+    partition: 'coordination',
+    ttl: 604800 // 7 days
+  });
+
+  // Update status to complete
+  await memory.store(`aqe/tdd/cycle-${cycleId}/status`, {
+    phase: 'complete',
+    status: 'success',
+    totalDuration,
+    timestamp: Date.now()
+  }, { partition: 'coordination' });
+
+  // Emit cycle completion event
+  eventBus.emit('tdd:cycle:completed', {
+    cycleId,
+    module: spec.module,
+    duration: totalDuration,
+    quality: refactorOutput.qualityMetrics
+  });
+
+  console.log(`\n🎉 TDD Cycle ${cycleId} Complete!`);
+  console.log(`   Total Duration: ${totalDuration}ms`);
+  console.log(`   Test File: ${redOutput.testFilePath}`);
+  console.log(`   Implementation: ${greenOutput.implFilePath}`);
+  console.log(`   Coverage: ${refactorOutput.qualityMetrics.coverage}%`);
+  console.log(`   Complexity: ${refactorOutput.qualityMetrics.complexity}`);
+  console.log(`   Maintainability: ${refactorOutput.qualityMetrics.maintainability}`);
+
+  return result;
+}
+
+// Helper function to execute subagent (placeholder for actual Task tool invocation)
+async function executeSubagent(agentName: string, params: any): Promise<void> {
+  // In Claude Code, this would be replaced with:
+  // await Task("Task description", JSON.stringify(params), agentName);
+
+  // The subagent reads input from memoryKeys.input and writes output to memoryKeys.output
+  console.log(`  → Executing ${agentName}...`);
+}
+```
+
+### Usage Example
+
+```typescript
+// Example: Running a TDD cycle for a UserService
+async function example() {
+  // Initialize memory and event bus (from AQE infrastructure)
+  const memory = new MemoryStore();
+  const eventBus = new EventBus();
+
+  // Define the test specification
+  const spec: TestSpec = {
+    module: 'src/services/UserService.ts',
+    className: 'UserService',
+    methods: ['createUser', 'updateUser', 'deleteUser', 'findById'],
+    requirements: [
+      'MUST validate email format before creating user',
+      'MUST hash password using bcrypt with salt rounds 10',
+      'MUST throw UserNotFoundError if user does not exist',
+      'MUST emit UserCreated event after successful creation',
+      'MUST support pagination for list operations'
+    ],
+    framework: 'jest',
+    context: 'E-commerce platform user management service'
+  };
+
+  try {
+    // Run the TDD cycle
+    const result = await orchestrateTDDCycle(spec, memory, eventBus);
+
+    console.log('\n📊 TDD Cycle Summary:');
+    console.log(`   Tests: ${result.tests}`);
+    console.log(`   Implementation: ${result.implementation}`);
+    console.log(`   Coverage: ${result.quality.coverage}%`);
+    console.log(`   Test Count: ${result.quality.testCount}`);
+
+    return result;
+  } catch (error) {
+    console.error('TDD Cycle failed:', error.message);
+
+    // Retrieve cycle status for debugging
+    const cycleId = error.message.match(/cycle (\w+)/)?.[1];
+    if (cycleId) {
+      const status = await memory.retrieve(
+        `aqe/tdd/cycle-${cycleId}/status`,
+        { partition: 'coordination' }
+      );
+      console.error('Last known status:', status);
+    }
+
+    throw error;
+  }
+}
+
+// Run the example
+example().catch(console.error);
+```
+
+### Event Monitoring
+
+```typescript
+// Monitor TDD cycle progress through events
+function setupTDDMonitoring(eventBus: EventBus) {
+  // Cycle lifecycle events
+  eventBus.on('tdd:cycle:started', (data) => {
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`🚀 TDD Cycle Started: ${data.cycleId}`);
+    console.log(`   Module: ${data.module}`);
+    console.log(`${'═'.repeat(60)}\n`);
+  });
+
+  eventBus.on('tdd:cycle:completed', (data) => {
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`✅ TDD Cycle Completed: ${data.cycleId}`);
+    console.log(`   Duration: ${data.duration}ms`);
+    console.log(`   Coverage: ${data.quality.coverage}%`);
+    console.log(`   Maintainability: ${data.quality.maintainability}`);
+    console.log(`${'═'.repeat(60)}\n`);
+  });
+
+  // Phase progress events
+  eventBus.on('tdd:phase:started', (data) => {
+    const phaseEmoji = {
+      red: '📝',
+      green: '💚',
+      refactor: '🔧'
+    }[data.phase] || '▶️';
+
+    console.log(`${phaseEmoji} ${data.phase.toUpperCase()} phase started`);
+    console.log(`   Agent: ${data.agent}`);
+  });
+
+  eventBus.on('tdd:phase:completed', (data) => {
+    const phaseEmoji = {
+      red: '📝',
+      green: '💚',
+      refactor: '🔧'
+    }[data.phase] || '✅';
+
+    console.log(`${phaseEmoji} ${data.phase.toUpperCase()} phase completed`);
+    console.log(`   Duration: ${data.duration}ms`);
+
+    // Phase-specific metrics
+    if (data.phase === 'red') {
+      console.log(`   Tests written: ${data.testCount}`);
+    } else if (data.phase === 'green') {
+      console.log(`   Tests passing: ${data.testResults.passed}/${data.testResults.total}`);
+      console.log(`   Coverage: ${data.coverage}%`);
+    } else if (data.phase === 'refactor') {
+      console.log(`   Complexity reduction: ${data.improvements.complexityReduction}%`);
+    }
+  });
+
+  // Error handling
+  eventBus.on('tdd:cycle:error', (data) => {
+    console.error(`\n❌ TDD Cycle Error: ${data.cycleId}`);
+    console.error(`   Phase: ${data.phase}`);
+    console.error(`   Error: ${data.error}`);
+  });
+}
+
+// Usage
+const eventBus = new EventBus();
+setupTDDMonitoring(eventBus);
+```
+
+### Memory Namespace Structure
+
+The TDD orchestration uses a structured memory namespace for coordination:
+
+```
+aqe/tdd/cycle-{cycleId}/
+├── context              # Initial test specification and context
+├── status               # Current cycle status and phase
+├── red/
+│   └── tests            # Test writer output (failing tests)
+├── green/
+│   └── impl             # Implementer output (passing implementation)
+├── refactor/
+│   └── result           # Refactorer output (improved code)
+└── result               # Final cycle result with all metrics
+```
+
+Each subagent:
+1. Reads from the previous phase's output key
+2. Writes to its designated output key
+3. Sets `readyForHandoff: true` when complete
+4. Validates its phase requirements before signaling completion
+
 ## Example Outputs
 
 ### Property-Based Test Generation

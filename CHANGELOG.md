@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.3] - 2025-01-19
+
+### 🔄 Phase 4: Subagent Workflows for TDD
+
+This release implements comprehensive TDD subagent coordination, solving the disconnected tests/code/refactor issue where RED-GREEN-REFACTOR cycle agents were producing inconsistent outputs.
+
+**References**:
+- [Issue #43 - Phase 4: Implement Subagent Workflows for TDD](https://github.com/proffesor-for-testing/agentic-qe/issues/43)
+
+### Added
+
+#### 🧪 TDD Coordination Protocol
+- **Memory-based coordination** using `aqe/tdd/cycle-{cycleId}/*` namespace
+- **File hash validation** - SHA256 ensures test file integrity across RED→GREEN→REFACTOR phases
+- **Handoff gates** - `readyForHandoff` boolean prevents premature phase transitions
+- **Phase output interfaces** - Typed contracts for RED, GREEN, REFACTOR outputs
+
+#### 📦 New Subagents (3)
+- **qe-flaky-investigator** - Detects flaky tests, analyzes root causes, suggests stabilization
+- **qe-coverage-gap-analyzer** - Identifies coverage gaps, risk-scores untested code
+- **qe-test-data-architect-sub** - High-volume test data generation with relationship preservation
+
+#### 🔧 Runtime Enforcement
+- **TDDPhaseValidator** class at `src/core/hooks/validators/TDDPhaseValidator.ts`
+  - Validates memory keys exist before phase transitions
+  - Enforces output schema compliance
+  - Checks file hash integrity across phases
+  - Methods: `validateREDPhase()`, `validateGREENPhase()`, `validateREFACTORPhase()`, `validateCompleteCycle()`
+
+#### ✅ Integration Tests
+- **27 test cases** at `tests/integration/tdd-coordination.test.ts`
+  - RED phase validation (passing tests rejection, memory key missing, handoff readiness)
+  - GREEN phase validation (hash changes from RED, tests not passing)
+  - REFACTOR phase validation (hash integrity, coverage regression warnings)
+  - Complete cycle validation
+
+#### 📚 Documentation
+- **Coordination guide** at `docs/subagents/coordination-guide.md`
+  - Memory namespace conventions
+  - Spawning patterns with Task tool
+  - TDD workflow examples with ASCII diagrams
+  - Error handling and best practices
+
+### Changed
+
+#### 🔄 Updated Subagents (8)
+All existing subagents now include coordination protocol:
+- `qe-test-writer` - RED phase output with cycle context
+- `qe-test-implementer` - GREEN phase with hash validation
+- `qe-test-refactorer` - REFACTOR with full cycle validation
+- `qe-code-reviewer` - Quality workflow coordination
+- `qe-integration-tester` - Integration workflow coordination
+- `qe-performance-validator` - Performance workflow coordination
+- `qe-security-auditor` - Security workflow coordination
+- `qe-data-generator` - Test data workflow coordination
+
+#### 📊 Updated Counts
+- Subagents: 8 → 11 (added 3 specialized subagents)
+- Example orchestrator now uses real MCP patterns instead of simulation
+
+### Files Created
+- `src/core/hooks/validators/TDDPhaseValidator.ts`
+- `tests/integration/tdd-coordination.test.ts`
+- `docs/subagents/coordination-guide.md`
+- `.claude/agents/subagents/qe-flaky-investigator.md`
+- `.claude/agents/subagents/qe-coverage-gap-analyzer.md`
+- `.claude/agents/subagents/qe-test-data-architect-sub.md`
+
+### Files Modified
+- `.claude/agents/subagents/*.md` (8 files - coordination protocol)
+- `.claude/agents/qe-test-generator.md` (orchestration example)
+- `examples/tdd-workflow-orchestration.ts` (real MCP patterns)
+- `README.md` (updated counts)
+
 ## [1.8.2] - 2025-01-18
 
 ### 🔧 Database Schema Enhancement

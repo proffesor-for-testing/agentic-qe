@@ -56,5 +56,92 @@ expect(payment.status).toBe('completed');
 
 ---
 
+## TDD Coordination Protocol
+
+### Memory Namespace
+`aqe/integration/cycle-{cycleId}/*`
+
+### Subagent Input Interface
+```typescript
+interface IntegrationTestRequest {
+  cycleId: string;           // Links to parent TDD workflow
+  scope: 'api' | 'database' | 'service' | 'full';
+  endpoints?: {
+    method: string;
+    path: string;
+    expectedStatus: number;
+    schema: object;
+    expectedHeaders?: Record<string, string>;
+  }[];
+  databaseConfig?: {
+    connectionString: string;
+    migrations: string[];
+    seedData?: string;
+  };
+  services?: {
+    name: string;
+    baseUrl: string;
+    healthCheck: string;
+  }[];
+  contractFiles?: string[];  // Pact/OpenAPI contract files
+  timeout: number;           // Test timeout in ms
+}
+```
+
+### Subagent Output Interface
+```typescript
+interface IntegrationTestOutput {
+  cycleId: string;
+  testResults: {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    duration: number;
+  };
+  apiResults?: {
+    endpoint: string;
+    status: 'pass' | 'fail';
+    responseTime: number;
+    schemaValid: boolean;
+    errors?: string[];
+  }[];
+  databaseResults?: {
+    operation: string;
+    status: 'pass' | 'fail';
+    duration: number;
+    rowsAffected?: number;
+  }[];
+  serviceResults?: {
+    serviceName: string;
+    status: 'pass' | 'fail';
+    healthCheckPassed: boolean;
+    latency: number;
+  }[];
+  contractValidations: {
+    contractFile: string;
+    provider: string;
+    consumer: string;
+    passed: boolean;
+    mismatches?: string[];
+  }[];
+  readyForHandoff: boolean;
+}
+```
+
+### Memory Coordination
+- **Read from**: `aqe/integration/cycle-{cycleId}/input` (parent agent request)
+- **Write to**: `aqe/integration/cycle-{cycleId}/results`
+- **Status updates**: `aqe/integration/cycle-{cycleId}/status`
+
+### Handoff Protocol
+1. Read test configuration from `aqe/integration/cycle-{cycleId}/input`
+2. Execute integration tests by scope
+3. Validate all API contracts
+4. Write comprehensive results to `aqe/integration/cycle-{cycleId}/results`
+5. Set `readyForHandoff: true` when all critical tests pass
+
+---
+
 **Status**: Active
 **Version**: 1.0.0

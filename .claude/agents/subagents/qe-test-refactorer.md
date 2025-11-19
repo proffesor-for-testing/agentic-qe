@@ -350,39 +350,289 @@ class ContinuousTester {
 }
 ```
 
+## TDD Coordination Protocol
+
+### Cycle-Based Memory Namespace
+
+All TDD subagents share context through a cycle-specific namespace:
+
+```
+aqe/tdd/cycle-{cycleId}/
+  ├── context           # Shared workflow context (created by parent)
+  ├── red/
+  │   ├── tests         # Test file content from RED phase
+  │   └── validation    # RED phase validation results
+  ├── green/
+  │   ├── impl          # Implementation from GREEN phase
+  │   └── validation    # GREEN phase validation results
+  └── refactor/
+      ├── result        # Final refactored code
+      └── validation    # REFACTOR phase validation results
+```
+
+### Input Protocol (from qe-test-implementer)
+
+**Required Input Structure:**
+```typescript
+interface GREENPhaseOutput {
+  cycleId: string;              // Unique identifier for this TDD cycle
+  phase: 'GREEN';
+  timestamp: number;
+  testFile: {
+    path: string;               // Absolute path to test file
+    hash: string;               // SHA256 hash - tests unchanged
+  };
+  implFile: {
+    path: string;               // Absolute path to implementation
+    content: string;            // Full implementation content
+    hash: string;               // SHA256 hash for validation
+  };
+  implementation: {
+    className: string;
+    methods: Array<{
+      name: string;
+      signature: string;
+      complexity: number;
+    }>;
+  };
+  validation: {
+    allTestsPassing: boolean;   // MUST be true
+    passCount: number;
+    totalCount: number;
+    coverage: number;
+  };
+  nextPhase: 'REFACTOR';
+  readyForHandoff: boolean;     // MUST be true to proceed
+}
+
+// Retrieve GREEN phase output
+const greenOutput = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/green/impl`, {
+  partition: 'coordination'
+});
+
+// Validate GREEN phase is complete
+if (!greenOutput.readyForHandoff || !greenOutput.validation.allTestsPassing) {
+  throw new Error('Cannot proceed to REFACTOR phase - GREEN phase incomplete');
+}
+```
+
+### Output Protocol (Final TDD Cycle Output)
+
+**Required Output Structure:**
+```typescript
+interface REFACTORPhaseOutput {
+  cycleId: string;              // Must match input cycleId
+  phase: 'REFACTOR';
+  timestamp: number;
+  testFile: {
+    path: string;               // SAME path from RED/GREEN phases
+    hash: string;               // SAME hash - tests unchanged throughout
+  };
+  implFile: {
+    path: string;               // SAME path from GREEN phase
+    content: string;            // Refactored implementation content
+    hash: string;               // New hash after refactoring
+    originalHash: string;       // Hash from GREEN phase for comparison
+  };
+  refactoring: {
+    applied: Array<{
+      type: string;             // e.g., 'extract-function', 'rename-variable'
+      description: string;
+      linesAffected: number;
+    }>;
+    metrics: {
+      complexityBefore: number;
+      complexityAfter: number;
+      maintainabilityBefore: number;
+      maintainabilityAfter: number;
+      duplicateCodeReduced: number; // Percentage
+    };
+  };
+  validation: {
+    allTestsPassing: boolean;   // MUST be true - behavior unchanged
+    passCount: number;
+    totalCount: number;
+    coverage: number;           // Should be same or better
+  };
+  cycleComplete: boolean;       // MUST be true
+  readyForReview: boolean;      // MUST be true to proceed
+}
+
+// Store REFACTOR phase output
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/refactor/result`, output, {
+  partition: 'coordination',
+  ttl: 86400
+});
+```
+
+### Handoff Validation
+
+Before emitting completion, validate REFACTOR phase:
+
+```typescript
+async function validateREFACTORHandoff(
+  output: REFACTORPhaseOutput,
+  greenOutput: GREENPhaseOutput,
+  redOutput: REDPhaseOutput
+): Promise<boolean> {
+  const errors: string[] = [];
+
+  // 1. Verify cycle IDs match throughout
+  if (output.cycleId !== greenOutput.cycleId || output.cycleId !== redOutput.cycleId) {
+    errors.push(`Cycle ID mismatch across phases`);
+  }
+
+  // 2. Verify test file unchanged throughout TDD cycle
+  if (output.testFile.hash !== redOutput.testFile.hash) {
+    errors.push('Test file was modified during TDD cycle - tests must remain unchanged');
+  }
+
+  // 3. Verify implementation file path is same
+  if (output.implFile.path !== greenOutput.implFile.path) {
+    errors.push('Implementation file path changed during REFACTOR phase');
+  }
+
+  // 4. Verify implementation file exists with new content
+  if (!existsSync(output.implFile.path)) {
+    errors.push(`Implementation file not found: ${output.implFile.path}`);
+  } else {
+    const actualContent = readFileSync(output.implFile.path, 'utf-8');
+    const actualHash = createHash('sha256').update(actualContent).digest('hex');
+    if (actualHash !== output.implFile.hash) {
+      errors.push(`Implementation file content mismatch: hash differs`);
+    }
+  }
+
+  // 5. Verify all tests still pass (behavior unchanged)
+  if (!output.validation.allTestsPassing) {
+    errors.push(`REFACTOR phase violation: ${output.validation.totalCount - output.validation.passCount} tests now failing`);
+  }
+
+  // 6. Verify coverage didn't decrease
+  if (output.validation.coverage < greenOutput.validation.coverage - 0.01) {
+    errors.push(`Coverage decreased: ${greenOutput.validation.coverage} -> ${output.validation.coverage}`);
+  }
+
+  // 7. Set completion status
+  output.cycleComplete = errors.length === 0;
+  output.readyForReview = errors.length === 0;
+
+  if (errors.length > 0) {
+    console.error('REFACTOR phase validation failed:', errors);
+  }
+
+  return output.readyForReview;
+}
+```
+
 ## Integration with Parent Agents
 
 ### Input from qe-test-implementer
 
 ```typescript
-// Read GREEN phase implementation
-const greenCode = await this.memoryStore.retrieve('aqe/test-implementer/results', {
+// Retrieve cycle context
+const context = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/context`, {
   partition: 'coordination'
 });
 
-// Verify GREEN phase is complete
-if (!greenCode.testsPass) {
-  throw new Error('Cannot refactor - GREEN phase incomplete');
+// Retrieve RED phase output (need test file reference)
+const redOutput = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/red/tests`, {
+  partition: 'coordination'
+});
+
+// Retrieve GREEN phase output with implementation
+const greenOutput = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/green/impl`, {
+  partition: 'coordination'
+});
+
+// Validate GREEN phase is complete and ready for handoff
+if (!greenOutput) {
+  throw new Error(`GREEN phase output not found for cycle ${cycleId}`);
 }
+
+if (!greenOutput.readyForHandoff) {
+  throw new Error('Cannot proceed to REFACTOR phase - GREEN phase handoff not ready');
+}
+
+if (!greenOutput.validation.allTestsPassing) {
+  throw new Error('Cannot refactor - GREEN phase tests not passing');
+}
+
+// Verify implementation file exists and matches expected content
+const actualImplContent = readFileSync(greenOutput.implFile.path, 'utf-8');
+const actualHash = createHash('sha256').update(actualImplContent).digest('hex');
+if (actualHash !== greenOutput.implFile.hash) {
+  throw new Error('Implementation file has been modified since GREEN phase - cannot proceed');
+}
+
+// Now refactor this EXACT code while keeping tests passing
+console.log(`Refactoring ${greenOutput.implFile.path} while keeping ${redOutput.tests.length} tests passing`);
 ```
 
 ### Output to qe-code-reviewer
 
 ```typescript
-// Store refactored code for review
-await this.memoryStore.store('aqe/test-refactorer/results', {
-  refactoredCode: improvedCode,
-  improvements: improvements,
-  testsStillPass: true,
-  qualityMetrics: metrics,
+// Create REFACTOR phase output with improved code
+const refactorOutput: REFACTORPhaseOutput = {
+  cycleId: greenOutput.cycleId,
+  phase: 'REFACTOR',
+  timestamp: Date.now(),
+  testFile: {
+    path: redOutput.testFile.path,      // SAME test file throughout
+    hash: redOutput.testFile.hash       // SAME hash - tests unchanged
+  },
+  implFile: {
+    path: greenOutput.implFile.path,    // SAME implementation path
+    content: refactoredCode,
+    hash: createHash('sha256').update(refactoredCode).digest('hex'),
+    originalHash: greenOutput.implFile.hash  // Track what we started with
+  },
+  refactoring: {
+    applied: appliedRefactorings.map(r => ({
+      type: r.type,
+      description: r.description,
+      linesAffected: r.linesAffected
+    })),
+    metrics: {
+      complexityBefore: calculateComplexity(greenOutput.implFile.content),
+      complexityAfter: calculateComplexity(refactoredCode),
+      maintainabilityBefore: calculateMaintainability(greenOutput.implFile.content),
+      maintainabilityAfter: calculateMaintainability(refactoredCode),
+      duplicateCodeReduced: calculateDuplicateReduction(greenOutput.implFile.content, refactoredCode)
+    }
+  },
+  validation: {
+    allTestsPassing: testResults.passed === testResults.total,
+    passCount: testResults.passed,
+    totalCount: testResults.total,
+    coverage: testResults.coverage
+  },
+  cycleComplete: true,
   readyForReview: true
-}, { partition: 'coordination' });
+};
 
-// Emit completion event
+// Validate before storing
+await validateREFACTORHandoff(refactorOutput, greenOutput, redOutput);
+
+// Store final TDD cycle result
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/refactor/result`, refactorOutput, {
+  partition: 'coordination',
+  ttl: 86400
+});
+
+// Emit completion event with full cycle summary
 this.eventBus.emit('test-refactorer:completed', {
   agentId: this.agentId,
-  improvementsApplied: improvements.length,
-  nextPhase: 'REVIEW'
+  cycleId: context.cycleId,
+  testFilePath: redOutput.testFile.path,
+  implFilePath: greenOutput.implFile.path,
+  refactoringsApplied: refactorOutput.refactoring.applied.length,
+  complexityReduction: refactorOutput.refactoring.metrics.complexityBefore -
+                       refactorOutput.refactoring.metrics.complexityAfter,
+  testsStillPassing: refactorOutput.validation.allTestsPassing,
+  coverage: refactorOutput.validation.coverage,
+  cycleComplete: refactorOutput.cycleComplete,
+  readyForReview: refactorOutput.readyForReview
 });
 ```
 
