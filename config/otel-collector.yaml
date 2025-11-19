@@ -1,0 +1,234 @@
+# OpenTelemetry Collector Configuration for Agentic QE Fleet
+#
+# This configuration sets up the OTEL Collector for local development
+# and production deployment scenarios.
+
+receivers:
+  # OTLP receiver for gRPC protocol
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 4
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://localhost:*"
+            - "https://localhost:*"
+
+  # Host metrics receiver for system-level metrics
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+      filesystem:
+      network:
+      process:
+        include:
+          names:
+            - node
+          match_type: regexp
+
+  # Prometheus receiver for scraping metrics endpoints
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'agentic-qe-fleet'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['localhost:9464']
+
+processors:
+  # Batch processor for efficient export
+  batch:
+    send_batch_size: 1000
+    send_batch_max_size: 1500
+    timeout: 10s
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Resource processor to add common attributes
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: ${DEPLOYMENT_ENVIRONMENT:-development}
+        action: upsert
+      - key: service.namespace
+        value: agentic-qe
+        action: upsert
+
+  # Attributes processor for span enrichment
+  attributes:
+    actions:
+      - key: collector.version
+        value: "1.0.0"
+        action: insert
+
+  # Filter processor to drop noisy telemetry
+  filter:
+    error_mode: ignore
+    traces:
+      span:
+        # Drop health check spans
+        - 'attributes["http.route"] == "/health"'
+        - 'attributes["http.route"] == "/ready"'
+
+  # Probabilistic sampler for high-volume scenarios
+  probabilistic_sampler:
+    hash_seed: 22
+    sampling_percentage: 100  # Adjust for production
+
+exporters:
+  # Debug exporter for local development
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # File exporter for local persistence
+  file:
+    path: /tmp/otel-collector/traces.json
+    rotation:
+      max_megabytes: 100
+      max_days: 7
+      max_backups: 3
+
+  # File exporter for metrics
+  file/metrics:
+    path: /tmp/otel-collector/metrics.json
+    rotation:
+      max_megabytes: 100
+      max_days: 7
+      max_backups: 3
+
+  # Prometheus exporter for metrics scraping
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: aqe
+    const_labels:
+      service: agentic-qe-fleet
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # OTLP exporter for forwarding to backend (e.g., Jaeger, Tempo, etc.)
+  otlp:
+    endpoint: ${OTLP_BACKEND_ENDPOINT:-localhost:4317}
+    tls:
+      insecure: ${OTLP_INSECURE:-true}
+    headers:
+      Authorization: ${OTLP_AUTH_HEADER:-}
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # OTLP HTTP exporter as alternative
+  otlphttp:
+    endpoint: ${OTLP_HTTP_ENDPOINT:-http://localhost:4318}
+    tls:
+      insecure: ${OTLP_INSECURE:-true}
+
+  # Logging exporter for debugging
+  logging:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 100
+
+extensions:
+  # Health check extension
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /health
+    check_collector_pipeline:
+      enabled: true
+      interval: 5m
+      exporter_failure_threshold: 5
+
+  # Performance profiler
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+  # Memory ballast for performance
+  memory_ballast:
+    size_mib: 64
+
+service:
+  extensions:
+    - health_check
+    - pprof
+    - zpages
+    - memory_ballast
+
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - batch
+        - resource
+        - attributes
+        - filter
+      exporters:
+        - debug
+        - file
+        # Uncomment for production backends:
+        # - otlp
+
+    # Metrics pipeline
+    metrics:
+      receivers:
+        - otlp
+        - hostmetrics
+        - prometheus
+      processors:
+        - memory_limiter
+        - batch
+        - resource
+      exporters:
+        - debug
+        - prometheus
+        - file/metrics
+        # Uncomment for production backends:
+        # - otlp
+
+    # Logs pipeline
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - batch
+        - resource
+      exporters:
+        - debug
+        # Uncomment for production backends:
+        # - otlp
+
+  telemetry:
+    logs:
+      level: info
+      development: true
+      encoding: console
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
