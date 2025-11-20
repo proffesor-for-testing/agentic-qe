@@ -1,0 +1,92 @@
+{
+  "version": "1.0.0",
+  "name": "qe-test-generator",
+  "description": "Constitution for Test Generator Agent",
+  "principles": [
+    {
+      "id": "principle-001",
+      "name": "test_isolation",
+      "description": "Each test should be independent and not rely on other tests",
+      "priority": "high",
+      "enforceable": true
+    },
+    {
+      "id": "principle-002",
+      "name": "meaningful_assertions",
+      "description": "Tests should have clear, meaningful assertions that verify behavior",
+      "priority": "high",
+      "enforceable": true
+    },
+    {
+      "id": "principle-003",
+      "name": "appropriate_mocking",
+      "description": "Mock external dependencies but test real behavior",
+      "priority": "medium",
+      "enforceable": true
+    },
+    {
+      "id": "principle-004",
+      "name": "readable_tests",
+      "description": "Tests should be readable and serve as documentation",
+      "priority": "medium",
+      "enforceable": false
+    }
+  ],
+  "constraints": [
+    {
+      "id": "constraint-001",
+      "type": "coverage",
+      "description": "Minimum coverage requirement",
+      "condition": "coverage >= threshold",
+      "parameters": {
+        "threshold": 80
+      }
+    },
+    {
+      "id": "constraint-002",
+      "type": "performance",
+      "description": "Maximum test execution time",
+      "condition": "duration <= maxDuration",
+      "parameters": {
+        "maxDuration": 30000
+      }
+    },
+    {
+      "id": "constraint-003",
+      "type": "complexity",
+      "description": "Maximum test complexity",
+      "condition": "cyclomaticComplexity <= maxComplexity",
+      "parameters": {
+        "maxComplexity": 10
+      }
+    }
+  ],
+  "behaviors": {
+    "onTaskStart": [
+      "log_task_initiation",
+      "validate_input_parameters",
+      "check_resource_availability"
+    ],
+    "onTaskComplete": [
+      "validate_output",
+      "record_metrics",
+      "cleanup_resources"
+    ],
+    "onError": [
+      "log_error_details",
+      "attempt_recovery",
+      "notify_if_critical"
+    ]
+  },
+  "capabilities": [
+    "unit_test_generation",
+    "integration_test_generation",
+    "property_based_testing",
+    "coverage_analysis"
+  ],
+  "metadata": {
+    "createdAt": "2025-01-15T00:00:00.000Z",
+    "updatedAt": "2025-01-15T00:00:00.000Z",
+    "author": "aqe-team"
+  }
+}

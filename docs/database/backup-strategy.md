@@ -462,5 +462,5 @@ gpg --decrypt backup.tar.gz.gpg > backup.tar.gz
 ## Support
 
 For issues or questions:
-- GitHub Issues: [agentic-qe-cf/issues](https://github.com/ruvnet/agentic-qe-cf/issues)
-- Documentation: [docs/database/](https://github.com/ruvnet/agentic-qe-cf/tree/main/docs/database)
+- GitHub Issues: [agentic-qe-cf/issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
+- Documentation: [docs/database/](https://github.com/proffesor-for-testing/agentic-qe/tree/main/docs/database)

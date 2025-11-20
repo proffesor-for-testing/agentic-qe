@@ -75,14 +75,14 @@ export class MemoryBackupHandler extends BaseHandler {
 
     const { namespace, backupId } = args;
 
-    // Get all records in namespace
+    // Get all records in namespace (using partition field)
     const records = Array.from(this.memoryStore.entries())
-      .filter(([key, record]) => record.namespace === namespace)
+      .filter(([key, record]) => record.partition === namespace)
       .map(([key, record]) => ({
         key,
         value: record.value,
-        namespace: record.namespace,
-        timestamp: record.timestamp,
+        partition: record.partition,
+        timestamp: record.createdAt,
         ttl: record.ttl,
         metadata: record.metadata
       }));
@@ -129,9 +129,9 @@ export class MemoryBackupHandler extends BaseHandler {
       const key = record.key.replace(`${backup.namespace}:`, `${namespace}:`);
       const restoredRecord = {
         ...record,
-        namespace,
+        partition: namespace,
         key,
-        timestamp: Date.now()
+        createdAt: Date.now()
       };
 
       this.memoryStore.set(key, restoredRecord);

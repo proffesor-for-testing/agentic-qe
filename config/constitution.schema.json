@@ -1,0 +1,423 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentic-qe.io/schemas/constitution.schema.json",
+  "title": "Constitution Schema",
+  "description": "Schema for Agentic QE Fleet constitution definitions that govern quality evaluation criteria",
+  "type": "object",
+  "required": ["id", "name", "version", "description", "principles", "rules", "metrics", "thresholds", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the constitution",
+      "pattern": "^[a-z0-9-]+$",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of the constitution's purpose",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "principles": {
+      "type": "array",
+      "description": "Core quality principles",
+      "items": { "$ref": "#/definitions/Principle" },
+      "minItems": 1
+    },
+    "rules": {
+      "type": "array",
+      "description": "Evaluation rules",
+      "items": { "$ref": "#/definitions/Rule" }
+    },
+    "metrics": {
+      "type": "array",
+      "description": "Metric definitions",
+      "items": { "$ref": "#/definitions/MetricDefinition" }
+    },
+    "thresholds": {
+      "type": "array",
+      "description": "Quality thresholds",
+      "items": { "$ref": "#/definitions/Threshold" }
+    },
+    "metadata": {
+      "$ref": "#/definitions/ConstitutionMetadata"
+    }
+  },
+  "definitions": {
+    "PriorityLevel": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"],
+      "description": "Priority level for principles and rules"
+    },
+    "SeverityLevel": {
+      "type": "string",
+      "enum": ["error", "warning", "info"],
+      "description": "Severity level for rule violations"
+    },
+    "AggregationType": {
+      "type": "string",
+      "enum": ["sum", "avg", "min", "max", "count", "percentile"],
+      "description": "Aggregation method for metrics"
+    },
+    "ConditionOperator": {
+      "type": "string",
+      "enum": [
+        "equals", "not_equals", "greater_than", "less_than",
+        "greater_than_or_equal", "less_than_or_equal",
+        "contains", "not_contains", "matches",
+        "in", "not_in", "exists", "not_exists"
+      ],
+      "description": "Condition operator for rule evaluation"
+    },
+    "ActionType": {
+      "type": "string",
+      "enum": ["fail", "warn", "notify", "log", "block", "require_review", "auto_fix", "escalate"],
+      "description": "Action type when rules are triggered"
+    },
+    "ThresholdMode": {
+      "type": "string",
+      "enum": ["absolute", "percentage", "relative"],
+      "description": "Threshold comparison mode"
+    },
+    "ConstitutionStatus": {
+      "type": "string",
+      "enum": ["active", "deprecated", "draft", "archived"],
+      "description": "Constitution status"
+    },
+    "Principle": {
+      "type": "object",
+      "required": ["id", "name", "description", "priority", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the principle",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the principle"
+        },
+        "priority": { "$ref": "#/definitions/PriorityLevel" },
+        "category": {
+          "type": "string",
+          "description": "Category grouping for the principle"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional tags for filtering and search"
+        },
+        "mandatory": {
+          "type": "boolean",
+          "description": "Whether this principle is mandatory",
+          "default": false
+        },
+        "relatedPrinciples": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Related principle IDs"
+        }
+      }
+    },
+    "RuleCondition": {
+      "type": "object",
+      "required": ["field", "operator", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "The field or metric to evaluate"
+        },
+        "operator": { "$ref": "#/definitions/ConditionOperator" },
+        "value": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "array", "items": { "type": "string" } },
+            { "type": "array", "items": { "type": "number" } }
+          ],
+          "description": "Value to compare against"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Optional unit for the value"
+        },
+        "and": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/RuleCondition" },
+          "description": "Nested conditions for complex logic"
+        },
+        "or": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/RuleCondition" },
+          "description": "Alternative conditions"
+        }
+      }
+    },
+    "RuleAction": {
+      "type": "object",
+      "required": ["type", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/definitions/ActionType" },
+        "message": {
+          "type": "string",
+          "description": "Message to display or log"
+        },
+        "params": {
+          "type": "object",
+          "description": "Additional parameters for the action"
+        },
+        "stopProcessing": {
+          "type": "boolean",
+          "description": "Whether to halt further processing",
+          "default": false
+        },
+        "notify": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Notification targets"
+        }
+      }
+    },
+    "Rule": {
+      "type": "object",
+      "required": ["id", "principleId", "condition", "action", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the rule",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "principleId": {
+          "type": "string",
+          "description": "Reference to the principle this rule enforces"
+        },
+        "condition": { "$ref": "#/definitions/RuleCondition" },
+        "action": { "$ref": "#/definitions/RuleAction" },
+        "severity": { "$ref": "#/definitions/SeverityLevel" },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this rule is enabled",
+          "default": true
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what this rule checks"
+        },
+        "remediation": {
+          "type": "string",
+          "description": "Remediation guidance when rule is violated"
+        },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Example of compliant code/configuration"
+        }
+      }
+    },
+    "MetricDefinition": {
+      "type": "object",
+      "required": ["id", "name", "unit", "aggregation"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the metric",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what this metric measures"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement"
+        },
+        "aggregation": { "$ref": "#/definitions/AggregationType" },
+        "targetValue": {
+          "type": "number",
+          "description": "Target value to achieve"
+        },
+        "warningThreshold": {
+          "type": "number",
+          "description": "Value that triggers a warning"
+        },
+        "criticalThreshold": {
+          "type": "number",
+          "description": "Value that triggers a critical alert"
+        },
+        "dataType": {
+          "type": "string",
+          "enum": ["number", "percentage", "duration", "count", "ratio"],
+          "description": "Data type of the metric value"
+        },
+        "higherIsBetter": {
+          "type": "boolean",
+          "description": "Whether higher values are better",
+          "default": true
+        },
+        "formula": {
+          "type": "string",
+          "description": "Formula for computed metrics"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Dependencies on other metrics"
+        },
+        "percentile": {
+          "type": "number",
+          "description": "Percentile for percentile-based metrics",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "Threshold": {
+      "type": "object",
+      "required": ["id", "metricId", "mode", "warning", "critical"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the threshold",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "metricId": {
+          "type": "string",
+          "description": "Reference to the metric this threshold applies to"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "mode": { "$ref": "#/definitions/ThresholdMode" },
+        "warning": {
+          "type": "number",
+          "description": "Warning level value"
+        },
+        "critical": {
+          "type": "number",
+          "description": "Critical level value"
+        },
+        "target": {
+          "type": "number",
+          "description": "Target value to aim for"
+        },
+        "blocking": {
+          "type": "boolean",
+          "description": "Whether to block on threshold violation",
+          "default": false
+        },
+        "period": {
+          "type": "string",
+          "description": "Time period for threshold evaluation"
+        },
+        "environments": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Applicable environments"
+        }
+      }
+    },
+    "ChangelogEntry": {
+      "type": "object",
+      "required": ["version", "date", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Version number"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date of change"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of changes"
+        },
+        "author": {
+          "type": "string",
+          "description": "Who made the change"
+        }
+      }
+    },
+    "ConstitutionMetadata": {
+      "type": "object",
+      "required": ["createdAt", "updatedAt", "author", "applicableTo", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the constitution was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the constitution was last updated"
+        },
+        "author": {
+          "type": "string",
+          "description": "Who created or maintains the constitution"
+        },
+        "applicableTo": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Applicable agent types",
+          "minItems": 1
+        },
+        "inheritsFrom": {
+          "type": "string",
+          "description": "Parent constitution to inherit from"
+        },
+        "status": { "$ref": "#/definitions/ConstitutionStatus" },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional expiration date"
+        },
+        "changelog": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/ChangelogEntry" },
+          "description": "Changelog entries"
+        },
+        "customProperties": {
+          "type": "object",
+          "description": "Custom properties"
+        }
+      }
+    }
+  }
+}

@@ -278,7 +278,7 @@ sqlite3 agentdb.db "SELECT COUNT(*) FROM episodes"
 ## Support
 
 - Full Documentation: [docs/database/backup-strategy.md](./backup-strategy.md)
-- GitHub Issues: [agentic-qe-cf/issues](https://github.com/ruvnet/agentic-qe-cf/issues)
+- GitHub Issues: [agentic-qe-cf/issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 - Test Scripts: `./scripts/test-backup-system.sh`
 
 ## Quick Reference

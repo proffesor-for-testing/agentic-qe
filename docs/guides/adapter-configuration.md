@@ -506,5 +506,5 @@ interface AdapterConfig {
 
 - **Documentation**: [docs/architecture/ADR-001-adapter-configuration.md](../architecture/ADR-001-adapter-configuration.md)
 - **API Reference**: [docs/api/adapter-config.md](../api/adapter-config.md)
-- **Issues**: https://github.com/ruvnet/agentic-qe-cf/issues
+- **Issues**: https://github.com/proffesor-for-testing/agentic-qe/issues
 - **Examples**: [examples/adapter-configuration](../../examples/adapter-configuration)

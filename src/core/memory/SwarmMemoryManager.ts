@@ -17,6 +17,7 @@ import {
   createAgentDBManager,
   type AgentDBConfig
 } from './AgentDBManager';
+import { PatternCache } from './PatternCache';
 
 export interface MemoryEntry {
   key: string;
@@ -225,6 +226,7 @@ export class SwarmMemoryManager {
   private initialized = false;
   private accessControl: AccessControl;
   private aclCache: Map<string, ACL>;
+  private patternCache: PatternCache;
   private agentDBManager: AgentDBManager | null = null;
   private lastModifiedTimestamps: Map<string, number>; // Track entry modifications for sync
 
@@ -243,6 +245,12 @@ export class SwarmMemoryManager {
     this.accessControl = new AccessControl();
     this.aclCache = new Map();
     this.lastModifiedTimestamps = new Map();
+    // Initialize pattern cache with LRU eviction (100 entries, 60s TTL)
+    this.patternCache = new PatternCache({
+      maxSize: 100,
+      ttl: 60000,
+      enableStats: true
+    });
   }
 
   private run(sql: string, params: any[] = []): void {
@@ -362,8 +370,19 @@ export class SwarmMemoryManager {
         metadata TEXT,
         ttl INTEGER NOT NULL DEFAULT ${this.TTL_POLICY.patterns},
         expires_at INTEGER,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        agent_id TEXT
       )
+    `);
+
+    // Create indexes for O(log n) pattern queries (Issue #57)
+    await this.run(`
+      CREATE INDEX IF NOT EXISTS idx_patterns_agent_confidence
+      ON patterns(agent_id, confidence DESC)
+    `);
+    await this.run(`
+      CREATE INDEX IF NOT EXISTS idx_patterns_agent
+      ON patterns(agent_id)
     `);
 
     // Table 6: Consensus State (TTL: 7 days)
@@ -1135,9 +1154,12 @@ export class SwarmMemoryManager {
     const ttl = pattern.ttl !== undefined ? pattern.ttl : this.TTL_POLICY.patterns;
     const expiresAt = ttl > 0 ? now + (ttl * 1000) : null;
 
+    // Extract agent_id from metadata for indexed lookups (O(log n) vs O(n))
+    const agentId = pattern.metadata?.agent_id || pattern.metadata?.agentId || null;
+
     await this.run(
-      `INSERT OR REPLACE INTO patterns (id, pattern, confidence, usage_count, metadata, ttl, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO patterns (id, pattern, confidence, usage_count, metadata, ttl, expires_at, created_at, agent_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         pattern.pattern,
@@ -1146,9 +1168,13 @@ export class SwarmMemoryManager {
         pattern.metadata ? JSON.stringify(pattern.metadata) : null,
         ttl,
         expiresAt,
-        now
+        now,
+        agentId
       ]
     );
+
+    // Invalidate cache for this agent to ensure consistency
+    this.invalidatePatternCacheForAgent(agentId);
 
     return id;
   }
@@ -1186,12 +1212,39 @@ export class SwarmMemoryManager {
       throw new Error('Memory manager not initialized');
     }
 
-    await this.run(
+    // Get the agent_id before updating to invalidate correct cache entries
+    const pattern = this.queryOne<any>(
+      `SELECT agent_id, metadata FROM patterns WHERE pattern = ?`,
+      [patternName]
+    );
+
+    this.run(
       `UPDATE patterns
        SET usage_count = usage_count + 1
        WHERE pattern = ?`,
       [patternName]
     );
+
+    // Invalidate cache for affected agent
+    if (pattern) {
+      const agentId = pattern.agent_id ||
+        (pattern.metadata ? JSON.parse(pattern.metadata).agent_id || JSON.parse(pattern.metadata).agentId : null);
+      this.invalidatePatternCacheForAgent(agentId);
+    }
+  }
+
+  /**
+   * Invalidate pattern cache for a specific agent
+   * Call this after any pattern mutation to maintain cache coherence
+   */
+  private invalidatePatternCacheForAgent(agentId: string | null): void {
+    if (agentId) {
+      this.patternCache.invalidate(agentId);
+    } else {
+      // Nuclear option for NULL agent_id - clear entire cache
+      // This is expensive but ensures correctness for pre-migration data
+      this.patternCache.clear();
+    }
   }
 
   async queryPatternsByConfidence(threshold: number): Promise<Pattern[]> {
@@ -1226,28 +1279,62 @@ export class SwarmMemoryManager {
    * @param minConfidence Minimum confidence threshold (default: 0)
    * @returns Array of patterns belonging to the agent
    */
+  /**
+   * Escape special LIKE pattern characters to prevent SQL injection
+   */
+  private escapeLikePattern(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
+  }
+
   async queryPatternsByAgent(agentId: string, minConfidence: number = 0): Promise<Pattern[]> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
+    // Check cache first (O(1) lookup)
+    const cacheKey = PatternCache.generateKey(agentId, minConfidence);
+    const cached = this.patternCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const now = Date.now();
-    const rows = await this.queryAll<any>(
+    const escapedAgentId = this.escapeLikePattern(agentId);
+
+    // Split into two queries to ensure index usage on the fast path
+    // Query 1: O(log n) - Use index for agent_id column (post-migration data)
+    const indexedRows = this.queryAll<any>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
-       WHERE confidence >= ?
+       WHERE agent_id = ?
+         AND confidence >= ?
          AND (expires_at IS NULL OR expires_at > ?)
-         AND (metadata LIKE ? OR metadata LIKE ?)
+       ORDER BY confidence DESC`,
+      [agentId, minConfidence, now]
+    );
+
+    // Query 2: O(n) - Fallback LIKE scan for pre-migration data (agent_id IS NULL)
+    const nullRows = this.queryAll<any>(
+      `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
+       FROM patterns
+       WHERE agent_id IS NULL
+         AND confidence >= ?
+         AND (expires_at IS NULL OR expires_at > ?)
+         AND (metadata LIKE ? ESCAPE '\\' OR metadata LIKE ? ESCAPE '\\')
        ORDER BY confidence DESC`,
       [
         minConfidence,
         now,
-        `%"agent_id":"${agentId}"%`,
-        `%"agentId":"${agentId}"%`
+        `%"agent_id":"${escapedAgentId}"%`,
+        `%"agentId":"${escapedAgentId}"%`
       ]
     );
 
-    return rows.map((row: any) => ({
+    // Combine results and sort by confidence (descending)
+    const allRows = [...indexedRows, ...nullRows];
+    allRows.sort((a: any, b: any) => b.confidence - a.confidence);
+
+    const patterns = allRows.map((row: any) => ({
       id: row.id,
       pattern: row.pattern,
       confidence: row.confidence,
@@ -1256,6 +1343,25 @@ export class SwarmMemoryManager {
       ttl: row.ttl,
       createdAt: row.created_at
     }));
+
+    // Cache results for subsequent lookups
+    this.patternCache.set(cacheKey, patterns);
+
+    return patterns;
+  }
+
+  /**
+   * Get pattern cache statistics for monitoring
+   */
+  getPatternCacheStats() {
+    return this.patternCache.getStats();
+  }
+
+  /**
+   * Clear pattern cache (useful after bulk updates)
+   */
+  clearPatternCache(): void {
+    this.patternCache.clear();
   }
 
   // ============================================================================

@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.4] - 2025-01-19
+
+### 🔧 Critical Fix: Learning Persistence for Subagents
+
+This release fixes a critical issue where QE agents running as Claude Code subagents were not persisting learning data to the database. Data written by one component was invisible to others due to multiple isolated database connections.
+
+**Issue**: Learning data not persisting when agents run as subagents in external projects
+
+### Fixed
+
+#### 🐛 Memory Manager Fragmentation
+- **Root Cause**: Multiple isolated `SwarmMemoryManager` instances (MCP server, AgentRegistry, Phase2Tools each created their own)
+- **Solution**: Implemented singleton pattern via `MemoryManagerFactory`
+- **Result**: All components now share the same database connection
+
+#### 🐛 Database Closure on Exit
+- **Root Cause**: sql.js (WASM SQLite) only persists to disk on explicit `close()` call
+- **Solution**: Added process exit handlers to ensure proper database closure
+- **Result**: Data survives process termination
+
+#### 🐛 Schema Column Mismatch in Memory Backup Handler
+- **Root Cause**: `memory-backup.ts` referenced `record.namespace` but database schema uses `partition`
+- **Affected Lines**: Lines 80, 84, 85, 132, 134 in `src/mcp/handlers/memory/memory-backup.ts`
+- **Solution**: Updated all references from `namespace` to `partition` and `timestamp` to `createdAt`
+- **Result**: Pre-edit hooks now work correctly without "no such column: namespace" errors
+
+### Added
+
+#### 🏭 MemoryManagerFactory (`src/core/memory/MemoryManagerFactory.ts`)
+- `getSharedMemoryManager()` - Singleton accessor for shared database connection
+- `initializeSharedMemoryManager()` - Async initialization with deduplication
+- `resetSharedMemoryManager()` - For testing/path changes
+- `resolveDbPath()` - Resolves relative paths to absolute
+- `ensureDbDirectoryExists()` - Creates `.agentic-qe/` directory if needed
+- `setupExitHandlers()` - Ensures database closure on SIGINT/SIGTERM/exit
+- `getDbPathInfo()` - Debugging utility for path resolution
+
+### Changed
+
+#### 🔄 Updated Components to Use Singleton
+- `src/mcp/server.ts` - Uses `getSharedMemoryManager()` instead of `new SwarmMemoryManager()`
+- `src/mcp/services/AgentRegistry.ts` - Uses shared memory manager
+- `src/mcp/handlers/phase2/Phase2Tools.ts` - Uses shared memory manager
+
+#### 📚 Documentation URL Fixes
+- Fixed all GitHub repository URLs from `ruvnet/agentic-qe-cf` to `proffesor-for-testing/agentic-qe`
+- Updated documentation links in CLAUDE.md, skills, and guides
+
+### Files Created
+- `src/core/memory/MemoryManagerFactory.ts`
+
+### Files Modified
+- `src/core/memory/index.ts` - Export factory functions
+- `src/mcp/server.ts` - Use singleton pattern
+- `src/mcp/services/AgentRegistry.ts` - Use singleton pattern
+- `src/mcp/handlers/phase2/Phase2Tools.ts` - Use singleton pattern
+- `src/mcp/handlers/memory/memory-backup.ts` - Fixed schema column references (namespace → partition, timestamp → createdAt)
+- `CLAUDE.md` - Updated documentation URLs
+- `.claude/skills/cicd-pipeline-qe-orchestrator/README.md` - Fixed URLs
+- `.claude/skills/cicd-pipeline-qe-orchestrator/SKILL.md` - Fixed URLs
+- `docs/README.md` - Fixed URLs
+- `docs/database/BACKUP-QUICKSTART.md` - Fixed URLs
+- `docs/database/backup-strategy.md` - Fixed URLs
+- `docs/guides/adapter-configuration.md` - Fixed URLs
+- `src/cli/commands/init-claude-md-template.ts` - Fixed URLs
+
+### Technical Details
+
+The persistence issue occurred because:
+1. Each component created its own `SwarmMemoryManager` instance
+2. Data written to one instance was not visible to others
+3. When running as subagents, the database file existed but contained fragmented data
+4. Temporary `temp_*.db` files appeared due to SQLite transaction handling
+
+The singleton pattern ensures:
+1. All components share the same database connection
+2. Data written by any component is immediately visible to all others
+3. Proper database closure on process exit (critical for sql.js persistence)
+4. No more orphan temp files in project root
+
 ## [1.8.3] - 2025-01-19
 
 ### 🔄 Phase 4: Subagent Workflows for TDD
