@@ -423,9 +423,9 @@ Never save working files, text/mds and tests to the root folder.
 
 ### 📚 Complete Documentation
 
-- **[Agent Reference](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
-- **[Skills Reference](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/skills.md)** - All 38 QE skills organized by category
-- **[Usage Guide](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/usage.md)** - Complete usage examples and workflows
+- **[Agent Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
+- **[Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)** - All 38 QE skills organized by category
+- **[Usage Guide](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start
 

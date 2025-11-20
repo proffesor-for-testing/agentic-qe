@@ -14,6 +14,7 @@ import { QEAgentType, AgentContext, AgentCapability, AgentStatus, MemoryStore } 
 import { Logger } from '../../utils/Logger';
 import { EventBus } from '../../core/EventBus';
 import { SwarmMemoryManager } from '../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager } from '../../core/memory/MemoryManagerFactory';
 import { Database } from '../../utils/Database';
 import { SecureRandom } from '../../utils/SecureRandom';
 
@@ -77,9 +78,9 @@ export class AgentRegistry {
 
     // Initialize infrastructure
     this.eventBus = new EventBus();
-    // Create SwarmMemoryManager with database path for learning persistence
-    const dbPath = process.env.AQE_DB_PATH || '.agentic-qe/memory.db';
-    this.memoryStore = new SwarmMemoryManager(dbPath);
+    // Use singleton pattern to ensure all components share the same database connection
+    // This prevents data fragmentation where data written by one component isn't visible to others
+    this.memoryStore = getSharedMemoryManager('.agentic-qe/memory.db');
 
     // Initialize memory store database (non-blocking initialization)
     // This prevents "Database not initialized" warnings when agents spawn

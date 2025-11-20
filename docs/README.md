@@ -2,7 +2,7 @@
 
 > **Comprehensive documentation for the Agentic Quality Engineering Fleet** - An intelligent, distributed quality engineering system powered by AI agents.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/ruvnet/agentic-qe-cf)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/proffesor-for-testing/agentic-qe)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Claude Flow](https://img.shields.io/badge/powered%20by-Claude%20Flow-purple.svg)](https://github.com/ruvnet/claude-flow)
 
@@ -574,7 +574,7 @@ interface TestExecutor {
 
 1. **Setup Development Environment**
    ```bash
-   git clone https://github.com/ruvnet/agentic-qe-cf.git
+   git clone https://github.com/proffesor-for-testing/agentic-qe.git
    cd agentic-qe-cf/agentic-qe
    npm install
    npm run build
@@ -800,13 +800,13 @@ We welcome contributions to improve documentation!
 ### Getting Help
 
 - **Documentation**: Start here - you're in the right place!
-- **GitHub Issues**: [Report bugs or request features](https://github.com/ruvnet/agentic-qe-cf/issues)
-- **GitHub Discussions**: [Ask questions and share ideas](https://github.com/ruvnet/agentic-qe-cf/discussions)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/proffesor-for-testing/agentic-qe/issues)
+- **GitHub Discussions**: [Ask questions and share ideas](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 - **Claude Flow**: [Main project documentation](https://github.com/ruvnet/claude-flow)
 
 ### Useful Links
 
-- **Project Repository**: [github.com/ruvnet/agentic-qe-cf](https://github.com/ruvnet/agentic-qe-cf)
+- **Project Repository**: [github.com/proffesor-for-testing/agentic-qe](https://github.com/proffesor-for-testing/agentic-qe)
 - **Claude Flow**: [github.com/ruvnet/claude-flow](https://github.com/ruvnet/claude-flow)
 - **npm Package**: [npmjs.com/package/agentic-qe](https://www.npmjs.com/package/agentic-qe)
 - **Change Log**: [CHANGELOG.md](../CHANGELOG.md)

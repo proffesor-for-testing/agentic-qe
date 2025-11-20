@@ -71,3 +71,16 @@ export type {
   BatchResult,
   PatternSearchResult
 } from './AgentDBService';
+
+// Memory Manager Factory - Singleton pattern for shared database connection
+// Prevents data fragmentation where data written by one component isn't visible to others
+export {
+  getSharedMemoryManager,
+  initializeSharedMemoryManager,
+  resetSharedMemoryManager,
+  hasSharedMemoryManager,
+  getSharedMemoryManagerPath,
+  resolveDbPath,
+  ensureDbDirectoryExists,
+  getDbPathInfo
+} from './MemoryManagerFactory';
