@@ -9,11 +9,11 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.8.4** (Learning Persistence Fix) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.8.4** (Phase 1 Infrastructure + Critical Fixes) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (38 QE skills), and intelligent model routing.
+> Enterprise-grade test automation with AI learning, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
-🧠 **QE Agent Learning System** | 📚 **38 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
+🧠 **QE Agent Learning** | 📊 **OpenTelemetry Integration** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **38 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
 
 </div>
 
@@ -54,6 +54,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ```
 
 **What gets initialized:**
+- ✅ **Phase 1 Infrastructure**: OpenTelemetry, Event Store, Constitution System (v1.8.4)
 - ✅ Multi-Model Router (70-81% cost savings - opt-in)
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
@@ -67,6 +68,38 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ---
 
 ## ✨ Features
+
+### 🏗️ Phase 1 Infrastructure (v1.8.4)
+
+**Enterprise-Grade Observability & Governance**
+
+#### 📊 OpenTelemetry Integration
+- **Full OTEL SDK**: 12 OpenTelemetry packages for comprehensive observability
+- **Auto-Instrumentation**: HTTP, file system, and custom metrics
+- **Metrics Export**: gRPC and HTTP exporters for Grafana, Prometheus, Jaeger
+- **Agent Metrics**: Task completion, success rate, error tracking
+- **Quality Metrics**: Coverage %, defect density, test effectiveness
+- **System Metrics**: Memory, CPU, latency, throughput
+
+#### 💾 Event Sourcing & Persistence
+- **Event Store**: SQLite-based event sourcing with correlation tracking
+- **Reasoning Capture**: Agent decision tracking and prompt/response analysis
+- **Metrics Aggregation**: Time-window aggregation (hourly, daily, weekly)
+- **Performance Optimization**: Prepared statements, indexes, connection pooling
+- **Query API**: Time-range queries with pagination support
+
+#### 📋 Constitutional AI Governance
+- **JSON Schema Validation**: Type-safe constitution definitions
+- **4 Base Constitutions**: Default, test-generation, code-review, performance
+- **Inheritance & Merge**: Constitution composition with override support
+- **Agent-Specific**: Per-agent constitutional rules and guidelines
+- **Validation Pipeline**: Ensure agents follow constitutional principles
+
+**Benefits:**
+- 🔍 **Full Observability**: Track every agent action, metric, and decision
+- 📈 **Data-Driven**: Historical analysis for continuous improvement
+- 🛡️ **Governance**: Constitutional AI ensures quality and compliance
+- 🚀 **Production Ready**: Enterprise-grade persistence and monitoring
 
 ### 🤖 Autonomous Agent Fleet
 - **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
