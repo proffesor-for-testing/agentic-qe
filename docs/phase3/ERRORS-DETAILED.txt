@@ -1,0 +1,150 @@
+TYPESCRIPT COMPILATION ERRORS - DETAILED LIST
+==============================================
+
+Build Command: npm run build
+Exit Code: 2
+Total Errors: 35
+
+FILE: src/visualization/api/RestEndpoints.ts
+--------------------------------------------
+
+LINE 179: error TS2769
+  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(ctx: RequestContext, res: ServerResponse<IncomingMessage>) => Promise<void>' 
+    is not assignable to parameter of type 'Application<Record<string, any>>'.
+
+LINE 182: error TS2551
+  Property 'handleGetReasoningRoute' does not exist on type 'RestApiServer'. 
+  Did you mean 'handleGetReasoning'?
+
+LINE 185: error TS2551
+  Property 'handleGetMetricsRoute' does not exist on type 'RestApiServer'. 
+  Did you mean 'handleGetMetrics'?
+
+LINE 188: error TS2551
+  Property 'handleGetAgentHistoryRoute' does not exist on type 'RestApiServer'. 
+  Did you mean 'handleGetAgentHistory'?
+
+LINE 191: error TS2551
+  Property 'handleGetSessionRoute' does not exist on type 'RestApiServer'. 
+  Did you mean 'handleGetSession'?
+
+LINE 194: error TS2551
+  Property 'handleGetGraphRoute' does not exist on type 'RestApiServer'. 
+  Did you mean 'handleGetGraph'?
+
+LINE 276: error TS2552
+  Cannot find name 'url'. Did you mean 'URL'?
+
+FILE: src/visualization/api/WebSocketServer.ts
+----------------------------------------------
+
+LINE 196: error TS2322
+  Type 'unknown' is not assignable to type 'WebSocket'.
+
+FILE: src/visualization/core/DataTransformer.ts
+-----------------------------------------------
+
+LINE 70: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 72: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 74: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 75: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 78: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 79: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 82: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 91: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 93: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 94: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 96: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 97: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 98: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 106: error TS18046
+  'event' is of type 'unknown'. (first occurrence)
+
+LINE 106: error TS18046
+  'event' is of type 'unknown'. (second occurrence)
+
+LINE 107: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 108: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 113: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 115: error TS18046
+  'e' is of type 'unknown'. (first occurrence)
+
+LINE 115: error TS18046
+  'event' is of type 'unknown'. (first occurrence)
+
+LINE 115: error TS18046
+  'e' is of type 'unknown'. (second occurrence)
+
+LINE 115: error TS18046
+  'event' is of type 'unknown'. (second occurrence)
+
+LINE 119: error TS18046
+  'event' is of type 'unknown'. (first occurrence)
+
+LINE 119: error TS18046
+  'correlated' is of type 'unknown'.
+
+LINE 120: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 121: error TS18046
+  'correlated' is of type 'unknown'.
+
+LINE 123: error TS18046
+  'event' is of type 'unknown'.
+
+LINE 293: error TS2339
+  Property 'steps' does not exist on type 'ReasoningChain | ReasoningChainWithSteps'.
+  Property 'steps' does not exist on type 'ReasoningChain'.
+
+ERROR SUMMARY BY CATEGORY
+==========================
+
+Express Type Issues: 7 errors
+  - Lines 179, 182, 185, 188, 191, 194, 276
+  - File: RestEndpoints.ts
+
+WebSocket Type Issues: 1 error
+  - Line 196
+  - File: WebSocketServer.ts
+
+DataTransformer Type Issues: 27 errors
+  - Lines 70-123 (unknown types)
+  - Line 293 (missing property)
+  - File: DataTransformer.ts
+
+TOTAL: 35 errors

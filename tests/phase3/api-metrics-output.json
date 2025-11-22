@@ -1,0 +1,40 @@
+{
+  "success": true,
+  "data": {
+    "time_range": {
+      "start": "2025-11-21T08:14:25.180Z",
+      "end": "2025-11-22T08:14:25.180Z",
+      "duration_ms": 86400000
+    },
+    "events": {
+      "total": 1000,
+      "by_type": {
+        "test_executed": 1000
+      },
+      "by_agent": {
+        "qe-perf-tester": 167,
+        "qe-api-tester": 167,
+        "qe-coverage-analyzer": 167,
+        "qe-test-generator": 167,
+        "qe-flaky-detector": 166,
+        "qe-security-scanner": 166
+      }
+    },
+    "reasoning": {
+      "total_chains": 0,
+      "total_steps": 0,
+      "completed_chains": null,
+      "failed_chains": null,
+      "avg_steps_per_chain": 0,
+      "avg_confidence": 0
+    },
+    "overall": {
+      "unique_agents": 6,
+      "unique_sessions": 3
+    }
+  },
+  "metadata": {
+    "timestamp": "2025-11-22T08:14:25.269Z",
+    "request_id": "req-1763799265180-o108vgn"
+  }
+}

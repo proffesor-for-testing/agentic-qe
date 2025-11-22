@@ -32,6 +32,8 @@ import * as improveCommands from './commands/improve/index.js';
 import * as skillsCommands from './commands/skills/index.js';
 import { InitCommand } from './commands/init';
 import { createQuantizationCommand } from './commands/quantization';
+import { createConstitutionCommand } from './commands/constitution';
+import * as telemetryCommands from './commands/telemetry';
 import packageJson from '../../package.json';
 
 const program = new Command();
@@ -1056,9 +1058,75 @@ improveCommand
   });
 
 /**
+ * Telemetry commands
+ */
+const telemetryCommand = program
+  .command('telemetry')
+  .description('Query and monitor telemetry data');
+
+telemetryCommand
+  .command('status')
+  .description('Show telemetry status and configuration')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await telemetryCommands.statusCommand(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Telemetry status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+telemetryCommand
+  .command('metrics [metric-name]')
+  .description('Query metrics (tokens, cost, system, or all)')
+  .option('--json', 'Output as JSON')
+  .option('--agent <id>', 'Filter by agent ID')
+  .action(async (metricName, options) => {
+    try {
+      await telemetryCommands.metricsCommand(metricName, options);
+    } catch (error) {
+      console.error(chalk.red('❌ Metrics query failed:'), error);
+      process.exit(1);
+    }
+  });
+
+telemetryCommand
+  .command('trace [trace-id]')
+  .description('View specific trace or recent traces by agent')
+  .option('--agent <type>', 'Filter traces by agent type')
+  .option('--limit <number>', 'Number of recent traces to show', parseInt, 10)
+  .option('--json', 'Output as JSON')
+  .action(async (traceId, options) => {
+    try {
+      await telemetryCommands.traceCommand(traceId, options);
+    } catch (error) {
+      console.error(chalk.red('❌ Trace query failed:'), error);
+      process.exit(1);
+    }
+  });
+
+telemetryCommand
+  .command('export-prometheus')
+  .description('Export metrics in Prometheus format')
+  .action(async () => {
+    try {
+      await telemetryCommands.exportPrometheusCommand();
+    } catch (error) {
+      console.error(chalk.red('❌ Prometheus export failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
  * Vector Quantization commands
  */
 program.addCommand(createQuantizationCommand());
+
+/**
+ * Constitution commands
+ */
+program.addCommand(createConstitutionCommand());
 
 // Parse command line arguments
 program.parse();
