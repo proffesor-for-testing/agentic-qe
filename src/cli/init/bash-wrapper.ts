@@ -9,6 +9,7 @@
 import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
+import { resolveTemplatePath } from './utils/path-utils';
 
 /**
  * Create aqe command wrapper
@@ -28,24 +29,8 @@ export async function createBashWrapper(): Promise<void> {
   }
 
   try {
-    // Find the template file
-    // Check relative to project root first (for installed package)
-    let templatePath = path.join(projectRoot, 'templates', 'aqe.sh');
-
-    // If not found, check relative to this file (for development)
-    if (!await fs.pathExists(templatePath)) {
-      templatePath = path.join(__dirname, '../../../templates/aqe.sh');
-    }
-
-    // If still not found, check node_modules
-    if (!await fs.pathExists(templatePath)) {
-      templatePath = path.join(projectRoot, 'node_modules', 'agentic-qe', 'templates', 'aqe.sh');
-    }
-
-    // Verify template exists
-    if (!await fs.pathExists(templatePath)) {
-      throw new Error(`Template not found at any expected location. Searched: templates/aqe.sh, ${templatePath}`);
-    }
+    // 🔧 CENTRALIZED: Use resolveTemplatePath for robust template resolution
+    const templatePath = await resolveTemplatePath('aqe.sh', projectRoot);
 
     // Copy template to project root as 'aqe' (no extension)
     await fs.copy(templatePath, wrapperPath);

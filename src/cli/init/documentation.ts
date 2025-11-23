@@ -9,6 +9,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import chalk from 'chalk';
+import { getPackageRoot } from './utils/path-utils';
 
 /**
  * Copy reference documentation to project
@@ -21,8 +22,16 @@ export async function copyDocumentation(): Promise<void> {
   const docsDir = '.agentic-qe/docs';
   await fs.ensureDir(docsDir);
 
-  // Determine package location (handles both dev and installed package scenarios)
-  const packageDocsPath = path.join(__dirname, '../../../docs/reference');
+  // 🔧 CENTRALIZED: Use getPackageRoot for robust package location
+  let packageDocsPath: string;
+  try {
+    packageDocsPath = path.join(getPackageRoot(), 'docs', 'reference');
+  } catch (error) {
+    console.log(chalk.yellow('  ⚠️  Could not locate package root'));
+    console.log(chalk.gray('    Creating minimal documentation stubs...'));
+    await createMinimalDocs(docsDir);
+    return;
+  }
 
   // Check if source docs exist
   const sourceExists = await fs.pathExists(packageDocsPath);

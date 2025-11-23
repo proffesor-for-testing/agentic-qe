@@ -41,14 +41,20 @@ npm link
 Add the Agentic QE MCP server to your Claude Code configuration:
 
 ```bash
-# Using npx (recommended)
-claude mcp add agentic-qe npx -y agentic-qe mcp:start
+# Using npx (recommended - most reliable)
+claude mcp add agentic-qe npx aqe-mcp
 
-# Or using global installation
-claude mcp add agentic-qe agentic-qe mcp:start
+# Alternative: using global installation
+claude mcp add agentic-qe npx agentic-qe mcp start
 
-# Or for local development
+# For local development
 claude mcp add agentic-qe node /path/to/agentic-qe/dist/mcp/start.js
+```
+
+**Note**: If you previously added the MCP server with a different command, remove the old entry first:
+```bash
+claude mcp remove agentic-qe
+claude mcp add agentic-qe npx aqe-mcp
 ```
 
 ### Step 3: Verify MCP Connection
@@ -506,16 +512,47 @@ claude "
 
 ### MCP Server Not Connecting
 
+**Symptom**: `claude mcp list` shows `✗ Failed to connect` for agentic-qe
+
+**Most Common Cause**: Stale or duplicate MCP server entries in Claude config
+
+**Solution**:
 ```bash
-# Check if MCP server is registered
+# 1. Check current MCP status
 claude mcp list
 
-# Remove and re-add
+# 2. Remove any existing agentic-qe entries
 claude mcp remove agentic-qe
-claude mcp add agentic-qe npx -y agentic-qe mcp:start
 
-# Check logs
+# 3. Re-add with the correct command (recommended)
+claude mcp add agentic-qe npx aqe-mcp
+
+# 4. Verify connection
+claude mcp list
+# Should show: agentic-qe: npx aqe-mcp - ✓ Connected
+```
+
+**Alternative Solution** (if npx aqe-mcp doesn't work):
+```bash
+# Try the full command format
+claude mcp remove agentic-qe
+claude mcp add agentic-qe npx agentic-qe mcp start
+
+# Verify
+claude mcp list
+```
+
+**Advanced Troubleshooting**:
+```bash
+# Test MCP server manually
+npx aqe-mcp
+# Should output: MCP Server listening on stdio with 102 tools
+
+# Check Claude logs
 tail -f ~/.claude/logs/mcp-agentic-qe.log
+
+# Verify package installation
+npm list -g agentic-qe
 ```
 
 ### Agents Not Spawning

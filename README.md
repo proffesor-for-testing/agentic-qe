@@ -60,11 +60,11 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
-- ✅ 18 Specialized agent definitions (including qe-code-complexity)
+- ✅ 19 Specialized agent definitions (including qe-code-complexity)
 - ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
-- ✅ 38 World-class QE skills library
+- ✅ 40 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices)
 - ✅ 8 AQE slash commands
-- ✅ Configuration directory
+- ✅ Modular init system with comprehensive project setup
 
 ---
 
@@ -193,7 +193,7 @@ open http://localhost:3000
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 38 QE Skills Library (v1.3.0)
+### 🎓 40 QE Skills Library (v1.9.0)
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -206,13 +206,15 @@ open http://localhost:3000
 - **Code Quality**: code-review-quality, refactoring-patterns, quality-metrics
 - **Communication**: bug-reporting-excellence, technical-writing, consultancy-practices
 
-**Phase 2: Expanded QE Skills Library (16 skills)**
-- **Testing Methodologies (6)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management
+**Phase 2: Expanded QE Skills Library (18 skills)**
+- **Testing Methodologies (7)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management, verification-quality
 - **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
 
 **Phase 3: Advanced Quality Engineering Skills (4 skills)**
 - **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
+
+**Total: 40 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
 
 </details>
 
@@ -274,11 +276,12 @@ Agents automatically leverage skills:
 claude "Use qe-test-generator with shift-left-testing and test-design-techniques skills to create tests before implementing the new payment feature"
 ```
 
-**Available skills** (agents auto-select from 37):
+**Available skills** (agents auto-select from 40):
 - TDD, API testing, performance, security
-- Accessibility, mobile, chaos engineering
-- Regression, shift-left/right, compliance
+- Accessibility, mobile, chaos engineering, visual testing
+- Regression, shift-left/right, compliance, verification
 - Six thinking hats, brutal honesty reviews, CI/CD orchestration
+- XP practices, technical writing, refactoring patterns
 
 ### Example 4: Full Quality Pipeline
 
@@ -745,9 +748,9 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 18 main agent definitions
-│   │   └── subagents/   # 8 TDD subagent definitions
-│   ├── skills/          # 34 QE skill definitions
+│   ├── agents/          # 19 main agent definitions
+│   │   └── subagents/   # 11 TDD subagent definitions
+│   ├── skills/          # 40 QE skill definitions
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -801,7 +804,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 - ✅ Real-time coverage analysis
 - ✅ MCP integration
 - ✅ Multi-model router (70-81% cost savings)
-- ✅ 34 QE skills library
+- ✅ 40 QE skills library
+- ✅ Modular init system for streamlined project setup
 
 ### Planned (v1.4)
 - 🔄 Web dashboard for visualization

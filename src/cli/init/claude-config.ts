@@ -91,6 +91,9 @@ export async function generateClaudeSettings(_fleetConfig: FleetConfig): Promise
 
 /**
  * Get AQE hooks configuration
+ *
+ * SECURITY: All hook commands use jq -R '@sh' for proper shell escaping
+ * to prevent shell injection attacks from malicious file paths/inputs.
  */
 function getAQEHooks(): any {
   return {
@@ -101,12 +104,12 @@ function getAQEHooks(): any {
           {
             type: "command",
             description: "Semantic Search - Query similar successful past edits",
-            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; npx agentdb@latest query --domain \"successful-edits\" --query \"file:$FILE\" --k 5 --min-confidence 0.8 --format json 2>/dev/null | jq -r \".memories[]? | \\\"💡 Past Success: \\(.pattern.summary // \\\"No similar patterns found\\\")\\\" \" 2>/dev/null || true'"
+            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'FILE={}; npx agentdb@latest query --domain \"successful-edits\" --query \"file:$FILE\" --k 5 --min-confidence 0.8 --format json 2>/dev/null | jq -r \".memories[]? | \\\"💡 Past Success: \\(.pattern.summary // \\\"No similar patterns found\\\")\\\" \" 2>/dev/null || true'"
           },
           {
             type: "command",
             description: "Failure Pattern Recognition - Warn about known failure patterns",
-            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; npx agentdb@latest query --domain \"failed-edits\" --query \"file:$FILE\" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r \".memories[]? | \\\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\\"unknown\\\")\\\" \" 2>/dev/null || true'"
+            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'FILE={}; npx agentdb@latest query --domain \"failed-edits\" --query \"file:$FILE\" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r \".memories[]? | \\\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\\"unknown\\\")\\\" \" 2>/dev/null || true'"
           }
         ]
       },
@@ -116,7 +119,7 @@ function getAQEHooks(): any {
           {
             type: "command",
             description: "Trajectory Prediction - Predict optimal task sequence",
-            command: "cat | jq -r '.tool_input.prompt // .tool_input.task // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'TASK=\"{}\"; npx agentdb@latest query --domain \"task-trajectories\" --query \"task:$TASK\" --k 3 --min-confidence 0.75 --format json 2>/dev/null | jq -r \".memories[]? | \\\"📋 Predicted Steps: \\(.pattern.trajectory // \\\"No trajectory data\\\") (Success Rate: \\(.confidence // 0))\\\" \" 2>/dev/null || true'"
+            command: "cat | jq -r '.tool_input.prompt // .tool_input.task // empty' | jq -R '@sh' | xargs -I {} bash -c 'TASK={}; npx agentdb@latest query --domain \"task-trajectories\" --query \"task:$TASK\" --k 3 --min-confidence 0.75 --format json 2>/dev/null | jq -r \".memories[]? | \\\"📋 Predicted Steps: \\(.pattern.trajectory // \\\"No trajectory data\\\") (Success Rate: \\(.confidence // 0))\\\" \" 2>/dev/null || true'"
           }
         ]
       }
@@ -128,12 +131,12 @@ function getAQEHooks(): any {
           {
             type: "command",
             description: "Experience Replay - Capture edit as RL experience",
-            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; TIMESTAMP=$(date +%s); npx agentdb@latest store-pattern --type \"experience\" --domain \"code-edits\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"timestamp\\\":$TIMESTAMP,\\\"action\\\":\\\"edit\\\",\\\"state\\\":\\\"pre-test\\\"}\" --confidence 0.5 2>/dev/null || true'"
+            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'FILE={}; TIMESTAMP=$(date +%s); npx agentdb@latest store-pattern --type \"experience\" --domain \"code-edits\" --pattern \"{\\\"file\\\":$FILE,\\\"timestamp\\\":$TIMESTAMP,\\\"action\\\":\\\"edit\\\",\\\"state\\\":\\\"pre-test\\\"}\" --confidence 0.5 2>/dev/null || true'"
           },
           {
             type: "command",
             description: "Verdict-Based Quality - Async verdict assignment after tests",
-            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} bash -c 'FILE=\"{}\"; (sleep 2; TEST_RESULT=$(npm test --silent 2>&1 | grep -q \"pass\" && echo \"ACCEPT\" || echo \"REJECT\"); REWARD=$([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"1.0\" || echo \"-1.0\"); npx agentdb@latest store-pattern --type \"verdict\" --domain \"code-quality\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"verdict\\\":\\\"$TEST_RESULT\\\",\\\"reward\\\":$REWARD}\" --confidence $([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"0.95\" || echo \"0.3\") 2>/dev/null; if [ \"$TEST_RESULT\" = \"ACCEPT\" ]; then npx agentdb@latest store-pattern --type \"success\" --domain \"successful-edits\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"summary\\\":\\\"Edit passed tests\\\"}\" --confidence 0.9 2>/dev/null; else npx agentdb@latest store-pattern --type \"failure\" --domain \"failed-edits\" --pattern \"{\\\"file\\\":\\\"$FILE\\\",\\\"reason\\\":\\\"Tests failed\\\"}\" --confidence 0.8 2>/dev/null; fi) &'"
+            command: "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'FILE={}; (sleep 2; TEST_RESULT=$(npm test --silent 2>&1 | grep -q \"pass\" && echo \"ACCEPT\" || echo \"REJECT\"); REWARD=$([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"1.0\" || echo \"-1.0\"); npx agentdb@latest store-pattern --type \"verdict\" --domain \"code-quality\" --pattern \"{\\\"file\\\":$FILE,\\\"verdict\\\":\\\"$TEST_RESULT\\\",\\\"reward\\\":$REWARD}\" --confidence $([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"0.95\" || echo \"0.3\") 2>/dev/null; if [ \"$TEST_RESULT\" = \"ACCEPT\" ]; then npx agentdb@latest store-pattern --type \"success\" --domain \"successful-edits\" --pattern \"{\\\"file\\\":$FILE,\\\"summary\\\":\\\"Edit passed tests\\\"}\" --confidence 0.9 2>/dev/null; else npx agentdb@latest store-pattern --type \"failure\" --domain \"failed-edits\" --pattern \"{\\\"file\\\":$FILE,\\\"reason\\\":\\\"Tests failed\\\"}\" --confidence 0.8 2>/dev/null; fi) &'"
           }
         ]
       },
@@ -143,7 +146,7 @@ function getAQEHooks(): any {
           {
             type: "command",
             description: "Trajectory Storage - Record task trajectory for learning",
-            command: "cat | jq -r '.tool_input.prompt // .tool_input.task // empty, .result.success // \"unknown\"' | tr '\\n' '\\0' | xargs -0 bash -c 'TASK=\"$1\"; SUCCESS=\"$2\"; CONFIDENCE=$([ \"$SUCCESS\" = \"true\" ] && echo \"0.95\" || echo \"0.5\"); npx agentdb@latest store-pattern --type \"trajectory\" --domain \"task-trajectories\" --pattern \"{\\\"task\\\":\\\"$TASK\\\",\\\"success\\\":$SUCCESS,\\\"trajectory\\\":\\\"search→scaffold→test→refine\\\"}\" --confidence \"$CONFIDENCE\" 2>/dev/null || true' _"
+            command: "cat | jq -r '.tool_input.prompt // .tool_input.task // empty, .result.success // \"unknown\"' | paste -d'\\n' - - | jq -Rs 'split(\"\\n\") | {task: (.[0] | @sh), success: .[1]}' | jq -r 'CONFIDENCE=(if .success == \"true\" then \"0.95\" else \"0.5\" end); \"TASK=\\(.task); SUCCESS=\\(.success); npx agentdb@latest store-pattern --type trajectory --domain task-trajectories --pattern \\(\"{\\\\\\\"task\\\\\\\":\\\" + .task + \",\\\\\\\"success\\\\\\\":\\(.success),\\\\\\\"trajectory\\\\\\\":\\\\\\\"search→scaffold→test→refine\\\\\\\"}\\\" | @sh) --confidence \\(CONFIDENCE) 2>/dev/null || true\"' | bash"
           }
         ]
       }
