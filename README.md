@@ -11,9 +11,9 @@
 
 **Version 1.9.0** (Phase 3 Dashboards & Visualization) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
+> Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
-🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **38 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
+🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **40 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
 
 </div>
 

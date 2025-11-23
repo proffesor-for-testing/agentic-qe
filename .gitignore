@@ -128,3 +128,4 @@ claude-flow
 hive-mind-prompt-*.txt
 .agentic-qe/memory/
 data/
+test-projects/

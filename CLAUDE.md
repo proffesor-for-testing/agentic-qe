@@ -25,14 +25,15 @@
 
 ## 🤖 Agentic QE Fleet Quick Reference
 
-**18 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
-**38 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
+**19 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
+**11 QE Subagents:** TDD specialists, code reviewers, integration testers
+**40 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing
 **8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
 
 ### 📚 Complete Documentation
 
-- **[Agent Reference](docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
-- **[Skills Reference](docs/reference/skills.md)** - All 38 QE skills organized by category
+- **[Agent Reference](docs/reference/agents.md)** - All 19 main agents + 11 subagents with capabilities and usage
+- **[Skills Reference](docs/reference/skills.md)** - All 40 QE skills organized by category
 - **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start
