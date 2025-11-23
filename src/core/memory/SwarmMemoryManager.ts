@@ -18,6 +18,8 @@ import {
   type AgentDBConfig
 } from './AgentDBManager';
 import { PatternCache } from './PatternCache';
+import { memorySpanManager } from '../../telemetry/instrumentation/memory';
+import { QEAgentType } from '../../types';
 
 export interface MemoryEntry {
   key: string;
@@ -590,6 +592,16 @@ export class SwarmMemoryManager {
     this.initialized = true;
   }
 
+  /**
+   * Store a key-value pair in memory with OpenTelemetry instrumentation
+   *
+   * Automatically instruments the memory store operation with distributed tracing.
+   * Records namespace, key, value size, TTL, and operation performance metrics.
+   *
+   * @param key - Memory key
+   * @param value - Value to store (will be JSON serialized)
+   * @param options - Store options including partition, TTL, access control
+   */
   async store(key: string, value: any, options: StoreOptions = {}): Promise<void> {
     // Auto-initialize if not initialized
     if (!this.initialized) {
@@ -603,55 +615,87 @@ export class SwarmMemoryManager {
     const partition = options.partition || 'default';
     const owner = options.owner || 'system';
     const accessLevel = options.accessLevel || AccessLevel.PRIVATE;
-    const createdAt = Date.now();
-    const expiresAt = options.ttl ? createdAt + (options.ttl * 1000) : null;
-    const metadata = options.metadata ? JSON.stringify(options.metadata) : null;
+    const valueJson = JSON.stringify(value);
+    const valueSize = valueJson.length;
 
-    // Check write permission if updating existing entry
-    const existing = await this.queryOne<any>(
-      `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
-      [key, partition]
-    );
+    // Create instrumentation span
+    const { span, context: spanContext } = memorySpanManager.startStoreSpan({
+      agentId: { id: owner, type: QEAgentType.FLEET_COMMANDER, created: new Date() },
+      namespace: partition,
+      key,
+      valueSize,
+      ttl: options.ttl,
+    });
 
-    if (existing && options.owner) {
-      // Verify write permission
-      const permCheck = this.accessControl.checkPermission({
-        agentId: options.owner,
-        resourceOwner: existing.owner,
-        accessLevel: existing.access_level as AccessLevel,
-        permission: Permission.WRITE,
-        teamId: options.teamId,
-        resourceTeamId: existing.team_id,
-        swarmId: options.swarmId,
-        resourceSwarmId: existing.swarm_id
-      });
+    const startTime = Date.now();
 
-      if (!permCheck.allowed) {
-        throw new AccessControlError(`Write denied: ${permCheck.reason}`);
+    try {
+      const createdAt = Date.now();
+      const expiresAt = options.ttl ? createdAt + (options.ttl * 1000) : null;
+      const metadata = options.metadata ? JSON.stringify(options.metadata) : null;
+
+      // Check write permission if updating existing entry
+      const existing = await this.queryOne<any>(
+        `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
+        [key, partition]
+      );
+
+      if (existing && options.owner) {
+        // Verify write permission
+        const permCheck = this.accessControl.checkPermission({
+          agentId: options.owner,
+          resourceOwner: existing.owner,
+          accessLevel: existing.access_level as AccessLevel,
+          permission: Permission.WRITE,
+          teamId: options.teamId,
+          resourceTeamId: existing.team_id,
+          swarmId: options.swarmId,
+          resourceSwarmId: existing.swarm_id
+        });
+
+        if (!permCheck.allowed) {
+          throw new AccessControlError(`Write denied: ${permCheck.reason}`);
+        }
       }
+
+      await this.run(
+        `INSERT OR REPLACE INTO memory_entries
+         (key, partition, value, metadata, created_at, expires_at, owner, access_level, team_id, swarm_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          key,
+          partition,
+          valueJson,
+          metadata,
+          createdAt,
+          expiresAt,
+          owner,
+          accessLevel,
+          options.teamId || null,
+          options.swarmId || null
+        ]
+      );
+
+      // Track modification for QUIC sync
+      const entryKey = `${partition}:${key}`;
+      this.lastModifiedTimestamps.set(entryKey, createdAt);
+
+      // Complete span successfully
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeStoreSpan(span, {
+        success: true,
+        durationMs,
+      });
+    } catch (error) {
+      // Complete span with error
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeStoreSpan(span, {
+        success: false,
+        durationMs,
+        error: error as Error,
+      });
+      throw error;
     }
-
-    await this.run(
-      `INSERT OR REPLACE INTO memory_entries
-       (key, partition, value, metadata, created_at, expires_at, owner, access_level, team_id, swarm_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        key,
-        partition,
-        JSON.stringify(value),
-        metadata,
-        createdAt,
-        expiresAt,
-        owner,
-        accessLevel,
-        options.teamId || null,
-        options.swarmId || null
-      ]
-    );
-
-    // Track modification for QUIC sync
-    const entryKey = `${partition}:${key}`;
-    this.lastModifiedTimestamps.set(entryKey, createdAt);
   }
 
   /**
@@ -678,6 +722,16 @@ export class SwarmMemoryManager {
     return this.retrieve(key, options);
   }
 
+  /**
+   * Retrieve a value from memory with OpenTelemetry instrumentation
+   *
+   * Automatically instruments the memory retrieve operation with distributed tracing.
+   * Records namespace, key, whether the value was found, value size, and performance metrics.
+   *
+   * @param key - Memory key
+   * @param options - Retrieve options including partition, agentId for access control
+   * @returns Retrieved value or null if not found
+   */
   async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
     // Auto-initialize if not initialized
     if (!this.initialized) {
@@ -689,112 +743,47 @@ export class SwarmMemoryManager {
     }
 
     const partition = options.partition || 'default';
-    const now = Date.now();
-    let query = `SELECT value, owner, access_level, team_id, swarm_id
-                 FROM memory_entries WHERE key = ? AND partition = ?`;
-    const params: any[] = [key, partition];
+    const agentId = options.agentId || 'system';
 
-    if (!options.includeExpired) {
-      query += ` AND (expires_at IS NULL OR expires_at > ?)`;
-      params.push(now);
-    }
+    // Create instrumentation span
+    const { span, context: spanContext } = memorySpanManager.startRetrieveSpan({
+      agentId: { id: agentId, type: QEAgentType.FLEET_COMMANDER, created: new Date() },
+      namespace: partition,
+      key,
+    });
 
-    const row = await this.queryOne<any>(query, params);
+    const startTime = Date.now();
 
-    if (!row) {
-      return null;
-    }
+    try {
+      const now = Date.now();
+      let query = `SELECT value, owner, access_level, team_id, swarm_id
+                   FROM memory_entries WHERE key = ? AND partition = ?`;
+      const params: any[] = [key, partition];
 
-    // Check read permission if agentId provided
-    if (options.agentId) {
-      const permCheck = this.accessControl.checkPermission({
-        agentId: options.agentId,
-        resourceOwner: row.owner,
-        accessLevel: row.access_level as AccessLevel,
-        permission: Permission.READ,
-        teamId: options.teamId,
-        resourceTeamId: row.team_id,
-        swarmId: options.swarmId,
-        resourceSwarmId: row.swarm_id,
-        isSystemAgent: options.isSystemAgent
-      });
-
-      if (!permCheck.allowed) {
-        throw new AccessControlError(`Read denied: ${permCheck.reason}`);
+      if (!options.includeExpired) {
+        query += ` AND (expires_at IS NULL OR expires_at > ?)`;
+        params.push(now);
       }
-    }
 
-    return JSON.parse(row.value);
-  }
+      const row = await this.queryOne<any>(query, params);
 
-  async query(pattern: string, options: RetrieveOptions = {}): Promise<MemoryEntry[]> {
-    if (!this.db) {
-      throw new Error('Memory manager not initialized');
-    }
+      if (!row) {
+        // Complete span - not found
+        const durationMs = Date.now() - startTime;
+        memorySpanManager.completeRetrieveSpan(span, {
+          found: false,
+          durationMs,
+        });
+        return null;
+      }
 
-    const partition = options.partition || 'default';
-    const now = Date.now();
-    let query = `SELECT key, value, partition, created_at, expires_at, owner, access_level, team_id, swarm_id
-                 FROM memory_entries
-                 WHERE partition = ? AND key LIKE ?`;
-    const params: any[] = [partition, pattern];
-
-    if (!options.includeExpired) {
-      query += ` AND (expires_at IS NULL OR expires_at > ?)`;
-      params.push(now);
-    }
-
-    const rows = await this.queryAll<any>(query, params);
-
-    // Filter by access control if agentId provided
-    const filteredRows = options.agentId
-      ? rows.filter((row: any) => {
-          const permCheck = this.accessControl.checkPermission({
-            agentId: options.agentId!,
-            resourceOwner: row.owner,
-            accessLevel: row.access_level as AccessLevel,
-            permission: Permission.READ,
-            teamId: options.teamId,
-            resourceTeamId: row.team_id,
-            swarmId: options.swarmId,
-            resourceSwarmId: row.swarm_id,
-            isSystemAgent: options.isSystemAgent
-          });
-          return permCheck.allowed;
-        })
-      : rows;
-
-    return filteredRows.map((row: any) => ({
-      key: row.key,
-      value: JSON.parse(row.value),
-      partition: row.partition,
-      createdAt: row.created_at,
-      expiresAt: row.expires_at,
-      owner: row.owner,
-      accessLevel: row.access_level as AccessLevel,
-      teamId: row.team_id,
-      swarmId: row.swarm_id
-    }));
-  }
-
-  async delete(key: string, partition: string = 'default', options: DeleteOptions = {}): Promise<void> {
-    if (!this.db) {
-      throw new Error('Memory manager not initialized');
-    }
-
-    // Check delete permission if agentId provided
-    if (options.agentId) {
-      const row = await this.queryOne<any>(
-        `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
-        [key, partition]
-      );
-
-      if (row) {
+      // Check read permission if agentId provided
+      if (options.agentId) {
         const permCheck = this.accessControl.checkPermission({
           agentId: options.agentId,
           resourceOwner: row.owner,
           accessLevel: row.access_level as AccessLevel,
-          permission: Permission.DELETE,
+          permission: Permission.READ,
           teamId: options.teamId,
           resourceTeamId: row.team_id,
           swarmId: options.swarmId,
@@ -803,17 +792,201 @@ export class SwarmMemoryManager {
         });
 
         if (!permCheck.allowed) {
-          throw new AccessControlError(`Delete denied: ${permCheck.reason}`);
+          throw new AccessControlError(`Read denied: ${permCheck.reason}`);
         }
       }
+
+      const valueSize = row.value.length;
+      const parsedValue = JSON.parse(row.value);
+
+      // Complete span successfully
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeRetrieveSpan(span, {
+        found: true,
+        valueSize,
+        durationMs,
+      });
+
+      return parsedValue;
+    } catch (error) {
+      // Complete span with error
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeRetrieveSpan(span, {
+        found: false,
+        durationMs,
+        error: error as Error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Query/search memory entries by pattern with OpenTelemetry instrumentation
+   *
+   * Automatically instruments the memory search operation with distributed tracing.
+   * Records namespace, search pattern, result count, and performance metrics.
+   *
+   * @param pattern - SQL LIKE pattern for key matching
+   * @param options - Retrieve options including partition, agentId for access control
+   * @returns Array of matching memory entries
+   */
+  async query(pattern: string, options: RetrieveOptions = {}): Promise<MemoryEntry[]> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
     }
 
-    await this.run(`DELETE FROM memory_entries WHERE key = ? AND partition = ?`, [key, partition]);
+    const partition = options.partition || 'default';
+    const agentId = options.agentId || 'system';
 
-    // Clean up ACL if exists
-    const resourceId = `${partition}:${key}`;
-    await this.run(`DELETE FROM memory_acl WHERE resource_id = ?`, [resourceId]);
-    this.aclCache.delete(resourceId);
+    // Create instrumentation span
+    const { span, context: spanContext } = memorySpanManager.startSearchSpan({
+      agentId: { id: agentId, type: QEAgentType.FLEET_COMMANDER, created: new Date() },
+      namespace: partition,
+      pattern,
+    });
+
+    const startTime = Date.now();
+
+    try {
+      const now = Date.now();
+      let query = `SELECT key, value, partition, created_at, expires_at, owner, access_level, team_id, swarm_id
+                   FROM memory_entries
+                   WHERE partition = ? AND key LIKE ?`;
+      const params: any[] = [partition, pattern];
+
+      if (!options.includeExpired) {
+        query += ` AND (expires_at IS NULL OR expires_at > ?)`;
+        params.push(now);
+      }
+
+      const rows = await this.queryAll<any>(query, params);
+
+      // Filter by access control if agentId provided
+      const filteredRows = options.agentId
+        ? rows.filter((row: any) => {
+            const permCheck = this.accessControl.checkPermission({
+              agentId: options.agentId!,
+              resourceOwner: row.owner,
+              accessLevel: row.access_level as AccessLevel,
+              permission: Permission.READ,
+              teamId: options.teamId,
+              resourceTeamId: row.team_id,
+              swarmId: options.swarmId,
+              resourceSwarmId: row.swarm_id,
+              isSystemAgent: options.isSystemAgent
+            });
+            return permCheck.allowed;
+          })
+        : rows;
+
+      const results = filteredRows.map((row: any) => ({
+        key: row.key,
+        value: JSON.parse(row.value),
+        partition: row.partition,
+        createdAt: row.created_at,
+        expiresAt: row.expires_at,
+        owner: row.owner,
+        accessLevel: row.access_level as AccessLevel,
+        teamId: row.team_id,
+        swarmId: row.swarm_id
+      }));
+
+      // Complete span successfully
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeSearchSpan(span, {
+        resultCount: results.length,
+        durationMs,
+      });
+
+      return results;
+    } catch (error) {
+      // Complete span with error
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeSearchSpan(span, {
+        resultCount: 0,
+        durationMs,
+        error: error as Error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a key from memory with OpenTelemetry instrumentation
+   *
+   * Automatically instruments the memory delete operation with distributed tracing.
+   * Records namespace, key, and operation performance metrics.
+   *
+   * @param key - Memory key to delete
+   * @param partition - Memory partition (namespace)
+   * @param options - Delete options including agentId for access control
+   */
+  async delete(key: string, partition: string = 'default', options: DeleteOptions = {}): Promise<void> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const agentId = options.agentId || 'system';
+
+    // Create instrumentation span
+    const { span, context: spanContext } = memorySpanManager.startDeleteSpan({
+      agentId: { id: agentId, type: QEAgentType.FLEET_COMMANDER, created: new Date() },
+      namespace: partition,
+      key,
+    });
+
+    const startTime = Date.now();
+
+    try {
+      // Check delete permission if agentId provided
+      if (options.agentId) {
+        const row = await this.queryOne<any>(
+          `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
+          [key, partition]
+        );
+
+        if (row) {
+          const permCheck = this.accessControl.checkPermission({
+            agentId: options.agentId,
+            resourceOwner: row.owner,
+            accessLevel: row.access_level as AccessLevel,
+            permission: Permission.DELETE,
+            teamId: options.teamId,
+            resourceTeamId: row.team_id,
+            swarmId: options.swarmId,
+            resourceSwarmId: row.swarm_id,
+            isSystemAgent: options.isSystemAgent
+          });
+
+          if (!permCheck.allowed) {
+            throw new AccessControlError(`Delete denied: ${permCheck.reason}`);
+          }
+        }
+      }
+
+      await this.run(`DELETE FROM memory_entries WHERE key = ? AND partition = ?`, [key, partition]);
+
+      // Clean up ACL if exists
+      const resourceId = `${partition}:${key}`;
+      await this.run(`DELETE FROM memory_acl WHERE resource_id = ?`, [resourceId]);
+      this.aclCache.delete(resourceId);
+
+      // Complete span successfully
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeDeleteSpan(span, {
+        success: true,
+        durationMs,
+      });
+    } catch (error) {
+      // Complete span with error
+      const durationMs = Date.now() - startTime;
+      memorySpanManager.completeDeleteSpan(span, {
+        success: false,
+        durationMs,
+        error: error as Error,
+      });
+      throw error;
+    }
   }
 
   async clear(partition: string = 'default'): Promise<void> {

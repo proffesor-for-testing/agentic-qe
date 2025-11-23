@@ -61,7 +61,7 @@ export interface TaskAttributes {
   /** Task type (unit-test, integration-test, coverage-analysis, etc.) */
   'task.type': string;
   /** Task priority (low, medium, high, critical) */
-  'task.priority'?: string;
+  'task.priority'?: string | number;
   /** Task status (pending, running, completed, failed) */
   'task.status': string;
   /** Parent task ID for hierarchical tasks */

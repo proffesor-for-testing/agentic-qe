@@ -50,11 +50,33 @@ export {
   createFleetCoordinationMetrics,
 } from './system-metrics';
 
+// Cost tracking (Phase 2 - A5)
+export {
+  CostTracker,
+  getCostTracker,
+  withTokenTracking,
+  TokenUsage,
+  CostBreakdown,
+  TokenMetrics,
+  ProviderPricing,
+  PRICING_TABLE,
+} from './collectors/cost';
+
+export {
+  getPricing,
+  getProviderPricing,
+  calculateSavingsPercentage,
+  exportPricingConfig,
+  PRICING_CONFIG,
+  PRICING_MEMORY_NAMESPACE,
+  PRICING_MEMORY_KEY,
+} from './collectors/pricing-config';
+
 // Re-export types and constants
 export { METRIC_NAMES, HISTOGRAM_BOUNDARIES, MetricRecordOptions } from '../types';
 
 /**
- * Initialize all metrics
+ * Initialize all metrics including cost tracking
  *
  * @returns Object containing all metric registries
  */
@@ -62,11 +84,13 @@ export function initializeAllMetrics() {
   const { createAgentMetrics } = require('./agent-metrics');
   const { createQualityMetrics } = require('./quality-metrics');
   const { createSystemMetrics } = require('./system-metrics');
+  const { getCostTracker } = require('./collectors/cost');
 
   return {
     agent: createAgentMetrics(),
     quality: createQualityMetrics(),
     system: createSystemMetrics(),
+    cost: getCostTracker(),
   };
 }
 
