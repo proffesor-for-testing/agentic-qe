@@ -312,14 +312,14 @@ function displaySuccessMessage(config: FleetConfig, options: InitOptions): void 
   console.log(chalk.gray(`  • Frameworks: ${config.frameworks?.join(', ')}`));
 
   console.log(chalk.yellow('\n💡 Next Steps:\n'));
-  console.log(chalk.white('  1. Run agent verification:'));
-  console.log(chalk.cyan('     aqe fleet status'));
-  console.log(chalk.white('\n  2. Test with a simple agent:'));
-  console.log(chalk.cyan('     aqe spawn test-generator --task "Create tests for UserService"'));
-  console.log(chalk.white('\n  3. Check learning status:'));
+  console.log(chalk.white('  1. Check fleet status:'));
+  console.log(chalk.cyan('     aqe status'));
+  console.log(chalk.white('\n  2. Check learning status:'));
   console.log(chalk.cyan('     aqe learn status'));
-  console.log(chalk.white('\n  4. View agent capabilities:'));
-  console.log(chalk.cyan('     aqe agents list\n'));
+  console.log(chalk.white('\n  3. View learned patterns:'));
+  console.log(chalk.cyan('     aqe patterns list'));
+  console.log(chalk.white('\n  4. For agent capabilities, see:'));
+  console.log(chalk.cyan('     .agentic-qe/docs/agents.md\n'));
 
   if (config.routing?.enabled) {
     console.log(chalk.blue('💰 Multi-Model Router enabled - expect 70-81% cost savings!\n'));

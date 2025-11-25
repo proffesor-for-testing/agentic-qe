@@ -377,6 +377,18 @@ export class SwarmMemoryManager {
       )
     `);
 
+    // Migration: Add agent_id column if it doesn't exist (for existing databases)
+    // SQLite doesn't support IF NOT EXISTS for columns, so check first
+    try {
+      const tableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(patterns)`);
+      const hasAgentId = tableInfo.some(col => col.name === 'agent_id');
+      if (!hasAgentId) {
+        await this.run(`ALTER TABLE patterns ADD COLUMN agent_id TEXT`);
+      }
+    } catch (e) {
+      // Ignore errors - column might already exist
+    }
+
     // Create indexes for O(log n) pattern queries (Issue #57)
     await this.run(`
       CREATE INDEX IF NOT EXISTS idx_patterns_agent_confidence

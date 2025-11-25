@@ -79,24 +79,23 @@ aqe execute --coverage --threshold 90
 
 ### 3. Coverage Analysis
 
-Analyze and optimize test coverage:
+Analyze and optimize test coverage using MCP tools:
 
-```bash
-# Analyze coverage with gap detection
-aqe coverage
+**Note:** Coverage analysis is performed through MCP tools in Claude Code, not CLI commands.
 
-# Analyze with specific threshold
-aqe coverage --threshold 95
+**Available MCP Tools:**
+- `mcp__agentic_qe__qe_coverage_analyze_sublinear` - Analyze coverage with O(log n) algorithms
+- `mcp__agentic_qe__qe_coverage_detect_gaps_ml` - Detect gaps using ML pattern recognition
+- `mcp__agentic_qe__qe_coverage_recommend_tests` - Get specific test recommendations
+- `mcp__agentic_qe__qe_coverage_calculate_trends` - Calculate coverage trends with forecasting
 
-# Generate detailed coverage report
-aqe coverage --report html
-```
+**See:** [MCP Tools User Guide](./MCP-TOOLS-USER-GUIDE.md) for detailed usage examples.
 
 **Output includes:**
-- Overall coverage percentage
-- Coverage gaps by file
-- Prioritized gap recommendations
-- Visual coverage reports
+- Overall coverage percentage with O(log n) analysis
+- Coverage gaps prioritized by risk
+- ML-powered test recommendations
+- Trend analysis and forecasting
 
 ### 4. Quality Gates
 
@@ -129,10 +128,7 @@ Monitor and manage your QE agent fleet:
 aqe status
 
 # View detailed fleet information
-aqe fleet status --verbose
-
-# Monitor fleet in real-time
-aqe fleet monitor --interval 5s
+aqe status --detailed
 ```
 
 ## Common Use Cases
@@ -153,8 +149,8 @@ cat tests/core/payment-processor.test.ts
 # Step 4: Execute tests to verify
 aqe execute tests/core/payment-processor.test.ts
 
-# Step 5: Iterate on coverage gaps
-aqe coverage src/core/payment-processor.ts
+# Step 5: Iterate on coverage gaps (use MCP tools in Claude Code)
+# See MCP-TOOLS-USER-GUIDE.md for coverage analysis examples
 ```
 
 ### Use Case 2: CI/CD Integration
@@ -350,7 +346,7 @@ aqe quality --coverage 85 --exit-code
 
 Regularly check agent performance:
 ```bash
-aqe fleet status --export metrics.json
+aqe status --detailed
 ```
 
 ### 5. Leverage AI Insights
@@ -379,12 +375,14 @@ Review AI-generated recommendations:
 
 ```bash
 aqe init                    # Initialize AQE in project
-aqe test <file>             # Generate tests
-aqe execute                 # Run tests
-aqe coverage                # Analyze coverage
-aqe quality                 # Run quality gate
 aqe status                  # Check fleet status
+aqe learn status            # View learning status
+aqe patterns list           # List test patterns
 aqe help                    # Show all commands
+
+# Note: Test generation, execution, and coverage analysis
+# are done via MCP tools in Claude Code.
+# See MCP-TOOLS-USER-GUIDE.md for details.
 ```
 
 ### Common Options
