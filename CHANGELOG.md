@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2025-11-25
+
+### 🐛 Bugfixes & Documentation Improvements
+
+This patch release fixes several issues discovered after the v1.9.0 release.
+
+### Fixed
+
+- **Removed unwanted .gitignore creation**: `aqe init` no longer creates a `.gitignore` file in the `.agentic-qe/` directory. Users should add `.agentic-qe/` entries to their root `.gitignore` instead.
+- **Fixed `aqe learn status` database error**: Resolved "no such column: agent_id" error by adding database migration for existing databases that lack the `agent_id` column in the patterns table.
+- **Fixed `aqe learn metrics` SQL query**: Corrected parameterized query to use the `type` column instead of non-existent `agent_id` column.
+- **Updated init success message**: Corrected CLI command suggestions (changed `aqe fleet status` to `aqe status`).
+
+### Changed
+
+- **Documentation updates**: Updated USER-GUIDE.md with correct CLI commands and MCP tool references for coverage analysis.
+
+---
+
 ## [1.9.0] - 2025-11-23
 
 ### 🎉 Major Release: Phase 3 Dashboards & Visualization + Modular Init Refactoring

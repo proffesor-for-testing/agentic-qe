@@ -507,8 +507,7 @@ export async function learnMetrics(options: any): Promise<void> {
     await agentDB.initialize();
 
     // Query metrics from patterns table
-    // Note: For simplicity, we query all patterns regardless of timeframe
-    // A production implementation would use proper timestamps
+    // Note: The patterns table uses 'type' column, not 'agent_id'
     const metrics = await agentDB.query(`
       SELECT
         type as agent,
@@ -516,10 +515,10 @@ export async function learnMetrics(options: any): Promise<void> {
         COUNT(*) as total_patterns,
         SUM(CASE WHEN confidence > 0.7 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as high_confidence_rate
       FROM patterns
-      ${options.agent ? `WHERE type LIKE '%${options.agent}%'` : ''}
+      ${options.agent ? `WHERE type LIKE ?` : ''}
       GROUP BY type
       ORDER BY avg_confidence DESC
-    `, []);
+    `, options.agent ? [`%${options.agent}%`] : []);
 
     await agentDB.close();
 

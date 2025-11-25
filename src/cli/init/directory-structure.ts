@@ -52,22 +52,6 @@ export async function createDirectoryStructure(force: boolean = false): Promise<
     }
   }
 
-  // Create .gitignore if it doesn't exist
-  const gitignorePath = path.join(baseDir, '.agentic-qe', '.gitignore');
-  if (!await fs.pathExists(gitignorePath) || force) {
-    const gitignoreContent = `# Agentic QE Fleet - Generated files
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
-data/learning/*
-data/patterns/*
-data/improvement/*
-data/memory/*
-*.log
-*.tmp
-`;
-    await fs.writeFile(gitignorePath, gitignoreContent);
-    console.log(chalk.green('  ✓ Created: .agentic-qe/.gitignore'));
-  }
+  // Note: .gitignore is NOT created - users should add .agentic-qe/ entries to their root .gitignore
+  // This prevents unwanted files being created in the .agentic-qe directory
 }
