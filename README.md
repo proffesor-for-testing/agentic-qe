@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.9.2** (Learning Persistence Fix) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.9.3** (NPM Package Fix) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
@@ -642,6 +642,22 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 - **Data Generation**: 10,000+ records/second
 - **Agent Spawning**: <100ms per agent
 - **Memory Efficient**: <2GB for typical projects
+
+---
+
+## 📝 What's New in v1.9.3
+
+📦 **NPM Package Fix** (2025-11-26)
+
+This release fixes missing files in the npm package distribution that caused `aqe init` to fail.
+
+### Key Fixes
+
+- **Added missing `templates/` directory**: Includes `aqe.sh` wrapper script
+- **Added missing `.claude/helpers/` directory**: Includes 6 helper scripts (checkpoint-manager.sh, github-safe.js, etc.)
+- **Added missing `docs/reference/` directory**: Includes reference documentation (agents.md, skills.md, usage.md)
+
+**Upgrade**: `npm install agentic-qe@1.9.3`
 
 ---
 
