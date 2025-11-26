@@ -200,7 +200,8 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.TEST_COVERAGE_DETAILED, new TestCoverageDetailedHandler());
 
     // Memory management handlers - all share the same memoryStore
-    this.handlers.set(TOOL_NAMES.MEMORY_STORE, new MemoryStoreHandler(this.registry, this.hookExecutor, this.memoryStore));
+    // Issue #79 Fix: Pass SwarmMemoryManager for persistent storage
+    this.handlers.set(TOOL_NAMES.MEMORY_STORE, new MemoryStoreHandler(this.registry, this.hookExecutor, this.memoryStore, this.memory));
     this.handlers.set(TOOL_NAMES.MEMORY_RETRIEVE, new MemoryRetrieveHandler(this.registry, this.hookExecutor, this.memoryStore));
     this.handlers.set(TOOL_NAMES.MEMORY_QUERY, new MemoryQueryHandler(this.registry, this.hookExecutor, this.memoryStore));
     this.handlers.set(TOOL_NAMES.MEMORY_SHARE, new MemoryShareHandler(this.registry, this.hookExecutor, this.memoryStore));

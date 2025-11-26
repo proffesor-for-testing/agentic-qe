@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.2] - 2025-11-26
+
+### 🐛 Critical Bugfix: Learning Persistence
+
+This patch release fixes a critical issue where learning data was not being persisted to SQLite.
+
+### Fixed
+
+- **Learning data now persists to SQLite database** (Issue #79): Root cause was missing columns in database schema and `MemoryStoreHandler` not actually writing to SQLite when `persist: true` was set.
+  - Added missing columns to `patterns` table: `domain`, `success_rate`
+  - Added missing column to `q_values` table: `metadata`
+  - Added missing columns to `learning_experiences` table: `metadata`, `created_at`
+  - Added database migrations for existing databases
+  - `MemoryStoreHandler` now properly persists to SQLite when `persist: true`
+
+### Added
+
+- **Verification script**: `scripts/verify-issue-79-fix.ts` for testing learning persistence
+
+---
+
 ## [1.9.1] - 2025-11-25
 
 ### 🐛 Bugfixes & Documentation Improvements

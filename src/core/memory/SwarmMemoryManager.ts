@@ -363,6 +363,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 5: Patterns (TTL: 7 days)
+    // Issue #79: Added domain and success_rate columns for learning persistence
     await this.run(`
       CREATE TABLE IF NOT EXISTS patterns (
         id TEXT PRIMARY KEY,
@@ -373,20 +374,31 @@ export class SwarmMemoryManager {
         ttl INTEGER NOT NULL DEFAULT ${this.TTL_POLICY.patterns},
         expires_at INTEGER,
         created_at INTEGER NOT NULL,
-        agent_id TEXT
+        agent_id TEXT,
+        domain TEXT DEFAULT 'general',
+        success_rate REAL DEFAULT 1.0
       )
     `);
 
-    // Migration: Add agent_id column if it doesn't exist (for existing databases)
+    // Migration: Add columns if they don't exist (for existing databases)
     // SQLite doesn't support IF NOT EXISTS for columns, so check first
     try {
       const tableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(patterns)`);
-      const hasAgentId = tableInfo.some(col => col.name === 'agent_id');
-      if (!hasAgentId) {
+      const columnNames = tableInfo.map(col => col.name);
+
+      if (!columnNames.includes('agent_id')) {
         await this.run(`ALTER TABLE patterns ADD COLUMN agent_id TEXT`);
       }
+      // Issue #79: Add domain column for learning persistence
+      if (!columnNames.includes('domain')) {
+        await this.run(`ALTER TABLE patterns ADD COLUMN domain TEXT DEFAULT 'general'`);
+      }
+      // Issue #79: Add success_rate column for learning persistence
+      if (!columnNames.includes('success_rate')) {
+        await this.run(`ALTER TABLE patterns ADD COLUMN success_rate REAL DEFAULT 1.0`);
+      }
     } catch (e) {
-      // Ignore errors - column might already exist
+      // Ignore errors - columns might already exist
     }
 
     // Create indexes for O(log n) pattern queries (Issue #57)
@@ -536,6 +548,7 @@ export class SwarmMemoryManager {
     await this.run(`CREATE INDEX IF NOT EXISTS idx_ooda_phase ON ooda_cycles(phase)`);
 
     // Table 13: Q-values (Q-learning)
+    // Issue #79: Added metadata column for learning persistence
     await this.run(`
       CREATE TABLE IF NOT EXISTS q_values (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -544,13 +557,25 @@ export class SwarmMemoryManager {
         action_key TEXT NOT NULL,
         q_value REAL NOT NULL DEFAULT 0,
         update_count INTEGER NOT NULL DEFAULT 1,
+        metadata TEXT,
         last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(agent_id, state_key, action_key)
       )
     `);
 
+    // Issue #79: Migration for q_values metadata column
+    try {
+      const qvTableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(q_values)`);
+      if (!qvTableInfo.some(col => col.name === 'metadata')) {
+        await this.run(`ALTER TABLE q_values ADD COLUMN metadata TEXT`);
+      }
+    } catch (e) {
+      // Ignore errors - column might already exist
+    }
+
     // Table 14: Learning Experiences
+    // Issue #79: Added metadata and created_at columns for learning persistence
     await this.run(`
       CREATE TABLE IF NOT EXISTS learning_experiences (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -562,9 +587,26 @@ export class SwarmMemoryManager {
         reward REAL NOT NULL,
         next_state TEXT NOT NULL,
         episode_id TEXT,
+        metadata TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Issue #79: Migration for learning_experiences columns
+    try {
+      const leTableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(learning_experiences)`);
+      const leColumnNames = leTableInfo.map(col => col.name);
+
+      if (!leColumnNames.includes('metadata')) {
+        await this.run(`ALTER TABLE learning_experiences ADD COLUMN metadata TEXT`);
+      }
+      if (!leColumnNames.includes('created_at')) {
+        await this.run(`ALTER TABLE learning_experiences ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
+      }
+    } catch (e) {
+      // Ignore errors - columns might already exist
+    }
 
     // Table 15: Learning History (snapshots and metrics)
     await this.run(`

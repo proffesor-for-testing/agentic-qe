@@ -14,7 +14,6 @@
   "permissions": {
     "allow": [
       "Bash(npx claude-flow:*)",
-      "Bash(npx agentdb:*)",
       "Bash(npm run lint)",
       "Bash(npm run test:*)",
       "Bash(npm test:*)",
@@ -34,6 +33,7 @@
       "Bash(which:*)",
       "Bash(pwd)",
       "Bash(ls:*)",
+      "Bash(npx agentdb:*)",
       "Bash(npx aqe:*)"
     ],
     "deny": [

@@ -4,13 +4,16 @@
  * Handles storage of QE data with TTL support, namespacing, and metadata.
  * Implements the memory_store MCP tool for agent coordination.
  *
- * @version 1.0.0
+ * Issue #79 Fix: Added actual SQLite persistence when persist: true
+ *
+ * @version 1.1.0
  * @author Agentic QE Team
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
 import { AgentRegistry } from '../../services/AgentRegistry';
 import { HookExecutor } from '../../services/HookExecutor';
+import type { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
 
 export interface MemoryStoreParams {
   key: string;
@@ -30,7 +33,8 @@ export class MemoryStoreHandler extends BaseHandler {
   constructor(
     private registry: AgentRegistry,
     private hookExecutor: HookExecutor,
-    private memoryStore: Map<string, any>
+    private memoryStore: Map<string, any>,
+    private persistentMemory?: SwarmMemoryManager
   ) {
     super();
     this.ttlTimers = new Map();
@@ -62,8 +66,26 @@ export class MemoryStoreHandler extends BaseHandler {
         persistent: persist
       };
 
-      // Store in memory
+      // Store in memory (always - for fast in-session access)
       this.memoryStore.set(memoryKey, record);
+
+      // Issue #79 Fix: Actually persist to SQLite when persist: true
+      if (persist && this.persistentMemory) {
+        try {
+          await this.persistentMemory.store(key, value, {
+            partition: namespace,
+            ttl: ttl,
+            metadata: metadata,
+            owner: metadata?.agentId || 'system'
+          });
+          this.log('info', `Memory persisted to SQLite: ${memoryKey}`, { namespace, ttl });
+        } catch (error) {
+          this.log('warn', `Failed to persist to SQLite: ${memoryKey}`, {
+            error: error instanceof Error ? error.message : String(error)
+          });
+          // Don't throw - in-memory storage succeeded
+        }
+      }
 
       // Set TTL if specified
       if (ttl && ttl > 0) {
@@ -85,7 +107,8 @@ export class MemoryStoreHandler extends BaseHandler {
         namespace,
         ttl: ttl || 0,
         timestamp: record.timestamp,
-        persistent: persist
+        persistent: persist,
+        persistedToDb: persist && !!this.persistentMemory
       }, requestId);
     });
   }
