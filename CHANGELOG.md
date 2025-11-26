@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.3] - 2025-11-26
+
+### 🐛 Bugfix: NPM Package Missing Files
+
+This patch release fixes missing files in the npm package that caused `aqe init` to fail.
+
+### Fixed
+
+- **Added missing directories to npm package** (`package.json` files array):
+  - `templates/` - Contains `aqe.sh` wrapper script
+  - `.claude/helpers/` - Contains 6 helper scripts
+  - `docs/reference/` - Contains reference documentation
+
+---
+
 ## [1.9.2] - 2025-11-26
 
 ### 🐛 Critical Bugfix: Learning Persistence
