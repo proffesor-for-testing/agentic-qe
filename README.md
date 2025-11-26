@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.9.1** (Bugfixes & Documentation) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.9.2** (Learning Persistence Fix) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
@@ -642,6 +642,22 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 - **Data Generation**: 10,000+ records/second
 - **Agent Spawning**: <100ms per agent
 - **Memory Efficient**: <2GB for typical projects
+
+---
+
+## 📝 What's New in v1.9.2
+
+🐛 **Learning Persistence Fix** (2025-11-26)
+
+This release fixes critical learning persistence issues (Issue #79) where learning data was not being saved to SQLite.
+
+### Key Fixes
+
+- **Database schema fixes**: Added missing columns to patterns, q_values, and learning_experiences tables
+- **Memory persistence**: MemoryStoreHandler now actually persists to SQLite when `persist: true`
+- **Database migrations**: Automatic migrations for existing databases
+
+**Upgrade**: `npm install agentic-qe@1.9.2`
 
 ---
 
