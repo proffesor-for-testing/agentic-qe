@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.4] - 2025-11-30
+
+### 🔧 Critical Fixes: Memory/Learning/Patterns System
+
+This release delivers critical fixes to the memory, learning, and patterns system based on thorough investigation (Sherlock Investigation Report). All QE agents now have a fully functional learning system with proper vector embeddings, Q-value reinforcement learning, and persistent pattern storage.
+
+### Fixed
+
+- **Vector embeddings now stored correctly** (was storing NULL): Fixed `RealAgentDBAdapter.store()` to properly store 384-dimension embeddings as BLOB data instead of NULL
+- **SQL parameter style bug**: Fixed agentdb's `SqlJsDatabase` wrapper to use spread params (`stmt.run(a, b, c)`) instead of array params (`stmt.run([a,b,c])`) which caused "NOT NULL constraint failed" errors
+- **HNSW index schema mismatch**: Added `pattern_id` generated column for agentdb's HNSWIndex compatibility which requires this column for vector search
+- **Learning experience retrieval**: Added missing getter methods that were referenced but didn't exist
+- **Hooks saving to wrong database**: Fixed all Claude Code hooks to explicitly export `AGENTDB_PATH=.agentic-qe/agentdb.db` so learning data is saved to the project database instead of the root directory
+
+### Added
+
+- **New SwarmMemoryManager methods for learning data retrieval**:
+  - `getBestAction(agentId, stateKey)` - Q-learning best action selection
+  - `getRecentLearningExperiences(agentId, limit)` - Recent experience retrieval
+  - `getLearningExperiencesByTaskType(agentId, taskType, limit)` - Task-filtered experiences
+  - `getHighRewardExperiences(agentId, minReward, limit)` - Successful experience extraction
+  - `getLearningStats(agentId)` - Aggregate learning statistics (total, avg, max, min rewards)
+
+- **Hooks integration**: Added `AGENTDB_PATH` environment variable to connect Claude Code hooks to the QE database
+
+- **New modules (Phase 4 Alerting & Reporting)**:
+  - `src/alerting/` - AlertManager, FeedbackRouter, StrategyApplicator (1,394 LOC)
+  - `src/reporting/` - ResultAggregator, reporters (3,030 LOC)
+  - Quality gate scripts and GitHub Actions workflow
+
+- **Integration test**: `tests/integration/memory-learning-loop.test.ts` - Comprehensive 7-phase test validating the full learning cycle:
+  1. Pattern storage with embeddings
+  2. Learning experience capture
+  3. Q-value reinforcement learning
+  4. Memory persistence
+  5. Pattern retrieval
+  6. Vector similarity search
+  7. Full learning loop simulation
+
+### Changed
+
+- **RealAgentDBAdapter**: Now properly retrieves stored embeddings when querying patterns instead of using placeholder values
+- **Pattern table schema**: Added generated column `pattern_id TEXT GENERATED ALWAYS AS (id) STORED` for HNSW compatibility
+
+### Technical Details
+
+- Vector embeddings: 384 dimensions × 4 bytes = 1,536 bytes per pattern
+- AgentDB version: v1.6.1 with ReasoningBank (16 learning tables)
+- HNSW index: 150x faster vector search enabled
+- All 12 integration tests pass
+
+---
+
 ## [1.9.3] - 2025-11-26
 
 ### 🐛 Bugfix: NPM Package Missing Files
