@@ -1,0 +1,145 @@
+# OpenTelemetry Collector Configuration
+# Agentic QE Fleet - Issues #69 & #71
+#
+# This configuration defines the OTEL Collector pipeline for receiving,
+# processing, and exporting telemetry data from the Agentic QE Fleet.
+#
+# Usage: Copy to otel-collector-config.yaml and customize as needed
+
+receivers:
+  # OTLP receiver - accepts traces and metrics via gRPC and HTTP
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        # TLS configuration for production
+        # tls:
+        #   cert_file: /etc/otel/certs/server.crt
+        #   key_file: /etc/otel/certs/server.key
+
+      http:
+        endpoint: 0.0.0.0:4318
+        # CORS configuration if needed
+        # cors:
+        #   allowed_origins:
+        #     - http://localhost:3000
+        #     - https://*.example.com
+
+processors:
+  # Batch processor - groups spans/metrics for efficient export
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Memory limiter - prevents OOM issues
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Resource processor - adds service metadata
+  resource:
+    attributes:
+      - key: service.namespace
+        value: agentic-qe
+        action: upsert
+      - key: deployment.environment
+        from_attribute: deployment.environment
+        action: upsert
+
+  # Attributes processor - enriches telemetry data
+  attributes:
+    actions:
+      - key: environment
+        from_attribute: deployment.environment
+        action: upsert
+      # Sanitize sensitive data
+      - key: db.password
+        action: delete
+      - key: api.key
+        action: delete
+      - key: jwt.token
+        action: delete
+
+  # Transform processor - modify spans/metrics (optional)
+  # transform:
+  #   traces:
+  #     statements:
+  #       - set(status.code, 1) where attributes["http.status_code"] < 400
+
+exporters:
+  # Prometheus exporter - exposes metrics endpoint
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: aqe
+    const_labels:
+      service: agentic-qe-fleet
+    # Metric resource to telemetry conversion
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Jaeger exporter - sends traces to Jaeger
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+    # For production with TLS
+    # tls:
+    #   insecure: false
+    #   cert_file: /etc/otel/certs/client.crt
+    #   key_file: /etc/otel/certs/client.key
+    #   ca_file: /etc/otel/certs/ca.crt
+
+  # Logging exporter - debug output (disable in production)
+  logging:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # File exporter - local backup (optional)
+  # file:
+  #   path: /var/log/otel/telemetry.json
+
+service:
+  # Telemetry pipelines
+  pipelines:
+    # Trace pipeline
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [otlp/jaeger, logging]
+
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource, attributes]
+      exporters: [prometheus, logging]
+
+  # Collector telemetry (self-monitoring)
+  telemetry:
+    logs:
+      level: info
+      # Development: debug, Production: info
+      # level: debug
+
+    metrics:
+      # Expose collector's own metrics
+      address: 0.0.0.0:8888
+
+  # Extensions
+  extensions: [health_check, pprof, zpages]
+
+# Extensions configuration
+extensions:
+  # Health check endpoint
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+  # Performance profiling (development only)
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # ZPages debug interface (development only)
+  zpages:
+    endpoint: 0.0.0.0:55679

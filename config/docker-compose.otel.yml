@@ -1,0 +1,187 @@
+version: '3.8'
+
+# OTEL Observability Stack for Agentic QE Fleet
+# Issue #71: Complete OTEL Stack Docker Compose Configuration
+#
+# This compose file sets up a complete observability stack:
+# - OTEL Collector: Receives telemetry via OTLP (gRPC:4317, HTTP:4318)
+# - Prometheus: Scrapes metrics from OTEL Collector (port 9090)
+# - Jaeger: Distributed tracing backend (UI on port 16686)
+# - Grafana: Visualization and dashboards (port 3001)
+#
+# Usage:
+#   docker-compose -f config/docker-compose.otel.yml up -d
+#   docker-compose -f docker-compose.yml -f config/docker-compose.otel.yml up -d
+
+services:
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: agentic-qe-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml.example:/etc/otel-collector-config.yaml:ro
+      - otel-data:/var/log/otel
+    ports:
+      # OTLP gRPC receiver
+      - "4317:4317"
+      # OTLP HTTP receiver
+      - "4318:4318"
+      # Prometheus exporter
+      - "8889:8889"
+      # Collector metrics (self-monitoring)
+      - "8888:8888"
+      # Health check endpoint
+      - "13133:13133"
+      # pprof profiling (development only)
+      - "1777:1777"
+      # zpages debug interface (development only)
+      - "55679:55679"
+    environment:
+      - DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-development}
+    networks:
+      - agentic-qe-otel
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Prometheus - Metrics storage and querying
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: agentic-qe-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml.example:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+      # Optionally mount alerting rules
+      # - ./prometheus-rules:/etc/prometheus/rules:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - agentic-qe-otel
+    restart: unless-stopped
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Jaeger - Distributed tracing backend
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: agentic-qe-jaeger
+    environment:
+      # Collector settings
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      # Storage settings (in-memory for development)
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+      # Query settings
+      - QUERY_BASE_PATH=/
+      # Metrics backend
+      - METRICS_BACKEND=prometheus
+      - METRICS_HTTP_ROUTE=/metrics
+    volumes:
+      - jaeger-data:/badger
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP gRPC receiver
+      - "4327:4317"
+      # OTLP HTTP receiver
+      - "4328:4318"
+      # Zipkin compatible endpoint
+      - "9411:9411"
+      # Admin port (health check, metrics)
+      - "14269:14269"
+      # Jaeger Thrift compact
+      - "6831:6831/udp"
+      # Jaeger Thrift binary
+      - "6832:6832/udp"
+      # Jaeger gRPC
+      - "14250:14250"
+    networks:
+      - agentic-qe-otel
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Grafana - Visualization and dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: agentic-qe-grafana
+    environment:
+      # Admin credentials (change in production!)
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      # Server settings
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      # Enable anonymous access (development only)
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Provisioning
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      # Plugins
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      # Datasource provisioning
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # Dashboard provisioning
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Dashboard JSON files
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      # Persistent storage
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - agentic-qe-otel
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  otel-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  jaeger-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  agentic-qe-otel:
+    driver: bridge
+    name: agentic-qe-otel

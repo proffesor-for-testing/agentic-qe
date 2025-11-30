@@ -1,0 +1,53 @@
+# Grafana Datasource Provisioning
+# Agentic QE Fleet - Issue #71
+#
+# This file configures datasources for Prometheus and Jaeger
+# Grafana will automatically import these on startup
+
+apiVersion: 1
+
+datasources:
+  # Prometheus datasource for metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      queryTimeout: 60s
+      httpMethod: POST
+    version: 1
+
+  # Jaeger datasource for distributed tracing
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+    jsonData:
+      # Trace query configuration
+      tracesToLogs:
+        datasourceUid: 'loki'
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '1h'
+      # Node graph configuration
+      nodeGraph:
+        enabled: true
+    version: 1
+
+  # OTEL Collector Prometheus endpoint (for collector metrics)
+  - name: OTEL Collector Metrics
+    type: prometheus
+    access: proxy
+    url: http://otel-collector:8889
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      queryTimeout: 60s
+      httpMethod: POST
+    version: 1

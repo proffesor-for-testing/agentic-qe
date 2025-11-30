@@ -82,11 +82,13 @@ export class RealAgentDBAdapter {
 
   /**
    * Create patterns table (base AgentDB table for vector embeddings)
+   * Note: pattern_id column is required for agentdb's HNSWIndex compatibility
    */
   private async createPatternsTable(): Promise<void> {
     const sql = `
       CREATE TABLE IF NOT EXISTS patterns (
         id TEXT PRIMARY KEY,
+        pattern_id TEXT GENERATED ALWAYS AS (id) STORED,
         type TEXT NOT NULL,
         confidence REAL NOT NULL DEFAULT 0.5,
         embedding BLOB,
@@ -97,6 +99,7 @@ export class RealAgentDBAdapter {
 
     await this.db.exec(sql);
     await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_type ON patterns(type)');
+    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_pattern_id ON patterns(pattern_id)');
   }
 
   /**
@@ -397,29 +400,35 @@ export class RealAgentDBAdapter {
       // Use parameterized query to prevent SQL injection
       // Note: sql.js doesn't support traditional parameterized queries in exec()
       // We'll use run() with bound parameters instead
+      // Convert embedding to buffer for storage
+      const embeddingBuffer = Buffer.from(embedding.buffer);
+
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO patterns (id, type, confidence, embedding, metadata, created_at)
-        VALUES (?, ?, ?, NULL, ?, unixepoch())
+        VALUES (?, ?, ?, ?, ?, unixepoch())
       `);
 
-      stmt.run([
+      // AgentDB's SqlJsDatabase uses spread params, not array
+      stmt.run(
         pattern.id,
         pattern.type,
         pattern.confidence || 0.5,
+        embeddingBuffer,
         metadataJson
-      ]);
-      stmt.free();
+      );
+      if (typeof stmt.free === 'function') stmt.free();
+      else if (typeof stmt.finalize === 'function') stmt.finalize();
 
       // Add to HNSW index - use parameterized query
+      // AgentDB's SqlJsDatabase uses get() with spread params
       if (this.hnswIndex && this.hnswIndex.isReady()) {
         const stmtSelect = this.db.prepare('SELECT rowid FROM patterns WHERE id = ?');
-        stmtSelect.bind([pattern.id]);
+        const row = stmtSelect.get(pattern.id);
 
-        if (stmtSelect.step()) {
-          const rowid = stmtSelect.getAsObject().rowid as number;
-          this.hnswIndex.addVector(rowid, embedding);
+        if (row && row.rowid) {
+          this.hnswIndex.addVector(row.rowid as number, embedding);
         }
-        stmtSelect.free();
+        if (typeof stmtSelect.finalize === 'function') stmtSelect.finalize();
       }
 
       return pattern.id;
@@ -542,11 +551,17 @@ export class RealAgentDBAdapter {
       for (const result of searchResults) {
         const row = await this.db.get('SELECT * FROM patterns WHERE rowid = ?', [result.id]);
         if (row) {
+          // Decode embedding from stored buffer if available
+          let storedEmbedding = queryEmbedding;
+          if (row.embedding && row.embedding instanceof Uint8Array) {
+            storedEmbedding = Array.from(new Float32Array(row.embedding.buffer));
+          }
+
           patterns.push({
             id: row.id,
             type: row.type,
             data: row.metadata ? JSON.parse(row.metadata) : {},
-            embedding: queryEmbedding, // Use query embedding as placeholder
+            embedding: storedEmbedding,
             confidence: row.confidence,
             metadata: {
               ...JSON.parse(row.metadata || '{}'),
@@ -658,16 +673,11 @@ export class RealAgentDBAdapter {
       this.validateSQL(sql);
 
       // Use parameterized queries via prepare() for safety
+      // AgentDB's SqlJsDatabase uses all() with spread params
       if (params.length > 0) {
         const stmt = this.db.prepare(sql);
-        stmt.bind(params);
-
-        const results: any[] = [];
-        while (stmt.step()) {
-          results.push(stmt.getAsObject());
-        }
-        stmt.free();
-
+        const results = stmt.all(...params);
+        if (typeof stmt.finalize === 'function') stmt.finalize();
         return results;
       }
 

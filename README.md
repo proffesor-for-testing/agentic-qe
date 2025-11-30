@@ -13,7 +13,7 @@
 
 > Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
-🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **40 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
+🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **38 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
 
 </div>
 
@@ -193,7 +193,7 @@ open http://localhost:3000
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 40 QE Skills Library (v1.9.0)
+### 🎓 38 QE Skills Library (v1.9.0)
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -206,7 +206,7 @@ open http://localhost:3000
 - **Code Quality**: code-review-quality, refactoring-patterns, quality-metrics
 - **Communication**: bug-reporting-excellence, technical-writing, consultancy-practices
 
-**Phase 2: Expanded QE Skills Library (18 skills)**
+**Phase 2: Expanded QE Skills Library (16 skills)**
 - **Testing Methodologies (7)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management, verification-quality
 - **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
@@ -214,7 +214,7 @@ open http://localhost:3000
 **Phase 3: Advanced Quality Engineering Skills (4 skills)**
 - **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
 
-**Total: 40 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
+**Total: 38 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
 
 </details>
 

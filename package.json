@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 38 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 102 MCP tools, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
@@ -149,6 +149,7 @@
     "@opentelemetry/sdk-trace-base": "^1.28.0",
     "@opentelemetry/sdk-trace-node": "^1.28.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
+    "@ruvector/core": "^0.1.15",
     "@types/ws": "^8.18.1",
     "@xenova/transformers": "^2.6.0",
     "agentdb": "^1.0.0",
@@ -166,10 +167,17 @@
     "graphql": "^16.11.0",
     "inquirer": "^8.2.6",
     "ora": "^5.4.1",
+    "ruvector": "^0.1.24",
     "uuid": "^11.0.5",
     "winston": "^3.18.3",
     "ws": "^8.18.3",
     "yaml": "^2.8.1"
+  },
+  "optionalDependencies": {
+    "@ruvector/node-linux-arm64-gnu": "^0.1.16",
+    "@ruvector/node-linux-x64-gnu": "^0.1.16",
+    "ruvector-core-linux-arm64-gnu": "^0.1.15",
+    "ruvector-core-linux-x64-gnu": "^0.1.15"
   },
   "resolutions": {
     "graceful-fs": "^4.2.11",

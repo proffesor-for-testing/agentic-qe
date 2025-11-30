@@ -2756,6 +2756,195 @@ export class SwarmMemoryManager {
   }
 
   /**
+   * Get the best action for a given state based on Q-values
+   * Returns the action with the highest Q-value for the specified state
+   */
+  async getBestAction(agentId: string, stateKey: string): Promise<{
+    action_key: string;
+    q_value: number;
+    update_count: number;
+  } | null> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT action_key, q_value, update_count
+      FROM q_values
+      WHERE agent_id = ? AND state_key = ?
+      ORDER BY q_value DESC
+      LIMIT 1
+    `;
+
+    const result = await this.queryOne<{
+      action_key: string;
+      q_value: number;
+      update_count: number;
+    }>(sql, [agentId, stateKey]);
+    return result || null;
+  }
+
+  /**
+   * Get recent learning experiences for an agent
+   * Returns experiences ordered by most recent first
+   */
+  async getRecentLearningExperiences(agentId: string, limit: number = 10): Promise<Array<{
+    id: number;
+    agent_id: string;
+    task_type: string;
+    state: string;
+    action: string;
+    reward: number;
+    next_state: string;
+    episode_id: string | null;
+    created_at: string;
+  }>> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT id, agent_id, task_type, state, action, reward, next_state, episode_id, created_at
+      FROM learning_experiences
+      WHERE agent_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `;
+
+    return await this.queryAll<{
+      id: number;
+      agent_id: string;
+      task_type: string;
+      state: string;
+      action: string;
+      reward: number;
+      next_state: string;
+      episode_id: string | null;
+      created_at: string;
+    }>(sql, [agentId, limit]);
+  }
+
+  /**
+   * Get learning experiences by task type
+   */
+  async getLearningExperiencesByTaskType(agentId: string, taskType: string, limit: number = 50): Promise<Array<{
+    id: number;
+    agent_id: string;
+    task_type: string;
+    state: string;
+    action: string;
+    reward: number;
+    next_state: string;
+    created_at: string;
+  }>> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT id, agent_id, task_type, state, action, reward, next_state, created_at
+      FROM learning_experiences
+      WHERE agent_id = ? AND task_type = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `;
+
+    return await this.queryAll<{
+      id: number;
+      agent_id: string;
+      task_type: string;
+      state: string;
+      action: string;
+      reward: number;
+      next_state: string;
+      created_at: string;
+    }>(sql, [agentId, taskType, limit]);
+  }
+
+  /**
+   * Get high-reward learning experiences for pattern extraction
+   * Useful for identifying successful strategies to replicate
+   */
+  async getHighRewardExperiences(agentId: string, minReward: number = 0.8, limit: number = 20): Promise<Array<{
+    id: number;
+    task_type: string;
+    state: string;
+    action: string;
+    reward: number;
+    next_state: string;
+    created_at: string;
+  }>> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT id, task_type, state, action, reward, next_state, created_at
+      FROM learning_experiences
+      WHERE agent_id = ? AND reward >= ?
+      ORDER BY reward DESC, created_at DESC
+      LIMIT ?
+    `;
+
+    return await this.queryAll<{
+      id: number;
+      task_type: string;
+      state: string;
+      action: string;
+      reward: number;
+      next_state: string;
+      created_at: string;
+    }>(sql, [agentId, minReward, limit]);
+  }
+
+  /**
+   * Get learning statistics for an agent
+   * Useful for tracking learning progress over time
+   */
+  async getLearningStats(agentId: string): Promise<{
+    totalExperiences: number;
+    averageReward: number;
+    maxReward: number;
+    minReward: number;
+    uniqueTaskTypes: number;
+    uniqueActions: number;
+  }> {
+    if (!this.db) {
+      throw new Error('Memory manager not initialized');
+    }
+
+    const sql = `
+      SELECT
+        COUNT(*) as total_experiences,
+        AVG(reward) as avg_reward,
+        MAX(reward) as max_reward,
+        MIN(reward) as min_reward,
+        COUNT(DISTINCT task_type) as unique_task_types,
+        COUNT(DISTINCT action) as unique_actions
+      FROM learning_experiences
+      WHERE agent_id = ?
+    `;
+
+    const row = await this.queryOne<{
+      total_experiences: number;
+      avg_reward: number;
+      max_reward: number;
+      min_reward: number;
+      unique_task_types: number;
+      unique_actions: number;
+    }>(sql, [agentId]);
+
+    return {
+      totalExperiences: row?.total_experiences || 0,
+      averageReward: row?.avg_reward || 0,
+      maxReward: row?.max_reward || 0,
+      minReward: row?.min_reward || 0,
+      uniqueTaskTypes: row?.unique_task_types || 0,
+      uniqueActions: row?.unique_actions || 0
+    };
+  }
+
+  /**
    * Store a learning performance snapshot
    */
   async storeLearningSnapshot(snapshot: {

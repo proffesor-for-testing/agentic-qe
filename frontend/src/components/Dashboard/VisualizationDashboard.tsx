@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { QualityMetrics } from '../QualityMetrics';
-import { TimelineEnhanced } from '../Timeline';
+import React, { useState, Suspense, lazy } from 'react';
 import { BarChart3, Activity, Settings } from 'lucide-react';
+import { LoadingFallback } from '../common/LoadingFallback';
+
+// Lazy load heavy visualization components
+const QualityMetrics = lazy(() => import('../QualityMetrics').then(module => ({ default: module.QualityMetrics })));
+const TimelineEnhanced = lazy(() => import('../Timeline').then(module => ({ default: module.TimelineEnhanced })));
 
 export const VisualizationDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'metrics' | 'timeline'>('metrics');
@@ -90,18 +93,20 @@ export const VisualizationDashboard: React.FC = () => {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow" style={{ height: '700px' }}>
-          {activeTab === 'metrics' ? (
-            <QualityMetrics
-              sessionId={sessionId || undefined}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
-            />
-          ) : (
-            <TimelineEnhanced
-              sessionId={sessionId || undefined}
-              autoRefresh={autoRefresh}
-            />
-          )}
+          <Suspense fallback={<LoadingFallback message={activeTab === 'metrics' ? "Loading Quality Metrics..." : "Loading Timeline..."} />}>
+            {activeTab === 'metrics' ? (
+              <QualityMetrics
+                sessionId={sessionId || undefined}
+                timeRange={timeRange}
+                autoRefresh={autoRefresh}
+              />
+            ) : (
+              <TimelineEnhanced
+                sessionId={sessionId || undefined}
+                autoRefresh={autoRefresh}
+              />
+            )}
+          </Suspense>
         </div>
 
         {/* Info Cards */}
