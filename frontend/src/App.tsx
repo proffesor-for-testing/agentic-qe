@@ -1,9 +1,13 @@
+import { Suspense, lazy } from 'react';
 import { WebSocketProvider } from './contexts/WebSocketContext';
-import { MindMap } from './components/MindMap/MindMap';
-import { RadarChart } from './components/MetricsPanel/RadarChart';
-import { LifecycleTimeline } from './components/Timeline/LifecycleTimeline';
-import { DrillDownPanel } from './components/DetailPanel/DrillDownPanel';
 import { Activity } from 'lucide-react';
+import { LoadingFallback } from './components/common/LoadingFallback';
+
+// Lazy load heavy components for code-splitting
+const MindMap = lazy(() => import('./components/MindMap/MindMap').then(module => ({ default: module.MindMap })));
+const RadarChart = lazy(() => import('./components/MetricsPanel/RadarChart').then(module => ({ default: module.RadarChart })));
+const LifecycleTimeline = lazy(() => import('./components/Timeline/LifecycleTimeline').then(module => ({ default: module.LifecycleTimeline })));
+const DrillDownPanel = lazy(() => import('./components/DetailPanel/DrillDownPanel').then(module => ({ default: module.DrillDownPanel })));
 
 function App() {
   return (
@@ -31,24 +35,32 @@ function App() {
           <div className="h-full grid grid-cols-12 gap-4 p-4">
             {/* Left Column - Mind Map */}
             <div className="col-span-7 bg-white rounded-lg shadow-lg overflow-hidden">
-              <MindMap />
+              <Suspense fallback={<LoadingFallback message="Loading Mind Map..." />}>
+                <MindMap />
+              </Suspense>
             </div>
 
             {/* Right Column - Split Panels */}
             <div className="col-span-5 flex flex-col gap-4">
               {/* Top Right - Metrics */}
               <div className="bg-white rounded-lg shadow-lg overflow-hidden" style={{ height: '35%' }}>
-                <RadarChart showComparison={true} />
+                <Suspense fallback={<LoadingFallback message="Loading Metrics..." fullHeight={false} />}>
+                  <RadarChart showComparison={true} />
+                </Suspense>
               </div>
 
               {/* Middle Right - Timeline */}
               <div className="bg-white rounded-lg shadow-lg overflow-hidden" style={{ height: '30%' }}>
-                <LifecycleTimeline />
+                <Suspense fallback={<LoadingFallback message="Loading Timeline..." fullHeight={false} />}>
+                  <LifecycleTimeline />
+                </Suspense>
               </div>
 
               {/* Bottom Right - Detail Panel */}
               <div className="bg-white rounded-lg shadow-lg overflow-hidden" style={{ height: '35%' }}>
-                <DrillDownPanel />
+                <Suspense fallback={<LoadingFallback message="Loading Details..." fullHeight={false} />}>
+                  <DrillDownPanel />
+                </Suspense>
               </div>
             </div>
           </div>

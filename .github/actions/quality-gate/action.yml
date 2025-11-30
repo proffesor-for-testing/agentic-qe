@@ -1,0 +1,155 @@
+name: 'AQE Quality Gate'
+description: 'Evaluate quality gates using ControlLoopReporter and block deployment if gates fail'
+author: 'Agentic QE Team'
+
+inputs:
+  min-coverage:
+    description: 'Minimum coverage percentage (0-100)'
+    required: false
+    default: '80'
+  min-pass-rate:
+    description: 'Minimum test pass rate (0.0-1.0)'
+    required: false
+    default: '0.95'
+  max-critical-vulns:
+    description: 'Maximum critical vulnerabilities allowed'
+    required: false
+    default: '0'
+  max-high-vulns:
+    description: 'Maximum high vulnerabilities allowed'
+    required: false
+    default: '2'
+  output-dir:
+    description: 'Output directory for quality reports'
+    required: false
+    default: './quality-reports'
+  fail-on-violation:
+    description: 'Fail the action if quality gates fail'
+    required: false
+    default: 'true'
+  post-pr-comment:
+    description: 'Post quality gate results as PR comment'
+    required: false
+    default: 'true'
+
+outputs:
+  can-deploy:
+    description: 'Whether deployment is approved (true/false)'
+    value: ${{ steps.evaluate.outputs.can-deploy }}
+  quality-score:
+    description: 'Overall quality score (0-100)'
+    value: ${{ steps.evaluate.outputs.quality-score }}
+  violations-count:
+    description: 'Number of quality gate violations'
+    value: ${{ steps.evaluate.outputs.violations-count }}
+  test-pass-rate:
+    description: 'Test pass rate (0.0-1.0)'
+    value: ${{ steps.evaluate.outputs.test-pass-rate }}
+  coverage-percentage:
+    description: 'Coverage percentage (0-100)'
+    value: ${{ steps.evaluate.outputs.coverage-percentage }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        echo "Validating quality gate inputs..."
+        echo "  - Min Coverage: ${{ inputs.min-coverage }}%"
+        echo "  - Min Pass Rate: ${{ inputs.min-pass-rate }}"
+        echo "  - Max Critical Vulnerabilities: ${{ inputs.max-critical-vulns }}"
+        echo "  - Max High Vulnerabilities: ${{ inputs.max-high-vulns }}"
+
+    - name: Ensure output directory exists
+      shell: bash
+      run: mkdir -p "${{ inputs.output-dir }}"
+
+    - name: Run quality gate evaluation
+      id: evaluate
+      shell: bash
+      run: |
+        echo "🔍 Evaluating quality gates..."
+
+        # Try TypeScript version first (if dependencies are available)
+        if command -v npx &> /dev/null && [ -f "package.json" ]; then
+          echo "Using TypeScript quality gate script..."
+
+          npx ts-node scripts/quality-gate.ts \
+            --min-coverage "${{ inputs.min-coverage }}" \
+            --min-pass-rate "${{ inputs.min-pass-rate }}" \
+            --max-critical-vulns "${{ inputs.max-critical-vulns }}" \
+            --max-high-vulns "${{ inputs.max-high-vulns }}" \
+            --output-dir "${{ inputs.output-dir }}" \
+            ${{ inputs.post-pr-comment == 'true' && '--pr-comment' || '' }}
+
+          RESULT=$?
+        else
+          echo "Using Bash quality gate script..."
+
+          bash scripts/quality-gate.sh \
+            --min-coverage "${{ inputs.min-coverage }}" \
+            --min-pass-rate "${{ inputs.min-pass-rate }}" \
+            --max-critical-vulns "${{ inputs.max-critical-vulns }}" \
+            --max-high-vulns "${{ inputs.max-high-vulns }}"
+
+          RESULT=$?
+        fi
+
+        # Extract outputs from feedback JSON
+        FEEDBACK_FILE="${{ inputs.output-dir }}/control-loop-feedback.json"
+
+        if [ -f "$FEEDBACK_FILE" ]; then
+          CAN_DEPLOY=$(jq -r '.signals.canDeploy' "$FEEDBACK_FILE")
+          QUALITY_SCORE=$(jq -r '.qualityScore' "$FEEDBACK_FILE")
+          VIOLATIONS_COUNT=$(jq -r '.violations | length' "$FEEDBACK_FILE")
+          TEST_PASS_RATE=$(jq -r '.metrics.testPassRate' "$FEEDBACK_FILE")
+          COVERAGE_PCT=$(jq -r '.metrics.coveragePercentage' "$FEEDBACK_FILE")
+
+          echo "can-deploy=$CAN_DEPLOY" >> $GITHUB_OUTPUT
+          echo "quality-score=$QUALITY_SCORE" >> $GITHUB_OUTPUT
+          echo "violations-count=$VIOLATIONS_COUNT" >> $GITHUB_OUTPUT
+          echo "test-pass-rate=$TEST_PASS_RATE" >> $GITHUB_OUTPUT
+          echo "coverage-percentage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
+
+          echo "📊 Quality Gate Results:"
+          echo "  - Can Deploy: $CAN_DEPLOY"
+          echo "  - Quality Score: $QUALITY_SCORE"
+          echo "  - Violations: $VIOLATIONS_COUNT"
+          echo "  - Test Pass Rate: $TEST_PASS_RATE"
+          echo "  - Coverage: $COVERAGE_PCT%"
+        else
+          echo "⚠️  No feedback file found"
+          echo "can-deploy=false" >> $GITHUB_OUTPUT
+          echo "quality-score=0" >> $GITHUB_OUTPUT
+          echo "violations-count=1" >> $GITHUB_OUTPUT
+          echo "test-pass-rate=0" >> $GITHUB_OUTPUT
+          echo "coverage-percentage=0" >> $GITHUB_OUTPUT
+        fi
+
+        # Store result for later
+        echo "GATE_RESULT=$RESULT" >> $GITHUB_ENV
+
+    - name: Upload quality reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: quality-gate-reports
+        path: ${{ inputs.output-dir }}
+        retention-days: 30
+
+    - name: Fail if quality gates failed
+      shell: bash
+      if: inputs.fail-on-violation == 'true'
+      run: |
+        if [ "$GATE_RESULT" != "0" ]; then
+          echo "❌ Quality gates FAILED"
+          exit 1
+        else
+          echo "✅ Quality gates PASSED"
+          exit 0
+        fi
+
+branding:
+  icon: 'shield'
+  color: 'green'

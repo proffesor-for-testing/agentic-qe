@@ -1,0 +1,36 @@
+{
+  "executionId": "local-1764443195300",
+  "timestamp": "2025-11-29T19:06:35.300Z",
+  "status": "success",
+  "success": true,
+  "qualityScore": 100,
+  "metrics": {
+    "testPassRate": 1,
+    "coveragePercentage": 100,
+    "securityScore": 100,
+    "performanceScore": 100,
+    "qualityGatesPassed": 0,
+    "qualityGatesFailed": 0
+  },
+  "signals": {
+    "canDeploy": true,
+    "criticalIssuesFound": false,
+    "coverageDecreased": false,
+    "performanceDegraded": false,
+    "securityRisks": false,
+    "testsUnstable": false
+  },
+  "actions": [
+    {
+      "type": "approve",
+      "priority": "low",
+      "reason": "All quality gates passed",
+      "resolution": "Ready for deployment"
+    }
+  ],
+  "violations": [],
+  "nextSteps": [
+    "✓ Quality gates passed - proceed with deployment",
+    "→ All checks passed - ready for automated deployment"
+  ]
+}
