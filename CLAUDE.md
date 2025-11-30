@@ -1,63 +1,4 @@
-# Claude Code Configuration - Agentic QE Fleet
-
-## ⚠️ CRITICAL POLICIES
-
-### Git Operations
-- ❌ NEVER auto-commit/push without explicit user request
-- ✅ ALWAYS wait for: "commit this" or "push to main"
-- 📋 **Full policy:** [docs/policies/git-operations.md](docs/policies/git-operations.md)
-
-### Release Verification
-- ❌ NEVER release without `aqe init` verification
-- ✅ ALWAYS test at least one agent with real database queries
-- 📋 **Full checklist:** [docs/policies/release-verification.md](docs/policies/release-verification.md)
-
-### Test Execution
-- ❌ NEVER run `npm test` (OOM risk in DevPod/Codespaces)
-- ✅ ALWAYS use batched scripts: `npm run test:unit`, `npm run test:integration`
-- 📋 **Full policy:** [docs/policies/test-execution.md](docs/policies/test-execution.md)
-
-### File Organization
-- ❌ NEVER save working files to root folder
-- ✅ ALWAYS use: `/docs`, `/tests`, `/src`, `/scripts`, `/examples`
-
----
-
-## 🤖 Agentic QE Fleet Quick Reference
-
-**18 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
-**37 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
-**8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
-
-### 📚 Complete Documentation
-
-- **[Agent Reference](docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
-- **[Skills Reference](docs/reference/skills.md)** - All 37 QE skills organized by category
-- **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
-
-### 🎯 Quick Start
-
-**Spawn agents:**
-```javascript
-Task("Generate tests", "Create test suite for UserService", "qe-test-generator")
-Task("Analyze coverage", "Find gaps using O(log n)", "qe-coverage-analyzer")
-```
-
-**Check learning status:**
-```bash
-aqe learn status --agent test-gen
-aqe patterns list --framework jest
-```
-
-### 💡 Key Principles
-- Use Task tool for agent execution (not just MCP)
-- Batch all operations in single messages (TodoWrite, file ops, etc.)
-- Test with actual databases, not mocks
-- Document only what actually works
-
----
-
-# Claude Flow Integration (Preserved from original CLAUDE.md)
+# Claude Code Configuration - SPARC Development Environment
 
 ## 🚨 CRITICAL: CONCURRENT EXECUTION & FILE MANAGEMENT
 
@@ -260,10 +201,10 @@ Flow-Nexus extends MCP capabilities with 70+ cloud-based orchestration tools:
   Task("Test Engineer", "Write Jest tests. Check memory for API contracts.", "tester")
   Task("DevOps Engineer", "Setup Docker and CI/CD. Document in memory.", "cicd-engineer")
   Task("Security Auditor", "Review authentication. Report findings via hooks.", "reviewer")
-
+  
   // All todos batched together
   TodoWrite { todos: [...8-10 todos...] }
-
+  
   // All file operations together
   Write "backend/server.js"
   Write "frontend/App.jsx"
@@ -312,7 +253,7 @@ npx claude-flow@alpha hooks session-end --export-metrics true
   Task("Database agent", "Design and implement database schema. Store decisions in memory.", "code-analyzer")
   Task("Tester agent", "Create comprehensive test suite with 90% coverage.", "tester")
   Task("Reviewer agent", "Review code quality and security. Document findings.", "reviewer")
-
+  
   // Batch ALL todos in ONE call
   TodoWrite { todos: [
     {id: "1", content: "Research API patterns", status: "in_progress", priority: "high"},
@@ -324,7 +265,7 @@ npx claude-flow@alpha hooks session-end --export-metrics true
     {id: "7", content: "API documentation", status: "pending", priority: "low"},
     {id: "8", content: "Performance optimization", status: "pending", priority: "low"}
   ]}
-
+  
   // Parallel file operations
   Bash "mkdir -p app/{src,tests,docs,config}"
   Write "app/package.json"
@@ -423,9 +364,9 @@ Never save working files, text/mds and tests to the root folder.
 
 ### 📚 Complete Documentation
 
-- **[Agent Reference](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
-- **[Skills Reference](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/skills.md)** - All 37 QE skills organized by category
-- **[Usage Guide](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/usage.md)** - Complete usage examples and workflows
+- **[Agent Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
+- **[Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)** - All 37 QE skills organized by category
+- **[Usage Guide](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start
 
@@ -467,6 +408,6 @@ Agents share state through the **`aqe/*` memory namespace**:
 
 ---
 
-**Generated by**: Agentic QE Fleet v1.6.1
-**Initialization Date**: 2025-11-14T10:00:41.962Z
+**Generated by**: Agentic QE Fleet v1.9.3
+**Initialization Date**: 2025-11-30T16:04:37.392Z
 **Fleet Topology**: hierarchical

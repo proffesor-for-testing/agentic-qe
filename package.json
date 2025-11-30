@@ -141,6 +141,7 @@
     "stack-utils": "^2.0.6"
   },
   "devDependencies": {
+    "@axe-core/cli": "^4.11.0",
     "@faker-js/faker": "^10.0.0",
     "@jest/globals": "^30.2.0",
     "@jest/test-sequencer": "^30.2.0",
@@ -157,6 +158,7 @@
     "@typescript-eslint/parser": "^6.13.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "axe-core": "^4.11.0",
     "commander": "^14.0.1",
     "dotenv": "^17.2.3",
     "eslint": "^8.55.0",
