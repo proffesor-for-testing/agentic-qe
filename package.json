@@ -150,7 +150,6 @@
     "@opentelemetry/sdk-trace-node": "^1.28.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "@ruvector/core": "^0.1.15",
-    "@ruvector/node-linux-arm64-gnu": "^0.1.16",
     "@types/ws": "^8.18.1",
     "@xenova/transformers": "^2.6.0",
     "agentdb": "^1.0.0",
@@ -169,11 +168,16 @@
     "inquirer": "^8.2.6",
     "ora": "^5.4.1",
     "ruvector": "^0.1.24",
-    "ruvector-core-linux-arm64-gnu": "^0.1.15",
     "uuid": "^11.0.5",
     "winston": "^3.18.3",
     "ws": "^8.18.3",
     "yaml": "^2.8.1"
+  },
+  "optionalDependencies": {
+    "@ruvector/node-linux-arm64-gnu": "^0.1.16",
+    "@ruvector/node-linux-x64-gnu": "^0.1.16",
+    "ruvector-core-linux-arm64-gnu": "^0.1.15",
+    "ruvector-core-linux-x64-gnu": "^0.1.15"
   },
   "resolutions": {
     "graceful-fs": "^4.2.11",

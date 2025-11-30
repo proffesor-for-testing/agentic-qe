@@ -20,6 +20,7 @@ This release delivers critical fixes to the memory, learning, and patterns syste
 - **HNSW index schema mismatch**: Added `pattern_id` generated column for agentdb's HNSWIndex compatibility which requires this column for vector search
 - **Learning experience retrieval**: Added missing getter methods that were referenced but didn't exist
 - **Hooks saving to wrong database**: Fixed all Claude Code hooks to explicitly export `AGENTDB_PATH=.agentic-qe/agentdb.db` so learning data is saved to the project database instead of the root directory
+- **CI failures due to ARM64-only ruvector packages**: Moved `@ruvector/node-linux-arm64-gnu` and `ruvector-core-linux-arm64-gnu` from dependencies to optionalDependencies. Added x64 variants for CI compatibility
 
 ### Added
 
