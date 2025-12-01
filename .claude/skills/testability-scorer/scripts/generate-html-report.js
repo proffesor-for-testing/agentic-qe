@@ -679,15 +679,16 @@ console.log(`✓ Overall score: ${reportData.overall}/100 (${getLetterGrade(repo
 
 // Auto-open by default (disable with AUTO_OPEN=false)
 if (process.env.AUTO_OPEN !== 'false') {
-  console.log(`\n🌐 Opening report in browser...`);
+  console.log(`\n🌐 Starting HTTP server...`);
 
-  const { exec, spawn } = require('child_process');
+  const { exec } = require('child_process');
   const http = require('http');
+  const fs = require('fs');
   const absolutePath = path.resolve(outputPath);
   const reportDir = path.dirname(absolutePath);
   const reportFile = path.basename(absolutePath);
 
-  // Find a free port
+  // Find a free port starting from 8080
   const findFreePort = (startPort = 8080) => {
     return new Promise((resolve) => {
       const server = http.createServer();
@@ -701,38 +702,42 @@ if (process.env.AUTO_OPEN !== 'false') {
   };
 
   findFreePort().then(port => {
-    // Start HTTP server using Python (always available)
-    const serverProcess = spawn('python3', ['-m', 'http.server', port.toString()], {
-      cwd: reportDir,
-      detached: true,
-      stdio: 'ignore'
+    // Create Node.js HTTP server (more reliable than Python in containers)
+    const server = http.createServer((_req, res) => {
+      const filePath = path.join(reportDir, reportFile);
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(500);
+          res.end('Error loading report');
+        } else {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(data);
+        }
+      });
     });
 
-    serverProcess.unref();
+    server.listen(port, '0.0.0.0', () => {
+      const reportUrl = `http://localhost:${port}`;
 
-    const reportUrl = `http://localhost:${port}/${reportFile}`;
-
-    // Give server time to start
-    setTimeout(() => {
-      console.log(`\n🌐 HTTP Server Started!`);
+      // Display prominent, clickable URL
       console.log(`\n┌─────────────────────────────────────────────────────────────┐`);
+      console.log(`│                                                             │`);
+      console.log(`│  ✅ HTTP Server Running on Port ${port}                       │`);
       console.log(`│                                                             │`);
       console.log(`│  📊 CLICK HERE TO OPEN REPORT:                              │`);
       console.log(`│                                                             │`);
-      console.log(`│  ${reportUrl}                 │`);
+      console.log(`│     ${reportUrl}                              │`);
       console.log(`│                                                             │`);
-      console.log(`│  ⚡ VS Code will automatically forward this port            │`);
-      console.log(`│  ⚡ Click the URL above or the popup notification           │`);
+      console.log(`│  (VS Code will forward this port automatically)            │`);
       console.log(`│                                                             │`);
       console.log(`└─────────────────────────────────────────────────────────────┘\n`);
-      console.log(`🔄 Server will auto-stop after 60 seconds\n`);
+      console.log(`💡 Server will keep running until you stop it (Ctrl+C)\n`);
+    });
 
-      // Auto-stop server after 60 seconds
-      setTimeout(() => {
-        exec(`kill ${serverProcess.pid} 2>/dev/null`);
-        console.log(`🛑 HTTP server stopped`);
-      }, 60000);
-    }, 1000);
+    server.on('error', (err) => {
+      console.error(`❌ Server error: ${err.message}`);
+      console.log(`\n📄 Report saved to: ${absolutePath}`);
+    });
   }).catch(err => {
     console.error(`❌ Failed to start server: ${err.message}`);
     console.log(`\n📄 Report saved to: ${absolutePath}`);
@@ -744,7 +749,8 @@ if (process.env.AUTO_OPEN !== 'false') {
   console.log(`  open ${outputPath}`);
 }
 
-// Tip for disabling auto-open
+// Don't exit immediately - let server keep running
 if (process.env.AUTO_OPEN !== 'false') {
   console.log(`\n💡 Tip: Set AUTO_OPEN=false to disable automatic browser opening`);
+  console.log(`💡 Server is running in background. Kill process to stop.`);
 }
