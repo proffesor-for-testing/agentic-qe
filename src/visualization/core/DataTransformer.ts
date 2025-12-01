@@ -127,7 +127,7 @@ export class DataTransformer {
       // Create edge from agent to event
       edges.push({
         id: `edge-agent-${event.agent_id}-event-${event.id}`,
-        source: `agent-${event.agent_id}`,
+        source: event.agent_id, // Match the agent node ID (no prefix)
         target: `event-${event.id}`,
         type: 'trigger',
       });
