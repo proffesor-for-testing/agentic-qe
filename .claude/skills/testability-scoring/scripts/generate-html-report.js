@@ -968,6 +968,21 @@ if (process.env.AUTO_OPEN !== 'false') {
       console.log(`│                                                             │`);
       console.log(`└─────────────────────────────────────────────────────────────┘\n`);
       console.log(`💡 Server will keep running until you stop it (Ctrl+C)\n`);
+
+      // Auto-open in browser (works in VS Code Dev Container)
+      setTimeout(() => {
+        const openCommand = process.platform === 'darwin' ? 'open' :
+                           process.platform === 'win32' ? 'start' :
+                           'xdg-open';
+        exec(`${openCommand} ${reportUrl}`, (err) => {
+          if (err) {
+            console.log(`⚠️  Could not auto-open browser: ${err.message}`);
+            console.log(`📌 Please manually open: ${reportUrl}`);
+          } else {
+            console.log(`🚀 Browser opened automatically!`);
+          }
+        });
+      }, 1000);
     });
 
     server.on('error', (err) => {
