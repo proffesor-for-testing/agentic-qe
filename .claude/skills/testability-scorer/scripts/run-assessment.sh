@@ -13,14 +13,22 @@ echo "   URL: $URL"
 echo "   Browser: $BROWSER"
 echo ""
 
-# Update config with URL
+# Update config with URL (backup original)
 if [ -f "tests/testability-scorer/config.js" ]; then
+  echo "📝 Updating config with target URL..."
+  # Create backup if it doesn't exist
+  [ ! -f "tests/testability-scorer/config.js.original" ] && cp tests/testability-scorer/config.js tests/testability-scorer/config.js.original
+  
+  # Update the baseURL
   sed -i.bak "s|baseURL:.*|baseURL: '$URL',|" tests/testability-scorer/config.js
+  echo "   ✓ Config updated: $URL"
 fi
 
 # Run full 10-principle assessment
+echo ""
 echo "📊 Analyzing all 10 principles..."
 echo "   (Serial execution ensures all principles are captured)"
+echo ""
 npx playwright test tests/testability-scorer/testability-scorer.spec.js \
   --project=$BROWSER \
   --workers=1 \
