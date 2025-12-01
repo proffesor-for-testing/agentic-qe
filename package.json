@@ -167,6 +167,7 @@
     "graphql": "^16.11.0",
     "inquirer": "^8.2.6",
     "ora": "^5.4.1",
+    "playwright": "^1.57.0",
     "ruvector": "^0.1.24",
     "uuid": "^11.0.5",
     "winston": "^3.18.3",

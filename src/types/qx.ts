@@ -188,7 +188,7 @@ export interface ImpactMap {
     feeling: 'happy' | 'confused' | 'frustrated' | 'overwhelmed' | 'satisfied' | 'neutral';
     context: string;
     likelihood: 'low' | 'medium' | 'high';
-  }>;
+  }> | string[]; // Allow simplified string array
   
   /** Cross-functional team impacts */
   crossFunctional?: Array<{
@@ -208,6 +208,9 @@ export interface ImpactMap {
   
   /** Accessibility impacts */
   accessibility?: string[];
+
+  /** Impact score (0-100) for this category */
+  score?: number;
 }
 
 /**
@@ -319,6 +322,15 @@ export interface QXContext {
     forms: number;
     inputs: number;
     buttons: number;
+    semanticStructure?: {
+      hasNav: boolean;
+      hasHeader: boolean;
+      hasFooter: boolean;
+      hasMain: boolean;
+      hasAside: boolean;
+      hasArticle: boolean;
+      hasSection: boolean;
+    };
   };
   
   /** Semantic quality */
@@ -330,24 +342,41 @@ export interface QXContext {
   
   /** Error/warning indicators */
   errorIndicators?: {
-    consoleErrors: number;
-    consoleWarnings: number;
-    examples: string[];
+    consoleErrors?: number | string[];
+    consoleWarnings?: number;
+    examples?: string[];
+    hasErrorMessages?: boolean;
   };
   
   /** Performance metrics */
   performance?: {
     loadTime?: number;
     domContentLoaded?: number;
+    domReady?: number;
     firstContentfulPaint?: number;
+    firstPaint?: number;
   };
   
   /** Accessibility insights */
   accessibility?: {
-    violations: number;
-    warnings: number;
-    passed: number;
+    violations?: number;
+    warnings?: number;
+    passed?: number;
+    ariaLabelsCount?: number;
+    altTextsCoverage?: number;
+    focusableElementsCount?: number;
+    landmarkRoles?: number;
   };
+
+  /** Page metadata */
+  metadata?: {
+    description?: string;
+    keywords?: string;
+    viewport?: string;
+  };
+  
+  /** Error details if collection failed */
+  error?: string;
   
   /** Custom context */
   custom?: Record<string, any>;
