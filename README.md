@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.9.3** (NPM Package Fix) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.9.4** (Memory & Learning System Fixes) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
@@ -642,6 +642,31 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 - **Data Generation**: 10,000+ records/second
 - **Agent Spawning**: <100ms per agent
 - **Memory Efficient**: <2GB for typical projects
+
+---
+
+## 📝 What's New in v1.9.4
+
+🔧 **Critical Memory & Learning System Fixes** (2025-11-30)
+
+This release delivers critical fixes to the memory, learning, and patterns system. All QE agents now have a fully functional learning system with proper vector embeddings, Q-value reinforcement learning, and persistent pattern storage.
+
+### Key Fixes
+
+- **Vector embeddings now stored correctly**: Fixed `RealAgentDBAdapter.store()` to properly store 384-dimension embeddings as BLOB data
+- **SQL parameter style bug**: Fixed agentdb's `SqlJsDatabase` wrapper to use spread params instead of array params
+- **HNSW index schema mismatch**: Added `pattern_id` generated column for agentdb's HNSWIndex compatibility
+- **Learning experience retrieval**: Added missing getter methods for Q-learning and experience replay
+- **Hooks saving to wrong database**: Fixed all Claude Code hooks to explicitly export `AGENTDB_PATH` so learning data is saved correctly
+- **CI platform compatibility**: Moved ARM64-only ruvector packages to optionalDependencies for x64 CI compatibility
+
+### New Features
+
+- **SwarmMemoryManager learning methods**: `getBestAction()`, `getRecentLearningExperiences()`, `getLearningStats()`, and more
+- **Phase 4 Alerting & Reporting**: AlertManager, FeedbackRouter, StrategyApplicator modules
+- **Quality Gate CI workflow**: GitHub Actions integration for automated quality validation
+
+**Upgrade**: `npm install agentic-qe@1.9.4`
 
 ---
 
