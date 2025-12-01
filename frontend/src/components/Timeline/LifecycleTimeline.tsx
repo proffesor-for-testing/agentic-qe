@@ -4,6 +4,17 @@ import { LifecycleEvent } from '../../types';
 import { format, formatDistance } from 'date-fns';
 import { CheckCircle, XCircle, Clock, PlayCircle, RefreshCw } from 'lucide-react';
 
+/**
+ * Safely convert timestamp to milliseconds number.
+ * Handles both ISO strings from backend and numeric timestamps.
+ */
+const toTimestampMs = (timestamp: string | number): number => {
+  if (typeof timestamp === 'string') {
+    return new Date(timestamp).getTime();
+  }
+  return timestamp;
+};
+
 const EVENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   spawn: PlayCircle,
   spawned: PlayCircle,
@@ -43,7 +54,7 @@ export const LifecycleTimeline: React.FC = () => {
     if (!timeRange) return events;
 
     return events.filter(
-      (event) => event.timestamp >= timeRange.start && event.timestamp <= timeRange.end
+      (event) => toTimestampMs(event.timestamp) >= timeRange.start && toTimestampMs(event.timestamp) <= timeRange.end
     );
   }, [events, timeRange]);
 
@@ -58,7 +69,7 @@ export const LifecycleTimeline: React.FC = () => {
     return Array.from(groups.entries()).map(([agentId, agentEvents]) => ({
       agentId,
       agentName: agentEvents[0]?.agentName || agentId,
-      events: agentEvents.sort((a, b) => a.timestamp - b.timestamp),
+      events: agentEvents.sort((a, b) => toTimestampMs(a.timestamp) - toTimestampMs(b.timestamp)),
     }));
   }, [filteredEvents]);
 
@@ -67,16 +78,17 @@ export const LifecycleTimeline: React.FC = () => {
     setSelectedNode(event.agentId);
   };
 
-  const getEventPosition = (timestamp: number) => {
+  const getEventPosition = (timestamp: string | number) => {
     if (filteredEvents.length === 0) return 0;
 
-    const minTime = Math.min(...filteredEvents.map((e) => e.timestamp));
-    const maxTime = Math.max(...filteredEvents.map((e) => e.timestamp));
+    const timestampMs = toTimestampMs(timestamp);
+    const minTime = Math.min(...filteredEvents.map((e) => toTimestampMs(e.timestamp)));
+    const maxTime = Math.max(...filteredEvents.map((e) => toTimestampMs(e.timestamp)));
     const range = maxTime - minTime;
 
     if (range === 0) return 50;
 
-    return ((timestamp - minTime) / range) * 100;
+    return ((timestampMs - minTime) / range) * 100;
   };
 
   if (events.length === 0) {
@@ -158,7 +170,7 @@ export const LifecycleTimeline: React.FC = () => {
                       selectedEvent === event.id ? 'ring-4 ring-yellow-400' : ''
                     }`}
                     style={{ left: `${position}%` }}
-                    title={`${event.type} - ${format(event.timestamp, 'HH:mm:ss')}`}
+                    title={`${event.type} - ${format(toTimestampMs(event.timestamp), 'HH:mm:ss')}`}
                   >
                     <Icon className="w-4 h-4" />
                   </button>
@@ -178,12 +190,12 @@ export const LifecycleTimeline: React.FC = () => {
                           {event.type}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {formatDistance(event.timestamp, Date.now(), { addSuffix: true })}
+                          {formatDistance(toTimestampMs(event.timestamp), Date.now(), { addSuffix: true })}
                         </span>
                       </div>
                       <div className="text-sm text-gray-600">
                         <p>
-                          <strong>Time:</strong> {format(event.timestamp, 'yyyy-MM-dd HH:mm:ss')}
+                          <strong>Time:</strong> {format(toTimestampMs(event.timestamp), 'yyyy-MM-dd HH:mm:ss')}
                         </p>
                         {event.duration && (
                           <p>
