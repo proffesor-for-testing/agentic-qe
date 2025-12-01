@@ -83,6 +83,11 @@
             "type": "command",
             "description": "Trajectory Prediction - Predict optimal task sequence",
             "command": "cat | jq -r '.tool_input.prompt // .tool_input.task // empty' | jq -R '@sh' | xargs -I {} bash -c 'export AGENTDB_PATH=.agentic-qe/agentdb.db; TASK={}; npx agentdb@latest query --domain \"task-trajectories\" --query \"task:$TASK\" --k 3 --min-confidence 0.75 --format json 2>/dev/null | jq -r \".memories[]? | \\\"📋 Predicted Steps: \\(.pattern.trajectory // \\\"No trajectory data\\\") (Success Rate: \\(.confidence // 0))\\\" \" 2>/dev/null || true'"
+          },
+          {
+            "type": "command",
+            "description": "Visualization - Emit agent spawn event",
+            "command": "bash scripts/hooks/emit-task-spawn.sh"
           }
         ]
       }
@@ -128,6 +133,11 @@
             "type": "command",
             "description": "Trajectory Storage - Record task trajectory for learning",
             "command": "cat | jq -r '.tool_input.prompt // .tool_input.task // empty, .result.success // \"unknown\"' | paste -d'\\n' - - | jq -Rs 'split(\"\\n\") | {task: (.[0] | @sh), success: .[1]}' | jq -r 'CONFIDENCE=(if .success == \"true\" then \"0.95\" else \"0.5\" end); \"export AGENTDB_PATH=.agentic-qe/agentdb.db; TASK=\\(.task); SUCCESS=\\(.success); npx agentdb@latest store-pattern --type trajectory --domain task-trajectories --pattern \\(\"{\\\\\\\"task\\\\\\\":\\\" + .task + \",\\\\\\\"success\\\\\\\":\\(.success),\\\\\\\"trajectory\\\\\\\":\\\\\\\"search→scaffold→test→refine\\\\\\\"}\\\" | @sh) --confidence \\(CONFIDENCE) 2>/dev/null || true\"' | bash"
+          },
+          {
+            "type": "command",
+            "description": "Visualization - Emit agent completion event",
+            "command": "bash scripts/hooks/emit-task-complete.sh"
           }
         ]
       }
