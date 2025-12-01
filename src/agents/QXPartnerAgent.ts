@@ -905,85 +905,161 @@ export class QXPartnerAgent extends BaseAgent {
     _testabilityIntegration?: TestabilityIntegration
   ): Promise<QXRecommendation[]> {
     const recommendations: QXRecommendation[] = [];
+    let priorityCounter = 1;
 
-    // Generate recommendations from problem analysis
-    if (problemAnalysis.clarityScore < (this.config.thresholds?.minProblemClarity || 60)) {
+    // Oracle problems (highest priority - match manual report structure)
+    for (const problem of oracleProblems) {
+      const impactScore = problem.severity === 'critical' ? 90 : problem.severity === 'high' ? 80 : problem.severity === 'medium' ? 60 : 40;
+      const impactPct = Math.round((impactScore / 100) * 30); // Up to 30% impact
       recommendations.push({
-        principle: 'Problem Clarity',
-        recommendation: 'Improve problem statement clarity and breakdown',
-        severity: 'high',
-        impact: 100 - problemAnalysis.clarityScore,
-        effort: 'medium',
-        priority: 1,
-        category: 'qx'
+        principle: 'Oracle Problem',
+        recommendation: `Resolve: ${problem.description}`,
+        severity: problem.severity,
+        impact: impactScore,
+        effort: problem.severity === 'critical' || problem.severity === 'high' ? 'high' : 'medium',
+        priority: priorityCounter++,
+        category: 'qa',
+        impactPercentage: impactPct,
+        estimatedEffort: problem.severity === 'critical' ? 'High - Critical issue' : problem.severity === 'high' ? 'High' : 'Medium'
       });
     }
 
-    // Generate recommendations from user needs
-    if (userNeeds.alignmentScore < (this.config.thresholds?.minUserNeedsAlignment || 70)) {
+    // Problem clarity
+    if (problemAnalysis.clarityScore < (this.config.thresholds?.minProblemClarity || 70)) {
+      const gap = 70 - problemAnalysis.clarityScore;
+      recommendations.push({
+        principle: 'Problem Understanding',
+        recommendation: 'Improve problem statement clarity with detailed breakdown of failure modes and user scenarios',
+        severity: gap > 25 ? 'high' : 'medium',
+        impact: Math.round(gap * 1.2),
+        effort: 'medium',
+        priority: priorityCounter++,
+        category: 'qx',
+        impactPercentage: Math.round((gap / 70) * 20),
+        estimatedEffort: 'Medium - Requires stakeholder workshops'
+      });
+    }
+
+    // User needs alignment (match manual report priority)
+    if (userNeeds.alignmentScore < (this.config.thresholds?.minUserNeedsAlignment || 75)) {
+      const gap = 75 - userNeeds.alignmentScore;
+      const impactPct = Math.min(35, Math.round((gap / 75) * 100));
       recommendations.push({
         principle: 'User Needs Alignment',
-        recommendation: 'Better align solution with user needs',
-        severity: 'high',
-        impact: 100 - userNeeds.alignmentScore,
-        effort: 'high',
-        priority: 2,
-        category: 'ux'
+        recommendation: `Improve user needs coverage from ${userNeeds.alignmentScore}/100 to at least 75/100`,
+        severity: gap > 20 ? 'high' : 'medium',
+        impact: Math.round(gap * 0.9),
+        effort: gap > 25 ? 'high' : 'medium',
+        priority: priorityCounter++,
+        category: 'ux',
+        impactPercentage: impactPct,
+        estimatedEffort: gap > 25 ? 'High - Major UX redesign' : 'Medium - UX improvements'
       });
     }
 
-    // Generate recommendations from business needs
-    if (businessNeeds.alignmentScore < (this.config.thresholds?.minBusinessAlignment || 70)) {
-      recommendations.push({
-        principle: 'Business Alignment',
-        recommendation: 'Improve alignment with business objectives',
-        severity: 'medium',
-        impact: 100 - businessNeeds.alignmentScore,
-        effort: 'medium',
-        priority: 3,
-        category: 'qx'
-      });
-    }
+    // Heuristic-specific high-impact recommendations
+    const lowScoringHeuristics = heuristics
+      .filter(h => h.score < 70)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 5); // Top 5 worst
 
-    // Generate recommendations from oracle problems
-    for (const problem of oracleProblems) {
-      if (problem.severity === 'high' || problem.severity === 'critical') {
+    lowScoringHeuristics.forEach(heuristic => {
+      const impactScore = 75 - heuristic.score;
+      const impactPct = Math.round((impactScore / 75) * 25);
+      
+      if (heuristic.recommendations.length > 0 && heuristic.heuristicType) {
         recommendations.push({
-          principle: 'Oracle Problem',
-          recommendation: `Resolve: ${problem.description}`,
-          severity: problem.severity,
-          impact: 80,
-          effort: 'high',
-          priority: problem.severity === 'critical' ? 1 : 2,
-          category: 'qa'
+          principle: this.formatHeuristicName(heuristic.heuristicType),
+          recommendation: heuristic.recommendations[0],
+          severity: heuristic.score < 50 ? 'high' : 'medium',
+          impact: impactScore,
+          effort: heuristic.score < 40 ? 'high' : 'medium',
+          priority: priorityCounter++,
+          category: heuristic.category as 'ux' | 'qa' | 'qx' | 'design',
+          impactPercentage: impactPct,
+          estimatedEffort: heuristic.score < 40 ? 'High - Significant work required' : 'Medium'
         });
       }
-    }
-
-    // Generate recommendations from heuristics
-    for (const heuristic of heuristics) {
-      for (const issue of heuristic.issues) {
-        if (issue.severity === 'high' || issue.severity === 'critical') {
-          recommendations.push({
-            principle: heuristic.name,
-            recommendation: issue.description,
-            severity: issue.severity,
-            impact: 100 - heuristic.score,
-            effort: 'medium',
-            priority: 4,
-            category: 'design'
-          });
-        }
-      }
-    }
-
-    // Sort by priority and impact
-    recommendations.sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
-      return b.impact - a.impact;
     });
 
-    return recommendations;
+    // High-impact issues from heuristics
+    heuristics.forEach(heuristic => {
+      if (!heuristic.heuristicType) return;
+      
+      heuristic.issues
+        .filter(issue => issue.severity === 'critical' || issue.severity === 'high')
+        .slice(0, 1) // One per heuristic
+        .forEach(issue => {
+          const impactScore = Math.min(85, 100 - heuristic.score);
+          const impactPct = Math.round((impactScore / 100) * 22);
+          recommendations.push({
+            principle: this.formatHeuristicName(heuristic.heuristicType!),
+            recommendation: issue.description,
+            severity: issue.severity,
+            impact: impactScore,
+            effort: issue.severity === 'critical' ? 'high' : 'medium',
+            priority: priorityCounter++,
+            category: heuristic.category as 'ux' | 'qa' | 'qx' | 'design',
+            impactPercentage: impactPct,
+            estimatedEffort: issue.severity === 'critical' ? 'High - Critical fix' : 'Medium'
+          });
+        });
+    });
+
+    // Business-user balance
+    const balanceDiff = Math.abs(userNeeds.alignmentScore - businessNeeds.alignmentScore);
+    if (balanceDiff > 15) {
+      const impactPct = Math.round((balanceDiff / 100) * 20);
+      const favorsUser = userNeeds.alignmentScore > businessNeeds.alignmentScore;
+      recommendations.push({
+        principle: 'User-Business Balance',
+        recommendation: favorsUser 
+          ? 'Strengthen business value metrics while maintaining user experience quality'
+          : 'Enhance user experience focus to balance business-centric approach',
+        severity: balanceDiff > 30 ? 'high' : 'medium',
+        impact: Math.round(balanceDiff * 0.75),
+        effort: 'medium',
+        priority: priorityCounter++,
+        category: 'qx',
+        impactPercentage: impactPct,
+        estimatedEffort: 'Medium - Requires stakeholder alignment'
+      });
+    }
+
+    // Business needs (if misaligned)
+    if (businessNeeds.alignmentScore < (this.config.thresholds?.minBusinessAlignment || 70)) {
+      const gap = 70 - businessNeeds.alignmentScore;
+      recommendations.push({
+        principle: 'Business Alignment',
+        recommendation: 'Improve alignment with business KPIs and objectives',
+        severity: gap > 25 ? 'high' : 'medium',
+        impact: Math.round(gap * 0.7),
+        effort: 'medium',
+        priority: priorityCounter++,
+        category: 'qx',
+        impactPercentage: Math.round((gap / 70) * 18),
+        estimatedEffort: 'Medium - Business stakeholder review'
+      });
+    }
+
+    // Sort by impact percentage and limit to top 10
+    const sorted = recommendations
+      .sort((a, b) => (b.impactPercentage || 0) - (a.impactPercentage || 0))
+      .slice(0, 10);
+
+    // Reassign priorities
+    sorted.forEach((rec, idx) => {
+      rec.priority = idx + 1;
+    });
+
+    return sorted;
+  }
+
+  private formatHeuristicName(heuristic: string): string {
+    return heuristic
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   /**
@@ -1279,41 +1355,95 @@ class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.EXACTNESS_AND_CLARITY:
-        const hasH1 = context.domMetrics && context.domMetrics.totalElements > 0;
-        if (hasH1 && context.domMetrics?.semanticStructure?.hasHeader) {
-          score = 88;
-          findings.push('Clear visual hierarchy with headings and header');
+        // Visual hierarchy and clarity (Design category)
+        score = 70;
+        const hasSemanticStructure = context.domMetrics?.semanticStructure;
+        const structureScore = [
+          hasSemanticStructure?.hasHeader,
+          hasSemanticStructure?.hasMain,
+          hasSemanticStructure?.hasNav,
+          hasSemanticStructure?.hasFooter
+        ].filter(Boolean).length;
+        
+        score = 50 + (structureScore * 10);
+        if (structureScore >= 3) {
+          findings.push('Strong visual hierarchy with semantic HTML elements');
+        } else if (structureScore >= 2) {
+          findings.push('Moderate visual hierarchy - some semantic elements present');
+          recommendations.push('Add more semantic HTML5 elements for clarity');
         } else {
-          score = 55;
-          issues.push({ description: 'Weak visual hierarchy', severity: 'medium' });
+          issues.push({ description: 'Weak visual hierarchy - missing semantic structure', severity: 'high' });
+          recommendations.push('Implement semantic HTML5: header, nav, main, footer');
+        }
+        
+        // Title and description clarity
+        if (context.metadata?.description && context.metadata.description.length > 20) {
+          score += 10;
+          findings.push('Page has descriptive metadata');
         }
         break;
 
       case QXHeuristic.USER_FEELINGS_IMPACT:
+        // Comprehensive user feelings analysis (Interaction + Accessibility)
         const altCoverage = context.accessibility?.altTextsCoverage || 0;
         const loadTime = context.performance?.loadTime || 0;
-        score = 70;
+        const ariaLabels = context.accessibility?.ariaLabelsCount || 0;
+        const focusableElements = context.accessibility?.focusableElementsCount || 0;
         
-        if (altCoverage > 80) {
-          score += 15;
-          findings.push('Good accessibility creates positive user feelings');
-        } else {
-          score -= 10;
-          issues.push({ description: 'Poor accessibility may frustrate users', severity: 'high' });
-        }
-
-        if (loadTime < 2000) {
-          score += 10;
-          findings.push('Fast load time enhances user satisfaction');
-        } else if (loadTime > 3000) {
+        score = 60; // Base
+        
+        // Accessibility impact on feelings (35% weight)
+        if (altCoverage >= 90) {
+          score += 20;
+          findings.push('Excellent accessibility (90%+ alt coverage) creates inclusive, positive experience');
+        } else if (altCoverage >= 70) {
+          score += 12;
+          findings.push('Good accessibility creates generally positive user feelings');
+        } else if (altCoverage < 50) {
           score -= 15;
-          issues.push({ description: 'Slow load time causes user frustration', severity: 'medium' });
+          issues.push({ description: 'Poor accessibility (<50% alt coverage) frustrates users with disabilities', severity: 'high' });
+          recommendations.push('Improve alt text coverage to at least 80% for better accessibility');
         }
         
-        if (context.errorIndicators?.hasErrorMessages) {
-          score -= 10;
-          issues.push({ description: 'Visible errors reduce user confidence', severity: 'high' });
+        // ARIA support impact
+        if (ariaLabels > 5) {
+          score += 8;
+          findings.push('Strong ARIA labeling enhances screen reader experience');
         }
+        
+        // Performance impact on feelings (35% weight)
+        if (loadTime < 1500) {
+          score += 15;
+          findings.push('Very fast load time (<1.5s) delights users');
+        } else if (loadTime < 2500) {
+          score += 8;
+          findings.push('Fast load time enhances user satisfaction');
+        } else if (loadTime > 4000) {
+          score -= 20;
+          issues.push({ description: 'Very slow load time (>4s) causes significant frustration', severity: 'critical' });
+          recommendations.push('Optimize page load time - target under 2.5 seconds');
+        } else if (loadTime > 3000) {
+          score -= 12;
+          issues.push({ description: 'Slow load time causes user frustration', severity: 'high' });
+        }
+        
+        // Error visibility impact (15% weight)
+        if (context.errorIndicators?.hasErrorMessages) {
+          score -= 12;
+          issues.push({ description: 'Visible errors reduce user confidence and satisfaction', severity: 'high' });
+          recommendations.push('Review and fix visible error messages');
+        }
+        
+        // Interaction capability (15% weight)
+        if (focusableElements > 20) {
+          score += 5;
+          findings.push('Rich interactive elements provide user control and engagement');
+        } else if (focusableElements < 5) {
+          score -= 8;
+          issues.push({ description: 'Limited interactivity may feel restrictive', severity: 'medium' });
+        }
+        
+        score = Math.max(20, Math.min(100, score));
         break;
 
       case QXHeuristic.GUI_FLOW_IMPACT:
@@ -1449,6 +1579,71 @@ class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.SUPPORTING_DATA_ANALYSIS:
+        score = 75;
+        const hasData = (context.domMetrics?.forms || 0) > 0 || (context.domMetrics?.interactiveElements || 0) > 20;
+        if (hasData) {
+          score = 82;
+          findings.push('Sufficient data points for informed decision-making');
+        } else {
+          score = 60;
+          issues.push({ description: 'Limited data for comprehensive analysis', severity: 'medium' });
+          recommendations.push('Collect more user interaction data');
+        }
+        break;
+
+      case QXHeuristic.COMPETITIVE_ANALYSIS:
+        score = 70; // Baseline - actual comparison would need competitor data
+        findings.push('Competitive analysis capability available');
+        if (context.domMetrics?.semanticStructure?.hasNav && context.domMetrics?.interactiveElements && context.domMetrics.interactiveElements > 15) {
+          score = 78;
+          findings.push('Navigation and interaction patterns follow industry standards');
+        } else {
+          recommendations.push('Compare interaction patterns with leading competitors');
+        }
+        break;
+
+      case QXHeuristic.DOMAIN_INSPIRATION:
+        score = 72;
+        const hasModernElements = context.accessibility && (context.accessibility.ariaLabelsCount || 0) > 0;
+        if (hasModernElements) {
+          score = 80;
+          findings.push('Modern accessibility patterns show domain inspiration');
+        } else {
+          recommendations.push('Research domain-specific design patterns and best practices');
+        }
+        break;
+
+      case QXHeuristic.INNOVATIVE_SOLUTIONS:
+        score = 65; // Most sites are conventional
+        const hasAdvancedFeatures = (context.accessibility?.landmarkRoles || 0) > 3;
+        if (hasAdvancedFeatures) {
+          score = 75;
+          findings.push('Advanced accessibility features show innovative thinking');
+        } else {
+          recommendations.push('Explore innovative UX patterns to differentiate experience');
+        }
+        break;
+
+      case QXHeuristic.COUNTER_INTUITIVE_DESIGN:
+        score = 85; // High score means few counter-intuitive elements (good)
+        const confusingNav = !context.domMetrics?.semanticStructure?.hasNav && (context.domMetrics?.interactiveElements || 0) > 10;
+        const poorStructure = !context.domMetrics?.semanticStructure?.hasHeader && !context.domMetrics?.semanticStructure?.hasFooter;
+        
+        if (confusingNav) {
+          score = 45;
+          issues.push({ description: 'Navigation structure may be counter-intuitive', severity: 'high' });
+          recommendations.push('Add semantic navigation elements');
+        }
+        if (poorStructure) {
+          score -= 15;
+          issues.push({ description: 'Page structure lacks expected header/footer', severity: 'medium' });
+        }
+        if (score > 75) {
+          findings.push('No counter-intuitive design patterns detected');
+        }
+        break;
+
+      case QXHeuristic.SUPPORTING_DATA_ANALYSIS:
         score = 70;
         if (context.performance) findings.push('Performance data available');
         if (context.accessibility) findings.push('Accessibility metrics available');
@@ -1491,6 +1686,7 @@ class QXHeuristicsEngine {
 
     return {
       name: heuristic,
+      heuristicType: heuristic,
       category,
       applied: true,
       score: Math.min(100, Math.max(0, score)),

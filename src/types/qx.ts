@@ -220,6 +220,9 @@ export interface QXHeuristicResult {
   /** Heuristic name */
   name: string;
   
+  /** Heuristic type (enum value) */
+  heuristicType?: string;
+  
   /** Category */
   category: 'problem' | 'user-needs' | 'business-needs' | 'balance' | 'impact' | 'creativity' | 'design';
   
@@ -269,6 +272,12 @@ export interface QXRecommendation {
   
   /** Supporting evidence */
   evidence?: string[];
+  
+  /** Impact as percentage (for display) */
+  impactPercentage?: number;
+  
+  /** Estimated effort description */
+  estimatedEffort?: string;
 }
 
 /**
