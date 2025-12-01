@@ -702,8 +702,6 @@ if (process.env.AUTO_OPEN !== 'false') {
 
   findFreePort().then(port => {
     // Start HTTP server using Python (always available)
-    console.log(`📡 Starting HTTP server on port ${port}...`);
-
     const serverProcess = spawn('python3', ['-m', 'http.server', port.toString()], {
       cwd: reportDir,
       detached: true,
@@ -716,59 +714,25 @@ if (process.env.AUTO_OPEN !== 'false') {
 
     // Give server time to start
     setTimeout(() => {
-      console.log(`📊 Report URL: ${reportUrl}`);
+      console.log(`\n🌐 HTTP Server Started!`);
+      console.log(`\n┌─────────────────────────────────────────────────────────────┐`);
+      console.log(`│                                                             │`);
+      console.log(`│  📊 CLICK HERE TO OPEN REPORT:                              │`);
+      console.log(`│                                                             │`);
+      console.log(`│  ${reportUrl}                 │`);
+      console.log(`│                                                             │`);
+      console.log(`│  ⚡ VS Code will automatically forward this port            │`);
+      console.log(`│  ⚡ Click the URL above or the popup notification           │`);
+      console.log(`│                                                             │`);
+      console.log(`└─────────────────────────────────────────────────────────────┘\n`);
+      console.log(`🔄 Server will auto-stop after 60 seconds\n`);
 
-      // Method 1: Use Python's webbrowser module (works in dev containers with X11/remote display)
-      exec(`python3 -c "import webbrowser; webbrowser.open('${reportUrl}')"`, (pythonError) => {
-        if (!pythonError) {
-          console.log(`✅ Report opened in browser automatically!`);
-          console.log(`🔄 Server will auto-stop after 60 seconds`);
-
-          // Auto-stop server after 60 seconds
-          setTimeout(() => {
-            exec(`kill ${serverProcess.pid} 2>/dev/null`);
-          }, 60000);
-          return;
-        }
-
-        // Method 2: Try xdg-open with localhost URL (better for dev containers)
-        exec(`xdg-open "${reportUrl}"`, (xdgError) => {
-          if (!xdgError) {
-            console.log(`✅ Report opened in browser automatically!`);
-            console.log(`🔄 Server will auto-stop after 60 seconds`);
-
-            setTimeout(() => {
-              exec(`kill ${serverProcess.pid} 2>/dev/null`);
-            }, 60000);
-            return;
-          }
-
-          // Method 3: Try sensible-browser (Debian/Ubuntu)
-          exec(`sensible-browser "${reportUrl}"`, (sensibleError) => {
-            if (!sensibleError) {
-              console.log(`✅ Report opened in browser automatically!`);
-              console.log(`🔄 Server will auto-stop after 60 seconds`);
-
-              setTimeout(() => {
-                exec(`kill ${serverProcess.pid} 2>/dev/null`);
-              }, 60000);
-              return;
-            }
-
-            // Method 4: Print URL for VS Code port forwarding
-            console.log(`\n✅ HTTP server running!`);
-            console.log(`📊 Click this URL to open report: ${reportUrl}`);
-            console.log(`   (VS Code port forwarding: the URL will open in your browser)`);
-            console.log(`\n🔄 Server will auto-stop after 60 seconds\n`);
-
-            // Auto-stop server after 60 seconds
-            setTimeout(() => {
-              exec(`kill ${serverProcess.pid} 2>/dev/null`);
-            }, 60000);
-          });
-        });
-      });
-    }, 500);
+      // Auto-stop server after 60 seconds
+      setTimeout(() => {
+        exec(`kill ${serverProcess.pid} 2>/dev/null`);
+        console.log(`🛑 HTTP server stopped`);
+      }, 60000);
+    }, 1000);
   }).catch(err => {
     console.error(`❌ Failed to start server: ${err.message}`);
     console.log(`\n📄 Report saved to: ${absolutePath}`);
