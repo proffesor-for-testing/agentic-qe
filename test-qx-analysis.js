@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * QX Analysis of teatimewithtesters.com
- * Running via compiled JavaScript to avoid TS issues
+ * QX Partner Agent - Website Analysis Script
+ * Performs Quality Experience (QX) analysis on any website
  */
 
 const { QXPartnerAgent } = require('./dist/agents/QXPartnerAgent');
@@ -10,7 +10,14 @@ const { QXTaskType } = require('./dist/types/qx');
 const { EventEmitter } = require('events');
 
 async function main() {
-  const targetUrl = process.argv[2] || 'https://teatimewithtesters.com/';
+  const targetUrl = process.argv[2];
+
+  if (!targetUrl) {
+    console.error('❌ Error: URL is required\n');
+    console.log('Usage: node test-qx-analysis.js <URL>\n');
+    console.log('Example: node test-qx-analysis.js https://example.com');
+    process.exit(1);
+  }
 
   console.log('🔍 QX Partner Agent Analysis');
   console.log('============================\n');
@@ -42,7 +49,7 @@ async function main() {
         minConfidence: 0.7
       },
       context: {
-        project: 'teatime-analysis'
+        project: 'qx-analysis'
       },
       memoryStore,
       eventBus
@@ -57,7 +64,7 @@ async function main() {
 
     // Create task
     const task = {
-      id: 'teatime-analysis',
+      id: 'qx-analysis-' + Date.now(),
       agentId,
       assignee: agentId,
       assignedAt: Date.now(),
@@ -69,9 +76,9 @@ async function main() {
           target: targetUrl,
           params: {
             context: {
-              feature: 'Testing community website',
-              userRole: 'tester',
-              businessGoal: 'engagement'
+              feature: 'Website quality experience analysis',
+              userRole: 'end-user',
+              businessGoal: 'optimal-experience'
             }
           }
         }

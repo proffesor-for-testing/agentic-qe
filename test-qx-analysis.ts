@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Quick test of QX Partner Agent on teatimewithtesters.com
+ * QX Partner Agent - Website Analysis Script (TypeScript)
+ * Performs Quality Experience (QX) analysis on any website
  */
 
 import { QXPartnerAgent } from './src/agents/QXPartnerAgent';
@@ -9,10 +10,17 @@ import { QXTaskType } from './src/types/qx';
 import { EventEmitter } from 'events';
 
 async function main() {
-  const targetUrl = 'https://teatimewithtesters.com/';
+  const targetUrl = process.argv[2];
 
-  console.log('🔍 QX Partner Agent - Quick Analysis');
-  console.log('====================================\n');
+  if (!targetUrl) {
+    console.error('❌ Error: URL is required\n');
+    console.log('Usage: npx ts-node test-qx-analysis.ts <URL>\n');
+    console.log('Example: npx ts-node test-qx-analysis.ts https://example.com');
+    process.exit(1);
+  }
+
+  console.log('🔍 QX Partner Agent Analysis');
+  console.log('============================\n');
   console.log(`Target: ${targetUrl}\n`);
 
   // Simple in-memory store
@@ -39,7 +47,7 @@ async function main() {
     },
     context: {
       workspaceRoot: process.cwd(),
-      project: 'teatime-qx-analysis',
+      project: 'qx-analysis',
       environment: 'development'
     },
     memoryStore,
@@ -52,7 +60,7 @@ async function main() {
     console.log('✅ Agent initialized\n');
 
     const task = {
-      id: 'teatime-qx-analysis',
+      id: 'qx-analysis-' + Date.now(),
       assignee: agent.getAgentId(),
       task: {
         type: 'qx-task',
@@ -61,9 +69,9 @@ async function main() {
           target: targetUrl,
           params: {
             context: {
-              feature: 'Testing community website',
-              userRole: 'tester',
-              businessGoal: 'community-engagement'
+              feature: 'Website quality experience analysis',
+              userRole: 'end-user',
+              businessGoal: 'optimal-experience'
             }
           }
         }
