@@ -11,12 +11,65 @@ const path = require('path');
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const reportData = args[0] ? JSON.parse(fs.readFileSync(args[0], 'utf8')) : null;
+let reportData = args[0] ? JSON.parse(fs.readFileSync(args[0], 'utf8')) : null;
 
 if (!reportData) {
   console.error('Usage: node generate-html-report.js <results.json>');
   process.exit(1);
 }
+
+/**
+ * Normalize report data format
+ * Handles both legacy format (overall/principles) and new format (overallScore/categories)
+ */
+function normalizeReportData(data) {
+  const normalized = { ...data };
+  
+  // Normalize overall score
+  if (data.overallScore !== undefined && data.overall === undefined) {
+    normalized.overall = data.overallScore;
+  }
+  
+  // Normalize principles/categories
+  if (data.categories && !data.principles) {
+    normalized.principles = data.categories;
+  }
+  
+  // Ensure timestamp exists
+  if (!normalized.timestamp) {
+    normalized.timestamp = data.metadata?.assessmentDate || new Date().toISOString();
+  }
+  
+  // Normalize recommendations to ensure all have required fields
+  if (Array.isArray(normalized.recommendations)) {
+    normalized.recommendations = normalized.recommendations.map((rec, index) => {
+      // If recommendation is just a string, convert to object
+      if (typeof rec === 'string') {
+        return {
+          principle: 'General',
+          recommendation: rec,
+          severity: index < 3 ? 'critical' : index < 6 ? 'high' : 'medium',
+          impact: Math.max(1, 5 - Math.floor(index / 3)),
+          effort: 'Medium'
+        };
+      }
+      
+      // Ensure all required fields exist
+      return {
+        principle: rec.principle || 'General',
+        recommendation: rec.recommendation || rec.text || 'No description provided',
+        severity: rec.severity || 'medium',
+        impact: rec.impact !== undefined ? rec.impact : 3,
+        effort: rec.effort || 'Medium'
+      };
+    });
+  }
+  
+  return normalized;
+}
+
+// Normalize the data to handle different formats
+reportData = normalizeReportData(reportData);
 
 /**
  * Get color for grade

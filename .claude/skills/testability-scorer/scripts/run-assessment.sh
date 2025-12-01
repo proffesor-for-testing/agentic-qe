@@ -19,8 +19,10 @@ fi
 
 # Run full 10-principle assessment
 echo "📊 Analyzing all 10 principles..."
+echo "   (Serial execution ensures all principles are captured)"
 npx playwright test tests/testability-scorer/testability-scorer.spec.js \
   --project=$BROWSER \
+  --workers=1 \
   --reporter=html,json
 
 # Generate timestamp for unique report naming
