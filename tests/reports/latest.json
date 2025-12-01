@@ -121,14 +121,14 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1754,
+                      "duration": 2928,
                       "errors": [],
                       "stdout": [
                         {
                           "text": "Starting testability assessment...\n"
                         },
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -145,7 +145,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:25.458Z",
+                      "startTime": "2025-12-01T18:47:11.995Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -174,11 +174,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1552,
+                      "duration": 2473,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -195,7 +195,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:27.261Z",
+                      "startTime": "2025-12-01T18:47:14.983Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -224,11 +224,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1841,
+                      "duration": 2497,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -245,7 +245,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:28.819Z",
+                      "startTime": "2025-12-01T18:47:17.461Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -274,11 +274,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1647,
+                      "duration": 2523,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -295,7 +295,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:30.665Z",
+                      "startTime": "2025-12-01T18:47:19.962Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -324,11 +324,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1564,
+                      "duration": 2790,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -345,7 +345,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:32.316Z",
+                      "startTime": "2025-12-01T18:47:22.490Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -374,11 +374,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1661,
+                      "duration": 3385,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -395,7 +395,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:33.886Z",
+                      "startTime": "2025-12-01T18:47:25.285Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -424,11 +424,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1662,
+                      "duration": 2475,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -445,7 +445,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:35.551Z",
+                      "startTime": "2025-12-01T18:47:28.674Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -474,11 +474,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1563,
+                      "duration": 2750,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -495,7 +495,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:37.217Z",
+                      "startTime": "2025-12-01T18:47:31.153Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -524,11 +524,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1646,
+                      "duration": 2978,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -545,7 +545,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:38.785Z",
+                      "startTime": "2025-12-01T18:47:33.907Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -574,11 +574,11 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "passed",
-                      "duration": 1711,
+                      "duration": 2494,
                       "errors": [],
                       "stdout": [
                         {
-                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
                         },
                         {
                           "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
@@ -596,10 +596,10 @@
                           "text": "\n✅ Assessment Complete!\n"
                         },
                         {
-                          "text": "\n📊 Overall Testability Score: 78/100 (C)\n"
+                          "text": "\n📊 Overall Testability Score: 76/100 (C)\n"
                         },
                         {
-                          "text": "\n📄 JSON Report saved: tests/reports/testability-results-1764611622152.json\n"
+                          "text": "\n📄 JSON Report saved: tests/reports/testability-results-1764614859392.json\n"
                         },
                         {
                           "text": "\n🎯 Generating HTML report with Chrome auto-launch...\n"
@@ -607,7 +607,7 @@
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-12-01T17:53:40.435Z",
+                      "startTime": "2025-12-01T18:47:36.891Z",
                       "annotations": [],
                       "attachments": []
                     }
@@ -627,8 +627,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-12-01T17:53:24.744Z",
-    "duration": 17449.417,
+    "startTime": "2025-12-01T18:47:11.168Z",
+    "duration": 28271.435,
     "expected": 10,
     "skipped": 0,
     "unexpected": 0,
