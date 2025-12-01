@@ -1,0 +1,122 @@
+{
+  "timestamp": "2025-12-01T16:54:35.534Z",
+  "overall": 78,
+  "grade": "C",
+  "principles": {
+    "observability": {
+      "score": 92,
+      "grade": "A",
+      "weight": 15
+    },
+    "controllability": {
+      "score": 85,
+      "grade": "B",
+      "weight": 15
+    },
+    "algorithmicSimplicity": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "algorithmicTransparency": {
+      "score": 60,
+      "grade": "D",
+      "weight": 10
+    },
+    "explainability": {
+      "score": 60,
+      "grade": "D",
+      "weight": 10
+    },
+    "similarity": {
+      "score": 85,
+      "grade": "B",
+      "weight": 5
+    },
+    "algorithmicStability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 10
+    },
+    "unbugginess": {
+      "score": 85,
+      "grade": "B",
+      "weight": 10
+    },
+    "smallness": {
+      "score": 100,
+      "grade": "A",
+      "weight": 10
+    },
+    "decomposability": {
+      "score": 50,
+      "grade": "F",
+      "weight": 5
+    }
+  },
+  "recommendations": [
+    {
+      "principle": "Decomposability",
+      "severity": "high",
+      "recommendation": "Extract product catalog, shopping cart, and checkout into separate microservices for better isolation and testability.",
+      "impact": 30,
+      "effort": "High (16-24 hours)"
+    },
+    {
+      "principle": "Explainability",
+      "severity": "medium",
+      "recommendation": "Document API contracts, add OpenAPI specifications, and improve error message clarity for checkout process.",
+      "impact": 25,
+      "effort": "Medium (6-8 hours)"
+    },
+    {
+      "principle": "Explainability",
+      "severity": "medium",
+      "recommendation": "Improve semantic HTML usage and add descriptive ARIA labels. Ensure all interactive elements have clear, accessible names and purposes.",
+      "aiReasoning": "AI semantic analysis detected unclear element purposes and inadequate labeling. Better explainability improves both testing and accessibility.",
+      "impact": 2,
+      "effort": "Low (4-8 hours)",
+      "priority": 3
+    },
+    {
+      "principle": "Algorithmic Transparency",
+      "severity": "high",
+      "recommendation": "Expose more application state through data attributes, ARIA labels, or debug APIs. Make internal states and processes visible for testing.",
+      "aiReasoning": "AI analysis found limited visibility into application logic and state transitions. Transparency enables more reliable assertions.",
+      "impact": 1,
+      "effort": "Medium (8-12 hours)",
+      "priority": 2
+    },
+    {
+      "principle": "Algorithmic Stability",
+      "severity": "high",
+      "recommendation": "Reduce dynamic content and async operations. Add loading indicators and stable element selectors to improve test reliability.",
+      "aiReasoning": "AI stability analysis detected frequent UI changes and timing issues. Stable selectors and predictable behavior reduce test flakiness.",
+      "impact": 1,
+      "effort": "Medium (8-12 hours)",
+      "priority": 2
+    },
+    {
+      "principle": "Decomposability",
+      "severity": "high",
+      "recommendation": "Refactor monolithic components into smaller, independent modules. Use component-based architecture for better isolation and testability.",
+      "aiReasoning": "AI modularity assessment found tightly coupled components. Better decomposition enables isolated testing and parallel test execution.",
+      "impact": 1,
+      "effort": "High (16-24 hours)",
+      "priority": 2
+    }
+  ],
+  "metadata": {
+    "url": "https://www.saucedemo.com/",
+    "browser": "chromium",
+    "version": "1.0.0",
+    "assessor": "testability-scorer-skill",
+    "duration": 16562
+  },
+  "ai": {
+    "recommendationsGenerated": 4,
+    "analysisDepth": "comprehensive",
+    "aiVersion": "1.0.0",
+    "timestamp": "2025-12-01T16:54:52.096Z"
+  }
+}

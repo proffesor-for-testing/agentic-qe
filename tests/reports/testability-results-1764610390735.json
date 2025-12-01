@@ -1,0 +1,92 @@
+{
+  "timestamp": "2025-12-01T17:32:42.138Z",
+  "overall": 75,
+  "grade": "C",
+  "principles": {
+    "observability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 15
+    },
+    "controllability": {
+      "score": 75,
+      "grade": "C",
+      "weight": 15
+    },
+    "algorithmicSimplicity": {
+      "score": 50,
+      "grade": "F",
+      "weight": 10
+    },
+    "algorithmicTransparency": {
+      "score": 80,
+      "grade": "B",
+      "weight": 10
+    },
+    "explainability": {
+      "score": 82,
+      "grade": "B",
+      "weight": 10
+    },
+    "similarity": {
+      "score": 90,
+      "grade": "A",
+      "weight": 5
+    },
+    "algorithmicStability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 10
+    },
+    "unbugginess": {
+      "score": 95,
+      "grade": "A",
+      "weight": 10
+    },
+    "smallness": {
+      "score": 80,
+      "grade": "B",
+      "weight": 10
+    },
+    "decomposability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 5
+    }
+  },
+  "recommendations": [
+    {
+      "principle": "Observability",
+      "severity": "high",
+      "findings": [
+        "No data-test attributes found on any of the 124 interactive elements"
+      ],
+      "recommendations": [
+        "Add data-testid attributes to buttons, links, and form inputs"
+      ],
+      "recommendation": "**Findings:** No data-test attributes found on any of the 124 interactive elements. **Actions:** Add data-testid attributes to buttons, links, and form inputs.",
+      "impact": 2,
+      "effort": "Medium (8-12 hours)"
+    },
+    {
+      "principle": "Algorithmic Stability",
+      "severity": "medium",
+      "findings": [
+        "No version information detected in page structure"
+      ],
+      "recommendations": [
+        "Add data-version or meta tags to expose application version for test compatibility tracking"
+      ],
+      "recommendation": "**Findings:** No version information detected in page structure. **Actions:** Add data-version or meta tags to expose application version for test compatibility tracking.",
+      "impact": 1,
+      "effort": "Medium (8-12 hours)"
+    }
+  ],
+  "metadata": {
+    "url": "https://conference.eurostarsoftwaretesting.com/",
+    "browser": "chromium",
+    "version": "1.0.0",
+    "assessor": "testability-scorer-skill",
+    "duration": 28597
+  }
+}

@@ -1,73 +1,637 @@
 {
-  "timestamp": "2025-12-01T16:14:14.063Z",
-  "overall": 71,
-  "grade": "C",
-  "principles": {
-    "observability": {
-      "score": 92,
-      "grade": "A",
-      "weight": 15
+  "config": {
+    "configFile": "/workspaces/agentic-qe/playwright.config.js",
+    "rootDir": "/workspaces/agentic-qe/tests",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
     },
-    "controllability": {
-      "score": 20,
-      "grade": "F",
-      "weight": 15
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "tests/reports/html"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "tests/reports/latest.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
     },
-    "algorithmicSimplicity": {
-      "score": 75,
-      "grade": "C",
-      "weight": 10
-    },
-    "algorithmicTransparency": {
-      "score": 60,
-      "grade": "D",
-      "weight": 10
-    },
-    "explainability": {
-      "score": 75,
-      "grade": "C",
-      "weight": 10
-    },
-    "similarity": {
-      "score": 85,
-      "grade": "B",
-      "weight": 5
-    },
-    "algorithmicStability": {
-      "score": 70,
-      "grade": "C",
-      "weight": 10
-    },
-    "unbugginess": {
-      "score": 85,
-      "grade": "B",
-      "weight": 10
-    },
-    "smallness": {
-      "score": 95,
-      "grade": "A",
-      "weight": 10
-    },
-    "decomposability": {
-      "score": 70,
-      "grade": "C",
-      "weight": 5
-    }
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/workspaces/agentic-qe/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/workspaces/agentic-qe/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspaces/agentic-qe/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/workspaces/agentic-qe/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspaces/agentic-qe/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/workspaces/agentic-qe/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": null
   },
-  "recommendations": [
+  "suites": [
     {
-      "principle": "Controllability",
-      "severity": "critical",
-      "recommendation": "Add test data injection endpoints to allow programmatic product catalog and cart management during automated testing.",
-      "impact": 38,
-      "effort": "Medium (8-12 hours)"
+      "title": "testability-scoring/testability-scoring.spec.js",
+      "file": "testability-scoring/testability-scoring.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Comprehensive Testability Analysis - Sauce Demo Shopify",
+          "file": "testability-scoring/testability-scoring.spec.js",
+          "line": 416,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1. Observability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1754,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Starting testability assessment...\n"
+                        },
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:25.458Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-1f350555b1cfd8337d78",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 423,
+              "column": 3
+            },
+            {
+              "title": "2. Controllability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1552,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:27.261Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-656f5a793bf5650e0d5b",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 486,
+              "column": 3
+            },
+            {
+              "title": "3. Algorithmic Simplicity Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1841,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:28.819Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-f494e8e885d69b9a21e4",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 578,
+              "column": 3
+            },
+            {
+              "title": "4. Algorithmic Transparency Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1647,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:30.665Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-d9ba9ad646cc09cd6349",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 629,
+              "column": 3
+            },
+            {
+              "title": "5. Explainability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1564,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:32.316Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-a646cf325374bb809980",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 687,
+              "column": 3
+            },
+            {
+              "title": "6. Similarity to Known Technology Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1661,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:33.886Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-4387572efbafa9f08a8b",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 728,
+              "column": 3
+            },
+            {
+              "title": "7. Algorithmic Stability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1662,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:35.551Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-a028d2e7a7d426da6822",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 775,
+              "column": 3
+            },
+            {
+              "title": "8. Unbugginess Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1563,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:37.217Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-d214204395ec5dbc9c05",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 814,
+              "column": 3
+            },
+            {
+              "title": "9. Smallness Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1646,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:38.785Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-2c6c6a5fee40448bdb88",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 853,
+              "column": 3
+            },
+            {
+              "title": "10. Decomposability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1711,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://agiletestingdays.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        },
+                        {
+                          "text": "\n✅ Assessment Complete!\n"
+                        },
+                        {
+                          "text": "\n📊 Overall Testability Score: 78/100 (C)\n"
+                        },
+                        {
+                          "text": "\n📄 JSON Report saved: tests/reports/testability-results-1764611622152.json\n"
+                        },
+                        {
+                          "text": "\n🎯 Generating HTML report with Chrome auto-launch...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T17:53:40.435Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-b16577983ceab8f4d329",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 888,
+              "column": 3
+            }
+          ]
+        }
+      ]
     }
   ],
-  "metadata": {
-    "url": "https://testers.ai/",
-    "browser": "chromium",
-    "version": "1.0.0",
-    "assessor": "testability-scorer-skill",
-    "duration": 49049
+  "errors": [],
+  "stats": {
+    "startTime": "2025-12-01T17:53:24.744Z",
+    "duration": 17449.417,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
   }
 }
