@@ -1,0 +1,94 @@
+{
+  "timestamp": "2025-11-30T13:41:56.858Z",
+  "platform": "linux/arm64",
+  "nodeVersion": "v24.11.1",
+  "config": {
+    "vectorDimension": 384,
+    "warmupIterations": 100,
+    "insertCounts": [
+      100,
+      1000,
+      5000
+    ],
+    "searchIterations": 1000,
+    "batchSizes": [
+      10,
+      100,
+      500
+    ]
+  },
+  "results": [
+    {
+      "name": "Insert 100 vectors",
+      "backend": "RuVector Native",
+      "operation": "insert",
+      "vectorCount": 100,
+      "totalTime": 3.2521670000000995,
+      "opsPerSecond": 30749,
+      "latencyP50": 5.87,
+      "latencyP95": 43.46,
+      "latencyP99": 119,
+      "memoryUsedMB": 4.659999999999997
+    },
+    {
+      "name": "Search (k=10, 100 vectors)",
+      "backend": "RuVector Native",
+      "operation": "search",
+      "vectorCount": 100,
+      "totalTime": 31.707832999999937,
+      "opsPerSecond": 31538,
+      "latencyP50": 5.37,
+      "latencyP95": 23.12,
+      "latencyP99": 101.75,
+      "memoryUsedMB": 1.0999999999999943
+    },
+    {
+      "name": "Insert 1000 vectors",
+      "backend": "RuVector Native",
+      "operation": "insert",
+      "vectorCount": 1000,
+      "totalTime": 17.306458999999904,
+      "opsPerSecond": 57782,
+      "latencyP50": 3.21,
+      "latencyP95": 10.08,
+      "latencyP99": 20.92,
+      "memoryUsedMB": 25.86
+    },
+    {
+      "name": "Search (k=10, 1000 vectors)",
+      "backend": "RuVector Native",
+      "operation": "search",
+      "vectorCount": 1000,
+      "totalTime": 20.42641700000013,
+      "opsPerSecond": 48956,
+      "latencyP50": 4.25,
+      "latencyP95": 13.37,
+      "latencyP99": 28.54,
+      "memoryUsedMB": 20.710000000000008
+    },
+    {
+      "name": "Insert 5000 vectors",
+      "backend": "RuVector Native",
+      "operation": "insert",
+      "vectorCount": 5000,
+      "totalTime": 158.1949169999998,
+      "opsPerSecond": 31607,
+      "latencyP50": 11.58,
+      "latencyP95": 21.92,
+      "latencyP99": 31.62,
+      "memoryUsedMB": 64.07
+    },
+    {
+      "name": "Search (k=10, 5000 vectors)",
+      "backend": "RuVector Native",
+      "operation": "search",
+      "vectorCount": 5000,
+      "totalTime": 22.038708999999926,
+      "opsPerSecond": 45375,
+      "latencyP50": 4.33,
+      "latencyP95": 12.92,
+      "latencyP99": 24.79,
+      "memoryUsedMB": 41.03999999999999
+    }
+  ]
+}

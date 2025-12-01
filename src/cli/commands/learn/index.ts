@@ -490,3 +490,73 @@ export async function learnReset(options: LearnCommandOptions): Promise<void> {
 export async function learnExport(options: LearnCommandOptions): Promise<void> {
   await LearningCommand.execute('export', options);
 }
+
+/**
+ * Show learning improvement metrics from AgentDB
+ */
+export async function learnMetrics(options: any): Promise<void> {
+  const spinner = ora('Loading learning metrics from AgentDB...').start();
+
+  try {
+    const { createAgentDBManager } = await import('../../../core/memory/AgentDBManager');
+
+    const agentDB = createAgentDBManager({
+      dbPath: '.agentic-qe/agentdb.db'
+    });
+
+    await agentDB.initialize();
+
+    // Query metrics from patterns table
+    // Note: The patterns table uses 'type' column, not 'agent_id'
+    const metrics = await agentDB.query(`
+      SELECT
+        type as agent,
+        AVG(confidence) as avg_confidence,
+        COUNT(*) as total_patterns,
+        SUM(CASE WHEN confidence > 0.7 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as high_confidence_rate
+      FROM patterns
+      ${options.agent ? `WHERE type LIKE ?` : ''}
+      GROUP BY type
+      ORDER BY avg_confidence DESC
+    `, options.agent ? [`%${options.agent}%`] : []);
+
+    await agentDB.close();
+
+    spinner.succeed('Learning metrics loaded');
+
+    if (!metrics || metrics.length === 0) {
+      console.log(chalk.yellow('\n⚠️  No learning metrics found'));
+      console.log(chalk.gray('Run some agent tasks to generate learning data\n'));
+      return;
+    }
+
+    const days = options.days || '7';
+    console.log(chalk.blue(`\n📊 Learning Metrics (Last ${days} Days)\n`));
+
+    // Format as table
+    console.log(chalk.cyan('Agent'.padEnd(30)) +
+                chalk.cyan('Avg Confidence'.padEnd(18)) +
+                chalk.cyan('Total Patterns'.padEnd(18)) +
+                chalk.cyan('High Confidence %'));
+    console.log('─'.repeat(84));
+
+    metrics.forEach((row: any) => {
+      const confidenceColor = row.avg_confidence > 0.7 ? chalk.green :
+                             row.avg_confidence > 0.5 ? chalk.yellow : chalk.red;
+
+      console.log(
+        row.agent.padEnd(30) +
+        confidenceColor((row.avg_confidence * 100).toFixed(1) + '%').padEnd(18) +
+        chalk.cyan(row.total_patterns.toString()).padEnd(18) +
+        chalk.cyan((row.high_confidence_rate || 0).toFixed(1) + '%')
+      );
+    });
+
+    console.log();
+
+  } catch (error: any) {
+    spinner.fail('Failed to load metrics');
+    console.error(chalk.red('❌ Error:'), error.message);
+    ProcessExit.exitIfNotTest(1);
+  }
+}

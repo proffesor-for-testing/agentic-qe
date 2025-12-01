@@ -40,5 +40,91 @@ const edgeCases = [
 
 ---
 
+## TDD Coordination Protocol
+
+### Memory Namespace
+`aqe/test-data/cycle-{cycleId}/*`
+
+### Subagent Input Interface
+```typescript
+interface DataGenerationRequest {
+  cycleId: string;           // Links to parent TDD workflow
+  schema: {
+    entity: string;          // e.g., 'User', 'Order'
+    fields: {
+      name: string;
+      type: string;
+      constraints?: {
+        min?: number;
+        max?: number;
+        pattern?: string;
+        enum?: any[];
+        required?: boolean;
+        unique?: boolean;
+      };
+    }[];
+  };
+  count: number;             // Number of records to generate
+  includeEdgeCases: boolean; // Generate boundary/invalid data
+  relationships?: {
+    field: string;
+    referencesEntity: string;
+    type: 'one-to-one' | 'one-to-many' | 'many-to-many';
+  }[];
+  seed?: number;             // For reproducible generation
+  outputFormat: 'json' | 'csv' | 'sql';
+}
+```
+
+### Subagent Output Interface
+```typescript
+interface DataGenerationOutput {
+  cycleId: string;
+  generatedData: {
+    entity: string;
+    records: object[];
+    count: number;
+  };
+  edgeCases: {
+    description: string;
+    data: object;
+    expectedBehavior: string;
+  }[];
+  relationshipData?: {
+    parentEntity: string;
+    childEntity: string;
+    mappings: { parentId: string; childIds: string[] }[];
+  }[];
+  dataQuality: {
+    uniqueValuesRatio: number;
+    nullValuesCount: number;
+    constraintsViolated: string[];
+  };
+  outputFiles: {
+    format: string;
+    path: string;
+    size: number;
+  }[];
+  readyForHandoff: boolean;
+}
+```
+
+### Memory Coordination
+- **Read from**: `aqe/test-data/cycle-{cycleId}/input` (generation request)
+- **Write to**: `aqe/test-data/cycle-{cycleId}/results`
+- **Status updates**: `aqe/test-data/cycle-{cycleId}/status`
+- **Data catalog**: `aqe/test-data/catalog/{entity}`
+
+### Handoff Protocol
+1. Read generation request from `aqe/test-data/cycle-{cycleId}/input`
+2. Generate data according to schema and constraints
+3. Create edge cases for boundary testing
+4. Resolve relationships between entities
+5. Export to requested format
+6. Write results to `aqe/test-data/cycle-{cycleId}/results`
+7. Set `readyForHandoff: true` when all data generated successfully
+
+---
+
 **Status**: Active
 **Version**: 1.0.0

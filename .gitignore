@@ -75,51 +75,20 @@ claude-flow-core/bin/
 claude-flow-core/dist-cjs/
 tests/__mocks__/
 
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
 !src/core/coordination/
 !src/core/memory/
 !src/coverage/
 !src/memory/
 !tests/memory/
 
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
-
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
-
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
 .claude/agents/test-agent.json
 .claude/agents/failing-agent.json
 tests/temp/
 
 
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
-
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
-
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
-
-# Claude Flow generated files
-.claude/settings.local.json
-.mcp.json
-claude-flow.config.json
-.swarm/
-.hive-mind/
-.claude-flow/
-memory/
-coordination/
+# Ignore memory directories but allow source code
+/memory/
+/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -135,5 +104,14 @@ coordination/orchestration/*
 *.sqlite-journal
 *.sqlite-wal
 claude-flow
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
+.agentic-qe/memory/
+data/
+test-projects/
+
+# Claude Flow generated files
+.claude/settings.local.json
+.mcp.json
+claude-flow.config.json
+.swarm/
+.hive-mind/
+.claude-flow/

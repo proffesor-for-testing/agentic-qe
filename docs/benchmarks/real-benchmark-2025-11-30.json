@@ -1,0 +1,161 @@
+{
+  "timestamp": "2025-11-30T14:31:07.575Z",
+  "platform": "linux/arm64",
+  "nodeVersion": "v24.11.1",
+  "config": {
+    "vectorDimension": 384,
+    "warmupIterations": 50,
+    "insertCounts": [
+      100,
+      500,
+      1000
+    ],
+    "searchIterations": 500
+  },
+  "results": [
+    {
+      "name": "Insert 100 patterns",
+      "backend": "RuVector Native",
+      "operation": "insert",
+      "vectorCount": 100,
+      "totalTime": 59.66100000000006,
+      "opsPerSecond": 1676,
+      "latencyP50": 443.67,
+      "latencyP95": 1869.54,
+      "latencyP99": 2580.83,
+      "memoryUsedMB": -14.55
+    },
+    {
+      "name": "Search k=10 (100 patterns)",
+      "backend": "RuVector Native",
+      "operation": "search",
+      "vectorCount": 100,
+      "totalTime": 95.45825000000013,
+      "opsPerSecond": 5238,
+      "latencyP50": 148.96,
+      "latencyP95": 266.5,
+      "latencyP99": 601.63,
+      "memoryUsedMB": -1.24
+    },
+    {
+      "name": "Insert 100 vectors",
+      "backend": "AgentDB v1.9.3 (WASM)",
+      "operation": "insert",
+      "vectorCount": 100,
+      "totalTime": 2.6930420000003323,
+      "opsPerSecond": 37496,
+      "latencyP50": 23.63,
+      "latencyP95": 36.92,
+      "latencyP99": 510.79,
+      "memoryUsedMB": 3.04
+    },
+    {
+      "name": "Search k=10 (100 vectors)",
+      "backend": "AgentDB v1.9.3 (WASM)",
+      "operation": "search",
+      "vectorCount": 100,
+      "totalTime": 31.60649999999987,
+      "opsPerSecond": 15820,
+      "latencyP50": 44.29,
+      "latencyP95": 59.17,
+      "latencyP99": 81.17,
+      "memoryUsedMB": 27.72
+    },
+    {
+      "name": "Insert 500 patterns",
+      "backend": "RuVector Native",
+      "operation": "insert",
+      "vectorCount": 500,
+      "totalTime": 211.2335410000005,
+      "opsPerSecond": 2367,
+      "latencyP50": 425.33,
+      "latencyP95": 505.46,
+      "latencyP99": 609.63,
+      "memoryUsedMB": 11.65
+    },
+    {
+      "name": "Search k=10 (500 patterns)",
+      "backend": "RuVector Native",
+      "operation": "search",
+      "vectorCount": 500,
+      "totalTime": 107.41499999999996,
+      "opsPerSecond": 4655,
+      "latencyP50": 206.67,
+      "latencyP95": 227.08,
+      "latencyP99": 240.33,
+      "memoryUsedMB": 25.18
+    },
+    {
+      "name": "Insert 500 vectors",
+      "backend": "AgentDB v1.9.3 (WASM)",
+      "operation": "insert",
+      "vectorCount": 500,
+      "totalTime": 8.223332999999911,
+      "opsPerSecond": 61082,
+      "latencyP50": 14.08,
+      "latencyP95": 28.25,
+      "latencyP99": 29.58,
+      "memoryUsedMB": 11.32
+    },
+    {
+      "name": "Search k=10 (500 vectors)",
+      "backend": "AgentDB v1.9.3 (WASM)",
+      "operation": "search",
+      "vectorCount": 500,
+      "totalTime": 126.84591699999964,
+      "opsPerSecond": 3942,
+      "latencyP50": 223.83,
+      "latencyP95": 321.21,
+      "latencyP99": 413.88,
+      "memoryUsedMB": 25.44
+    },
+    {
+      "name": "Insert 1000 patterns",
+      "backend": "RuVector Native",
+      "operation": "insert",
+      "vectorCount": 1000,
+      "totalTime": 528.9822510000004,
+      "opsPerSecond": 1890,
+      "latencyP50": 500,
+      "latencyP95": 808.58,
+      "latencyP99": 1296.04,
+      "memoryUsedMB": 23.1
+    },
+    {
+      "name": "Search k=10 (1000 patterns)",
+      "backend": "RuVector Native",
+      "operation": "search",
+      "vectorCount": 1000,
+      "totalTime": 175.17033300000003,
+      "opsPerSecond": 2854,
+      "latencyP50": 312.75,
+      "latencyP95": 424.79,
+      "latencyP99": 759.21,
+      "memoryUsedMB": 14.46
+    },
+    {
+      "name": "Insert 1000 vectors",
+      "backend": "AgentDB v1.9.3 (WASM)",
+      "operation": "insert",
+      "vectorCount": 1000,
+      "totalTime": 11.89941700000054,
+      "opsPerSecond": 84238,
+      "latencyP50": 10.75,
+      "latencyP95": 21.71,
+      "latencyP99": 22.75,
+      "memoryUsedMB": 22.08
+    },
+    {
+      "name": "Search k=10 (1000 vectors)",
+      "backend": "AgentDB v1.9.3 (WASM)",
+      "operation": "search",
+      "vectorCount": 1000,
+      "totalTime": 259.4497079999992,
+      "opsPerSecond": 1927,
+      "latencyP50": 474.83,
+      "latencyP95": 612.13,
+      "latencyP99": 1160.42,
+      "memoryUsedMB": 16.73
+    }
+  ]
+}

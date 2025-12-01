@@ -1,0 +1,10 @@
+# Ignore database backup files
+*.db
+*.db-backup
+*.db-shm
+*.db-wal
+
+# Keep documentation
+!README.md
+!*.md
+!*.sql

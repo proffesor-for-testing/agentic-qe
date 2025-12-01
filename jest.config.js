@@ -76,9 +76,9 @@ module.exports = {
   detectOpenHandles: true, // Find unclosed resources
   forceExit: false, // Allow graceful exit
 
-  // Transform faker-js/faker and uuid ESM modules
+  // Transform faker-js/faker, uuid, and agentdb ESM modules
   transformIgnorePatterns: [
-    'node_modules/(?!(@faker-js|inquirer|cli-cursor|cli-spinners|ora|chalk|strip-ansi|ansi-regex|is-fullwidth-code-point|string-width|wrap-ansi|cliui|uuid)/)'
+    'node_modules/(?!(@faker-js|inquirer|cli-cursor|cli-spinners|ora|chalk|strip-ansi|ansi-regex|is-fullwidth-code-point|string-width|wrap-ansi|cliui|uuid|agentdb)/)'
   ],
 
   // Module handling - reduce loading overhead
@@ -110,10 +110,10 @@ module.exports = {
   // Coverage thresholds
   coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
     }
   }
 };

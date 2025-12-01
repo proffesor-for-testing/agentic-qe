@@ -560,7 +560,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     };
 
     // Get learned patterns
-    const patterns = this.learningEngine.getPatterns();
+    const patterns = await this.learningEngine.getPatterns();
 
     // Find matching patterns
     const matchingPatterns = patterns.filter(p =>
@@ -619,7 +619,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       result.learningMetrics = {
         improvementRate: improvement.improvementRate,
         confidence: (improvement.daysElapsed / (this.config.improvementPeriodDays || 30)),
-        patternsApplied: this.learningEngine?.getPatterns().length || 0
+        patternsApplied: this.learningEngine ? (await this.learningEngine.getPatterns()).length : 0
       };
     }
 

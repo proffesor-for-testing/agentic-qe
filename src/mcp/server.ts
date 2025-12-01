@@ -67,6 +67,7 @@ import { SecurityScanComprehensiveHandler } from './handlers/analysis/security-s
 import { AgentRegistry, getAgentRegistry } from './services/AgentRegistry.js';
 import { HookExecutor, getHookExecutor } from './services/HookExecutor.js';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager.js';
+import { getSharedMemoryManager } from '../core/memory/MemoryManagerFactory.js';
 import { TestExecuteStreamHandler } from './streaming/TestExecuteStreamHandler.js';
 import { CoverageAnalyzeStreamHandler } from './streaming/CoverageAnalyzeStreamHandler.js';
 import { Phase2ToolsHandler } from './handlers/phase2/Phase2Tools.js';
@@ -152,9 +153,9 @@ export class AgenticQEMCPServer {
     });
 
     // Initialize shared memory structures for coordination
-    // Use persistent database for learning data (matches AgentRegistry path)
-    const dbPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
-    this.memory = new SwarmMemoryManager(dbPath);
+    // Use singleton pattern to ensure all components share the same database connection
+    // This prevents data fragmentation where data written by one component isn't visible to others
+    this.memory = getSharedMemoryManager('.agentic-qe/memory.db');
     this.memoryStore = new Map();
     this.blackboard = new Map();
     this.proposals = new Map();
@@ -199,7 +200,8 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.TEST_COVERAGE_DETAILED, new TestCoverageDetailedHandler());
 
     // Memory management handlers - all share the same memoryStore
-    this.handlers.set(TOOL_NAMES.MEMORY_STORE, new MemoryStoreHandler(this.registry, this.hookExecutor, this.memoryStore));
+    // Issue #79 Fix: Pass SwarmMemoryManager for persistent storage
+    this.handlers.set(TOOL_NAMES.MEMORY_STORE, new MemoryStoreHandler(this.registry, this.hookExecutor, this.memoryStore, this.memory));
     this.handlers.set(TOOL_NAMES.MEMORY_RETRIEVE, new MemoryRetrieveHandler(this.registry, this.hookExecutor, this.memoryStore));
     this.handlers.set(TOOL_NAMES.MEMORY_QUERY, new MemoryQueryHandler(this.registry, this.hookExecutor, this.memoryStore));
     this.handlers.set(TOOL_NAMES.MEMORY_SHARE, new MemoryShareHandler(this.registry, this.hookExecutor, this.memoryStore));

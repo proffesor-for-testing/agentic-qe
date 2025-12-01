@@ -438,7 +438,7 @@ Task("Targeted Testing", "Run minimal test suite based on risk analysis", "qe-te
 Task("Batched Tests", "Run tests in batches of 10 with memory limits", "qe-test-executor")
 ```
 
-See [Test Execution Policy](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/policies/test-execution.md)
+See [Test Execution Policy](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/policies/test-execution.md)
 
 ### Issue: Pipeline Takes Too Long
 
@@ -483,18 +483,18 @@ See [resources/workflows/mobile-pipeline.md](resources/workflows/mobile-pipeline
 ## Resources
 
 ### Skills Reference
-- [All 37 QE Skills](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/skills.md)
+- [All 37 QE Skills](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
 - [Shift-Left Testing](../shift-left-testing/SKILL.md)
 - [Shift-Right Testing](../shift-right-testing/SKILL.md)
 - [Chaos Engineering](../chaos-engineering-resilience/SKILL.md)
 
 ### Agent Reference
-- [All 18 QE Agents](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/agents.md)
-- [Fleet Commander](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/reference/agents.md#qe-fleet-commander)
+- [All 18 QE Agents](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)
+- [Fleet Commander](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md#qe-fleet-commander)
 
 ### Policies
-- [Test Execution Policy](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/policies/test-execution.md)
-- [Release Verification Policy](https://github.com/ruvnet/agentic-qe-cf/blob/main/docs/policies/release-verification.md)
+- [Test Execution Policy](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/policies/test-execution.md)
+- [Release Verification Policy](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/policies/release-verification.md)
 
 ### External Resources
 - [Continuous Testing in DevOps](https://www.atlassian.com/continuous-delivery/principles/continuous-integration-vs-delivery-vs-deployment)

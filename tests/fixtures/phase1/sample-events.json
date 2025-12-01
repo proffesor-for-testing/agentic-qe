@@ -1,0 +1,90 @@
+{
+  "agentEvents": [
+    {
+      "id": "evt-001",
+      "type": "agent:started",
+      "agentId": "qe-test-generator",
+      "timestamp": "2025-01-15T10:30:00.000Z",
+      "payload": {
+        "taskId": "task-123",
+        "config": {
+          "framework": "jest",
+          "coverage": true
+        }
+      }
+    },
+    {
+      "id": "evt-002",
+      "type": "agent:task_completed",
+      "agentId": "qe-test-generator",
+      "timestamp": "2025-01-15T10:30:05.000Z",
+      "payload": {
+        "taskId": "task-123",
+        "result": {
+          "testsGenerated": 15,
+          "coverage": 85.5
+        },
+        "duration": 5000
+      }
+    },
+    {
+      "id": "evt-003",
+      "type": "agent:error",
+      "agentId": "qe-coverage-analyzer",
+      "timestamp": "2025-01-15T10:31:00.000Z",
+      "payload": {
+        "taskId": "task-124",
+        "error": "Failed to analyze coverage: timeout",
+        "code": "TIMEOUT_ERROR"
+      }
+    }
+  ],
+  "systemEvents": [
+    {
+      "id": "sys-001",
+      "type": "system:fleet_initialized",
+      "timestamp": "2025-01-15T10:00:00.000Z",
+      "payload": {
+        "topology": "hierarchical",
+        "agentCount": 5
+      }
+    },
+    {
+      "id": "sys-002",
+      "type": "system:memory_warning",
+      "timestamp": "2025-01-15T10:25:00.000Z",
+      "payload": {
+        "memoryUsage": 0.85,
+        "threshold": 0.8
+      }
+    }
+  ],
+  "telemetryEvents": [
+    {
+      "id": "tel-001",
+      "type": "telemetry:metric_recorded",
+      "timestamp": "2025-01-15T10:30:10.000Z",
+      "payload": {
+        "metricName": "qe.agent.task_duration",
+        "value": 5000,
+        "unit": "milliseconds",
+        "dimensions": {
+          "agent": "qe-test-generator",
+          "taskType": "test_generation"
+        }
+      }
+    },
+    {
+      "id": "tel-002",
+      "type": "telemetry:span_completed",
+      "timestamp": "2025-01-15T10:30:05.000Z",
+      "payload": {
+        "spanId": "span-001",
+        "traceId": "trace-abc",
+        "name": "TestGeneration",
+        "duration": 5000,
+        "status": "ok"
+      }
+    }
+  ]
+}

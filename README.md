@@ -9,11 +9,11 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.7.0** (Hardening Release) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 1.9.4** (Memory & Learning System Fixes) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Enterprise-grade test automation with AI learning, comprehensive skills library (37 QE skills), and intelligent model routing.
+> Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
-🧠 **Q-Learning System** | 📚 **37 World-Class QE Skills** | 🎯 **Advanced Flaky Detection** | 💰 **Multi-Model Router** | 🔧 **32 Domain-Specific Tools**
+🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **38 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
 
 </div>
 
@@ -54,29 +54,126 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ```
 
 **What gets initialized:**
+- ✅ **Phase 3 Visualization**: Real-time dashboards, interactive graphs (v1.9.0)
+- ✅ **Phase 1-2 Infrastructure**: OpenTelemetry, Event Store, Constitution System
 - ✅ Multi-Model Router (70-81% cost savings - opt-in)
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (100% accuracy)
-- ✅ 18 Specialized agent definitions (including qe-code-complexity)
-- ✅ 8 TDD subagent definitions (RED/GREEN/REFACTOR phases)
-- ✅ 37 World-class QE skills library
+- ✅ 19 Specialized agent definitions (including qe-code-complexity)
+- ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
+- ✅ 40 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices)
 - ✅ 8 AQE slash commands
-- ✅ Configuration directory
+- ✅ Modular init system with comprehensive project setup
 
 ---
 
 ## ✨ Features
 
+### 🎨 Phase 3: Real-Time Visualization (v1.9.0)
+
+**Production-Ready Observability Dashboards**
+
+#### 📊 Interactive React Frontend
+- **MindMap Component**: Cytoscape.js-powered graph visualization with 6 layout algorithms
+  - Support for 1000+ nodes with <500ms render time
+  - Expand/collapse, zoom/pan, search/filter
+  - Real-time WebSocket updates
+  - Export to PNG/JSON
+
+- **QualityMetrics Panel**: Recharts-based quality visualization
+  - 7-dimension radar chart (coverage, security, performance, etc.)
+  - Trend analysis with historical data
+  - Token usage and cost tracking
+  - Auto-refresh every 30 seconds
+
+- **Timeline View**: Virtual scrolling for event history
+  - Handle 1000+ events with react-window
+  - Color-coded event types
+  - Advanced filtering (agent, type, session, time range)
+  - Drill-down detail panels
+
+#### 🔌 Backend API Services
+- **REST API**: 6 endpoints for historical data queries
+  - Event history with pagination
+  - Aggregated metrics
+  - Graph visualization data
+  - Agent activity history
+
+- **WebSocket Server**: Real-time streaming with backpressure
+  - Event streaming with client subscriptions
+  - Heartbeat mechanism
+  - Connection management
+  - <50ms latency
+
+#### 📈 Grafana Dashboards
+- **Executive Dashboard**: Quality trends and cost analysis
+- **Developer Dashboard**: Trace explorer and debugging tools
+- **QA Dashboard**: Test metrics and coverage visualization
+
+**Performance:**
+- ✅ 185 events/sec write throughput (186% of target)
+- ✅ <1ms query latency (99% better than target)
+- ✅ <100ms render time for 100 nodes
+- ✅ <500ms render time for 1000 nodes
+
+**Quick Start:**
+```bash
+# Start visualization services
+node scripts/start-visualization-services.ts
+
+# Start frontend dev server
+cd frontend && npm run dev
+
+# Open in browser
+open http://localhost:3000
+```
+
+**Documentation**: See `PHASE3-COMPLETE.md` for full details
+
+---
+
+### 🏗️ Phase 1-2: Foundation & Infrastructure
+
+**Enterprise-Grade Observability & Governance**
+
+#### 📊 OpenTelemetry Integration
+- **Full OTEL SDK**: 12 OpenTelemetry packages for comprehensive observability
+- **Auto-Instrumentation**: HTTP, file system, and custom metrics
+- **Metrics Export**: gRPC and HTTP exporters for Grafana, Prometheus, Jaeger
+- **Agent Metrics**: Task completion, success rate, error tracking
+- **Quality Metrics**: Coverage %, defect density, test effectiveness
+- **System Metrics**: Memory, CPU, latency, throughput
+
+#### 💾 Event Sourcing & Persistence
+- **Event Store**: SQLite-based event sourcing with correlation tracking
+- **Reasoning Capture**: Agent decision tracking and prompt/response analysis
+- **Metrics Aggregation**: Time-window aggregation (hourly, daily, weekly)
+- **Performance Optimization**: Prepared statements, indexes, connection pooling
+- **Query API**: Time-range queries with pagination support
+
+#### 📋 Constitutional AI Governance
+- **JSON Schema Validation**: Type-safe constitution definitions
+- **4 Base Constitutions**: Default, test-generation, code-review, performance
+- **Inheritance & Merge**: Constitution composition with override support
+- **Agent-Specific**: Per-agent constitutional rules and guidelines
+- **Validation Pipeline**: Ensure agents follow constitutional principles
+
+**Benefits:**
+- 🔍 **Full Observability**: Track every agent action, metric, and decision
+- 📈 **Data-Driven**: Historical analysis for continuous improvement
+- 🛡️ **Governance**: Constitutional AI ensures quality and compliance
+- 🚀 **Production Ready**: Enterprise-grade persistence and monitoring
+
 ### 🤖 Autonomous Agent Fleet
 - **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
-- **8 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation)
+- **11 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation + analysis)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
 
 ### 🧠 Intelligence & Learning (v1.1.0)
-- **Q-Learning System**: 20% improvement target with automatic strategy optimization
+- **QE Agent Learning System**: Q-Learning integrated with AgentDB's 9 RL algorithms, 20% improvement target with automatic strategy optimization
 - **Pattern Bank**: 85%+ matching accuracy across 6 test frameworks (Jest, Mocha, Cypress, Vitest, Jasmine, AVA)
 - **ML Flaky Detection**: 100% accuracy with root cause analysis and automated fix recommendations
 - **Continuous Improvement**: A/B testing framework with 95%+ statistical confidence
@@ -96,7 +193,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 37 QE Skills Library (v1.3.0)
+### 🎓 38 QE Skills Library (v1.9.0)
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -110,12 +207,14 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - **Communication**: bug-reporting-excellence, technical-writing, consultancy-practices
 
 **Phase 2: Expanded QE Skills Library (16 skills)**
-- **Testing Methodologies (6)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management
+- **Testing Methodologies (7)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management, verification-quality
 - **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
 
-**Phase 3: Advanced Quality Engineering Skills (3 skills)**
-- **Strategic Testing Methodologies (3)**: six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
+**Phase 3: Advanced Quality Engineering Skills (4 skills)**
+- **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
+
+**Total: 38 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
 
 </details>
 
@@ -177,11 +276,12 @@ Agents automatically leverage skills:
 claude "Use qe-test-generator with shift-left-testing and test-design-techniques skills to create tests before implementing the new payment feature"
 ```
 
-**Available skills** (agents auto-select from 37):
+**Available skills** (agents auto-select from 40):
 - TDD, API testing, performance, security
-- Accessibility, mobile, chaos engineering
-- Regression, shift-left/right, compliance
+- Accessibility, mobile, chaos engineering, visual testing
+- Regression, shift-left/right, compliance, verification
 - Six thinking hats, brutal honesty reviews, CI/CD orchestration
+- XP practices, technical writing, refactoring patterns
 
 ### Example 4: Full Quality Pipeline
 
@@ -463,9 +563,9 @@ Model Usage:
 
 </details>
 
-**Total: 26 Agents** (18 main agents + 8 TDD subagents)
+**Total: 29 Agents** (18 main agents + 11 TDD subagents)
 
-### TDD Subagents (8 specialized)
+### TDD Subagents (11 specialized)
 
 <details>
 <summary><b>Test-Driven Development Subagents</b></summary>
@@ -482,6 +582,12 @@ The test generator orchestrates a complete TDD workflow through specialized suba
 | **qe-data-generator** | GENERATION | Test data creation | Realistic data generation, constraint satisfaction, edge cases |
 | **qe-performance-validator** | VALIDATION | Performance checks | SLA validation, benchmark comparison, threshold enforcement |
 | **qe-security-auditor** | AUDIT | Security validation | Vulnerability detection, compliance checking, threat modeling |
+| **qe-flaky-investigator** | ANALYSIS | Flaky test detection | Pattern detection, timing analysis, stabilization fixes |
+| **qe-coverage-gap-analyzer** | ANALYSIS | Coverage gaps | Risk scoring, gap detection, test recommendations |
+| **qe-test-data-architect-sub** | GENERATION | High-volume data | Schema-aware generation, relationship preservation |
+
+**Coordination Protocol:**
+All subagents use a unified coordination protocol with cycle-based memory namespaces (`aqe/tdd/cycle-{id}/*`) ensuring tests written in RED are the same tests validated in GREEN and refactored in REFACTOR. See [Coordination Guide](docs/subagents/coordination-guide.md).
 
 **Usage Example:**
 ```bash
@@ -566,56 +672,111 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 
 ---
 
-## 📝 What's New in v1.7.0
+## 📝 What's New in v1.9.4
 
-🚀 **Priority 1: Hardening Release** (2025-11-14)
+🔧 **Critical Memory & Learning System Fixes** (2025-11-30)
 
-- **Quality Improvements** - All critical ship-blockers eliminated
-  - ✅ TODO Elimination: 80% reduction (40+ → 8, remaining in whitelisted template generators)
-  - ✅ Async I/O: 100% conversion (0 blocking operations, excluding Logger.ts)
-  - ✅ Race Conditions: 91% reduction (109 → 10 setTimeout instances)
-  - ✅ Event-driven BaseAgent architecture with proper cleanup
-- **AgentDB Learn CLI** - Fully implemented with real database integration
-  - 7 commands (status, train, stats, export, import, optimize, clear)
-  - Real-time learning statistics and pattern management
-  - Proper service initialization (no stub code)
-- **Pre-commit Quality Gates** - Prevents regression
-  - Automatic TODO detection and blocking
-  - Whitelisted template generators for flexibility
-- **Comprehensive Validation** - Production-ready verification
-  - 51/51 core BaseAgent tests passing
-  - 28 user-perspective validation scenarios
-  - Fresh installation verified with all features working
-- **Build Quality** - Zero errors, production-grade
-  - 0 TypeScript errors (was 17)
-  - All 19 agents + 37 skills + 8 commands functional
+This release delivers critical fixes to the memory, learning, and patterns system. All QE agents now have a fully functional learning system with proper vector embeddings, Q-value reinforcement learning, and persistent pattern storage.
 
-**Upgrade from v1.6.x**: Fully backward-compatible. Run `npm install agentic-qe@1.7.0` and `aqe init`.
+### Key Fixes
+
+- **Vector embeddings now stored correctly**: Fixed `RealAgentDBAdapter.store()` to properly store 384-dimension embeddings as BLOB data
+- **SQL parameter style bug**: Fixed agentdb's `SqlJsDatabase` wrapper to use spread params instead of array params
+- **HNSW index schema mismatch**: Added `pattern_id` generated column for agentdb's HNSWIndex compatibility
+- **Learning experience retrieval**: Added missing getter methods for Q-learning and experience replay
+- **Hooks saving to wrong database**: Fixed all Claude Code hooks to explicitly export `AGENTDB_PATH` so learning data is saved correctly
+- **CI platform compatibility**: Moved ARM64-only ruvector packages to optionalDependencies for x64 CI compatibility
+
+### New Features
+
+- **SwarmMemoryManager learning methods**: `getBestAction()`, `getRecentLearningExperiences()`, `getLearningStats()`, and more
+- **Phase 4 Alerting & Reporting**: AlertManager, FeedbackRouter, StrategyApplicator modules
+- **Quality Gate CI workflow**: GitHub Actions integration for automated quality validation
+
+**Upgrade**: `npm install agentic-qe@1.9.4`
 
 ---
 
-### Previous: v1.5.0
+## 📝 What's New in v1.9.3
 
-🎯 **Phase 3: Domain-Specific Tool Refactoring** (2025-11-08)
+📦 **NPM Package Fix** (2025-11-26)
 
-- **32 Domain-Specific MCP Tools** organized by QE function for better discoverability
-  - 6 QE domains: Coverage, Flaky Detection, Performance, Visual, Security, Test Generation
-  - Improved type safety with strict TypeScript (no `any` types)
-  - Enhanced tool organization based on domain intent
-- **Migration Support**: Comprehensive migration guide with backward compatibility
-  - Deprecated tools remain available until v3.0.0 (Feb 2026)
-  - Clear deprecation warnings with migration paths
-  - Zero breaking changes in v1.5.0
-- **Tool Catalog**: Complete documentation of all 32 domain-specific tools
-  - Function signatures and parameter documentation
-  - Usage examples for each tool
-  - Domain-specific best practices
-- **Agent Integration**: Updated 7 agent code execution examples with real imports
-  - Direct tool imports instead of generic MCP calls
-  - Type-safe parameter handling
-  - Better error messages
+This release fixes missing files in the npm package distribution that caused `aqe init` to fail.
 
-**Upgrade Path**: See [Migration Guide](docs/migration/phase3-tools.md) for step-by-step instructions.
+### Key Fixes
+
+- **Added missing `templates/` directory**: Includes `aqe.sh` wrapper script
+- **Added missing `.claude/helpers/` directory**: Includes 6 helper scripts (checkpoint-manager.sh, github-safe.js, etc.)
+- **Added missing `docs/reference/` directory**: Includes reference documentation (agents.md, skills.md, usage.md)
+
+**Upgrade**: `npm install agentic-qe@1.9.3`
+
+---
+
+## 📝 What's New in v1.9.2
+
+🐛 **Learning Persistence Fix** (2025-11-26)
+
+This release fixes critical learning persistence issues (Issue #79) where learning data was not being saved to SQLite.
+
+### Key Fixes
+
+- **Database schema fixes**: Added missing columns to patterns, q_values, and learning_experiences tables
+- **Memory persistence**: MemoryStoreHandler now actually persists to SQLite when `persist: true`
+- **Database migrations**: Automatic migrations for existing databases
+
+**Upgrade**: `npm install agentic-qe@1.9.2`
+
+---
+
+## 📝 What's New in v1.8.3
+
+🔄 **Phase 4: TDD Subagent Coordination** (2025-01-19)
+
+This release implements comprehensive TDD subagent coordination, solving the disconnected tests/code/refactor issue where RED-GREEN-REFACTOR cycle agents were producing inconsistent outputs.
+
+### Key Improvements
+
+- **TDD Coordination Protocol** - Memory-based coordination for consistent TDD cycles
+  - ✅ Cycle-based memory namespace (`aqe/tdd/cycle-{cycleId}/*`)
+  - ✅ File hash validation ensures test file integrity across phases
+  - ✅ Handoff gates prevent premature phase transitions
+  - ✅ Phase output interfaces for typed contracts
+
+- **Runtime Enforcement** - TDDPhaseValidator class validates memory state
+  - ✅ Validates memory keys exist before phase transitions
+  - ✅ Enforces output schema compliance
+  - ✅ Checks file hash integrity across RED→GREEN→REFACTOR
+  - ✅ Coverage comparison warnings
+
+- **New Subagents (3)** - Specialized quality engineering agents
+  - ✅ `qe-flaky-investigator` - Detects flaky tests, analyzes root causes
+  - ✅ `qe-coverage-gap-analyzer` - Identifies coverage gaps, risk-scores untested code
+  - ✅ `qe-test-data-architect-sub` - High-volume test data generation
+
+### Updated Subagents (8)
+All existing subagents now include coordination protocol:
+- `qe-test-writer`, `qe-test-implementer`, `qe-test-refactorer` (TDD phases)
+- `qe-code-reviewer`, `qe-integration-tester`, `qe-performance-validator`
+- `qe-security-auditor`, `qe-data-generator`
+
+### Testing
+- 22 integration tests for TDD coordination
+- All tests passing
+
+### Documentation
+- Coordination guide at `docs/subagents/coordination-guide.md`
+
+### Impact
+✅ **Build Status**: Passing (0 errors)
+✅ **TDD Coordination**: Fully operational
+✅ **Subagents**: 11 total (3 new, 8 updated)
+✅ **Integration Tests**: 22 passing
+❌ **Breaking Changes**: None
+
+**Upgrade**: `npm install agentic-qe@1.8.3`
+
+**Previous Releases**: See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
 [📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
 
@@ -671,9 +832,9 @@ agentic-qe/
 ├── examples/            # Usage examples
 ├── docs/                # Documentation
 ├── .claude/             # Agent & command definitions
-│   ├── agents/          # 18 main agent definitions
-│   │   └── subagents/   # 8 TDD subagent definitions
-│   ├── skills/          # 34 QE skill definitions
+│   ├── agents/          # 19 main agent definitions
+│   │   └── subagents/   # 11 TDD subagent definitions
+│   ├── skills/          # 40 QE skill definitions
 │   └── commands/        # 8 AQE slash commands
 └── config/              # Configuration files
 ```
@@ -721,13 +882,14 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 - ✅ Pattern Bank with cross-project sharing
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ Continuous Improvement Loop
-- ✅ 18 specialized agents + 8 TDD subagents
+- ✅ 18 specialized agents + 11 TDD subagents
 - ✅ Complete TDD workflow automation (RED/GREEN/REFACTOR/REVIEW)
 - ✅ Multi-framework test execution
 - ✅ Real-time coverage analysis
 - ✅ MCP integration
 - ✅ Multi-model router (70-81% cost savings)
-- ✅ 34 QE skills library
+- ✅ 40 QE skills library
+- ✅ Modular init system for streamlined project setup
 
 ### Planned (v1.4)
 - 🔄 Web dashboard for visualization

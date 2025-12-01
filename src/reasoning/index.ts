@@ -22,4 +22,9 @@ export type { SimilarityResult, TFIDFConfig } from './VectorSimilarity';
 export { PatternQualityScorer } from './PatternQualityScorer';
 export type { QualityComponents, ScoredPattern } from './PatternQualityScorer';
 
+// RuVector Integration (NEW in v2.0.0)
+// High-performance vector search with 192K QPS, 1.5µs p50 latency
+export { RuVectorReasoningAdapter, createReasoningAdapter } from './RuVectorReasoningAdapter';
+export type { ReasoningAdapterConfig, AdapterMetrics } from './RuVectorReasoningAdapter';
+
 export * from '../types/pattern.types';

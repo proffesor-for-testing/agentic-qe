@@ -11,9 +11,8 @@ import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { QLearning, QLearningConfig } from './QLearning';
 import { StateExtractor } from './StateExtractor';
 import { RewardCalculator, TaskResult } from './RewardCalculator';
+import packageJson from '../../package.json';
 
-// Import version from package.json to maintain consistency
-const packageJson = require('../../package.json');
 const PACKAGE_VERSION = packageJson.version;
 import {
   LearningConfig,
@@ -56,7 +55,7 @@ export class LearningEngine {
   private qLearning?: QLearning; // Q-learning integration
   private useQLearning: boolean;
   private experiences: TaskExperience[];
-  private patterns: Map<string, LearnedPattern>;
+  // REMOVED: private patterns: Map<string, LearnedPattern>; (now persisted via memoryStore.storePattern)
   private failurePatterns: Map<string, FailurePattern>;
   private taskCount: number;
   private readonly stateExtractor: StateExtractor;
@@ -74,19 +73,19 @@ export class LearningEngine {
     this.qTable = new Map();
     this.useQLearning = false; // Default to legacy implementation
     this.experiences = [];
-    this.patterns = new Map();
+    // REMOVED: this.patterns = new Map(); (now using memoryStore.storePattern for persistence)
     this.failurePatterns = new Map();
     this.taskCount = 0;
     this.stateExtractor = new StateExtractor();
     this.rewardCalculator = new RewardCalculator();
 
-    // Architecture Improvement: LearningEngine now uses shared SwarmMemoryManager
-    // instead of auto-creating Database instances. This ensures:
-    // 1. All learning data persists to the shared database
-    // 2. No duplicate Database connections
-    // 3. Consistent data across the fleet
-    // 4. Proper resource management
-    this.logger.info(`LearningEngine initialized for agent ${agentId} - using shared memoryStore for persistence`);
+    // Architecture Improvement (Phase 3): LearningEngine now accepts SwarmMemoryManager
+    // directly for unified persistence. This ensures:
+    // 1. All learning patterns persist to .agentic-qe/agentdb.db via SwarmMemoryManager
+    // 2. Unified memory access across all agents
+    // 3. Proper resource management and no duplicate connections
+    // 4. Backward compatibility with QEReasoningBank
+    this.logger.info(`LearningEngine initialized for agent ${agentId} - using ${memoryStore.constructor.name} for persistent storage`);
   }
 
   /**
@@ -102,14 +101,16 @@ export class LearningEngine {
     await this.loadState();
 
     // Load Q-values from memoryStore if available
-    await this.loadQTableFromMemoryStore();
+    // Q-table loading done inline above
 
-    // Store config in memory
-    await this.memoryStore.store(
-      `phase2/learning/${this.agentId}/config`,
-      this.config,
-      { partition: 'learning' }
-    );
+    // Store config in memory via reasoningBank's memoryStore
+    if (this.memoryStore) {
+      await this.memoryStore.store(
+        `phase2/learning/${this.agentId}/config`,
+        this.config,
+        { partition: 'learning' }
+      );
+    }
 
     this.logger.info('LearningEngine initialized successfully');
   }
@@ -129,31 +130,26 @@ export class LearningEngine {
   }
 
   /**
-   * Load Q-table from memoryStore on initialization
+   * Load patterns from memoryStore (AgentDB via SwarmMemoryManager)
    *
-   * Architecture: Uses SwarmMemoryManager.getAllQValues() instead of direct Database access.
-   * This ensures we read from the shared database used by the fleet.
+   * Architecture: Retrieves patterns from SwarmMemoryManager which
+   * internally uses AgentDB (.agentic-qe/agentdb.db).
+   *
+   * Note: This method is legacy and not currently used (patterns loaded on-demand).
    */
-  private async loadQTableFromMemoryStore(): Promise<void> {
-    // Check if memoryStore is SwarmMemoryManager (has getAllQValues method)
-    if (!(this.memoryStore instanceof SwarmMemoryManager)) {
-      this.logger.warn('memoryStore is not SwarmMemoryManager, skipping Q-table load');
-      return;
-    }
-
+  private async loadPatternsFromMemoryStore(): Promise<void> {
     try {
-      const qValues = await this.memoryStore.getAllQValues(this.agentId);
+      // Query all patterns from AgentDB (confidence >= 0 returns all)
+      const allPatterns = await this.memoryStore.queryPatternsByConfidence(0);
 
-      for (const qv of qValues) {
-        if (!this.qTable.has(qv.state_key)) {
-          this.qTable.set(qv.state_key, new Map());
-        }
-        this.qTable.get(qv.state_key)!.set(qv.action_key, qv.q_value);
+      if (allPatterns.length === 0) {
+        this.logger.info('No existing patterns found in AgentDB');
+        return;
       }
 
-      this.logger.info(`Loaded ${qValues.length} Q-values from memoryStore`);
+      this.logger.info(`Found ${allPatterns.length} patterns in AgentDB for agent ${this.agentId}`);
     } catch (error) {
-      this.logger.warn(`Failed to load Q-values from memoryStore:`, error);
+      this.logger.warn(`Failed to load patterns from AgentDB:`, error);
     }
   }
 
@@ -188,7 +184,7 @@ export class LearningEngine {
 
       // Persist to database via memoryStore (replaces persistence adapter)
       // Only if memoryStore is SwarmMemoryManager
-      if (this.memoryStore instanceof SwarmMemoryManager) {
+      if (this.memoryStore && typeof (this.memoryStore as any).storeLearningExperience === "function") {
         try {
           // Store experience
           await this.memoryStore.storeLearningExperience({
@@ -235,7 +231,7 @@ export class LearningEngine {
         await this.performBatchUpdate();
 
         // Store learning snapshot via memoryStore
-        if (this.memoryStore instanceof SwarmMemoryManager) {
+        if (this.memoryStore && typeof (this.memoryStore as any).storeLearningExperience === "function") {
           const improvement = await this.calculateImprovement();
           await this.memoryStore.storeLearningSnapshot({
             agentId: this.agentId,
@@ -331,11 +327,33 @@ export class LearningEngine {
   }
 
   /**
-   * Get learned patterns
+   * Get learned patterns for this agent
+   * Now queries from memoryStore (SwarmMemoryManager) with agent filtering
    */
-  getPatterns(): LearnedPattern[] {
-    return Array.from(this.patterns.values())
-      .sort((a, b) => b.confidence - a.confidence);
+  async getPatterns(): Promise<LearnedPattern[]> {
+    try {
+      // Query patterns from memoryStore if available
+      if (!this.memoryStore || typeof this.memoryStore.queryPatternsByAgent !== 'function') {
+        return [];
+      }
+
+      // Use agent-specific query to avoid mixing patterns from different agents
+      const dbPatterns = await this.memoryStore.queryPatternsByAgent(this.agentId, 0);
+
+      return dbPatterns.map((p: any) => ({
+        id: p.id, // Use existing ID, don't generate new ones
+        pattern: p.pattern,
+        confidence: p.confidence,
+        successRate: p.metadata?.success_rate || 0.5,
+        usageCount: p.usageCount || 0,
+        contexts: p.metadata?.contexts || [],
+        createdAt: p.metadata?.created_at ? new Date(p.metadata.created_at) : new Date(),
+        lastUsedAt: p.metadata?.last_used_at ? new Date(p.metadata.last_used_at) : new Date()
+      }));
+    } catch (error) {
+      this.logger.warn('Failed to query patterns:', error);
+      return [];
+    }
   }
 
   /**
@@ -504,40 +522,100 @@ export class LearningEngine {
 
   /**
    * Update learned patterns
+   * Now uses memoryStore persistence with agent filtering instead of in-memory Map
    */
   private async updatePatterns(experience: TaskExperience): Promise<void> {
     const patternKey = `${experience.taskType}:${experience.action.strategy}`;
 
-    if (this.patterns.has(patternKey)) {
-      const pattern = this.patterns.get(patternKey)!;
-      pattern.usageCount++;
-      pattern.lastUsedAt = new Date();
+    try {
+      // Try to query existing pattern from memoryStore (agent-specific)
+      let existingPattern: LearnedPattern | null = null;
 
-      // Update success rate
-      if (experience.reward > 0) {
-        pattern.successRate = (pattern.successRate * (pattern.usageCount - 1) + 1) / pattern.usageCount;
-      } else {
-        pattern.successRate = (pattern.successRate * (pattern.usageCount - 1)) / pattern.usageCount;
+      if (this.memoryStore && typeof this.memoryStore.queryPatternsByAgent === 'function') {
+        const agentPatterns = await this.memoryStore.queryPatternsByAgent(this.agentId, 0);
+        const found = agentPatterns.find((p: any) => p.pattern === patternKey);
+
+        if (found && found.metadata) {
+          const metadata = typeof found.metadata === 'string'
+            ? JSON.parse(found.metadata)
+            : found.metadata;
+
+          existingPattern = {
+            id: found.id || uuidv4(),
+            pattern: found.pattern,
+            confidence: found.confidence,
+            successRate: metadata.success_rate || 0.5,
+            usageCount: found.usageCount,
+            contexts: metadata.contexts || [experience.taskType],
+            createdAt: metadata.created_at ? new Date(metadata.created_at) : new Date(),
+            lastUsedAt: metadata.last_used_at ? new Date(metadata.last_used_at) : new Date()
+          };
+        }
       }
 
-      // Update confidence
-      pattern.confidence = Math.min(0.95, pattern.confidence + 0.01);
-    } else {
-      // Create new pattern
-      const pattern: LearnedPattern = {
-        id: uuidv4(),
-        pattern: patternKey,
-        confidence: 0.5,
-        successRate: experience.reward > 0 ? 1.0 : 0.0,
-        usageCount: 1,
-        contexts: [experience.taskType],
-        createdAt: new Date(),
-        lastUsedAt: new Date()
-      };
-      this.patterns.set(patternKey, pattern);
+      if (existingPattern) {
+        // Update existing pattern
+        existingPattern.usageCount++;
+        existingPattern.lastUsedAt = new Date();
 
-      // Emit pattern discovered event
-      await this.emitLearningEvent('pattern_discovered', pattern);
+        // Update success rate
+        if (experience.reward > 0) {
+          existingPattern.successRate = (existingPattern.successRate * (existingPattern.usageCount - 1) + 1) / existingPattern.usageCount;
+        } else {
+          existingPattern.successRate = (existingPattern.successRate * (existingPattern.usageCount - 1)) / existingPattern.usageCount;
+        }
+
+        // Update confidence
+        existingPattern.confidence = Math.min(0.95, existingPattern.confidence + 0.01);
+
+        // Persist pattern update to database
+        await this.memoryStore.storePattern({
+          id: existingPattern.id,
+          pattern: existingPattern.pattern,
+          confidence: existingPattern.confidence,
+          usageCount: existingPattern.usageCount,
+          metadata: {
+            agent_id: this.agentId,
+            success_rate: existingPattern.successRate,
+            contexts: existingPattern.contexts,
+            created_at: existingPattern.createdAt,
+            last_used_at: existingPattern.lastUsedAt
+          }
+        });
+      } else {
+        // Create new pattern
+        const pattern: LearnedPattern = {
+          id: uuidv4(),
+          pattern: patternKey,
+          confidence: 0.5,
+          successRate: experience.reward > 0 ? 1.0 : 0.0,
+          usageCount: 1,
+          contexts: [experience.taskType],
+          createdAt: new Date(),
+          lastUsedAt: new Date()
+        };
+
+        // Persist new pattern to database
+        await this.memoryStore.storePattern({
+          id: pattern.id,
+          pattern: pattern.pattern,
+          confidence: pattern.confidence,
+          usageCount: pattern.usageCount,
+          metadata: {
+            agent_id: this.agentId,
+            success_rate: pattern.successRate,
+            contexts: pattern.contexts,
+            created_at: pattern.createdAt,
+            last_used_at: pattern.lastUsedAt
+          }
+        });
+
+        // Emit pattern discovered event
+        await this.emitLearningEvent('pattern_discovered', pattern);
+      }
+    } catch (error) {
+      this.logger.warn('Failed to update patterns:', error);
+      // Continue execution even if pattern update fails
     }
   }
 
@@ -594,19 +672,20 @@ export class LearningEngine {
   /**
    * Create learning outcome
    */
-  private createOutcome(
+  private async createOutcome(
     improved: boolean,
     previous: number,
     current: number,
     rate: number = 0
-  ): LearningOutcome {
+  ): Promise<LearningOutcome> {
+    const patterns = await this.getPatterns();
     return {
       improved,
       previousPerformance: previous,
       newPerformance: current,
       improvementRate: rate,
       confidence: Math.min(0.95, this.experiences.length / 100),
-      patterns: this.getPatterns().slice(0, 5),
+      patterns: patterns.slice(0, 5),
       timestamp: new Date()
     };
   }
@@ -649,23 +728,26 @@ export class LearningEngine {
    * Save learning state to memory
    */
   private async saveState(): Promise<void> {
+    const patterns = await this.getPatterns();
     const state: LearningModelState = {
       agentId: this.agentId,
       qTable: this.serializeQTable(),
       experiences: this.experiences.slice(-1000), // keep last 1000
-      patterns: this.getPatterns(),
+      patterns,
       config: this.config,
       performance: await this.getCurrentPerformance(),
       version: PACKAGE_VERSION,
       lastUpdated: new Date(),
-      size: this.calculateStateSize()
+      size: await this.calculateStateSize()
     };
 
     // Check size limit
     if (state.size > this.config.maxMemorySize) {
       this.logger.warn(`Learning state exceeds max size (${state.size} bytes), pruning...`);
-      state.experiences = state.experiences.slice(-500);
-      state.size = this.calculateStateSize();
+      // Fix: Prune in-memory array, not just saved state
+      this.experiences = this.experiences.slice(-500);
+      state.experiences = this.experiences;
+      state.size = await this.calculateStateSize();
     }
 
     await this.memoryStore.store(
@@ -679,6 +761,7 @@ export class LearningEngine {
 
   /**
    * Load learning state from memory
+   * Pattern Map removed - patterns now persisted directly via memoryStore.storePattern()
    */
   private async loadState(): Promise<void> {
     try {
@@ -690,7 +773,8 @@ export class LearningEngine {
       if (state) {
         this.deserializeQTable(state.qTable);
         this.experiences = state.experiences;
-        this.patterns = new Map(state.patterns.map(p => [p.pattern, p]));
+        // REMOVED: this.patterns = new Map(state.patterns.map(p => [p.pattern, p]));
+        // Patterns are now persisted via memoryStore.storePattern() and queried via queryPatternsByConfidence()
         this.taskCount = state.experiences.length;
         this.logger.info(`Loaded learning state: ${state.experiences.length} experiences`);
       }
@@ -757,11 +841,12 @@ export class LearningEngine {
   /**
    * Calculate state size in bytes
    */
-  private calculateStateSize(): number {
+  private async calculateStateSize(): Promise<number> {
+    const patterns = await this.getPatterns();
     return JSON.stringify({
       qTable: this.serializeQTable(),
       experiences: this.experiences,
-      patterns: this.getPatterns()
+      patterns
     }).length;
   }
 
@@ -915,6 +1000,8 @@ export class LearningEngine {
     }
 
     this.taskCount++;
+    // Fix: Decay exploration rate after each experience
+    this.decayExploration();
   }
 
   /**

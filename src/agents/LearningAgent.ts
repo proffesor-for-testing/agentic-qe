@@ -172,14 +172,14 @@ export class LearningAgent extends BaseAgent {
   /**
    * Get learning status - override from BaseAgent
    */
-  public override getLearningStatus(): {
+  public override async getLearningStatus(): Promise<{
     enabled: boolean;
     totalExperiences: number;
     explorationRate: number;
     patterns: number;
-  } | null {
+  } | null> {
     // Call parent implementation to maintain consistency
-    const baseStatus = super.getLearningStatus();
+    const baseStatus = await super.getLearningStatus();
     if (baseStatus) {
       return baseStatus;
     }
@@ -193,7 +193,7 @@ export class LearningAgent extends BaseAgent {
       enabled: this.learningEnabled,
       totalExperiences: this.localLearningEngine.getTotalExperiences(),
       explorationRate: this.localLearningEngine.getExplorationRate(),
-      patterns: this.localLearningEngine.getPatterns().length
+      patterns: (await this.localLearningEngine.getPatterns()).length
     };
   }
 
@@ -212,7 +212,7 @@ export class LearningAgent extends BaseAgent {
     return {
       enabled: this.learningEnabled,
       totalExperiences: this.localLearningEngine.getTotalExperiences(),
-      patterns: this.localLearningEngine.getPatterns().length,
+      patterns: (await this.localLearningEngine.getPatterns()).length,
       improvement,
       activeTests: this.improvementLoop.getActiveTests().length
     };

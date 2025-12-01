@@ -1,0 +1,107 @@
+{
+  "qualityMetrics": [
+    {
+      "id": "metric-001",
+      "name": "qe.agent.task_duration",
+      "type": "histogram",
+      "value": 5000,
+      "unit": "milliseconds",
+      "timestamp": "2025-01-15T10:30:05.000Z",
+      "dimensions": {
+        "agent": "qe-test-generator",
+        "taskType": "test_generation",
+        "status": "success"
+      }
+    },
+    {
+      "id": "metric-002",
+      "name": "qe.tests.generated_count",
+      "type": "counter",
+      "value": 15,
+      "unit": "tests",
+      "timestamp": "2025-01-15T10:30:05.000Z",
+      "dimensions": {
+        "agent": "qe-test-generator",
+        "framework": "jest"
+      }
+    },
+    {
+      "id": "metric-003",
+      "name": "qe.coverage.percentage",
+      "type": "gauge",
+      "value": 85.5,
+      "unit": "percent",
+      "timestamp": "2025-01-15T10:30:05.000Z",
+      "dimensions": {
+        "project": "user-service",
+        "type": "line"
+      }
+    },
+    {
+      "id": "metric-004",
+      "name": "qe.agent.error_count",
+      "type": "counter",
+      "value": 1,
+      "unit": "errors",
+      "timestamp": "2025-01-15T10:31:30.000Z",
+      "dimensions": {
+        "agent": "qe-coverage-analyzer",
+        "errorType": "TIMEOUT_ERROR"
+      }
+    },
+    {
+      "id": "metric-005",
+      "name": "qe.memory.usage",
+      "type": "gauge",
+      "value": 0.85,
+      "unit": "ratio",
+      "timestamp": "2025-01-15T10:25:00.000Z",
+      "dimensions": {
+        "component": "fleet-manager"
+      }
+    }
+  ],
+  "aggregatedMetrics": {
+    "hourly": [
+      {
+        "timestamp": "2025-01-15T10:00:00.000Z",
+        "metrics": {
+          "qe.agent.task_duration": {
+            "count": 10,
+            "sum": 45000,
+            "min": 2000,
+            "max": 8000,
+            "avg": 4500,
+            "p50": 4000,
+            "p95": 7500,
+            "p99": 8000
+          },
+          "qe.tests.generated_count": {
+            "count": 10,
+            "sum": 120,
+            "avg": 12
+          }
+        }
+      }
+    ],
+    "daily": [
+      {
+        "timestamp": "2025-01-15T00:00:00.000Z",
+        "metrics": {
+          "qe.coverage.percentage": {
+            "count": 5,
+            "avg": 82.3,
+            "min": 75.0,
+            "max": 92.1
+          }
+        }
+      }
+    ]
+  },
+  "metricTypes": ["counter", "gauge", "histogram", "summary"],
+  "semanticNaming": {
+    "prefix": "qe",
+    "components": ["agent", "tests", "coverage", "memory", "fleet"],
+    "pattern": "{prefix}.{component}.{metric_name}"
+  }
+}

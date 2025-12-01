@@ -14,6 +14,7 @@ import { BaseHandler, HandlerResponse } from '../base-handler';
 import { AgentRegistry } from '../../services/AgentRegistry';
 import { HookExecutor } from '../../services/HookExecutor';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { ImprovementLoop } from '../../../learning/ImprovementLoop';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
@@ -42,7 +43,9 @@ export class Phase2ToolsHandler extends BaseHandler {
     this.performanceTrackers = new Map();
     this.reasoningBank = new QEReasoningBank();
     this.patternExtractor = new PatternExtractor();
-    this.memoryStore = memoryStore || new SwarmMemoryManager();
+    // Use singleton pattern to ensure all components share the same database connection
+    // This prevents data fragmentation where data written by one component isn't visible to others
+    this.memoryStore = memoryStore || getSharedMemoryManager('.agentic-qe/memory.db');
   }
 
   /**
@@ -86,7 +89,7 @@ export class Phase2ToolsHandler extends BaseHandler {
           return this.createSuccessResponse(status, requestId);
         }
 
-        const patterns = engine.getPatterns() || [];
+        const patterns = (await engine.getPatterns()) || [];
         const failurePatterns = engine.getFailurePatterns() || [];
 
         const status = {
@@ -108,7 +111,7 @@ export class Phase2ToolsHandler extends BaseHandler {
             enabled: engine.isEnabled(),
             totalExperiences: engine.getTotalExperiences(),
             explorationRate: engine.getExplorationRate(),
-            patternsCount: engine.getPatterns().length,
+            patternsCount: (await engine.getPatterns()).length,
             failurePatternsCount: engine.getFailurePatterns().length
           });
         }

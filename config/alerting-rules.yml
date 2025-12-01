@@ -1,0 +1,518 @@
+# Prometheus Alerting Rules for Agentic QE Fleet
+# Phase 4: Autonomous Alerting & Feedback Loop System
+# Issue: #69
+# Version: 1.0.0
+# Date: 2025-11-29
+
+groups:
+  # =========================================================================
+  # QUALITY METRIC ALERTS
+  # =========================================================================
+  - name: quality_metrics
+    interval: 15s
+    rules:
+      # Test Failure Rate Alert
+      - alert: HighTestFailureRate
+        expr: |
+          (
+            sum(rate(aqe_quality_test_count{status="failed"}[5m]))
+            /
+            sum(rate(aqe_quality_test_count[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: error
+          component: quality
+          alert_type: test_failure
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Test failure rate exceeds 5%"
+          description: "Test failure rate is {{ $value | humanizePercentage }} (threshold: 5%). This indicates quality degradation."
+          feedback_strategy: "increase_test_isolation"
+          feedback_focus: "failing_tests"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/high-test-failure-rate"
+
+      # Coverage Drop - Critical
+      - alert: CriticalCoverageDrop
+        expr: aqe_quality_coverage_line < 80
+        for: 1m
+        labels:
+          severity: critical
+          component: quality
+          alert_type: coverage_drop
+          feedback_action: auto_remediate
+          agent_scope: qe-coverage-analyzer
+        annotations:
+          summary: "Code coverage dropped below 80%"
+          description: "Line coverage is {{ $value }}% (threshold: 80%). Immediate action required."
+          feedback_action: "generate_additional_tests"
+          feedback_target_coverage: "85.0"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/coverage-drop"
+
+      # Coverage Drop - Warning
+      - alert: WarningCoverageDrop
+        expr: aqe_quality_coverage_line < 85 and aqe_quality_coverage_line >= 80
+        for: 5m
+        labels:
+          severity: warning
+          component: quality
+          alert_type: coverage_drop
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Code coverage approaching threshold"
+          description: "Line coverage is {{ $value }}% (warning at 85%, critical at 80%)"
+          feedback_strategy: "proactive_test_generation"
+
+      # Branch Coverage Drop
+      - alert: BranchCoverageLow
+        expr: aqe_quality_coverage_branch < 75
+        for: 5m
+        labels:
+          severity: warning
+          component: quality
+          alert_type: coverage_drop
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Branch coverage below threshold"
+          description: "Branch coverage is {{ $value }}% (threshold: 75%)"
+          feedback_strategy: "focus_branch_coverage"
+
+      # Flaky Tests Increasing
+      - alert: FlakyTestsIncreasing
+        expr: aqe_quality_flaky_count > 5
+        for: 1h
+        labels:
+          severity: warning
+          component: quality
+          alert_type: flaky_tests
+          feedback_action: adjust_strategy
+          agent_scope: qe-flaky-detector
+        annotations:
+          summary: "Number of flaky tests is growing"
+          description: "{{ $value }} flaky tests detected (threshold: 5). Test stability degrading."
+          feedback_strategy: "stabilize_flaky_tests"
+          feedback_analysis_depth: "deep"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/flaky-tests"
+
+      # Critical Flaky Test Count
+      - alert: CriticalFlakyTestCount
+        expr: aqe_quality_flaky_count > 10
+        for: 30m
+        labels:
+          severity: error
+          component: quality
+          alert_type: flaky_tests
+          feedback_action: escalate
+        annotations:
+          summary: "Critical number of flaky tests detected"
+          description: "{{ $value }} flaky tests (critical threshold: 10). Test suite reliability compromised."
+          feedback_action: "quarantine_flaky_tests"
+
+      # Security Vulnerabilities - Critical
+      - alert: CriticalSecurityVulnerabilities
+        expr: aqe_quality_security_vulnerability_count{severity="critical"} > 0
+        for: 0s
+        labels:
+          severity: critical
+          component: security
+          alert_type: vulnerability
+          feedback_action: escalate
+          agent_scope: qe-security-scanner
+        annotations:
+          summary: "Critical security vulnerabilities detected"
+          description: "{{ $value }} critical vulnerabilities found. Deployment must be blocked."
+          feedback_notify: "security_team"
+          feedback_block_deployment: "true"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/security-vulnerabilities"
+
+      # Security Vulnerabilities - High
+      - alert: HighSecurityVulnerabilities
+        expr: aqe_quality_security_vulnerability_count{severity="high"} > 0
+        for: 0s
+        labels:
+          severity: error
+          component: security
+          alert_type: vulnerability
+          feedback_action: escalate
+          agent_scope: qe-security-scanner
+        annotations:
+          summary: "High severity security vulnerabilities detected"
+          description: "{{ $value }} high severity vulnerabilities found. Immediate remediation required."
+          feedback_notify: "security_team"
+          feedback_block_deployment: "true"
+
+      # Security Vulnerabilities - Medium (with threshold)
+      - alert: MediumSecurityVulnerabilities
+        expr: aqe_quality_security_vulnerability_count{severity="medium"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+          alert_type: vulnerability
+          feedback_action: auto_remediate
+        annotations:
+          summary: "Multiple medium severity vulnerabilities"
+          description: "{{ $value }} medium severity vulnerabilities (threshold: 5)"
+          feedback_action: "schedule_security_remediation"
+
+      # Quality Gate Failure
+      - alert: QualityGateFailed
+        expr: aqe_quality_gate_pass_rate < 1.0
+        for: 1m
+        labels:
+          severity: error
+          component: quality
+          alert_type: quality_gate
+          feedback_action: adjust_strategy
+          agent_scope: qe-quality-gate
+        annotations:
+          summary: "Quality gate evaluation failed"
+          description: "Quality gate pass rate: {{ $value | humanizePercentage }} (expected: 100%)"
+          feedback_strategy: "incremental_improvement"
+          feedback_focus_areas: "coverage,complexity,security"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/quality-gate-failure"
+
+  # =========================================================================
+  # PERFORMANCE METRIC ALERTS
+  # =========================================================================
+  - name: performance_metrics
+    interval: 15s
+    rules:
+      # Test Execution Slow
+      - alert: TestExecutionSlow
+        expr: |
+          histogram_quantile(0.95,
+            rate(aqe_quality_test_duration_bucket[5m])
+          ) > 30000
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+          alert_type: execution_slow
+          feedback_action: adjust_strategy
+          agent_scope: qe-test-executor
+        annotations:
+          summary: "Test execution time degraded"
+          description: "P95 test execution time is {{ $value | humanizeDuration }} (threshold: 30s)"
+          feedback_strategy: "optimize_test_suite"
+          feedback_action: "parallel_execution"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/slow-tests"
+
+      # Critical Test Execution Time
+      - alert: CriticalTestExecutionTime
+        expr: |
+          histogram_quantile(0.95,
+            rate(aqe_quality_test_duration_bucket[5m])
+          ) > 60000
+        for: 3m
+        labels:
+          severity: error
+          component: performance
+          alert_type: execution_slow
+          feedback_action: auto_remediate
+        annotations:
+          summary: "Test execution critically slow"
+          description: "P95 test execution time is {{ $value | humanizeDuration }} (critical threshold: 60s)"
+          feedback_action: "emergency_test_optimization"
+
+      # Agent Task Timeout
+      - alert: AgentTaskTimeout
+        expr: |
+          histogram_quantile(0.95,
+            rate(aqe_agent_task_duration_bucket[10m])
+          ) > 120000
+        for: 10m
+        labels:
+          severity: error
+          component: performance
+          alert_type: task_timeout
+          feedback_action: retrain_model
+        annotations:
+          summary: "Agent tasks timing out frequently"
+          description: "P95 task duration is {{ $value | humanizeDuration }} (threshold: 2m)"
+          feedback_focus: "task_complexity_estimation"
+          feedback_learning_rate: "0.2"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/agent-timeout"
+
+      # Memory Usage High
+      - alert: HighMemoryUsage
+        expr: aqe_system_memory_usage > 500000000
+        for: 1m
+        labels:
+          severity: warning
+          component: system
+          alert_type: resource_usage
+          feedback_action: auto_remediate
+        annotations:
+          summary: "Agent memory consumption exceeds threshold"
+          description: "Memory usage is {{ $value | humanize1024 }}B (threshold: 500MB)"
+          feedback_action: "garbage_collect"
+          feedback_optimize_batch_size: "true"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/high-memory"
+
+      # Critical Memory Usage
+      - alert: CriticalMemoryUsage
+        expr: aqe_system_memory_usage > 800000000
+        for: 30s
+        labels:
+          severity: critical
+          component: system
+          alert_type: resource_usage
+          feedback_action: escalate
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value | humanize1024 }}B (critical threshold: 800MB). OOM risk."
+          feedback_action: "emergency_memory_cleanup"
+
+      # CPU Usage High
+      - alert: HighCPUUsage
+        expr: aqe_system_cpu_usage > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          alert_type: resource_usage
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "High CPU utilization detected"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)"
+          feedback_strategy: "reduce_concurrent_tasks"
+
+  # =========================================================================
+  # LEARNING & ADAPTATION ALERTS
+  # =========================================================================
+  - name: learning_metrics
+    interval: 30s
+    rules:
+      # Low Agent Success Rate
+      - alert: LowAgentSuccessRate
+        expr: aqe_agent_success_rate < 0.90
+        for: 1h
+        labels:
+          severity: warning
+          component: learning
+          alert_type: success_rate
+          feedback_action: retrain_model
+        annotations:
+          summary: "Agent success rate below target"
+          description: "Agent {{ $labels.agent_type }} success rate is {{ $value | humanizePercentage }} (threshold: 90%)"
+          feedback_exploration_rate: "0.3"
+          feedback_focus: "failed_task_patterns"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/low-success-rate"
+
+      # Critical Agent Success Rate
+      - alert: CriticalAgentSuccessRate
+        expr: aqe_agent_success_rate < 0.70
+        for: 30m
+        labels:
+          severity: error
+          component: learning
+          alert_type: success_rate
+          feedback_action: escalate
+        annotations:
+          summary: "Critical agent success rate"
+          description: "Agent {{ $labels.agent_type }} success rate is {{ $value | humanizePercentage }} (critical: 70%)"
+          feedback_action: "emergency_retraining"
+
+      # Defect Density High
+      - alert: HighDefectDensity
+        expr: aqe_quality_defect_density > 2.0
+        for: 24h
+        labels:
+          severity: error
+          component: quality
+          alert_type: defect_density
+          feedback_action: adjust_strategy
+          agent_scope: qe-quality-analyzer
+        annotations:
+          summary: "Defect density exceeds threshold"
+          description: "Defect density is {{ $value }} per KLOC (threshold: 2.0)"
+          feedback_strategy: "increase_review_depth"
+          feedback_static_analysis: "true"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/high-defect-density"
+
+      # Agent Task Failure Spike
+      - alert: AgentTaskFailureSpike
+        expr: |
+          (
+            sum(rate(aqe_agent_task_count{status="failed"}[5m])) by (agent_type)
+            /
+            sum(rate(aqe_agent_task_count[5m])) by (agent_type)
+          ) > 0.20
+        for: 10m
+        labels:
+          severity: warning
+          component: learning
+          alert_type: failure_spike
+          feedback_action: retrain_model
+        annotations:
+          summary: "Agent experiencing task failure spike"
+          description: "Agent {{ $labels.agent_type }} failure rate is {{ $value | humanizePercentage }} (threshold: 20%)"
+          feedback_action: "analyze_failure_patterns"
+
+  # =========================================================================
+  # FLEET COORDINATION ALERTS
+  # =========================================================================
+  - name: fleet_coordination
+    interval: 30s
+    rules:
+      # Agent Queue Depth High
+      - alert: HighAgentQueueDepth
+        expr: aqe_system_queue_depth > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: coordination
+          alert_type: queue_depth
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Agent task queue is backing up"
+          description: "Queue depth is {{ $value }} tasks (threshold: 50)"
+          feedback_strategy: "scale_agents"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/queue-backup"
+
+      # Agent Queue Depth Critical
+      - alert: CriticalAgentQueueDepth
+        expr: aqe_system_queue_depth > 100
+        for: 2m
+        labels:
+          severity: error
+          component: coordination
+          alert_type: queue_depth
+          feedback_action: auto_remediate
+        annotations:
+          summary: "Critical agent queue backlog"
+          description: "Queue depth is {{ $value }} tasks (critical: 100). System overloaded."
+          feedback_action: "emergency_queue_drain"
+
+      # Database Query Slow
+      - alert: SlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95,
+            rate(aqe_system_db_query_duration_bucket[5m])
+          ) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+          alert_type: database_slow
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Database queries are slow"
+          description: "P95 query duration is {{ $value | humanizeDuration }} (threshold: 1s)"
+          feedback_strategy: "optimize_database_access"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/slow-database"
+
+      # Event Bus Latency High
+      - alert: HighEventBusLatency
+        expr: |
+          rate(aqe_system_eventbus_latency_sum[5m])
+          /
+          rate(aqe_system_eventbus_latency_count[5m])
+          > 500
+        for: 5m
+        labels:
+          severity: warning
+          component: coordination
+          alert_type: event_latency
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Event bus experiencing high latency"
+          description: "Average event latency is {{ $value | humanizeDuration }} (threshold: 500ms)"
+          feedback_strategy: "optimize_event_handling"
+
+  # =========================================================================
+  # TOKEN COST & EFFICIENCY ALERTS
+  # =========================================================================
+  - name: cost_efficiency
+    interval: 1m
+    rules:
+      # High Token Cost Rate
+      - alert: HighTokenCostRate
+        expr: |
+          rate(aqe_agent_cost_sum[1h])
+          > 10.0
+        for: 15m
+        labels:
+          severity: warning
+          component: cost
+          alert_type: token_cost
+          feedback_action: adjust_strategy
+        annotations:
+          summary: "Token costs increasing rapidly"
+          description: "Cost rate is ${{ $value }}/hour (threshold: $10/hour)"
+          feedback_strategy: "optimize_token_usage"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/high-token-cost"
+
+      # Inefficient Agent Token Usage
+      - alert: InefficientAgentTokenUsage
+        expr: |
+          (
+            rate(aqe_agent_token_usage_sum[1h]) by (agent_type)
+            /
+            rate(aqe_agent_task_count{status="success"}[1h]) by (agent_type)
+          ) > 10000
+        for: 30m
+        labels:
+          severity: warning
+          component: efficiency
+          alert_type: token_efficiency
+          feedback_action: retrain_model
+        annotations:
+          summary: "Agent using excessive tokens per successful task"
+          description: "Agent {{ $labels.agent_type }} uses {{ $value }} tokens per success (threshold: 10k)"
+          feedback_strategy: "optimize_prompt_efficiency"
+
+  # =========================================================================
+  # ALERTING SYSTEM HEALTH
+  # =========================================================================
+  - name: alerting_system_health
+    interval: 30s
+    rules:
+      # High Alert Fire Rate (Alert Fatigue)
+      - alert: AlertFatigueDetected
+        expr: |
+          sum(rate(aqe_alerting_alerts_fired[1h])) > 20
+        for: 1h
+        labels:
+          severity: warning
+          component: alerting
+          alert_type: alert_fatigue
+        annotations:
+          summary: "Excessive alerts being fired"
+          description: "{{ $value }} alerts fired in the last hour. Potential alert fatigue."
+          action: "Review and tune alert thresholds"
+          runbook_url: "https://docs.agentic-qe.io/runbooks/alert-fatigue"
+
+      # High Alert Suppression Rate
+      - alert: HighAlertSuppressionRate
+        expr: |
+          (
+            rate(aqe_alerting_alerts_suppressed[1h])
+            /
+            rate(aqe_alerting_alerts_fired[1h])
+          ) > 0.5
+        for: 1h
+        labels:
+          severity: info
+          component: alerting
+          alert_type: suppression_rate
+        annotations:
+          summary: "High alert suppression rate"
+          description: "{{ $value | humanizePercentage }} of alerts are being suppressed. Review cooldown settings."
+
+      # Feedback Processing Slow
+      - alert: SlowFeedbackProcessing
+        expr: |
+          histogram_quantile(0.95,
+            rate(aqe_alerting_feedback_duration_bucket[5m])
+          ) > 5000
+        for: 5m
+        labels:
+          severity: warning
+          component: alerting
+          alert_type: feedback_slow
+        annotations:
+          summary: "Feedback loop processing is slow"
+          description: "P95 feedback processing time is {{ $value | humanizeDuration }} (threshold: 5s)"
+          action: "Investigate feedback router performance"

@@ -268,38 +268,252 @@ class IncrementalDeveloper {
 }
 ```
 
+## TDD Coordination Protocol
+
+### Cycle-Based Memory Namespace
+
+All TDD subagents share context through a cycle-specific namespace:
+
+```
+aqe/tdd/cycle-{cycleId}/
+  ├── context           # Shared workflow context (created by parent)
+  ├── red/
+  │   ├── tests         # Test file content from RED phase
+  │   └── validation    # RED phase validation results
+  ├── green/
+  │   ├── impl          # Implementation from GREEN phase
+  │   └── validation    # GREEN phase validation results
+  └── refactor/
+      ├── result        # Final refactored code
+      └── validation    # REFACTOR phase validation results
+```
+
+### Input Protocol (from qe-test-writer)
+
+**Required Input Structure:**
+```typescript
+interface REDPhaseOutput {
+  cycleId: string;              // Unique identifier for this TDD cycle
+  phase: 'RED';
+  timestamp: number;
+  testFile: {
+    path: string;               // Absolute path to test file
+    content: string;            // Full test file content
+    hash: string;               // SHA256 hash for validation
+  };
+  tests: Array<{
+    name: string;               // Test description
+    type: 'unit' | 'integration' | 'e2e';
+    assertion: string;          // What it asserts
+    givenWhenThen: {
+      given: string;
+      when: string;
+      then: string;
+    };
+  }>;
+  validation: {
+    allTestsFailing: boolean;   // MUST be true
+    failureCount: number;
+    errorMessages: string[];
+  };
+  nextPhase: 'GREEN';
+  readyForHandoff: boolean;     // MUST be true to proceed
+}
+
+// Retrieve RED phase output
+const redOutput = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/red/tests`, {
+  partition: 'coordination'
+});
+
+// Validate RED phase is complete
+if (!redOutput.readyForHandoff || !redOutput.validation.allTestsFailing) {
+  throw new Error('Cannot proceed to GREEN phase - RED phase incomplete');
+}
+```
+
+### Output Protocol (for qe-test-refactorer)
+
+**Required Output Structure:**
+```typescript
+interface GREENPhaseOutput {
+  cycleId: string;              // Must match input cycleId
+  phase: 'GREEN';
+  timestamp: number;
+  testFile: {
+    path: string;               // SAME path from RED phase
+    hash: string;               // SAME hash - tests unchanged
+  };
+  implFile: {
+    path: string;               // Absolute path to implementation
+    content: string;            // Full implementation content
+    hash: string;               // SHA256 hash for validation
+  };
+  implementation: {
+    className: string;          // e.g., 'UserAuthenticationService'
+    methods: Array<{
+      name: string;
+      signature: string;
+      complexity: number;
+    }>;
+  };
+  validation: {
+    allTestsPassing: boolean;   // MUST be true
+    passCount: number;
+    totalCount: number;
+    coverage: number;           // Line coverage percentage
+  };
+  nextPhase: 'REFACTOR';
+  readyForHandoff: boolean;     // MUST be true to proceed
+}
+
+// Store GREEN phase output
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/green/impl`, output, {
+  partition: 'coordination',
+  ttl: 86400
+});
+```
+
+### Handoff Validation
+
+Before emitting completion, validate handoff readiness:
+
+```typescript
+async function validateGREENHandoff(
+  output: GREENPhaseOutput,
+  redOutput: REDPhaseOutput
+): Promise<boolean> {
+  const errors: string[] = [];
+
+  // 1. Verify cycle IDs match
+  if (output.cycleId !== redOutput.cycleId) {
+    errors.push(`Cycle ID mismatch: ${output.cycleId} !== ${redOutput.cycleId}`);
+  }
+
+  // 2. Verify test file unchanged
+  if (output.testFile.hash !== redOutput.testFile.hash) {
+    errors.push('Test file was modified during GREEN phase - tests must remain unchanged');
+  }
+
+  // 3. Verify implementation file exists
+  if (!existsSync(output.implFile.path)) {
+    errors.push(`Implementation file not found: ${output.implFile.path}`);
+  } else {
+    const actualContent = readFileSync(output.implFile.path, 'utf-8');
+    const actualHash = createHash('sha256').update(actualContent).digest('hex');
+    if (actualHash !== output.implFile.hash) {
+      errors.push(`Implementation file content mismatch: hash differs`);
+    }
+  }
+
+  // 4. Verify all tests are passing
+  if (!output.validation.allTestsPassing) {
+    errors.push(`GREEN phase violation: ${output.validation.totalCount - output.validation.passCount} tests still failing`);
+  }
+
+  // 5. Set handoff readiness
+  output.readyForHandoff = errors.length === 0;
+
+  if (errors.length > 0) {
+    console.error('GREEN phase handoff validation failed:', errors);
+  }
+
+  return output.readyForHandoff;
+}
+```
+
 ## Integration with Parent Agents
 
 ### Input from qe-test-writer
 
 ```typescript
-// Read failing tests from memory
-const failingTests = await this.memoryStore.retrieve('aqe/test-writer/results', {
+// Retrieve cycle context for file paths
+const context = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/context`, {
   partition: 'coordination'
 });
 
-// Verify tests are failing (RED phase complete)
-if (!failingTests.allTestsFailing) {
+// Retrieve RED phase output with tests
+const redOutput = await this.memoryStore.retrieve(`aqe/tdd/cycle-${cycleId}/red/tests`, {
+  partition: 'coordination'
+});
+
+// Validate RED phase is complete and ready for handoff
+if (!redOutput) {
+  throw new Error(`RED phase output not found for cycle ${cycleId}`);
+}
+
+if (!redOutput.readyForHandoff) {
+  throw new Error('Cannot proceed to GREEN phase - RED phase handoff not ready');
+}
+
+if (!redOutput.validation.allTestsFailing) {
   throw new Error('Cannot proceed to GREEN phase - tests are not failing');
 }
+
+// Verify test file exists and matches expected content
+const actualTestContent = readFileSync(redOutput.testFile.path, 'utf-8');
+const actualHash = createHash('sha256').update(actualTestContent).digest('hex');
+if (actualHash !== redOutput.testFile.hash) {
+  throw new Error('Test file has been modified since RED phase - cannot proceed');
+}
+
+// Now implement code to make these EXACT tests pass
+console.log(`Implementing code to pass ${redOutput.tests.length} tests from ${redOutput.testFile.path}`);
 ```
 
 ### Output to qe-test-refactorer
 
 ```typescript
-// Store implementations for refactoring
-await this.memoryStore.store('aqe/test-implementer/results', {
-  implementations: generatedCode,
-  testsPass: true,
-  greenPhaseComplete: true,
-  readyForRefactoring: true
-}, { partition: 'coordination' });
+// Create GREEN phase output with implementation
+const greenOutput: GREENPhaseOutput = {
+  cycleId: redOutput.cycleId,
+  phase: 'GREEN',
+  timestamp: Date.now(),
+  testFile: {
+    path: redOutput.testFile.path,     // SAME test file
+    hash: redOutput.testFile.hash      // SAME hash - tests unchanged
+  },
+  implFile: {
+    path: context.implFilePath,
+    content: generatedImplementation,
+    hash: createHash('sha256').update(generatedImplementation).digest('hex')
+  },
+  implementation: {
+    className: context.module.name,
+    methods: extractedMethods.map(m => ({
+      name: m.name,
+      signature: m.signature,
+      complexity: calculateComplexity(m)
+    }))
+  },
+  validation: {
+    allTestsPassing: testResults.passed === testResults.total,
+    passCount: testResults.passed,
+    totalCount: testResults.total,
+    coverage: testResults.coverage
+  },
+  nextPhase: 'REFACTOR',
+  readyForHandoff: true
+};
 
-// Emit completion event
+// Validate before storing
+await validateGREENHandoff(greenOutput, redOutput);
+
+// Store for REFACTOR phase
+await this.memoryStore.store(`aqe/tdd/cycle-${cycleId}/green/impl`, greenOutput, {
+  partition: 'coordination',
+  ttl: 86400
+});
+
+// Emit completion event with cycle reference
 this.eventBus.emit('test-implementer:completed', {
   agentId: this.agentId,
-  implementationsCreated: generatedCode.length,
-  nextPhase: 'REFACTOR'
+  cycleId: context.cycleId,
+  implementationPath: context.implFilePath,
+  testsPassing: greenOutput.validation.passCount,
+  testsTotal: greenOutput.validation.totalCount,
+  coverage: greenOutput.validation.coverage,
+  nextPhase: 'REFACTOR',
+  readyForHandoff: greenOutput.readyForHandoff
 });
 ```
 
