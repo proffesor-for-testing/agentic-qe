@@ -681,23 +681,103 @@ console.log(`✓ Overall score: ${reportData.overall}/100 (${getLetterGrade(repo
 if (process.env.AUTO_OPEN !== 'false') {
   console.log(`\n🌐 Opening report in browser...`);
 
-  const { exec } = require('child_process');
-  const command = process.platform === 'darwin' ? 'open' :
-                  process.platform === 'win32' ? 'start' : 'xdg-open';
+  const { exec, spawn } = require('child_process');
+  const http = require('http');
+  const absolutePath = path.resolve(outputPath);
+  const reportDir = path.dirname(absolutePath);
+  const reportFile = path.basename(absolutePath);
 
-  exec(`${command} "${outputPath}"`, (error) => {
-    if (error) {
-      console.log(`\n⚠️  Could not auto-open browser. Please open manually:`);
-      console.log(`  ${outputPath}`);
-    } else {
-      console.log(`✓ Report opened in default browser`);
-    }
+  // Find a free port
+  const findFreePort = (startPort = 8080) => {
+    return new Promise((resolve) => {
+      const server = http.createServer();
+      server.listen(startPort, () => {
+        const port = server.address().port;
+        server.close(() => resolve(port));
+      }).on('error', () => {
+        resolve(findFreePort(startPort + 1));
+      });
+    });
+  };
+
+  findFreePort().then(port => {
+    // Start HTTP server using Python (always available)
+    console.log(`📡 Starting HTTP server on port ${port}...`);
+
+    const serverProcess = spawn('python3', ['-m', 'http.server', port.toString()], {
+      cwd: reportDir,
+      detached: true,
+      stdio: 'ignore'
+    });
+
+    serverProcess.unref();
+
+    const reportUrl = `http://localhost:${port}/${reportFile}`;
+
+    // Give server time to start
+    setTimeout(() => {
+      console.log(`📊 Report URL: ${reportUrl}`);
+
+      // Method 1: Use Python's webbrowser module (works in dev containers with X11/remote display)
+      exec(`python3 -c "import webbrowser; webbrowser.open('${reportUrl}')"`, (pythonError) => {
+        if (!pythonError) {
+          console.log(`✅ Report opened in browser automatically!`);
+          console.log(`🔄 Server will auto-stop after 60 seconds`);
+
+          // Auto-stop server after 60 seconds
+          setTimeout(() => {
+            exec(`kill ${serverProcess.pid} 2>/dev/null`);
+          }, 60000);
+          return;
+        }
+
+        // Method 2: Try xdg-open with localhost URL (better for dev containers)
+        exec(`xdg-open "${reportUrl}"`, (xdgError) => {
+          if (!xdgError) {
+            console.log(`✅ Report opened in browser automatically!`);
+            console.log(`🔄 Server will auto-stop after 60 seconds`);
+
+            setTimeout(() => {
+              exec(`kill ${serverProcess.pid} 2>/dev/null`);
+            }, 60000);
+            return;
+          }
+
+          // Method 3: Try sensible-browser (Debian/Ubuntu)
+          exec(`sensible-browser "${reportUrl}"`, (sensibleError) => {
+            if (!sensibleError) {
+              console.log(`✅ Report opened in browser automatically!`);
+              console.log(`🔄 Server will auto-stop after 60 seconds`);
+
+              setTimeout(() => {
+                exec(`kill ${serverProcess.pid} 2>/dev/null`);
+              }, 60000);
+              return;
+            }
+
+            // Method 4: Print URL for VS Code port forwarding
+            console.log(`\n✅ HTTP server running!`);
+            console.log(`📊 Click this URL to open report: ${reportUrl}`);
+            console.log(`   (VS Code port forwarding: the URL will open in your browser)`);
+            console.log(`\n🔄 Server will auto-stop after 60 seconds\n`);
+
+            // Auto-stop server after 60 seconds
+            setTimeout(() => {
+              exec(`kill ${serverProcess.pid} 2>/dev/null`);
+            }, 60000);
+          });
+        });
+      });
+    }, 500);
+  }).catch(err => {
+    console.error(`❌ Failed to start server: ${err.message}`);
+    console.log(`\n📄 Report saved to: ${absolutePath}`);
   });
 } else {
   console.log(`\nView report:`);
-  console.log(`  open ${outputPath}`);
+  console.log(`  google-chrome ${outputPath}`);
   console.log(`  # or`);
-  console.log(`  npx playwright show-report`);
+  console.log(`  open ${outputPath}`);
 }
 
 // Tip for disabling auto-open
