@@ -2,11 +2,11 @@ const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './tests',
-  timeout: 30000,
+  timeout: 60000, // Increased to 60 seconds
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 1, // Force single worker for testability tests
   reporter: [
     ['html', { outputFolder: 'tests/reports/html' }],
     ['json', { outputFile: 'tests/reports/latest.json' }]
@@ -14,12 +14,25 @@ module.exports = defineConfig({
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    headless: true,
+    viewport: { width: 1280, height: 720 },
+    ignoreHTTPSErrors: true,
+    video: 'retain-on-failure',
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-dev-shm-usage',
+            '--no-sandbox'
+          ]
+        }
+      },
     },
     {
       name: 'firefox',

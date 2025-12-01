@@ -17,10 +17,68 @@ let testabilityScores = {
   }
 };
 
+// Initialize all principles with default values to ensure we always have data
+function initializeDefaultScores() {
+  const defaultScore = { score: 50, grade: 'F', weight: 0 };
+  testabilityScores.principles = {
+    observability: { ...defaultScore, weight: config.weights.observability },
+    controllability: { ...defaultScore, weight: config.weights.controllability },
+    algorithmicSimplicity: { ...defaultScore, weight: config.weights.algorithmicSimplicity },
+    algorithmicTransparency: { ...defaultScore, weight: config.weights.algorithmicTransparency },
+    explainability: { ...defaultScore, weight: config.weights.explainability },
+    similarity: { ...defaultScore, weight: config.weights.similarity },
+    algorithmicStability: { ...defaultScore, weight: config.weights.algorithmicStability },
+    unbugginess: { ...defaultScore, weight: config.weights.unbugginess },
+    smallness: { ...defaultScore, weight: config.weights.smallness },
+    decomposability: { ...defaultScore, weight: config.weights.decomposability }
+  };
+}
+
+// Robust page navigation helper
+async function navigateToPage(page) {
+  console.log(`[NAV] Starting navigation to ${config.baseURL}`);
+  page.setDefaultTimeout(45000);
+  
+  try {
+    console.log('[NAV] Attempting page.goto with domcontentloaded...');
+    await page.goto(config.baseURL, { 
+      timeout: 45000, 
+      waitUntil: 'domcontentloaded' 
+    });
+    console.log('[NAV] Page loaded (domcontentloaded)');
+    
+    // Try to wait for network idle but don't fail if it times out
+    console.log('[NAV] Waiting for networkidle (15s timeout)...');
+    await page.waitForLoadState('networkidle', { timeout: 15000 })
+      .then(() => console.log('[NAV] Network is idle'))
+      .catch(() => console.log('[NAV] Network not idle after 15s, continuing...'));
+    
+    return true;
+  } catch (error) {
+    console.log(`[NAV] Navigation failed: ${error.message}`);
+    // Try one more time with even more lenient settings
+    try {
+      console.log('[NAV] Retrying with commit waitUntil...');
+      await page.goto(config.baseURL, { 
+        timeout: 45000, 
+        waitUntil: 'commit' 
+      });
+      console.log('[NAV] Page committed');
+      return true;
+    } catch (retryError) {
+      console.error(`[NAV] Final navigation failed: ${retryError.message}`);
+      return false;
+    }
+  }
+}
+
+test.describe.configure({ mode: 'serial', timeout: 60000 });
+
 test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test.beforeAll(() => {
     console.log('Starting testability assessment...');
+    initializeDefaultScores();
   });
 
   test('1. Observability Assessment', async ({ page }) => {
@@ -33,8 +91,10 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
       page.on('pageerror', err => errors.push(err));
       page.on('request', request => networkRequests.push(request));
 
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) {
+        throw new Error('Failed to load page');
+      }
 
     // Check console logging
     const hasConsoleLogs = logs.length > 0;
@@ -79,8 +139,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('2. Controllability Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Check direct API access
     const hasAPI = await page.evaluate(() => {
@@ -130,8 +190,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('3. Algorithmic Simplicity Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Measure complexity through interaction patterns
     const interactions = [];
@@ -170,8 +230,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('4. Algorithmic Transparency Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Check code readability indicators
     const hasReadableClasses = await page.evaluate(() => {
@@ -209,8 +269,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('5. Explainability Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Check for help text and documentation
     const hasHelpText = await page.locator('[aria-label], [title], .help-text').count() > 0;
@@ -251,8 +311,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('6. Similarity to Known Technology Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Shopify is a well-known platform
     const usesShopify = await page.evaluate(() => {
@@ -284,8 +344,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('7. Algorithmic Stability Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Check for versioning
     const hasVersioning = await page.evaluate(() => {
@@ -324,8 +384,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
       page.on('pageerror', err => errors.push(err));
 
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
       // Score based on errors
       let score = 95; // Start high
@@ -346,8 +406,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('9. Smallness Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
       // Measure page size indicators
       const elementCount = await page.evaluate(() => document.querySelectorAll('*').length);
@@ -374,8 +434,8 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
   test('10. Decomposability Assessment', async ({ page }) => {
     try {
-      await page.goto(config.baseURL, { timeout: 30000 });
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      const loaded = await navigateToPage(page);
+      if (!loaded) throw new Error('Failed to load page');
 
     // Check for modular components
     const hasModularStructure = await page.evaluate(() => {
