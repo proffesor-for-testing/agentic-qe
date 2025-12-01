@@ -1,7 +1,8 @@
 #!/bin/bash
 # Testability Scorer - Full Assessment
 
-set -e
+# Don't exit on error - we want to continue even if some tests fail
+set +e
 
 # Parse arguments
 URL="${1:-https://www.saucedemo.com}"
@@ -25,6 +26,9 @@ npx playwright test tests/testability-scorer/testability-scorer.spec.js \
   --workers=1 \
   --reporter=html,json
 
+# Store exit code but continue
+TEST_EXIT_CODE=$?
+
 # Generate timestamp for unique report naming
 TIMESTAMP=$(date +%s)
 JSON_REPORT="tests/reports/testability-results-$TIMESTAMP.json"
@@ -33,26 +37,35 @@ HTML_REPORT="tests/reports/testability-report-$TIMESTAMP.html"
 # Copy latest JSON results for HTML generation
 if [ -f "tests/reports/latest.json" ]; then
   cp tests/reports/latest.json "$JSON_REPORT"
+  
+  # Generate HTML report with Chart.js visualization
+  echo ""
+  echo "📊 Generating HTML report with radar chart..."
+  node .claude/skills/testability-scorer/scripts/generate-html-report.js \
+    "$JSON_REPORT" \
+    "$HTML_REPORT"
+
+  echo ""
+  if [ $TEST_EXIT_CODE -eq 0 ]; then
+    echo "✅ Assessment complete!"
+  else
+    echo "⚠️  Assessment completed with some errors (partial results saved)"
+  fi
+  echo ""
+  echo "📈 Results:"
+  cat "$JSON_REPORT" | jq '.overall' 2>/dev/null | while read score; do
+    echo "   Overall Score: $score/100"
+  done
+
+  echo ""
+  echo "📊 HTML Report: $HTML_REPORT"
+  echo "📄 JSON Report: $JSON_REPORT"
+else
+  echo ""
+  echo "❌ No results generated - all tests may have failed"
+  echo "   Check Playwright report for details"
 fi
 
-# Generate HTML report with Chart.js visualization
-echo ""
-echo "📊 Generating HTML report with radar chart..."
-node .claude/skills/testability-scorer/scripts/generate-html-report.js \
-  "$JSON_REPORT" \
-  "$HTML_REPORT"
-
-echo ""
-echo "✅ Assessment complete!"
-echo ""
-echo "📈 Results:"
-cat "$JSON_REPORT" | jq '.overall' | while read score; do
-  echo "   Overall Score: $score/100"
-done
-
-echo ""
-echo "📊 HTML Report: $HTML_REPORT"
-echo "📄 JSON Report: $JSON_REPORT"
 echo "📄 Playwright Report: tests/reports/html/"
 echo ""
 echo "View HTML report (auto-generated with Chart.js visualization):"

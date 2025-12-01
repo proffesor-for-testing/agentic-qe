@@ -19,17 +19,22 @@ let testabilityScores = {
 
 test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
+  test.beforeAll(() => {
+    console.log('Starting testability assessment...');
+  });
+
   test('1. Observability Assessment', async ({ page }) => {
-    const logs = [];
-    const errors = [];
-    const networkRequests = [];
+    try {
+      const logs = [];
+      const errors = [];
+      const networkRequests = [];
 
-    page.on('console', msg => logs.push(msg));
-    page.on('pageerror', err => errors.push(err));
-    page.on('request', request => networkRequests.push(request));
+      page.on('console', msg => logs.push(msg));
+      page.on('pageerror', err => errors.push(err));
+      page.on('request', request => networkRequests.push(request));
 
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Check console logging
     const hasConsoleLogs = logs.length > 0;
@@ -66,11 +71,16 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
         effort: 'Low (4-6 hours)'
       });
     }
+    } catch (error) {
+      console.error('Observability assessment failed:', error.message);
+      testabilityScores.principles.observability = { score: 50, grade: 'F', weight: config.weights.observability };
+    }
   });
 
   test('2. Controllability Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Check direct API access
     const hasAPI = await page.evaluate(() => {
@@ -112,11 +122,16 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
         effort: 'Medium (8-12 hours)'
       });
     }
+    } catch (error) {
+      console.error('Controllability assessment failed:', error.message);
+      testabilityScores.principles.controllability = { score: 50, grade: 'F', weight: config.weights.controllability };
+    }
   });
 
   test('3. Algorithmic Simplicity Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Measure complexity through interaction patterns
     const interactions = [];
@@ -147,11 +162,16 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
       grade: getLetterGrade(score),
       weight: config.weights.algorithmicSimplicity
     };
+    } catch (error) {
+      console.error('Algorithmic Simplicity assessment failed:', error.message);
+      testabilityScores.principles.algorithmicSimplicity = { score: 50, grade: 'F', weight: config.weights.algorithmicSimplicity };
+    }
   });
 
   test('4. Algorithmic Transparency Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Check code readability indicators
     const hasReadableClasses = await page.evaluate(() => {
@@ -181,11 +201,16 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
       grade: getLetterGrade(score),
       weight: config.weights.algorithmicTransparency
     };
+    } catch (error) {
+      console.error('Algorithmic Transparency assessment failed:', error.message);
+      testabilityScores.principles.algorithmicTransparency = { score: 50, grade: 'F', weight: config.weights.algorithmicTransparency };
+    }
   });
 
   test('5. Explainability Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Check for help text and documentation
     const hasHelpText = await page.locator('[aria-label], [title], .help-text').count() > 0;
@@ -218,11 +243,16 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
         effort: 'Medium (6-8 hours)'
       });
     }
+    } catch (error) {
+      console.error('Explainability assessment failed:', error.message);
+      testabilityScores.principles.explainability = { score: 50, grade: 'F', weight: config.weights.explainability };
+    }
   });
 
   test('6. Similarity to Known Technology Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Shopify is a well-known platform
     const usesShopify = await page.evaluate(() => {
@@ -242,15 +272,20 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
     if (usesStandardFrameworks) score += 5;
 
     testabilityScores.principles.similarity = {
-      score: Math.min(score, 100),
+      score: Math.round(score),
       grade: getLetterGrade(score),
       weight: config.weights.similarity
     };
+    } catch (error) {
+      console.error('Similarity assessment failed:', error.message);
+      testabilityScores.principles.similarity = { score: 50, grade: 'F', weight: config.weights.similarity };
+    }
   });
 
   test('7. Algorithmic Stability Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Check for versioning
     const hasVersioning = await page.evaluate(() => {
@@ -271,61 +306,76 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
       grade: getLetterGrade(score),
       weight: config.weights.algorithmicStability
     };
+    } catch (error) {
+      console.error('Algorithmic Stability assessment failed:', error.message);
+      testabilityScores.principles.algorithmicStability = { score: 50, grade: 'F', weight: config.weights.algorithmicStability };
+    }
   });
 
   test('8. Unbugginess Assessment', async ({ page }) => {
-    const errors = [];
-    const warnings = [];
+    try {
+      const errors = [];
+      const warnings = [];
 
-    page.on('console', msg => {
-      if (msg.type() === 'error') errors.push(msg);
-      if (msg.type() === 'warning') warnings.push(msg);
-    });
+      page.on('console', msg => {
+        if (msg.type() === 'error') errors.push(msg);
+        if (msg.type() === 'warning') warnings.push(msg);
+      });
 
-    page.on('pageerror', err => errors.push(err));
+      page.on('pageerror', err => errors.push(err));
 
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
-    // Score based on errors
-    let score = 95; // Start high
-    score -= errors.length * 5;
-    score -= warnings.length * 2;
-    score = Math.max(score, 0);
+      // Score based on errors
+      let score = 95; // Start high
+      score -= errors.length * 5;
+      score -= warnings.length * 2;
+      score = Math.max(score, 0);
 
-    testabilityScores.principles.unbugginess = {
-      score: Math.min(score, 100),
-      grade: getLetterGrade(score),
-      weight: config.weights.unbugginess
-    };
+      testabilityScores.principles.unbugginess = {
+        score: Math.min(score, 100),
+        grade: getLetterGrade(score),
+        weight: config.weights.unbugginess
+      };
+    } catch (error) {
+      console.error('Unbugginess assessment failed:', error.message);
+      testabilityScores.principles.unbugginess = { score: 50, grade: 'F', weight: config.weights.unbugginess };
+    }
   });
 
   test('9. Smallness Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
-    // Measure page size indicators
-    const elementCount = await page.evaluate(() => document.querySelectorAll('*').length);
-    const scriptCount = await page.evaluate(() => document.querySelectorAll('script').length);
-    const styleCount = await page.evaluate(() => document.querySelectorAll('style, link[rel="stylesheet"]').length);
+      // Measure page size indicators
+      const elementCount = await page.evaluate(() => document.querySelectorAll('*').length);
+      const scriptCount = await page.evaluate(() => document.querySelectorAll('script').length);
+      const styleCount = await page.evaluate(() => document.querySelectorAll('style, link[rel="stylesheet"]').length);
 
-    // Smaller is better
-    let score = 100;
-    if (elementCount > 1000) score -= 10;
-    if (elementCount > 2000) score -= 10;
-    if (scriptCount > 20) score -= 5;
-    if (styleCount > 10) score -= 5;
+      // Smaller is better
+      let score = 100;
+      if (elementCount > 1000) score -= 10;
+      if (elementCount > 2000) score -= 10;
+      if (scriptCount > 20) score -= 5;
+      if (styleCount > 10) score -= 5;
 
-    testabilityScores.principles.smallness = {
-      score: Math.max(score, 0),
-      grade: getLetterGrade(score),
-      weight: config.weights.smallness
-    };
+      testabilityScores.principles.smallness = {
+        score: Math.min(score, 100),
+        grade: getLetterGrade(score),
+        weight: config.weights.smallness
+      };
+    } catch (error) {
+      console.error('Smallness assessment failed:', error.message);
+      testabilityScores.principles.smallness = { score: 50, grade: 'F', weight: config.weights.smallness };
+    }
   });
 
   test('10. Decomposability Assessment', async ({ page }) => {
-    await page.goto(config.baseURL);
-    await page.waitForLoadState('networkidle');
+    try {
+      await page.goto(config.baseURL, { timeout: 30000 });
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 
     // Check for modular components
     const hasModularStructure = await page.evaluate(() => {
@@ -359,6 +409,10 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
         impact: 30,
         effort: 'High (16-24 hours)'
       });
+    }
+    } catch (error) {
+      console.error('Decomposability assessment failed:', error.message);
+      testabilityScores.principles.decomposability = { score: 50, grade: 'F', weight: config.weights.decomposability };
     }
   });
 

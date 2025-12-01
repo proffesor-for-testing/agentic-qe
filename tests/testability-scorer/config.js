@@ -1,5 +1,5 @@
 module.exports = {
-  baseURL: 'https://www.germantesting.de/events/gtn/stuttgart25',
+  baseURL: 'https://talesoftesting.com/',
 
   // Scoring weights (must sum to 100)
   weights: {

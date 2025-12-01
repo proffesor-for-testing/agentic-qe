@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-12-01T15:47:59.575Z",
+  "overall": 8,
+  "grade": "F",
+  "principles": {
+    "observability": {
+      "score": 50,
+      "grade": "F",
+      "weight": 15
+    }
+  },
+  "recommendations": [],
+  "metadata": {
+    "url": "https://talesoftesting.com/",
+    "browser": "chromium",
+    "version": "1.0.0",
+    "assessor": "testability-scorer-skill",
+    "duration": 14502
+  }
+}
