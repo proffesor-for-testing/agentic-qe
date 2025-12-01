@@ -61,7 +61,17 @@ export class DataTransformer {
     layoutOptions: LayoutOptions,
     filter?: VisualizationFilter
   ): VisualizationGraph {
-    const events: EventRecord[] = this.eventStore.getEventsBySession(sessionId);
+    // Get events - for "default" session, fetch all recent events
+    let events: EventRecord[] = [];
+    if (sessionId && sessionId !== 'default') {
+      events = this.eventStore.getEventsBySession(sessionId);
+    }
+    // If no events found for specific session, get all recent events
+    if (events.length === 0) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+      events = this.eventStore.getEventsByTimeRange({ start: oneHourAgo, end: now }, { limit: 100 });
+    }
     const chains = this.reasoningStore.getChainsBySession(sessionId, { includeSteps: false });
 
     // Filter events if criteria provided
@@ -76,12 +86,17 @@ export class DataTransformer {
     const agentNodes = new Map<string, VisualizationNode>();
     for (const event of filteredEvents) {
       if (!agentNodes.has(event.agent_id)) {
+        // Infer agent type from agent_id for proper coloring
+        const agentType = this.inferAgentType(event.agent_id, event.event_type);
+        // Infer status from event type
+        const status = this.inferAgentStatus(event.event_type);
+
         const agentNode: VisualizationNode = {
-          id: `agent-${event.agent_id}`,
-          type: 'agent',
+          id: event.agent_id, // Use clean ID without prefix for frontend compatibility
+          type: agentType as any, // Use inferred agent type (coordinator, researcher, coder, etc.)
           label: event.agent_id,
           timestamp: event.timestamp,
-          status: 'active',
+          status: status as any,
           metadata: {
             agent_id: event.agent_id,
             first_event: event.timestamp,
@@ -532,6 +547,37 @@ export class DataTransformer {
         y: row * spacing,
       };
     });
+  }
+
+  /**
+   * Infer agent type from agent ID for proper visualization coloring
+   * Returns: coordinator, researcher, coder, tester, reviewer, analyzer
+   */
+  private inferAgentType(agentId: string, eventType: string): string {
+    const id = agentId.toLowerCase();
+    if (id.includes('coord') || id.includes('fleet')) return 'coordinator';
+    if (id.includes('test') || id.includes('gen')) return 'researcher';
+    if (id.includes('code') || id.includes('impl') || id.includes('coder')) return 'coder';
+    if (id.includes('review')) return 'reviewer';
+    if (id.includes('analy') || id.includes('cover')) return 'analyzer';
+    if (id.includes('tester') || id.includes('qa')) return 'tester';
+    // Default based on event type prefix
+    if (eventType.startsWith('test')) return 'tester';
+    if (eventType.startsWith('review')) return 'reviewer';
+    return 'coder';
+  }
+
+  /**
+   * Infer agent status from event type
+   * Returns: idle, running, completed, error
+   */
+  private inferAgentStatus(eventType: string): string {
+    const type = eventType.toLowerCase();
+    if (type.includes('spawned') || type.includes('idle')) return 'idle';
+    if (type.includes('started') || type.includes('running') || type.includes('progress')) return 'running';
+    if (type.includes('completed') || type.includes('done') || type.includes('finished')) return 'completed';
+    if (type.includes('error') || type.includes('failed')) return 'error';
+    return 'idle';
   }
 
   /**

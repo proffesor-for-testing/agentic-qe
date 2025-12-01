@@ -54,9 +54,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setEvents((prev) => [message.data, ...prev].slice(0, 1000)); // Keep last 1000
           break;
         case 'initial-state':
-          setGraphData(message.graphData);
-          setMetrics(message.metrics || []);
-          setEvents(message.events || []);
+          // Handle both formats: direct properties or nested in data
+          const data = message.data || message;
+          setGraphData(data.graphData || { nodes: [], edges: [] });
+          setMetrics(data.metrics || []);
+          setEvents(data.events || []);
           break;
       }
     };
