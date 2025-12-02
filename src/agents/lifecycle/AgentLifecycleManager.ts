@@ -206,42 +206,47 @@ export class AgentLifecycleManager {
    * Defines the finite state machine for agent lifecycle
    */
   private buildTransitionMap(): Map<AgentStatus, Set<AgentStatus>> {
-    return new Map([
-      // INITIALIZING can transition to ACTIVE or ERROR
-      [AgentStatus.INITIALIZING, new Set([
-        AgentStatus.ACTIVE,
-        AgentStatus.ERROR
-      ])],
+    const map = new Map<AgentStatus, Set<AgentStatus>>();
 
-      // ACTIVE can transition to IDLE, TERMINATING, or ERROR
-      [AgentStatus.ACTIVE, new Set([
-        AgentStatus.IDLE,
-        AgentStatus.TERMINATING,
-        AgentStatus.ERROR,
-        AgentStatus.ACTIVE // Allow re-entry for task processing
-      ])],
+    // INITIALIZING can transition to ACTIVE, ERROR, or TERMINATING (for cleanup)
+    map.set(AgentStatus.INITIALIZING, new Set<AgentStatus>([
+      AgentStatus.ACTIVE,
+      AgentStatus.ERROR,
+      AgentStatus.TERMINATING // Allow cleanup during initialization
+    ]));
 
-      // IDLE can transition to ACTIVE, TERMINATING, or ERROR
-      [AgentStatus.IDLE, new Set([
-        AgentStatus.ACTIVE,
-        AgentStatus.TERMINATING,
-        AgentStatus.ERROR
-      ])],
+    // ACTIVE can transition to IDLE, TERMINATING, or ERROR
+    map.set(AgentStatus.ACTIVE, new Set<AgentStatus>([
+      AgentStatus.IDLE,
+      AgentStatus.TERMINATING,
+      AgentStatus.ERROR,
+      AgentStatus.ACTIVE // Allow re-entry for task processing
+    ]));
 
-      // TERMINATING can transition to TERMINATED or ERROR
-      [AgentStatus.TERMINATING, new Set([
-        AgentStatus.TERMINATED,
-        AgentStatus.ERROR
-      ])],
+    // IDLE can transition to ACTIVE, TERMINATING, or ERROR
+    map.set(AgentStatus.IDLE, new Set<AgentStatus>([
+      AgentStatus.ACTIVE,
+      AgentStatus.TERMINATING,
+      AgentStatus.ERROR
+    ]));
 
-      // TERMINATED is a final state
-      [AgentStatus.TERMINATED, new Set()],
+    // TERMINATING can transition to TERMINATED or ERROR
+    map.set(AgentStatus.TERMINATING, new Set<AgentStatus>([
+      AgentStatus.TERMINATED,
+      AgentStatus.ERROR
+    ]));
 
-      // ERROR can transition to TERMINATING (for cleanup)
-      [AgentStatus.ERROR, new Set([
-        AgentStatus.TERMINATING
-      ])]
-    ]);
+    // TERMINATED is a final state - but allow re-entry of TERMINATING for idempotent cleanup
+    map.set(AgentStatus.TERMINATED, new Set<AgentStatus>([
+      AgentStatus.TERMINATING // Allow idempotent terminate() calls
+    ]));
+
+    // ERROR can transition to TERMINATING (for cleanup)
+    map.set(AgentStatus.ERROR, new Set<AgentStatus>([
+      AgentStatus.TERMINATING
+    ]));
+
+    return map;
   }
 
   /**

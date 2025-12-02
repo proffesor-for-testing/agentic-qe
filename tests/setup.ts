@@ -44,6 +44,8 @@ if (!CACHED_CWD || CACHED_CWD === '') {
 // Setup test environment
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'error';
+// Use mock adapter for AgentDB to avoid database initialization issues in tests
+process.env.AQE_ADAPTER_TYPE = 'mock';
 
 // Mock database for tests
 jest.mock('../src/utils/Database', () => {

@@ -6,7 +6,7 @@
 import { QualityAnalyzerAgent, QualityAnalyzerConfig } from '@agents/QualityAnalyzerAgent';
 import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { EventBus } from '@core/EventBus';
-import { QEAgentType, AgentContext, QETask } from '@types';
+import { QEAgentType, AgentContext, QETask } from '@types/index';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
