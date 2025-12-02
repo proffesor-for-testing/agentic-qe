@@ -34,7 +34,7 @@ export async function copySkillTemplates(force: boolean = false): Promise<void> 
   await fs.ensureDir(targetPath);
 
   // QE-specific skill patterns (NOT claude-flow, github, flow-nexus, agentdb-*, hive-mind, hooks, performance-analysis, reasoningbank-*, sparc-methodology)
-  // Total: 40 QE skills (updated from 38 - added accessibility-testing, shift-left-testing, shift-right-testing, verification-quality, visual-testing-advanced, xp-practices, technical-writing)
+  // Total: 41 QE skills (updated from 40 - added testability-scoring contributed by @fndlalit)
   const QE_SKILL_PATTERNS = [
     /^accessibility-testing$/,
     /^agentic-quality-engineering$/,
@@ -69,6 +69,7 @@ export async function copySkillTemplates(force: boolean = false): Promise<void> 
     /^tdd-london-chicago$/,
     /^technical-writing$/,
     /^test-automation-strategy$/,
+    /^testability-scoring$/,  // Contributed by @fndlalit - https://github.com/fndlalit
     /^test-data-management$/,
     /^test-design-techniques$/,
     /^test-environment-management$/,

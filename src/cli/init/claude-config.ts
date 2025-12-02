@@ -86,7 +86,7 @@ export async function generateClaudeSettings(_fleetConfig: FleetConfig): Promise
   } else {
     console.log(chalk.green('  ✓ Created .claude/settings.json with AgentDB learning hooks'));
   }
-  console.log(chalk.gray('    • PreToolUse: Semantic search + failure pattern detection'));
+  console.log(chalk.gray('    • PreToolUse: AgentDB edit intelligence (parallel success/failure queries)'));
   console.log(chalk.gray('    • PostToolUse: Experience replay + verdict-based quality'));
   console.log(chalk.gray('    • Stop: Model training + memory optimization'));
 }
@@ -109,13 +109,8 @@ function getAQEHooks(): any {
         hooks: [
           {
             type: "command",
-            description: "Semantic Search - Query similar successful past edits",
-            command: `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} FILE={}; npx agentdb@latest query --domain "successful-edits" --query "file:$FILE" --k 5 --min-confidence 0.8 --format json 2>/dev/null | jq -r ".memories[]? | \\"💡 Past Success: \\(.pattern.summary // \\"No similar patterns found\\")\\" " 2>/dev/null || true'`
-          },
-          {
-            type: "command",
-            description: "Failure Pattern Recognition - Warn about known failure patterns",
-            command: `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} FILE={}; npx agentdb@latest query --domain "failed-edits" --query "file:$FILE" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r ".memories[]? | \\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\"unknown\\")\\" " 2>/dev/null || true'`
+            description: "AgentDB Edit Intelligence - Query both success patterns and failure warnings",
+            command: `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} FILE={}; { npx agentdb@latest query --domain "failed-edits" --query "file:$FILE" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r ".memories[]? | \\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\"unknown\\")\\" " 2>/dev/null & npx agentdb@latest query --domain "successful-edits" --query "file:$FILE" --k 5 --min-confidence 0.8 --format json 2>/dev/null | jq -r ".memories[]? | \\"💡 Past Success: \\(.pattern.summary // \\"No similar patterns found\\")\\" " 2>/dev/null & wait; } || true'`
           }
         ]
       },

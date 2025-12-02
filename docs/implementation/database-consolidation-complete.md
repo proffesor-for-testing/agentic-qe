@@ -64,7 +64,7 @@ npm run migrate:agentdb
   • Episodes stored: 1881
   • Vector search: HNSW enabled (150x faster)
   • Learning: Reflexion pattern + Q-values
-  • Used by: All 19 QE agents
+  • Used by: All 18 QE agents
   ⓘ  patterns.db deprecated - using AgentDB for all learning
 ```
 
@@ -177,7 +177,7 @@ npm run migrate:agentdb
 - QUIC sync for distributed coordination
 - Persistent across sessions
 
-**Used By:** All 19 QE agents via `BaseAgent.agentDB`
+**Used By:** All 18 QE agents via `BaseAgent.agentDB`
 
 ### memory.db - Coordination Storage ✅
 
@@ -314,7 +314,7 @@ The QE agent learning system consolidation is **COMPLETE** and **PRODUCTION READ
 6. ✅ Backward compatible (agents automatically use new path)
 
 **Database Architecture:**
-- **agentdb.db**: Learning storage for all 19 QE agents
+- **agentdb.db**: Learning storage for all 18 QE agents
 - **memory.db**: Coordination for swarm operations
 - **patterns.db**: Deprecated (historical reference only)
 

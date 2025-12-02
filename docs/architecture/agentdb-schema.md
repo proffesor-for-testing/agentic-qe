@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AgentDB database (`.agentic-qe/agentdb.db`) serves as the consolidated learning and pattern storage system for all 19 QE agents in the Agentic QE Fleet.
+The AgentDB database (`.agentic-qe/agentdb.db`) serves as the consolidated learning and pattern storage system for all 18 QE agents in the Agentic QE Fleet.
 
 **Version:** 1.1.0
 **Schema Type:** SQLite with WAL mode

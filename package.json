@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
-  "version": "1.9.4",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 38 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 102 MCP tools, and native TypeScript hooks",
+  "version": "2.0.0",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 41 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 102 MCP tools, and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
@@ -152,7 +152,7 @@
     "@ruvector/core": "^0.1.15",
     "@types/ws": "^8.18.1",
     "@xenova/transformers": "^2.6.0",
-    "agentdb": "^1.0.0",
+    "agentdb": "^1.6.1",
     "agentic-flow": "^1.10.2",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",

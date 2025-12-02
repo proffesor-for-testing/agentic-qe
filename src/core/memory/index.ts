@@ -61,6 +61,13 @@ export type {
   TrainingMetrics
 } from './AgentDBManager';
 
+// AgentDB QUIC Integration
+export {
+  QUICTransportWrapper,
+  createDefaultQUICConfig,
+  initializeAgentDBWithQUIC
+} from './AgentDBIntegration';
+
 // AgentDBService - Production-ready vector database wrapper (v2.0.0)
 // Updated for agentdb@1.6.1 with WASMVectorSearch and HNSWIndex
 export { AgentDBService, createAgentDBService } from './AgentDBService';
@@ -176,3 +183,44 @@ export type {
   MonitorConfig,
   HealingAction,
 } from './SelfHealingMonitor';
+
+// =============================================================================
+// Unified Memory Coordinator (v1.0.0)
+// Single interface for all memory systems with automatic fallback
+// =============================================================================
+export {
+  UnifiedMemoryCoordinator,
+  NamespacedCoordinator,
+  createUnifiedMemoryCoordinator,
+} from './UnifiedMemoryCoordinator';
+export type {
+  MemoryConfig,
+  MemoryHealth,
+  SyncResult,
+  MemoryBackend,
+  SearchOptions,
+  SearchResult as UnifiedSearchResult,
+  VectorSearchResult as UnifiedVectorSearchResult,
+  Pattern as UnifiedPattern,
+  PatternFilter as UnifiedPatternFilter,
+  MemoryMetrics,
+} from './UnifiedMemoryCoordinator';
+
+// =============================================================================
+// QUIC Transport Layer (v2.0.0)
+// High-performance QUIC via Rust/WASM with WebSocket fallback
+// =============================================================================
+export {
+  loadQuicTransport,
+  isQuicAvailable,
+  getTransportCapabilities,
+  WebSocketFallbackTransport,
+} from '../transport';
+export type {
+  Transport,
+  TransportCapabilities,
+  QuicTransport,
+  QuicTransportConfig,
+  AgentMessage,
+  PoolStatistics,
+} from '../transport';

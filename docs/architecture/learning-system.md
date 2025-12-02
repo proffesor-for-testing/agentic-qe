@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The Agentic QE Fleet v1.8.0 learning system enables **persistent, adaptive learning** across all 19 QE agents using:
+The Agentic QE Fleet v1.8.0 learning system enables **persistent, adaptive learning** across all 18 QE agents using:
 
 - **AgentDB vector database** (150x faster pattern retrieval)
 - **Reflexion-based learning** (self-reflection + critique)
@@ -27,7 +27,7 @@ This architecture transforms agents from **stateless executors** to **continuous
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     19 QE Agents (Execution Layer)              │
+│                     18 QE Agents (Execution Layer)              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
 │  │ Test         │  │ Coverage     │  │ Performance  │          │
 │  │ Generator    │  │ Analyzer     │  │ Tester       │  ...     │
@@ -981,7 +981,7 @@ aqe learn status --agent test-gen
 
 The v1.8.0 learning system enables:
 
-✅ **Persistent learning** across all 19 QE agents
+✅ **Persistent learning** across all 18 QE agents
 ✅ **150x faster pattern retrieval** (HNSW vector search)
 ✅ **Reflexion-based improvement** (self-reflection + critique)
 ✅ **Q-learning optimization** (strategy reinforcement)

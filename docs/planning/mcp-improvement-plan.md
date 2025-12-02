@@ -5,7 +5,7 @@
 **Analysis Sources**:
 - Anthropic Engineering Blog: Code Execution with MCP
 - Current AQE MCP Implementation Analysis
-- 19 QE Agents, 102 MCP Tools, 87 Handler Files
+- 18 QE Agents, 102 MCP Tools, 87 Handler Files
 
 ---
 

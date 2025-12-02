@@ -163,16 +163,29 @@ export async function debugAgent(options: DebugAgentOptions): Promise<DebugAgent
     // Capture agent state if requested
     let state: AgentState | undefined;
     if (options.captureState) {
-      const memoryDb = path.join(process.cwd(), '.swarm', 'memory.db');
+      // Check both .agentic-qe (primary) and .swarm (legacy) database locations
+      const aqeMemoryDb = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+      const swarmMemoryDb = path.join(process.cwd(), '.swarm', 'memory.db');
 
-      // Check if memory DB exists (async)
-      let memoryDbExists = false;
+      // Check if memory DBs exist (async)
+      let aqeDbExists = false;
+      let swarmDbExists = false;
       try {
-        await fs.access(memoryDb);
-        memoryDbExists = true;
+        await fs.access(aqeMemoryDb);
+        aqeDbExists = true;
       } catch {
-        memoryDbExists = false;
+        aqeDbExists = false;
       }
+      try {
+        await fs.access(swarmMemoryDb);
+        swarmDbExists = true;
+      } catch {
+        swarmDbExists = false;
+      }
+
+      // Use .agentic-qe as primary, .swarm as fallback
+      const memoryDb = aqeDbExists ? aqeMemoryDb : swarmMemoryDb;
+      const memoryDbExists = aqeDbExists || swarmDbExists;
 
       state = {
         memory: memoryDbExists ? { path: memoryDb } : {},

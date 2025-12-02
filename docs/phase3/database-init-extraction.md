@@ -30,7 +30,7 @@ Successfully extracted all database initialization code from the old monolithic 
   - `quantizationType: 'scalar'`
 - HNSW vector search enabled (150x faster)
 - Reflexion pattern + Q-values for learning
-- Used by all 19 QE agents
+- Used by all 18 QE agents
 - CRITICAL: Calls `initialize()` before `getStats()`
 
 ### 4. `initializeLearningSystem(config: FleetConfig)` - Learning Config

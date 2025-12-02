@@ -9,11 +9,11 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.9.4** (Memory & Learning System Fixes) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.0.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
+> Agentic test automation with AI learning, real-time visualization, QUIC transport, testability scoring, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
-🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **38 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
+🎨 **Real-Time Visualization** | 📊 **Testability Scoring** | 🧠 **QE Agent Learning** | 🚀 **QUIC Transport** | 📋 **Constitution System** | 📚 **41 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
 
 </div>
 
@@ -62,7 +62,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ ML Flaky Detection (100% accuracy)
 - ✅ 19 Specialized agent definitions (including qe-code-complexity)
 - ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
-- ✅ 40 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices)
+- ✅ 41 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
 - ✅ 8 AQE slash commands
 - ✅ Modular init system with comprehensive project setup
 
@@ -193,7 +193,7 @@ open http://localhost:3000
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 38 QE Skills Library (v1.9.0)
+### 🎓 41 QE Skills Library (v1.9.0)
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -214,7 +214,7 @@ open http://localhost:3000
 **Phase 3: Advanced Quality Engineering Skills (4 skills)**
 - **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
 
-**Total: 38 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
+**Total: 41 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
 
 </details>
 
