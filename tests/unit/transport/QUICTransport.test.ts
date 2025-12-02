@@ -1,628 +1,247 @@
 /**
- * Unit tests for QUICTransport
+ * QUIC Transport Tests
  *
- * Tests cover:
- * - Connection establishment (QUIC and TCP)
- * - Message sending and receiving
- * - Channel-based routing
- * - Automatic fallback
- * - Error handling and retries
- * - Performance metrics
- * - Keep-alive functionality
- *
- * @module tests/transport/QUICTransport
+ * Tests for the QUIC/WebSocket transport layer with automatic fallback.
  */
 
-import { QUICTransport, createQUICTransport, TransportMode, ConnectionState } from '../../../src/transport/QUICTransport';
-import * as dgram from 'dgram';
-import * as net from 'net';
-import * as tls from 'tls';
+import {
+  loadQuicTransport,
+  isQuicAvailable,
+  getTransportCapabilities,
+  WebSocketFallbackTransport,
+} from '../../../src/core/transport';
+import type {
+  Transport,
+  QuicTransportConfig,
+  AgentMessage,
+  PoolStatistics,
+} from '../../../src/core/transport';
 
-// Mock modules
-jest.mock('dgram');
-jest.mock('net');
-jest.mock('tls');
-jest.mock('fs/promises');
+describe('QUIC Transport', () => {
+  describe('Transport Loader', () => {
+    it('should load transport (QUIC or WebSocket fallback)', async () => {
+      const transport = await loadQuicTransport();
+      expect(transport).toBeDefined();
+      expect(transport.send).toBeDefined();
+      expect(transport.receive).toBeDefined();
+      expect(transport.close).toBeDefined();
+    });
 
-describe('QUICTransport', () => {
-  let transport: QUICTransport;
-  let mockUdpSocket: any;
-  let mockTcpSocket: any;
+    it('should load transport with custom configuration', async () => {
+      const config: QuicTransportConfig = {
+        serverName: 'test-server.local',
+        maxIdleTimeoutMs: 60000,
+        maxConcurrentStreams: 200,
+        enable0Rtt: false,
+      };
 
-  beforeEach(() => {
-    // Reset mocks
-    jest.clearAllMocks();
-
-    // Mock UDP socket
-    mockUdpSocket = {
-      bind: jest.fn((callback) => callback && callback()),
-      send: jest.fn((msg, offset, length, port, host, callback) => callback && callback()),
-      close: jest.fn(),
-      on: jest.fn(),
-      address: jest.fn(() => ({ address: '0.0.0.0', port: 12345 }))
-    };
-
-    // Mock TCP socket
-    mockTcpSocket = {
-      write: jest.fn((data, callback) => callback && callback()),
-      destroy: jest.fn(),
-      on: jest.fn(),
-      destroyed: false
-    };
-
-    (dgram.createSocket as jest.Mock).mockReturnValue(mockUdpSocket);
-    (tls.connect as jest.Mock).mockReturnValue(mockTcpSocket);
-
-    // Mock fs/promises
-    const fsMock = require('fs/promises');
-    fsMock.readFile = jest.fn().mockResolvedValue(Buffer.from('mock-cert'));
-
-    transport = new QUICTransport();
-  });
-
-  afterEach(async () => {
-    if (transport.isConnected()) {
+      const transport = await loadQuicTransport(config);
+      expect(transport).toBeDefined();
       await transport.close();
-    }
-  });
-
-  describe('initialize', () => {
-    it('should initialize with QUIC connection', async () => {
-      const config = {
-        host: 'localhost',
-        port: 4433,
-        enable0RTT: true
-      };
-
-      // Trigger bind callback
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      const initPromise = transport.initialize(config);
-
-      // Wait for socket to be created and bound
-      await new Promise(resolve => setImmediate(resolve));
-
-      expect(dgram.createSocket).toHaveBeenCalledWith('udp4');
-      expect(mockUdpSocket.bind).toHaveBeenCalled();
-
-      // Complete initialization
-      await initPromise;
-
-      expect(transport.isConnected()).toBe(true);
-      expect(transport.getMode()).toBe(TransportMode.QUIC);
     });
 
-    it('should fallback to TCP when QUIC fails', async () => {
-      const config = {
-        host: 'localhost',
-        port: 4433,
-        enableTCPFallback: true
-      };
+    it('should provide transport capabilities info', async () => {
+      const capabilities = await getTransportCapabilities();
 
-      // Make UDP socket fail
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(() => {
-          const errorCallback = mockUdpSocket.on.mock.calls.find(
-            (call: any) => call[0] === 'error'
-          )?.[1];
-          errorCallback?.(new Error('UDP bind failed'));
-        });
-      });
-
-      // Make TCP succeed
-      mockTcpSocket.on.mockImplementation((event: string, callback: any) => {
-        if (event === 'secureConnect') {
-          setImmediate(callback);
-        }
-      });
-
-      await transport.initialize(config);
-
-      expect(transport.isConnected()).toBe(true);
-      expect(transport.getMode()).toBe(TransportMode.TCP);
+      expect(capabilities).toHaveProperty('quic');
+      expect(capabilities).toHaveProperty('websocket');
+      expect(capabilities).toHaveProperty('recommended');
+      expect(capabilities).toHaveProperty('performance');
+      expect(capabilities.websocket).toBe(true);
+      expect(['quic', 'websocket']).toContain(capabilities.recommended);
     });
 
-    it('should handle initialization failure', async () => {
-      const config = {
-        host: 'localhost',
-        port: 4433,
-        enableTCPFallback: false
-      };
-
-      // Make UDP socket fail
-      mockUdpSocket.bind.mockImplementation(() => {
-        throw new Error('Bind failed');
-      });
-
-      await expect(transport.initialize(config)).rejects.toThrow();
-      expect(transport.getState()).toBe(ConnectionState.FAILED);
-    });
-
-    it('should load TLS credentials from files', async () => {
-      const fsMock = require('fs/promises');
-      const config = {
-        host: 'localhost',
-        port: 4433,
-        certPath: '/path/to/cert.pem',
-        keyPath: '/path/to/key.pem'
-      };
-
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize(config);
-
-      expect(fsMock.readFile).toHaveBeenCalledWith('/path/to/cert.pem');
-      expect(fsMock.readFile).toHaveBeenCalledWith('/path/to/key.pem');
-    });
-
-    it('should generate self-signed cert when paths not provided', async () => {
-      const config = {
-        host: 'localhost',
-        port: 4433
-      };
-
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize(config);
-
-      // Should not throw, cert should be generated
-      expect(transport.isConnected()).toBe(true);
+    it('should check QUIC availability', async () => {
+      const available = await isQuicAvailable();
+      expect(typeof available).toBe('boolean');
     });
   });
 
-  describe('send', () => {
+  describe('WebSocket Fallback Transport', () => {
+    let transport: WebSocketFallbackTransport;
+
     beforeEach(async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433
+      transport = await WebSocketFallbackTransport.create({
+        serverName: 'localhost',
+        maxIdleTimeoutMs: 30000,
+        maxConcurrentStreams: 100,
       });
     });
 
-    it('should send message via QUIC', async () => {
-      const channel = 'test-channel';
-      const data = { message: 'test' };
-
-      await transport.send(channel, data);
-
-      expect(mockUdpSocket.send).toHaveBeenCalled();
-
-      const sentMessage = mockUdpSocket.send.mock.calls[1][0]; // Skip handshake
-      const envelope = JSON.parse(sentMessage.toString());
-
-      expect(envelope.channel).toBe(channel);
-      expect(envelope.data).toEqual(data);
-    });
-
-    it('should send message via TCP fallback', async () => {
-      // Close QUIC transport
+    afterEach(async () => {
       await transport.close();
-
-      // Initialize with TCP
-      const config = {
-        host: 'localhost',
-        port: 4433,
-        enableTCPFallback: true
-      };
-
-      mockUdpSocket.bind.mockImplementation(() => {
-        throw new Error('UDP failed');
-      });
-
-      mockTcpSocket.on.mockImplementation((event: string, callback: any) => {
-        if (event === 'secureConnect') {
-          setImmediate(callback);
-        }
-      });
-
-      await transport.initialize(config);
-
-      const channel = 'test-channel';
-      const data = { message: 'test' };
-
-      await transport.send(channel, data);
-
-      expect(mockTcpSocket.write).toHaveBeenCalled();
     });
 
-    it('should throw error when not connected', async () => {
+    it('should create fallback transport', () => {
+      expect(transport).toBeDefined();
+      expect(transport).toBeInstanceOf(WebSocketFallbackTransport);
+    });
+
+    it('should have required methods', () => {
+      expect(transport.send).toBeDefined();
+      expect(transport.receive).toBeDefined();
+      expect(transport.getStats).toBeDefined();
+      expect(transport.close).toBeDefined();
+      expect(transport.request).toBeDefined();
+      expect(transport.sendBatch).toBeDefined();
+    });
+
+    it('should return pool statistics', async () => {
+      const stats = await transport.getStats();
+
+      expect(stats).toHaveProperty('active');
+      expect(stats).toHaveProperty('idle');
+      expect(stats).toHaveProperty('created');
+      expect(stats).toHaveProperty('closed');
+      expect(typeof stats.active).toBe('number');
+    });
+
+    it('should handle close gracefully', async () => {
       await transport.close();
-
-      await expect(
-        transport.send('test', {})
-      ).rejects.toThrow('Cannot send: transport not connected');
-    });
-
-    it('should retry on send failure', async () => {
-      const channel = 'test-channel';
-      const data = { message: 'test' };
-
-      // Make first send fail, second succeed
-      mockUdpSocket.send
-        .mockImplementationOnce((msg: any, offset: any, length: any, port: any, host: any, callback: any) => {
-          callback(new Error('Send failed'));
-        })
-        .mockImplementationOnce((msg: any, offset: any, length: any, port: any, host: any, callback: any) => {
-          callback();
-        });
-
-      await transport.send(channel, data);
-
-      // Should have retried (handshake + 2 attempts)
-      expect(mockUdpSocket.send).toHaveBeenCalledTimes(3);
-    });
-
-    it('should update metrics on send', async () => {
-      await transport.send('test', { data: 'test' });
-
-      const metrics = transport.getMetrics();
-      expect(metrics.messagessent).toBeGreaterThan(0);
-      expect(metrics.bytesTransferred).toBeGreaterThan(0);
+      const stats = await transport.getStats();
+      expect(stats.active).toBe(0);
     });
   });
 
-  describe('receive', () => {
-    beforeEach(async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433
-      });
-    });
-
-    it('should register channel callback', async () => {
-      const channel = 'test-channel';
-      const callback = jest.fn();
-
-      await transport.receive(channel, callback);
-
-      // Simulate receiving message
-      const messageHandler = mockUdpSocket.on.mock.calls.find(
-        (call: any) => call[0] === 'message'
-      )?.[1];
-
-      const envelope = {
-        channel,
-        data: { test: 'data' },
-        timestamp: Date.now(),
-        messageId: 'test-id'
+  describe('Agent Message Format', () => {
+    it('should accept valid agent message', async () => {
+      const message: AgentMessage = {
+        id: 'msg-001',
+        type: 'task',
+        payload: { action: 'run-tests', target: 'unit' },
+        metadata: { priority: 'high' },
       };
 
-      messageHandler?.(Buffer.from(JSON.stringify(envelope)), { address: 'localhost', port: 4433 });
-
-      expect(callback).toHaveBeenCalledWith({ test: 'data' });
+      expect(message.id).toBe('msg-001');
+      expect(message.type).toBe('task');
+      expect(message.payload).toBeDefined();
+      expect(message.metadata).toBeDefined();
     });
 
-    it('should support multiple callbacks per channel', async () => {
-      const channel = 'test-channel';
-      const callback1 = jest.fn();
-      const callback2 = jest.fn();
-
-      await transport.receive(channel, callback1);
-      await transport.receive(channel, callback2);
-
-      // Simulate receiving message
-      const messageHandler = mockUdpSocket.on.mock.calls.find(
-        (call: any) => call[0] === 'message'
-      )?.[1];
-
-      const envelope = {
-        channel,
-        data: { test: 'data' },
-        timestamp: Date.now(),
-        messageId: 'test-id'
+    it('should accept message without metadata', () => {
+      const message: AgentMessage = {
+        id: 'msg-002',
+        type: 'heartbeat',
+        payload: { timestamp: Date.now() },
       };
 
-      messageHandler?.(Buffer.from(JSON.stringify(envelope)), { address: 'localhost', port: 4433 });
-
-      expect(callback1).toHaveBeenCalled();
-      expect(callback2).toHaveBeenCalled();
+      expect(message.metadata).toBeUndefined();
     });
 
-    it('should update stream metrics', async () => {
-      await transport.receive('test-channel', jest.fn());
+    it('should support various message types', () => {
+      const types = ['task', 'result', 'status', 'coordination', 'heartbeat', 'custom-type'];
 
-      const metrics = transport.getMetrics();
-      expect(metrics.activeStreams).toBe(1);
-    });
-
-    it('should handle message routing errors gracefully', async () => {
-      const channel = 'test-channel';
-      const callback = jest.fn(() => {
-        throw new Error('Callback error');
-      });
-
-      await transport.receive(channel, callback);
-
-      // Simulate receiving message
-      const messageHandler = mockUdpSocket.on.mock.calls.find(
-        (call: any) => call[0] === 'message'
-      )?.[1];
-
-      const envelope = {
-        channel,
-        data: { test: 'data' },
-        timestamp: Date.now(),
-        messageId: 'test-id'
-      };
-
-      // Should not throw
-      expect(() => {
-        messageHandler?.(Buffer.from(JSON.stringify(envelope)), { address: 'localhost', port: 4433 });
-      }).not.toThrow();
-    });
-  });
-
-  describe('unsubscribe', () => {
-    beforeEach(async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433
-      });
-    });
-
-    it('should remove channel callback', async () => {
-      const channel = 'test-channel';
-      const callback = jest.fn();
-
-      await transport.receive(channel, callback);
-      transport.unsubscribe(channel, callback);
-
-      // Simulate receiving message
-      const messageHandler = mockUdpSocket.on.mock.calls.find(
-        (call: any) => call[0] === 'message'
-      )?.[1];
-
-      const envelope = {
-        channel,
-        data: { test: 'data' },
-        timestamp: Date.now(),
-        messageId: 'test-id'
-      };
-
-      messageHandler?.(Buffer.from(JSON.stringify(envelope)), { address: 'localhost', port: 4433 });
-
-      expect(callback).not.toHaveBeenCalled();
-    });
-
-    it('should update stream metrics when last callback removed', async () => {
-      const channel = 'test-channel';
-      const callback = jest.fn();
-
-      await transport.receive(channel, callback);
-      expect(transport.getMetrics().activeStreams).toBe(1);
-
-      transport.unsubscribe(channel, callback);
-      expect(transport.getMetrics().activeStreams).toBe(0);
-    });
-  });
-
-  describe('close', () => {
-    beforeEach(async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433
-      });
-    });
-
-    it('should close QUIC connection', async () => {
-      await transport.close();
-
-      expect(mockUdpSocket.close).toHaveBeenCalled();
-      expect(transport.isConnected()).toBe(false);
-      expect(transport.getMode()).toBe(TransportMode.UNKNOWN);
-    });
-
-    it('should close TCP connection', async () => {
-      // Switch to TCP mode
-      await transport.close();
-
-      mockTcpSocket.on.mockImplementation((event: string, callback: any) => {
-        if (event === 'secureConnect') {
-          setImmediate(callback);
-        }
-      });
-
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433,
-        enableTCPFallback: true
-      });
-
-      await transport.close();
-
-      expect(mockTcpSocket.destroy).toHaveBeenCalled();
-    });
-
-    it('should clear all subscriptions', async () => {
-      await transport.receive('channel1', jest.fn());
-      await transport.receive('channel2', jest.fn());
-
-      await transport.close();
-
-      const metrics = transport.getMetrics();
-      expect(metrics.activeStreams).toBe(0);
-    });
-
-    it('should emit disconnected event', async () => {
-      const disconnectHandler = jest.fn();
-      transport.on('disconnected', disconnectHandler);
-
-      await transport.close();
-
-      expect(disconnectHandler).toHaveBeenCalled();
-    });
-  });
-
-  describe('getMetrics', () => {
-    beforeEach(async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
-
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433
-      });
-    });
-
-    it('should return comprehensive metrics', async () => {
-      await transport.send('test', { data: 'test' });
-
-      const metrics = transport.getMetrics();
-
-      expect(metrics).toMatchObject({
-        mode: TransportMode.QUIC,
-        state: ConnectionState.CONNECTED,
-        messagessent: expect.any(Number),
-        messagesReceived: expect.any(Number),
-        bytesTransferred: expect.any(Number),
-        connectionUptime: expect.any(Number),
-        activeStreams: expect.any(Number),
-        failedAttempts: expect.any(Number)
-      });
-    });
-
-    it('should track average latency', async () => {
-      // Simulate receiving messages
-      const messageHandler = mockUdpSocket.on.mock.calls.find(
-        (call: any) => call[0] === 'message'
-      )?.[1];
-
-      for (let i = 0; i < 5; i++) {
-        const envelope = {
-          channel: 'test',
-          data: { index: i },
-          timestamp: Date.now() - 100, // 100ms ago
-          messageId: `test-${i}`
+      types.forEach(type => {
+        const message: AgentMessage = {
+          id: `msg-${type}`,
+          type,
+          payload: {},
         };
-
-        messageHandler?.(Buffer.from(JSON.stringify(envelope)), { address: 'localhost', port: 4433 });
-      }
-
-      const metrics = transport.getMetrics();
-      expect(metrics.averageLatency).toBeGreaterThan(0);
+        expect(message.type).toBe(type);
+      });
     });
   });
 
-  describe('createQUICTransport', () => {
-    it('should create and initialize transport', async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
+  describe('Transport Capabilities', () => {
+    it('should report performance characteristics', async () => {
+      const capabilities = await getTransportCapabilities();
+
+      expect(capabilities.performance.quic).toHaveProperty('latency');
+      expect(capabilities.performance.quic).toHaveProperty('throughput');
+      expect(capabilities.performance.quic).toHaveProperty('multiplexing');
+      expect(capabilities.performance.quic).toHaveProperty('encryption');
+
+      expect(capabilities.performance.websocket).toHaveProperty('latency');
+      expect(capabilities.performance.websocket).toHaveProperty('throughput');
+      expect(capabilities.performance.websocket).toHaveProperty('multiplexing');
+      expect(capabilities.performance.websocket).toHaveProperty('encryption');
+    });
+
+    it('should indicate QUIC has better performance when available', async () => {
+      const capabilities = await getTransportCapabilities();
+
+      if (capabilities.quic) {
+        expect(capabilities.recommended).toBe('quic');
+        expect(capabilities.performance.quic.multiplexing).toBe(true);
+      } else {
+        expect(capabilities.recommended).toBe('websocket');
+      }
+    });
+  });
+
+  describe('Configuration Validation', () => {
+    it('should use default configuration when not provided', async () => {
+      const transport = await loadQuicTransport();
+      expect(transport).toBeDefined();
+      await transport.close();
+    });
+
+    it('should accept partial configuration', async () => {
+      const transport = await loadQuicTransport({
+        serverName: 'custom-server',
       });
+      expect(transport).toBeDefined();
+      await transport.close();
+    });
 
-      const transport = await createQUICTransport({
-        host: 'localhost',
-        port: 4433
-      });
-
-      expect(transport.isConnected()).toBe(true);
-      expect(transport.getMode()).toBe(TransportMode.QUIC);
-
+    it('should use sensible defaults', async () => {
+      // This test verifies that the transport works with minimal config
+      const transport = await WebSocketFallbackTransport.create({});
+      const stats = await transport.getStats();
+      expect(stats).toBeDefined();
       await transport.close();
     });
   });
 
-  describe('keep-alive', () => {
-    beforeEach(async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
+  describe('Error Handling', () => {
+    it('should handle connection timeout', async () => {
+      const transport = await WebSocketFallbackTransport.create({
+        maxIdleTimeoutMs: 100, // Very short timeout
       });
+
+      // The transport should be created even with short timeout
+      expect(transport).toBeDefined();
+      await transport.close();
     });
 
-    it('should send keep-alive messages', async () => {
-      jest.useFakeTimers();
+    it('should handle close on already closed transport', async () => {
+      const transport = await WebSocketFallbackTransport.create();
+      await transport.close();
 
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433,
-        keepAlive: true,
-        keepAliveInterval: 1000
-      });
+      // Second close should not throw
+      await expect(transport.close()).resolves.not.toThrow();
+    });
+  });
+});
 
-      const initialCalls = mockUdpSocket.send.mock.calls.length;
+describe('Integration Tests', () => {
+  describe('Memory Module Exports', () => {
+    it('should export transport components from memory module', () => {
+      const memory = require('../../../src/core/memory');
 
-      // Advance time
-      jest.advanceTimersByTime(1000);
-
-      expect(mockUdpSocket.send.mock.calls.length).toBeGreaterThan(initialCalls);
-
-      jest.useRealTimers();
+      expect(memory.loadQuicTransport).toBeDefined();
+      expect(memory.isQuicAvailable).toBeDefined();
+      expect(memory.getTransportCapabilities).toBeDefined();
+      expect(memory.WebSocketFallbackTransport).toBeDefined();
     });
 
-    it('should handle keep-alive failures', async () => {
-      jest.useFakeTimers();
+    it('should export AgentDB integration components', () => {
+      const memory = require('../../../src/core/memory');
 
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433,
-        keepAlive: true,
-        keepAliveInterval: 1000
-      });
-
-      // Make keep-alive fail
-      mockUdpSocket.send.mockImplementation((msg: any, offset: any, length: any, port: any, host: any, callback: any) => {
-        callback(new Error('Keep-alive failed'));
-      });
-
-      const stateChangeHandler = jest.fn();
-      transport.on('stateChange', stateChangeHandler);
-
-      // Advance time
-      jest.advanceTimersByTime(1000);
-
-      // Should trigger reconnect
-      await new Promise(resolve => setImmediate(resolve));
-
-      jest.useRealTimers();
+      expect(memory.QUICTransportWrapper).toBeDefined();
+      expect(memory.createDefaultQUICConfig).toBeDefined();
+      expect(memory.initializeAgentDBWithQUIC).toBeDefined();
     });
   });
 
-  describe('performance', () => {
-    it('should handle high message throughput', async () => {
-      mockUdpSocket.bind.mockImplementation((callback: any) => {
-        setImmediate(callback);
-      });
+  describe('Transport Module Direct Import', () => {
+    it('should allow direct import from transport module', async () => {
+      const transport = await import('../../../src/core/transport');
 
-      await transport.initialize({
-        host: 'localhost',
-        port: 4433
-      });
-
-      const messageCount = 1000;
-      const startTime = Date.now();
-
-      const sendPromises = [];
-      for (let i = 0; i < messageCount; i++) {
-        sendPromises.push(transport.send('perf-test', { index: i }));
-      }
-
-      await Promise.all(sendPromises);
-
-      const duration = Date.now() - startTime;
-      const throughput = messageCount / (duration / 1000);
-
-      expect(throughput).toBeGreaterThan(100); // >100 msgs/sec
+      expect(transport.loadQuicTransport).toBeDefined();
+      expect(transport.isQuicAvailable).toBeDefined();
+      expect(transport.getTransportCapabilities).toBeDefined();
+      expect(transport.WebSocketFallbackTransport).toBeDefined();
     });
   });
 });

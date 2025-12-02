@@ -925,46 +925,46 @@ await eventBus.publish('fleet:performance-analysis', performanceAnalysis);
 ### Basic Operations
 ```bash
 # Initialize fleet commander
-agentic-qe agent spawn --name qe-fleet-commander --type fleet-commander
+aqe agent spawn --name qe-fleet-commander --type fleet-commander
 
 # Check fleet status
-agentic-qe fleet status
+aqe fleet status
 
 # Monitor fleet metrics
-agentic-qe fleet monitor --mode real-time
+aqe fleet monitor --mode real-time
 
 # Get fleet health report
-agentic-qe fleet health --detailed
+aqe fleet health --detailed
 ```
 
 ### Advanced Operations
 ```bash
 # Scale agent pool
-agentic-qe fleet scale --agent-type test-executor --count 20
+aqe fleet scale --agent-type test-executor --count 20
 
 # Change topology
-agentic-qe fleet topology --mode hierarchical
+aqe fleet topology --mode hierarchical
 
 # Rebalance workload
-agentic-qe fleet rebalance --algorithm sublinear
+aqe fleet rebalance --algorithm sublinear
 
 # Resolve conflicts
-agentic-qe fleet resolve-conflicts --strategy priority-weighted
+aqe fleet resolve-conflicts --strategy priority-weighted
 
 # Generate performance report
-agentic-qe fleet report --type performance --period 24h
+aqe fleet report --type performance --period 24h
 ```
 
 ### Emergency Operations
 ```bash
 # Emergency stop all agents
-agentic-qe fleet emergency-stop
+aqe fleet emergency-stop
 
 # Restart failed agents
-agentic-qe fleet recover --failed-agents
+aqe fleet recover --failed-agents
 
 # Reset fleet to default state
-agentic-qe fleet reset --preserve-config
+aqe fleet reset --preserve-config
 ```
 
 ## Quality Metrics

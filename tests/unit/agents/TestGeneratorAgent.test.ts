@@ -96,7 +96,9 @@ describe('TestGeneratorAgent', () => {
         expect.arrayContaining([
           expect.objectContaining({
             name: 'jest-test-generation',
-            taskTypes: expect.arrayContaining(['unit-test-generation', 'mock-generation'])
+            parameters: expect.objectContaining({
+              taskTypes: expect.arrayContaining(['unit-test-generation', 'mock-generation'])
+            })
           })
         ])
       );
@@ -119,7 +121,9 @@ describe('TestGeneratorAgent', () => {
         expect.arrayContaining([
           expect.objectContaining({
             name: 'coverage-analysis',
-            taskTypes: expect.arrayContaining(['coverage-reporting'])
+            parameters: expect.objectContaining({
+              taskTypes: expect.arrayContaining(['coverage-reporting'])
+            })
           })
         ])
       );

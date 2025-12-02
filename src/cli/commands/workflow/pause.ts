@@ -8,6 +8,7 @@
  */
 
 import chalk from 'chalk';
+import { getSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory.js';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
 import { Logger } from '../../../utils/Logger.js';
 
@@ -54,8 +55,9 @@ export async function pauseWorkflow(options: PauseWorkflowOptions): Promise<Paus
       throw new Error('Workflow ID is required');
     }
 
-    // Initialize memory manager
-    const memory = new SwarmMemoryManager();
+    // Initialize memory manager (uses shared singleton at .agentic-qe/memory.db)
+    const memory = getSharedMemoryManager();
+    await memory.initialize();
 
     // Retrieve workflow execution
     const execution = await retrieveWorkflowExecution(memory, options.workflowId);

@@ -11,7 +11,7 @@
 
 The Agentic QE Fleet v1.8.0 uses a consolidated two-database architecture with clear separation of concerns:
 
-- **agentdb.db**: Learning storage for all 19 QE agents (episodes, patterns, vectors)
+- **agentdb.db**: Learning storage for all 18 QE agents (episodes, patterns, vectors)
 - **memory.db**: Coordination storage for swarm orchestration (workflows, hints, OODA cycles)
 - **patterns.db**: ⚠️ **DEPRECATED** - No longer used (replaced by agentdb.db)
 
@@ -66,7 +66,7 @@ export abstract class BaseAgent extends EventEmitter {
 
 #### Usage by Agents
 
-All 19 QE agents use `BaseAgent.agentDB` for learning:
+All 18 QE agents use `BaseAgent.agentDB` for learning:
 
 ```typescript
 // Store learning experience

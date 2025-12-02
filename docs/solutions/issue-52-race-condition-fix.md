@@ -214,7 +214,7 @@ The mutex pattern integrates cleanly with:
 
 - Fixes: #52 (Race condition in BaseAgent.initialize())
 - Related: Agent lifecycle management (AgentLifecycleManager)
-- Impact: All 19 QE agents inherit this fix
+- Impact: All 18 QE agents inherit this fix
 
 ## Author & Date
 

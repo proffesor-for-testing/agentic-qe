@@ -48,7 +48,7 @@ interface GoalState {
 |--------|--------|-------------|
 | Decision Trace Time | < 5 seconds | Time to trace any agent decision to root cause |
 | Render Latency | < 100ms | Time to render visualization updates |
-| Coverage | 100% | All 19 QE agents fully visualizable |
+| Coverage | 100% | All 18 QE agents fully visualizable |
 | User Comprehension | > 80% | User study: understanding agent decisions |
 | Real-time Lag | < 500ms | Delay between event and visualization |
 
@@ -87,7 +87,7 @@ interface Preconditions {
 | EventBus | EXISTS | `/src/core/EventBus.ts` |
 | GOAPCoordination | EXISTS | `/src/core/coordination/GOAPCoordination.ts` |
 | SwarmMemoryManager | EXISTS | `/src/core/memory/` |
-| 19 QE Agents | EXISTS | `/src/agents/` |
+| 18 QE Agents | EXISTS | `/src/agents/` |
 | Event Types | EXISTS | `/src/types/events.ts` |
 | TypeScript Build | EXISTS | `package.json` |
 
