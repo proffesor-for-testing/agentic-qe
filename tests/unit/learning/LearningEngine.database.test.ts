@@ -131,8 +131,12 @@ describe('LearningEngine - Database Integration Tests', () => {
       }
     );
 
-    // Create memory store
-    memoryDbPath = path.join(__dirname, `../../../.test-memory-${Date.now()}.db`);
+    // Create memory store in tests/.tmp directory (not project root)
+    const tmpDir = path.join(__dirname, '../../.tmp');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    memoryDbPath = path.join(tmpDir, `.test-memory-${Date.now()}.db`);
     memoryStore = new SwarmMemoryManager(memoryDbPath);
     await memoryStore.initialize();
 

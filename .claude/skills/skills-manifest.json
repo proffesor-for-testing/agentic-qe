@@ -1,0 +1,632 @@
+{
+  "version": "1.0.0",
+  "generated": "2025-12-01T20:00:00.000Z",
+  "totalSkills": 41,
+  "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
+  "categories": {
+    "qe-core": {
+      "description": "Foundational quality engineering philosophy and agentic principles",
+      "priority": "critical",
+      "autoLoad": true,
+      "skills": ["agentic-quality-engineering", "holistic-testing-pact"]
+    },
+    "testing-methodologies": {
+      "description": "Core testing approaches and frameworks",
+      "priority": "high",
+      "skills": ["tdd-london-chicago", "context-driven-testing", "exploratory-testing-advanced", "risk-based-testing"]
+    },
+    "test-design": {
+      "description": "Test design techniques and patterns",
+      "priority": "high",
+      "skills": ["api-testing-patterns", "test-design-techniques", "test-data-management", "testability-scoring"]
+    },
+    "specialized-testing": {
+      "description": "Domain-specific testing disciplines",
+      "priority": "medium",
+      "skills": [
+        "security-testing",
+        "performance-testing",
+        "accessibility-testing",
+        "mobile-testing",
+        "visual-testing-advanced",
+        "localization-testing",
+        "compatibility-testing",
+        "compliance-testing",
+        "database-testing",
+        "contract-testing",
+        "chaos-engineering-resilience",
+        "mutation-testing",
+        "regression-testing"
+      ]
+    },
+    "analysis-review": {
+      "description": "Code and quality analysis skills",
+      "priority": "medium",
+      "skills": [
+        "code-review-quality",
+        "brutal-honesty-review",
+        "sherlock-review",
+        "six-thinking-hats",
+        "quality-metrics",
+        "verification-quality"
+      ]
+    },
+    "infrastructure": {
+      "description": "CI/CD, deployment, and test infrastructure",
+      "priority": "high",
+      "skills": [
+        "cicd-pipeline-qe-orchestrator",
+        "shift-left-testing",
+        "shift-right-testing",
+        "test-automation-strategy",
+        "test-environment-management",
+        "test-reporting-analytics"
+      ]
+    },
+    "development-practices": {
+      "description": "Agile development and collaboration practices",
+      "priority": "medium",
+      "skills": [
+        "xp-practices",
+        "pair-programming",
+        "refactoring-patterns",
+        "consultancy-practices",
+        "technical-writing"
+      ]
+    },
+    "bug-management": {
+      "description": "Bug reporting and defect management",
+      "priority": "medium",
+      "skills": ["bug-reporting-excellence"]
+    }
+  },
+  "skills": {
+    "agentic-quality-engineering": {
+      "id": "agentic-quality-engineering",
+      "name": "Agentic Quality Engineering",
+      "description": "Core foundational skill for all 18 QE agents with PACT principles (Proactive, Autonomous, Collaborative, Targeted).",
+      "category": "qe-core",
+      "priority": "critical",
+      "file": "agentic-quality-engineering/SKILL.md",
+      "tokenEstimate": 4200,
+      "tags": ["agents", "pact", "core", "foundation", "autonomous-testing"],
+      "dependencies": [],
+      "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity"]
+    },
+    "holistic-testing-pact": {
+      "id": "holistic-testing-pact",
+      "name": "Holistic Testing with PACT Principles",
+      "description": "Holistic Testing Model evolved with PACT for whole-team quality in agentic systems.",
+      "category": "qe-core",
+      "priority": "critical",
+      "file": "holistic-testing-pact/SKILL.md",
+      "tokenEstimate": 1500,
+      "tags": ["pact", "holistic", "whole-team", "testing-quadrants"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-coverage-analyzer", "qe-quality-gate", "qe-fleet-commander"]
+    },
+    "tdd-london-chicago": {
+      "id": "tdd-london-chicago",
+      "name": "TDD London & Chicago Schools",
+      "description": "Test-Driven Development with both London (mockist/outside-in) and Chicago (classicist/inside-out) approaches.",
+      "category": "testing-methodologies",
+      "priority": "high",
+      "file": "tdd-london-chicago/SKILL.md",
+      "tokenEstimate": 2800,
+      "tags": ["tdd", "unit-testing", "mocking", "design"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-generator", "qe-test-executor"]
+    },
+    "context-driven-testing": {
+      "id": "context-driven-testing",
+      "name": "Context-Driven Testing",
+      "description": "Apply context-driven principles where practices are chosen based on project context, not universal best practices.",
+      "category": "testing-methodologies",
+      "priority": "high",
+      "file": "context-driven-testing/SKILL.md",
+      "tokenEstimate": 1800,
+      "tags": ["context-driven", "philosophy", "principles"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-requirements-validator", "qe-quality-gate"]
+    },
+    "exploratory-testing-advanced": {
+      "id": "exploratory-testing-advanced",
+      "name": "Advanced Exploratory Testing",
+      "description": "Session-Based Test Management (SBTM), RST heuristics, and test tours for discovering unknown quality risks.",
+      "category": "testing-methodologies",
+      "priority": "high",
+      "file": "exploratory-testing-advanced/SKILL.md",
+      "tokenEstimate": 2200,
+      "tags": ["exploratory", "sbtm", "heuristics", "manual-testing"],
+      "dependencies": ["context-driven-testing"],
+      "agents": ["qe-flaky-test-hunter", "qe-production-intelligence"]
+    },
+    "risk-based-testing": {
+      "id": "risk-based-testing",
+      "name": "Risk-Based Testing",
+      "description": "Focus testing effort on highest-risk areas using risk assessment, prioritization, and coverage strategies.",
+      "category": "testing-methodologies",
+      "priority": "high",
+      "file": "risk-based-testing/SKILL.md",
+      "tokenEstimate": 1900,
+      "tags": ["risk", "prioritization", "strategy"],
+      "dependencies": ["context-driven-testing"],
+      "agents": ["qe-regression-risk-analyzer", "qe-deployment-readiness", "qe-quality-gate"]
+    },
+    "api-testing-patterns": {
+      "id": "api-testing-patterns",
+      "name": "API Testing Patterns",
+      "description": "Comprehensive REST/GraphQL API testing patterns including contract testing, integration testing, and API validation.",
+      "category": "test-design",
+      "priority": "high",
+      "file": "api-testing-patterns/SKILL.md",
+      "tokenEstimate": 2500,
+      "tags": ["api", "rest", "graphql", "contract-testing"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-generator", "qe-api-contract-validator"]
+    },
+    "test-design-techniques": {
+      "id": "test-design-techniques",
+      "name": "Test Design Techniques",
+      "description": "Systematic test design using equivalence partitioning, boundary value analysis, decision tables, state transition testing.",
+      "category": "test-design",
+      "priority": "high",
+      "file": "test-design-techniques/SKILL.md",
+      "tokenEstimate": 2400,
+      "tags": ["test-design", "techniques", "systematic-testing"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-generator"]
+    },
+    "test-data-management": {
+      "id": "test-data-management",
+      "name": "Test Data Management",
+      "description": "Generate, manage, and maintain realistic test data at scale (10k+ records/sec) with synthetic data generation.",
+      "category": "test-design",
+      "priority": "high",
+      "file": "test-data-management/SKILL.md",
+      "tokenEstimate": 2000,
+      "tags": ["test-data", "data-generation", "synthetic-data"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-data-architect"]
+    },
+    "testability-scoring": {
+      "id": "testability-scoring",
+      "name": "Testability Scoring",
+      "description": "Evaluate software testability using 10 principles with Playwright-based automated scoring (0-100 scale).",
+      "category": "test-design",
+      "priority": "high",
+      "file": "testability-scoring/SKILL.md",
+      "tokenEstimate": 5500,
+      "tags": ["testability", "scoring", "playwright", "metrics", "community-contributed"],
+      "dependencies": ["agentic-quality-engineering", "quality-metrics"],
+      "agents": ["qe-quality-analyzer", "qe-coverage-analyzer"],
+      "metadata": {
+        "author": "@fndlalit",
+        "authorUrl": "https://github.com/fndlalit",
+        "source": "https://github.com/fndlalit/testability-scorer"
+      }
+    },
+    "security-testing": {
+      "id": "security-testing",
+      "name": "Security Testing",
+      "description": "Test for vulnerabilities using OWASP principles, SAST/DAST scanning, penetration testing techniques.",
+      "category": "specialized-testing",
+      "priority": "high",
+      "file": "security-testing/SKILL.md",
+      "tokenEstimate": 2400,
+      "tags": ["security", "owasp", "sast", "dast", "penetration-testing"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-security-scanner"]
+    },
+    "performance-testing": {
+      "id": "performance-testing",
+      "name": "Performance Testing",
+      "description": "Load, stress, spike, and endurance testing with k6, JMeter, Gatling. Performance optimization strategies.",
+      "category": "specialized-testing",
+      "priority": "high",
+      "file": "performance-testing/SKILL.md",
+      "tokenEstimate": 2600,
+      "tags": ["performance", "load-testing", "k6", "jmeter", "optimization"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-performance-tester"]
+    },
+    "accessibility-testing": {
+      "id": "accessibility-testing",
+      "name": "Accessibility Testing",
+      "description": "WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification for ADA/Section 508 compliance.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "accessibility-testing/SKILL.md",
+      "tokenEstimate": 2200,
+      "tags": ["accessibility", "wcag", "a11y", "compliance"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-quality-analyzer"]
+    },
+    "mobile-testing": {
+      "id": "mobile-testing",
+      "name": "Mobile Testing",
+      "description": "iOS/Android testing including gestures, sensors, permissions, device fragmentation, and performance across 1000+ device variants.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "mobile-testing/SKILL.md",
+      "tokenEstimate": 2500,
+      "tags": ["mobile", "ios", "android", "device-testing"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-executor", "qe-performance-tester"]
+    },
+    "visual-testing-advanced": {
+      "id": "visual-testing-advanced",
+      "name": "Advanced Visual Testing",
+      "description": "Visual regression testing with AI-powered image comparison, pixel-perfect validation, and cross-browser consistency.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "visual-testing-advanced/SKILL.md",
+      "tokenEstimate": 2100,
+      "tags": ["visual-testing", "regression", "ui-testing"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-visual-tester"]
+    },
+    "localization-testing": {
+      "id": "localization-testing",
+      "name": "Localization Testing",
+      "description": "Internationalization (i18n) and localization (l10n) testing for global products including translations, locale formats, RTL languages.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "localization-testing/SKILL.md",
+      "tokenEstimate": 1800,
+      "tags": ["localization", "i18n", "l10n", "globalization"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-executor"]
+    },
+    "compatibility-testing": {
+      "id": "compatibility-testing",
+      "name": "Compatibility Testing",
+      "description": "Cross-browser, cross-platform, and cross-device compatibility testing ensuring consistent experience.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "compatibility-testing/SKILL.md",
+      "tokenEstimate": 1700,
+      "tags": ["compatibility", "cross-browser", "cross-platform"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-executor"]
+    },
+    "compliance-testing": {
+      "id": "compliance-testing",
+      "name": "Compliance Testing",
+      "description": "Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, PCI-DSS and industry-specific regulations.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "compliance-testing/SKILL.md",
+      "tokenEstimate": 2000,
+      "tags": ["compliance", "gdpr", "hipaa", "regulations"],
+      "dependencies": ["security-testing"],
+      "agents": ["qe-security-scanner", "qe-quality-gate"]
+    },
+    "database-testing": {
+      "id": "database-testing",
+      "name": "Database Testing",
+      "description": "Database schema validation, data integrity testing, migration testing, transaction isolation, and query performance.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "database-testing/SKILL.md",
+      "tokenEstimate": 1900,
+      "tags": ["database", "sql", "data-integrity", "migrations"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-executor"]
+    },
+    "contract-testing": {
+      "id": "contract-testing",
+      "name": "Contract Testing",
+      "description": "Consumer-driven contract testing for microservices using Pact, schema validation, API versioning, and backward compatibility.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "contract-testing/SKILL.md",
+      "tokenEstimate": 2100,
+      "tags": ["contract-testing", "pact", "microservices", "api"],
+      "dependencies": ["api-testing-patterns"],
+      "agents": ["qe-api-contract-validator"]
+    },
+    "chaos-engineering-resilience": {
+      "id": "chaos-engineering-resilience",
+      "name": "Chaos Engineering & Resilience",
+      "description": "Controlled failure injection, resilience testing, and system recovery validation for distributed systems.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "chaos-engineering-resilience/SKILL.md",
+      "tokenEstimate": 2200,
+      "tags": ["chaos-engineering", "resilience", "fault-injection"],
+      "dependencies": ["performance-testing"],
+      "agents": ["qe-chaos-engineer"]
+    },
+    "mutation-testing": {
+      "id": "mutation-testing",
+      "name": "Mutation Testing",
+      "description": "Test quality validation through mutation testing, assessing test suite effectiveness by introducing code mutations.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "mutation-testing/SKILL.md",
+      "tokenEstimate": 1800,
+      "tags": ["mutation-testing", "test-quality", "coverage"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-coverage-analyzer"]
+    },
+    "regression-testing": {
+      "id": "regression-testing",
+      "name": "Regression Testing",
+      "description": "Strategic regression testing with test selection, impact analysis, and continuous regression management.",
+      "category": "specialized-testing",
+      "priority": "medium",
+      "file": "regression-testing/SKILL.md",
+      "tokenEstimate": 1900,
+      "tags": ["regression", "test-selection", "impact-analysis"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-regression-risk-analyzer"]
+    },
+    "code-review-quality": {
+      "id": "code-review-quality",
+      "name": "Code Review Quality",
+      "description": "Context-driven code reviews focusing on quality, testability, and maintainability.",
+      "category": "analysis-review",
+      "priority": "medium",
+      "file": "code-review-quality/SKILL.md",
+      "tokenEstimate": 2000,
+      "tags": ["code-review", "quality", "maintainability"],
+      "dependencies": ["context-driven-testing"],
+      "agents": ["qe-quality-analyzer"]
+    },
+    "brutal-honesty-review": {
+      "id": "brutal-honesty-review",
+      "name": "Brutal Honesty Review",
+      "description": "Unvarnished technical criticism combining Linus Torvalds' precision, Gordon Ramsay's standards, and James Bach's BS-detection.",
+      "category": "analysis-review",
+      "priority": "medium",
+      "file": "brutal-honesty-review/SKILL.md",
+      "tokenEstimate": 2100,
+      "tags": ["review", "criticism", "quality-assessment"],
+      "dependencies": ["code-review-quality"],
+      "agents": ["qe-quality-analyzer"]
+    },
+    "sherlock-review": {
+      "id": "sherlock-review",
+      "name": "Sherlock Review",
+      "description": "Detective-style investigative code review using deductive reasoning, pattern recognition, and forensic analysis.",
+      "category": "analysis-review",
+      "priority": "medium",
+      "file": "sherlock-review/SKILL.md",
+      "tokenEstimate": 1800,
+      "tags": ["review", "investigation", "forensics"],
+      "dependencies": ["code-review-quality"],
+      "agents": ["qe-flaky-test-hunter", "qe-quality-analyzer"]
+    },
+    "six-thinking-hats": {
+      "id": "six-thinking-hats",
+      "name": "Six Thinking Hats",
+      "description": "Structured parallel thinking technique using six perspectives (facts, emotions, cautions, benefits, creativity, process).",
+      "category": "analysis-review",
+      "priority": "medium",
+      "file": "six-thinking-hats/SKILL.md",
+      "tokenEstimate": 2300,
+      "tags": ["thinking", "analysis", "perspectives", "decision-making"],
+      "dependencies": ["context-driven-testing"],
+      "agents": ["qe-requirements-validator", "qe-quality-gate"]
+    },
+    "quality-metrics": {
+      "id": "quality-metrics",
+      "name": "Quality Metrics",
+      "description": "Measure quality effectively with actionable metrics, dashboards, KPIs, and test effectiveness evaluation.",
+      "category": "analysis-review",
+      "priority": "medium",
+      "file": "quality-metrics/SKILL.md",
+      "tokenEstimate": 1900,
+      "tags": ["metrics", "kpi", "measurement", "dashboards"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-quality-analyzer", "qe-coverage-analyzer"]
+    },
+    "verification-quality": {
+      "id": "verification-quality",
+      "name": "Verification Quality",
+      "description": "Systematic verification approaches ensuring requirements are met and quality standards maintained.",
+      "category": "analysis-review",
+      "priority": "medium",
+      "file": "verification-quality/SKILL.md",
+      "tokenEstimate": 1700,
+      "tags": ["verification", "validation", "requirements"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-requirements-validator", "qe-quality-gate"]
+    },
+    "cicd-pipeline-qe-orchestrator": {
+      "id": "cicd-pipeline-qe-orchestrator",
+      "name": "CI/CD Pipeline QE Orchestrator",
+      "description": "Orchestrate comprehensive quality engineering across CI/CD phases by intelligently selecting QE skills and coordinating agents.",
+      "category": "infrastructure",
+      "priority": "high",
+      "file": "cicd-pipeline-qe-orchestrator/SKILL.md",
+      "tokenEstimate": 3200,
+      "tags": ["cicd", "pipeline", "orchestration", "automation"],
+      "dependencies": ["agentic-quality-engineering", "holistic-testing-pact"],
+      "agents": ["qe-fleet-commander", "qe-deployment-readiness"]
+    },
+    "shift-left-testing": {
+      "id": "shift-left-testing",
+      "name": "Shift-Left Testing",
+      "description": "Move testing earlier in development lifecycle with early validation, TDD, BDD, and continuous testing.",
+      "category": "infrastructure",
+      "priority": "high",
+      "file": "shift-left-testing/SKILL.md",
+      "tokenEstimate": 1700,
+      "tags": ["shift-left", "early-testing", "prevention"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-requirements-validator", "qe-test-generator"]
+    },
+    "shift-right-testing": {
+      "id": "shift-right-testing",
+      "name": "Shift-Right Testing",
+      "description": "Production monitoring, observability, feature flags, canary deployments, and production testing strategies.",
+      "category": "infrastructure",
+      "priority": "high",
+      "file": "shift-right-testing/SKILL.md",
+      "tokenEstimate": 1900,
+      "tags": ["shift-right", "production", "monitoring", "observability"],
+      "dependencies": ["shift-left-testing"],
+      "agents": ["qe-production-intelligence", "qe-deployment-readiness"]
+    },
+    "test-automation-strategy": {
+      "id": "test-automation-strategy",
+      "name": "Test Automation Strategy",
+      "description": "Strategic test automation planning, framework selection, test pyramid, and ROI optimization.",
+      "category": "infrastructure",
+      "priority": "high",
+      "file": "test-automation-strategy/SKILL.md",
+      "tokenEstimate": 2200,
+      "tags": ["automation", "strategy", "test-pyramid"],
+      "dependencies": ["agentic-quality-engineering"],
+      "agents": ["qe-test-generator", "qe-fleet-commander"]
+    },
+    "test-environment-management": {
+      "id": "test-environment-management",
+      "name": "Test Environment Management",
+      "description": "Manage test environments, infrastructure as code, containerization, and environment provisioning.",
+      "category": "infrastructure",
+      "priority": "medium",
+      "file": "test-environment-management/SKILL.md",
+      "tokenEstimate": 1800,
+      "tags": ["environment", "infrastructure", "docker", "kubernetes"],
+      "dependencies": ["test-automation-strategy"],
+      "agents": ["qe-test-executor"]
+    },
+    "test-reporting-analytics": {
+      "id": "test-reporting-analytics",
+      "name": "Test Reporting & Analytics",
+      "description": "Comprehensive test reporting, analytics dashboards, trend analysis, and stakeholder communication.",
+      "category": "infrastructure",
+      "priority": "medium",
+      "file": "test-reporting-analytics/SKILL.md",
+      "tokenEstimate": 1700,
+      "tags": ["reporting", "analytics", "dashboards"],
+      "dependencies": ["quality-metrics"],
+      "agents": ["qe-quality-analyzer"]
+    },
+    "xp-practices": {
+      "id": "xp-practices",
+      "name": "Extreme Programming (XP) Practices",
+      "description": "XP practices including pair programming, continuous integration, refactoring, and collective code ownership.",
+      "category": "development-practices",
+      "priority": "medium",
+      "file": "xp-practices/SKILL.md",
+      "tokenEstimate": 2000,
+      "tags": ["xp", "agile", "pair-programming", "tdd"],
+      "dependencies": ["tdd-london-chicago"],
+      "agents": ["qe-test-generator"]
+    },
+    "pair-programming": {
+      "id": "pair-programming",
+      "name": "AI-Assisted Pair Programming",
+      "description": "AI-assisted pair programming with driver/navigator modes, real-time verification, and quality monitoring.",
+      "category": "development-practices",
+      "priority": "medium",
+      "file": "pair-programming/SKILL.md",
+      "tokenEstimate": 2100,
+      "tags": ["pair-programming", "ai-assisted", "collaboration"],
+      "dependencies": ["xp-practices"],
+      "agents": []
+    },
+    "refactoring-patterns": {
+      "id": "refactoring-patterns",
+      "name": "Refactoring Patterns",
+      "description": "Safe refactoring patterns to improve code structure without changing behavior.",
+      "category": "development-practices",
+      "priority": "medium",
+      "file": "refactoring-patterns/SKILL.md",
+      "tokenEstimate": 1900,
+      "tags": ["refactoring", "code-quality", "patterns"],
+      "dependencies": ["tdd-london-chicago"],
+      "agents": []
+    },
+    "consultancy-practices": {
+      "id": "consultancy-practices",
+      "name": "Consultancy Practices",
+      "description": "Effective software quality consultancy practices, client engagement, and advisory workflows.",
+      "category": "development-practices",
+      "priority": "low",
+      "file": "consultancy-practices/SKILL.md",
+      "tokenEstimate": 1600,
+      "tags": ["consultancy", "advisory", "engagement"],
+      "dependencies": ["context-driven-testing"],
+      "agents": []
+    },
+    "technical-writing": {
+      "id": "technical-writing",
+      "name": "Technical Writing",
+      "description": "Clear technical documentation, API documentation, user guides, and knowledge base articles.",
+      "category": "development-practices",
+      "priority": "medium",
+      "file": "technical-writing/SKILL.md",
+      "tokenEstimate": 1700,
+      "tags": ["documentation", "writing", "communication"],
+      "dependencies": [],
+      "agents": ["qe-quality-analyzer"]
+    },
+    "bug-reporting-excellence": {
+      "id": "bug-reporting-excellence",
+      "name": "Bug Reporting Excellence",
+      "description": "Write high-quality bug reports that get fixed quickly with clear reproduction steps and context.",
+      "category": "bug-management",
+      "priority": "medium",
+      "file": "bug-reporting-excellence/SKILL.md",
+      "tokenEstimate": 1600,
+      "tags": ["bug-reporting", "communication", "quality"],
+      "dependencies": [],
+      "agents": ["qe-test-executor", "qe-flaky-test-hunter"]
+    }
+  },
+  "preloadRules": {
+    "always": ["agentic-quality-engineering"],
+    "byAgent": {
+      "qe-test-generator": ["tdd-london-chicago", "api-testing-patterns", "test-design-techniques", "test-automation-strategy", "shift-left-testing"],
+      "qe-test-executor": ["test-automation-strategy", "mobile-testing", "database-testing", "compatibility-testing"],
+      "qe-coverage-analyzer": ["holistic-testing-pact", "quality-metrics", "mutation-testing", "testability-scoring"],
+      "qe-quality-gate": ["holistic-testing-pact", "risk-based-testing", "context-driven-testing", "verification-quality"],
+      "qe-quality-analyzer": ["quality-metrics", "code-review-quality", "brutal-honesty-review", "testability-scoring"],
+      "qe-performance-tester": ["performance-testing"],
+      "qe-security-scanner": ["security-testing", "compliance-testing"],
+      "qe-requirements-validator": ["shift-left-testing", "context-driven-testing", "six-thinking-hats"],
+      "qe-production-intelligence": ["shift-right-testing", "exploratory-testing-advanced"],
+      "qe-fleet-commander": ["holistic-testing-pact", "cicd-pipeline-qe-orchestrator"],
+      "qe-deployment-readiness": ["risk-based-testing", "shift-right-testing"],
+      "qe-regression-risk-analyzer": ["regression-testing", "risk-based-testing"],
+      "qe-test-data-architect": ["test-data-management"],
+      "qe-api-contract-validator": ["api-testing-patterns", "contract-testing"],
+      "qe-flaky-test-hunter": ["exploratory-testing-advanced", "sherlock-review", "bug-reporting-excellence"],
+      "qe-visual-tester": ["visual-testing-advanced"],
+      "qe-chaos-engineer": ["chaos-engineering-resilience"]
+    },
+    "byTask": {
+      "test-generation": ["tdd-london-chicago", "api-testing-patterns", "test-design-techniques"],
+      "coverage-analysis": ["holistic-testing-pact", "quality-metrics", "testability-scoring"],
+      "security-testing": ["security-testing", "compliance-testing"],
+      "performance-testing": ["performance-testing"],
+      "code-review": ["code-review-quality", "brutal-honesty-review", "sherlock-review"],
+      "ci-cd-setup": ["cicd-pipeline-qe-orchestrator", "shift-left-testing", "shift-right-testing"],
+      "mobile-testing": ["mobile-testing", "accessibility-testing", "visual-testing-advanced"],
+      "api-testing": ["api-testing-patterns", "contract-testing"]
+    }
+  },
+  "metadata": {
+    "generatedBy": "Agentic QE Fleet",
+    "fleetVersion": "1.9.4",
+    "manifestVersion": "1.0.0",
+    "lastUpdated": "2025-12-01T20:00:00.000Z",
+    "contributors": [
+      {
+        "name": "@fndlalit",
+        "skill": "testability-scoring",
+        "url": "https://github.com/fndlalit"
+      }
+    ],
+    "notes": "This manifest contains only QE-focused skills. Claude Flow platform skills (agentdb, flow-nexus, github-*, swarm-*, hive-mind, etc.) are managed separately in the claude-flow package.",
+    "excludedCategories": {
+      "reason": "These are Claude Flow platform skills, not QE skills",
+      "categories": ["agentdb", "orchestration", "github-integration", "flow-nexus", "meta"]
+    }
+  }
+}

@@ -9,6 +9,7 @@
 
 import chalk from 'chalk';
 import Table from 'cli-table3';
+import { getSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory.js';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
 import { Logger } from '../../../utils/Logger.js';
 
@@ -62,8 +63,9 @@ export async function listWorkflows(options: ListWorkflowsOptions): Promise<List
       }
     }
 
-    // Initialize memory manager
-    const memory = new SwarmMemoryManager();
+    // Initialize memory manager (uses shared singleton at .agentic-qe/memory.db)
+    const memory = getSharedMemoryManager();
+    await memory.initialize();
 
     // Retrieve workflows from memory
     const workflows = await retrieveWorkflows(memory, options);

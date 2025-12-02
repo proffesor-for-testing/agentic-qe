@@ -22,14 +22,20 @@ import fs from 'fs';
 import path from 'path';
 
 describe('Learning System Database Persistence', () => {
-  // Use SEPARATE database files to avoid schema conflicts
-  const testDbPath = path.join(process.cwd(), '.test-learning.db');
-  const memoryDbPath = path.join(process.cwd(), '.test-memory.db');
+  // Use tests/.tmp directory for test databases (not project root)
+  const tmpDir = path.join(__dirname, '../.tmp');
+  const testDbPath = path.join(tmpDir, '.test-learning.db');
+  const memoryDbPath = path.join(tmpDir, '.test-memory.db');
   let database: Database;
   let memoryManager: SwarmMemoryManager;
   let learningEngine: LearningEngine | null = null;
 
   beforeEach(async () => {
+    // Ensure tmp directory exists
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
     // Clean up test databases if they exist
     if (fs.existsSync(testDbPath)) {
       fs.unlinkSync(testDbPath);

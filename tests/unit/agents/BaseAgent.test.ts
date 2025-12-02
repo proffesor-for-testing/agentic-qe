@@ -110,15 +110,19 @@ describe('BaseAgent - Comprehensive Test Suite', () => {
       name: 'test-generation',
       version: '1.0.0',
       description: 'Generate tests',
-      taskTypes: ['unit-test', 'integration-test'],
-      parameters: { framework: 'jest' }
+      parameters: {
+        framework: 'jest',
+        taskTypes: ['unit-test', 'integration-test']
+      }
     },
     {
       name: 'code-analysis',
       version: '1.0.0',
       description: 'Analyze code',
-      taskTypes: ['static-analysis'],
-      parameters: { linter: 'eslint' }
+      parameters: {
+        linter: 'eslint',
+        taskTypes: ['static-analysis']
+      }
     }
   ];
 
@@ -782,8 +786,8 @@ describe('BaseAgent - Comprehensive Test Suite', () => {
       expect(capability).toBeDefined();
       expect(capability?.name).toBe('test-generation');
       expect(capability?.version).toBe('1.0.0');
-      expect(capability?.taskTypes).toContain('unit-test');
-      expect(capability?.parameters).toEqual({ framework: 'jest' });
+      expect(capability?.parameters?.taskTypes).toContain('unit-test');
+      expect(capability?.parameters?.framework).toBe('jest');
     });
 
     it('should return undefined for non-existent capability', () => {

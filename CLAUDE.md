@@ -27,13 +27,13 @@
 
 **18 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
 **11 QE Subagents:** TDD specialists, code reviewers, integration testers
-**38 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing
+**41 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing, **testability-scoring** *(contributed by [@fndlalit](https://github.com/fndlalit))*
 **8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
 
 ### 📚 Complete Documentation
 
 - **[Agent Reference](docs/reference/agents.md)** - All 18 main agents + 11 subagents with capabilities and usage
-- **[Skills Reference](docs/reference/skills.md)** - All 38 QE skills organized by category
+- **[Skills Reference](docs/reference/skills.md)** - All 41 QE skills organized by category
 - **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start
@@ -419,13 +419,13 @@ Never save working files, text/mds and tests to the root folder.
 ## 🤖 Agentic QE Fleet Quick Reference
 
 **18 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
-**38 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
+**41 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
 **8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
 
 ### 📚 Complete Documentation
 
 - **[Agent Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
-- **[Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)** - All 38 QE skills organized by category
+- **[Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)** - All 41 QE skills organized by category
 - **[Usage Guide](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start

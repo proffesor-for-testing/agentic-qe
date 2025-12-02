@@ -61,6 +61,11 @@ coverage/
 !src/mcp/tools/qe/visual/
 .nyc_output/
 
+# Test temporary databases (prevent leaking to project root)
+.test-memory-*.db*
+.test-learning*.db*
+tests/.tmp/
+
 # Misc
 *.bak
 *.tmp

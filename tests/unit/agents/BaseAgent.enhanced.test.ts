@@ -122,8 +122,9 @@ describe('BaseAgent - Enhanced Coverage (High-Risk Lines 76-157)', () => {
       name: 'test-capability',
       version: '1.0.0',
       description: 'Test capability',
-      taskTypes: ['test'],
-      parameters: {}
+      parameters: {
+        taskTypes: ['test']
+      }
     }
   ];
 

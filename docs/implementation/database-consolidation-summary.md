@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Successfully consolidated QE agent learning from 3 fragmented databases to a single, unified AgentDB storage system. This eliminates architectural debt and enables true persistent learning for all 19 QE agents.
+Successfully consolidated QE agent learning from 3 fragmented databases to a single, unified AgentDB storage system. This eliminates architectural debt and enables true persistent learning for all 18 QE agents.
 
 **Migration Verified:** 3,766 records successfully migrated
 **Checksum:** `aa7b17e2c085b455af54b69a5e403ef563a8e023eb2a1dea9133529fbcc3c18c`
@@ -57,7 +57,7 @@ TWO databases, CLEAR separation:
 
 **Purpose:** All QE agent learning, episodes, and patterns
 **Location:** `.agentic-qe/agentdb.db`
-**Used By:** All 19 QE agents via BaseAgent
+**Used By:** All 18 QE agents via BaseAgent
 **Size:** 4.9 MB (3,766 records)
 
 **What's Stored:**
@@ -157,7 +157,7 @@ aqe init
   • Episodes stored: 1881
   • Vector search: HNSW enabled (150x faster)
   • Learning: Reflexion pattern + Q-values
-  • Used by: All 19 QE agents
+  • Used by: All 18 QE agents
   ⓘ  patterns.db deprecated - using AgentDB for all learning
 ```
 
@@ -431,7 +431,7 @@ Database consolidation is **COMPLETE and VERIFIED**. The QE agent fleet now has 
 - ✅ **memory.db** handles ONLY coordination (orchestration, workflows)
 - ✅ **patterns.db** is deprecated (never worked properly)
 
-This architectural improvement enables true persistent learning for all 19 QE agents, with vector-based pattern retrieval and proven reliability.
+This architectural improvement enables true persistent learning for all 18 QE agents, with vector-based pattern retrieval and proven reliability.
 
 **Version:** 1.8.0
 **Consolidation Date:** November 16, 2025
