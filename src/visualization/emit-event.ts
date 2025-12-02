@@ -7,10 +7,31 @@
  */
 
 import { EventStore } from '../persistence/event-store';
+import { EventType } from '../persistence/schema';
 import { WebSocket } from 'ws';
 
 const DEFAULT_DB_PATH = './data/agentic-qe.db';
 const DEFAULT_WS_URL = 'ws://localhost:8080';
+
+/**
+ * Map visualization event types to persistence EventType
+ */
+function mapToEventType(eventType: string): EventType {
+  const mapping: Record<string, EventType> = {
+    'agent:spawned': 'agent_started',
+    'agent:started': 'agent_started',
+    'agent:completed': 'agent_completed',
+    'agent:error': 'agent_error',
+    'test:generated': 'test_generated',
+    'test:executed': 'test_executed',
+    'coverage:analyzed': 'coverage_analyzed',
+    'quality:passed': 'quality_gate_passed',
+    'quality:failed': 'quality_gate_failed',
+    'pattern:matched': 'pattern_matched',
+    'learning:completed': 'learning_completed',
+  };
+  return mapping[eventType] || 'custom';
+}
 
 /**
  * Agent event data structure
@@ -39,7 +60,7 @@ export interface EventEmitterConfig {
  */
 export interface EmitResult {
   success: boolean;
-  eventId?: number;
+  eventId?: string;
   dbRecorded: boolean;
   wsBroadcast: boolean;
   error?: string;
@@ -88,12 +109,13 @@ export async function emitEvent(
     eventStore = new EventStore({ dbPath });
     const event = eventStore.recordEvent({
       agent_id: data.agentId,
-      event_type: eventType,
+      event_type: mapToEventType(eventType),
       payload: {
         agentType: data.agentType,
         status: data.status,
         duration: data.duration,
         error: data.error,
+        originalEventType: eventType,
       },
       session_id: sessionId,
     });
@@ -136,7 +158,7 @@ export async function emitEvent(
 async function broadcastEvent(
   wsUrl: string,
   eventData: {
-    id: number;
+    id: string;
     agentId: string;
     agentType?: string;
     eventType: string;
@@ -146,7 +168,7 @@ async function broadcastEvent(
     error?: string;
   }
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const ws = new WebSocket(wsUrl);
     const timeout = setTimeout(() => {
       ws.close();

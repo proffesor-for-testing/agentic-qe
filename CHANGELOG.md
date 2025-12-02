@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2025-12-02
+
+### 🚀 Major Release: Agentic QE Fleet v2
+
+This major release delivers significant improvements across the entire Agentic QE Fleet, including proper QUIC transport, enhanced visualization, testability scoring skill, QX Partner agent, and contributor features.
+
+### ⚠️ Breaking Changes
+
+- **QUIC Transport**: Replaced fake HTTP/2-based implementation with proper QUIC via Rust/WASM (`@agentic-flow/quic-wasm`)
+- **Skills Manifest**: Reduced from 68 to 41 QE-only skills (removed Claude Flow platform skills)
+- **EventType in emit-event.ts**: Changed from string to enum mapping for type safety
+
+### Added
+
+#### Real-Time Visualization Dashboard (PR #96 by @fndlalit)
+- WebSocket connection on port 8080 for backend compatibility
+- LifecycleTimeline support for `agent:spawned`, `agent:started`, `agent:completed`, `agent:error` events
+- New `emit-event.ts` module with convenience functions for agent lifecycle events
+- CLI event emission via `scripts/emit-agent-event.ts`
+- Hook integration with `emit-task-spawn.sh` and `emit-task-complete.sh`
+
+#### Testability Scoring Skill (PR #98 by @fndlalit)
+- Comprehensive context collection for all 10 testability principles
+- Contextual, site-specific recommendations based on actual measurements
+- HTML report generation with principle breakdown table
+- `run-assessment.sh` shell script with colored terminal output
+- Browser auto-open support (chromium/firefox/webkit)
+- Complete skill package at `.claude/skills/testability-scoring/`
+
+#### QX Partner Agent
+- New `QXPartnerAgent.ts` with balance analysis and oracle detection
+- Comprehensive documentation at `docs/agents/QX-PARTNER-AGENT.md`
+- Example implementations in `examples/qx-partner/`
+
+#### Proper QUIC Transport Layer
+- `src/core/transport/quic.ts` - QUIC via Rust/WASM with 0-RTT, stream multiplexing, TLS 1.3
+- `src/core/transport/quic-loader.ts` - Automatic WebSocket fallback when WASM unavailable
+- `src/types/agentic-flow-quic-wasm.d.ts` - Dedicated type declarations for optional WASM module
+- 21 transport tests passing
+
+#### Skills Manifest Cleanup
+- `.claude/skills/skills-manifest.json` with 41 QE-only skills
+- Categories: qe-core, testing-methodologies, test-design, specialized-testing, analysis-review, infrastructure, development-practices, bug-management
+
+### Fixed
+
+- **emit-event.ts TypeScript errors**: EventType mapping and string ID handling
+- **UnifiedMemoryCoordinator.ts**: Logger.getInstance(), correct method signatures
+- **Visualization WebSocket**: Port 8080, timestamp handling, MindMap null checks
+- **express security vulnerability**: Updated to 5.2.1 (CVE-2024-51999)
+
+### Changed
+
+- Agent definitions streamlined (removed redundant content from 14 agent files)
+- Skills manifest reorganized with proper categorization
+- Transport layer architecture (QUIC with WebSocket fallback)
+
+### Contributors
+
+- **@fndlalit**: Real-time visualization dashboard, testability scoring skill
+- **Dependabot**: Security updates (express 5.2.1)
+
 ## [1.9.4] - 2025-11-30
 
 ### 🔧 Critical Fixes: Memory/Learning/Patterns System

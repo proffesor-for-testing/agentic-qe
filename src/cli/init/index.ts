@@ -122,12 +122,6 @@ export async function initCommand(options: InitOptions): Promise<void> {
       description: 'Copying helper scripts to .claude/helpers',
       execute: async (cfg, opts) => copyHelperScripts(opts.force || false),
       critical: false
-    },
-    {
-      name: 'CLAUDE.md',
-      description: 'Creating CLAUDE.md configuration file',
-      execute: async (cfg, opts) => createClaudeMd(cfg, (opts as any).yes || (opts as any).nonInteractive || false),
-      critical: false
     }
     // Future phases could include:
     // - Fleet configuration customization
@@ -201,6 +195,19 @@ export async function initCommand(options: InitOptions): Promise<void> {
         completedPhases.push(result.value.phase);
       }
     });
+
+    // Create CLAUDE.md AFTER all agents/skills are copied (needs accurate counts)
+    try {
+      const claudeSpinner = ora({
+        text: 'Creating CLAUDE.md configuration file',
+        prefixText: chalk.blue('[CLAUDE.md]')
+      }).start();
+      await createClaudeMd(config, (options as any).yes || (options as any).nonInteractive || false);
+      claudeSpinner.succeed(chalk.green('Creating CLAUDE.md configuration file - Complete'));
+      completedPhases.push('CLAUDE.md');
+    } catch (error) {
+      console.warn(chalk.yellow(`  ⚠️  CLAUDE.md creation skipped: ${error instanceof Error ? error.message : String(error)}`));
+    }
 
     // All phases completed successfully (or skipped non-critical)
     displaySuccessMessage(config, options);

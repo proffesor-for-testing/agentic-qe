@@ -9,11 +9,11 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 1.9.4** (Memory & Learning System Fixes) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.0.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Agentic test automation with AI learning, real-time visualization, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
+> Agentic test automation with AI learning, real-time visualization, QUIC transport, testability scoring, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
-🎨 **Real-Time Visualization** | 📊 **Interactive Dashboards** | 🧠 **QE Agent Learning** | 💾 **Event Sourcing** | 📋 **Constitution System** | 📚 **41 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
+🎨 **Real-Time Visualization** | 📊 **Testability Scoring** | 🧠 **QE Agent Learning** | 🚀 **QUIC Transport** | 📋 **Constitution System** | 📚 **41 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
 
 </div>
 
