@@ -246,40 +246,179 @@ export class WebSocketServer extends EventEmitter {
 
   /**
    * Send initial data to newly connected client
+   * Sends 'initial-state' message with graphData, metrics, and events
+   * as expected by the frontend WebSocketContext
    */
   private sendInitialData(client: WebSocketClient): void {
-    const { session_id, agent_id, since } = client.subscriptions;
+    const { session_id } = client.subscriptions;
 
-    // Send recent events
-    if (session_id) {
-      const events = this.eventStore.getEventsBySession(session_id);
-      const filteredEvents = since
-        ? events.filter(e => e.timestamp >= since)
-        : events.slice(-50); // Last 50 events
+    // Build initial state for the frontend
+    const graphData = this.buildGraphDataForClient(session_id);
+    const metrics = this.buildMetricsForClient(session_id);
+    const events = this.buildEventsForClient(session_id);
 
-      for (const event of filteredEvents) {
-        this.sendMessage(client.id, {
-          type: 'event',
-          timestamp: event.timestamp,
-          data: event,
+    // Send initial-state message (format expected by frontend)
+    this.sendMessage(client.id, {
+      type: 'initial-state' as any,
+      timestamp: new Date().toISOString(),
+      data: {
+        graphData,
+        metrics,
+        events,
+      },
+    });
+  }
+
+  /**
+   * Build graph data for frontend visualization
+   * Converts events and agents to nodes/edges format
+   */
+  private buildGraphDataForClient(sessionId?: string): { nodes: any[]; edges: any[] } {
+    const nodes: any[] = [];
+    const edges: any[] = [];
+    const seenAgents = new Set<string>();
+
+    // Get events - always fetch all recent events for visualization
+    // The "default" session is a placeholder, so we fetch all recent events
+    let events: any[] = [];
+    if (sessionId && sessionId !== 'default') {
+      events = this.eventStore.getEventsBySession(sessionId);
+    }
+    // If no events found for specific session, get all recent events
+    if (events.length === 0) {
+      events = this.getAllRecentEvents();
+    }
+
+    // Create agent nodes from events
+    for (const event of events) {
+      if (!seenAgents.has(event.agent_id)) {
+        seenAgents.add(event.agent_id);
+        nodes.push({
+          id: event.agent_id,
+          label: event.agent_id,
+          type: this.inferAgentType(event.agent_id, event.event_type),
+          status: 'idle',
+          metrics: {
+            tasksCompleted: 0,
+            successRate: 100,
+            avgDuration: 0,
+          },
         });
       }
     }
 
-    // Send reasoning chains
-    if (session_id) {
-      const chains = this.reasoningStore.getChainsBySession(session_id, { limit: 10 });
-      for (const chain of chains) {
-        const tree = this.transformer.buildReasoningTree(chain.id);
-        if (tree) {
-          this.sendMessage(client.id, {
-            type: 'reasoning',
-            timestamp: chain.created_at,
-            data: tree,
-          });
+    // Create edges between agents that share correlation IDs
+    const correlationMap = new Map<string, string[]>();
+    for (const event of events) {
+      if (event.correlation_id) {
+        if (!correlationMap.has(event.correlation_id)) {
+          correlationMap.set(event.correlation_id, []);
+        }
+        if (!correlationMap.get(event.correlation_id)!.includes(event.agent_id)) {
+          correlationMap.get(event.correlation_id)!.push(event.agent_id);
         }
       }
     }
+
+    // Create edges for correlated agents
+    let edgeId = 0;
+    for (const [corrId, agents] of correlationMap.entries()) {
+      for (let i = 0; i < agents.length - 1; i++) {
+        edges.push({
+          id: `edge-${edgeId++}`,
+          source: agents[i],
+          target: agents[i + 1],
+          type: 'communication',
+        });
+      }
+    }
+
+    return { nodes, edges };
+  }
+
+  /**
+   * Infer agent type from agent ID or event type
+   */
+  private inferAgentType(agentId: string, eventType: string): string {
+    const id = agentId.toLowerCase();
+    if (id.includes('coord')) return 'coordinator';
+    if (id.includes('test') || id.includes('gen')) return 'researcher';
+    if (id.includes('code') || id.includes('impl')) return 'coder';
+    if (id.includes('review')) return 'reviewer';
+    if (id.includes('analy') || id.includes('cover')) return 'analyzer';
+    return 'coder';
+  }
+
+  /**
+   * Get all recent events across sessions
+   */
+  private getAllRecentEvents(): any[] {
+    // Return recent events from the last hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+    return this.eventStore.getEventsByTimeRange(
+      { start: oneHourAgo, end: now },
+      { limit: 100 }
+    );
+  }
+
+  /**
+   * Build metrics for frontend
+   */
+  private buildMetricsForClient(sessionId?: string): any[] {
+    // Return empty metrics initially - will be updated via lifecycle events
+    return [];
+  }
+
+  /**
+   * Build lifecycle events for frontend
+   */
+  private buildEventsForClient(sessionId?: string): any[] {
+    const events = sessionId
+      ? this.eventStore.getEventsBySession(sessionId)
+      : this.getAllRecentEvents();
+
+    return events.slice(-50).map(event => ({
+      id: event.id,
+      agentId: event.agent_id,
+      type: event.event_type,
+      status: 'completed',
+      timestamp: event.timestamp,
+      duration: 0,
+      details: event.payload,
+    }));
+  }
+
+  /**
+   * Broadcast a graph update to all clients
+   * Use this when agents are spawned, updated, or removed
+   */
+  broadcastGraphUpdate(graphData: { nodes: any[]; edges: any[] }): void {
+    this.broadcastEvent({
+      type: 'graph-update' as any,
+      timestamp: new Date().toISOString(),
+      data: graphData,
+    });
+  }
+
+  /**
+   * Broadcast a lifecycle event to all clients
+   * Use this when agent status changes
+   */
+  broadcastLifecycleEvent(event: {
+    id: string;
+    agentId: string;
+    type: string;
+    status: string;
+    timestamp: string;
+    duration?: number;
+    details?: any;
+  }): void {
+    this.broadcastEvent({
+      type: 'lifecycle-event' as any,
+      timestamp: new Date().toISOString(),
+      data: event,
+    });
   }
 
   /**

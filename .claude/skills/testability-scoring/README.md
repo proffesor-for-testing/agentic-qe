@@ -67,5 +67,5 @@ timeout 180 ./scripts/run-assessment.sh https://example.com/
 
 ## Credits
 
-Based on James Bach and Michael Bolton's *Heuristics for Software Testability*
+Based on James Bach and Michael Bolton's *Heuristics for Software Testability*  
 Implementation: https://github.com/fndlalit/testability-scorer

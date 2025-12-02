@@ -128,7 +128,10 @@ export enum QEAgentType {
   REGRESSION_RISK_ANALYZER = 'regression-risk-analyzer',
   TEST_DATA_ARCHITECT = 'test-data-architect',
   API_CONTRACT_VALIDATOR = 'api-contract-validator',
-  FLAKY_TEST_HUNTER = 'flaky-test-hunter'
+  FLAKY_TEST_HUNTER = 'flaky-test-hunter',
+
+  // NEW - Quality Experience (QX) Agent
+  QX_PARTNER = 'qx-partner'
 }
 
 // Alias for backward compatibility

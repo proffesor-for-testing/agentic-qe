@@ -354,6 +354,33 @@ mcp__agentic_qe__coverage_analyze({
 })
 ```
 
+**All 102 MCP Tools Available:**
+- Fleet Management (9 tools): init, spawn, status, coordinate, orchestrate
+- Test Generation (4 tools): generate, enhanced, unit, integration  
+- Test Execution (3 tools): execute, parallel, stream
+- Coverage Analysis (6 tools): analyze, gaps, trends, risk scoring, ML detection, recommendations
+- Quality Gates (5 tools): execute, validate, assess risk, policy check, generate report
+- Flaky Test Detection (3 tools): detect, analyze patterns, auto-stabilize
+- Performance Testing (4 tools): benchmark, monitor, analyze bottlenecks, generate report
+- Security Scanning (5 tools): comprehensive scan, vulnerabilities, auth validation, authz check, dependencies
+- Visual Testing (3 tools): compare screenshots, accessibility validation, regression detection
+- API Contract Testing (3 tools): validate, breaking changes, versioning
+- Test Data Management (3 tools): generate, mask, analyze schema
+- Requirements Engineering (2 tools): validate, generate BDD
+- Code Quality (2 tools): complexity analysis, metrics
+- Memory & Collaboration (5 tools): store, retrieve, query, share, backup
+- Blackboard System (2 tools): post, read
+- Consensus Mechanisms (2 tools): propose, vote
+- Workflow Management (4 tools): create, execute, checkpoint, resume
+- Event System (2 tools): emit, subscribe
+- Regression Analysis (2 tools): risk analyze, select tests
+- Production Monitoring (2 tools): incident replay, RUM analyze
+- Mutation Testing (1 tool): execute
+- Deployment Readiness (1 tool): check
+- Artifact Management (1 tool): manifest
+- Task Management (1 tool): status
+- Learning System (4 tools): store experience, store Q-value, store pattern, query
+
 ### CLI Direct Usage
 
 ```bash

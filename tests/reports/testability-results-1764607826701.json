@@ -1,0 +1,65 @@
+{
+  "timestamp": "2025-12-01T16:50:11.439Z",
+  "overall": 79,
+  "grade": "C",
+  "principles": {
+    "observability": {
+      "score": 92,
+      "grade": "A",
+      "weight": 15
+    },
+    "controllability": {
+      "score": 75,
+      "grade": "C",
+      "weight": 15
+    },
+    "algorithmicSimplicity": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "algorithmicTransparency": {
+      "score": 60,
+      "grade": "D",
+      "weight": 10
+    },
+    "explainability": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "similarity": {
+      "score": 85,
+      "grade": "B",
+      "weight": 5
+    },
+    "algorithmicStability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 10
+    },
+    "unbugginess": {
+      "score": 93,
+      "grade": "A",
+      "weight": 10
+    },
+    "smallness": {
+      "score": 85,
+      "grade": "B",
+      "weight": 10
+    },
+    "decomposability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 5
+    }
+  },
+  "recommendations": [],
+  "metadata": {
+    "url": "https://teatimewithtesters.com/",
+    "browser": "chromium",
+    "version": "1.0.0",
+    "assessor": "testability-scorer-skill",
+    "duration": 15262
+  }
+}

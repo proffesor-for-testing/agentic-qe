@@ -1,0 +1,87 @@
+{
+  "timestamp": "2025-12-01T16:23:04.557Z",
+  "overall": 65,
+  "grade": "D",
+  "principles": {
+    "observability": {
+      "score": 67,
+      "grade": "D",
+      "weight": 15
+    },
+    "controllability": {
+      "score": 20,
+      "grade": "F",
+      "weight": 15
+    },
+    "algorithmicSimplicity": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "algorithmicTransparency": {
+      "score": 60,
+      "grade": "D",
+      "weight": 10
+    },
+    "explainability": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "similarity": {
+      "score": 85,
+      "grade": "B",
+      "weight": 5
+    },
+    "algorithmicStability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 10
+    },
+    "unbugginess": {
+      "score": 88,
+      "grade": "B",
+      "weight": 10
+    },
+    "smallness": {
+      "score": 85,
+      "grade": "B",
+      "weight": 10
+    },
+    "decomposability": {
+      "score": 50,
+      "grade": "F",
+      "weight": 5
+    }
+  },
+  "recommendations": [
+    {
+      "principle": "Controllability",
+      "severity": "critical",
+      "recommendation": "Add test data injection endpoints to allow programmatic product catalog and cart management during automated testing.",
+      "impact": 38,
+      "effort": "Medium (8-12 hours)"
+    },
+    {
+      "principle": "Decomposability",
+      "severity": "high",
+      "recommendation": "Extract product catalog, shopping cart, and checkout into separate microservices for better isolation and testability.",
+      "impact": 30,
+      "effort": "High (16-24 hours)"
+    },
+    {
+      "principle": "Observability",
+      "severity": "medium",
+      "recommendation": "Implement detailed event logging for user actions, cart operations, and payment processing.",
+      "impact": 15,
+      "effort": "Low (4-6 hours)"
+    }
+  ],
+  "metadata": {
+    "url": "https://testsheepnz.blogspot.com/",
+    "browser": "chromium",
+    "version": "1.0.0",
+    "assessor": "testability-scorer-skill",
+    "duration": 47806
+  }
+}

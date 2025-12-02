@@ -182,22 +182,22 @@ The assessment script uses **progressive fallback** strategy:
 async function navigateToPage(page) {
   try {
     // Level 1: domcontentloaded
-    await page.goto(baseURL, {
+    await page.goto(baseURL, { 
       waitUntil: 'domcontentloaded',
-      timeout: 45000
+      timeout: 45000 
     });
-
+    
     // Level 2: networkidle with timeout
-    await page.waitForLoadState('networkidle', {
-      timeout: 15000
+    await page.waitForLoadState('networkidle', { 
+      timeout: 15000 
     }).catch(() => console.log('[NAV] Continuing without networkidle'));
-
+    
     return true;
   } catch (error) {
     // Level 3: commit fallback
-    await page.goto(baseURL, {
+    await page.goto(baseURL, { 
       waitUntil: 'commit',
-      timeout: 45000
+      timeout: 45000 
     });
     return true;
   }
@@ -232,17 +232,17 @@ test('1. Observability Assessment', async ({ page }) => {
   try {
     const loaded = await navigateToPage(page);
     if (!loaded) throw new Error('Failed to load page');
-
+    
     // Principle-specific analysis
     let score = 0;
     // ... scoring logic ...
-
+    
     testabilityScores.principles.observability = {
       score: Math.min(score, 100),
       grade: getLetterGrade(score),
       weight: config.weights.observability
     };
-
+    
     // Generate recommendations if score is low
     if (score < 70) {
       testabilityScores.recommendations.push({
@@ -256,10 +256,10 @@ test('1. Observability Assessment', async ({ page }) => {
   } catch (error) {
     console.error('Observability assessment failed:', error.message);
     // Fallback to default score
-    testabilityScores.principles.observability = {
-      score: 50,
-      grade: 'F',
-      weight: config.weights.observability
+    testabilityScores.principles.observability = { 
+      score: 50, 
+      grade: 'F', 
+      weight: config.weights.observability 
     };
   }
 });
@@ -322,12 +322,12 @@ Overall score uses weighted average:
 function calculateOverallScore(principles) {
   let totalWeightedScore = 0;
   let totalWeight = 0;
-
+  
   for (const [principle, data] of Object.entries(principles)) {
     totalWeightedScore += data.score * data.weight;
     totalWeight += data.weight;
   }
-
+  
   return Math.round(totalWeightedScore / totalWeight);
 }
 ```
@@ -352,9 +352,16 @@ function getLetterGrade(score) {
 ├── scripts/
 │   ├── run-assessment.sh                 # Main assessment runner
 │   └── generate-html-report.js           # HTML report generator
-└── resources/
-    └── templates/
-        └── testability-scoring.spec.template.js  # Test template
+├── resources/
+│   └── templates/
+│       └── config.template.js            # Config file template
+├── examples/
+│   ├── sample-assessment.json            # Example JSON output
+│   └── sample-report.html                # Example HTML report
+└── docs/
+    ├── ARCHITECTURE.md                   # System architecture
+    ├── SCORING-METHODOLOGY.md            # Detailed scoring guide
+    └── TROUBLESHOOTING.md                # Common issues and fixes
 
 tests/testability-scoring/
 ├── testability-scoring.spec.js           # Main test file
@@ -375,15 +382,15 @@ $ .claude/skills/testability-scoring/scripts/run-assessment.sh https://talesofte
 
 Results:
 Overall Score: 71/100 (C)
-- Observability: 92 (A)
-- Controllability: 20 (F)
+- Observability: 92 (A) ⭐
+- Controllability: 20 (F) ⚠️
 - Algorithmic Simplicity: 75 (C)
 - Algorithmic Transparency: 60 (D)
 - Explainability: 75 (C)
 - Similarity: 85 (B)
 - Algorithmic Stability: 70 (C)
 - Unbugginess: 85 (B)
-- Smallness: 95 (A)
+- Smallness: 95 (A) ⭐
 - Decomposability: 70 (C)
 ```
 
@@ -393,9 +400,9 @@ $ .claude/skills/testability-scoring/scripts/run-assessment.sh https://www.sauce
 
 Results:
 Overall Score: 69/100 (D)
-- Observability: 92 (A) - Excellent
-- Controllability: 20 (F) - Critical Issue
-- Smallness: 100 (A) - Perfect
+- Observability: 92 (A) ⭐
+- Controllability: 20 (F) ⚠️ Critical Issue
+- Smallness: 100 (A) ⭐ Perfect
 - Similarity: 85 (B)
 - Unbugginess: 85 (B)
 - Algorithmic Simplicity: 75 (C)
@@ -413,7 +420,7 @@ Overall Score: 69/100 (D)
 - name: Testability Assessment
   run: |
     timeout 180 .claude/skills/testability-scoring/scripts/run-assessment.sh ${{ env.APP_URL }}
-
+    
 - name: Upload Reports
   uses: actions/upload-artifact@v3
   with:
@@ -428,10 +435,10 @@ const { spawn } = require('child_process');
 function runTestabilityAssessment(url) {
   return new Promise((resolve, reject) => {
     const proc = spawn('.claude/skills/testability-scoring/scripts/run-assessment.sh', [url]);
-
+    
     let output = '';
     proc.stdout.on('data', data => output += data);
-
+    
     proc.on('close', code => {
       if (code === 0) {
         resolve(output);
@@ -557,7 +564,7 @@ done
 ## Performance Considerations
 
 - **Serial Execution**: Tests run with `--workers=1` for consistent results
-- **Timeout Strategy**: Progressive fallback (domcontentloaded -> commit)
+- **Timeout Strategy**: Progressive fallback (domcontentloaded → commit)
 - **Network Handling**: 15s networkidle with graceful continuation
 - **Error Resilience**: Default scores prevent incomplete reports
 - **Memory Management**: Single worker prevents memory exhaustion
@@ -587,6 +594,11 @@ done
 
 ## Support
 
+### Documentation
+- Full architecture: `docs/ARCHITECTURE.md`
+- Scoring details: `docs/SCORING-METHODOLOGY.md`
+- Troubleshooting: `docs/TROUBLESHOOTING.md`
+
 ### Resources
 - [Playwright Documentation](https://playwright.dev/)
 - [Intrinsic Testability Heuristics](https://www.satisfice.com/download/heuristics-of-software-testability)
@@ -594,6 +606,6 @@ done
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: December 2025
+**Version**: 1.0.0  
+**Last Updated**: December 2025  
 **Compatibility**: Claude Code 2.0+, Playwright 1.49.0+

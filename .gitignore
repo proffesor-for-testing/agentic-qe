@@ -120,3 +120,4 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
+.playwright-mcp/

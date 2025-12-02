@@ -1,0 +1,637 @@
+{
+  "config": {
+    "configFile": "/workspaces/agentic-qe/playwright.config.js",
+    "rootDir": "/workspaces/agentic-qe/tests",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "tests/reports/html"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "tests/reports/latest.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/workspaces/agentic-qe/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/workspaces/agentic-qe/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspaces/agentic-qe/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/workspaces/agentic-qe/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/workspaces/agentic-qe/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/workspaces/agentic-qe/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "testability-scoring/testability-scoring.spec.js",
+      "file": "testability-scoring/testability-scoring.spec.js",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Comprehensive Testability Analysis - Sauce Demo Shopify",
+          "file": "testability-scoring/testability-scoring.spec.js",
+          "line": 416,
+          "column": 6,
+          "specs": [
+            {
+              "title": "1. Observability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2928,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "Starting testability assessment...\n"
+                        },
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:11.995Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-1f350555b1cfd8337d78",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 423,
+              "column": 3
+            },
+            {
+              "title": "2. Controllability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2473,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:14.983Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-656f5a793bf5650e0d5b",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 486,
+              "column": 3
+            },
+            {
+              "title": "3. Algorithmic Simplicity Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2497,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:17.461Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-f494e8e885d69b9a21e4",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 578,
+              "column": 3
+            },
+            {
+              "title": "4. Algorithmic Transparency Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2523,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:19.962Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-d9ba9ad646cc09cd6349",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 629,
+              "column": 3
+            },
+            {
+              "title": "5. Explainability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2790,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:22.490Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-a646cf325374bb809980",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 687,
+              "column": 3
+            },
+            {
+              "title": "6. Similarity to Known Technology Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3385,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:25.285Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-4387572efbafa9f08a8b",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 728,
+              "column": 3
+            },
+            {
+              "title": "7. Algorithmic Stability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2475,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:28.674Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-a028d2e7a7d426da6822",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 775,
+              "column": 3
+            },
+            {
+              "title": "8. Unbugginess Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2750,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:31.153Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-d214204395ec5dbc9c05",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 814,
+              "column": 3
+            },
+            {
+              "title": "9. Smallness Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2978,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:33.907Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-2c6c6a5fee40448bdb88",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 853,
+              "column": 3
+            },
+            {
+              "title": "10. Decomposability Assessment",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2494,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[NAV] Starting navigation to https://www.thetesttribe.com/\n"
+                        },
+                        {
+                          "text": "[NAV] Attempting page.goto with domcontentloaded...\n"
+                        },
+                        {
+                          "text": "[NAV] Page loaded (domcontentloaded)\n"
+                        },
+                        {
+                          "text": "[NAV] Waiting for networkidle (15s timeout)...\n"
+                        },
+                        {
+                          "text": "[NAV] Network is idle\n"
+                        },
+                        {
+                          "text": "\n✅ Assessment Complete!\n"
+                        },
+                        {
+                          "text": "\n📊 Overall Testability Score: 76/100 (C)\n"
+                        },
+                        {
+                          "text": "\n📄 JSON Report saved: tests/reports/testability-results-1764614859392.json\n"
+                        },
+                        {
+                          "text": "\n🎯 Generating HTML report with Chrome auto-launch...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-12-01T18:47:36.891Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b6eccddbd34943975ec3-b16577983ceab8f4d329",
+              "file": "testability-scoring/testability-scoring.spec.js",
+              "line": 888,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-12-01T18:47:11.168Z",
+    "duration": 28271.435,
+    "expected": 10,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

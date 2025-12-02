@@ -48,15 +48,15 @@ TEST_URL="$TARGET_URL" npx playwright test "$TEST_FILE" --project="$BROWSER" --w
 if [ $? -eq 0 ]; then
     echo ""
     echo -e "${GREEN}✅ Assessment completed successfully!${NC}"
-
+    
     # Find the latest JSON report
     LATEST_JSON=$(ls -t "$PROJECT_ROOT/tests/reports/testability-results-"*.json 2>/dev/null | head -1)
-
+    
     if [ -n "$LATEST_JSON" ]; then
         # Generate HTML report
         echo -e "\n${YELLOW}📊 Generating HTML report...${NC}\n"
         node "$SCRIPT_DIR/generate-html-report.js" "$LATEST_JSON"
-
+        
         echo ""
         echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${GREEN}✓ Complete! Check your browser for the report.${NC}"
