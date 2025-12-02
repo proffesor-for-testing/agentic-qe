@@ -384,6 +384,68 @@ Message 4: Write "file.js"
 - 💾 Cross-Session Memory
 - 🔗 GitHub Integration
 
+## 📊 Visualization Dashboard
+
+Agent activity is automatically visualized in real-time when services are running.
+
+### Starting the Visualization
+
+```bash
+# Terminal 1: Start backend services (WebSocket + REST API)
+npx tsx scripts/start-visualization-services.ts
+
+# Terminal 2: Start frontend dashboard
+cd frontend && npm run dev
+```
+
+Then open http://localhost:3000 to view the dashboard.
+
+### Auto-Emit Events (Hook Integration)
+
+Task agents automatically emit visualization events via Claude Code hooks:
+- **PreToolUse hook**: Emits `agent:spawned` and `agent:started` events when Task tool is invoked
+- **PostToolUse hook**: Emits `agent:completed` or `agent:error` events when Task completes
+
+No manual action required - just use the Task tool and agents appear in the visualization!
+
+### Manual Event Emission
+
+For custom workflows or debugging:
+
+```bash
+# Emit spawn event with agent type
+npx tsx scripts/emit-agent-event.ts spawn <agentId> <agentType>
+
+# Emit start event
+npx tsx scripts/emit-agent-event.ts start <agentId>
+
+# Emit completion event with duration (ms)
+npx tsx scripts/emit-agent-event.ts complete <agentId> [duration]
+
+# Emit error event
+npx tsx scripts/emit-agent-event.ts error <agentId> "Error message"
+```
+
+### Programmatic API
+
+```typescript
+import { emitAgentSpawn, emitAgentComplete, emitAgentError } from './src/visualization';
+
+// Emit events in your code
+await emitAgentSpawn('my-agent', 'researcher');
+await emitAgentComplete('my-agent', 5000);
+await emitAgentError('my-agent', 'Something went wrong');
+```
+
+### Event Types
+
+| Event | Status | When |
+|-------|--------|------|
+| `agent:spawned` | `idle` | Agent created |
+| `agent:started` | `running` | Agent begins work |
+| `agent:completed` | `completed` | Agent finishes |
+| `agent:error` | `error` | Agent fails |
+
 ## Integration Tips
 
 1. Start with basic swarm init

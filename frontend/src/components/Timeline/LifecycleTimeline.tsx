@@ -4,19 +4,44 @@ import { LifecycleEvent } from '../../types';
 import { format, formatDistance } from 'date-fns';
 import { CheckCircle, XCircle, Clock, PlayCircle, RefreshCw } from 'lucide-react';
 
-const EVENT_ICONS = {
+/**
+ * Safely convert timestamp to milliseconds number.
+ * Handles both ISO strings from backend and numeric timestamps.
+ */
+const toTimestampMs = (timestamp: string | number): number => {
+  if (typeof timestamp === 'string') {
+    return new Date(timestamp).getTime();
+  }
+  return timestamp;
+};
+
+const EVENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   spawn: PlayCircle,
+  spawned: PlayCircle,
+  'agent:spawned': PlayCircle,
   execute: Clock,
+  started: Clock,
+  'agent:started': Clock,
   complete: CheckCircle,
+  completed: CheckCircle,
+  'agent:completed': CheckCircle,
   error: XCircle,
+  'agent:error': XCircle,
   retry: RefreshCw,
 };
 
-const EVENT_COLORS = {
+const EVENT_COLORS: Record<string, string> = {
   spawn: 'bg-blue-500',
+  spawned: 'bg-blue-500',
+  'agent:spawned': 'bg-blue-500',
   execute: 'bg-yellow-500',
+  started: 'bg-yellow-500',
+  'agent:started': 'bg-yellow-500',
   complete: 'bg-green-500',
+  completed: 'bg-green-500',
+  'agent:completed': 'bg-green-500',
   error: 'bg-red-500',
+  'agent:error': 'bg-red-500',
   retry: 'bg-orange-500',
 };
 
@@ -29,7 +54,7 @@ export const LifecycleTimeline: React.FC = () => {
     if (!timeRange) return events;
 
     return events.filter(
-      (event) => event.timestamp >= timeRange.start && event.timestamp <= timeRange.end
+      (event) => toTimestampMs(event.timestamp) >= timeRange.start && toTimestampMs(event.timestamp) <= timeRange.end
     );
   }, [events, timeRange]);
 
@@ -44,7 +69,7 @@ export const LifecycleTimeline: React.FC = () => {
     return Array.from(groups.entries()).map(([agentId, agentEvents]) => ({
       agentId,
       agentName: agentEvents[0]?.agentName || agentId,
-      events: agentEvents.sort((a, b) => a.timestamp - b.timestamp),
+      events: agentEvents.sort((a, b) => toTimestampMs(a.timestamp) - toTimestampMs(b.timestamp)),
     }));
   }, [filteredEvents]);
 
@@ -53,16 +78,17 @@ export const LifecycleTimeline: React.FC = () => {
     setSelectedNode(event.agentId);
   };
 
-  const getEventPosition = (timestamp: number) => {
+  const getEventPosition = (timestamp: string | number) => {
     if (filteredEvents.length === 0) return 0;
 
-    const minTime = Math.min(...filteredEvents.map((e) => e.timestamp));
-    const maxTime = Math.max(...filteredEvents.map((e) => e.timestamp));
+    const timestampMs = toTimestampMs(timestamp);
+    const minTime = Math.min(...filteredEvents.map((e) => toTimestampMs(e.timestamp)));
+    const maxTime = Math.max(...filteredEvents.map((e) => toTimestampMs(e.timestamp)));
     const range = maxTime - minTime;
 
     if (range === 0) return 50;
 
-    return ((timestamp - minTime) / range) * 100;
+    return ((timestampMs - minTime) / range) * 100;
   };
 
   if (events.length === 0) {
@@ -132,20 +158,19 @@ export const LifecycleTimeline: React.FC = () => {
             {/* Timeline Track */}
             <div className="relative ml-6 h-8 bg-gray-100 rounded-full">
               {group.events.map((event) => {
-                const Icon = EVENT_ICONS[event.type];
+                const Icon = EVENT_ICONS[event.type] || Clock;
+                const colorClass = EVENT_COLORS[event.type] || 'bg-gray-500';
                 const position = getEventPosition(event.timestamp);
 
                 return (
                   <button
                     key={event.id}
                     onClick={() => handleEventClick(event)}
-                    className={`absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center ${
-                      EVENT_COLORS[event.type]
-                    } text-white shadow-lg hover:scale-110 transition-transform ${
+                    className={`absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full flex items-center justify-center ${colorClass} text-white shadow-lg hover:scale-110 transition-transform ${
                       selectedEvent === event.id ? 'ring-4 ring-yellow-400' : ''
                     }`}
                     style={{ left: `${position}%` }}
-                    title={`${event.type} - ${format(event.timestamp, 'HH:mm:ss')}`}
+                    title={`${event.type} - ${format(toTimestampMs(event.timestamp), 'HH:mm:ss')}`}
                   >
                     <Icon className="w-4 h-4" />
                   </button>
@@ -165,12 +190,12 @@ export const LifecycleTimeline: React.FC = () => {
                           {event.type}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {formatDistance(event.timestamp, Date.now(), { addSuffix: true })}
+                          {formatDistance(toTimestampMs(event.timestamp), Date.now(), { addSuffix: true })}
                         </span>
                       </div>
                       <div className="text-sm text-gray-600">
                         <p>
-                          <strong>Time:</strong> {format(event.timestamp, 'yyyy-MM-dd HH:mm:ss')}
+                          <strong>Time:</strong> {format(toTimestampMs(event.timestamp), 'yyyy-MM-dd HH:mm:ss')}
                         </p>
                         {event.duration && (
                           <p>
@@ -207,10 +232,16 @@ export const LifecycleTimeline: React.FC = () => {
       <div className="p-4 border-t bg-gray-50">
         <h4 className="text-xs font-semibold text-gray-600 mb-2">Event Types</h4>
         <div className="flex gap-4 flex-wrap">
-          {Object.entries(EVENT_ICONS).map(([type, Icon]) => (
+          {[
+            { type: 'spawn', Icon: PlayCircle, color: 'bg-blue-500' },
+            { type: 'execute', Icon: Clock, color: 'bg-yellow-500' },
+            { type: 'complete', Icon: CheckCircle, color: 'bg-green-500' },
+            { type: 'error', Icon: XCircle, color: 'bg-red-500' },
+            { type: 'retry', Icon: RefreshCw, color: 'bg-orange-500' },
+          ].map(({ type, Icon, color }) => (
             <div key={type} className="flex items-center gap-2">
               <div
-                className={`w-6 h-6 rounded-full ${EVENT_COLORS[type as keyof typeof EVENT_COLORS]} flex items-center justify-center`}
+                className={`w-6 h-6 rounded-full ${color} flex items-center justify-center`}
               >
                 <Icon className="w-3 h-3 text-white" />
               </div>

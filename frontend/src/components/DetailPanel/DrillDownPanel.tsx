@@ -1,9 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { useWebSocket } from '../../contexts/WebSocketContext';
-import { DetailedEventData } from '../../types';
+import { DetailedEventData, LifecycleEvent } from '../../types';
 import { Download, ExternalLink, Code } from 'lucide-react';
 import ReactJson from 'react-json-view';
 import { format } from 'date-fns';
+
+/**
+ * Safely convert timestamp to milliseconds number.
+ * Handles both ISO strings from backend and numeric timestamps.
+ */
+const toTimestampMs = (timestamp: string | number): number => {
+  if (typeof timestamp === 'string') {
+    return new Date(timestamp).getTime();
+  }
+  return timestamp;
+};
 
 export const DrillDownPanel: React.FC = () => {
   const { selectedNode, events, graphData } = useWebSocket();
@@ -18,22 +29,25 @@ export const DrillDownPanel: React.FC = () => {
     if (!selectedNode) return [];
     return events
       .filter((e) => e.agentId === selectedNode)
-      .sort((a, b) => b.timestamp - a.timestamp);
+      .sort((a, b) => toTimestampMs(b.timestamp) - toTimestampMs(a.timestamp));
   }, [selectedNode, events]);
 
   const detailedData: DetailedEventData | null = useMemo(() => {
     if (!relatedEvents.length) return null;
 
     const latestEvent = relatedEvents[0];
+    const timestampMs = toTimestampMs(latestEvent.timestamp);
+    const durationMs = latestEvent.duration || 0;
+
     return {
       event: latestEvent,
       reasoning: `Agent ${latestEvent.agentName} performed ${latestEvent.type} operation`,
-      traceId: `trace-${latestEvent.agentId}-${latestEvent.timestamp}`,
+      traceId: `trace-${latestEvent.agentId}-${timestampMs}`,
       spanId: `span-${latestEvent.id}`,
       logs: [
-        `[${format(latestEvent.timestamp, 'HH:mm:ss')}] Event ${latestEvent.type} initiated`,
-        `[${format(latestEvent.timestamp + 100, 'HH:mm:ss')}] Processing...`,
-        `[${format(latestEvent.timestamp + (latestEvent.duration || 0), 'HH:mm:ss')}] Completed`,
+        `[${format(timestampMs, 'HH:mm:ss')}] Event ${latestEvent.type} initiated`,
+        `[${format(timestampMs + 100, 'HH:mm:ss')}] Processing...`,
+        `[${format(timestampMs + durationMs, 'HH:mm:ss')}] Completed`,
       ],
       metadata: {
         ...latestEvent.details,
@@ -58,7 +72,7 @@ export const DrillDownPanel: React.FC = () => {
       // CSV export
       const headers = ['Timestamp', 'Event Type', 'Status', 'Duration'];
       const rows = relatedEvents.map((e) => [
-        format(e.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+        format(toTimestampMs(e.timestamp), 'yyyy-MM-dd HH:mm:ss'),
         e.type,
         e.status || 'N/A',
         e.duration ? `${e.duration}ms` : 'N/A',
@@ -209,7 +223,7 @@ export const DrillDownPanel: React.FC = () => {
                         {event.type}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {format(event.timestamp, 'HH:mm:ss')}
+                        {format(toTimestampMs(event.timestamp), 'HH:mm:ss')}
                       </span>
                     </div>
                     {event.duration && (
@@ -264,7 +278,7 @@ export const DrillDownPanel: React.FC = () => {
       {/* Footer */}
       <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
         <div className="text-xs text-gray-500">
-          Last updated: {format(detailedData.event.timestamp, 'yyyy-MM-dd HH:mm:ss')}
+          Last updated: {format(toTimestampMs(detailedData.event.timestamp), 'yyyy-MM-dd HH:mm:ss')}
         </div>
         <div className="flex gap-2">
           <button
