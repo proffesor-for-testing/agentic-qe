@@ -467,6 +467,9 @@ export class AgentRegistry {
       'contract-validator': QEAgentType.API_CONTRACT_VALIDATOR,
       'flaky-test-detector': QEAgentType.FLAKY_TEST_HUNTER,
 
+      // Quality Experience (QX) Agent
+      'qx-partner': QEAgentType.QX_PARTNER,
+
       // Workflow step type mappings (for task orchestration)
       'code-analyzer': QEAgentType.QUALITY_ANALYZER,
       'metrics-collector': QEAgentType.QUALITY_ANALYZER,
@@ -500,7 +503,8 @@ export class AgentRegistry {
       'regression-analyzer',
       'data-generator',
       'contract-validator',
-      'flaky-test-detector'
+      'flaky-test-detector',
+      'qx-partner'
     ];
   }
 

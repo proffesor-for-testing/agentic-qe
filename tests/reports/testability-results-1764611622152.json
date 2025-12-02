@@ -1,0 +1,148 @@
+{
+  "timestamp": "2025-12-01T17:53:25.449Z",
+  "overall": 78,
+  "grade": "C",
+  "principles": {
+    "observability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 15
+    },
+    "controllability": {
+      "score": 75,
+      "grade": "C",
+      "weight": 15
+    },
+    "algorithmicSimplicity": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "algorithmicTransparency": {
+      "score": 80,
+      "grade": "B",
+      "weight": 10
+    },
+    "explainability": {
+      "score": 75,
+      "grade": "C",
+      "weight": 10
+    },
+    "similarity": {
+      "score": 90,
+      "grade": "A",
+      "weight": 5
+    },
+    "algorithmicStability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 10
+    },
+    "unbugginess": {
+      "score": 85,
+      "grade": "B",
+      "weight": 10
+    },
+    "smallness": {
+      "score": 100,
+      "grade": "A",
+      "weight": 10
+    },
+    "decomposability": {
+      "score": 70,
+      "grade": "C",
+      "weight": 5
+    }
+  },
+  "recommendations": [
+    {
+      "principle": "Observability",
+      "severity": "high",
+      "findings": [
+        "No data-test attributes found on any of the 125 interactive elements"
+      ],
+      "recommendations": [
+        "Add data-testid attributes to buttons, links, and form inputs"
+      ],
+      "recommendation": "**Findings:** No data-test attributes found on any of the 125 interactive elements. **Actions:** Add data-testid attributes to buttons, links, and form inputs.",
+      "impact": 2,
+      "effort": "Medium (8-12 hours)"
+    },
+    {
+      "principle": "Controllability",
+      "severity": "high",
+      "findings": [
+        "No test automation attributes found (checked 5 inputs, 13 buttons across 1 forms)",
+        "1 forms found but lacking automation attributes"
+      ],
+      "recommendations": [
+        "Add data-testid or data-automation attributes to enable programmatic control",
+        "Add unique identifiers to form fields for reliable test automation"
+      ],
+      "recommendation": "**Findings:** No test automation attributes found (checked 5 inputs, 13 buttons across 1 forms); 1 forms found but lacking automation attributes. **Actions:** Add data-testid or data-automation attributes to enable programmatic control; Add unique identifiers to form fields for reliable test automation.",
+      "impact": 1,
+      "effort": "Medium (8-16 hours)"
+    },
+    {
+      "principle": "Algorithmic Simplicity",
+      "severity": "medium",
+      "findings": [
+        "High interaction complexity detected (average 5.0 steps per workflow)",
+        "Multi-step processes found requiring 15 total steps"
+      ],
+      "recommendations": [
+        "Simplify user workflows by reducing required steps",
+        "Consider consolidating steps or providing skip/fast-path options"
+      ],
+      "recommendation": "**Findings:** High interaction complexity detected (average 5.0 steps per workflow); Multi-step processes found requiring 15 total steps. **Actions:** Simplify user workflows by reducing required steps; Consider consolidating steps or providing skip/fast-path options.",
+      "impact": 1,
+      "effort": "High (16-24 hours)"
+    },
+    {
+      "principle": "Explainability",
+      "severity": "medium",
+      "findings": [
+        "No tooltips or guidance elements detected"
+      ],
+      "recommendations": [
+        "Implement data-tooltip attributes or .tooltip elements for user guidance"
+      ],
+      "recommendation": "**Findings:** No tooltips or guidance elements detected. **Actions:** Implement data-tooltip attributes or .tooltip elements for user guidance.",
+      "impact": 1,
+      "effort": "Medium (6-10 hours)"
+    },
+    {
+      "principle": "Algorithmic Stability",
+      "severity": "medium",
+      "findings": [
+        "No version information detected in page structure"
+      ],
+      "recommendations": [
+        "Add data-version or meta tags to expose application version for test compatibility tracking"
+      ],
+      "recommendation": "**Findings:** No version information detected in page structure. **Actions:** Add data-version or meta tags to expose application version for test compatibility tracking.",
+      "impact": 1,
+      "effort": "Medium (8-12 hours)"
+    },
+    {
+      "principle": "Decomposability",
+      "severity": "medium",
+      "findings": [
+        "No components identified in markup"
+      ],
+      "recommendations": [
+        "Refactor monolithic pages into testable components with clear boundaries"
+      ],
+      "recommendation": "**Findings:** No components identified in markup. **Actions:** Refactor monolithic pages into testable components with clear boundaries.",
+      "impact": 1,
+      "effort": "High (16-32 hours)"
+    }
+  ],
+  "metadata": {
+    "url": "https://agiletestingdays.com/",
+    "browser": "chromium",
+    "version": "1.0.0",
+    "assessor": "testability-scorer-skill",
+    "duration": 16703
+  }
+}

@@ -25,6 +25,9 @@ export { ApiContractValidatorAgent } from './ApiContractValidatorAgent';
 export { TestDataArchitectAgent } from './TestDataArchitectAgent';
 export { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
 
+// Quality Experience (QX) Agent
+export { QXPartnerAgent } from './QXPartnerAgent';
+
 // Agent factory for creating agents by type
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
@@ -50,6 +53,8 @@ import { RegressionRiskAnalyzerAgent, RegressionRiskAnalyzerConfig as Regression
 import { ApiContractValidatorAgent } from './ApiContractValidatorAgent';
 import { TestDataArchitectAgent, TestDataArchitectAgentConfig } from './TestDataArchitectAgent';
 import { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
+import { QXPartnerAgent } from './QXPartnerAgent';
+import { QXPartnerConfig } from '../types/qx';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
@@ -356,6 +361,43 @@ export class QEAgentFactory {
         return new FlakyTestHunterAgent(baseConfig, flakyTestConfig);
       }
 
+      case QEAgentType.QX_PARTNER: {
+        const qxConfig: QXPartnerConfig & BaseAgentConfig = {
+          ...baseConfig,
+          analysisMode: agentConfig?.analysisMode || 'full',
+          heuristics: agentConfig?.heuristics || {
+            enabledHeuristics: [
+              'problem-understanding',
+              'rule-of-three',
+              'user-needs-identification',
+              'user-vs-business-balance',
+              'oracle-problem-detection',
+              'impact-analysis',
+              'intuitive-design'
+            ] as any,
+            minConfidence: 0.7,
+            enableCompetitiveAnalysis: false
+          },
+          integrateTestability: agentConfig?.integrateTestability ?? true,
+          testabilityScoringPath: agentConfig?.testabilityScoringPath || '.claude/skills/testability-scoring',
+          detectOracleProblems: agentConfig?.detectOracleProblems ?? true,
+          minOracleSeverity: agentConfig?.minOracleSeverity || 'medium',
+          collaboration: agentConfig?.collaboration || {
+            coordinateWithUX: true,
+            coordinateWithQA: true,
+            shareWithQualityAnalyzer: true
+          },
+          outputFormat: agentConfig?.outputFormat || 'json',
+          thresholds: agentConfig?.thresholds || {
+            minQXScore: 70,
+            minProblemClarity: 60,
+            minUserNeedsAlignment: 70,
+            minBusinessAlignment: 70
+          }
+        };
+        return new QXPartnerAgent(qxConfig as any);
+      }
+
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
@@ -384,7 +426,9 @@ export class QEAgentFactory {
       QEAgentType.REGRESSION_RISK_ANALYZER,
       QEAgentType.TEST_DATA_ARCHITECT,
       QEAgentType.API_CONTRACT_VALIDATOR,
-      QEAgentType.FLAKY_TEST_HUNTER
+      QEAgentType.FLAKY_TEST_HUNTER,
+      // Quality Experience (QX) Agent
+      QEAgentType.QX_PARTNER
     ];
   }
 
@@ -746,6 +790,45 @@ export class QEAgentFactory {
           name: 'environmental-analysis',
           version: '1.0.0',
           description: 'Analyze environmental factors contributing to test flakiness'
+        }
+      ],
+
+      // Quality Experience (QX) Agent
+      [QEAgentType.QX_PARTNER]: [
+        {
+          name: 'qx-analysis',
+          version: '1.0.0',
+          description: 'Comprehensive QX (Quality Experience) analysis combining QA and UX perspectives'
+        },
+        {
+          name: 'oracle-problem-detection',
+          version: '1.0.0',
+          description: 'Detect and resolve oracle problems when quality criteria are unclear'
+        },
+        {
+          name: 'ux-testing-heuristics',
+          version: '1.0.0',
+          description: 'Apply UX testing heuristics (Rule of Three, user needs, business needs, impact analysis)'
+        },
+        {
+          name: 'user-business-balance',
+          version: '1.0.0',
+          description: 'Find optimal balance between user experience and business objectives'
+        },
+        {
+          name: 'impact-analysis',
+          version: '1.0.0',
+          description: 'Analyze visible and invisible impacts of design changes on stakeholders'
+        },
+        {
+          name: 'testability-integration',
+          version: '1.0.0',
+          description: 'Integrate with testability scoring (10 Principles) for comprehensive QX insights'
+        },
+        {
+          name: 'collaborative-qx',
+          version: '1.0.0',
+          description: 'Coordinate with UX and QA agents for holistic quality experience assessment'
         }
       ],
 
