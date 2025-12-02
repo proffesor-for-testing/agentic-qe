@@ -501,7 +501,7 @@ export class RestApiServer {
    */
   private calculateEtag(data: unknown): string {
     const hash = require('crypto')
-      .createHash('md5')
+      .createHash('sha256')
       .update(JSON.stringify(data))
       .digest('hex');
     return `"${hash}"`;
