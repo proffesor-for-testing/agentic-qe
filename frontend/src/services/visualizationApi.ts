@@ -5,7 +5,7 @@
 
 import { GraphData, QualityMetrics, LifecycleEvent } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export interface SessionGraphData extends GraphData {
   sessionId: string;
@@ -46,8 +46,9 @@ class VisualizationApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      return data;
+      const json = await response.json();
+      // API returns { success: true, data: {...} }, extract the data
+      return json.data || json;
     } catch (error) {
       console.error('Failed to fetch graph data:', error);
       throw this.handleError(error);
