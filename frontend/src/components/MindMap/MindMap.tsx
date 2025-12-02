@@ -93,7 +93,8 @@ export const MindMap: React.FC<{ sessionId?: string }> = ({ sessionId = 'default
 
   // Filter graph data
   const filteredData = useMemo(() => {
-    let nodes = currentGraphData.nodes;
+    let nodes = currentGraphData?.nodes || [];
+    const edges = currentGraphData?.edges || [];
 
     if (filters.agentTypes.length > 0) {
       nodes = nodes.filter((n: { type: string }) => filters.agentTypes.includes(n.type));
@@ -107,16 +108,16 @@ export const MindMap: React.FC<{ sessionId?: string }> = ({ sessionId = 'default
       const query = filters.searchQuery.toLowerCase();
       nodes = nodes.filter(
         (n: { label: string; id: string }) =>
-          n.label.toLowerCase().includes(query) || n.id.toLowerCase().includes(query)
+          n.label?.toLowerCase().includes(query) || n.id?.toLowerCase().includes(query)
       );
     }
 
     const nodeIds = new Set(nodes.map((n: { id: string }) => n.id));
-    const edges = currentGraphData.edges.filter(
+    const filteredEdges = edges.filter(
       (e: { source: string; target: string }) => nodeIds.has(e.source) && nodeIds.has(e.target)
     );
 
-    return { nodes, edges };
+    return { nodes, edges: filteredEdges };
   }, [currentGraphData, filters]);
 
   // Get layout configuration based on algorithm

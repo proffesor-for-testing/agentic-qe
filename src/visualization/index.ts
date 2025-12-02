@@ -7,6 +7,16 @@ export * from './types';
 export { DataTransformer } from './core/DataTransformer';
 export { WebSocketServer, WebSocketServerConfig } from './api/WebSocketServer';
 export { RestApiServer, RestApiConfig } from './api/RestEndpoints';
+export {
+  emitEvent,
+  emitAgentSpawn,
+  emitAgentStart,
+  emitAgentComplete,
+  emitAgentError,
+  type AgentEventData,
+  type EventEmitterConfig,
+  type EmitResult,
+} from './emit-event';
 
 import { EventStore } from '../persistence/event-store';
 import { ReasoningStore } from '../persistence/reasoning-store';

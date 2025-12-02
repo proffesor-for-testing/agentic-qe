@@ -31,7 +31,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:3001/ws`;
+    const wsUrl = `${protocol}//${window.location.hostname}:8080`;
 
     const socket = new WebSocket(wsUrl);
 
@@ -54,9 +54,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setEvents((prev) => [message.data, ...prev].slice(0, 1000)); // Keep last 1000
           break;
         case 'initial-state':
-          setGraphData(message.graphData);
-          setMetrics(message.metrics || []);
-          setEvents(message.events || []);
+          // Handle both formats: direct properties or nested in data
+          const data = message.data || message;
+          setGraphData(data.graphData || { nodes: [], edges: [] });
+          setMetrics(data.metrics || []);
+          setEvents(data.events || []);
           break;
       }
     };
