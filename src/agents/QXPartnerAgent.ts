@@ -436,9 +436,37 @@ export class QXPartnerAgent extends BaseAgent {
       await this.page.waitForTimeout(1000);
       
       this.logger.debug('Extracting page context...');
-      // Extract page context
+      // Extract page context WITH ACTUAL CONTENT for contextual analysis
       const pageContext = await this.page.evaluate(() => {
         const countElements = (selector: string) => document.querySelectorAll(selector).length;
+        const getText = (selector: string, limit = 5) => 
+          Array.from(document.querySelectorAll(selector)).slice(0, limit).map(el => el.textContent?.trim() || '').filter(t => t.length > 0);
+        
+        // Extract navigation items for context understanding
+        const navItems = getText('nav a, nav button, [role="navigation"] a');
+        const headings = {
+          h1: getText('h1', 3),
+          h2: getText('h2', 5),
+          h3: getText('h3', 5)
+        };
+        
+        // Extract form purposes from labels/placeholders
+        const formPurposes = Array.from(document.querySelectorAll('form')).map(form => {
+          const labels = Array.from(form.querySelectorAll('label, input[placeholder]')).slice(0, 3);
+          return labels.map(el => 
+            (el as HTMLInputElement).placeholder || el.textContent?.trim() || ''
+          ).filter(t => t.length > 0).join(', ');
+        });
+        
+        // Extract button purposes
+        const buttonPurposes = getText('button, [role="button"], input[type="submit"]', 10);
+        
+        // Extract link context (first 20 meaningful links)
+        const linkTexts = getText('a[href]:not([href="#"]):not([href=""])', 20);
+        
+        // Extract main content snippets for purpose understanding
+        const mainContent = document.querySelector('main, article, [role="main"]');
+        const contentSnippet = mainContent?.textContent?.trim().substring(0, 300) || '';
         
         return {
           title: document.title,
@@ -446,6 +474,14 @@ export class QXPartnerAgent extends BaseAgent {
           viewport: {
             width: window.innerWidth,
             height: window.innerHeight
+          },
+          content: {
+            headings,
+            navigationItems: navItems,
+            buttonPurposes,
+            formPurposes,
+            linkTexts,
+            mainContentSnippet: contentSnippet
           },
           elements: {
             total: document.querySelectorAll('*').length,
@@ -558,6 +594,133 @@ export class QXPartnerAgent extends BaseAgent {
   }
 
   /**
+   * Detect domain-specific failure modes based on site type
+   */
+  private detectDomainSpecificFailures(
+    context: QXContext,
+    title: string,
+    description: string,
+    complexity: 'simple' | 'moderate' | 'complex'
+  ): Array<{
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    likelihood: 'unlikely' | 'possible' | 'likely' | 'very-likely';
+  }> {
+    const failures: Array<{
+      description: string;
+      severity: 'low' | 'medium' | 'high' | 'critical';
+      likelihood: 'unlikely' | 'possible' | 'likely' | 'very-likely';
+    }> = [];
+
+    const titleLower = title.toLowerCase();
+    const descLower = description.toLowerCase();
+    const forms = context.domMetrics?.forms || 0;
+    const interactiveElements = context.domMetrics?.interactiveElements || 0;
+
+    // E-commerce / Travel Booking sites
+    if (titleLower.includes('hotel') || titleLower.includes('booking') || titleLower.includes('travel') ||
+        titleLower.includes('shop') || titleLower.includes('store') || titleLower.includes('buy') ||
+        descLower.includes('book') || descLower.includes('reservation') || descLower.includes('hotel')) {
+
+      failures.push({
+        description: 'Search and filter complexity may overwhelm users with too many options',
+        severity: 'medium',
+        likelihood: 'likely'
+      });
+
+      failures.push({
+        description: 'Booking/checkout flow friction points may cause cart abandonment',
+        severity: 'high',
+        likelihood: 'likely'
+      });
+
+      failures.push({
+        description: 'Price transparency issues or hidden fees may erode user trust',
+        severity: 'high',
+        likelihood: 'possible'
+      });
+
+      if (complexity === 'complex') {
+        failures.push({
+          description: 'Multi-step booking process may lose users if progress is not clearly indicated',
+          severity: 'medium',
+          likelihood: 'likely'
+        });
+      }
+    }
+
+    // Content/Blog/Magazine sites
+    else if (titleLower.includes('blog') || titleLower.includes('article') || titleLower.includes('news') ||
+             titleLower.includes('magazine') || titleLower.includes('testers') || titleLower.includes('testing')) {
+
+      failures.push({
+        description: 'Content discoverability - users may struggle to find relevant articles without robust search',
+        severity: 'medium',
+        likelihood: 'likely'
+      });
+
+      failures.push({
+        description: 'Reading experience on mobile devices may not be optimized for long-form content',
+        severity: 'medium',
+        likelihood: 'possible'
+      });
+
+      failures.push({
+        description: 'Archive navigation complexity may overwhelm readers looking for specific topics',
+        severity: 'low',
+        likelihood: 'possible'
+      });
+    }
+
+    // SaaS / Web Applications
+    else if (titleLower.includes('dashboard') || titleLower.includes('app') || titleLower.includes('platform') ||
+             interactiveElements > 50) {
+
+      failures.push({
+        description: 'Complex workflows may confuse new users without proper onboarding',
+        severity: 'medium',
+        likelihood: 'likely'
+      });
+
+      failures.push({
+        description: 'Data visualization and information density may cause cognitive overload',
+        severity: 'medium',
+        likelihood: 'possible'
+      });
+
+      failures.push({
+        description: 'Error messages may not provide actionable recovery steps',
+        severity: 'medium',
+        likelihood: 'likely'
+      });
+    }
+
+    // Form-heavy sites
+    else if (forms > 0) {
+      failures.push({
+        description: 'Form validation errors may not be clearly communicated to users',
+        severity: 'medium',
+        likelihood: 'likely'
+      });
+
+      failures.push({
+        description: 'Required field indicators may not be consistently applied',
+        severity: 'low',
+        likelihood: 'possible'
+      });
+
+      failures.push({
+        description: 'Form submission failure recovery path may not be clear',
+        severity: 'medium',
+        likelihood: 'possible'
+      });
+    }
+
+    // Return only the most relevant failures (max 5)
+    return failures.slice(0, 5);
+  }
+
+  /**
    * Analyze problem using Rule of Three and complexity assessment
    */
   private async analyzeProblem(context: QXContext): Promise<ProblemAnalysis> {
@@ -632,6 +795,38 @@ export class QXPartnerAgent extends BaseAgent {
         severity: 'medium',
         likelihood: 'possible'
       });
+    }
+
+    // ENHANCED: Add domain-specific failure modes based on site type and context
+    const domainFailures = this.detectDomainSpecificFailures(context, title, description, complexity);
+    potentialFailures.push(...domainFailures);
+
+    // Rule of Three: Ensure at least 3 failure modes are identified
+    if (potentialFailures.length < 3) {
+      // Add generic contextual failures for complex sites
+      if (complexity === 'complex') {
+        if (potentialFailures.length < 3) {
+          potentialFailures.push({
+            description: 'Complex interaction flows may confuse first-time users',
+            severity: 'medium',
+            likelihood: 'possible'
+          });
+        }
+        if (potentialFailures.length < 3) {
+          potentialFailures.push({
+            description: 'Multiple interactive elements increase cognitive load',
+            severity: 'low',
+            likelihood: 'possible'
+          });
+        }
+        if (potentialFailures.length < 3) {
+          potentialFailures.push({
+            description: 'Error recovery paths may not be clear in complex workflows',
+            severity: 'medium',
+            likelihood: 'possible'
+          });
+        }
+      }
     }
 
     let clarityScore = 50;
@@ -1745,6 +1940,74 @@ class OracleDetector {
         resolutionApproach: [
           'Collect missing information from stakeholders',
           'Define clear acceptance criteria'
+        ]
+      });
+    }
+
+    // ENHANCED: Detect contextual oracle problems even for well-built sites
+    const titleLower = (context.title || '').toLowerCase();
+    const descLower = (context.metadata?.description || '').toLowerCase();
+
+    // E-commerce/Travel booking: Conversion vs UX quality
+    if (titleLower.includes('hotel') || titleLower.includes('booking') || titleLower.includes('travel') ||
+        titleLower.includes('shop') || titleLower.includes('store') || descLower.includes('book')) {
+
+      if (businessNeeds.kpisAffected.some(k => k.toLowerCase().includes('conversion') || k.toLowerCase().includes('engagement'))) {
+        problems.push({
+          type: 'user-vs-business',
+          description: 'Potential conflict between conversion optimization (business) and user experience quality (user trust)',
+          severity: 'medium',
+          stakeholders: ['Marketing', 'Product', 'Users'],
+          resolutionApproach: [
+            'A/B test aggressive vs. subtle conversion tactics',
+            'Measure both conversion rate and user satisfaction metrics',
+            'Balance urgency messaging with transparent communication'
+          ]
+        });
+      }
+
+      // Price transparency oracle
+      problems.push({
+        type: 'unclear-criteria',
+        description: 'Unclear criteria for price display timing - when to show fees, taxes, and final price',
+        severity: 'medium',
+        stakeholders: ['Users', 'Legal', 'Business'],
+        resolutionApproach: [
+          'Define regulatory compliance requirements for price display',
+          'Balance business desire for competitive base pricing vs user need for full price transparency',
+          'Establish clear standards for fee disclosure timing'
+        ]
+      });
+    }
+
+    // Content sites: Quality vs. Quantity
+    if (titleLower.includes('blog') || titleLower.includes('article') || titleLower.includes('news') ||
+        titleLower.includes('magazine') || titleLower.includes('testing')) {
+
+      problems.push({
+        type: 'user-vs-business',
+        description: 'Content depth (user need) vs. publication frequency (business engagement goals) trade-off',
+        severity: 'low',
+        stakeholders: ['Readers', 'Content Team', 'Editorial'],
+        resolutionApproach: [
+          'Define content quality standards and acceptance criteria',
+          'Balance editorial calendar with quality thresholds',
+          'Consider mix of in-depth and quick-read content formats'
+        ]
+      });
+    }
+
+    // Complex sites: Technical constraints
+    if ((context.domMetrics?.totalElements || 0) > 500 || (context.domMetrics?.interactiveElements || 0) > 50) {
+      problems.push({
+        type: 'technical-constraint',
+        description: 'Platform technical limitations may restrict advanced UX features or accessibility enhancements',
+        severity: 'low',
+        stakeholders: ['Development', 'Product', 'Users'],
+        resolutionApproach: [
+          'Evaluate platform capabilities and constraints',
+          'Prioritize features based on user impact vs. implementation complexity',
+          'Consider gradual enhancement approach'
         ]
       });
     }
