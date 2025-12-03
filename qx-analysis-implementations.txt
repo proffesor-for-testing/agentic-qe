@@ -1,0 +1,231 @@
+// This file contains the real analysis implementations to replace placeholders in QXPartnerAgent.ts
+
+// =============================================================================
+// ANALYZE PROBLEM METHOD
+// =============================================================================
+  private async analyzeProblem(context: QXContext): Promise<ProblemAnalysis> {
+    this.logger.debug('Analyzing problem');
+
+    const title = context.title || 'Untitled page';
+    const description = context.metadata?.description || '';
+    const hasError = context.errorIndicators?.hasErrorMessages || false;
+
+    let problemStatement = `Evaluate quality experience of "${title}"`;
+    if (description) {
+      problemStatement += ` - ${description.substring(0, 100)}`;
+    }
+
+    const totalElements = context.domMetrics?.totalElements || 0;
+    const interactiveElements = context.domMetrics?.interactiveElements || 0;
+    const forms = context.domMetrics?.forms || 0;
+    
+    let complexity: 'simple' | 'moderate' | 'complex';
+    if (totalElements > 500 || interactiveElements > 50 || forms > 3) {
+      complexity = 'complex';
+    } else if (totalElements > 200 || interactiveElements > 20 || forms > 1) {
+      complexity = 'moderate';
+    } else {
+      complexity = 'simple';
+    }
+
+    const breakdown: string[] = [];
+    if (context.domMetrics?.semanticStructure?.hasNav) breakdown.push('Navigation structure');
+    if (forms > 0) breakdown.push(`Form interactions (${forms} forms)`);
+    if (interactiveElements > 0) breakdown.push(`User interactions (${interactiveElements} elements)`);
+    if (context.accessibility) breakdown.push('Accessibility compliance');
+    if (context.performance) breakdown.push('Performance metrics');
+
+    const potentialFailures: string[] = [];
+    if (!context.domMetrics?.semanticStructure?.hasMain) {
+      potentialFailures.push('Missing main content landmark - users may struggle to find primary content');
+    }
+    if (context.accessibility && context.accessibility.altTextsCoverage < 80) {
+      potentialFailures.push('Poor image alt text coverage - screen reader users affected');
+    }
+    if (hasError) {
+      potentialFailures.push('Visible error messages detected - potential usability issues');
+    }
+    if (context.performance && context.performance.loadTime > 3000) {
+      potentialFailures.push('Slow load time - user frustration and abandonment risk');
+    }
+    if (!context.metadata?.viewport) {
+      potentialFailures.push('Missing viewport meta tag - mobile responsiveness issues');
+    }
+
+    let clarityScore = 50;
+    if (title && title !== 'Untitled page') clarityScore += 15;
+    if (description) clarityScore += 15;
+    if (breakdown.length >= 3) clarityScore += 10;
+    if (context.domMetrics?.semanticStructure?.hasMain) clarityScore += 10;
+    clarityScore = Math.min(100, clarityScore);
+
+    return {
+      problemStatement,
+      complexity,
+      breakdown,
+      potentialFailures,
+      clarityScore
+    };
+  }
+
+// =============================================================================
+// ANALYZE USER NEEDS METHOD  
+// =============================================================================
+  private async analyzeUserNeeds(context: QXContext, problemAnalysis: ProblemAnalysis): Promise<UserNeedsAnalysis> {
+    this.logger.debug('Analyzing user needs');
+
+    const mustHave: string[] = [];
+    const shouldHave: string[] = [];
+    const niceToHave: string[] = [];
+    const challenges: string[] = [];
+
+    const semantic = context.domMetrics?.semanticStructure;
+    const accessibility = context.accessibility;
+    const interactiveElements = context.domMetrics?.interactiveElements || 0;
+    const forms = context.domMetrics?.forms || 0;
+
+    if (semantic?.hasNav) {
+      mustHave.push('Clear navigation to find content');
+    } else {
+      challenges.push('Missing navigation structure - users cannot easily explore site');
+    }
+
+    if (interactiveElements > 0) {
+      mustHave.push('Interactive elements for engagement');
+    }
+
+    if (accessibility && accessibility.focusableElementsCount > 0) {
+      mustHave.push('Keyboard navigation support');
+    } else {
+      challenges.push('Limited keyboard navigation - inaccessible to some users');
+    }
+
+    if (semantic?.hasHeader) {
+      shouldHave.push('Consistent page header for orientation');
+    }
+
+    if (semantic?.hasFooter) {
+      shouldHave.push('Footer with supporting information');
+    }
+
+    if (accessibility && accessibility.altTextsCoverage > 50) {
+      shouldHave.push('Image descriptions for screen readers');
+    } else if (accessibility && accessibility.altTextsCoverage < 50) {
+      challenges.push('Poor alt text coverage - images not accessible');
+    }
+
+    if (context.performance && context.performance.loadTime < 3000) {
+      shouldHave.push('Fast page load time');
+    } else if (context.performance && context.performance.loadTime >= 3000) {
+      challenges.push('Slow load time - user frustration risk');
+    }
+
+    if (semantic?.hasAside) {
+      niceToHave.push('Supplementary content sections');
+    }
+
+    if (accessibility && accessibility.landmarkRoles > 3) {
+      niceToHave.push('Rich ARIA landmarks for navigation');
+    }
+
+    if (forms > 0) {
+      niceToHave.push('Form interactions for user input');
+    }
+
+    let suitability: 'excellent' | 'adequate' | 'poor';
+    if (challenges.length === 0 && mustHave.length >= 3) {
+      suitability = 'excellent';
+    } else if (challenges.length <= 2 && mustHave.length >= 2) {
+      suitability = 'adequate';
+    } else {
+      suitability = 'poor';
+    }
+
+    let alignmentScore = 40;
+    alignmentScore += mustHave.length * 10;
+    alignmentScore += shouldHave.length * 5;
+    alignmentScore += niceToHave.length * 2;
+    alignmentScore -= challenges.length * 8;
+    alignmentScore = Math.max(0, Math.min(100, alignmentScore));
+
+    return {
+      needs: [
+        { category: 'must-have', features: mustHave },
+        { category: 'should-have', features: shouldHave },
+        { category: 'nice-to-have', features: niceToHave }
+      ],
+      suitability,
+      challenges,
+      alignmentScore
+    };
+  }
+
+// =============================================================================
+// ANALYZE BUSINESS NEEDS METHOD
+// =============================================================================
+  private async analyzeBusinessNeeds(context: QXContext, problemAnalysis: ProblemAnalysis): Promise<BusinessNeedsAnalysis> {
+    this.logger.debug('Analyzing business needs');
+
+    const forms = context.domMetrics?.forms || 0;
+    const interactiveElements = context.domMetrics?.interactiveElements || 0;
+    const performance = context.performance;
+    const hasErrors = context.errorIndicators?.hasErrorMessages || false;
+
+    let primaryGoal: string;
+    let kpisAffected: string[] = [];
+    
+    if (forms > 2) {
+      primaryGoal = 'conversion-focused';
+      kpisAffected = ['Form completion rate', 'Lead generation', 'User sign-ups'];
+    } else if (interactiveElements > 30) {
+      primaryGoal = 'engagement-focused';
+      kpisAffected = ['Time on site', 'Click-through rate', 'User engagement'];
+    } else {
+      primaryGoal = 'information-focused';
+      kpisAffected = ['Content consumption', 'Bounce rate', 'Page views'];
+    }
+
+    const crossTeamImpact: string[] = [];
+    if (forms > 0) {
+      crossTeamImpact.push('Marketing: Form conversion optimization needed');
+      crossTeamImpact.push('Development: Form validation and submission handling');
+    }
+    if (context.accessibility && context.accessibility.altTextsCoverage < 100) {
+      crossTeamImpact.push('Content: Image alt text creation required');
+    }
+    if (performance && performance.loadTime > 2000) {
+      crossTeamImpact.push('Engineering: Performance optimization needed');
+    }
+    if (problemAnalysis.complexity === 'complex') {
+      crossTeamImpact.push('QA: Comprehensive testing strategy required');
+    }
+
+    let compromisesUX = false;
+    if (hasErrors) {
+      compromisesUX = true;
+    }
+    if (context.accessibility && context.accessibility.altTextsCoverage < 50) {
+      compromisesUX = true;
+    }
+    if (performance && performance.loadTime > 4000) {
+      compromisesUX = true;
+    }
+
+    const impactsKPIs = kpisAffected.length > 0;
+
+    let alignmentScore = 50;
+    if (kpisAffected.length > 0) alignmentScore += 15;
+    if (crossTeamImpact.length > 0) alignmentScore += 10;
+    if (!compromisesUX) alignmentScore += 20;
+    if (impactsKPIs) alignmentScore += 5;
+    alignmentScore = Math.min(100, alignmentScore);
+
+    return {
+      primaryGoal,
+      kpisAffected,
+      crossTeamImpact,
+      compromisesUX,
+      impactsKPIs,
+      alignmentScore
+    };
+  }
