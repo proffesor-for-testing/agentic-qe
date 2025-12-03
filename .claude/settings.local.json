@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "mcp__agentic-qe",
       "mcp__ruv-swarm",
       "mcp__claude-flow@alpha",
       "mcp__flow-nexus",
