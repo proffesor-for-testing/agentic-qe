@@ -3,7 +3,7 @@
  * Tests for Quality Experience (QX) analysis agent
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Jest test file - using jest globals
 import { QXPartnerAgent } from '../../../src/agents/QXPartnerAgent';
 import { QEAgentType } from '../../../src/types';
 import { QXTaskType, QXHeuristic } from '../../../src/types/qx';
@@ -17,12 +17,15 @@ describe('QXPartnerAgent', () => {
   beforeEach(async () => {
     eventBus = new EventEmitter();
     memoryStore = {
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn().mockResolvedValue(undefined),
-      has: vi.fn().mockResolvedValue(false),
-      delete: vi.fn().mockResolvedValue(true),
-      keys: vi.fn().mockResolvedValue([]),
-      clear: vi.fn().mockResolvedValue(undefined)
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      has: jest.fn().mockResolvedValue(false),
+      delete: jest.fn().mockResolvedValue(true),
+      keys: jest.fn().mockResolvedValue([]),
+      clear: jest.fn().mockResolvedValue(undefined),
+      // Required by VerificationHookManager
+      store: jest.fn().mockResolvedValue(undefined),
+      retrieve: jest.fn().mockResolvedValue(null)
     };
 
     agent = new QXPartnerAgent({

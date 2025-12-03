@@ -18,6 +18,20 @@ export function generateCondensedClaudeMd(config: {
   const skills = config.skillCount || 41;
   return `# Agentic QE Fleet Configuration
 
+## ⚠️ INTEGRITY RULE (ABSOLUTE)
+
+**We value the quality we deliver to our users.**
+
+- ❌ NO shortcuts - do the work properly or don't do it
+- ❌ NO fake data - use real data, real tests, real results
+- ❌ NO false claims - only report what actually works and is verified
+- ✅ ALWAYS implement all code/tests with proper implementation
+- ✅ ALWAYS verify before claiming success
+- ✅ ALWAYS use real database queries, not mocks, for integration tests
+- ✅ ALWAYS run actual tests, not assume they pass
+
+---
+
 ## 🤖 Agentic QE Fleet Quick Reference
 
 **${config.agentCount} QE Agents:** Test generation, coverage analysis, performance, security, flaky detection

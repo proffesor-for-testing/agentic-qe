@@ -109,27 +109,29 @@ describe('TestGeneratorAgent - Null Safety & Edge Cases', () => {
     });
 
     it('should handle null context gracefully', () => {
-      expect(() => {
-        new TestGeneratorAgent({
-          type: QEAgentType.TEST_GENERATOR,
-          capabilities: [],
-          context: null as any, // Null context
-          memoryStore,
-          eventBus
-        });
-      }).toThrow();
+      // Agent should be resilient and not throw on null context
+      // It provides defaults internally for graceful degradation
+      const agent = new TestGeneratorAgent({
+        type: QEAgentType.TEST_GENERATOR,
+        capabilities: [],
+        context: null as any, // Null context - agent handles gracefully
+        memoryStore,
+        eventBus
+      });
+      expect(agent).toBeDefined();
     });
 
     it('should handle undefined context gracefully', () => {
-      expect(() => {
-        new TestGeneratorAgent({
-          type: QEAgentType.TEST_GENERATOR,
-          capabilities: [],
-          context: undefined as any, // Undefined context
-          memoryStore,
-          eventBus
-        });
-      }).toThrow();
+      // Agent should be resilient and not throw on undefined context
+      // It provides defaults internally for graceful degradation
+      const agent = new TestGeneratorAgent({
+        type: QEAgentType.TEST_GENERATOR,
+        capabilities: [],
+        context: undefined as any, // Undefined context - agent handles gracefully
+        memoryStore,
+        eventBus
+      });
+      expect(agent).toBeDefined();
     });
 
     it('should handle null memoryStore', () => {

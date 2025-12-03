@@ -1,137 +1,214 @@
 ---
 name: test-reporting-analytics
-description: Advanced test reporting, quality dashboards, predictive analytics, trend analysis, and executive reporting for QE metrics. Use when communicating quality status, tracking trends, or making data-driven decisions.
+description: "Advanced test reporting, quality dashboards, predictive analytics, trend analysis, and executive reporting for QE metrics. Use when communicating quality status, tracking trends, or making data-driven decisions."
+category: analytics
+priority: high
+tokenEstimate: 850
+agents: [qe-quality-analyzer, qe-quality-gate, qe-deployment-readiness]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-03
+dependencies: []
+quick_reference_card: true
+tags: [reporting, analytics, dashboards, metrics, trends, predictive]
 ---
 
 # Test Reporting & Analytics
 
-## Core Principle
+<default_to_action>
+When building test reports:
+1. DEFINE audience (dev team vs executives)
+2. CHOOSE key metrics (max 5-7)
+3. SHOW trends (not just snapshots)
+4. HIGHLIGHT actions (what to do about it)
+5. AUTOMATE generation
 
-**Measure to improve. Report to communicate.**
-
-Test reporting transforms raw test data into actionable insights. Analytics enable data-driven quality decisions.
-
-## Key Metrics
-
-### Test Execution Metrics
-- Pass/Fail rate
-- Flaky test percentage
-- Execution time (total, per test)
-- Test coverage (code, requirements)
-
-### Quality Metrics
-- Defect density
-- Defect detection rate
-- Escaped defects
-- Mean time to detect (MTTD)
-- Mean time to resolve (MTTR)
-
-### Efficiency Metrics
-- Automation rate
-- Test maintenance cost
-- ROI of automation
-- Velocity (features tested/sprint)
-
-## Dashboards
-
-**Real-Time Quality Dashboard:**
+**Dashboard Quick Setup:**
 ```
 +------------------+------------------+------------------+
 | Tests Passed     | Code Coverage    | Flaky Tests      |
-| 1,247 / 1,250    | 82.3%           | 1.2%            |
-| 99.76% ✅       | ⬆️ +2.1%        | ⬇️ -0.3%        |
+| 1,247/1,250 ✅   | 82.3% ⬆️ +2.1%  | 1.2% ⬇️ -0.3%   |
 +------------------+------------------+------------------+
-
+| Critical Bugs    | Deploy Freq      | MTTR             |
+| 0 open ✅        | 12x/day ⬆️       | 2.3h ⬇️          |
 +------------------+------------------+------------------+
-| Critical Bugs    | Test Velocity    | Deploy Freq     |
-| 0 open           | 47 tests/sprint  | 12x/day         |
-| ✅              | ⬆️ +5           | ⬆️ +2x          |
-+------------------+------------------+------------------+
-
-Recent Trends (30 days):
-[Graph showing pass rate, coverage, flaky tests over time]
 ```
 
-## Trend Analysis
+**Key Metrics by Audience:**
+- **Dev Team**: Pass rate, flaky %, execution time, coverage gaps
+- **QE Team**: Defect detection rate, test velocity, automation ROI
+- **Leadership**: Escaped defects, deployment frequency, quality cost
+</default_to_action>
 
-```javascript
-// Identify trends
-const testResults = await fetchTestResults(30); // 30 days
+## Quick Reference Card
 
-const trend = analyzeTrend(testResults, 'passRate');
-if (trend === 'declining') {
-  alert('⚠️ Test pass rate declining for 7 days');
-}
+### Essential Metrics
 
-const coverage = analyzeTrend(testResults, 'coverage');
-if (coverage === 'stagnant') {
-  alert('ℹ️ Code coverage unchanged. Add tests for new code.');
-}
+| Category | Metric | Target |
+|----------|--------|--------|
+| **Execution** | Pass Rate | >98% |
+| **Execution** | Flaky Test % | <2% |
+| **Execution** | Suite Duration | <10 min |
+| **Coverage** | Line Coverage | >80% |
+| **Coverage** | Branch Coverage | >70% |
+| **Quality** | Escaped Defects | <5/release |
+| **Quality** | MTTR | <4 hours |
+| **Efficiency** | Automation Rate | >90% |
+
+### Trend Indicators
+
+| Symbol | Meaning | Action |
+|--------|---------|--------|
+| ⬆️ | Improving | Continue current approach |
+| ⬇️ | Declining | Investigate root cause |
+| ➡️ | Stable | Maintain or improve |
+| ⚠️ | Threshold breach | Immediate attention |
+
+---
+
+## Report Types
+
+### Real-Time Dashboard
 ```
+Live quality status for CI/CD
+- Build status (green/red)
+- Test results (pass/fail counts)
+- Coverage delta
+- Flaky test alerts
+```
+
+### Sprint Summary
+```markdown
+## Sprint 47 Quality Summary
+
+### Metrics
+| Metric | Value | Trend |
+|--------|-------|-------|
+| Tests Added | +47 | ⬆️ |
+| Coverage | 82.3% | ⬆️ +2.1% |
+| Bugs Found | 12 | ➡️ |
+| Escaped | 0 | ✅ |
+
+### Highlights
+- ✅ Zero escaped defects
+- ⚠️ E2E suite now 45min (target: 30min)
+
+### Actions
+1. Optimize slow E2E tests
+2. Add coverage for payment module
+```
+
+### Executive Report
+```markdown
+## Monthly Quality Report - Oct 2025
+
+### Executive Summary
+✅ Production uptime: 99.97% (target: 99.95%)
+✅ Deploy frequency: 12x/day (up from 8x)
+⚠️ Coverage: 82.3% (target: 85%)
+
+### Business Impact
+- Automation saves 120 hrs/month
+- Bug cost: $150/bug found vs $5,000 escaped
+- Estimated annual savings: $450K
+
+### Recommendations
+1. Invest in performance testing tooling
+2. Hire senior QE for mobile coverage
+```
+
+---
 
 ## Predictive Analytics
 
 ```typescript
 // Predict test failures
-const prediction = await agent.predictTestFailures({
-  historicalData: testResults,
+const prediction = await Task("Predict Failures", {
   codeChanges: prDiff,
-  teamMetrics: velocityData
-});
+  historicalData: last90Days,
+  model: 'gradient-boosting'
+}, "qe-quality-analyzer");
 
 // Returns:
 // {
-//   probabilityOfFailure: 0.73,
-//   likelyFailingTests: ['payment.test.ts', 'checkout.test.ts'],
-//   suggestedAction: 'Review payment module changes carefully',
+//   failureProbability: 0.73,
+//   likelyFailingTests: ['payment.test.ts'],
+//   suggestedAction: 'Review payment module carefully',
 //   confidence: 0.89
 // }
+
+// Trend analysis with anomaly detection
+const trends = await Task("Analyze Trends", {
+  metrics: ['passRate', 'coverage', 'flakyRate'],
+  period: '30d',
+  detectAnomalies: true
+}, "qe-quality-analyzer");
 ```
 
-## Executive Reporting
+---
 
-**Monthly Quality Report:**
-```markdown
-## Quality Report - October 2025
+## Agent Integration
 
-### Executive Summary
-✅ Production: 99.97% uptime (target: 99.95%)
-✅ Deployment: 12x/day (up from 8x/day)
-⚠️ Test Coverage: 82.3% (target: 85%)
+```typescript
+// Generate comprehensive quality report
+const report = await Task("Generate Quality Report", {
+  period: 'sprint',
+  audience: 'executive',
+  includeROI: true,
+  includeTrends: true
+}, "qe-quality-analyzer");
 
-### Key Achievements
-- Reduced flaky tests from 3.2% to 1.2%
-- Automated 47 new tests (95% automation rate)
-- 0 critical bugs escaped to production
-
-### Action Items
-- Increase coverage for new payment module
-- Address 3 long-running flaky tests
-- Train team on performance testing
-
-### ROI
-- Automation saves 120 hours/month
-- Bug detection cost: $150/bug vs $5,000 in production
-- Estimated annual savings: $450k
+// Real-time quality gate check
+const gateResult = await Task("Quality Gate Check", {
+  metrics: currentMetrics,
+  thresholds: qualityPolicy,
+  environment: 'production'
+}, "qe-quality-gate");
 ```
+
+---
+
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/reporting/
+├── dashboards/*      - Dashboard configurations
+├── reports/*         - Generated reports
+├── trends/*          - Trend analysis data
+└── predictions/*     - Predictive model outputs
+```
+
+### Fleet Coordination
+```typescript
+const reportingFleet = await FleetManager.coordinate({
+  strategy: 'quality-reporting',
+  agents: [
+    'qe-quality-analyzer',      // Metrics aggregation
+    'qe-quality-gate',          // Threshold validation
+    'qe-deployment-readiness'   // Release readiness
+  ],
+  topology: 'parallel'
+});
+```
+
+---
 
 ## Related Skills
+- [quality-metrics](../quality-metrics/) - Metric definitions
+- [shift-right-testing](../shift-right-testing/) - Production metrics
+- [consultancy-practices](../consultancy-practices/) - Client reporting
 
-- [quality-metrics](../quality-metrics/)
-- [agentic-quality-engineering](../agentic-quality-engineering/)
-- [continuous-testing-shift-left](../continuous-testing-shift-left/)
+---
 
 ## Remember
 
-**Track metrics to improve quality.**
+**Measure to improve. Report to communicate.**
 
-Report:
-- Test results (pass/fail trends)
-- Code coverage (gaps and trends)
-- Flaky test rate (reliability)
-- Defect metrics (escaped bugs)
-- ROI of testing (business value)
+Good reports:
+- Answer "so what?" (actionable insights)
+- Show trends (not just snapshots)
+- Match audience needs
+- Automate where possible
 
-**Make data actionable, not just visible.**
-
-**With Agents:** `qe-quality-analyzer` aggregates metrics, generates insights, predicts trends, and creates executive reports automatically.
+**Data without action is noise. Action without data is guessing.**

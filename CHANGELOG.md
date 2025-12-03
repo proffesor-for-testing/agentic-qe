@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-12-03
+
+### 🚀 Comprehensive QX Analysis & Skills Optimization
+
+This release delivers significant improvements to QX (Quality Experience) analysis, optimized skills format across all 38 QE skills, and enhanced agent coordination capabilities.
+
+### Added
+
+#### Comprehensive QX Analysis (PR #104 by @fndlalit)
+- **23+ QX Heuristics**: Detailed findings, issues, and recommendations per heuristic
+- **Domain-Specific Failure Detection**: Automatic detection for e-commerce, SaaS, content/blog, and form-heavy sites
+- **Contextual Page Content Extraction**: Real page content analysis (headings, navigation, buttons, forms, links, main content)
+- **Rule of Three Problem Analysis**: Ensures minimum 3 potential failure modes identified per issue
+- **Comprehensive QX Formatter**: `scripts/contextualizers/comprehensive-qx-formatter.js` for detailed reports matching manual analysis structure
+
+#### Skills Optimization (PR #102)
+- **38 QE Skills Optimized**: Agent-focused format with 40-60% token reduction
+- **`<default_to_action>` Blocks**: Immediate actionable guidance at top of each skill
+- **Quick Reference Cards**: Tables and command examples for rapid lookup
+- **Fleet Coordination Hints**: Memory namespace organization and `FleetManager.coordinate()` patterns
+- **Standardized Frontmatter**: `tokenEstimate`, `agents`, `implementation_status`, `optimization_version`, `last_optimized`
+
+#### Testability Scoring Skill v2.1
+- Optimized skill format with proper metadata
+- Fleet coordination and memory namespace hints
+- Agent integration examples
+- Contributor attribution (`@fndlalit`)
+
+### Changed
+
+#### QX Partner Agent v2.1
+- Updated implementation status to v2.1 with new capabilities
+- Added domain-specific failure detection capability
+- Added contextual page content extraction capability
+- Added comprehensive report formatting capability
+- Added Rule of Three problem analysis capability
+- Enhanced memory namespace with new coordination paths
+
+#### Dependency Updates
+- **@modelcontextprotocol/sdk**: Bumped version (PR #105)
+
+### Contributors
+
+- **@fndlalit**: Comprehensive QX Analysis with detailed heuristics (PR #104)
+- **Dependabot**: @modelcontextprotocol/sdk dependency update (PR #105)
+
+---
+
 ## [2.0.0] - 2025-12-02
 
 ### 🚀 Major Release: Agentic QE Fleet v2

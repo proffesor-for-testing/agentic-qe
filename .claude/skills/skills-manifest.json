@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "generated": "2025-12-01T20:00:00.000Z",
+  "version": "1.1.0",
+  "generated": "2025-12-02T00:00:00.000Z",
   "totalSkills": 41,
   "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
   "categories": {
@@ -88,7 +88,11 @@
       "category": "qe-core",
       "priority": "critical",
       "file": "agentic-quality-engineering/SKILL.md",
-      "tokenEstimate": 4200,
+      "tokenEstimate": 1400,
+      "baselineTokens": 4200,
+      "optimizationStatus": "optimized",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2025-12-02",
       "tags": ["agents", "pact", "core", "foundation", "autonomous-testing"],
       "dependencies": [],
       "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity"]
@@ -112,10 +116,14 @@
       "category": "testing-methodologies",
       "priority": "high",
       "file": "tdd-london-chicago/SKILL.md",
-      "tokenEstimate": 2800,
+      "tokenEstimate": 1100,
+      "baselineTokens": 2800,
+      "optimizationStatus": "optimized",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2025-12-02",
       "tags": ["tdd", "unit-testing", "mocking", "design"],
       "dependencies": ["agentic-quality-engineering"],
-      "agents": ["qe-test-generator", "qe-test-executor"]
+      "agents": ["qe-test-generator", "qe-test-implementer", "qe-test-refactorer"]
     },
     "context-driven-testing": {
       "id": "context-driven-testing",
@@ -160,10 +168,14 @@
       "category": "test-design",
       "priority": "high",
       "file": "api-testing-patterns/SKILL.md",
-      "tokenEstimate": 2500,
+      "tokenEstimate": 1200,
+      "baselineTokens": 2500,
+      "optimizationStatus": "optimized",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2025-12-02",
       "tags": ["api", "rest", "graphql", "contract-testing"],
       "dependencies": ["agentic-quality-engineering"],
-      "agents": ["qe-test-generator", "qe-api-contract-validator"]
+      "agents": ["qe-api-contract-validator", "qe-test-generator", "qe-performance-tester", "qe-security-scanner"]
     },
     "test-design-techniques": {
       "id": "test-design-techniques",
@@ -211,12 +223,16 @@
       "name": "Security Testing",
       "description": "Test for vulnerabilities using OWASP principles, SAST/DAST scanning, penetration testing techniques.",
       "category": "specialized-testing",
-      "priority": "high",
+      "priority": "critical",
       "file": "security-testing/SKILL.md",
-      "tokenEstimate": 2400,
+      "tokenEstimate": 1200,
+      "baselineTokens": 2400,
+      "optimizationStatus": "optimized",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2025-12-02",
       "tags": ["security", "owasp", "sast", "dast", "penetration-testing"],
       "dependencies": ["agentic-quality-engineering"],
-      "agents": ["qe-security-scanner"]
+      "agents": ["qe-security-scanner", "qe-api-contract-validator", "qe-quality-analyzer"]
     },
     "performance-testing": {
       "id": "performance-testing",
@@ -225,10 +241,14 @@
       "category": "specialized-testing",
       "priority": "high",
       "file": "performance-testing/SKILL.md",
-      "tokenEstimate": 2600,
+      "tokenEstimate": 1100,
+      "baselineTokens": 2600,
+      "optimizationStatus": "optimized",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2025-12-02",
       "tags": ["performance", "load-testing", "k6", "jmeter", "optimization"],
       "dependencies": ["agentic-quality-engineering"],
-      "agents": ["qe-performance-tester"]
+      "agents": ["qe-performance-tester", "qe-quality-analyzer", "qe-production-intelligence"]
     },
     "accessibility-testing": {
       "id": "accessibility-testing",
@@ -439,12 +459,16 @@
       "name": "CI/CD Pipeline QE Orchestrator",
       "description": "Orchestrate comprehensive quality engineering across CI/CD phases by intelligently selecting QE skills and coordinating agents.",
       "category": "infrastructure",
-      "priority": "high",
+      "priority": "critical",
       "file": "cicd-pipeline-qe-orchestrator/SKILL.md",
-      "tokenEstimate": 3200,
-      "tags": ["cicd", "pipeline", "orchestration", "automation"],
-      "dependencies": ["agentic-quality-engineering", "holistic-testing-pact"],
-      "agents": ["qe-fleet-commander", "qe-deployment-readiness"]
+      "tokenEstimate": 1300,
+      "baselineTokens": 3200,
+      "optimizationStatus": "optimized",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2025-12-02",
+      "tags": ["cicd", "pipeline", "orchestration", "automation", "quality-gates", "shift-left", "shift-right", "fleet"],
+      "dependencies": ["agentic-quality-engineering", "shift-left-testing"],
+      "agents": ["qe-fleet-commander", "qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-deployment-readiness"]
     },
     "shift-left-testing": {
       "id": "shift-left-testing",
@@ -611,11 +635,38 @@
       "api-testing": ["api-testing-patterns", "contract-testing"]
     }
   },
+  "optimizationTracking": {
+    "targetReduction": "40-50%",
+    "optimizedSkills": 6,
+    "totalSkills": 41,
+    "progress": "14.6%",
+    "tokensSaved": 10200,
+    "optimizedList": [
+      "agentic-quality-engineering",
+      "tdd-london-chicago",
+      "api-testing-patterns",
+      "security-testing",
+      "performance-testing",
+      "cicd-pipeline-qe-orchestrator"
+    ],
+    "nextPhase": [
+      "holistic-testing-pact",
+      "context-driven-testing",
+      "exploratory-testing-advanced",
+      "risk-based-testing",
+      "shift-left-testing",
+      "shift-right-testing",
+      "test-automation-strategy",
+      "quality-metrics",
+      "code-review-quality",
+      "contract-testing"
+    ]
+  },
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
-    "fleetVersion": "1.9.4",
-    "manifestVersion": "1.0.0",
-    "lastUpdated": "2025-12-01T20:00:00.000Z",
+    "fleetVersion": "2.1.0",
+    "manifestVersion": "1.1.0",
+    "lastUpdated": "2025-12-02T00:00:00.000Z",
     "contributors": [
       {
         "name": "@fndlalit",

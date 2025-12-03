@@ -1,219 +1,171 @@
 ---
-name: holistic-testing-with-pact-principles
-description: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices.
+name: holistic-testing-pact
+description: "Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices."
+category: testing-methodologies
+priority: critical
+tokenEstimate: 1100
+agents: [qe-fleet-commander, qe-test-generator, qe-quality-analyzer, qe-requirements-validator]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-02
+dependencies: []
+quick_reference_card: true
+tags: [holistic, pact, quality, whole-team, proactive, autonomous, collaborative, targeted]
 ---
 
 # Holistic Testing Model with PACT Principles
 
-## Philosophy
+<default_to_action>
+When designing test strategies or building quality into teams:
+1. APPLY PACT principles: Proactive (test before bugs), Autonomous (teams own quality), Collaborative (whole-team responsibility), Targeted (risk-focused)
+2. IDENTIFY quadrant focus: Technology-facing (unit, integration, performance) or Business-facing (acceptance, exploratory, usability)
+3. SELECT agents based on PACT dimension and testing quadrant
+4. IMPLEMENT feedback loops that catch issues in minutes, not days
+5. MEASURE outcomes (bug escape rate, release confidence) not activities (test count)
 
-Quality is a whole-team responsibility. Testing is an activity, not a phase. The Holistic Testing Model views testing through multiple dimensions, now evolved with PACT principles for the agentic era.
+**Quick PACT Application:**
+- Proactive → Design testability into architecture, risk analysis during refinement
+- Autonomous → Devs run tests locally, CI pipeline with no manual gates
+- Collaborative → Three Amigos, QE pairs with dev, shared test ownership
+- Targeted → Risk-based planning, focus on critical flows, kill valueless tests
 
-## PACT Principles
+**Critical Success Factors:**
+- Quality is a whole-team responsibility, not a QA phase
+- QA as enablers (build infrastructure, coach), not gatekeepers
+- Fast feedback during development, not after
+</default_to_action>
 
-### Proactive
-**Stop waiting for bugs to find you.**
+## Quick Reference Card
 
-- Test before code exists (risk analysis during refinement)
-- Design testability into architecture
-- Identify failure modes during design reviews
-- Create feedback loops that catch issues in minutes, not days
+### When to Use
+- Designing comprehensive test strategies
+- Building quality culture in teams
+- Choosing testing approach for new projects
+- Evolving from sequential QA to concurrent quality
 
-**Example:** During API design, ask: "How will we know if this endpoint times out under load?" Build observability in from the start.
+### PACT Principles
+| Principle | Focus | Anti-Pattern |
+|-----------|-------|--------------|
+| **Proactive** | Test before code, design testability | Waiting for bugs to find you |
+| **Autonomous** | Teams deploy when ready | QA as manual gatekeepers |
+| **Collaborative** | Whole-team quality thinking | QA works in isolation |
+| **Targeted** | Risk-based, high-value tests | Exhaustive checkbox testing |
 
-### Autonomous
-**Empower the team to own quality.**
+### Holistic Testing Quadrants
+| Quadrant | Purpose | Examples |
+|----------|---------|----------|
+| Tech + Support | Fast feedback | Unit, component, integration tests |
+| Tech + Critique | Find limits | Performance, security, chaos |
+| Business + Support | Shared understanding | BDD, acceptance tests |
+| Business + Critique | Discover unknowns | Exploratory, usability, A/B |
 
-- Developers run tests locally before pushing
-- Automated checks in CI pipeline (no manual gates)
-- Self-service test environments
-- Teams deploy when ready, not when QA says so
+### Agent Selection by PACT + Quadrant
+| PACT Dimension | Agents |
+|----------------|--------|
+| Proactive + Tech | qe-test-generator, qe-requirements-validator |
+| Autonomous + Tech | qe-test-executor, qe-coverage-analyzer |
+| Collaborative | qe-fleet-commander (orchestration) |
+| Targeted | qe-regression-risk-analyzer, qe-quality-gate |
 
-**Anti-pattern:** QA as gatekeepers who manually test every change. That's a bottleneck, not quality.
+---
 
-**Better:** QA as enablers who build test infrastructure, coach teams, and explore what automation misses.
+## PACT in Practice
 
-### Collaborative
-**Quality work requires whole-team thinking.**
+### Proactive: Test Before Bugs
+```javascript
+// During API design, ask: "How will we know if this times out under load?"
+// Build observability from start
+await Task("Risk Analysis", {
+  phase: 'refinement',
+  question: 'What could go wrong and how will we know?'
+}, "qe-requirements-validator");
+```
 
-- QE pairs with dev during feature work
-- Product owner clarifies acceptance criteria with QE input
-- Ensemble testing sessions for complex scenarios
-- Shared ownership of test code
-
-**Practical:** Three Amigos meetings aren't theater. They're where you discover the edge cases, clarify assumptions, and design better solutions.
-
-### Targeted
-**Test what matters, skip what doesn't.**
-
-- Risk-based test planning (not exhaustive checkbox testing)
-- Focus on business-critical flows and recent changes
-- Adjust depth based on risk profile
-- Kill tests that don't provide value
-
-**Example:** E-commerce checkout? Test thoroughly. Admin panel used twice a month? Lighter touch.
-
-## The Holistic Testing Dimensions
-
-### 1. Technology-Facing Tests
-
-**Supporting the Team (Building Quality In)**
-- Unit tests (TDD both schools)
-- Component tests
-- Integration tests
-- API contract tests
-
-**Goal:** Fast feedback during development. Developers can refactor fearlessly.
-
-**Critique the Team (Finding Issues)**
-- Performance testing
-- Security testing
-- Load/stress testing
-- Chaos engineering
-
-**Goal:** Validate non-functional requirements. Find limits before customers do.
-
-### 2. Business-Facing Tests
-
-**Supporting the Team (Defining Expected Behavior)**
-- Acceptance tests (BDD/Specification by Example)
-- Prototypes and simulations
-- Example-driven development
-
-**Goal:** Shared understanding of what we're building and why.
-
-**Critique the Product (Discovering What We Don't Know)**
-- Exploratory testing
-- Usability testing
-- User acceptance testing
-- A/B testing in production
-
-**Goal:** Uncover issues automation can't find. Validate actual user value.
-
-## Applying PACT to Each Dimension
-
-### Technology + Proactive
-- Write failing tests before code
-- Design APIs for testability
-- Build observability into architecture
-
-### Technology + Autonomous
+### Autonomous: Teams Own Quality
 - Developers run full test suite locally
 - CI fails fast with clear diagnostics
 - No manual deployment approvals
+- Self-service test environments
 
-### Technology + Collaborative
-- Pair on complex test scenarios
-- Shared test code ownership
-- Mob on test infrastructure
-
-### Technology + Targeted
-- Test pyramid (many unit, some integration, few E2E)
-- Skip tests for deprecated features
-- Focus on changed areas
-
-### Business + Proactive
-- Risk workshops before sprint starts
-- Example mapping in refinement
-- Test ideas in prototypes
-
-### Business + Autonomous  
-- Product owners write acceptance criteria
-- Designers validate UX before dev
-- Teams decide when to release
-
-### Business + Collaborative
+### Collaborative: Whole-Team Thinking
 - QE attends planning and refinement
 - Three Amigos for every user story
-- Cross-functional test design
+- Shared ownership of test code
+- Ensemble testing for complex scenarios
 
-### Business + Targeted
-- Deep exploration of critical paths
-- Quick smoke test of low-risk changes
-- Focus where bugs hurt most
+### Targeted: Test What Matters
+```javascript
+// E-commerce checkout? Test thoroughly.
+// Admin panel used twice a month? Lighter touch.
+await Task("Risk-Based Planning", {
+  critical: ['checkout', 'payment'],
+  light: ['admin-panel', 'settings']
+}, "qe-regression-risk-analyzer");
+```
 
-## Implementation Patterns
+---
 
-### Start Small
-Pick one quadrant and one PACT principle. 
+## Evolution from Traditional
 
-Example: "Let's add unit tests (technology-supporting) and have devs run them locally before pushing (autonomous)."
+| Old Way (Sequential) | Holistic + PACT (Concurrent) |
+|---------------------|------------------------------|
+| Dev writes → QA tests → bugs found → fixes | Team discusses what to build and how to test |
+| Slow feedback, finger-pointing | Fast feedback, shared ownership |
+| Quality as gatekeeping | Quality as enabler |
+| QA on critical path | QA builds infrastructure, coaches |
 
-### Measure What Matters
-- Time from code complete to production
-- Bug escape rate to production
-- Mean time to detect/resolve issues
-- Team confidence in releases
-
-**Don't measure:** Test count, code coverage percentage, number of test cases executed. Those are vanity metrics.
-
-### Common Challenges
-
-**"We don't have time for testing."**
-You're already testing - manually, in production, with real users. Shift that effort left.
-
-**"Our code isn't testable."**
-Then you have a design problem, not a testing problem. Refactor for testability.
-
-**"QA is too slow."**
-QA shouldn't be on the critical path. If they are, you're doing it wrong.
-
-**"100% automation is the goal."**
-No. Automation supports testing, it doesn't replace human judgment. Keep exploring.
-
-## Evolution from Traditional Models
-
-### Old Way (Sequential)
-1. Dev writes code
-2. QA tests code
-3. QA finds bugs
-4. Dev fixes bugs
-5. Repeat until "done"
-
-**Problem:** Slow feedback, finger-pointing, quality as gatekeeping.
-
-### Holistic + PACT Way (Concurrent)
-1. Team discusses what to build and how to test it
-2. Write tests that define success
-3. Build with tests running continuously
-4. Deploy with confidence
-5. Monitor and learn
-
-**Benefit:** Fast feedback, shared ownership, quality as enabler.
-
-## Tools Support the Model, Not Define It
-
-The model is tool-agnostic. Whether you use:
-- Jest or JUnit
-- Playwright or Cypress  
-- Postman or REST-assured
-- Cucumber or plain code
-
-...doesn't matter. What matters is applying holistic thinking and PACT principles.
-
-## Questions to Ask
-
-**Proactive:** "What could go wrong, and how will we know?"
-**Autonomous:** "Can the team move forward without waiting for someone else?"
-**Collaborative:** "Who else needs to be part of this conversation?"
-**Targeted:** "What's the highest risk here, and are we testing it?"
+---
 
 ## Success Signals
 
 - Features deploy multiple times per day
 - Bug escape rate trending down
-- Team discusses quality naturally, not just in "QA time"
+- Team discusses quality naturally
 - Developers write tests without being told
-- Retrospectives focus on system improvements, not blame
 - Releases are boring (in a good way)
 
-## Further Reading
+---
 
-- **Agile Testing** by Lisa Crispin and Janet Gregory (origin of quadrants)
-- **Explore It!** by Elisabeth Hendrickson (exploratory testing)
-- **Growing Object-Oriented Software Guided by Tests** by Freeman & Pryce (TDD collaboration)
-- Your own retrospectives - what actually worked in your context?
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/holistic-testing/
+├── pact-assessment/*     - PACT maturity analysis
+├── quadrant-coverage/*   - Coverage per quadrant
+├── team-metrics/*        - Quality ownership metrics
+└── feedback-loops/*      - Cycle time data
+```
+
+### Fleet Coordination
+```typescript
+const holisticFleet = await FleetManager.coordinate({
+  strategy: 'holistic-testing',
+  pact: { proactive: true, autonomous: true, collaborative: true, targeted: true },
+  agents: [
+    'qe-fleet-commander',       // Orchestration
+    'qe-test-generator',        // Tech quadrant
+    'qe-requirements-validator', // Business quadrant
+    'qe-quality-analyzer'       // Metrics
+  ],
+  topology: 'mesh'
+});
+```
+
+---
+
+## Related Skills
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
+- [context-driven-testing](../context-driven-testing/) - Adapt to context
+- [shift-left-testing](../shift-left-testing/) - Proactive testing
+- [risk-based-testing](../risk-based-testing/) - Targeted testing
+
+---
 
 ## Remember
 
-Context drives decisions. These principles guide thinking, they don't dictate process. Adapt them to your team's reality.
+**PACT = Proactive + Autonomous + Collaborative + Targeted**
+
+Quality is built in, not tested in. Teams own quality. QA enables, doesn't gate. Test what matters, skip what doesn't. Measure outcomes, not activities.
+
+**With Agents:** Agents analyze PACT maturity, recommend quadrant coverage, and coordinate whole-team quality. Use agents to scale holistic thinking while maintaining human judgment.

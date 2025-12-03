@@ -40,8 +40,8 @@ module.exports = {
   ],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts', '<rootDir>/tests/setup.ts'],
   testEnvironmentOptions: {
-    // Use explicit path instead of process.cwd() to prevent initialization errors
-    cwd: '/workspaces/agentic-qe-cf'
+    // Use dynamic cwd - process.cwd() at config load time is stable
+    cwd: process.cwd()
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

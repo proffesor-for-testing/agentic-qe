@@ -858,6 +858,26 @@ export class SwarmOptimizer {
   }
 
   /**
+   * Get the latest optimization recommendation
+   * Returns the most recent topology recommendation from optimization history
+   */
+  getLatestRecommendation(): TopologyRecommendation | null {
+    if (this.optimizationHistory.length === 0) {
+      return null;
+    }
+
+    // Find the most recent result with a topology recommendation
+    for (let i = this.optimizationHistory.length - 1; i >= 0; i--) {
+      const result = this.optimizationHistory[i];
+      if (result.topology) {
+        return result.topology;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Shutdown optimizer
    */
   async shutdown(): Promise<void> {
