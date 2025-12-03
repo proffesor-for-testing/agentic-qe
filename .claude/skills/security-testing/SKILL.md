@@ -1,623 +1,272 @@
 ---
 name: security-testing
-description: Test for security vulnerabilities using OWASP principles and security testing techniques. Use when conducting security audits, testing authentication/authorization, or implementing security practices.
+description: "Test for security vulnerabilities using OWASP principles. Use when conducting security audits, testing auth, or implementing security practices."
+category: specialized-testing
+priority: critical
+tokenEstimate: 1200
+agents: [qe-security-scanner, qe-api-contract-validator, qe-quality-analyzer]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-02
+dependencies: []
+quick_reference_card: true
+tags: [security, owasp, sast, dast, vulnerabilities, auth, injection]
 ---
 
 # Security Testing
 
-## Core Philosophy
+<default_to_action>
+When testing security or conducting audits:
+1. TEST OWASP Top 10 vulnerabilities systematically
+2. VALIDATE authentication and authorization on every endpoint
+3. SCAN dependencies for known vulnerabilities (npm audit)
+4. CHECK for injection attacks (SQL, XSS, command)
+5. VERIFY secrets aren't exposed in code/logs
 
-Security is not a feature you add at the end. It's a quality attribute you build in from the start. Test for security issues like you test for functional issues - continuously and realistically.
+**Quick Security Checks:**
+- Access control → Test horizontal/vertical privilege escalation
+- Crypto → Verify password hashing, HTTPS, no sensitive data exposed
+- Injection → Test SQL injection, XSS, command injection
+- Auth → Test weak passwords, session fixation, MFA enforcement
+- Config → Check error messages don't leak info
 
-**Key principle:** Think like an attacker, build like a defender.
+**Critical Success Factors:**
+- Think like an attacker, build like a defender
+- Security is built in, not added at the end
+- Test continuously in CI/CD, not just before release
+</default_to_action>
 
-## OWASP Top 10 (2021) - Must Test
+## Quick Reference Card
+
+### When to Use
+- Security audits and penetration testing
+- Testing authentication/authorization
+- Validating input sanitization
+- Reviewing security configuration
+
+### OWASP Top 10 (2021)
+| # | Vulnerability | Key Test |
+|---|---------------|----------|
+| 1 | Broken Access Control | User A accessing User B's data |
+| 2 | Cryptographic Failures | Plaintext passwords, HTTP |
+| 3 | Injection | SQL/XSS/command injection |
+| 4 | Insecure Design | Rate limiting, session timeout |
+| 5 | Security Misconfiguration | Verbose errors, exposed /admin |
+| 6 | Vulnerable Components | npm audit, outdated packages |
+| 7 | Auth Failures | Weak passwords, no MFA |
+| 8 | Integrity Failures | Unsigned updates, malware |
+| 9 | Logging Failures | No audit trail for breaches |
+| 10 | SSRF | Server fetching internal URLs |
+
+### Tools
+| Type | Tool | Purpose |
+|------|------|---------|
+| SAST | SonarQube, Semgrep | Static code analysis |
+| DAST | OWASP ZAP, Burp | Dynamic scanning |
+| Deps | npm audit, Snyk | Dependency vulnerabilities |
+| Secrets | git-secrets, TruffleHog | Secret scanning |
+
+### Agent Coordination
+- `qe-security-scanner`: Multi-layer SAST/DAST scanning
+- `qe-api-contract-validator`: API security testing
+- `qe-quality-analyzer`: Security code review
+
+---
+
+## Key Vulnerability Tests
 
 ### 1. Broken Access Control
-**Risk:** Users accessing resources they shouldn't
-
-**Test Scenarios:**
 ```javascript
-// Horizontal privilege escalation
+// Horizontal escalation - User A accessing User B's data
 test('user cannot access another user\'s order', async () => {
   const userAToken = await login('userA');
   const userBOrder = await createOrder('userB');
-  
+
   const response = await api.get(`/orders/${userBOrder.id}`, {
     headers: { Authorization: `Bearer ${userAToken}` }
   });
-  
-  expect(response.status).toBe(403); // Forbidden
-});
-
-// Vertical privilege escalation
-test('regular user cannot access admin endpoint', async () => {
-  const userToken = await login('regularUser');
-  
-  const response = await api.get('/admin/users', {
-    headers: { Authorization: `Bearer ${userToken}` }
-  });
-  
   expect(response.status).toBe(403);
 });
 
-// Missing authorization check
-test('unauthenticated user cannot create order', async () => {
-  const response = await api.post('/orders', orderData);
-  expect(response.status).toBe(401); // Unauthorized
+// Vertical escalation - Regular user accessing admin
+test('regular user cannot access admin', async () => {
+  const userToken = await login('regularUser');
+  expect((await api.get('/admin/users', {
+    headers: { Authorization: `Bearer ${userToken}` }
+  })).status).toBe(403);
 });
 ```
 
-### 2. Cryptographic Failures
-**Risk:** Sensitive data exposed due to weak encryption
-
-**Test Scenarios:**
-```javascript
-test('passwords are hashed, not stored in plaintext', async () => {
-  const user = await db.users.create({
-    email: 'test@example.com',
-    password: 'MyPassword123'
-  });
-  
-  const storedUser = await db.users.findById(user.id);
-  expect(storedUser.password).not.toBe('MyPassword123');
-  expect(storedUser.password).toMatch(/^\$2[aby]\$\d{2}\$/); // bcrypt format
-});
-
-test('sensitive data encrypted in transit', async () => {
-  const response = await fetch('https://api.example.com/profile');
-  expect(response.url).toStartWith('https://'); // Not http://
-});
-
-test('API does not return sensitive data unnecessarily', async () => {
-  const response = await api.get('/users/me');
-  expect(response.body).not.toHaveProperty('password');
-  expect(response.body).not.toHaveProperty('ssn');
-  expect(response.body).not.toHaveProperty('creditCard');
-});
-```
-
-### 3. Injection
-**Risk:** SQL injection, command injection, XSS
-
-**Test Scenarios:**
+### 2. Injection Attacks
 ```javascript
 // SQL Injection
-test('prevents SQL injection in search', async () => {
-  const maliciousQuery = "' OR '1'='1";
-  const response = await api.get(`/products?search=${maliciousQuery}`);
-  
-  // Should return empty or sanitized results, not all products
-  expect(response.body.length).toBeLessThan(100);
+test('prevents SQL injection', async () => {
+  const malicious = "' OR '1'='1";
+  const response = await api.get(`/products?search=${malicious}`);
+  expect(response.body.length).toBeLessThan(100); // Not all products
 });
 
-// Command Injection
-test('prevents command injection in file upload', async () => {
-  const maliciousFilename = '; rm -rf /';
-  const response = await api.post('/upload', {
-    filename: maliciousFilename,
-    content: 'test'
-  });
-  
-  expect(response.status).toBe(400); // Rejected
-});
+// XSS
+test('sanitizes HTML output', async () => {
+  const xss = '<script>alert("XSS")</script>';
+  await api.post('/comments', { text: xss });
 
-// XSS (Cross-Site Scripting)
-test('sanitizes user input in HTML output', async () => {
-  const maliciousInput = '<script>alert("XSS")</script>';
-  await api.post('/comments', { text: maliciousInput });
-  
-  const response = await api.get('/comments');
-  const html = response.body;
-  
-  // Should be escaped, not executable
+  const html = (await api.get('/comments')).body;
   expect(html).toContain('&lt;script&gt;');
   expect(html).not.toContain('<script>');
 });
 ```
 
-### 4. Insecure Design
-**Risk:** Fundamental security flaws in architecture
-
-**Review Checklist:**
-- [ ] Principle of least privilege (minimal permissions)
-- [ ] Defense in depth (multiple security layers)
-- [ ] Fail securely (errors don't expose info)
-- [ ] Secure defaults (secure by default, not opt-in)
-
-**Test Scenarios:**
+### 3. Cryptographic Failures
 ```javascript
-test('rate limiting prevents brute force', async () => {
-  const attempts = 20;
-  const responses = [];
-  
-  for (let i = 0; i < attempts; i++) {
-    responses.push(await api.post('/login', {
-      email: 'test@example.com',
-      password: 'wrong'
-    }));
-  }
-  
-  const rateLimited = responses.filter(r => r.status === 429);
-  expect(rateLimited.length).toBeGreaterThan(0);
+test('passwords are hashed', async () => {
+  await db.users.create({ email: 'test@example.com', password: 'MyPassword123' });
+  const user = await db.users.findByEmail('test@example.com');
+
+  expect(user.password).not.toBe('MyPassword123');
+  expect(user.password).toMatch(/^\$2[aby]\$\d{2}\$/); // bcrypt
 });
 
-test('session expires after timeout', async () => {
-  const token = await login();
-  
-  // Wait for session timeout (e.g., 30 minutes)
-  await sleep(31 * 60 * 1000);
-  
-  const response = await api.get('/profile', {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  expect(response.status).toBe(401); // Expired
+test('no sensitive data in API response', async () => {
+  const response = await api.get('/users/me');
+  expect(response.body).not.toHaveProperty('password');
+  expect(response.body).not.toHaveProperty('ssn');
 });
 ```
 
-### 5. Security Misconfiguration
-**Risk:** Default configs, exposed admin panels, verbose errors
-
-**Test Scenarios:**
+### 4. Security Misconfiguration
 ```javascript
-test('error messages do not leak sensitive info', async () => {
-  const response = await api.post('/login', {
-    email: 'nonexistent@example.com',
-    password: 'wrong'
-  });
-  
-  // Should be generic, not "user doesn't exist" vs "wrong password"
-  expect(response.body.error).toBe('Invalid credentials');
-});
-
-test('admin panel not accessible without auth', async () => {
-  const response = await fetch('https://example.com/admin');
-  expect(response.status).toBe(401);
+test('errors don\'t leak sensitive info', async () => {
+  const response = await api.post('/login', { email: 'nonexistent@test.com', password: 'wrong' });
+  expect(response.body.error).toBe('Invalid credentials'); // Generic message
 });
 
 test('sensitive endpoints not exposed', async () => {
-  const endpoints = [
-    '/debug', '/.env', '/config', '/.git',
-    '/admin', '/phpinfo.php', '/server-status'
-  ];
-  
-  for (let endpoint of endpoints) {
-    const response = await fetch(`https://example.com${endpoint}`);
-    expect(response.status).not.toBe(200);
+  const endpoints = ['/debug', '/.env', '/.git', '/admin'];
+  for (let ep of endpoints) {
+    expect((await fetch(`https://example.com${ep}`)).status).not.toBe(200);
   }
 });
 ```
 
-### 6. Vulnerable and Outdated Components
-**Risk:** Using libraries with known vulnerabilities
-
-**Prevention:**
-```bash
-# Check for vulnerabilities regularly
-npm audit
-npm audit fix
-
-# Or with Yarn
-yarn audit
-
-# Use Snyk, Dependabot, or similar
-snyk test
-```
-
-**CI/CD Integration:**
-```yaml
-# GitHub Actions example
-- name: Security audit
-  run: npm audit --audit-level=high
-  
-- name: Check for outdated packages
-  run: npm outdated
-```
-
-### 7. Identification and Authentication Failures
-**Risk:** Weak passwords, poor session management
-
-**Test Scenarios:**
+### 5. Rate Limiting
 ```javascript
-test('rejects weak passwords', async () => {
-  const weakPasswords = ['123456', 'password', 'abc123'];
-  
-  for (let pwd of weakPasswords) {
-    const response = await api.post('/register', {
-      email: 'test@example.com',
-      password: pwd
-    });
-    expect(response.status).toBe(400);
+test('rate limiting prevents brute force', async () => {
+  const responses = [];
+  for (let i = 0; i < 20; i++) {
+    responses.push(await api.post('/login', { email: 'test@example.com', password: 'wrong' }));
   }
-});
-
-test('enforces multi-factor authentication for sensitive ops', async () => {
-  const token = await login('user@example.com', 'password');
-  
-  // Try to change email without MFA
-  const response = await api.put('/profile/email', {
-    newEmail: 'new@example.com'
-  }, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  
-  expect(response.status).toBe(403); // Requires MFA
-});
-
-test('prevents session fixation', async () => {
-  const sessionBefore = await getSessionId();
-  
-  await login('user@example.com', 'password');
-  
-  const sessionAfter = await getSessionId();
-  
-  // Session ID should change after login
-  expect(sessionAfter).not.toBe(sessionBefore);
+  expect(responses.filter(r => r.status === 429).length).toBeGreaterThan(0);
 });
 ```
 
-### 8. Software and Data Integrity Failures
-**Risk:** Unsigned updates, untrusted CI/CD pipeline
+---
 
-**Test Scenarios:**
-```javascript
-test('API responses include integrity check', async () => {
-  const response = await api.get('/config');
-  
-  // Should include checksum or signature
-  expect(response.headers['x-content-signature']).toBeDefined();
-});
-
-test('uploaded files are scanned for malware', async () => {
-  const maliciousFile = createTestVirusFile(); // EICAR test file
-  
-  const response = await api.post('/upload', maliciousFile);
-  
-  expect(response.status).toBe(400);
-  expect(response.body.error).toMatch(/malware|virus/i);
-});
-```
-
-### 9. Security Logging and Monitoring Failures
-**Risk:** Breaches not detected, no audit trail
-
-**Test Scenarios:**
-```javascript
-test('failed login attempts are logged', async () => {
-  await api.post('/login', { email: 'test@example.com', password: 'wrong' });
-  
-  const logs = await getLogs('authentication');
-  const failedLogin = logs.find(l => l.event === 'login_failed');
-  
-  expect(failedLogin).toBeDefined();
-  expect(failedLogin.ip).toBeDefined();
-  expect(failedLogin.timestamp).toBeDefined();
-});
-
-test('sensitive operations are audited', async () => {
-  const adminToken = await login('admin@example.com', 'password');
-  
-  await api.delete('/users/123', {
-    headers: { Authorization: `Bearer ${adminToken}` }
-  });
-  
-  const auditLog = await getAuditLog();
-  const deletion = auditLog.find(l => l.action === 'user_deleted');
-  
-  expect(deletion.actor).toBe('admin@example.com');
-  expect(deletion.target).toBe('123');
-});
-```
-
-### 10. Server-Side Request Forgery (SSRF)
-**Risk:** Attacker makes server request internal resources
-
-**Test Scenarios:**
-```javascript
-test('prevents SSRF via URL parameter', async () => {
-  const internalUrl = 'http://localhost:8080/admin';
-  
-  const response = await api.post('/fetch-url', {
-    url: internalUrl
-  });
-  
-  expect(response.status).toBe(400); // Rejected
-});
-
-test('validates and sanitizes URL inputs', async () => {
-  const maliciousUrls = [
-    'file:///etc/passwd',
-    'http://169.254.169.254/latest/meta-data/', // AWS metadata
-    'http://metadata.google.internal/', // GCP metadata
-  ];
-  
-  for (let url of maliciousUrls) {
-    const response = await api.post('/fetch-url', { url });
-    expect(response.status).toBe(400);
-  }
-});
-```
-
-## Security Testing Tools
-
-### Static Analysis (SAST)
-- **SonarQube** - Code quality + security
-- **Semgrep** - Fast, customizable rules
-- **ESLint security plugins** - JavaScript
-- **Bandit** - Python security linter
-
-### Dynamic Analysis (DAST)
-- **OWASP ZAP** - Web app security scanner
-- **Burp Suite** - Security testing platform
-- **Nikto** - Web server scanner
-
-### Dependency Scanning
-- **npm audit / yarn audit** - Node.js
-- **Snyk** - Multi-language
-- **Dependabot** - GitHub integration
-- **OWASP Dependency-Check** - Multi-language
-
-### Secret Scanning
-- **git-secrets** - Prevent secrets in commits
-- **TruffleHog** - Find secrets in git history
-- **GitGuardian** - Real-time secret detection
-
-## Penetration Testing Basics
-
-### Manual Testing Approach
-
-1. **Reconnaissance**
-   - Identify attack surface
-   - Map endpoints and functionality
-   - Note technologies used
-
-2. **Enumeration**
-   - Discover hidden endpoints
-   - Test common paths (/admin, /.env, /api)
-   - Check for information disclosure
-
-3. **Exploitation**
-   - Test for OWASP Top 10
-   - Try auth bypasses
-   - Test input validation
-
-4. **Reporting**
-   - Document findings
-   - Rate severity
-   - Provide remediation steps
-
-### Automated Scanning
-
-```bash
-# OWASP ZAP baseline scan
-docker run -t owasp/zap2docker-stable zap-baseline.py \
-  -t https://example.com \
-  -r report.html
-
-# Nikto web server scan
-nikto -h https://example.com
-
-# Nmap port scan
-nmap -sV -sC example.com
-```
-
-## Security in CI/CD
-
-### Pre-commit Hooks
-```bash
-# .git/hooks/pre-commit
-#!/bin/sh
-
-# Check for secrets
-git-secrets --scan
-
-# Run security linter
-npm run lint:security
-
-# Abort commit if issues found
-if [ $? -ne 0 ]; then
-  echo "Security issues found. Commit aborted."
-  exit 1
-fi
-```
-
-### CI Pipeline
-```yaml
-# GitHub Actions example
-security-checks:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v2
-    
-    - name: Dependency audit
-      run: npm audit --audit-level=high
-      
-    - name: SAST scan
-      run: npm run sast
-      
-    - name: Secret scan
-      uses: trufflesecurity/trufflehog@main
-      
-    - name: DAST scan (staging)
-      if: github.ref == 'refs/heads/main'
-      run: |
-        docker run owasp/zap2docker-stable \
-          zap-baseline.py -t https://staging.example.com
-```
-
-## Common Security Mistakes
-
-### ❌ Security by Obscurity
-**Problem:** Hiding admin panel at `/super-secret-admin`
-**Better:** Proper authentication + authorization
-
-### ❌ Client-Side Validation Only
-**Problem:** JavaScript validation can be bypassed
-**Better:** Always validate on server side
-
-### ❌ Trusting User Input
-**Problem:** Assuming input is safe
-**Better:** Sanitize, validate, escape all input
-
-### ❌ Hardcoded Secrets
-**Problem:** API keys in code
-**Better:** Environment variables, secret management
-
-### ❌ Insufficient Logging
-**Problem:** Can't detect or investigate breaches
-**Better:** Log security events, monitor for anomalies
-
-## Security Testing Checklist
+## Security Checklist
 
 ### Authentication
-- [ ] Strong password requirements
+- [ ] Strong password requirements (12+ chars)
 - [ ] Password hashing (bcrypt, scrypt, Argon2)
 - [ ] MFA for sensitive operations
 - [ ] Account lockout after failed attempts
-- [ ] Secure password reset flow
-- [ ] Session timeout
 - [ ] Session ID changes after login
+- [ ] Session timeout
 
 ### Authorization
 - [ ] Check authorization on every request
-- [ ] Principle of least privilege
-- [ ] No horizontal privilege escalation
-- [ ] No vertical privilege escalation
-- [ ] Resource-level authorization
+- [ ] Least privilege principle
+- [ ] No horizontal escalation
+- [ ] No vertical escalation
 
 ### Data Protection
 - [ ] HTTPS everywhere
-- [ ] Sensitive data encrypted at rest
-- [ ] Secrets not in code or logs
-- [ ] PII handling compliance (GDPR, etc.)
-- [ ] Secure file uploads
-- [ ] Safe data deletion
+- [ ] Encrypted at rest
+- [ ] Secrets not in code/logs
+- [ ] PII compliance (GDPR)
 
 ### Input Validation
-- [ ] Validate all input server-side
-- [ ] Whitelist, not blacklist
+- [ ] Server-side validation
 - [ ] Parameterized queries (no SQL injection)
 - [ ] Output encoding (no XSS)
-- [ ] File upload restrictions
 - [ ] Rate limiting
 
-### API Security
-- [ ] Authentication required
-- [ ] Authorization per endpoint
-- [ ] CORS configured properly
-- [ ] Rate limiting
-- [ ] Input validation
-- [ ] Error handling (no info leakage)
+---
 
-### Infrastructure
-- [ ] Keep dependencies updated
-- [ ] Remove unnecessary services
-- [ ] Secure defaults
-- [ ] Regular security scans
-- [ ] Secrets management
-- [ ] Security headers configured
+## CI/CD Integration
 
-## Real-World Example: API Security Audit
+```yaml
+# GitHub Actions
+security-checks:
+  steps:
+    - name: Dependency audit
+      run: npm audit --audit-level=high
 
-**Scenario:** E-commerce API security review
+    - name: SAST scan
+      run: npm run sast
 
-**Findings:**
+    - name: Secret scan
+      uses: trufflesecurity/trufflehog@main
 
-1. **Critical: Authorization Bypass**
-   ```javascript
-   // Vulnerable code
-   app.get('/orders/:id', (req, res) => {
-     const order = db.orders.findById(req.params.id);
-     res.json(order); // No ownership check!
-   });
-   
-   // Fixed
-   app.get('/orders/:id', auth, (req, res) => {
-     const order = db.orders.findById(req.params.id);
-     if (order.userId !== req.user.id) {
-       return res.status(403).json({ error: 'Forbidden' });
-     }
-     res.json(order);
-   });
-   ```
+    - name: DAST scan
+      if: github.ref == 'refs/heads/main'
+      run: docker run owasp/zap2docker-stable zap-baseline.py -t https://staging.example.com
+```
 
-2. **High: Weak Password Policy**
-   - No minimum length
-   - No complexity requirements
-   - **Fix:** Require 12+ chars, mixed case, numbers
+**Pre-commit hooks:**
+```bash
+#!/bin/sh
+git-secrets --scan
+npm run lint:security
+```
 
-3. **Medium: Verbose Error Messages**
-   - Stack traces in production
-   - **Fix:** Generic errors for clients, detailed logs server-side
+---
 
-4. **Low: Missing Security Headers**
-   - No HSTS, CSP, X-Frame-Options
-   - **Fix:** Add helmet.js middleware
+## Agent-Assisted Security Testing
 
-**Result:** 4 vulnerabilities fixed before production launch.
-
-## Using with QE Agents
-
-### Multi-Layer Security Scanning
-
-**qe-security-scanner** performs comprehensive security testing:
 ```typescript
-// Agent runs multi-layer security scan
-const securityScan = await agent.comprehensiveScan({
+// Comprehensive multi-layer scan
+await Task("Security Scan", {
   target: 'src/',
-  layers: {
-    sast: true,           // Static analysis
-    dast: true,           // Dynamic analysis
-    dependencies: true,   // npm audit
-    secrets: true,        // Secret scanning
-    containers: true      // Docker image scanning
-  },
+  layers: { sast: true, dast: true, dependencies: true, secrets: true },
   severity: ['critical', 'high', 'medium']
-});
+}, "qe-security-scanner");
 
-// Returns categorized vulnerabilities
-```
-
-### OWASP Top 10 Automated Testing
-
-```typescript
-// Agent tests all OWASP Top 10 vulnerabilities
-const owaspTest = await agent.testOWASP({
-  categories: [
-    'broken-access-control',
-    'cryptographic-failures',
-    'injection',
-    'insecure-design',
-    'security-misconfiguration'
-  ],
+// OWASP Top 10 testing
+await Task("OWASP Scan", {
+  categories: ['broken-access-control', 'injection', 'cryptographic-failures'],
   depth: 'comprehensive'
-});
-```
+}, "qe-security-scanner");
 
-### Vulnerability Fix Validation
-
-```typescript
-// Agent validates security fix
-const validation = await agent.validateFix({
+// Validate fix
+await Task("Validate Fix", {
   vulnerability: 'CVE-2024-12345',
   expectedResolution: 'upgrade package to v2.0.0',
   retestAfterFix: true
-});
-
-// Returns: { fixed: true, retestPassed: true, residualRisk: 'low' }
+}, "qe-security-scanner");
 ```
 
-### Security Fleet Coordination
+---
 
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/security/
+├── scans/*           - Scan results
+├── vulnerabilities/* - Found vulnerabilities
+├── fixes/*           - Remediation tracking
+└── compliance/*      - Compliance status
+```
+
+### Fleet Coordination
 ```typescript
 const securityFleet = await FleetManager.coordinate({
   strategy: 'security-testing',
   agents: [
-    'qe-security-scanner',         // Run scans
-    'qe-api-contract-validator',   // API security
-    'qe-quality-analyzer',         // Code security review
-    'qe-deployment-readiness'      // Security gate
+    'qe-security-scanner',
+    'qe-api-contract-validator',
+    'qe-quality-analyzer',
+    'qe-deployment-readiness'
   ],
   topology: 'parallel'
 });
@@ -625,21 +274,33 @@ const securityFleet = await FleetManager.coordinate({
 
 ---
 
+## Common Mistakes
+
+### ❌ Security by Obscurity
+Hiding admin at `/super-secret-admin` → **Use proper auth**
+
+### ❌ Client-Side Validation Only
+JavaScript validation can be bypassed → **Always validate server-side**
+
+### ❌ Trusting User Input
+Assuming input is safe → **Sanitize, validate, escape all input**
+
+### ❌ Hardcoded Secrets
+API keys in code → **Environment variables, secret management**
+
+---
+
 ## Related Skills
-
-**Testing:**
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Security testing coordination
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Security with agents
 - [api-testing-patterns](../api-testing-patterns/) - API security testing
+- [compliance-testing](../compliance-testing/) - GDPR, HIPAA, SOC2
 
-**Development:**
-- [code-review-quality](../code-review-quality/) - Security code review
-
-**Quality:**
-- [quality-metrics](../quality-metrics/) - Security metrics tracking
+---
 
 ## Remember
 
-Security testing is not a one-time activity. It's an ongoing process. Build security into your development workflow, test continuously, and stay informed about new threats.
-
 **Think like an attacker:** What would you try to break? Test that.
 **Build like a defender:** Assume input is malicious until proven otherwise.
+**Test continuously:** Security testing is ongoing, not one-time.
+
+**With Agents:** Agents automate vulnerability scanning, track remediation, and validate fixes. Use agents to maintain security posture at scale.
