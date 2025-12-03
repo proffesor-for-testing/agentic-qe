@@ -1,6 +1,7 @@
 name: MCP Tools Testing
 permissions:
   contents: read
+  issues: write
   pull-requests: write
   checks: write
 

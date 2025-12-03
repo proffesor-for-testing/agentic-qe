@@ -59,6 +59,26 @@ export interface SearchResult {
   metadata?: Record<string, any>;
 }
 
+/**
+ * Options for MMR (Maximal Marginal Relevance) diversity ranking
+ */
+export interface MMRSearchOptions {
+  /** Number of results to return */
+  k?: number;
+  /** Lambda parameter balancing relevance vs diversity (0-1, default 0.5) */
+  lambda?: number;
+  /** Multiplier for candidate pool size (default 3) */
+  candidateMultiplier?: number;
+  /** Minimum similarity threshold */
+  threshold?: number;
+  /** Domain filter */
+  domain?: string;
+  /** Type filter */
+  type?: string;
+  /** Framework filter */
+  framework?: string;
+}
+
 export interface DbOptions {
   dimension: number;
   metric?: 'cosine' | 'euclidean' | 'dot';
@@ -384,6 +404,92 @@ export class RuVectorPatternStore implements IPatternStore {
   }
 
   /**
+   * Search with MMR (Maximal Marginal Relevance) for diverse results
+   * Balances relevance to query with diversity among results
+   *
+   * @param queryEmbedding - Query vector
+   * @param options - MMR search options
+   * @returns Diverse pattern results
+   */
+  async searchWithMMR(
+    queryEmbedding: number[],
+    options: MMRSearchOptions = {}
+  ): Promise<PatternSearchResult[]> {
+    this.ensureInitialized();
+
+    const {
+      k = 10,
+      lambda = 0.5,
+      candidateMultiplier = 3,
+      threshold = 0,
+      domain,
+      type,
+      framework,
+    } = options;
+
+    // Validate lambda parameter
+    if (lambda < 0 || lambda > 1) {
+      throw new Error('MMR lambda must be between 0 and 1');
+    }
+
+    // Step 1: Get candidate pool (k * candidateMultiplier results)
+    const candidateK = Math.min(k * candidateMultiplier, this.patterns.size);
+    const candidates = await this.searchSimilar(queryEmbedding, {
+      k: candidateK,
+      threshold,
+      domain,
+      type,
+      framework,
+      useMMR: false, // Disable MMR for candidate retrieval
+    });
+
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    // Step 2: MMR iterative selection
+    const selected: PatternSearchResult[] = [];
+    const remaining = [...candidates];
+
+    while (selected.length < k && remaining.length > 0) {
+      let bestIdx = 0;
+      let bestScore = -Infinity;
+
+      // Calculate MMR score for each remaining candidate
+      for (let i = 0; i < remaining.length; i++) {
+        const candidate = remaining[i];
+        const relevance = candidate.score;
+
+        // Calculate maximum similarity to already selected results
+        let maxSimilarity = 0;
+        if (selected.length > 0) {
+          for (const selectedResult of selected) {
+            const similarity = this.cosineSimilarity(
+              candidate.pattern.embedding,
+              selectedResult.pattern.embedding
+            );
+            maxSimilarity = Math.max(maxSimilarity, similarity);
+          }
+        }
+
+        // MMR formula: λ * Sim(doc, query) - (1-λ) * max(Sim(doc, selected))
+        const mmrScore = lambda * relevance - (1 - lambda) * maxSimilarity;
+
+        if (mmrScore > bestScore) {
+          bestScore = mmrScore;
+          bestIdx = i;
+        }
+      }
+
+      // Add best candidate to selected and remove from remaining
+      selected.push(remaining[bestIdx]);
+      remaining.splice(bestIdx, 1);
+    }
+
+    return selected;
+  }
+
+  /**
    * Search for similar patterns
    * Achieves 192K+ QPS on native backend
    */
@@ -392,6 +498,18 @@ export class RuVectorPatternStore implements IPatternStore {
     options: PatternSearchOptions = {}
   ): Promise<PatternSearchResult[]> {
     this.ensureInitialized();
+
+    // Use MMR if requested
+    if (options.useMMR) {
+      return this.searchWithMMR(queryEmbedding, {
+        k: options.k,
+        lambda: options.mmrLambda,
+        threshold: options.threshold,
+        domain: options.domain,
+        type: options.type,
+        framework: options.framework,
+      });
+    }
 
     const startTime = performance.now();
     const k = options.k ?? 10;

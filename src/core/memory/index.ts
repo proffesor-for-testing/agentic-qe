@@ -224,3 +224,51 @@ export type {
   AgentMessage,
   PoolStatistics,
 } from '../transport';
+
+// =============================================================================
+// Tiered Compression (v2.0.0)
+// Adaptive tiered compression for 2-32x memory reduction
+// =============================================================================
+export {
+  TieredCompressionManager,
+  ProductQuantizer,
+  encodeF16,
+  decodeF16,
+  encodeBinary,
+  decodeBinary,
+  DEFAULT_TIERS,
+} from './TieredCompression';
+export type {
+  CompressionTier,
+  TierConfig,
+  CompressedVector,
+} from './TieredCompression';
+
+// =============================================================================
+// ReflexionMemory Adapter (v2.1.0) - Issue #109
+// Learn from test failures to predict and prevent flakiness
+// =============================================================================
+export {
+  ReflexionMemoryAdapter,
+  createReflexionMemoryAdapter,
+} from './ReflexionMemoryAdapter';
+export type {
+  TestExecution,
+  ReflexionEpisode,
+  FlakinessPrediction,
+} from './ReflexionMemoryAdapter';
+
+// =============================================================================
+// Sparse Vector Search (v2.1.0) - Issue #109
+// BM25/TF-IDF hybrid search for improved pattern retrieval
+// =============================================================================
+export {
+  BM25Scorer,
+  HybridSearcher,
+  reciprocalRankFusion,
+} from './SparseVectorSearch';
+export type {
+  SparseVector,
+  BM25Config,
+  HybridResult,
+} from './SparseVectorSearch';
