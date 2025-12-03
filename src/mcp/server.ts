@@ -129,8 +129,7 @@ export class AgenticQEMCPServer {
     this.server = new Server(
       {
         name: 'agentic-qe-server',
-        version: '1.0.0',
-        description: 'Agentic Quality Engineering Fleet MCP Server'
+        version: '1.0.0'
       },
       {
         capabilities: {
