@@ -20,6 +20,10 @@ import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { EventEmitter } from 'events';
 import { chromium, Browser, Page } from 'playwright';
+import * as fs from 'fs';
+import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import {
   QXAnalysis,
   QXPartnerConfig,
@@ -36,6 +40,8 @@ import {
   QXContext,
   TestabilityIntegration
 } from '../types/qx';
+
+const execAsync = promisify(exec);
 
 // Simple logger interface
 interface Logger {
@@ -390,7 +396,464 @@ export class QXPartnerAgent extends BaseAgent {
     const duration = Date.now() - startTime;
     this.logger.info(`QX analysis completed in ${duration}ms. Score: ${overallScore}/100 (${grade})`);
 
+    // Generate HTML report and auto-launch
+    try {
+      const reportPath = await this.generateHTMLReport(analysis);
+      this.logger.info(`HTML report generated: ${reportPath}`);
+
+      // Auto-launch browser
+      await this.launchReportInBrowser(reportPath);
+      this.logger.info(`Report launched in browser`);
+    } catch (error) {
+      this.logger.warn(`Failed to generate/launch HTML report:`, error);
+      // Don't fail the analysis if report generation fails
+    }
+
     return analysis;
+  }
+
+  /**
+   * Generate HTML report from QX analysis
+   */
+  private async generateHTMLReport(analysis: QXAnalysis): Promise<string> {
+    const sanitizedTarget = analysis.target.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const filename = `qx-report-${sanitizedTarget}-${timestamp}.html`;
+    const reportsDir = path.join(process.cwd(), 'docs', 'qx-reports');
+
+    // Ensure reports directory exists
+    if (!fs.existsSync(reportsDir)) {
+      fs.mkdirSync(reportsDir, { recursive: true });
+    }
+
+    const reportPath = path.join(reportsDir, filename);
+    const html = this.generateHTMLContent(analysis);
+
+    fs.writeFileSync(reportPath, html, 'utf8');
+
+    return reportPath;
+  }
+
+  /**
+   * Generate HTML content for the report
+   */
+  private generateHTMLContent(analysis: QXAnalysis): string {
+    const date = analysis.timestamp.toLocaleDateString();
+    const time = analysis.timestamp.toLocaleTimeString();
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QX Analysis: ${this.escapeHtml(analysis.target)}</title>
+    ${this.getReportStyles()}
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍵 Quality Experience (QX) Analysis</h1>
+            <div class="subtitle">${this.escapeHtml(analysis.target)}</div>
+            <div class="meta">
+                <strong>URL:</strong> ${this.escapeHtml(analysis.target)}<br>
+                <strong>Analysis Date:</strong> ${date} at ${time}<br>
+                <strong>Framework:</strong> QX Partner (Quality + UX Advocacy)
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Executive Summary -->
+            <div class="section">
+                <h2>📊 Executive Summary</h2>
+                <p>
+                    This comprehensive QX analysis evaluates <strong>${this.escapeHtml(analysis.context.title || analysis.target)}</strong>
+                    through the lens of Quality Experience, examining how quality is co-created for all stakeholders.
+                </p>
+            </div>
+
+            <!-- Overall QX Score -->
+            <div class="section">
+                <h2>🎯 Overall QX Score</h2>
+                <div class="score-card">
+                    <div class="score-item">
+                        <h4>Problem Clarity</h4>
+                        <div class="score-value">${analysis.problemAnalysis.clarityScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>User Needs Alignment</h4>
+                        <div class="score-value">${analysis.userNeeds.alignmentScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>Business Alignment</h4>
+                        <div class="score-value">${analysis.businessNeeds.alignmentScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>Impact Assessment</h4>
+                        <div class="score-value">${100 - analysis.impactAnalysis.overallImpactScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 30px;">
+                    <div class="score-value" style="font-size: 3em; color: ${this.getScoreColor(analysis.overallScore)};">${analysis.overallScore}</div>
+                    <div class="score-label" style="font-size: 1.2em;">OVERALL QX SCORE (Grade: ${analysis.grade})</div>
+                </div>
+            </div>
+
+            <!-- Problem Analysis -->
+            <div class="section">
+                <h2>🔍 Problem Analysis</h2>
+                <div class="info-box">
+                    <h3>Problem Statement</h3>
+                    <p>${this.escapeHtml(analysis.problemAnalysis.problemStatement)}</p>
+                    <p><strong>Complexity:</strong> ${analysis.problemAnalysis.complexity}</p>
+                    <p><strong>Clarity Score:</strong> ${analysis.problemAnalysis.clarityScore}/100</p>
+                </div>
+                ${analysis.problemAnalysis.potentialFailures.length > 0 ? `
+                <div class="improvements">
+                    <h3>⚠️ Potential Failure Modes</h3>
+                    <ul>
+                        ${analysis.problemAnalysis.potentialFailures.map(f => `
+                            <li>
+                                <strong>[${f.severity.toUpperCase()}]</strong> ${this.escapeHtml(f.description)}
+                                <br><small>Likelihood: ${f.likelihood}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- User Needs -->
+            <div class="section">
+                <h2>👥 User Needs Analysis</h2>
+                <p><strong>Suitability:</strong> ${analysis.userNeeds.suitability} | <strong>Score:</strong> ${analysis.userNeeds.alignmentScore}/100</p>
+                ${analysis.userNeeds.needs.length > 0 ? `
+                <div class="strengths">
+                    <h3>✅ User Needs</h3>
+                    <ul>
+                        ${analysis.userNeeds.needs.map(n => `
+                            <li>
+                                <strong>[${n.priority}]</strong> ${this.escapeHtml(n.description)}
+                                ${n.addressed ? '✓ Addressed' : '✗ Not Addressed'}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                ${analysis.userNeeds.challenges.length > 0 ? `
+                <div class="improvements">
+                    <h3>⚠️ User Challenges</h3>
+                    <ul>
+                        ${analysis.userNeeds.challenges.map(c => `<li>${this.escapeHtml(c)}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Business Needs -->
+            <div class="section">
+                <h2>💼 Business Needs Analysis</h2>
+                <p><strong>Primary Goal:</strong> ${analysis.businessNeeds.primaryGoal}</p>
+                <p><strong>Compromises UX:</strong> ${analysis.businessNeeds.compromisesUX ? 'Yes ⚠️' : 'No ✓'}</p>
+                ${analysis.businessNeeds.kpisAffected.length > 0 ? `
+                <div class="info-box">
+                    <h3>KPIs Affected</h3>
+                    <ul>
+                        ${analysis.businessNeeds.kpisAffected.map(k => `<li>${this.escapeHtml(k)}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Oracle Problems -->
+            ${analysis.oracleProblems.length > 0 ? `
+            <div class="section">
+                <h2>🔮 Oracle Problems Detected</h2>
+                ${analysis.oracleProblems.map(p => `
+                <div class="improvements">
+                    <h3>[${p.severity.toUpperCase()}] ${p.type}</h3>
+                    <p>${this.escapeHtml(p.description)}</p>
+                    ${p.stakeholders ? `<p><strong>Stakeholders:</strong> ${p.stakeholders.join(', ')}</p>` : ''}
+                    ${p.resolutionApproach ? `
+                    <p><strong>Resolution Approach:</strong></p>
+                    <ul>
+                        ${p.resolutionApproach.map(r => `<li>${this.escapeHtml(r)}</li>`).join('')}
+                    </ul>
+                    ` : ''}
+                </div>
+                `).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Recommendations -->
+            <div class="section">
+                <h2>💡 Strategic Recommendations</h2>
+                ${analysis.recommendations.slice(0, 10).map((rec, idx) => `
+                <div class="recommendations">
+                    <h3>🎯 Priority ${idx + 1}: ${this.escapeHtml(rec.principle)}</h3>
+                    <p>${this.escapeHtml(rec.recommendation)}</p>
+                    <p>
+                        <strong>Severity:</strong> ${rec.severity} |
+                        <strong>Impact:</strong> ${rec.impactPercentage || rec.impact}% |
+                        <strong>Effort:</strong> ${rec.estimatedEffort || rec.effort}
+                    </p>
+                </div>
+                `).join('')}
+            </div>
+
+            <!-- Heuristics Results -->
+            ${analysis.heuristics.length > 0 ? `
+            <div class="section">
+                <h2>📐 Heuristics Analysis</h2>
+                <div class="score-card">
+                    ${analysis.heuristics.slice(0, 8).map(h => `
+                    <div class="score-item">
+                        <h4>${this.formatHeuristicName(h.name)}</h4>
+                        <div class="score-value" style="font-size: 1.8em; color: ${this.getScoreColor(h.score)};">${h.score}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+            <!-- Impact Analysis -->
+            <div class="section">
+                <h2>⚡ Impact Analysis</h2>
+                <div class="score-card">
+                    <div class="score-item">
+                        <h4>Visible Impact</h4>
+                        <div class="score-value">${analysis.impactAnalysis.visible.score}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>Invisible Impact</h4>
+                        <div class="score-value">${analysis.impactAnalysis.invisible.score}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                </div>
+                ${analysis.impactAnalysis.visible.userFeelings && analysis.impactAnalysis.visible.userFeelings.length > 0 ? `
+                <div class="info-box">
+                    <h3>User Feelings</h3>
+                    <ul>
+                        ${analysis.impactAnalysis.visible.userFeelings.map(f => {
+                            if (typeof f === 'string') {
+                                return `<li>${this.escapeHtml(f)}</li>`;
+                            } else {
+                                return `<li><strong>${f.feeling}</strong> (${f.likelihood}): ${this.escapeHtml(f.context)}</li>`;
+                            }
+                        }).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Conclusion -->
+            <div class="section">
+                <h2>🎓 Conclusion</h2>
+                <p>
+                    This QX analysis reveals an overall score of <strong>${analysis.overallScore}/100 (Grade: ${analysis.grade})</strong>.
+                    ${this.getScoreInterpretation(analysis.overallScore)}
+                </p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>QX Analysis Report</strong></p>
+            <p>Generated by: Agentic QE Fleet v2.1.0 - QX Partner Agent</p>
+            <p>Framework: Quality Experience (QX) Analysis</p>
+            <p>Analysis Date: ${date} at ${time}</p>
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+            <p style="font-size: 0.9em; line-height: 1.6;">
+                <strong>About QX Framework:</strong> This report uses the QX framework which combines Quality Advocacy with User Experience design,
+                recognizing that quality is co-created by all stakeholders in a system. QX is one of the key concepts originally covered in
+                <a href="https://talesoftesting.com/qcsd/" target="_blank" rel="noopener noreferrer" style="color: #007bff; text-decoration: none;">
+                QCSD - Quality Conscious Software Delivery Framework</a> created by Lalitkumar Bhamare.
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+  }
+
+  /**
+   * Get CSS styles for the report
+   */
+  private getReportStyles(): string {
+    return `
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; font-weight: 700; }
+        .header .subtitle { font-size: 1.2em; opacity: 0.9; }
+        .header .meta { margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
+        .content { padding: 40px; }
+        .section { margin-bottom: 40px; }
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        .section h3 { color: #764ba2; font-size: 1.4em; margin: 25px 0 15px 0; }
+        .section p { margin-bottom: 15px; text-align: justify; }
+        .score-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .score-item {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .score-item:hover { transform: translateY(-5px); box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .score-item h4 { color: #667eea; font-size: 1.1em; margin-bottom: 10px; }
+        .score-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #764ba2;
+            margin: 10px 0;
+        }
+        .score-label {
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .strengths, .improvements, .recommendations, .info-box {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .strengths { border-left: 5px solid #28a745; }
+        .improvements { border-left: 5px solid #ffc107; }
+        .recommendations { border-left: 5px solid #17a2b8; }
+        .info-box { border-left: 5px solid #6c757d; }
+        .strengths h3 { color: #28a745; }
+        .improvements h3 { color: #ffc107; }
+        .recommendations h3 { color: #17a2b8; }
+        .info-box h3 { color: #6c757d; }
+        ul { margin-left: 20px; margin-top: 10px; }
+        li { margin-bottom: 10px; line-height: 1.8; }
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p { margin-bottom: 10px; }
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; }
+        }
+    </style>`;
+  }
+
+  /**
+   * Escape HTML special characters
+   */
+  private escapeHtml(text: string): string {
+    const map: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  /**
+   * Format heuristic name for display
+   */
+  private formatHeuristicName(name: string): string {
+    return name
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  /**
+   * Get color based on score
+   */
+  private getScoreColor(score: number): string {
+    if (score >= 90) return '#28a745'; // Green
+    if (score >= 80) return '#17a2b8'; // Blue
+    if (score >= 70) return '#ffc107'; // Yellow
+    if (score >= 60) return '#fd7e14'; // Orange
+    return '#dc3545'; // Red
+  }
+
+  /**
+   * Get score interpretation
+   */
+  private getScoreInterpretation(score: number): string {
+    if (score >= 90) {
+      return 'Excellent quality experience with strong alignment across all dimensions.';
+    } else if (score >= 80) {
+      return 'Good quality experience with minor areas for improvement.';
+    } else if (score >= 70) {
+      return 'Adequate quality experience but significant improvements recommended.';
+    } else if (score >= 60) {
+      return 'Below target quality experience. Priority improvements required.';
+    } else {
+      return 'Poor quality experience. Immediate action needed across multiple areas.';
+    }
+  }
+
+  /**
+   * Launch report in default browser
+   */
+  private async launchReportInBrowser(reportPath: string): Promise<void> {
+    try {
+      const platform = process.platform;
+      let command: string;
+
+      if (platform === 'darwin') {
+        command = `open "${reportPath}"`;
+      } else if (platform === 'win32') {
+        command = `start "" "${reportPath}"`;
+      } else {
+        // Linux and others
+        command = `xdg-open "${reportPath}"`;
+      }
+
+      await execAsync(command);
+      this.logger.info(`Launched report in browser: ${reportPath}`);
+    } catch (error) {
+      this.logger.warn(`Failed to auto-launch browser:`, error);
+      this.logger.info(`Report available at: ${reportPath}`);
+    }
   }
 
   /**
@@ -1248,13 +1711,6 @@ export class QXPartnerAgent extends BaseAgent {
     });
 
     return sorted;
-  }
-
-  private formatHeuristicName(heuristic: string): string {
-    return heuristic
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
   }
 
   /**
