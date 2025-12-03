@@ -336,16 +336,22 @@ export class QXPartnerAgent extends BaseAgent {
     // 4. Analyze business needs
     const businessNeeds = await this.analyzeBusinessNeeds(context, problemAnalysis);
 
-    // 5. Detect oracle problems
-    const oracleProblems = this.config.detectOracleProblems 
+    // 5. Analyze creativity - drawing inspiration from diverse domains
+    const creativityAnalysis = await this.analyzeCreativity(context, problemAnalysis);
+
+    // 6. Analyze design - exactness, intuitive, and counter-intuitive design
+    const designAnalysis = await this.analyzeDesign(context, problemAnalysis);
+
+    // 7. Detect oracle problems
+    const oracleProblems = this.config.detectOracleProblems
       ? await this.detectOracleProblemsFromContext(context, userNeeds, businessNeeds)
       : [];
 
-    // 6. Perform impact analysis
+    // 8. Perform impact analysis
     const impactAnalysis = await this.analyzeImpact(context, problemAnalysis);
 
-    // 7. Apply heuristics
-    const heuristics = await this.applyAllHeuristics(context, problemAnalysis, userNeeds, businessNeeds);
+    // 9. Apply heuristics
+    const heuristics = await this.applyAllHeuristics(context, problemAnalysis, userNeeds, businessNeeds, creativityAnalysis, designAnalysis);
 
     // 8. Integrate testability (if enabled)
     const testabilityIntegration = this.config.integrateTestability
@@ -368,6 +374,8 @@ export class QXPartnerAgent extends BaseAgent {
       problemAnalysis,
       userNeeds,
       businessNeeds,
+      creativityAnalysis,
+      designAnalysis,
       impactAnalysis,
       heuristics
     );
@@ -382,6 +390,8 @@ export class QXPartnerAgent extends BaseAgent {
       problemAnalysis,
       userNeeds,
       businessNeeds,
+      creativityAnalysis,
+      designAnalysis,
       oracleProblems,
       impactAnalysis,
       heuristics,
@@ -568,6 +578,103 @@ export class QXPartnerAgent extends BaseAgent {
                 ` : ''}
             </div>
 
+            <!-- Creativity Analysis -->
+            <div class="section">
+                <h2>🎨 Creativity & Innovation Analysis</h2>
+                <p><strong>Creativity Score:</strong> ${analysis.creativityAnalysis.creativityScore}/100</p>
+                <p><strong>Domains Explored:</strong> ${analysis.creativityAnalysis.domainsExplored.join(', ')}</p>
+                ${analysis.creativityAnalysis.innovativeApproaches.length > 0 ? `
+                <div class="strengths">
+                    <h3>✨ Innovative Testing Approaches</h3>
+                    <ul>
+                        ${analysis.creativityAnalysis.innovativeApproaches.map(a => `
+                            <li>
+                                <strong>[${a.inspirationSource.toUpperCase()}]</strong> ${this.escapeHtml(a.description)}
+                                <br><small>Applicability: ${a.applicability} | Novelty: ${a.novelty}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                ${analysis.creativityAnalysis.perspectives.length > 0 ? `
+                <div class="info-box">
+                    <h3>🔍 Testing Perspectives Applied</h3>
+                    <ul>
+                        ${analysis.creativityAnalysis.perspectives.map(p => `<li>${this.escapeHtml(p)}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Design Quality Analysis -->
+            <div class="section">
+                <h2>🎯 Design Quality Analysis</h2>
+                <p><strong>Overall Design Score:</strong> ${analysis.designAnalysis.overallDesignScore}/100</p>
+
+                <!-- Exactness -->
+                <div class="info-box" style="margin-top: 20px;">
+                    <h3>📏 Exactness & Clarity (${analysis.designAnalysis.exactness.score}/100)</h3>
+                    <p><strong>Clarity Level:</strong> ${analysis.designAnalysis.exactness.clarity}</p>
+                    ${analysis.designAnalysis.exactness.clearElements.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>✓ Clear Elements:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.exactness.clearElements.map(e => `<li>${this.escapeHtml(e)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    ${analysis.designAnalysis.exactness.unclearElements.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>⚠️ Unclear Elements:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.exactness.unclearElements.map(e => `<li>${this.escapeHtml(e)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <!-- Intuitive Design -->
+                <div class="strengths" style="margin-top: 20px;">
+                    <h3>🧭 Intuitive Design (${analysis.designAnalysis.intuitive.score}/100)</h3>
+                    <p><strong>Follows Conventions:</strong> ${analysis.designAnalysis.intuitive.followsConventions ? 'Yes ✓' : 'No ⚠️'}</p>
+                    ${analysis.designAnalysis.intuitive.intuitivePatterns.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>Intuitive Patterns Detected:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.intuitive.intuitivePatterns.map(p => `<li>${this.escapeHtml(p)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    ${analysis.designAnalysis.intuitive.culturalIssues.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>⚠️ Cultural Considerations:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.intuitive.culturalIssues.map(i => `<li>${this.escapeHtml(i)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <!-- Counter-intuitive Design -->
+                ${analysis.designAnalysis.counterIntuitive.deviations.length > 0 ? `
+                <div class="improvements" style="margin-top: 20px;">
+                    <h3>🔄 Counter-intuitive Design Patterns</h3>
+                    <p><strong>Issues Found:</strong> ${analysis.designAnalysis.counterIntuitive.issuesCount}</p>
+                    <p><strong>Fresh Eyes Perspective Applied:</strong> ${analysis.designAnalysis.counterIntuitive.freshEyesPerspective ? 'Yes ✓' : 'No'}</p>
+                    <ul>
+                        ${analysis.designAnalysis.counterIntuitive.deviations.map(d => `
+                            <li>
+                                <strong>${this.escapeHtml(d.element)}</strong>
+                                <br>Expected: ${this.escapeHtml(d.expectedBehavior)}
+                                <br>Actual: ${this.escapeHtml(d.actualBehavior)}
+                                <br><small>Impact: ${d.impact} ${d.justification ? '| ' + this.escapeHtml(d.justification) : ''}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
             <!-- Oracle Problems -->
             ${analysis.oracleProblems.length > 0 ? `
             <div class="section">
@@ -659,6 +766,80 @@ export class QXPartnerAgent extends BaseAgent {
                     ${this.getScoreInterpretation(analysis.overallScore)}
                 </p>
             </div>
+
+            <!-- QX Methodology -->
+            <div class="section" style="background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%); padding: 30px; border-radius: 8px; margin-top: 40px;">
+                <h2>📚 QX Methodology: Key Concepts</h2>
+
+                <div style="margin-top: 20px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🤝 What is Quality Experience (QX)?</h3>
+                    <p style="text-align: justify;">
+                        <strong>Quality Experience (QX)</strong> is the marriage between <strong>Quality Advocacy (QA)</strong> and
+                        <strong>User Experience (UX)</strong>. Unlike traditional testing that focuses solely on defects, QX recognizes
+                        that quality is co-created by everyone associated with the product—developers, testers, designers, users, and
+                        business stakeholders. QX enables testers to collaborate meaningfully with UX professionals by understanding
+                        design effectiveness beyond technical correctness.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🎨 Creativity in Testing</h3>
+                    <p style="text-align: justify;">
+                        QX encourages drawing inspiration from <strong>diverse domains</strong>—philosophy, social science, medicine,
+                        e-commerce, fashion, gaming—to generate innovative test ideas when conventional approaches fall short. This
+                        cross-disciplinary perspective helps testers uncover unconventional risks and approach problems from fresh angles
+                        that technical testing alone might miss.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">📏 Exactness & Clarity</h3>
+                    <p style="text-align: justify;">
+                        <strong>Exactness</strong> evaluates how clearly a product communicates its intent to users. Testers should assess
+                        whether menu items, buttons, labels, and terminology are self-evident. Are component interactions obvious? Do users
+                        understand what will happen when they click? Exactness testing identifies ambiguities that create confusion, focusing
+                        on <em>clarity of communication</em> rather than just functional correctness.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🧭 Intuitive Design</h3>
+                    <p style="text-align: justify;">
+                        <strong>Intuitive design</strong> follows common conventions and user expectations. QX testing evaluates whether
+                        component interactions follow familiar patterns, respect cultural sensitivities, and align with mental models users
+                        bring from other products. Intuitive design reduces cognitive load and makes products immediately usable without
+                        extensive training.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🔄 Counter-intuitive Design Detection</h3>
+                    <p style="text-align: justify;">
+                        QX testing deliberately <strong>looks at products like an unexperienced user</strong> to spot design elements that
+                        deviate from expectations. Counter-intuitive patterns aren't always bad—they might represent innovation—but they
+                        require justification. The key is distinguishing between deliberate, valuable innovations and accidental friction
+                        that experienced users have normalized but newcomers will struggle with.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px; padding: 20px; background: white; border-left: 4px solid #667eea; border-radius: 4px;">
+                    <p style="text-align: justify; font-style: italic;">
+                        <strong>The QX Advantage:</strong> By combining quality advocacy with UX design thinking, QX enables testers to
+                        contribute informed insights about user-facing quality, bridge the gap between QA and UX teams, and ensure that
+                        testing serves the genuine experience quality that all stakeholders care about—not just technical correctness.
+                    </p>
+                </div>
+
+                <div style="margin-top: 20px; text-align: center;">
+                    <p style="font-size: 0.9em;">
+                        <strong>Learn more:</strong>
+                        <a href="https://talesoftesting.com/quality-experienceqx-co-creating-quality-experience-for-everyone-associated-with-the-product/"
+                           target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: none;">
+                            Quality Experience (QX) - Tales of Testing
+                        </a>
+                    </p>
+                </div>
+            </div>
         </div>
 
         <div class="footer">
@@ -668,8 +849,9 @@ export class QXPartnerAgent extends BaseAgent {
             <p>Analysis Date: ${date} at ${time}</p>
             <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
             <p style="font-size: 0.9em; line-height: 1.6;">
-                <strong>About QX Framework:</strong> This report uses the QX framework which combines Quality Advocacy with User Experience design,
-                recognizing that quality is co-created by all stakeholders in a system. QX is one of the key concepts originally covered in
+                This report applies the QX framework developed to bridge Quality Advocacy (QA) and User Experience (UX).<br>
+                <em>"Quality is value to someone who matters"</em> - when multiple stakeholders matter simultaneously,<br>
+                QX helps find balance and solve oracle problems. It is one of the key concepts originally covered in
                 <a href="https://talesoftesting.com/qcsd/" target="_blank" rel="noopener noreferrer" style="color: #007bff; text-decoration: none;">
                 QCSD - Quality Conscious Software Delivery Framework</a> created by Lalitkumar Bhamare.
             </p>
@@ -1509,6 +1691,226 @@ export class QXPartnerAgent extends BaseAgent {
   }
 
   /**
+   * Analyze Creativity - Drawing inspiration from diverse domains
+   */
+  private async analyzeCreativity(context: QXContext, problemAnalysis: ProblemAnalysis): Promise<import('../types/qx').CreativityAnalysis> {
+    this.logger.debug('Analyzing creativity and innovation');
+
+    const innovativeApproaches: Array<{
+      description: string;
+      inspirationSource: string;
+      applicability: 'high' | 'medium' | 'low';
+      novelty: 'highly-novel' | 'moderately-novel' | 'incremental';
+    }> = [];
+
+    // Analyze based on problem complexity
+    if (problemAnalysis.complexity === 'complex' || problemAnalysis.complexity === 'moderate') {
+      // Philosophy-inspired: Question fundamental assumptions
+      innovativeApproaches.push({
+        description: 'Question fundamental assumptions about user mental models and expected workflows',
+        inspirationSource: 'philosophy',
+        applicability: 'high',
+        novelty: 'moderately-novel'
+      });
+
+      // Medicine-inspired: Diagnostic approach
+      if (context.errorIndicators?.hasErrorMessages) {
+        innovativeApproaches.push({
+          description: 'Apply diagnostic testing - systematically isolate error sources through controlled scenarios',
+          inspirationSource: 'medicine',
+          applicability: 'high',
+          novelty: 'moderately-novel'
+        });
+      }
+    }
+
+    // E-commerce/Fashion-inspired: User journey and aesthetics
+    if (context.domMetrics?.forms && context.domMetrics.forms > 0) {
+      innovativeApproaches.push({
+        description: 'Test checkout/form flows like fashion retail - focus on friction points, abandonment triggers',
+        inspirationSource: 'e-commerce',
+        applicability: 'high',
+        novelty: 'incremental'
+      });
+    }
+
+    // Social Science-inspired: Cultural sensitivity and demographics
+    innovativeApproaches.push({
+      description: 'Analyze through diverse demographic lenses (age, gender, culture, ability) for inclusive testing',
+      inspirationSource: 'social science',
+      applicability: 'high',
+      novelty: 'moderately-novel'
+    });
+
+    // Gaming-inspired: Edge cases and exploits
+    if (context.domMetrics?.interactiveElements && context.domMetrics.interactiveElements > 20) {
+      innovativeApproaches.push({
+        description: 'Test for "game-breaking" exploits - unexpected interaction sequences, boundary conditions',
+        inspirationSource: 'gaming',
+        applicability: 'medium',
+        novelty: 'highly-novel'
+      });
+    }
+
+    const domainsExplored = [...new Set(innovativeApproaches.map(a => a.inspirationSource))];
+
+    const perspectives = [
+      'Unexperienced user perspective (fresh eyes)',
+      'Power user perspective (efficiency focus)',
+      'Accessibility perspective (assistive tech users)',
+      'International perspective (cultural differences)'
+    ];
+
+    // Calculate creativity score
+    let creativityScore = 50; // Base score
+    creativityScore += innovativeApproaches.length * 8; // +8 per approach
+    creativityScore += domainsExplored.length * 5; // +5 per domain
+    creativityScore = Math.min(100, creativityScore);
+
+    return {
+      innovativeApproaches,
+      domainsExplored,
+      perspectives,
+      creativityScore,
+      notes: [
+        'Creativity draws from diverse domains to uncover unconventional testing approaches',
+        'Higher complexity problems benefit from cross-disciplinary inspiration',
+        `Applied ${innovativeApproaches.length} creative approaches from ${domainsExplored.length} domains`
+      ]
+    };
+  }
+
+  /**
+   * Analyze Design - Exactness, Intuitive, and Counter-intuitive Design
+   */
+  private async analyzeDesign(context: QXContext, _problemAnalysis: ProblemAnalysis): Promise<import('../types/qx').DesignAnalysis> {
+    this.logger.debug('Analyzing design quality');
+
+    // 1. Exactness Analysis - How clearly the product communicates its intent
+    const clearElements: string[] = [];
+    const unclearElements: string[] = [];
+
+    // Check semantic structure for clarity
+    if (context.domMetrics?.semanticStructure?.hasNav) {
+      clearElements.push('Navigation structure clearly defined with semantic <nav> element');
+    }
+    if (context.domMetrics?.semanticStructure?.hasMain) {
+      clearElements.push('Main content area clearly identified');
+    }
+    if (context.domMetrics?.semanticStructure?.hasHeader && context.domMetrics?.semanticStructure?.hasFooter) {
+      clearElements.push('Header and footer provide clear page structure');
+    }
+
+    // Check for unclear elements
+    const ariaLabels = context.semanticQuality?.ariaLabels || 0;
+    const interactiveElements = context.domMetrics?.interactiveElements || 0;
+    if (interactiveElements > 0 && ariaLabels < interactiveElements * 0.5) {
+      unclearElements.push('Many interactive elements lack ARIA labels for clarity');
+    }
+
+    if (context.errorIndicators?.hasErrorMessages) {
+      unclearElements.push('Error messages present - may indicate unclear user guidance');
+    }
+
+    const exactnessClarity: 'excellent' | 'good' | 'adequate' | 'poor' =
+      unclearElements.length === 0 ? 'excellent' :
+      unclearElements.length <= 2 ? 'good' :
+      unclearElements.length <= 4 ? 'adequate' : 'poor';
+
+    let exactnessScore = 50;
+    exactnessScore += clearElements.length * 10;
+    exactnessScore -= unclearElements.length * 8;
+    exactnessScore = Math.max(0, Math.min(100, exactnessScore));
+
+    // 2. Intuitive Design Analysis
+    const intuitivePatterns: string[] = [];
+    const culturalIssues: string[] = [];
+
+    if (context.domMetrics?.semanticStructure?.hasNav) {
+      intuitivePatterns.push('Standard navigation patterns (semantic nav element)');
+    }
+    if (context.domMetrics?.forms && context.domMetrics.forms > 0) {
+      intuitivePatterns.push('Standard form patterns detected');
+    }
+    if (context.metadata?.viewport) {
+      intuitivePatterns.push('Responsive design viewport configured');
+    }
+
+    // Cultural sensitivity check (basic)
+    if (context.title && /[^\x00-\x7F]/.test(context.title || '')) {
+      // Non-ASCII characters detected - could be good (internationalization) or need review
+      culturalIssues.push('International characters detected - ensure cultural appropriateness');
+    }
+
+    const followsConventions = intuitivePatterns.length >= 2;
+    let intuitiveScore = followsConventions ? 70 : 50;
+    intuitiveScore += intuitivePatterns.length * 8;
+    intuitiveScore -= culturalIssues.length * 10;
+    intuitiveScore = Math.max(0, Math.min(100, intuitiveScore));
+
+    // 3. Counter-intuitive Design Detection
+    const deviations: Array<{
+      element: string;
+      expectedBehavior: string;
+      actualBehavior: string;
+      impact: 'positive' | 'negative' | 'neutral';
+      justification?: string;
+    }> = [];
+
+    // Check for potential counter-intuitive patterns
+    const buttons = context.domMetrics?.buttons || 0;
+    const forms = context.domMetrics?.forms || 0;
+    if (buttons > 20 && forms === 0) {
+      deviations.push({
+        element: 'Multiple buttons without forms',
+        expectedBehavior: 'Forms typically accompany many buttons',
+        actualBehavior: 'Many buttons present without traditional forms',
+        impact: 'neutral',
+        justification: 'May be single-page app or API-driven interface'
+      });
+    }
+
+    if (!context.domMetrics?.semanticStructure?.hasMain && (context.domMetrics?.totalElements || 0) > 50) {
+      deviations.push({
+        element: 'Complex page without main landmark',
+        expectedBehavior: 'Complex pages typically have <main> landmark',
+        actualBehavior: 'No main content landmark defined',
+        impact: 'negative',
+        justification: 'Reduces accessibility and clarity'
+      });
+    }
+
+    const innovativeJustification = deviations.some(d => d.impact === 'positive' || d.justification?.includes('innovation'));
+    const freshEyesPerspective = deviations.length > 0; // We're looking from unexperienced user view
+    const issuesCount = deviations.filter(d => d.impact === 'negative').length;
+
+    // 4. Overall Design Score
+    const overallDesignScore = Math.round((exactnessScore + intuitiveScore) / 2);
+
+    return {
+      exactness: {
+        clarity: exactnessClarity,
+        clearElements,
+        unclearElements,
+        score: exactnessScore
+      },
+      intuitive: {
+        followsConventions,
+        intuitivePatterns,
+        culturalIssues,
+        score: intuitiveScore
+      },
+      counterIntuitive: {
+        deviations,
+        innovativeJustification,
+        freshEyesPerspective,
+        issuesCount
+      },
+      overallDesignScore
+    };
+  }
+
+  /**
    * Detect oracle problems from analysis context
    */
   private async detectOracleProblemsFromContext(
@@ -1541,13 +1943,70 @@ export class QXPartnerAgent extends BaseAgent {
     context: QXContext,
     problemAnalysis: ProblemAnalysis,
     userNeeds: UserNeedsAnalysis,
-    businessNeeds: BusinessNeedsAnalysis
+    businessNeeds: BusinessNeedsAnalysis,
+    creativityAnalysis: import('../types/qx').CreativityAnalysis,
+    designAnalysis: import('../types/qx').DesignAnalysis
   ): Promise<QXHeuristicResult[]> {
     if (!this.heuristicsEngine) {
       throw new Error('Heuristics engine not initialized');
     }
 
-    return this.heuristicsEngine.applyAll(context, problemAnalysis, userNeeds, businessNeeds);
+    // Get standard heuristics
+    const standardHeuristics = await this.heuristicsEngine.applyAll(context, problemAnalysis, userNeeds, businessNeeds);
+
+    // Add creativity and design heuristics
+    const creativityHeuristic: QXHeuristicResult = {
+      name: 'creativity-innovation',
+      category: 'creativity',
+      applied: true,
+      score: creativityAnalysis.creativityScore,
+      findings: [
+        `Applied ${creativityAnalysis.innovativeApproaches.length} creative approaches`,
+        `Explored ${creativityAnalysis.domainsExplored.length} diverse domains: ${creativityAnalysis.domainsExplored.join(', ')}`,
+        ...creativityAnalysis.notes
+      ],
+      issues: creativityAnalysis.innovativeApproaches
+        .filter(a => a.applicability === 'low')
+        .map(a => ({
+          description: `Low applicability approach: ${a.description}`,
+          severity: 'low' as const
+        })),
+      recommendations: creativityAnalysis.innovativeApproaches
+        .filter(a => a.applicability === 'high')
+        .map(a => `Consider: ${a.description} (${a.inspirationSource})`)
+    };
+
+    const designHeuristic: QXHeuristicResult = {
+      name: 'design-quality',
+      category: 'design',
+      applied: true,
+      score: designAnalysis.overallDesignScore,
+      findings: [
+        `Exactness: ${designAnalysis.exactness.clarity} (${designAnalysis.exactness.score}/100)`,
+        `Intuitive Design: ${designAnalysis.intuitive.followsConventions ? 'Follows' : 'Deviates from'} conventions (${designAnalysis.intuitive.score}/100)`,
+        `Counter-intuitive issues: ${designAnalysis.counterIntuitive.issuesCount}`,
+        ...designAnalysis.exactness.clearElements.map(e => `✓ ${e}`),
+        ...designAnalysis.intuitive.intuitivePatterns.map(p => `✓ ${p}`)
+      ],
+      issues: [
+        ...designAnalysis.exactness.unclearElements.map(e => ({
+          description: e,
+          severity: 'medium' as const
+        })),
+        ...designAnalysis.counterIntuitive.deviations
+          .filter(d => d.impact === 'negative')
+          .map(d => ({
+            description: `${d.element}: ${d.expectedBehavior} vs ${d.actualBehavior}`,
+            severity: 'medium' as const
+          }))
+      ],
+      recommendations: [
+        ...designAnalysis.exactness.unclearElements.map(e => `Improve clarity: ${e}`),
+        ...designAnalysis.intuitive.culturalIssues.map(i => `Address: ${i}`)
+      ]
+    };
+
+    return [...standardHeuristics, creativityHeuristic, designHeuristic];
   }
 
   /**
@@ -1720,16 +2179,20 @@ export class QXPartnerAgent extends BaseAgent {
     problemAnalysis: ProblemAnalysis,
     userNeeds: UserNeedsAnalysis,
     businessNeeds: BusinessNeedsAnalysis,
+    creativityAnalysis: import('../types/qx').CreativityAnalysis,
+    designAnalysis: import('../types/qx').DesignAnalysis,
     impactAnalysis: ImpactAnalysis,
     heuristics: QXHeuristicResult[]
   ): number {
     // Weighted average of all components
     const weights = {
-      problem: 0.20,
-      userNeeds: 0.25,
-      businessNeeds: 0.20,
-      impact: 0.15,
-      heuristics: 0.20
+      problem: 0.15,        // Reduced from 0.20
+      userNeeds: 0.20,      // Reduced from 0.25
+      businessNeeds: 0.15,  // Reduced from 0.20
+      creativity: 0.15,     // NEW
+      design: 0.15,         // NEW
+      impact: 0.10,         // Reduced from 0.15
+      heuristics: 0.10      // Reduced from 0.20
     };
 
     const heuristicsAvg = heuristics.length > 0
@@ -1742,6 +2205,8 @@ export class QXPartnerAgent extends BaseAgent {
       problemAnalysis.clarityScore * weights.problem +
       userNeeds.alignmentScore * weights.userNeeds +
       businessNeeds.alignmentScore * weights.businessNeeds +
+      creativityAnalysis.creativityScore * weights.creativity +
+      designAnalysis.overallDesignScore * weights.design +
       impactScore * weights.impact +
       heuristicsAvg * weights.heuristics;
 
