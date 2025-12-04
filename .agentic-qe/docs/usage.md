@@ -7,7 +7,7 @@ Complete guide for using the Agentic QE Fleet in your projects.
 ### Installation
 
 ```bash
-npm install agentic-qe --save-dev
+npm install agentic-qe-cf --save-dev
 ```
 
 ### Initialization
