@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2025-12-04
+
+### 🎯 QX Enhancements, Memory Leak Fixes & Security Improvements
+
+This release builds on v2.1.0 with significant QX Partner Agent enhancements, critical memory leak fixes, and security improvements.
+
+### Added
+
+#### QX Partner Agent Enhancements (PR #110 by @fndlalit)
+- **Creativity Analysis**: Domain-inspired testing approaches from philosophy, medicine, e-commerce, social science, and gaming
+- **Design Analysis**: Three dimensions - Exactness & Clarity, Intuitive Design, Counter-intuitive Design
+- **Enhanced Scoring**: Now includes creativity (15%) and design (15%) in overall QX score
+- **Methodology Section**: New HTML report sections explaining QX concepts
+
+#### Memory Adapters (Issue #109)
+- **ReflexionMemoryAdapter**: Flaky test prediction with experience replay (410 lines)
+- **SparseVectorSearch**: Hybrid BM25/vector search for semantic retrieval (174 lines)
+- **TieredCompression**: 85% memory reduction with adaptive compression (328 lines)
+
+#### Community Contribution
+- **testability-scoring skill**: Automated testability assessment using 10 principles (by @fndlalit)
+
+### Fixed
+
+#### Memory Leak Fixes (Issue #112 P0)
+- **Chaos handler intervals**: Lazy initialization with `ensureCleanupInterval()`
+- **Process blocking**: Added `.unref()` to prevent intervals from blocking exit
+- **Test cleanup**: Added `shutdown()` exports for clean teardown
+
+#### Security Improvements
+- **Workflow permissions**: Explicit permissions in migration-validation.yml
+- **CI pipeline**: jest-junit reporter configuration, FleetManager.database.test.ts flaky tests
+
+### Changed
+- Updated skills count from 38 to 39 (added testability-scoring)
+- State files now in .gitignore to prevent merge conflicts
+- Cleaned up working files from root folder
+
 ## [2.1.0] - 2025-12-03
 
 ### 🚀 Comprehensive QX Analysis & Skills Optimization
