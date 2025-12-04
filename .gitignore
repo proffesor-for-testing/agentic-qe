@@ -110,6 +110,8 @@ coordination/orchestration/*
 *.sqlite-wal
 claude-flow
 .agentic-qe/memory/
+.agentic-qe/data/learning/state.json
+.agentic-qe/data/improvement/state.json
 data/
 test-projects/
 

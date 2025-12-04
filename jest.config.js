@@ -101,6 +101,15 @@ module.exports = {
     'default',
     ['<rootDir>/tests/utils/memory-reporter.js', {
       enabled: process.env.TRACK_MEMORY === 'true'
+    }],
+    // JUnit reporter for CI integration (generates junit.xml)
+    ['jest-junit', {
+      outputDirectory: '.',
+      outputName: 'junit.xml',
+      classNameTemplate: '{classname}',
+      titleTemplate: '{title}',
+      ancestorSeparator: ' › ',
+      usePathForSuiteName: true
     }]
   ],
 

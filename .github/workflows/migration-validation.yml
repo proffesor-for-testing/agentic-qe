@@ -18,6 +18,8 @@ jobs:
     name: Validate Migrated Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -116,6 +118,10 @@ jobs:
     name: Analyze Test Duplicates
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -187,6 +193,8 @@ jobs:
     name: Check Migration Compliance
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
