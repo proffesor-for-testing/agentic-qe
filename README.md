@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 2.1.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.1.1** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > Agentic test automation with AI learning, real-time visualization, QUIC transport, testability scoring, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
 
@@ -920,6 +920,33 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+## 👥 Contributors
+
+Thanks to all the amazing people who have contributed to Agentic QE Fleet!
+
+<!-- ALL-CONTRIBUTORS-LIST:START -->
+| <img src="https://github.com/proffesor-for-testing.png" width="60" style="border-radius:50%"/><br/>**[@proffesor-for-testing](https://github.com/proffesor-for-testing)**<br/>Project Lead | <img src="https://github.com/fndlalit.png" width="60" style="border-radius:50%"/><br/>**[@fndlalit](https://github.com/fndlalit)**<br/>QX Partner, Testability | <img src="https://github.com/shaal.png" width="60" style="border-radius:50%"/><br/>**[@shaal](https://github.com/shaal)**<br/>Core Development | <img src="https://github.com/mondweep.png" width="60" style="border-radius:50%"/><br/>**[@mondweep](https://github.com/mondweep)**<br/>Architecture |
+|:---:|:---:|:---:|:---:|
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+[View all contributors](CONTRIBUTORS.md) | [Become a contributor](CONTRIBUTING.md)
+
+---
+
+## 💖 Support the Project
+
+If you find Agentic QE Fleet valuable, consider supporting its development:
+
+| | Monthly | Annual (Save $10) |
+|---|:---:|:---:|
+| **Price** | $5/month | $50/year |
+| **Benefits** | Sponsor recognition, Priority support | All monthly + Featured in README, Roadmap input |
+| **Subscribe** | [**Monthly**](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-88G03706DU8150205NEYZZAY) | [**Annual**](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-39189175UE6623540NEYZ2CI) |
+
+[View sponsorship details](FUNDING.md)
+
+---
+
 ## 🙏 Acknowledgments
 
 - Built with TypeScript, Node.js, and better-sqlite3
@@ -933,6 +960,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the Agentic QE Team**
 
-[⭐ Star us on GitHub](https://github.com/proffesor-for-testing/agentic-qe) • [🐦 Follow on Twitter](https://twitter.com/agenticqe)
+[⭐ Star us on GitHub](https://github.com/proffesor-for-testing/agentic-qe) | [💖 Sponsor](FUNDING.md) | [👥 Contributors](CONTRIBUTORS.md)
 
 </div>
