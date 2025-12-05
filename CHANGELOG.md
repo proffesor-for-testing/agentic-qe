@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### Additional Memory Leak Fixes (Issue #112 P1-P2)
+- **MemoryManager interval**: Added `.unref()` to cleanup interval to prevent blocking process exit
+- **RuVectorPatternStore**: Improved `shutdown()` to properly release native NAPI bindings
+- **IntervalRegistry**: New utility for tracking and cleaning up module-level intervals
+- **Jest setup cleanup**: Added shutdown calls for chaos handlers, MemoryManager, and IntervalRegistry
+
+#### Infrastructure
+- **Global interval tracking**: `IntervalRegistry` utility for centralized interval management
+- **Test cleanup improvements**: Enhanced `afterAll` in jest.setup.ts for comprehensive resource cleanup
+
 ## [2.1.1] - 2025-12-04
 
 ### 🎯 QX Enhancements, Memory Leak Fixes & Security Improvements

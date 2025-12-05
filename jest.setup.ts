@@ -9,7 +9,13 @@
 import 'jest-extended';
 import { EventBus } from './src/core/EventBus';
 import { SwarmMemoryManager } from './src/core/memory/SwarmMemoryManager';
+import { MemoryManager } from './src/core/MemoryManager';
+import { IntervalRegistry } from './src/utils/IntervalRegistry';
 import * as path from 'path';
+
+// Import chaos handler shutdown functions for cleanup
+import { shutdown as shutdownChaosLatency } from './src/mcp/handlers/chaos/chaos-inject-latency';
+import { shutdown as shutdownChaosFailure } from './src/mcp/handlers/chaos/chaos-inject-failure';
 
 const WORKSPACE_PATH = '/workspaces/agentic-qe-cf';
 const originalCwd = process.cwd.bind(process);
@@ -129,6 +135,20 @@ afterAll(async () => {
   try {
     // Wait for pending promises
     await new Promise(resolve => setImmediate(resolve));
+
+    // Shutdown chaos handlers (P0 critical - Issue #112)
+    try {
+      shutdownChaosLatency();
+      shutdownChaosFailure();
+    } catch {
+      // Ignore errors if not initialized
+    }
+
+    // Shutdown all registered intervals
+    await IntervalRegistry.shutdownAll();
+
+    // Shutdown all MemoryManager instances (P0 critical - Issue #112)
+    await MemoryManager.shutdownAll();
 
     // Close EventBus
     if (globalEventBus) {

@@ -741,12 +741,52 @@ export class RuVectorPatternStore implements IPatternStore {
   }
 
   /**
-   * Shutdown
+   * Shutdown and release all resources
+   *
+   * @remarks
+   * CRITICAL: This method properly releases native NAPI bindings.
+   * Always call shutdown() to prevent memory/handle leaks.
    */
   async shutdown(): Promise<void> {
+    // Release native database handles if available
+    if (this.nativeDb) {
+      try {
+        // Try various cleanup methods that RuVector might support
+        if (typeof this.nativeDb.close === 'function') {
+          await Promise.resolve(this.nativeDb.close());
+        } else if (typeof this.nativeDb.dispose === 'function') {
+          await Promise.resolve(this.nativeDb.dispose());
+        } else if (typeof this.nativeDb.shutdown === 'function') {
+          await Promise.resolve(this.nativeDb.shutdown());
+        }
+        // Save if autoPersist is enabled and save method exists
+        if (this.config.autoPersist && typeof this.nativeDb.save === 'function') {
+          try {
+            await Promise.resolve(this.nativeDb.save());
+          } catch {
+            // Ignore save errors during shutdown
+          }
+        }
+      } catch (error) {
+        // Log but don't throw - we're shutting down
+        console.warn('[RuVector] Error during native cleanup:', error);
+      }
+    }
+
+    // Clear local state
     this.patterns.clear();
     this.nativeDb = null;
+    this.useNative = false;
     this.initialized = false;
+
+    // Reset metrics
+    this.metrics = {
+      searchTimes: [],
+      insertTimes: [],
+      totalSearches: 0,
+      totalInserts: 0,
+      lastQPS: 0,
+    };
   }
 
   /**
