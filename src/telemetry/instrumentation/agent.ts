@@ -1,7 +1,7 @@
 /**
  * Agent Instrumentation - OpenTelemetry spans for agent lifecycle
  *
- * Provides comprehensive tracing for all 18 QE agents with semantic attributes
+ * Provides comprehensive tracing for all 19 QE agents with semantic attributes
  * following OpenTelemetry conventions. Automatically instruments agent lifecycle
  * events: spawn, execute, complete, error.
  *

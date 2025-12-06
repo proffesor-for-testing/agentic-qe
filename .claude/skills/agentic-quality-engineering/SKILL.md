@@ -1,10 +1,10 @@
 ---
 name: agentic-quality-engineering
-description: "AI agents as force multipliers for quality work. Core skill for all 18 QE agents using PACT principles."
+description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles."
 category: qe-core
 priority: critical
 tokenEstimate: 1400
-agents: [qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-quality-gate, qe-quality-analyzer, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-production-intelligence, qe-fleet-commander, qe-deployment-readiness, qe-regression-risk-analyzer, qe-test-data-architect, qe-api-contract-validator, qe-flaky-test-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity]
+agents: [qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-quality-gate, qe-quality-analyzer, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-production-intelligence, qe-fleet-commander, qe-deployment-readiness, qe-regression-risk-analyzer, qe-test-data-architect, qe-api-contract-validator, qe-flaky-test-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity, qx-partner]
 implementation_status: optimized
 optimization_version: 1.0
 last_optimized: 2025-12-02
@@ -53,7 +53,7 @@ When implementing agentic QE or coordinating agents:
 | **C**ollaborative | Multi-agent coordination | Provide context |
 | **T**argeted | Risk-based prioritization | Define risk areas |
 
-### 18-Agent Fleet
+### 19-Agent Fleet
 | Category | Agents | Primary Use |
 |----------|--------|-------------|
 | Core Testing (5) | test-generator, test-executor, coverage-analyzer, quality-gate, quality-analyzer | Daily testing |
@@ -76,7 +76,7 @@ Sequential: risk-analyzer → test-gen → executor → coverage → gate
 ✅ Coverage gaps detected in real-time
 ✅ Bugs caught pre-production
 ❌ Agents acting without human oversight on critical decisions
-❌ Deploying all 18 agents at once (start with 1-2)
+❌ Deploying all 19 agents at once (start with 1-2)
 
 ---
 

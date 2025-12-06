@@ -14,7 +14,7 @@
 
 Agentic QE Fleet is an open-source project that provides:
 
-- **18 Specialized QE Agents** for comprehensive test automation
+- **19 Specialized QE Agents** for comprehensive test automation
 - **41 World-Class QE Skills** covering modern testing practices
 - **AI-Powered Learning** with continuous improvement
 - **Multi-Model Router** saving 70-81% on AI costs

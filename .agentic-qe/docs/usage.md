@@ -7,7 +7,7 @@ Complete guide for using the Agentic QE Fleet in your projects.
 ### Installation
 
 ```bash
-npm install agentic-qe --save-dev
+npm install agentic-qe-cf --save-dev
 ```
 
 ### Initialization
@@ -17,8 +17,8 @@ npm install agentic-qe --save-dev
 npx aqe init
 
 # This creates:
-# - .claude/agents/       (18 QE agents)
-# - .claude/skills/       (37 QE skills)
+# - .claude/agents/       (19 QE agents)
+# - .claude/skills/       (41 QE skills)
 # - .claude/commands/     (8 slash commands)
 # - .agentic-qe/config/   (fleet configuration)
 # - .agentic-qe/db/       (learning databases)
@@ -440,7 +440,7 @@ claude mcp list
 
 ```bash
 ls -la .claude/agents/
-# Should show 18 agent markdown files
+# Should show 19 agent markdown files
 ```
 
 ### Check Fleet Status
@@ -503,8 +503,8 @@ Task("Hunt flaky tests", "Detect and stabilize flaky tests with ML", "qe-flaky-t
 ---
 
 **Related Documentation:**
-- [Agent Reference](agents.md) - All 18 QE agents
-- [Skills Reference](skills.md) - All 37 QE skills
+- [Agent Reference](agents.md) - All 19 QE agents
+- [Skills Reference](skills.md) - All 41 QE skills
 
 **Related Policies:**
 - [Release Verification Policy](../policies/release-verification.md)

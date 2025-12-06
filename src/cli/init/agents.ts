@@ -18,7 +18,7 @@ import { FleetConfig } from '../../types';
  * 2. Copies all agent definition files (.md) to .claude/agents
  * 3. Copies subagent definitions if they exist
  * 4. Creates missing agents programmatically if needed
- * 5. Validates all 18 expected agents are present
+ * 5. Validates all 19 expected agents are present
  *
  * @param config - Fleet configuration (currently unused but available for future enhancements)
  * @param force - If true, overwrites existing agent files
@@ -45,7 +45,7 @@ export async function copyAgentTemplates(config?: FleetConfig, force: boolean = 
 
   if (!sourcePath) {
     console.warn(chalk.yellow('  ⚠️  No agent templates found in package paths'));
-    console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 18 agents)'));
+    console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 19 agents)'));
     await createBasicAgents(force);
     return;
   }

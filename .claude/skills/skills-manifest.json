@@ -84,7 +84,7 @@
     "agentic-quality-engineering": {
       "id": "agentic-quality-engineering",
       "name": "Agentic Quality Engineering",
-      "description": "Core foundational skill for all 18 QE agents with PACT principles (Proactive, Autonomous, Collaborative, Targeted).",
+      "description": "Core foundational skill for all 19 QE agents with PACT principles (Proactive, Autonomous, Collaborative, Targeted).",
       "category": "qe-core",
       "priority": "critical",
       "file": "agentic-quality-engineering/SKILL.md",
@@ -95,7 +95,7 @@
       "lastOptimized": "2025-12-02",
       "tags": ["agents", "pact", "core", "foundation", "autonomous-testing"],
       "dependencies": [],
-      "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity"]
+      "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity", "qx-partner"]
     },
     "holistic-testing-pact": {
       "id": "holistic-testing-pact",

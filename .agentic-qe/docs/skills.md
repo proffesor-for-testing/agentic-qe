@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Skills Reference
 
-This document provides comprehensive reference for all 39 specialized QE skills available to agents.
+This document provides comprehensive reference for all 41 specialized QE skills available to agents.
 
 ## Overview
 
@@ -723,7 +723,7 @@ Skill("sherlock-review")
 #### cicd-pipeline-qe-orchestrator
 **Comprehensive quality orchestration across CI/CD pipeline phases**
 
-Intelligently select QE skills and coordinate specialized agents for holistic quality coverage throughout the software delivery lifecycle. Integrates all 38 AQE skills and 18 agents.
+Intelligently select QE skills and coordinate specialized agents for holistic quality coverage throughout the software delivery lifecycle. Integrates all 41 AQE skills and 19 agents.
 
 **Key Topics:**
 - Pipeline phase analysis
@@ -851,7 +851,7 @@ All QE agents automatically have access to relevant skills based on their specia
 ---
 
 **Related Documentation:**
-- [Agent Reference](agents.md) - All 18 QE agents
+- [Agent Reference](agents.md) - All 19 QE agents
 - [Usage Guide](usage.md) - Complete usage examples
 
 **Related Policies:**

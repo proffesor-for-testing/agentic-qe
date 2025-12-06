@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 18 QE agents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 19 QE agents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 

@@ -104,7 +104,7 @@ async function initializeAgentDB(config: FleetConfig): Promise<void> {
   console.log(chalk.gray(`    • Episodes stored: ${stats.episodeCount || 0}`));
   console.log(chalk.gray(`    • Vector search: HNSW enabled (150x faster)`));
   console.log(chalk.gray(`    • Learning: Reflexion pattern + Q-values`));
-  console.log(chalk.gray(`    • Used by: All 18 QE agents`));
+  console.log(chalk.gray(`    • Used by: All 19 QE agents`));
   console.log(chalk.yellow(`    ⓘ  patterns.db deprecated - using AgentDB for all learning`));
 }
 
