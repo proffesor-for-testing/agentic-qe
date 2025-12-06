@@ -7,6 +7,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-12-06
+
+### 🧠 Self-Learning AQE Fleet Upgrade (Issue #118)
+
+Major release introducing reinforcement learning algorithms, cross-agent experience sharing, dependency injection, and LLM provider abstraction - enabling agents to learn from each other and persist knowledge across sessions.
+
+### Added
+
+#### Reinforcement Learning Algorithms (`src/learning/algorithms/`)
+- **AbstractRLLearner**: Base class for all RL algorithms with common interfaces
+- **SARSALearner**: On-policy temporal difference learning algorithm
+  - ε-greedy exploration with decay
+  - Configurable learning rate and discount factor
+  - State-action value function updates
+- **ActorCriticLearner (A2C)**: Combined policy and value learning
+  - Policy network (actor) with softmax action selection
+  - Value network (critic) for state evaluation
+  - Advantage-based policy updates with entropy regularization
+- **PPOLearner**: Proximal Policy Optimization
+  - Clipped surrogate objective for stable updates
+  - GAE (Generalized Advantage Estimation)
+  - Mini-batch training with multiple epochs
+  - Adaptive KL penalty mechanism
+- **Algorithm Switching**: Dynamic switching between Q-Learning, SARSA, A2C, and PPO via `switchAlgorithm()`
+
+#### Experience Sharing Protocol (`src/learning/ExperienceSharingProtocol.ts`)
+- **Gossip-based P2P protocol**: Agents share successful experiences with peers
+- **Priority-based sharing**: High-value experiences propagated first
+- **Conflict resolution**: Vector clocks for handling concurrent updates
+- **Transfer learning discount**: 0.5 factor for shared vs local experiences
+- **Event-driven integration**: `experience_received` events trigger cross-agent learning
+- **Sharing statistics**: Track experiences shared, received, peer connections
+
+#### LLM Provider Abstraction (`src/providers/`)
+- **ILLMProvider interface**: Common interface for all LLM providers
+  - `complete()`, `streamComplete()`, `embed()`, `countTokens()`
+  - `healthCheck()`, `getMetadata()`, `shutdown()`
+  - Cost tracking and usage statistics
+- **ClaudeProvider**: Anthropic Claude API integration
+  - Prompt caching support (reduced costs)
+  - Token counting via API
+  - Streaming completions
+- **RuvllmProvider**: Local LLM server integration
+  - Zero-cost local inference
+  - OpenAI-compatible API
+  - Embeddings support (optional)
+- **LLMProviderFactory**: Multi-provider orchestration
+  - Automatic fallback on provider failure
+  - Health monitoring with configurable intervals
+  - Best provider selection by criteria (cost, capability, location)
+  - Hybrid router for transparent multi-provider usage
+
+#### Dependency Injection System (`src/core/di/`)
+- **DIContainer**: Lightweight IoC container
+  - Singleton, factory, and instance scopes
+  - Lazy initialization support
+  - Constructor and factory injection
+- **AgentDependencies**: Agent-specific DI management
+  - `withDI()` mixin pattern for agents
+  - Automatic service resolution
+  - Lifecycle management (initialize, dispose)
+- **Service registration**: LearningEngine, MemoryCoordinator, providers
+
+#### Distributed Pattern Library (`src/memory/`)
+- **DistributedPatternLibrary**: Cross-agent pattern storage
+- **PatternQualityScorer**: ML-based pattern ranking
+- **PatternReplicationService**: Pattern synchronization across agents
+
+#### LearningEngine Integration
+- Extended config: `enableExperienceSharing`, `experienceSharingPriority`
+- New methods:
+  - `enableExperienceSharing(protocol)`: Activate cross-agent sharing
+  - `shareExperienceWithPeers(experience, priority)`: Manual sharing
+  - `handleReceivedExperience(experienceId)`: Process incoming experiences
+  - `queryPeerExperiences(query)`: Search peer knowledge
+  - `getExperienceSharingStats()`: Retrieve sharing metrics
+- Auto-sharing: Successful executions automatically shared with peers
+
+### Changed
+
+- **QLearning**: Refactored to use AbstractRLLearner base class
+- **LearningEngine**: Integrated ExperienceSharingProtocol with event listeners
+- **types.ts**: Added RLAlgorithmType, ExtendedLearningConfig, sharing-related types
+- **index.ts**: Exported all new RL algorithms and experience sharing components
+
+### Tests Added
+
+#### Provider Tests (`tests/providers/`)
+- **ClaudeProvider.test.ts**: 21 tests covering initialization, completion, streaming, cost tracking, health checks
+- **RuvllmProvider.test.ts**: 20 tests for local LLM provider including embeddings
+- **LLMProviderFactory.test.ts**: 27 tests for multi-provider orchestration
+
+#### Algorithm Tests (`tests/learning/`)
+- **SARSALearner.test.ts**: 12 tests for on-policy TD learning
+- **ActorCriticLearner.test.ts**: 15 tests for A2C algorithm
+- **PPOLearner.test.ts**: 18 tests for PPO including GAE and clipping
+- **AlgorithmSwitching.test.ts**: 8 tests for dynamic algorithm changes
+- **ExperienceSharingProtocol.test.ts**: 36 tests for P2P experience sharing
+
+#### DI Tests (`tests/core/di/`)
+- **DIContainer.test.ts**: 47 tests for IoC container functionality
+- **AgentDependencies.test.ts**: 15 tests for agent DI mixin
+
+#### Memory Tests (`tests/memory/`)
+- **DistributedPatternLibrary.test.ts**: Pattern storage tests
+- **PatternQualityScorer.test.ts**: ML scoring tests
+- **PatternReplicationService.test.ts**: Replication tests
+- **integration/**: End-to-end memory integration tests
+
+### Performance
+
+| Metric | Before | After | Notes |
+|--------|--------|-------|-------|
+| RL Algorithms | 1 (Q-Learning) | 4 (+SARSA, A2C, PPO) | 4x algorithm options |
+| Cross-Agent Learning | None | Full P2P | Agents share experiences |
+| Provider Flexibility | Claude only | Claude + Local | Cost-free local option |
+| Test Coverage | ~150 tests | ~250 tests | +100 new tests |
+
+### References
+
+- Issue: [#118 - Self-Learning AQE Fleet Upgrade](https://github.com/proffesor-for-testing/agentic-qe/issues/118)
+- Related: Learning System Phase 2 (Milestone 2.2)
+
 ## [2.1.2] - 2025-12-06
 
 ### 🚀 MCP Tools Optimization - 87% Context Reduction (Issue #115)
