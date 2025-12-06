@@ -643,7 +643,11 @@ export class ExperienceSharingProtocol extends EventEmitter {
    * Generate unique experience ID
    */
   private generateExperienceId(experience: TaskExperience): string {
-    const content = `${experience.taskId}:${experience.agentId}:${experience.timestamp.getTime()}`;
+    // Handle missing or invalid timestamp - use current time as fallback
+    const timestamp = experience.timestamp instanceof Date
+      ? experience.timestamp.getTime()
+      : (typeof experience.timestamp === 'number' ? experience.timestamp : Date.now());
+    const content = `${experience.taskId || 'unknown'}:${experience.agentId || 'unknown'}:${timestamp}`;
     return this.hashString(content);
   }
 
