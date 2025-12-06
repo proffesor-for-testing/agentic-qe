@@ -135,6 +135,9 @@ export class FlakyTestDetectHandler extends BaseHandler {
   }
 
   async handle(args: FlakyTestDetectArgs): Promise<HandlerResponse> {
+    // DEPRECATION WARNING: This handler is deprecated in favor of Phase 3 domain tools
+    console.warn('[DEPRECATED] flaky_test_detect is deprecated. Use flaky_detect_statistical or flaky_analyze_patterns instead (Issue #115)');
+
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       const startTime = performance.now();

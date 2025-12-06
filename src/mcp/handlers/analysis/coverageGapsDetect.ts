@@ -59,10 +59,14 @@ export interface CoverageGapsDetectResult {
 
 /**
  * Detect coverage gaps using AI-powered analysis
+ * @deprecated Use coverage_detect_gaps_ml instead (Issue #115)
  */
 export async function coverageGapsDetect(
   params: CoverageGapsDetectParams
 ): Promise<CoverageGapsDetectResult> {
+  // DEPRECATION WARNING: This handler is deprecated in favor of Phase 3 domain tools
+  console.warn('[DEPRECATED] coverage_gaps_detect is deprecated. Use coverage_detect_gaps_ml instead (Issue #115)');
+
   const {
     sourceFiles,
     coverageData,

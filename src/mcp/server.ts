@@ -67,12 +67,12 @@ import { TestCoverageDetailedHandler } from './handlers/test/test-coverage-detai
 // REMOVED: QualityPolicyCheckHandler - merged into QE_QUALITYGATE_EVALUATE (Issue #115 Phase 1)
 import { FlakyTestDetectHandler } from './handlers/prediction/flaky-test-detect.js';
 import { PredictDefectsAIHandler } from './handlers/prediction/predict-defects-ai.js';
-import { RegressionRiskAnalyzeHandler } from './handlers/prediction/regression-risk-analyze.js';
+// REMOVED: RegressionRiskAnalyzeHandler - use QE_REGRESSION_ANALYZE_RISK instead (Issue #115)
 import { VisualTestRegressionHandler } from './handlers/prediction/visual-test-regression.js';
 import { DeploymentReadinessCheckHandler } from './handlers/prediction/deployment-readiness-check.js';
 import { CoverageAnalyzeSublinearHandler } from './handlers/analysis/coverage-analyze-sublinear-handler.js';
 import { CoverageGapsDetectHandler } from './handlers/analysis/coverage-gaps-detect-handler.js';
-import { PerformanceBenchmarkRunHandler } from './handlers/analysis/performance-benchmark-run-handler.js';
+// REMOVED: PerformanceBenchmarkRunHandler - use PERFORMANCE_RUN_BENCHMARK instead (Issue #115)
 import { PerformanceMonitorRealtimeHandler } from './handlers/analysis/performance-monitor-realtime-handler.js';
 import { SecurityScanComprehensiveHandler } from './handlers/analysis/security-scan-comprehensive-handler.js';
 import { AgentRegistry, getAgentRegistry } from './services/AgentRegistry.js';
@@ -241,7 +241,7 @@ export class AgenticQEMCPServer {
     // Prediction and analysis handlers
     // this.handlers.set(TOOL_NAMES.FLAKY_TEST_DETECT, new FlakyTestDetectHandler(this.registry, this.hookExecutor)); // DEPRECATED - absorbed into FLAKY_DETECT_STATISTICAL
     this.handlers.set(TOOL_NAMES.PREDICT_DEFECTS_AI, new PredictDefectsAIHandler(this.registry, this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.REGRESSION_RISK_ANALYZE, new RegressionRiskAnalyzeHandler(this.registry, this.hookExecutor));
+    // this.handlers.set(TOOL_NAMES.REGRESSION_RISK_ANALYZE, new RegressionRiskAnalyzeHandler(this.registry, this.hookExecutor)); // REMOVED - use QE_REGRESSION_ANALYZE_RISK instead (Issue #115)
     this.handlers.set(TOOL_NAMES.VISUAL_TEST_REGRESSION, new VisualTestRegressionHandler(this.registry, this.hookExecutor));
     this.handlers.set(TOOL_NAMES.DEPLOYMENT_READINESS_CHECK, new DeploymentReadinessCheckHandler(this.registry, this.hookExecutor));
 
