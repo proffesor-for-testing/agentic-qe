@@ -94,7 +94,11 @@ export class QEAgentFactory {
       context: this.config.context,
       memoryStore: this.config.memoryStore,
       eventBus: this.config.eventBus,
-      ...agentConfig
+      // Enable AgentDB by default for learning persistence (fixes #118 - agentdb.db always empty)
+      // Pattern storage, cross-agent learning, and experience sharing require AgentDB
+      agentDBPath: '.agentic-qe/agentdb.db',
+      enableLearning: true,
+      ...agentConfig  // Allow caller to override
     };
 
     switch (type) {
