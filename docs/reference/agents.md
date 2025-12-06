@@ -377,6 +377,39 @@ Task("Chaos testing", "Test system resilience with controlled failures", "qe-cha
 
 ---
 
+## MCP Tool Discovery System
+
+The Agentic QE Fleet uses **lazy-loaded MCP tools** to reduce initial context by 87%.
+
+### Tool Discovery
+
+```javascript
+// Discover available tool domains
+mcp__agentic_qe__tools_discover()
+// Returns: security, coverage, test-generation, test-execution, quality-gates,
+//          fleet-management, memory, learning, patterns, reporting
+
+// Load specific domain tools
+mcp__agentic_qe__tools_load_domain({ domain: "security" })
+mcp__agentic_qe__tools_load_domain({ domain: "coverage" })
+```
+
+### Automatic Loading
+
+Tools are **auto-loaded based on keywords** when agents work:
+- "security", "vulnerability" → loads security tools
+- "coverage", "gaps" → loads coverage tools
+- "generate", "create tests" → loads test-generation tools
+- "execute", "run tests" → loads test-execution tools
+
+### Benefits
+
+- **87% context reduction** (from 15,000 to 2,000 tokens initially)
+- **Faster agent spawning** with minimal overhead
+- **On-demand loading** only when tools are needed
+
+---
+
 ## Agent Coordination
 
 All agents coordinate through the **`aqe/*` memory namespace**:

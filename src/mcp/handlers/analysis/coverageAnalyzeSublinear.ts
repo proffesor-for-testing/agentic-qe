@@ -36,10 +36,14 @@ export interface CoverageAnalyzeSublinearResult {
 
 /**
  * Analyze code coverage using sublinear algorithms for O(log n) complexity
+ * @deprecated Use coverage_analyze_with_risk_scoring or coverage_detect_gaps_ml instead (Issue #115)
  */
 export async function coverageAnalyzeSublinear(
   params: CoverageAnalyzeSublinearParams
 ): Promise<CoverageAnalyzeSublinearResult> {
+  // DEPRECATION WARNING: This handler is deprecated in favor of Phase 3 domain tools
+  console.warn('[DEPRECATED] coverage_analyze_sublinear is deprecated. Use coverage_analyze_with_risk_scoring or coverage_detect_gaps_ml instead (Issue #115)');
+
   const startTime = Date.now();
   const {
     sourceFiles,

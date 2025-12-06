@@ -18,15 +18,26 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import * as path from 'path';
 import { agenticQETools, TOOL_NAMES } from './tools.js';
+import { getToolLoader } from './lazy-loader.js';
+import {
+  CORE_TOOLS,
+  DOMAIN_TOOLS,
+  SPECIALIZED_TOOLS,
+  COORDINATION_TOOLS,
+  DOMAIN_KEYWORDS,
+  TOOL_STATS,
+  getToolCategorySummary
+} from './tool-categories.js';
+import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { FleetInitHandler } from './handlers/fleet-init.js';
 import { AgentSpawnHandler } from './handlers/agent-spawn.js';
-import { TestGenerateHandler } from './handlers/test-generate.js';
+// REMOVED: TestGenerateHandler - use TestGenerateEnhancedHandler instead (Issue #115 Phase 1)
 import { TestExecuteHandler } from './handlers/test-execute.js';
-import { QualityAnalyzeHandler } from './handlers/quality-analyze.js';
-import { PredictDefectsHandler } from './handlers/predict-defects.js';
+// REMOVED: QualityAnalyzeHandler - use QE_QUALITYGATE_EVALUATE instead (Issue #115 Phase 1)
+// REMOVED: PredictDefectsHandler - use PredictDefectsAIHandler instead (Issue #115 Phase 1)
 import { FleetStatusHandler } from './handlers/fleet-status.js';
 import { TaskOrchestrateHandler } from './handlers/task-orchestrate.js';
-import { OptimizeTestsHandler } from './handlers/optimize-tests.js';
+// REMOVED: OptimizeTestsHandler - use TestOptimizeSublinearHandler instead (Issue #115 Phase 1)
 import { MemoryStoreHandler } from './handlers/memory/memory-store.js';
 import { MemoryRetrieveHandler } from './handlers/memory/memory-retrieve.js';
 import { MemoryQueryHandler } from './handlers/memory/memory-query.js';
@@ -49,19 +60,19 @@ import { TestExecuteParallelHandler } from './handlers/test/test-execute-paralle
 import { TestOptimizeSublinearHandler } from './handlers/test/test-optimize-sublinear.js';
 import { TestReportComprehensiveHandler } from './handlers/test/test-report-comprehensive.js';
 import { TestCoverageDetailedHandler } from './handlers/test/test-coverage-detailed.js';
-import { QualityGateExecuteHandler } from './handlers/quality/quality-gate-execute.js';
-import { QualityValidateMetricsHandler } from './handlers/quality/quality-validate-metrics.js';
-import { QualityRiskAssessHandler } from './handlers/quality/quality-risk-assess.js';
-import { QualityDecisionMakeHandler } from './handlers/quality/quality-decision-make.js';
-import { QualityPolicyCheckHandler } from './handlers/quality/quality-policy-check.js';
+// REMOVED: QualityGateExecuteHandler - use QE_QUALITYGATE_EVALUATE instead (Issue #115 Phase 1)
+// REMOVED: QualityValidateMetricsHandler - use QE_QUALITYGATE_VALIDATE_METRICS instead (Issue #115 Phase 1)
+// REMOVED: QualityRiskAssessHandler - use QE_QUALITYGATE_ASSESS_RISK instead (Issue #115 Phase 1)
+// REMOVED: QualityDecisionMakeHandler - merged into QE_QUALITYGATE_EVALUATE (Issue #115 Phase 1)
+// REMOVED: QualityPolicyCheckHandler - merged into QE_QUALITYGATE_EVALUATE (Issue #115 Phase 1)
 import { FlakyTestDetectHandler } from './handlers/prediction/flaky-test-detect.js';
 import { PredictDefectsAIHandler } from './handlers/prediction/predict-defects-ai.js';
-import { RegressionRiskAnalyzeHandler } from './handlers/prediction/regression-risk-analyze.js';
+// REMOVED: RegressionRiskAnalyzeHandler - use QE_REGRESSION_ANALYZE_RISK instead (Issue #115)
 import { VisualTestRegressionHandler } from './handlers/prediction/visual-test-regression.js';
 import { DeploymentReadinessCheckHandler } from './handlers/prediction/deployment-readiness-check.js';
 import { CoverageAnalyzeSublinearHandler } from './handlers/analysis/coverage-analyze-sublinear-handler.js';
 import { CoverageGapsDetectHandler } from './handlers/analysis/coverage-gaps-detect-handler.js';
-import { PerformanceBenchmarkRunHandler } from './handlers/analysis/performance-benchmark-run-handler.js';
+// REMOVED: PerformanceBenchmarkRunHandler - use PERFORMANCE_RUN_BENCHMARK instead (Issue #115)
 import { PerformanceMonitorRealtimeHandler } from './handlers/analysis/performance-monitor-realtime-handler.js';
 import { SecurityScanComprehensiveHandler } from './handlers/analysis/security-scan-comprehensive-handler.js';
 import { AgentRegistry, getAgentRegistry } from './services/AgentRegistry.js';
@@ -180,16 +191,14 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.FLEET_STATUS, new FleetStatusHandler(this.registry, this.hookExecutor));
 
     // Test lifecycle handlers
-    this.handlers.set(TOOL_NAMES.TEST_GENERATE, new TestGenerateHandler(this.registry, this.hookExecutor));
+    // REMOVED: TEST_GENERATE - use TEST_GENERATE_ENHANCED instead (Issue #115 Phase 1)
     this.handlers.set(TOOL_NAMES.TEST_EXECUTE, new TestExecuteHandler(this.registry, this.hookExecutor));
 
-    // Quality and analysis handlers
-    this.handlers.set(TOOL_NAMES.QUALITY_ANALYZE, new QualityAnalyzeHandler(this.registry, this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.PREDICT_DEFECTS, new PredictDefectsHandler(this.registry, this.hookExecutor));
-
-    // Orchestration and optimization handlers
+    // Orchestration handlers
     this.handlers.set(TOOL_NAMES.TASK_ORCHESTRATE, new TaskOrchestrateHandler(this.registry, this.hookExecutor, this.memory));
-    this.handlers.set(TOOL_NAMES.OPTIMIZE_TESTS, new OptimizeTestsHandler(this.registry, this.hookExecutor));
+    // REMOVED: OPTIMIZE_TESTS - use TEST_OPTIMIZE_SUBLINEAR instead (Issue #115 Phase 1)
+    // REMOVED: QUALITY_ANALYZE - use QE_QUALITYGATE_EVALUATE instead (Issue #115 Phase 1)
+    // REMOVED: PREDICT_DEFECTS - use PREDICT_DEFECTS_AI instead (Issue #115 Phase 1)
 
     // Enhanced test tool handlers
     this.handlers.set(TOOL_NAMES.TEST_GENERATE_ENHANCED, new TestGenerateEnhancedHandler());
@@ -226,26 +235,22 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.EVENT_EMIT, new EventEmitHandler(this.memory));
     this.handlers.set(TOOL_NAMES.EVENT_SUBSCRIBE, new EventSubscribeHandler(this.memory));
 
-    // Quality gate handlers
-    this.handlers.set(TOOL_NAMES.QUALITY_GATE_EXECUTE, new QualityGateExecuteHandler(this.registry, this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.QUALITY_VALIDATE_METRICS, new QualityValidateMetricsHandler(this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.QUALITY_RISK_ASSESS, new QualityRiskAssessHandler(this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.QUALITY_DECISION_MAKE, new QualityDecisionMakeHandler(this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.QUALITY_POLICY_CHECK, new QualityPolicyCheckHandler(this.hookExecutor));
+    // Quality gate handlers - REMOVED (Issue #115 Phase 1)
+    // Use QE_QUALITYGATE_* handlers instead (qe_qualitygate_evaluate, qe_qualitygate_validate_metrics, etc.)
 
     // Prediction and analysis handlers
-    this.handlers.set(TOOL_NAMES.FLAKY_TEST_DETECT, new FlakyTestDetectHandler(this.registry, this.hookExecutor));
+    // this.handlers.set(TOOL_NAMES.FLAKY_TEST_DETECT, new FlakyTestDetectHandler(this.registry, this.hookExecutor)); // DEPRECATED - absorbed into FLAKY_DETECT_STATISTICAL
     this.handlers.set(TOOL_NAMES.PREDICT_DEFECTS_AI, new PredictDefectsAIHandler(this.registry, this.hookExecutor));
-    this.handlers.set(TOOL_NAMES.REGRESSION_RISK_ANALYZE, new RegressionRiskAnalyzeHandler(this.registry, this.hookExecutor));
+    // this.handlers.set(TOOL_NAMES.REGRESSION_RISK_ANALYZE, new RegressionRiskAnalyzeHandler(this.registry, this.hookExecutor)); // REMOVED - use QE_REGRESSION_ANALYZE_RISK instead (Issue #115)
     this.handlers.set(TOOL_NAMES.VISUAL_TEST_REGRESSION, new VisualTestRegressionHandler(this.registry, this.hookExecutor));
     this.handlers.set(TOOL_NAMES.DEPLOYMENT_READINESS_CHECK, new DeploymentReadinessCheckHandler(this.registry, this.hookExecutor));
 
     // Analysis handlers
     this.handlers.set(TOOL_NAMES.COVERAGE_ANALYZE_SUBLINEAR, new CoverageAnalyzeSublinearHandler());
     this.handlers.set(TOOL_NAMES.COVERAGE_GAPS_DETECT, new CoverageGapsDetectHandler());
-    this.handlers.set(TOOL_NAMES.PERFORMANCE_BENCHMARK_RUN, new PerformanceBenchmarkRunHandler());
+    // this.handlers.set(TOOL_NAMES.PERFORMANCE_BENCHMARK_RUN, new PerformanceBenchmarkRunHandler()); // DEPRECATED - absorbed into PERFORMANCE_RUN_BENCHMARK
     this.handlers.set(TOOL_NAMES.PERFORMANCE_MONITOR_REALTIME, new PerformanceMonitorRealtimeHandler());
-    this.handlers.set(TOOL_NAMES.SECURITY_SCAN_COMPREHENSIVE, new SecurityScanComprehensiveHandler());
+    // this.handlers.set(TOOL_NAMES.SECURITY_SCAN_COMPREHENSIVE, new SecurityScanComprehensiveHandler()); // DEPRECATED - use QE_SECURITY_SCAN_COMPREHENSIVE
 
     // Streaming handlers (v1.0.5) - Note: These require special handling for AsyncGenerator
     // They use the same memoryStore and eventBus as other handlers
@@ -297,10 +302,10 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.PERFORMANCE_ANALYZE_BOTTLENECKS, phase3Handler);
     this.handlers.set(TOOL_NAMES.PERFORMANCE_GENERATE_REPORT, phase3Handler);
     this.handlers.set(TOOL_NAMES.PERFORMANCE_RUN_BENCHMARK, phase3Handler);
-    // Security Tools
-    this.handlers.set(TOOL_NAMES.SECURITY_VALIDATE_AUTH, phase3Handler);
-    this.handlers.set(TOOL_NAMES.SECURITY_CHECK_AUTHZ, phase3Handler);
-    this.handlers.set(TOOL_NAMES.SECURITY_SCAN_DEPENDENCIES, phase3Handler);
+    // Security Tools (legacy tools deprecated - use qe_security_* instead)
+    // this.handlers.set(TOOL_NAMES.SECURITY_VALIDATE_AUTH, phase3Handler); // DEPRECATED
+    // this.handlers.set(TOOL_NAMES.SECURITY_CHECK_AUTHZ, phase3Handler); // DEPRECATED
+    // this.handlers.set(TOOL_NAMES.SECURITY_SCAN_DEPENDENCIES, phase3Handler); // DEPRECATED
     this.handlers.set(TOOL_NAMES.SECURITY_GENERATE_REPORT, phase3Handler);
     // Visual Testing Tools
     this.handlers.set(TOOL_NAMES.VISUAL_COMPARE_SCREENSHOTS, phase3Handler);
@@ -372,9 +377,19 @@ export class AgenticQEMCPServer {
    */
   private setupRequestHandlers(): void {
     // Handle tool listing requests
+    // Issue #115 Phase 2: Use lazy loader to return only core tools initially
+    // This reduces token count by ~80% (14 core tools vs 87 total)
+    // Domain-specific tools are loaded on-demand via tools_load_domain
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const loader = getToolLoader();
+      const coreTools = loader.getCoreTools();
+      const stats = loader.getStats();
+
+      // Log stats for debugging (can be removed in production)
+      console.error(`[Lazy Loader] Returning ${coreTools.length} core tools (${stats.totalAvailable} available)`);
+
       return {
-        tools: agenticQETools
+        tools: coreTools
       };
     });
 
@@ -383,7 +398,231 @@ export class AgenticQEMCPServer {
       const { name, arguments: args } = request.params;
 
       try {
-        // Validate tool exists
+        // Meta-tools for hierarchical tool loading (Phase 2 Optimization - Issue #115)
+        // These are handled inline before regular handler validation
+        if (name === TOOL_NAMES.TOOLS_DISCOVER) {
+          const safeArgs = (args || {}) as { category?: string; includeDescriptions?: boolean };
+          const categoryInput = safeArgs.category || 'all';
+          const includeDescriptions = safeArgs.includeDescriptions || false;
+          const toolLoader = getToolLoader();
+          const stats = toolLoader.getStats();
+
+          // Support multiple categories (comma-separated)
+          const requestedCategories = categoryInput.split(',').map(c => c.trim().toLowerCase());
+          const shouldIncludeCategory = (cat: string) =>
+            requestedCategories.includes('all') || requestedCategories.includes(cat);
+
+          // Calculate statistics
+          const totalAvailable = TOOL_STATS.total;
+          const totalLoaded = stats.totalLoaded;
+          const loadingPercentage = totalAvailable > 0
+            ? Math.round((totalLoaded / totalAvailable) * 100)
+            : 0;
+
+          const result: Record<string, unknown> = {
+            success: true,
+            timestamp: new Date().toISOString(),
+
+            // Overall statistics
+            statistics: {
+              totalAvailable,
+              totalLoaded,
+              loadingPercentage: `${loadingPercentage}%`,
+              breakdown: {
+                core: {
+                  available: TOOL_STATS.core,
+                  loaded: TOOL_STATS.core,
+                  status: 'always loaded'
+                },
+                domains: {
+                  available: TOOL_STATS.domains,
+                  loaded: stats.loadedDomains.filter(d =>
+                    Object.keys(DOMAIN_TOOLS).includes(d)
+                  ).reduce((sum, d) => sum + DOMAIN_TOOLS[d as keyof typeof DOMAIN_TOOLS].length, 0),
+                  loadedDomains: stats.loadedDomains.filter(d =>
+                    Object.keys(DOMAIN_TOOLS).includes(d)
+                  ),
+                  availableDomains: Object.keys(DOMAIN_TOOLS)
+                },
+                specialized: {
+                  available: TOOL_STATS.specialized,
+                  loaded: stats.loadedDomains.filter(d =>
+                    Object.keys(SPECIALIZED_TOOLS).includes(d)
+                  ).reduce((sum, d) => sum + SPECIALIZED_TOOLS[d as keyof typeof SPECIALIZED_TOOLS].length, 0),
+                  loadedDomains: stats.loadedDomains.filter(d =>
+                    Object.keys(SPECIALIZED_TOOLS).includes(d)
+                  ),
+                  availableDomains: Object.keys(SPECIALIZED_TOOLS)
+                },
+                coordination: {
+                  available: TOOL_STATS.coordination,
+                  loaded: stats.loadedDomains.includes('coordination') ? TOOL_STATS.coordination : 0,
+                  status: stats.loadedDomains.includes('coordination') ? 'loaded' : 'available'
+                }
+              }
+            },
+
+            // Category-specific details
+            categories: {} as Record<string, unknown>
+          };
+
+          // Core tools
+          if (shouldIncludeCategory('core')) {
+            (result.categories as Record<string, unknown>).core = {
+              description: 'Always-loaded essential QE tools',
+              count: TOOL_STATS.core,
+              status: 'loaded',
+              tools: includeDescriptions
+                ? CORE_TOOLS.map(t => ({ name: t, loaded: true, category: 'core' }))
+                : CORE_TOOLS.slice()
+            };
+          }
+
+          // Domain tools
+          if (shouldIncludeCategory('domains')) {
+            const domainDetails = Object.entries(DOMAIN_TOOLS).map(([domain, tools]) => ({
+              domain,
+              count: tools.length,
+              loaded: stats.loadedDomains.includes(domain),
+              keywords: DOMAIN_KEYWORDS[domain as keyof typeof DOMAIN_KEYWORDS],
+              tools: includeDescriptions ? tools.map(t => ({
+                name: t,
+                loaded: stats.loadedDomains.includes(domain),
+                category: 'domain',
+                domain
+              })) : tools.slice()
+            }));
+
+            (result.categories as Record<string, unknown>).domains = {
+              description: 'Domain-specific tools loaded on demand via keyword detection',
+              totalCount: TOOL_STATS.domains,
+              loadedCount: domainDetails.filter(d => d.loaded).reduce((sum, d) => sum + d.count, 0),
+              availableDomains: domainDetails
+            };
+          }
+
+          // Specialized tools
+          if (shouldIncludeCategory('specialized')) {
+            const specializedDetails = Object.entries(SPECIALIZED_TOOLS).map(([domain, tools]) => ({
+              domain,
+              count: tools.length,
+              loaded: stats.loadedDomains.includes(domain),
+              loadMethod: 'explicit request via tools_load_domain',
+              tools: includeDescriptions ? tools.map(t => ({
+                name: t,
+                loaded: stats.loadedDomains.includes(domain),
+                category: 'specialized',
+                domain
+              })) : tools.slice()
+            }));
+
+            (result.categories as Record<string, unknown>).specialized = {
+              description: 'Advanced tools for expert use, loaded explicitly',
+              totalCount: TOOL_STATS.specialized,
+              loadedCount: specializedDetails.filter(d => d.loaded).reduce((sum, d) => sum + d.count, 0),
+              availableDomains: specializedDetails
+            };
+          }
+
+          // Coordination tools
+          if (shouldIncludeCategory('coordination')) {
+            (result.categories as Record<string, unknown>).coordination = {
+              description: 'Workflow and inter-agent coordination tools',
+              count: TOOL_STATS.coordination,
+              loaded: stats.loadedDomains.includes('coordination'),
+              tools: includeDescriptions
+                ? COORDINATION_TOOLS.map(t => ({
+                    name: t,
+                    loaded: stats.loadedDomains.includes('coordination'),
+                    category: 'coordination'
+                  }))
+                : COORDINATION_TOOLS.slice()
+            };
+          }
+
+          // Add usage hints if all categories requested
+          if (requestedCategories.includes('all')) {
+            (result as Record<string, unknown>).usage = {
+              tips: [
+                'Filter by category: use category="core,domains" for multiple categories',
+                'Load domain tools: use tools_load_domain with domain name',
+                'Auto-loading: Domain tools load automatically when keywords are detected',
+                'Include descriptions: set includeDescriptions=true for detailed tool info'
+              ],
+              availableCategories: ['core', 'domains', 'specialized', 'coordination', 'all'],
+              loadableDomains: [
+                ...Object.keys(DOMAIN_TOOLS),
+                ...Object.keys(SPECIALIZED_TOOLS),
+                'coordination'
+              ]
+            };
+          }
+
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        if (name === TOOL_NAMES.TOOLS_LOAD_DOMAIN) {
+          type DomainType = 'security' | 'performance' | 'coverage' | 'quality' | 'flaky' | 'visual' | 'requirements' | 'learning' | 'advanced';
+          const safeArgs = (args || {}) as { domain?: string; preload?: boolean };
+          const domain = safeArgs.domain as DomainType;
+          const preload = safeArgs.preload || false;
+
+          if (!domain) {
+            throw new McpError(ErrorCode.InvalidParams, 'domain parameter is required');
+          }
+
+          const toolLoader = getToolLoader();
+          const loadResult = toolLoader.loadDomain(domain);
+          const stats = toolLoader.getStats();
+
+          const result: Record<string, unknown> = {
+            success: loadResult.success,
+            timestamp: new Date().toISOString(),
+            domain,
+            toolsLoaded: loadResult.toolsLoaded.length,
+            tools: loadResult.toolsLoaded,
+            alreadyLoaded: loadResult.alreadyLoaded,
+            totalLoadedDomains: stats.loadedDomains,
+            message: loadResult.alreadyLoaded
+              ? `Domain '${domain}' was already loaded`
+              : loadResult.toolsLoaded.length > 0
+                ? `Successfully loaded ${loadResult.toolsLoaded.length} tools from ${domain} domain`
+                : `Domain '${domain}' not found`
+          };
+
+          // Optionally preload related domains
+          if (preload && loadResult.toolsLoaded.length > 0) {
+            const relatedDomains: Record<string, DomainType[]> = {
+              security: ['coverage', 'quality'],
+              performance: ['coverage', 'quality'],
+              coverage: ['quality'],
+              quality: ['coverage'],
+              flaky: ['coverage', 'performance'],
+              visual: ['requirements'],
+              requirements: ['visual']
+            };
+
+            const related = relatedDomains[domain] || [];
+            const preloadedTools: string[] = [];
+
+            for (const relatedDomain of related) {
+              const relatedResult = toolLoader.loadDomain(relatedDomain);
+              preloadedTools.push(...relatedResult.toolsLoaded);
+            }
+
+            const updatedStats = toolLoader.getStats();
+            if (preloadedTools.length > 0) {
+              result.preloaded = {
+                domains: related.filter(d => updatedStats.loadedDomains.includes(d)),
+                tools: preloadedTools
+              };
+            }
+          }
+
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        // Validate tool exists (for non-meta-tools)
         if (!this.handlers.has(name)) {
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -520,21 +759,23 @@ export class AgenticQEMCPServer {
             result = await phase3Handler.handlePerformanceGenerateReport(safeArgs);
           } else if (name === TOOL_NAMES.PERFORMANCE_RUN_BENCHMARK) {
             result = await phase3Handler.handlePerformanceRunBenchmark(safeArgs);
-          } else if (name === TOOL_NAMES.PERFORMANCE_MONITOR_REALTIME_PHASE3) {
+          } else if (name === TOOL_NAMES.PERFORMANCE_MONITOR_REALTIME) {
             result = await phase3Handler.handlePerformanceMonitorRealtime(safeArgs);
           }
-          // Security Tools
-          else if (name === TOOL_NAMES.SECURITY_VALIDATE_AUTH) {
-            result = await phase3Handler.handleSecurityValidateAuth(safeArgs);
-          } else if (name === TOOL_NAMES.SECURITY_CHECK_AUTHZ) {
-            result = await phase3Handler.handleSecurityCheckAuthz(safeArgs);
-          } else if (name === TOOL_NAMES.SECURITY_SCAN_DEPENDENCIES) {
-            result = await phase3Handler.handleSecurityScanDependencies(safeArgs);
-          } else if (name === TOOL_NAMES.SECURITY_GENERATE_REPORT) {
+          // Security Tools (legacy tools deprecated - use qe_security_* instead)
+          // else if (name === TOOL_NAMES.SECURITY_VALIDATE_AUTH) { // DEPRECATED
+          //   result = await phase3Handler.handleSecurityValidateAuth(safeArgs);
+          // } else if (name === TOOL_NAMES.SECURITY_CHECK_AUTHZ) { // DEPRECATED
+          //   result = await phase3Handler.handleSecurityCheckAuthz(safeArgs);
+          // } else if (name === TOOL_NAMES.SECURITY_SCAN_DEPENDENCIES) { // DEPRECATED
+          //   result = await phase3Handler.handleSecurityScanDependencies(safeArgs);
+          // }
+          else if (name === TOOL_NAMES.SECURITY_GENERATE_REPORT) {
             result = await phase3Handler.handleSecurityGenerateReport(safeArgs);
-          } else if (name === TOOL_NAMES.SECURITY_SCAN_COMPREHENSIVE_PHASE3) {
-            result = await phase3Handler.handleSecurityScanComprehensive(safeArgs);
           }
+          // else if (name === TOOL_NAMES.SECURITY_SCAN_COMPREHENSIVE) { // DEPRECATED - use QE_SECURITY_SCAN_COMPREHENSIVE
+          //   result = await phase3Handler.handleSecurityScanComprehensive(safeArgs);
+          // }
           // Visual Testing Tools
           else if (name === TOOL_NAMES.VISUAL_COMPARE_SCREENSHOTS) {
             result = await phase3Handler.handleVisualCompareScreenshots(safeArgs);

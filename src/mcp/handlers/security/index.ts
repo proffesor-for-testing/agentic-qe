@@ -18,36 +18,8 @@ export {
   type ComplianceCheck
 } from './scan-comprehensive';
 
-// Authentication Validation
-export {
-  validateAuthenticationFlow,
-  ValidateAuthenticationFlowHandler,
-  type ValidateAuthenticationFlowParams,
-  type AuthValidationResult,
-  type AuthTestCase,
-  type AuthFinding
-} from './validate-auth';
-
-// Authorization Checking
-export {
-  checkAuthorizationRules,
-  CheckAuthorizationRulesHandler,
-  type CheckAuthorizationRulesParams,
-  type AuthzCheckResult,
-  type AuthorizationPolicy,
-  type AuthzFinding
-} from './check-authz';
-
-// Dependency Vulnerability Scanning
-export {
-  scanDependenciesVulnerabilities,
-  ScanDependenciesVulnerabilitiesHandler,
-  type ScanDependenciesVulnerabilitiesParams,
-  type VulnerabilityScanResult,
-  type DependencyVulnerability,
-  type LicenseIssue,
-  type OutdatedPackage
-} from './scan-dependencies';
+// NOTE: validate-auth, check-authz, scan-dependencies removed in Issue #115
+// Use QE_SECURITY_DETECT_VULNERABILITIES instead for comprehensive security scanning
 
 // Security Report Generation
 export {
@@ -71,26 +43,8 @@ export const SECURITY_TOOLS = {
     handler: 'securityScanComprehensive'
   },
 
-  // Authentication validation
-  'validate-auth': {
-    name: 'validate-auth',
-    description: 'Validate authentication flows, test auth endpoints, and perform token validation',
-    handler: 'validateAuthenticationFlow'
-  },
-
-  // Authorization checking
-  'check-authz': {
-    name: 'check-authz',
-    description: 'Check authorization rules, policy enforcement, and RBAC/ABAC configuration',
-    handler: 'checkAuthorizationRules'
-  },
-
-  // Dependency scanning
-  'scan-dependencies': {
-    name: 'scan-dependencies',
-    description: 'Scan dependencies for vulnerabilities with severity filtering and auto-fix suggestions',
-    handler: 'scanDependenciesVulnerabilities'
-  },
+  // NOTE: validate-auth, check-authz, scan-dependencies removed in Issue #115
+  // Use QE_SECURITY_DETECT_VULNERABILITIES instead
 
   // Report generation
   'generate-report': {
