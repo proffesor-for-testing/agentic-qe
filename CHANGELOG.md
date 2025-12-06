@@ -7,17 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2025-12-06
+
+### 🚀 MCP Tools Optimization - 87% Context Reduction (Issue #115)
+
+This release delivers major MCP tool optimization with hierarchical lazy loading, achieving 87% context reduction for AI interactions. Legacy tools have been removed and consolidated into modern Phase 3 domain tools.
+
+### Added
+
+#### Hierarchical Tool Loading System
+- **`tools_discover` meta-tool**: Explore available tool domains without loading them
+- **`tools_load_domain` meta-tool**: On-demand domain loading for specific tool categories
+- **`LazyToolLoader` class** (`src/mcp/lazy-loader.ts`): Dynamic tool management with usage tracking
+- **Domain-based categorization** (`src/mcp/tool-categories.ts`):
+  - Core tools (always loaded): fleet management, memory, workflow
+  - Domain tools: coverage, flaky, performance, security, visual, quality-gates
+  - Specialized tools: api-contract, test-data, regression, requirements, code-quality
+- **Keyword-based auto-detection**: Intelligent domain loading from message content
+- **Usage analytics**: Track tool and domain usage for optimization insights
+
+#### Documentation
+- **Migration guide**: `docs/migration/issue-115-tool-optimization.md`
+- **Updated agent reference**: `docs/reference/agents.md` with tool discovery system
+- **Updated usage guide**: `docs/reference/usage.md` with lazy loading examples
+
+### Changed
+
+#### MCP Tools Reduction
+- **Tool count**: 102 → 84 tools (18% reduction)
+- **Context reduction**: 87% via lazy loading (only core tools loaded initially)
+- **Description optimization**: 27% character reduction across tool descriptions
+- **Consolidated duplicates**: Multiple tools merged into unified versions
+
+#### Tool Consolidation
+- Coverage tools: 7 → 4 tools (merged into Phase 3 domain tools)
+- Security tools: 5 → 3 tools (consolidated into comprehensive scanner)
+- Quality gate tools: 5 → 3 tools (merged into `qe_qualitygate_*`)
+- Performance tools: benchmark tools merged into `performance_run_benchmark`
+
+### Deprecated
+
+The following tools now show console warnings and will be removed in v3.0.0:
+- `flaky_test_detect` → use `flaky_detect_statistical` or `flaky_analyze_patterns`
+- `coverage_analyze_sublinear` → use `coverage_analyze_with_risk_scoring`
+- `coverage_gaps_detect` → use `coverage_detect_gaps_ml`
+- `performance_monitor_realtime` → use `performance_analyze_bottlenecks`
+
+### Removed
+
+#### 17 Legacy Handler Files (10,433 lines of code removed)
+- `test-generate.ts` → use `test_generate_enhanced`
+- `quality-analyze.ts` → use `qe_qualitygate_evaluate`
+- `predict-defects.ts` → use `predict_defects_ai`
+- `optimize-tests.ts` → use `test_optimize_sublinear`
+- `quality/quality-gate-execute.ts` → use `qe_qualitygate_evaluate`
+- `quality/quality-validate-metrics.ts` → use `qe_qualitygate_validate_metrics`
+- `quality/quality-risk-assess.ts` → use `qe_qualitygate_assess_risk`
+- `quality/quality-decision-make.ts` → merged into `qe_qualitygate_evaluate`
+- `quality/quality-policy-check.ts` → merged into `qe_qualitygate_evaluate`
+- `prediction/regression-risk-analyze.ts` → use `qe_regression_analyze_risk`
+- `analysis/performanceBenchmarkRun.ts` → use `performance_run_benchmark`
+- `analysis/performance-benchmark-run-handler.ts`
+- `advanced/requirements-validate.ts` → use `qe_requirements_validate`
+- `advanced/requirements-generate-bdd.ts` → use `qe_requirements_bdd`
+- `security/validate-auth.ts` → use `qe_security_detect_vulnerabilities`
+- `security/check-authz.ts` → use `qe_security_detect_vulnerabilities`
+- `security/scan-dependencies.ts` → use `qe_security_detect_vulnerabilities`
+
 ### Fixed
 
-#### Additional Memory Leak Fixes (Issue #112 P1-P2)
-- **MemoryManager interval**: Added `.unref()` to cleanup interval to prevent blocking process exit
-- **RuVectorPatternStore**: Improved `shutdown()` to properly release native NAPI bindings
-- **IntervalRegistry**: New utility for tracking and cleaning up module-level intervals
-- **Jest setup cleanup**: Added shutdown calls for chaos handlers, MemoryManager, and IntervalRegistry
+- Cleaned up orphaned handler exports in index files
+- Fixed server.ts imports for removed handlers
+- Removed empty `handlers/quality/` directory
 
-#### Infrastructure
-- **Global interval tracking**: `IntervalRegistry` utility for centralized interval management
-- **Test cleanup improvements**: Enhanced `afterAll` in jest.setup.ts for comprehensive resource cleanup
+### Security
+
+- Bumped `jws` dependency to address security vulnerability (PR #114)
+
+### Performance
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Tool definitions | 102 | 84 | 18% reduction |
+| Initial context | All tools | Core only | 87% reduction |
+| Lines of code | +10,433 | -10,433 | Cleaner codebase |
+
+### References
+
+- Issue: [#115 - MCP Tools Context Optimization](https://github.com/proffesor-for-testing/agentic-qe/issues/115)
+- Follow-up: [#116 - Continued Optimization](https://github.com/proffesor-for-testing/agentic-qe/issues/116)
 
 ## [2.1.1] - 2025-12-04
 
