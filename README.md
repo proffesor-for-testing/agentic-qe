@@ -54,8 +54,8 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ```
 
 **What gets initialized:**
-- ✅ **Phase 3 Visualization**: Real-time dashboards, interactive graphs (v1.9.0)
-- ✅ **Phase 1-2 Infrastructure**: OpenTelemetry, Event Store, Constitution System
+- ✅ Real-time dashboards, interactive graphs (v1.9.0)
+- ✅ OpenTelemetry, Event Store, Constitution System
 - ✅ Multi-Model Router (70-81% cost savings - opt-in)
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
@@ -83,9 +83,9 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 
 ## ✨ Features
 
-### 🎨 Phase 3: Real-Time Visualization (v1.9.0)
+### Real-Time Visualization (since v1.9.0)
 
-**Production-Ready Observability Dashboards**
+**Observability Dashboards**
 
 #### 📊 Interactive React Frontend
 - **MindMap Component**: Cytoscape.js-powered graph visualization with 6 layout algorithms
@@ -142,41 +142,9 @@ cd frontend && npm run dev
 open http://localhost:3000
 ```
 
-**Documentation**: See `PHASE3-COMPLETE.md` for full details
+**Documentation**: See `docs/PHASE3-COMPLETE.md` for full details
 
 ---
-
-### 🏗️ Phase 1-2: Foundation & Infrastructure
-
-**Enterprise-Grade Observability & Governance**
-
-#### 📊 OpenTelemetry Integration
-- **Full OTEL SDK**: 12 OpenTelemetry packages for comprehensive observability
-- **Auto-Instrumentation**: HTTP, file system, and custom metrics
-- **Metrics Export**: gRPC and HTTP exporters for Grafana, Prometheus, Jaeger
-- **Agent Metrics**: Task completion, success rate, error tracking
-- **Quality Metrics**: Coverage %, defect density, test effectiveness
-- **System Metrics**: Memory, CPU, latency, throughput
-
-#### 💾 Event Sourcing & Persistence
-- **Event Store**: SQLite-based event sourcing with correlation tracking
-- **Reasoning Capture**: Agent decision tracking and prompt/response analysis
-- **Metrics Aggregation**: Time-window aggregation (hourly, daily, weekly)
-- **Performance Optimization**: Prepared statements, indexes, connection pooling
-- **Query API**: Time-range queries with pagination support
-
-#### 📋 Constitutional AI Governance
-- **JSON Schema Validation**: Type-safe constitution definitions
-- **4 Base Constitutions**: Default, test-generation, code-review, performance
-- **Inheritance & Merge**: Constitution composition with override support
-- **Agent-Specific**: Per-agent constitutional rules and guidelines
-- **Validation Pipeline**: Ensure agents follow constitutional principles
-
-**Benefits:**
-- 🔍 **Full Observability**: Track every agent action, metric, and decision
-- 📈 **Data-Driven**: Historical analysis for continuous improvement
-- 🛡️ **Governance**: Constitutional AI ensures quality and compliance
-- 🚀 **Production Ready**: Enterprise-grade persistence and monitoring
 
 ### 🤖 Autonomous Agent Fleet
 - **19 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis, QX analysis)
@@ -185,14 +153,14 @@ open http://localhost:3000
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
 
-### 🧠 Intelligence & Learning (v1.1.0)
+### 🧠 Intelligence & Learning
 - **QE Agent Learning System**: Q-Learning integrated with AgentDB's 9 RL algorithms, 20% improvement target with automatic strategy optimization
 - **Pattern Bank**: 85%+ matching accuracy across 6 test frameworks (Jest, Mocha, Cypress, Vitest, Jasmine, AVA)
 - **ML Flaky Detection**: 90%+ accuracy with root cause analysis and automated fix recommendations
 - **Continuous Improvement**: A/B testing framework with 95%+ statistical confidence
 - **Experience Replay**: Learn from 10,000+ past executions
 
-### 🧠 Self-Learning System (v2.2.0)
+### 🧠 Self-Learning System (from v2.2.0)
 
 AQE agents learn from every interaction and improve over time. Unlike traditional tools that start from scratch each run, the Self-Learning System builds institutional knowledge for your codebase.
 
@@ -247,7 +215,7 @@ aqe learn set-algorithm --agent qe-test-generator --algorithm sarsa
 
 **Persistence:** All learning is stored in AgentDB (SQLite-based) and persists across sessions. Your agents get smarter with every run.
 
-### 💰 Cost Optimization (v1.0.5)
+### 💰 Cost Optimization
 - **Multi-Model Router**: 70-81% cost savings through intelligent model selection (opt-in feature)
 - **4+ AI Models**: GPT-3.5, GPT-4, Claude Haiku, Claude Sonnet 4.5
 - **Smart Routing**: Automatic complexity analysis and optimal model selection
@@ -261,7 +229,7 @@ aqe learn set-algorithm --agent qe-test-generator --algorithm sarsa
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 41 QE Skills Library (v1.9.0)
+### 🎓 41 QE Skills Library
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -429,7 +397,7 @@ mcp__agentic_qe__coverage_analyze({
 - Coverage Analysis (4 tools): analyze with risk scoring, detect gaps ML, trends, recommendations
 - Quality Gates (3 tools): execute, validate metrics, generate report
 - Flaky Test Detection (2 tools): detect statistical, analyze patterns
-- Performance Testing (3 tools): benchmark, analyze bottlenecks, generate report
+- Performance Testing (3 tools): benchmark, analyze bottlenecks, generate a report
 - Security Scanning (2 tools): comprehensive scan, detect vulnerabilities
 - Visual Testing (3 tools): compare screenshots, accessibility validation, regression detection
 - API Contract Testing (3 tools): validate, breaking changes, versioning
@@ -441,7 +409,7 @@ mcp__agentic_qe__coverage_analyze({
 - Workflow Management (4 tools): create, execute, checkpoint, resume
 - Event System (2 tools): emit, subscribe
 - Regression Analysis (2 tools): analyze risk, select tests
-- Production Monitoring (2 tools): incident replay, RUM analyze
+- Production Monitoring (2 tools): incident replay, RUM analysis
 - Mutation Testing (1 tool): execute
 - Deployment Readiness (1 tool): check
 - Artifact Management (1 tool): manifest
