@@ -149,41 +149,130 @@ export const SPECIALIZED_TOOLS: Record<SpecializedDomain, readonly string[]> = {
 /**
  * Keywords for auto-loading domains
  * Used to detect which domain tools to load based on user message content
+ *
+ * Enhanced in Phase 3 Track I with:
+ * - More comprehensive keyword coverage
+ * - Common misspellings and abbreviations
+ * - Related testing terminology
+ * - Industry-standard terms
  */
 export const DOMAIN_KEYWORDS: Record<ToolDomain, readonly string[]> = {
   security: [
-    'security', 'vulnerability', 'vulnerabilities', 'scan', 'audit',
-    'owasp', 'cve', 'sast', 'dast', 'penetration', 'compliance',
-    'authentication', 'authorization', 'encryption', 'injection'
+    // Core security terms
+    'security', 'vulnerability', 'vulnerabilities', 'vuln', 'vulns', 'scan', 'audit',
+    'owasp', 'cve', 'cwe', 'sast', 'dast', 'iast', 'rasp', 'penetration', 'pentest',
+    'compliance', 'gdpr', 'hipaa', 'pci-dss', 'soc2', 'iso-27001',
+    // Auth & access
+    'authentication', 'authorization', 'auth', 'oauth', 'jwt', 'saml', 'sso',
+    'session', 'token', 'credential', 'password', 'secret', 'key management',
+    // Security issues
+    'encryption', 'injection', 'sql injection', 'xss', 'csrf', 'xxe', 'ssrf',
+    'buffer overflow', 'race condition', 'privilege escalation', 'backdoor',
+    'malware', 'exploit', 'zero-day', 'threat', 'attack', 'breach',
+    // Security testing
+    'security test', 'security scan', 'vulnerability scan', 'dependency scan',
+    'container scan', 'image scan', 'secrets scan', 'hardcoded secret',
+    'insecure', 'unsafe', 'risky'
   ],
   performance: [
-    'performance', 'benchmark', 'bottleneck', 'profiling', 'latency',
-    'throughput', 'load test', 'stress test', 'speed', 'optimization',
-    'memory leak', 'cpu usage', 'response time'
+    // Core performance
+    'performance', 'perf', 'benchmark', 'benchmarking', 'bottleneck', 'profiling',
+    'latency', 'throughput', 'load test', 'stress test', 'speed', 'optimization',
+    'optimize', 'slow', 'fast', 'faster', 'slowdown',
+    // Resources
+    'memory leak', 'memory usage', 'cpu usage', 'disk io', 'network io',
+    'resource usage', 'resource consumption', 'memory pressure', 'cpu spike',
+    // Response metrics
+    'response time', 'time to first byte', 'ttfb', 'render time', 'page load',
+    'api latency', 'database query time', 'network latency', 'round trip',
+    // Load & scale
+    'load testing', 'stress testing', 'spike testing', 'endurance test',
+    'scalability', 'scale', 'capacity', 'concurrency', 'concurrent users',
+    'rps', 'requests per second', 'tps', 'transactions per second',
+    // Monitoring
+    'apm', 'monitoring', 'profiler', 'flame graph', 'hotspot', 'bottleneck analysis'
   ],
   coverage: [
-    'coverage', 'gap', 'uncovered', 'line coverage', 'branch coverage',
-    'function coverage', 'statement coverage', 'path coverage',
-    'code coverage', 'test coverage', 'missing tests'
+    // Coverage types
+    'coverage', 'test coverage', 'code coverage', 'gap', 'uncovered', 'untested',
+    'line coverage', 'branch coverage', 'function coverage', 'statement coverage',
+    'path coverage', 'condition coverage', 'decision coverage', 'mc/dc',
+    // Missing coverage
+    'missing tests', 'missing coverage', 'coverage gap', 'coverage hole',
+    'not covered', 'no coverage', 'low coverage', 'insufficient coverage',
+    // Coverage goals
+    'coverage goal', 'coverage target', 'coverage threshold', '80% coverage',
+    'increase coverage', 'improve coverage', 'boost coverage', 'coverage analysis',
+    // Related
+    'mutation testing', 'mutation score', 'test effectiveness', 'test quality',
+    'dead code', 'unused code', 'untested code', 'test completeness'
   ],
   quality: [
-    'quality gate', 'deploy', 'release', 'go/no-go', 'deployment readiness',
-    'quality metrics', 'code quality', 'technical debt', 'maintainability',
-    'reliability', 'complexity', 'duplication', 'smell'
+    // Quality gates
+    'quality gate', 'quality gates', 'gate', 'deploy', 'deployment', 'release',
+    'go/no-go', 'go-nogo', 'deployment readiness', 'production readiness',
+    'quality check', 'quality validation', 'quality criteria',
+    // Quality metrics
+    'quality metrics', 'quality score', 'code quality', 'code health',
+    'technical debt', 'debt', 'maintainability', 'maintainability index',
+    'reliability', 'stability', 'robustness',
+    // Code issues
+    'complexity', 'cyclomatic complexity', 'cognitive complexity', 'code complexity',
+    'duplication', 'duplicate code', 'code clone', 'smell', 'code smell',
+    'anti-pattern', 'bad practice', 'violation', 'issue', 'warning',
+    // Standards
+    'linting', 'lint', 'eslint', 'sonarqube', 'sonar', 'codacy',
+    'code review', 'review', 'refactor', 'refactoring', 'cleanup',
+    // Deployment
+    'ci/cd', 'pipeline', 'build quality', 'build health', 'merge readiness',
+    'production', 'staging', 'pre-production'
   ],
   flaky: [
-    'flaky', 'unstable', 'intermittent', 'retry', 'non-deterministic',
-    'test stability', 'random failure', 'inconsistent', 'timing issue'
+    // Flakiness
+    'flaky', 'flaky test', 'flakiness', 'unstable', 'unstable test',
+    'intermittent', 'intermittent failure', 'sporadic', 'occasional failure',
+    'non-deterministic', 'random', 'random failure', 'inconsistent',
+    // Timing
+    'timing issue', 'timing problem', 'race condition', 'race', 'timeout',
+    'wait', 'sleep', 'delay', 'async issue', 'async problem',
+    // Retry & stability
+    'retry', 'retries', 'test retry', 'flake detection', 'flake analysis',
+    'test stability', 'stabilize', 'stabilization', 'stable',
+    // Failures
+    'failing randomly', 'passes sometimes', 'fails sometimes', 'unreliable',
+    'inconsistent result', 'different results', 'non-repeatable'
   ],
   visual: [
-    'screenshot', 'visual', 'visual regression', 'accessibility', 'wcag',
-    'a11y', 'contrast', 'ui test', 'pixel diff', 'image comparison',
-    'color contrast', 'font size', 'layout'
+    // Visual testing
+    'screenshot', 'screenshot test', 'visual', 'visual test', 'visual testing',
+    'visual regression', 'visual diff', 'visual comparison', 'pixel diff',
+    'image comparison', 'image diff', 'ui test', 'ui testing',
+    // Accessibility
+    'accessibility', 'a11y', 'wcag', 'wcag 2.0', 'wcag 2.1', 'wcag 2.2',
+    'section 508', 'ada', 'aria', 'screen reader', 'keyboard navigation',
+    // Visual elements
+    'contrast', 'color contrast', 'contrast ratio', 'font size', 'text size',
+    'layout', 'rendering', 'render', 'appearance', 'look', 'visual appearance',
+    'responsive', 'breakpoint', 'viewport', 'cross-browser',
+    // Specific checks
+    'alt text', 'focus indicator', 'focus visible', 'touch target',
+    'color blindness', 'color blind', 'semantic html'
   ],
   requirements: [
-    'requirements', 'bdd', 'gherkin', 'cucumber', 'acceptance criteria',
-    'user story', 'scenario', 'given when then', 'feature file',
-    'specification', 'behavior driven'
+    // BDD & Gherkin
+    'requirements', 'requirement', 'bdd', 'behavior driven', 'behavior-driven',
+    'gherkin', 'cucumber', 'specflow', 'behat', 'behave',
+    'acceptance criteria', 'acceptance test', 'acceptance testing',
+    'given when then', 'given-when-then', 'scenario', 'feature', 'feature file',
+    // User stories
+    'user story', 'user stories', 'story', 'epic', 'use case',
+    'as a user', 'i want', 'so that',
+    // Specification
+    'specification', 'spec', 'specs', 'requirement spec', 'functional spec',
+    'test scenario', 'test case', 'testability', 'testable',
+    // Quality attributes
+    'invest', 'smart', 'acceptance', 'definition of done', 'dod',
+    'definition of ready', 'dor', 'backlog', 'refinement'
   ],
 };
 
@@ -255,19 +344,60 @@ export function getToolDomain(toolName: string): ToolDomain | SpecializedDomain 
 }
 
 /**
- * Detect which domains should be loaded based on message content
+ * Related domains that should be loaded together
+ * When one domain is detected, related domains may also be useful
  */
-export function detectDomainsFromMessage(message: string): ToolDomain[] {
-  const lowerMessage = message.toLowerCase();
-  const detected: ToolDomain[] = [];
+export const DOMAIN_RELATIONSHIPS: Record<ToolDomain, ToolDomain[]> = {
+  security: ['quality'], // Security issues affect quality gates
+  performance: ['quality'], // Performance is part of quality metrics
+  coverage: ['quality'], // Coverage is part of quality gates
+  quality: [], // Quality gate is often the final check
+  flaky: ['coverage', 'quality'], // Flaky tests affect coverage and quality
+  visual: ['quality'], // Visual regression affects quality
+  requirements: ['coverage', 'quality'], // Requirements drive tests and quality
+};
 
+/**
+ * Detect which domains should be loaded based on message content
+ * Enhanced with:
+ * - Better keyword matching (word boundaries)
+ * - Related domain detection
+ * - Duplicate prevention
+ */
+export function detectDomainsFromMessage(message: string, options: {
+  includeRelated?: boolean;
+  minKeywordLength?: number;
+} = {}): ToolDomain[] {
+  const { includeRelated = false, minKeywordLength = 3 } = options;
+  const lowerMessage = message.toLowerCase();
+  const detected = new Set<ToolDomain>();
+
+  // Detect primary domains based on keywords
   for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
-    if (keywords.some(kw => lowerMessage.includes(kw.toLowerCase()))) {
-      detected.push(domain as ToolDomain);
+    const hasMatch = keywords.some(kw => {
+      // Skip very short keywords unless they're exact matches
+      if (kw.length < minKeywordLength && !lowerMessage.includes(` ${kw} `)) {
+        return false;
+      }
+      return lowerMessage.includes(kw.toLowerCase());
+    });
+
+    if (hasMatch) {
+      detected.add(domain as ToolDomain);
     }
   }
 
-  return detected;
+  // Optionally add related domains
+  if (includeRelated) {
+    const relatedDomains = new Set<ToolDomain>();
+    for (const domain of detected) {
+      const related = DOMAIN_RELATIONSHIPS[domain] || [];
+      related.forEach(d => relatedDomains.add(d));
+    }
+    relatedDomains.forEach(d => detected.add(d));
+  }
+
+  return Array.from(detected);
 }
 
 /**

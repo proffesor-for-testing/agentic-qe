@@ -72,6 +72,16 @@ export interface DefectPredictionScope {
  * These tools enable Claude Flow to coordinate and manage QE agent fleets
  */
 export const agenticQETools: Tool[] = [
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           CORE TOOLS - FLEET MANAGEMENT
+  //                    Always loaded for basic fleet operations and coordination
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  
+  // Category: core | Domain: fleet
+
+  
+  
   {
     name: 'mcp__agentic_qe__fleet_init',
     description: 'Init QE fleet with specified topology and config',
@@ -123,6 +133,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: fleet
+
+
   {
     name: 'mcp__agentic_qe__agent_spawn',
     description: 'Spawn specialized QE agent with specific capabilities',
@@ -166,7 +180,73 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // REMOVED: test_generate - Use test_generate_enhanced instead (Issue #115 Phase 1)
+  {
+    name: 'mcp__agentic_qe__test_generate',
+    description: 'Generate comprehensive test suites using AI',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spec: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['unit', 'integration', 'e2e', 'property-based', 'mutation'],
+              description: 'Type of tests to generate'
+            },
+            sourceCode: {
+              type: 'object',
+              properties: {
+                repositoryUrl: { type: 'string' },
+                branch: { type: 'string', default: 'main' },
+                language: { type: 'string' },
+                testPatterns: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'File patterns to include in analysis'
+                }
+              },
+              required: ['repositoryUrl', 'language']
+            },
+            coverageTarget: {
+              type: 'number',
+              minimum: 0,
+              maximum: 100,
+              description: 'Target code coverage percentage'
+            },
+            frameworks: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Testing frameworks to use'
+            },
+            synthesizeData: {
+              type: 'boolean',
+              default: true,
+              description: 'Whether to synthesize realistic test data'
+            }
+          },
+          required: ['type', 'sourceCode', 'coverageTarget']
+        },
+        agentId: {
+          type: 'string',
+          description: 'ID of the test generator agent to use'
+        }
+      },
+      required: ['spec']
+    }
+  },
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           CORE TOOLS - TESTING EXECUTION
+  //                    Always loaded for test generation and execution
+  // ═════════════════════════════════════════════════════════════════════════════
+
+
+  
+  // Category: core | Domain: testing
+
+
+  
+  
 
   {
     name: 'mcp__agentic_qe__test_execute',
@@ -223,8 +303,118 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // REMOVED: quality_analyze - Use qe_qualitygate_evaluate instead (Issue #115 Phase 1)
-  // REMOVED: predict_defects - Use predict_defects_ai instead (Issue #115 Phase 1)
+  {
+    name: 'mcp__agentic_qe__quality_analyze',
+    description: 'Analyze quality metrics & generate reports',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        params: {
+          type: 'object',
+          properties: {
+            scope: {
+              type: 'string',
+              enum: ['code', 'tests', 'performance', 'security', 'all'],
+              description: 'Scope of quality analysis'
+            },
+            metrics: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Specific metrics to analyze'
+            },
+            thresholds: {
+              type: 'object',
+              additionalProperties: { type: 'number' },
+              description: 'Quality thresholds for pass/fail decisions'
+            },
+            generateRecommendations: {
+              type: 'boolean',
+              default: true,
+              description: 'Generate improvement recommendations'
+            },
+            historicalComparison: {
+              type: 'boolean',
+              default: false,
+              description: 'Compare with historical quality trends'
+            }
+          },
+          required: ['scope', 'metrics']
+        },
+        dataSource: {
+          type: 'object',
+          properties: {
+            testResults: { type: 'string', description: 'Path to test results' },
+            codeMetrics: { type: 'string', description: 'Path to code quality metrics' },
+            performanceData: { type: 'string', description: 'Path to performance data' }
+          }
+        }
+      },
+      required: ['params']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__predict_defects',
+    description: 'Predict defects using AI/ML models',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scope: {
+          type: 'object',
+          properties: {
+            analysisType: {
+              type: 'string',
+              enum: ['file', 'function', 'line', 'module'],
+              description: 'Granularity of defect prediction'
+            },
+            modelType: {
+              type: 'string',
+              enum: ['neural', 'statistical', 'hybrid'],
+              description: 'Type of prediction model to use'
+            },
+            confidenceThreshold: {
+              type: 'number',
+              minimum: 0.0,
+              maximum: 1.0,
+              default: 0.8,
+              description: 'Minimum confidence for predictions'
+            },
+            historicalDataDays: {
+              type: 'number',
+              minimum: 7,
+              maximum: 365,
+              default: 90,
+              description: 'Days of historical data to consider'
+            },
+            features: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Code features to analyze for prediction'
+            }
+          },
+          required: ['analysisType', 'modelType']
+        },
+        codeChanges: {
+          type: 'object',
+          properties: {
+            repository: { type: 'string' },
+            commit: { type: 'string' },
+            files: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Files to analyze for defect risk'
+            }
+          },
+          required: ['repository']
+        }
+      },
+      required: ['scope']
+    }
+  },
+
+  
+  // Category: core | Domain: fleet
+
 
   {
     name: 'mcp__agentic_qe__fleet_status',
@@ -249,6 +439,18 @@ export const agenticQETools: Tool[] = [
       }
     }
   },
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           CORE TOOLS - TASK ORCHESTRATION
+  //                    Always loaded for task management and coordination
+  // ═════════════════════════════════════════════════════════════════════════════
+
+
+  
+  // Category: core | Domain: orchestration
+
+
+  
+  
 
   {
     name: 'mcp__agentic_qe__task_orchestrate',
@@ -313,9 +515,56 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // REMOVED: optimize_tests - Use test_optimize_sublinear instead (Issue #115 Phase 1)
+  {
+    name: 'mcp__agentic_qe__optimize_tests',
+    description: 'Optimize tests using sublinear algorithms',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        optimization: {
+          type: 'object',
+          properties: {
+            algorithm: {
+              type: 'string',
+              enum: ['sublinear', 'johnson-lindenstrauss', 'temporal-advantage'],
+              description: 'Optimization algorithm to use'
+            },
+            targetMetric: {
+              type: 'string',
+              enum: ['execution-time', 'coverage', 'cost', 'reliability'],
+              description: 'Primary optimization target'
+            },
+            constraints: {
+              type: 'object',
+              properties: {
+                maxExecutionTime: { type: 'number' },
+                minCoverage: { type: 'number' },
+                maxCost: { type: 'number' }
+              }
+            }
+          },
+          required: ['algorithm', 'targetMetric']
+        },
+        testSuite: {
+          type: 'object',
+          properties: {
+            size: { type: 'number' },
+            characteristics: {
+              type: 'array',
+              items: { type: 'string' }
+            },
+            historical_performance: { type: 'object' }
+          }
+        }
+      },
+      required: ['optimization']
+    }
+  },
 
   // Enhanced Test Tools
+  
+  // Category: core | Domain: testing
+
   {
     name: 'mcp__agentic_qe__test_generate_enhanced',
     description: 'AI test generation with pattern recognition & anti-pattern detection',
@@ -356,6 +605,10 @@ export const agenticQETools: Tool[] = [
       required: ['sourceCode', 'language', 'testType']
     }
   },
+
+  
+  // Category: core | Domain: testing
+
 
   {
     name: 'mcp__agentic_qe__test_execute_parallel',
@@ -417,6 +670,18 @@ export const agenticQETools: Tool[] = [
       required: ['testFiles']
     }
   },
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           TESTING DOMAIN TOOLS
+  //                    Test optimization, coverage, execution, and flaky detection
+  // ═════════════════════════════════════════════════════════════════════════════
+
+
+  
+  // Category: testing | Domain: optimization
+
+
+  
+  
 
   {
     name: 'mcp__agentic_qe__test_optimize_sublinear',
@@ -471,6 +736,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: testing
+
+
   {
     name: 'mcp__agentic_qe__test_report_comprehensive',
     description: 'Generate test reports in multiple formats (HTML, JSON, JUnit, MD, PDF)',
@@ -494,12 +763,30 @@ export const agenticQETools: Tool[] = [
           enum: ['html', 'json', 'junit', 'markdown', 'pdf'],
           description: 'Report output format'
         },
-        // Consolidated from 5 booleans: includeCharts, includeTrends, includeSummary, includeDetails, structured
-        reportDetail: {
-          type: 'string',
-          enum: ['minimal', 'summary', 'detailed', 'comprehensive'],
-          default: 'summary',
-          description: 'Report detail level (minimal=basic, summary=+charts, detailed=+trends, comprehensive=all)'
+        includeCharts: {
+          type: 'boolean',
+          default: false,
+          description: 'Include visual charts'
+        },
+        includeTrends: {
+          type: 'boolean',
+          default: false,
+          description: 'Include trend analysis'
+        },
+        includeSummary: {
+          type: 'boolean',
+          default: true,
+          description: 'Include summary section'
+        },
+        includeDetails: {
+          type: 'boolean',
+          default: false,
+          description: 'Include detailed test information'
+        },
+        structured: {
+          type: 'boolean',
+          default: true,
+          description: 'Use structured output (for JSON)'
         },
         historicalData: {
           type: 'array',
@@ -509,6 +796,10 @@ export const agenticQETools: Tool[] = [
       required: ['results', 'format']
     }
   },
+
+  
+  // Category: testing | Domain: coverage
+
 
   {
     name: 'mcp__agentic_qe__test_coverage_detailed',
@@ -549,15 +840,25 @@ export const agenticQETools: Tool[] = [
           default: 'detailed',
           description: 'Level of detail in analysis'
         },
-        // Consolidated from 4 booleans: identifyGaps, prioritizeGaps, generateSuggestions, comparePrevious
-        analysisFeatures: {
-          type: 'array',
-          items: {
-            type: 'string',
-            enum: ['gaps', 'prioritize', 'suggestions', 'compare']
-          },
-          default: ['gaps', 'prioritize', 'suggestions'],
-          description: 'Analysis features to enable (gaps, prioritize, suggestions, compare)'
+        identifyGaps: {
+          type: 'boolean',
+          default: true,
+          description: 'Identify coverage gaps'
+        },
+        prioritizeGaps: {
+          type: 'boolean',
+          default: true,
+          description: 'Prioritize gaps by importance'
+        },
+        generateSuggestions: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate improvement suggestions'
+        },
+        comparePrevious: {
+          type: 'boolean',
+          default: false,
+          description: 'Compare with previous coverage'
         },
         historicalData: {
           type: 'array',
@@ -569,6 +870,16 @@ export const agenticQETools: Tool[] = [
   },
 
   // Memory Management Tools
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           CORE TOOLS - MEMORY & STATE
+  //                    Always loaded for agent coordination and memory
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  
+  // Category: core | Domain: memory
+
+  
+  
   {
     name: 'mcp__agentic_qe__memory_store',
     description: 'Store QE data with TTL & namespacing for coordination',
@@ -605,6 +916,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: memory
+
+
   {
     name: 'mcp__agentic_qe__memory_retrieve',
     description: 'Retrieve QE data with optional metadata',
@@ -633,6 +948,10 @@ export const agenticQETools: Tool[] = [
       required: ['key']
     }
   },
+
+  
+  // Category: core | Domain: memory
+
 
   {
     name: 'mcp__agentic_qe__memory_query',
@@ -678,6 +997,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__memory_share',
     description: 'Share memory between agents w/ access control',
@@ -717,6 +1040,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__memory_backup',
     description: 'Backup & restore memory namespaces',
@@ -744,6 +1071,10 @@ export const agenticQETools: Tool[] = [
       required: ['action']
     }
   },
+
+  
+  // Category: core | Domain: coordination
+
 
   {
     name: 'mcp__agentic_qe__blackboard_post',
@@ -782,6 +1113,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__blackboard_read',
     description: 'Read coordination hints from blackboard',
@@ -816,6 +1151,10 @@ export const agenticQETools: Tool[] = [
       required: ['topic', 'agentId']
     }
   },
+
+  
+  // Category: core | Domain: coordination
+
 
   {
     name: 'mcp__agentic_qe__consensus_propose',
@@ -859,6 +1198,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__consensus_vote',
     description: 'Vote on consensus proposal with quorum check',
@@ -891,6 +1234,10 @@ export const agenticQETools: Tool[] = [
       required: ['proposalId', 'agentId', 'vote']
     }
   },
+
+  
+  // Category: core | Domain: coordination
+
 
   {
     name: 'mcp__agentic_qe__artifact_manifest',
@@ -934,6 +1281,16 @@ export const agenticQETools: Tool[] = [
   },
 
   // Coordination Tools (Phase 1)
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           CORE TOOLS - COORDINATION
+  //                    Workflow, blackboard, consensus, and event coordination
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  
+  // Category: core | Domain: coordination
+
+  
+  
   {
     name: 'mcp__agentic_qe__workflow_create',
     description: 'Create QE workflow with checkpoints & dependency mgmt',
@@ -980,6 +1337,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__workflow_execute',
     description: 'Execute workflow with OODA loop',
@@ -1013,6 +1374,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__workflow_checkpoint',
     description: 'Save workflow state to checkpoint',
@@ -1036,6 +1401,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__workflow_resume',
     description: 'Resume workflow from checkpoint',
@@ -1057,6 +1426,10 @@ export const agenticQETools: Tool[] = [
       required: ['checkpointId']
     }
   },
+
+  
+  // Category: core | Domain: orchestration
+
 
   {
     name: 'mcp__agentic_qe__task_status',
@@ -1082,6 +1455,10 @@ export const agenticQETools: Tool[] = [
       required: ['taskId']
     }
   },
+
+  
+  // Category: core | Domain: coordination
+
 
   {
     name: 'mcp__agentic_qe__event_emit',
@@ -1112,6 +1489,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: core | Domain: coordination
+
+
   {
     name: 'mcp__agentic_qe__event_subscribe',
     description: 'Subscribe to coordination event stream',
@@ -1140,13 +1521,92 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // Quality Gate Tools - REMOVED (Issue #115 Phase 1)
-  // Use modern qe_qualitygate_* tools instead:
-  // - quality_gate_execute -> qe_qualitygate_evaluate
-  // - quality_validate_metrics -> qe_qualitygate_validate_metrics
-  // - quality_risk_assess -> qe_qualitygate_assess_risk
-  // - quality_decision_make -> merged into qe_qualitygate_evaluate
-  // - quality_policy_check -> merged into qe_qualitygate_evaluate
+  // Quality Gate Tools
+  {
+    name: 'mcp__agentic_qe__quality_gate_execute',
+    description: 'Execute quality gate with policy enforcement',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        buildId: { type: 'string' },
+        environment: {
+          type: 'string',
+          enum: ['development', 'staging', 'production']
+        },
+        policy: { type: 'object' },
+        metrics: {
+          type: 'object',
+          properties: {
+            coverage: { type: 'object' },
+            testResults: { type: 'object' },
+            security: { type: 'object' },
+            performance: { type: 'object' },
+            codeQuality: { type: 'object' }
+          },
+          required: ['coverage', 'testResults', 'security']
+        },
+        context: { type: 'object' }
+      },
+      required: ['projectId', 'buildId', 'environment', 'metrics']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__quality_validate_metrics',
+    description: 'Validate quality metrics against thresholds',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        metrics: { type: 'object', description: 'Quality metrics to validate' },
+        thresholds: { type: 'object', description: 'Validation thresholds' },
+        strict: { type: 'boolean', default: false }
+      },
+      required: ['metrics', 'thresholds']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__quality_risk_assess',
+    description: 'Assess risk level for quality metrics',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        metrics: { type: 'object' },
+        context: { type: 'object' },
+        historicalData: { type: 'array', items: { type: 'object' } }
+      },
+      required: ['metrics']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__quality_decision_make',
+    description: 'Make go/no-go decision from quality analysis',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        analysisId: { type: 'string' },
+        data: { type: 'object' },
+        policy: { type: 'object' }
+      },
+      required: ['analysisId', 'data']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__quality_policy_check',
+    description: 'Check compliance with quality policies',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        policyId: { type: 'string' },
+        projectId: { type: 'string' },
+        metrics: { type: 'object' }
+      },
+      required: ['policyId', 'projectId', 'metrics']
+    }
+  },
 
   // Prediction & Analysis Tools
   // DEPRECATED: Use flaky_detect_statistical with method='basic' instead
@@ -1173,6 +1633,10 @@ export const agenticQETools: Tool[] = [
   //   }
   // },
 
+  
+  // Category: advanced | Domain: ai
+
+
   {
     name: 'mcp__agentic_qe__predict_defects_ai',
     description: 'Predict defects using AI/ML models',
@@ -1186,6 +1650,10 @@ export const agenticQETools: Tool[] = [
       required: ['codeChanges']
     }
   },
+
+  
+  // Category: advanced | Domain: regression
+
 
   {
     name: 'mcp__agentic_qe__regression_risk_analyze',
@@ -1201,6 +1669,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: testing | Domain: visual
+
+
   {
     name: 'mcp__agentic_qe__visual_test_regression',
     description: 'Detect visual regression in UI tests',
@@ -1214,6 +1686,10 @@ export const agenticQETools: Tool[] = [
       required: ['baselineImages', 'currentImages']
     }
   },
+
+  
+  // Category: quality | Domain: deployment
+
 
   {
     name: 'mcp__agentic_qe__deployment_readiness_check',
@@ -1230,45 +1706,50 @@ export const agenticQETools: Tool[] = [
   },
 
   // Analysis Tools
-  // DEPRECATED: Use coverage_analyze_stream with mode='sublinear' instead
-  // Kept for backward compatibility only - will be removed in v3.0.0
-  // {
-  //   name: 'mcp__agentic_qe__coverage_analyze_sublinear',
-  //   description: 'Analyze coverage with O(log n) algorithms',
-  //   inputSchema: {
-  //     type: 'object',
-  //     properties: {
-  //       sourceFiles: { type: 'array', items: { type: 'string' } },
-  //       coverageThreshold: { type: 'number', default: 0.8 },
-  //       useJohnsonLindenstrauss: { type: 'boolean', default: true },
-  //       targetDimension: { type: 'number' },
-  //       includeUncoveredLines: { type: 'boolean', default: true }
-  //     },
-  //     required: ['sourceFiles']
-  //   }
-  // },
+  
+  // Category: analysis | Domain: coverage
 
-  // DEPRECATED: Use coverage_detect_gaps_ml with useML=false instead
-  // Kept for backward compatibility only - will be removed in v3.0.0
-  // {
-  //   name: 'mcp__agentic_qe__coverage_gaps_detect',
-  //   description: 'Detect & prioritize coverage gaps',
-  //   inputSchema: {
-  //     type: 'object',
-  //     properties: {
-  //       coverageData: { type: 'object' },
-  //       prioritization: {
-  //         type: 'string',
-  //         enum: ['complexity', 'criticality', 'change-frequency'],
-  //         default: 'complexity'
-  //       }
-  //     },
-  //     required: ['coverageData']
-  //   }
-  // },
+  {
+    name: 'mcp__agentic_qe__coverage_analyze_sublinear',
+    description: 'Analyze coverage with O(log n) algorithms',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceFiles: { type: 'array', items: { type: 'string' } },
+        coverageThreshold: { type: 'number', default: 0.8 },
+        useJohnsonLindenstrauss: { type: 'boolean', default: true },
+        targetDimension: { type: 'number' },
+        includeUncoveredLines: { type: 'boolean', default: true }
+      },
+      required: ['sourceFiles']
+    }
+  },
 
-  // DEPRECATED: Use performance_run_benchmark instead (has configurable scenarios)
-  // Kept for backward compatibility only - will be removed in v3.0.0
+  
+  // Category: analysis | Domain: coverage
+
+
+  {
+    name: 'mcp__agentic_qe__coverage_gaps_detect',
+    description: 'Detect & prioritize coverage gaps',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        coverageData: { type: 'object' },
+        prioritization: {
+          type: 'string',
+          enum: ['complexity', 'criticality', 'change-frequency'],
+          default: 'complexity'
+        }
+      },
+      required: ['coverageData']
+    }
+  },
+
+  
+  // Category: analysis | Domain: performance
+
+
   {
     name: 'mcp__agentic_qe__performance_benchmark_run',
     description: 'Run performance benchmarks',
@@ -1282,6 +1763,10 @@ export const agenticQETools: Tool[] = [
       required: ['benchmarkSuite']
     }
   },
+
+  
+  // Category: analysis | Domain: performance
+
 
   {
     name: 'mcp__agentic_qe__performance_monitor_realtime',
@@ -1297,14 +1782,87 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // DEPRECATED: Legacy security_scan_comprehensive removed - Use qe_security_scan_comprehensive instead (line ~3284)
-  // Removed deprecated tools: security_scan_comprehensive, security_validate_auth, security_check_authz, security_scan_dependencies
-  // Migration: Use modern qe_security_* tools that include enhanced SAST/DAST/dependency scanning, OWASP compliance, and ML-based detection
+  // DEPRECATED: Legacy security_scan_comprehensive - Use qe_security_scan_comprehensive instead (line ~3284)
+  // This tool has been replaced with the modern qe_security_* version that includes:
+  // - Enhanced SAST/DAST/dependency scanning
+  // - OWASP compliance checking
+  // - Customizable security rules
+  // - Better exclude pattern support
+  /*
+  {
+    name: 'mcp__agentic_qe__security_scan_comprehensive',
+    description: 'Comprehensive security scanning',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scanType: {
+          type: 'string',
+          enum: ['sast', 'dast', 'dependency', 'comprehensive'],
+          default: 'comprehensive'
+        },
+        target: { type: 'string' },
+        depth: { type: 'string', enum: ['basic', 'standard', 'deep'], default: 'standard' }
+      },
+      required: ['target']
+    }
+  },
+  */
 
   // Advanced MCP Tools - Requirements & Production Intelligence
-  // REMOVED: requirements_validate - Use qe_requirements_validate instead (Issue #115 Phase 1)
+  {
+    name: 'mcp__agentic_qe__requirements_validate',
+    description: 'Validate requirements testability using NLP',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        requirements: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Requirements to validate'
+        },
+        strictMode: {
+          type: 'boolean',
+          default: false,
+          description: 'Enable strict validation mode'
+        },
+        generateTestSuggestions: {
+          type: 'boolean',
+          default: false,
+          description: 'Generate test suggestions'
+        }
+      },
+      required: ['requirements']
+    }
+  },
 
-  // REMOVED: requirements_generate_bdd - Use qe_requirements_generate_bdd instead (Issue #115 Phase 1)
+  {
+    name: 'mcp__agentic_qe__requirements_generate_bdd',
+    description: 'Generate BDD scenarios from requirements',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        requirement: { type: 'string', description: 'Requirement text' },
+        format: {
+          type: 'string',
+          enum: ['gherkin', 'cucumber', 'plain'],
+          default: 'gherkin'
+        },
+        includeEdgeCases: { type: 'boolean', default: false },
+        generateTestCode: { type: 'boolean', default: false },
+        framework: {
+          type: 'string',
+          enum: ['jest', 'mocha', 'jasmine', 'cucumber-js'],
+          default: 'jest'
+        },
+        extractTestData: { type: 'boolean', default: false }
+      },
+      required: ['requirement']
+    }
+  },
+
+  
+  // Category: advanced | Domain: production
+
 
   {
     name: 'mcp__agentic_qe__production_incident_replay',
@@ -1334,6 +1892,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: production
+
+
   {
     name: 'mcp__agentic_qe__production_rum_analyze',
     description: 'Analyze Real User Monitoring (RUM) data',
@@ -1357,6 +1919,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: api
+
+
   {
     name: 'mcp__agentic_qe__api_breaking_changes',
     description: 'Detect API breaking changes with AST analysis',
@@ -1376,6 +1942,18 @@ export const agenticQETools: Tool[] = [
       required: ['oldAPI', 'newAPI']
     }
   },
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           ADVANCED/SPECIALIZED TOOLS
+  //                    Mutation, API contracts, production, testgen, learning
+  // ═════════════════════════════════════════════════════════════════════════════
+
+
+  
+  // Category: advanced | Domain: mutation
+
+
+  
+  
 
   {
     name: 'mcp__agentic_qe__mutation_test_execute',
@@ -1404,6 +1982,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Streaming Tools (v1.0.5)
+  
+  // Category: testing | Domain: execution
+
   {
     name: 'mcp__agentic_qe__test_execute_stream',
     description: 'Execute tests with real-time streaming (recommended for tests >30s)',
@@ -1464,6 +2045,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: analysis | Domain: coverage
+
+
   {
     name: 'mcp__agentic_qe__coverage_analyze_stream',
     description: 'Analyze coverage with real-time streaming for large codebases',
@@ -1511,6 +2096,9 @@ export const agenticQETools: Tool[] = [
   // Phase 3: Domain-Specific Tools
 
   // Coverage Domain Tools (4 tools)
+  
+  // Category: analysis | Domain: coverage
+
   {
     name: 'mcp__agentic_qe__coverage_analyze_with_risk_scoring',
     description: 'Analyze coverage with ML risk scoring for critical paths',
@@ -1548,34 +2136,26 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: analysis | Domain: coverage
+
+
   {
     name: 'mcp__agentic_qe__coverage_detect_gaps_ml',
-    description: 'Unified gap detection with optional ML. Supports basic prioritization (complexity/criticality) and ML-powered pattern recognition. Recommended for all gap detection needs.',
+    description: 'Detect coverage gaps using ML recognition & prioritization',
     inputSchema: {
       type: 'object',
       properties: {
         coverageData: { type: 'object', description: 'Coverage data' },
         sourceCode: { type: 'array', items: { type: 'string' }, description: 'Source files' },
-        useML: {
-          type: 'boolean',
-          default: true,
-          description: 'Use ML-powered pattern recognition (true) or basic prioritization (false)'
-        },
-        prioritization: {
-          type: 'string',
-          enum: ['complexity', 'criticality', 'change-frequency'],
-          default: 'complexity',
-          description: 'Basic prioritization method (used when useML=false)'
-        },
         mlModel: {
           type: 'string',
           enum: ['neural', 'random-forest', 'gradient-boosting'],
           default: 'gradient-boosting',
-          description: 'ML model for gap detection (used when useML=true)'
+          description: 'ML model for gap detection'
         },
         priorityScoring: {
           type: 'object',
-          description: 'ML priority scoring weights (used when useML=true)',
           properties: {
             complexity: { type: 'number', default: 0.4 },
             criticality: { type: 'number', default: 0.3 },
@@ -1586,6 +2166,10 @@ export const agenticQETools: Tool[] = [
       required: ['coverageData', 'sourceCode']
     }
   },
+
+  
+  // Category: analysis | Domain: coverage
+
 
   {
     name: 'mcp__agentic_qe__coverage_recommend_tests',
@@ -1623,6 +2207,10 @@ export const agenticQETools: Tool[] = [
       required: ['gaps']
     }
   },
+
+  
+  // Category: analysis | Domain: coverage
+
 
   {
     name: 'mcp__agentic_qe__coverage_calculate_trends',
@@ -1664,19 +2252,16 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // Flaky Detection Tools (3 tools) - Consolidated from 4 in Phase 2
+  // Flaky Detection Tools (3 tools)
+  
+  // Category: testing | Domain: flaky
+
   {
     name: 'mcp__agentic_qe__flaky_detect_statistical',
-    description: 'Detect flaky tests using statistical analysis (χ², variance) or basic pattern recognition. Replaces deprecated flaky_test_detect.',
+    description: 'Detect flaky tests using statistical analysis (χ², variance)',
     inputSchema: {
       type: 'object',
       properties: {
-        method: {
-          type: 'string',
-          enum: ['basic', 'statistical'],
-          default: 'statistical',
-          description: 'Detection method: basic (simple pattern recognition) or statistical (chi-square, variance, entropy)'
-        },
         testResults: {
           type: 'array',
           items: {
@@ -1707,12 +2292,16 @@ export const agenticQETools: Tool[] = [
           type: 'array',
           items: { type: 'string' },
           default: ['chi-square', 'variance', 'entropy'],
-          description: 'Statistical methods to apply (only for method=statistical)'
+          description: 'Statistical methods to apply'
         }
       },
       required: ['testResults']
     }
   },
+
+  
+  // Category: testing | Domain: flaky
+
 
   {
     name: 'mcp__agentic_qe__flaky_analyze_patterns',
@@ -1732,20 +2321,18 @@ export const agenticQETools: Tool[] = [
             }
           }
         },
-        // Consolidated from 4 booleans: analyzeTiming, analyzeEnvironment, analyzeDependencies, clusterSimilar
-        patternAnalysis: {
-          type: 'array',
-          items: {
-            type: 'string',
-            enum: ['timing', 'environment', 'dependencies', 'clustering']
-          },
-          default: ['timing', 'environment', 'dependencies'],
-          description: 'Pattern types to analyze'
-        }
+        analyzeTiming: { type: 'boolean', default: true },
+        analyzeEnvironment: { type: 'boolean', default: true },
+        analyzeDependencies: { type: 'boolean', default: true },
+        clusterSimilar: { type: 'boolean', default: false }
       },
       required: ['flakyTests']
     }
   },
+
+  
+  // Category: testing | Domain: flaky
+
 
   {
     name: 'mcp__agentic_qe__flaky_stabilize_auto',
@@ -1783,6 +2370,16 @@ export const agenticQETools: Tool[] = [
   },
 
   // Performance Tools (4 tools)
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           ANALYSIS DOMAIN TOOLS
+  //                    Performance and coverage analysis with ML/AI
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  
+  // Category: analysis | Domain: performance
+
+  
+  
   {
     name: 'mcp__agentic_qe__performance_analyze_bottlenecks',
     description: 'Analyze performance bottlenecks using profiling & ML',
@@ -1803,20 +2400,18 @@ export const agenticQETools: Tool[] = [
           default: 100,
           description: 'Bottleneck threshold in ms'
         },
-        // Consolidated from 4 booleans: analyzeMemory, analyzeCPU, analyzeIO, generateRecommendations
-        analysisTargets: {
-          type: 'array',
-          items: {
-            type: 'string',
-            enum: ['memory', 'cpu', 'io', 'recommendations']
-          },
-          default: ['memory', 'cpu', 'recommendations'],
-          description: 'Bottleneck analysis targets'
-        }
+        analyzeMemory: { type: 'boolean', default: true },
+        analyzeCPU: { type: 'boolean', default: true },
+        analyzeIO: { type: 'boolean', default: false },
+        generateRecommendations: { type: 'boolean', default: true }
       },
       required: ['profileData']
     }
   },
+
+  
+  // Category: analysis | Domain: performance
+
 
   {
     name: 'mcp__agentic_qe__performance_generate_report',
@@ -1841,6 +2436,10 @@ export const agenticQETools: Tool[] = [
       required: ['benchmarkResults']
     }
   },
+
+  
+  // Category: analysis | Domain: performance
+
 
   {
     name: 'mcp__agentic_qe__performance_run_benchmark',
@@ -1876,9 +2475,119 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  // Security Tools (1 tool - 3 removed, use qe_security_* instead)
-  // REMOVED: security_validate_auth, security_check_authz, security_scan_dependencies
-  // Migration: Use qe_security_detect_vulnerabilities for comprehensive security scanning
+  // Security Tools (2 tools - 3 deprecated, use qe_security_* instead)
+
+  // DEPRECATED: Legacy security_validate_auth - Use qe_security_detect_vulnerabilities instead
+  // Modern qe_security_* tools provide comprehensive auth/authz scanning
+  /*
+  {
+    name: 'mcp__agentic_qe__security_validate_auth',
+    description: 'Validate auth mechanisms (JWT, OAuth, session)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authType: {
+          type: 'string',
+          enum: ['jwt', 'oauth2', 'session', 'api-key', 'saml'],
+          description: 'Authentication type'
+        },
+        endpoint: {
+          type: 'string',
+          description: 'Authentication endpoint'
+        },
+        tests: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['token-validation', 'expiry', 'refresh', 'revocation'],
+          description: 'Authentication tests to run'
+        },
+        includeVulnerabilities: {
+          type: 'boolean',
+          default: true,
+          description: 'Check for common auth vulnerabilities'
+        }
+      },
+      required: ['authType', 'endpoint']
+    }
+  },
+  */
+
+  // DEPRECATED: Legacy security_check_authz - Use qe_security_detect_vulnerabilities instead
+  /*
+  {
+    name: 'mcp__agentic_qe__security_check_authz',
+    description: 'Check authorization & access control (RBAC, ABAC)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        authzType: {
+          type: 'string',
+          enum: ['rbac', 'abac', 'acl', 'policy-based'],
+          description: 'Authorization model'
+        },
+        resources: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string' },
+              method: { type: 'string' },
+              requiredPermissions: { type: 'array' }
+            }
+          }
+        },
+        roles: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Roles to test'
+        },
+        testPrivilegeEscalation: { type: 'boolean', default: true },
+        testHorizontalAccess: { type: 'boolean', default: true }
+      },
+      required: ['authzType', 'resources']
+    }
+  },
+  */
+
+  // DEPRECATED: Legacy security_scan_dependencies - Use qe_security_detect_vulnerabilities instead
+  // Modern tool includes dependency scanning with CVE database and ML-based detection
+  /*
+  {
+    name: 'mcp__agentic_qe__security_scan_dependencies',
+    description: 'Scan dependencies for vulnerabilities (CVE database)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        manifestFile: {
+          type: 'string',
+          description: 'Path to package.json, requirements.txt, etc.'
+        },
+        includeTransitive: {
+          type: 'boolean',
+          default: true,
+          description: 'Include transitive dependencies'
+        },
+        severityThreshold: {
+          type: 'string',
+          enum: ['low', 'medium', 'high', 'critical'],
+          default: 'medium'
+        },
+        sources: {
+          type: 'array',
+          items: { type: 'string' },
+          default: ['nvd', 'snyk', 'github-advisory'],
+          description: 'Vulnerability databases to check'
+        },
+        generateReport: { type: 'boolean', default: true }
+      },
+      required: ['manifestFile']
+    }
+  },
+  */
+
+  
+  // Category: security | Domain: reporting
+
 
   {
     name: 'mcp__agentic_qe__security_generate_report',
@@ -1921,6 +2630,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Visual Testing Tools (3 tools)
+  
+  // Category: testing | Domain: visual
+
   {
     name: 'mcp__agentic_qe__visual_compare_screenshots',
     description: 'Compare screenshots with AI-powered diff analysis',
@@ -1965,6 +2677,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: testing | Domain: visual
+
+
   {
     name: 'mcp__agentic_qe__visual_validate_accessibility',
     description: 'Validate visual accessibility (contrast, text size, WCAG)',
@@ -1993,6 +2709,10 @@ export const agenticQETools: Tool[] = [
       required: ['target']
     }
   },
+
+  
+  // Category: testing | Domain: visual
+
 
   {
     name: 'mcp__agentic_qe__visual_detect_regression',
@@ -2042,6 +2762,9 @@ export const agenticQETools: Tool[] = [
   // ==================== Phase 3: New Domain Tools ====================
 
   // API Contract Domain Tools (3 tools)
+  
+  // Category: advanced | Domain: api
+
   {
     name: 'mcp__agentic_qe__qe_api_contract_validate',
     description: 'Validate API contract (Pact/OpenAPI/GraphQL) with schema & endpoint check',
@@ -2099,6 +2822,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: api
+
+
   {
     name: 'mcp__agentic_qe__qe_api_contract_breaking_changes',
     description: 'Detect breaking changes in API contracts with semver recommendations',
@@ -2155,6 +2882,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: api
+
+
   {
     name: 'mcp__agentic_qe__qe_api_contract_versioning',
     description: 'Validate API versioning compatibility with consumer version support',
@@ -2189,6 +2920,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Test Data Domain Tools (3 tools)
+  
+  // Category: advanced | Domain: testdata
+
   {
     name: 'mcp__agentic_qe__qe_test_data_generate',
     description: 'High-speed realistic test data generation (10k+ records/sec) with referential integrity',
@@ -2238,6 +2972,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: testdata
+
+
   {
     name: 'mcp__agentic_qe__qe_test_data_mask',
     description: 'GDPR-compliant data masking with multiple anonymization strategies',
@@ -2277,12 +3015,15 @@ export const agenticQETools: Tool[] = [
           default: 'mask',
           description: 'Default anonymization strategy'
         },
-        // Consolidated from 2 booleans: gdprCompliant, auditLog
-        complianceMode: {
-          type: 'string',
-          enum: ['none', 'gdpr', 'gdpr-audited', 'full'],
-          default: 'gdpr',
-          description: 'Compliance mode (none, gdpr, gdpr-audited=+logging, full=all checks)'
+        gdprCompliant: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable GDPR compliance validation'
+        },
+        auditLog: {
+          type: 'boolean',
+          default: false,
+          description: 'Enable audit logging'
         },
         seed: {
           type: 'number',
@@ -2307,6 +3048,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: testdata
+
+
   {
     name: 'mcp__agentic_qe__qe_test_data_analyze_schema',
     description: 'Comprehensive DB schema analysis with optimization recommendations',
@@ -2323,15 +3068,30 @@ export const agenticQETools: Tool[] = [
           default: 'generic',
           description: 'Database type'
         },
-        // Consolidated from 5 booleans: analyzeConstraints, analyzeRelationships, analyzeIndexes, analyzeDataQuality, includeRecommendations
-        analysisScope: {
-          type: 'array',
-          items: {
-            type: 'string',
-            enum: ['constraints', 'relationships', 'indexes', 'dataQuality', 'recommendations']
-          },
-          default: ['constraints', 'relationships', 'indexes', 'dataQuality', 'recommendations'],
-          description: 'Schema analysis aspects to include'
+        analyzeConstraints: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze constraints and validation rules'
+        },
+        analyzeRelationships: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze table relationships'
+        },
+        analyzeIndexes: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze index usage and recommendations'
+        },
+        analyzeDataQuality: {
+          type: 'boolean',
+          default: true,
+          description: 'Analyze data quality issues'
+        },
+        includeRecommendations: {
+          type: 'boolean',
+          default: true,
+          description: 'Include optimization recommendations'
         }
       },
       required: ['schema']
@@ -2339,6 +3099,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Regression Domain Tools (2 tools)
+  
+  // Category: advanced | Domain: regression
+
   {
     name: 'mcp__agentic_qe__qe_regression_analyze_risk',
     description: 'ML-based regression risk analysis with 95%+ accuracy and blast radius assessment',
@@ -2394,6 +3157,10 @@ export const agenticQETools: Tool[] = [
       required: ['changes']
     }
   },
+
+  
+  // Category: advanced | Domain: regression
+
 
   {
     name: 'mcp__agentic_qe__qe_regression_select_tests',
@@ -2474,6 +3241,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Requirements Domain Tools (2 tools)
+  
+  // Category: quality | Domain: requirements
+
   {
     name: 'mcp__agentic_qe__qe_requirements_validate',
     description: 'INVEST validation with SMART analysis & testability scoring',
@@ -2536,6 +3306,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: quality | Domain: requirements
+
+
   {
     name: 'mcp__agentic_qe__qe_requirements_generate_bdd',
     description: 'Generate Gherkin/Cucumber BDD scenarios with data-driven examples',
@@ -2567,15 +3341,25 @@ export const agenticQETools: Tool[] = [
           },
           description: 'Requirements to generate BDD scenarios from'
         },
-        // Consolidated from 4 booleans: includeBackground, includeScenarioOutlines, includeNegativeCases, includeEdgeCases
-        scenarioTypes: {
-          type: 'array',
-          items: {
-            type: 'string',
-            enum: ['background', 'outlines', 'negative', 'edge']
-          },
-          default: ['background', 'outlines', 'negative', 'edge'],
-          description: 'Scenario types to generate'
+        includeBackground: {
+          type: 'boolean',
+          default: true,
+          description: 'Include background preconditions'
+        },
+        includeScenarioOutlines: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate scenario outlines with examples'
+        },
+        includeNegativeCases: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate negative test scenarios'
+        },
+        includeEdgeCases: {
+          type: 'boolean',
+          default: true,
+          description: 'Generate edge case scenarios'
         },
         examplesPerScenario: {
           type: 'number',
@@ -2595,6 +3379,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Code Quality Domain Tools (2 tools)
+  
+  // Category: quality | Domain: code
+
   {
     name: 'mcp__agentic_qe__qe_code_quality_complexity',
     description: 'Cyclomatic & cognitive complexity analysis with hotspot detection',
@@ -2638,6 +3425,10 @@ export const agenticQETools: Tool[] = [
       required: ['sourceCode', 'filePath', 'language']
     }
   },
+
+  
+  // Category: quality | Domain: code
+
 
   {
     name: 'mcp__agentic_qe__qe_code_quality_metrics',
@@ -2691,6 +3482,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Fleet Coordination Domain Tools (2 tools)
+  
+  // Category: advanced | Domain: fleet
+
   {
     name: 'mcp__agentic_qe__qe_fleet_coordinate',
     description: 'Hierarchical fleet coordination with task distribution & load balancing',
@@ -2781,6 +3575,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: fleet
+
+
   {
     name: 'mcp__agentic_qe__qe_fleet_agent_status',
     description: 'Real-time agent health monitoring with failure detection & recommendations',
@@ -2824,6 +3622,16 @@ export const agenticQETools: Tool[] = [
   },
 
   // Security Domain Tools (3 tools)
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           SECURITY DOMAIN TOOLS
+  //                    Security scanning, vulnerability detection, compliance
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  
+  // Category: security | Domain: scanning
+
+  
+  
   {
     name: 'mcp__agentic_qe__qe_security_scan_comprehensive',
     description: 'Comprehensive security scan with SAST, DAST, dependencies, & OWASP',
@@ -2860,6 +3668,10 @@ export const agenticQETools: Tool[] = [
       required: ['target']
     }
   },
+
+  
+  // Category: security | Domain: detection
+
 
   {
     name: 'mcp__agentic_qe__qe_security_detect_vulnerabilities',
@@ -2903,6 +3715,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: security | Domain: compliance
+
+
   {
     name: 'mcp__agentic_qe__qe_security_validate_compliance',
     description: 'Validate compliance with security standards (OWASP, CWE, SANS, ISO)',
@@ -2942,6 +3758,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Test-Generation Domain Tools (4 tools)
+  
+  // Category: advanced | Domain: testgen
+
   {
     name: 'mcp__agentic_qe__qe_testgen_generate_unit',
     description: 'AI unit test generation with pattern recognition & mock generation',
@@ -2985,6 +3804,10 @@ export const agenticQETools: Tool[] = [
       required: ['sourceCode', 'language']
     }
   },
+
+  
+  // Category: advanced | Domain: testgen
+
 
   {
     name: 'mcp__agentic_qe__qe_testgen_generate_integration',
@@ -3036,6 +3859,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: testgen
+
+
   {
     name: 'mcp__agentic_qe__qe_testgen_optimize_suite',
     description: 'Optimize test suite using sublinear algorithms (JL, temporal advantage)',
@@ -3086,6 +3913,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: testgen
+
+
   {
     name: 'mcp__agentic_qe__qe_testgen_analyze_quality',
     description: 'Analyze test quality with pattern detection, anti-patterns, & maintainability',
@@ -3132,6 +3963,16 @@ export const agenticQETools: Tool[] = [
   },
 
   // Quality-Gates Domain Tools (4 tools)
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           QUALITY DOMAIN TOOLS
+  //                    Quality gates, metrics, code quality, requirements
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  
+  // Category: quality | Domain: gates
+
+  
+  
   {
     name: 'mcp__agentic_qe__qe_qualitygate_evaluate',
     description: 'Evaluate quality gate with multi-factor decisions & policy enforcement',
@@ -3174,6 +4015,10 @@ export const agenticQETools: Tool[] = [
       required: ['projectId', 'buildId', 'environment', 'metrics']
     }
   },
+
+  
+  // Category: quality | Domain: gates
+
 
   {
     name: 'mcp__agentic_qe__qe_qualitygate_assess_risk',
@@ -3218,6 +4063,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: quality | Domain: gates
+
+
   {
     name: 'mcp__agentic_qe__qe_qualitygate_validate_metrics',
     description: 'Validate quality metrics against standards with anomaly detection',
@@ -3259,6 +4108,10 @@ export const agenticQETools: Tool[] = [
       required: ['metrics']
     }
   },
+
+  
+  // Category: quality | Domain: gates
+
 
   {
     name: 'mcp__agentic_qe__qe_qualitygate_generate_report',
@@ -3313,6 +4166,9 @@ export const agenticQETools: Tool[] = [
   },
 
   // Phase 6: Learning Service Tools (Hybrid Approach - Option C)
+  
+  // Category: advanced | Domain: learning
+
   {
     name: 'mcp__agentic_qe__learning_store_experience',
     description: 'Store a learning experience for an agent (reward, outcome, task execution details). Enables learning persistence with Claude Code Task tool.',
@@ -3350,6 +4206,10 @@ export const agenticQETools: Tool[] = [
     }
   },
 
+  
+  // Category: advanced | Domain: learning
+
+
   {
     name: 'mcp__agentic_qe__learning_store_qvalue',
     description: 'Store or update a Q-value for a state-action pair. Q-values represent expected reward for taking a specific action in a given state.',
@@ -3385,6 +4245,10 @@ export const agenticQETools: Tool[] = [
       required: ['agentId', 'stateKey', 'actionKey', 'qValue']
     }
   },
+
+  
+  // Category: advanced | Domain: learning
+
 
   {
     name: 'mcp__agentic_qe__learning_store_pattern',
@@ -3432,6 +4296,10 @@ export const agenticQETools: Tool[] = [
       required: ['pattern', 'confidence']
     }
   },
+
+  
+  // Category: advanced | Domain: learning
+
 
   {
     name: 'mcp__agentic_qe__learning_query',
@@ -3488,49 +4356,6 @@ export const agenticQETools: Tool[] = [
         }
       }
     }
-  },
-
-  // Meta-Tools for Hierarchical Tool Loading
-  {
-    name: 'mcp__agentic_qe__tools_discover',
-    description: 'List available QE tool domains and capabilities',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        category: {
-          type: 'string',
-          enum: ['all', 'core', 'domains', 'specialized'],
-          default: 'all',
-          description: 'Category to list (all, core, domains, specialized)'
-        },
-        includeDescriptions: {
-          type: 'boolean',
-          default: false,
-          description: 'Include tool descriptions in response'
-        }
-      }
-    }
-  },
-
-  {
-    name: 'mcp__agentic_qe__tools_load_domain',
-    description: 'Load tools for a specific domain on-demand',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        domain: {
-          type: 'string',
-          enum: ['security', 'performance', 'coverage', 'quality', 'flaky', 'visual', 'requirements', 'learning', 'advanced'],
-          description: 'Domain to load'
-        },
-        preload: {
-          type: 'boolean',
-          default: false,
-          description: 'Preload related domains'
-        }
-      },
-      required: ['domain']
-    }
   }
 ];
 
@@ -3538,13 +4363,16 @@ export const agenticQETools: Tool[] = [
  * Export tool names for easy reference
  */
 export const TOOL_NAMES = {
-  // Core tools
   FLEET_INIT: 'mcp__agentic_qe__fleet_init',
   AGENT_SPAWN: 'mcp__agentic_qe__agent_spawn',
+  TEST_GENERATE: 'mcp__agentic_qe__test_generate',
   TEST_EXECUTE: 'mcp__agentic_qe__test_execute',
+  QUALITY_ANALYZE: 'mcp__agentic_qe__quality_analyze',
+  PREDICT_DEFECTS: 'mcp__agentic_qe__predict_defects',
   FLEET_STATUS: 'mcp__agentic_qe__fleet_status',
   TASK_ORCHESTRATE: 'mcp__agentic_qe__task_orchestrate',
-  // Enhanced test tools (replacements for legacy test_generate, optimize_tests)
+  OPTIMIZE_TESTS: 'mcp__agentic_qe__optimize_tests',
+  // Enhanced test tools
   TEST_GENERATE_ENHANCED: 'mcp__agentic_qe__test_generate_enhanced',
   TEST_EXECUTE_PARALLEL: 'mcp__agentic_qe__test_execute_parallel',
   TEST_OPTIMIZE_SUBLINEAR: 'mcp__agentic_qe__test_optimize_sublinear',
@@ -3569,9 +4397,14 @@ export const TOOL_NAMES = {
   TASK_STATUS: 'mcp__agentic_qe__task_status',
   EVENT_EMIT: 'mcp__agentic_qe__event_emit',
   EVENT_SUBSCRIBE: 'mcp__agentic_qe__event_subscribe',
-  // Quality gate tools - Legacy removed, use QE_QUALITYGATE_* instead
-  // Prediction and analysis tools (replacements for legacy quality_analyze, predict_defects)
-  // FLAKY_TEST_DETECT: 'mcp__agentic_qe__flaky_test_detect',  // DEPRECATED - use FLAKY_DETECT_STATISTICAL with method='basic'
+  // Quality gate tools
+  QUALITY_GATE_EXECUTE: 'mcp__agentic_qe__quality_gate_execute',
+  QUALITY_VALIDATE_METRICS: 'mcp__agentic_qe__quality_validate_metrics',
+  QUALITY_RISK_ASSESS: 'mcp__agentic_qe__quality_risk_assess',
+  QUALITY_DECISION_MAKE: 'mcp__agentic_qe__quality_decision_make',
+  QUALITY_POLICY_CHECK: 'mcp__agentic_qe__quality_policy_check',
+  // Prediction and analysis tools
+  FLAKY_TEST_DETECT: 'mcp__agentic_qe__flaky_test_detect',
   PREDICT_DEFECTS_AI: 'mcp__agentic_qe__predict_defects_ai',
   REGRESSION_RISK_ANALYZE: 'mcp__agentic_qe__regression_risk_analyze',
   VISUAL_TEST_REGRESSION: 'mcp__agentic_qe__visual_test_regression',
@@ -3579,10 +4412,12 @@ export const TOOL_NAMES = {
   // Analysis tools
   COVERAGE_ANALYZE_SUBLINEAR: 'mcp__agentic_qe__coverage_analyze_sublinear',
   COVERAGE_GAPS_DETECT: 'mcp__agentic_qe__coverage_gaps_detect',
-  // PERFORMANCE_BENCHMARK_RUN: 'mcp__agentic_qe__performance_benchmark_run',  // DEPRECATED - use PERFORMANCE_RUN_BENCHMARK
+  PERFORMANCE_BENCHMARK_RUN: 'mcp__agentic_qe__performance_benchmark_run',
   PERFORMANCE_MONITOR_REALTIME: 'mcp__agentic_qe__performance_monitor_realtime',
-  // SECURITY_SCAN_COMPREHENSIVE: 'mcp__agentic_qe__security_scan_comprehensive', // DEPRECATED - use QE_SECURITY_SCAN_COMPREHENSIVE
-  // Advanced tools - Legacy requirements_validate and requirements_generate_bdd removed, use QE_REQUIREMENTS_* instead
+  SECURITY_SCAN_COMPREHENSIVE: 'mcp__agentic_qe__security_scan_comprehensive',
+  // Advanced tools
+  REQUIREMENTS_VALIDATE: 'mcp__agentic_qe__requirements_validate',
+  REQUIREMENTS_GENERATE_BDD: 'mcp__agentic_qe__requirements_generate_bdd',
   PRODUCTION_INCIDENT_REPLAY: 'mcp__agentic_qe__production_incident_replay',
   PRODUCTION_RUM_ANALYZE: 'mcp__agentic_qe__production_rum_analyze',
   API_BREAKING_CHANGES: 'mcp__agentic_qe__api_breaking_changes',
@@ -3669,7 +4504,7 @@ export const TOOL_NAMES = {
   // Fleet Management Domain (2 tools)
   QE_FLEET_COORDINATE: 'mcp__agentic_qe__qe_fleet_coordinate',
   QE_FLEET_STATUS: 'mcp__agentic_qe__qe_fleet_status',
-  // Meta-Tools
+  // Meta Tools (Phase 2 - Hierarchical Lazy Loading)
   TOOLS_DISCOVER: 'mcp__agentic_qe__tools_discover',
   TOOLS_LOAD_DOMAIN: 'mcp__agentic_qe__tools_load_domain'
 } as const;

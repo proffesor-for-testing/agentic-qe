@@ -23,6 +23,8 @@ import {
   CORE_TOOLS,
   DOMAIN_TOOLS,
   SPECIALIZED_TOOLS,
+  COORDINATION_TOOLS,
+  DOMAIN_KEYWORDS,
   TOOL_STATS,
   getToolCategorySummary
 } from './tool-categories.js';
@@ -400,50 +402,159 @@ export class AgenticQEMCPServer {
         // These are handled inline before regular handler validation
         if (name === TOOL_NAMES.TOOLS_DISCOVER) {
           const safeArgs = (args || {}) as { category?: string; includeDescriptions?: boolean };
-          const category = safeArgs.category || 'all';
+          const categoryInput = safeArgs.category || 'all';
           const includeDescriptions = safeArgs.includeDescriptions || false;
           const toolLoader = getToolLoader();
           const stats = toolLoader.getStats();
 
+          // Support multiple categories (comma-separated)
+          const requestedCategories = categoryInput.split(',').map(c => c.trim().toLowerCase());
+          const shouldIncludeCategory = (cat: string) =>
+            requestedCategories.includes('all') || requestedCategories.includes(cat);
+
+          // Calculate statistics
+          const totalAvailable = TOOL_STATS.total;
+          const totalLoaded = stats.totalLoaded;
+          const loadingPercentage = totalAvailable > 0
+            ? Math.round((totalLoaded / totalAvailable) * 100)
+            : 0;
+
           const result: Record<string, unknown> = {
             success: true,
             timestamp: new Date().toISOString(),
-            summary: getToolCategorySummary(),
-            loadedDomains: stats.loadedDomains,
+
+            // Overall statistics
+            statistics: {
+              totalAvailable,
+              totalLoaded,
+              loadingPercentage: `${loadingPercentage}%`,
+              breakdown: {
+                core: {
+                  available: TOOL_STATS.core,
+                  loaded: TOOL_STATS.core,
+                  status: 'always loaded'
+                },
+                domains: {
+                  available: TOOL_STATS.domains,
+                  loaded: stats.loadedDomains.filter(d =>
+                    Object.keys(DOMAIN_TOOLS).includes(d)
+                  ).reduce((sum, d) => sum + DOMAIN_TOOLS[d as keyof typeof DOMAIN_TOOLS].length, 0),
+                  loadedDomains: stats.loadedDomains.filter(d =>
+                    Object.keys(DOMAIN_TOOLS).includes(d)
+                  ),
+                  availableDomains: Object.keys(DOMAIN_TOOLS)
+                },
+                specialized: {
+                  available: TOOL_STATS.specialized,
+                  loaded: stats.loadedDomains.filter(d =>
+                    Object.keys(SPECIALIZED_TOOLS).includes(d)
+                  ).reduce((sum, d) => sum + SPECIALIZED_TOOLS[d as keyof typeof SPECIALIZED_TOOLS].length, 0),
+                  loadedDomains: stats.loadedDomains.filter(d =>
+                    Object.keys(SPECIALIZED_TOOLS).includes(d)
+                  ),
+                  availableDomains: Object.keys(SPECIALIZED_TOOLS)
+                },
+                coordination: {
+                  available: TOOL_STATS.coordination,
+                  loaded: stats.loadedDomains.includes('coordination') ? TOOL_STATS.coordination : 0,
+                  status: stats.loadedDomains.includes('coordination') ? 'loaded' : 'available'
+                }
+              }
+            },
+
+            // Category-specific details
             categories: {} as Record<string, unknown>
           };
 
-          if (category === 'all' || category === 'core') {
+          // Core tools
+          if (shouldIncludeCategory('core')) {
             (result.categories as Record<string, unknown>).core = {
               description: 'Always-loaded essential QE tools',
               count: TOOL_STATS.core,
+              status: 'loaded',
               tools: includeDescriptions
-                ? CORE_TOOLS.map(t => ({ name: t, loaded: true }))
-                : CORE_TOOLS
+                ? CORE_TOOLS.map(t => ({ name: t, loaded: true, category: 'core' }))
+                : CORE_TOOLS.slice()
             };
           }
 
-          if (category === 'all' || category === 'domains') {
+          // Domain tools
+          if (shouldIncludeCategory('domains')) {
+            const domainDetails = Object.entries(DOMAIN_TOOLS).map(([domain, tools]) => ({
+              domain,
+              count: tools.length,
+              loaded: stats.loadedDomains.includes(domain),
+              keywords: DOMAIN_KEYWORDS[domain as keyof typeof DOMAIN_KEYWORDS],
+              tools: includeDescriptions ? tools.map(t => ({
+                name: t,
+                loaded: stats.loadedDomains.includes(domain),
+                category: 'domain',
+                domain
+              })) : tools.slice()
+            }));
+
             (result.categories as Record<string, unknown>).domains = {
-              description: 'Domain-specific tools loaded on demand',
-              count: TOOL_STATS.domains,
-              available: Object.keys(DOMAIN_TOOLS).map(domain => ({
-                domain,
-                tools: DOMAIN_TOOLS[domain as keyof typeof DOMAIN_TOOLS].length,
-                loaded: stats.loadedDomains.includes(domain)
-              }))
+              description: 'Domain-specific tools loaded on demand via keyword detection',
+              totalCount: TOOL_STATS.domains,
+              loadedCount: domainDetails.filter(d => d.loaded).reduce((sum, d) => sum + d.count, 0),
+              availableDomains: domainDetails
             };
           }
 
-          if (category === 'all' || category === 'specialized') {
+          // Specialized tools
+          if (shouldIncludeCategory('specialized')) {
+            const specializedDetails = Object.entries(SPECIALIZED_TOOLS).map(([domain, tools]) => ({
+              domain,
+              count: tools.length,
+              loaded: stats.loadedDomains.includes(domain),
+              loadMethod: 'explicit request via tools_load_domain',
+              tools: includeDescriptions ? tools.map(t => ({
+                name: t,
+                loaded: stats.loadedDomains.includes(domain),
+                category: 'specialized',
+                domain
+              })) : tools.slice()
+            }));
+
             (result.categories as Record<string, unknown>).specialized = {
-              description: 'Advanced tools for expert use',
-              count: TOOL_STATS.specialized,
-              available: Object.keys(SPECIALIZED_TOOLS).map(domain => ({
-                domain,
-                tools: SPECIALIZED_TOOLS[domain as keyof typeof SPECIALIZED_TOOLS].length,
-                loaded: stats.loadedDomains.includes(domain)
-              }))
+              description: 'Advanced tools for expert use, loaded explicitly',
+              totalCount: TOOL_STATS.specialized,
+              loadedCount: specializedDetails.filter(d => d.loaded).reduce((sum, d) => sum + d.count, 0),
+              availableDomains: specializedDetails
+            };
+          }
+
+          // Coordination tools
+          if (shouldIncludeCategory('coordination')) {
+            (result.categories as Record<string, unknown>).coordination = {
+              description: 'Workflow and inter-agent coordination tools',
+              count: TOOL_STATS.coordination,
+              loaded: stats.loadedDomains.includes('coordination'),
+              tools: includeDescriptions
+                ? COORDINATION_TOOLS.map(t => ({
+                    name: t,
+                    loaded: stats.loadedDomains.includes('coordination'),
+                    category: 'coordination'
+                  }))
+                : COORDINATION_TOOLS.slice()
+            };
+          }
+
+          // Add usage hints if all categories requested
+          if (requestedCategories.includes('all')) {
+            (result as Record<string, unknown>).usage = {
+              tips: [
+                'Filter by category: use category="core,domains" for multiple categories',
+                'Load domain tools: use tools_load_domain with domain name',
+                'Auto-loading: Domain tools load automatically when keywords are detected',
+                'Include descriptions: set includeDescriptions=true for detailed tool info'
+              ],
+              availableCategories: ['core', 'domains', 'specialized', 'coordination', 'all'],
+              loadableDomains: [
+                ...Object.keys(DOMAIN_TOOLS),
+                ...Object.keys(SPECIALIZED_TOOLS),
+                'coordination'
+              ]
             };
           }
 

@@ -30,17 +30,44 @@ export interface LoadResult {
   alreadyLoaded: boolean;
 }
 
+export interface UsageStats {
+  toolName: string;
+  callCount: number;
+  lastUsed: number;
+  domain?: string;
+}
+
+export interface DomainUsageStats {
+  domain: string;
+  loadCount: number;
+  toolUsageCount: number;
+  lastLoaded: number;
+  averageToolsPerLoad: number;
+}
+
 export class LazyToolLoader {
   private state: LoaderState;
   private toolCache: Map<string, Tool>;
+  private toolUsageCount: Map<string, number>;
+  private toolLastUsed: Map<string, number>;
+  private domainUsageCount: Map<string, number>;
+  private domainLastLoaded: Map<string, number>;
+  private domainToolUsageCount: Map<string, number>;
+  private usageTrackingEnabled: boolean;
 
-  constructor() {
+  constructor(enableUsageTracking = true) {
     this.state = {
       loadedDomains: new Set(),
       coreLoaded: false,
       totalToolsLoaded: 0,
     };
     this.toolCache = new Map();
+    this.toolUsageCount = new Map();
+    this.toolLastUsed = new Map();
+    this.domainUsageCount = new Map();
+    this.domainLastLoaded = new Map();
+    this.domainToolUsageCount = new Map();
+    this.usageTrackingEnabled = enableUsageTracking;
     this.indexTools();
   }
 
@@ -67,6 +94,13 @@ export class LazyToolLoader {
    * Load a specific domain's tools
    */
   loadDomain(domain: ToolDomain | SpecializedDomain): LoadResult {
+    // Track domain usage
+    if (this.usageTrackingEnabled) {
+      const currentCount = this.domainUsageCount.get(domain) || 0;
+      this.domainUsageCount.set(domain, currentCount + 1);
+      this.domainLastLoaded.set(domain, Date.now());
+    }
+
     // Check if already loaded
     if (this.state.loadedDomains.has(domain)) {
       return {
@@ -197,6 +231,187 @@ export class LazyToolLoader {
     // Testing workflows often need coverage and quality
     this.loadDomain('coverage');
     this.loadDomain('quality');
+  }
+
+  /**
+   * Track tool usage when a tool is called
+   */
+  trackToolUsage(toolName: string): void {
+    if (!this.usageTrackingEnabled) return;
+
+    const currentCount = this.toolUsageCount.get(toolName) || 0;
+    this.toolUsageCount.set(toolName, currentCount + 1);
+    this.toolLastUsed.set(toolName, Date.now());
+
+    // Find the domain for this tool and track domain-level usage
+    const domain = this.findDomainForTool(toolName);
+    if (domain) {
+      const currentDomainToolCount = this.domainToolUsageCount.get(domain) || 0;
+      this.domainToolUsageCount.set(domain, currentDomainToolCount + 1);
+    }
+  }
+
+  /**
+   * Find which domain a tool belongs to
+   */
+  private findDomainForTool(toolName: string): string | undefined {
+    // Check domain tools
+    for (const [domain, tools] of Object.entries(DOMAIN_TOOLS)) {
+      if (tools.includes(toolName as any)) {
+        return domain;
+      }
+    }
+
+    // Check specialized tools
+    for (const [domain, tools] of Object.entries(SPECIALIZED_TOOLS)) {
+      if (tools.includes(toolName as any)) {
+        return domain;
+      }
+    }
+
+    // Check core tools
+    if (CORE_TOOLS.includes(toolName as any)) {
+      return 'core';
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get usage statistics for all tools
+   */
+  getToolUsageStats(): UsageStats[] {
+    const stats: UsageStats[] = [];
+
+    for (const [toolName, callCount] of this.toolUsageCount.entries()) {
+      stats.push({
+        toolName,
+        callCount,
+        lastUsed: this.toolLastUsed.get(toolName) || 0,
+        domain: this.findDomainForTool(toolName),
+      });
+    }
+
+    // Sort by call count descending
+    return stats.sort((a, b) => b.callCount - a.callCount);
+  }
+
+  /**
+   * Get usage statistics for domains
+   */
+  getDomainUsageStats(): DomainUsageStats[] {
+    const stats: DomainUsageStats[] = [];
+
+    for (const [domain, loadCount] of this.domainUsageCount.entries()) {
+      const toolUsageCount = this.domainToolUsageCount.get(domain) || 0;
+      stats.push({
+        domain,
+        loadCount,
+        toolUsageCount,
+        lastLoaded: this.domainLastLoaded.get(domain) || 0,
+        averageToolsPerLoad: toolUsageCount / Math.max(loadCount, 1),
+      });
+    }
+
+    // Sort by tool usage count descending
+    return stats.sort((a, b) => b.toolUsageCount - a.toolUsageCount);
+  }
+
+  /**
+   * Get top N most frequently used tools
+   */
+  getTopTools(limit = 10): UsageStats[] {
+    return this.getToolUsageStats().slice(0, limit);
+  }
+
+  /**
+   * Get top N most frequently used domains
+   */
+  getTopDomains(limit = 5): DomainUsageStats[] {
+    return this.getDomainUsageStats().slice(0, limit);
+  }
+
+  /**
+   * Preload domains based on usage frequency
+   * Loads the most frequently used domains that aren't already loaded
+   */
+  preloadFrequentDomains(threshold = 5): LoadResult[] {
+    const results: LoadResult[] = [];
+    const domainStats = this.getDomainUsageStats();
+
+    for (const stat of domainStats) {
+      // Skip if already loaded or below threshold
+      if (this.state.loadedDomains.has(stat.domain as any) || stat.toolUsageCount < threshold) {
+        continue;
+      }
+
+      // Load the domain
+      const result = this.loadDomain(stat.domain as ToolDomain | SpecializedDomain);
+      results.push(result);
+    }
+
+    return results;
+  }
+
+  /**
+   * Export usage statistics as JSON
+   */
+  exportUsageStats(): {
+    toolStats: UsageStats[];
+    domainStats: DomainUsageStats[];
+    exportedAt: number;
+  } {
+    return {
+      toolStats: this.getToolUsageStats(),
+      domainStats: this.getDomainUsageStats(),
+      exportedAt: Date.now(),
+    };
+  }
+
+  /**
+   * Import usage statistics from JSON
+   */
+  importUsageStats(data: {
+    toolStats: UsageStats[];
+    domainStats: DomainUsageStats[];
+  }): void {
+    // Import tool stats
+    for (const stat of data.toolStats) {
+      this.toolUsageCount.set(stat.toolName, stat.callCount);
+      this.toolLastUsed.set(stat.toolName, stat.lastUsed);
+    }
+
+    // Import domain stats
+    for (const stat of data.domainStats) {
+      this.domainUsageCount.set(stat.domain, stat.loadCount);
+      this.domainToolUsageCount.set(stat.domain, stat.toolUsageCount);
+      this.domainLastLoaded.set(stat.domain, stat.lastLoaded);
+    }
+  }
+
+  /**
+   * Clear all usage statistics
+   */
+  clearUsageStats(): void {
+    this.toolUsageCount.clear();
+    this.toolLastUsed.clear();
+    this.domainUsageCount.clear();
+    this.domainLastLoaded.clear();
+    this.domainToolUsageCount.clear();
+  }
+
+  /**
+   * Enable or disable usage tracking
+   */
+  setUsageTracking(enabled: boolean): void {
+    this.usageTrackingEnabled = enabled;
+  }
+
+  /**
+   * Check if usage tracking is enabled
+   */
+  isUsageTrackingEnabled(): boolean {
+    return this.usageTrackingEnabled;
   }
 }
 
