@@ -35,6 +35,8 @@ export interface TaskExperience {
   nextState: TaskState;
   timestamp: Date;
   agentId: string;
+  /** Whether this experience represents a terminal state (episode end) */
+  done?: boolean;
 }
 
 /**

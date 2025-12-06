@@ -20,3 +20,20 @@ export type {
   ArtifactQueryResult,
   ArtifactRetrievalResult
 } from './ArtifactWorkflow';
+
+// Dependency Injection
+export {
+  DIContainer,
+  DependencyLifecycle,
+  DependencyConfig,
+  DIScope,
+  getGlobalContainer,
+  setGlobalContainer,
+  resetGlobalContainer,
+  DependencyNames,
+  AgentDependencyConfig,
+  IDIAgent,
+  registerAgentDependencies,
+  createAgentContainer,
+  withDI
+} from './di';
