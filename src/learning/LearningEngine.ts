@@ -16,6 +16,17 @@ import { AbstractRLLearner } from './algorithms/AbstractRLLearner';
 import { StateExtractor } from './StateExtractor';
 import { RewardCalculator, TaskResult } from './RewardCalculator';
 import packageJson from '../../package.json';
+import {
+  recordLearningEpisode,
+  recordQValueUpdate,
+  recordPatternMatch,
+  recordAlgorithmSwitch,
+  recordExperienceSharing,
+  updateSharingConnections,
+  updateGaugeValues,
+  recordLearningSession,
+  withLearningSpan,
+} from '../telemetry/LearningTelemetry';
 
 const PACKAGE_VERSION = packageJson.version;
 import {
@@ -36,7 +47,7 @@ import { ExperienceSharingProtocol, SharedExperience } from './ExperienceSharing
 /**
  * RL Algorithm type selection
  */
-export type RLAlgorithmType = 'q-learning' | 'sarsa' | 'actor-critic' | 'ppo' | 'legacy';
+export type RLAlgorithmType = 'q-learning' | 'sarsa' | 'actor-critic' | 'ppo' | 'maml' | 'legacy';
 
 /**
  * Extended learning configuration with algorithm selection
@@ -108,12 +119,15 @@ export class LearningEngine {
       this.setAlgorithm(this.config.algorithm);
     }
 
-    // Architecture Improvement (Phase 3): LearningEngine now accepts SwarmMemoryManager
-    // directly for unified persistence. This ensures:
-    // 1. All learning patterns persist to .agentic-qe/agentdb.db via SwarmMemoryManager
-    // 2. Unified memory access across all agents
-    // 3. Proper resource management and no duplicate connections
-    // 4. Backward compatibility with QEReasoningBank
+    // UNIFIED PERSISTENCE ARCHITECTURE (v2.2.0):
+    // LearningEngine uses SwarmMemoryManager for ALL persistence.
+    // All data goes to the SINGLE database: .agentic-qe/memory.db
+    // This ensures CLI, MCP, and agents all share the same data.
+    //
+    // Key methods that persist to memory.db:
+    // - storeLearningExperience() -> learning_experiences table
+    // - storePattern() -> patterns table
+    // - upsertQValue() -> q_values table
     this.logger.info(`LearningEngine initialized for agent ${agentId} with algorithm ${this.config.algorithm} - using ${memoryStore.constructor.name} for persistent storage`);
   }
 
@@ -159,26 +173,26 @@ export class LearningEngine {
   }
 
   /**
-   * Load patterns from memoryStore (AgentDB via SwarmMemoryManager)
+   * Load patterns from memoryStore (SwarmMemoryManager -> memory.db)
    *
-   * Architecture: Retrieves patterns from SwarmMemoryManager which
-   * internally uses AgentDB (.agentic-qe/agentdb.db).
+   * Architecture: Retrieves patterns from the unified memory.db database
+   * via SwarmMemoryManager.
    *
    * Note: This method is legacy and not currently used (patterns loaded on-demand).
    */
   private async loadPatternsFromMemoryStore(): Promise<void> {
     try {
-      // Query all patterns from AgentDB (confidence >= 0 returns all)
+      // Query all patterns from memory.db (confidence >= 0 returns all)
       const allPatterns = await this.memoryStore.queryPatternsByConfidence(0);
 
       if (allPatterns.length === 0) {
-        this.logger.info('No existing patterns found in AgentDB');
+        this.logger.info('No existing patterns found in memory.db');
         return;
       }
 
-      this.logger.info(`Found ${allPatterns.length} patterns in AgentDB for agent ${this.agentId}`);
+      this.logger.info(`Found ${allPatterns.length} patterns in memory.db for agent ${this.agentId}`);
     } catch (error) {
-      this.logger.warn(`Failed to load patterns from AgentDB:`, error);
+      this.logger.warn(`Failed to load patterns from memory.db:`, error);
     }
   }
 
@@ -199,6 +213,8 @@ export class LearningEngine {
       return this.createOutcome(false, 0, 0);
     }
 
+    const episodeStartTime = Date.now();
+
     try {
       // Extract experience from task execution
       const experience = this.extractExperience(task, result, feedback);
@@ -210,6 +226,9 @@ export class LearningEngine {
 
       // Update Q-table (in-memory)
       await this.updateQTable(experience);
+
+      // Record telemetry: Q-value update occurred
+      recordQValueUpdate(this.agentId, 1, undefined, this.getAlgorithm());
 
       // Persist to database via memoryStore (replaces persistence adapter)
       // Only if memoryStore is SwarmMemoryManager

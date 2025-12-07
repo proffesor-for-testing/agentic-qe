@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
 import { ProcessExit } from '../../../utils/ProcessExit';
@@ -25,9 +26,18 @@ export interface LearnCommandOptions {
 
 /**
  * LearningCommand - CLI handler for learning operations
+ *
+ * Uses shared memory manager singleton to ensure all CLI, MCP, and agent
+ * operations use the same database (.agentic-qe/memory.db).
  */
 export class LearningCommand {
-  private static memoryPath = '.agentic-qe/data/swarm-memory.db';
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Execute learning command
@@ -69,72 +79,110 @@ export class LearningCommand {
     const spinner = ora('Loading learning status...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
+      const agentId = options.agent;
 
-      const agentId = options.agent || 'default';
+      // Query actual database tables for learning data
+      // ARCHITECTURE (v2.2.0): Data is stored in dedicated tables, not memory_entries
+      const experiencesQuery = agentId
+        ? 'SELECT * FROM learning_experiences WHERE agent_id = ? ORDER BY created_at DESC'
+        : 'SELECT * FROM learning_experiences ORDER BY created_at DESC';
+      const experiences = memoryManager.queryRaw<any>(experiencesQuery, agentId ? [agentId] : []);
 
-      // Load learning state
-      const learningState = await memoryManager.retrieve(
-        `phase2/learning/${agentId}/state`,
-        { partition: 'learning' }
-      );
+      const qValuesQuery = agentId
+        ? 'SELECT * FROM q_values WHERE agent_id = ?'
+        : 'SELECT * FROM q_values';
+      const qValues = memoryManager.queryRaw<any>(qValuesQuery, agentId ? [agentId] : []);
 
-      if (!learningState) {
-        spinner.fail('No learning data available');
-        console.log(chalk.yellow('\n💡 Run "aqe init" to initialize the fleet and enable learning'));
-        return;
+      const patternsQuery = agentId
+        ? 'SELECT * FROM patterns WHERE agent_id = ? ORDER BY confidence DESC'
+        : 'SELECT * FROM patterns ORDER BY confidence DESC';
+      const patterns = memoryManager.queryRaw<any>(patternsQuery, agentId ? [agentId] : []);
+
+      // Check if any learning data exists
+      if (experiences.length === 0 && qValues.length === 0 && patterns.length === 0) {
+        // Fall back to legacy state check
+        const learningState = await memoryManager.retrieve(
+          `phase2/learning/${agentId || 'default'}/state`,
+          { partition: 'learning' }
+        );
+
+        if (!learningState) {
+          spinner.fail('No learning data available');
+          console.log(chalk.yellow('\n💡 Run "aqe init" to initialize the fleet and enable learning'));
+          return;
+        }
       }
 
       spinner.succeed('Learning status loaded');
 
       console.log(chalk.blue('\n🧠 Learning Engine Status\n'));
 
-      // Agent info
-      console.log(chalk.cyan(`Agent: ${learningState.agentId}`));
-      console.log(`├─ Learning Rate: ${chalk.cyan(learningState.config.learningRate)}`);
-      console.log(`├─ Experiences: ${chalk.cyan(learningState.experiences.length.toLocaleString())}`);
-      console.log(`├─ Exploration Rate: ${chalk.cyan((learningState.config.explorationRate * 100).toFixed(1) + '%')}`);
+      // Calculate aggregated stats from actual data
+      const totalExperiences = experiences.length;
+      const avgReward = totalExperiences > 0
+        ? experiences.reduce((sum: number, e: any) => sum + (e.reward || 0), 0) / totalExperiences
+        : 0;
+      const successCount = experiences.filter((e: any) => e.reward > 0.5).length;
+      const successRate = totalExperiences > 0 ? successCount / totalExperiences : 0;
 
-      if (learningState.performance) {
-        const perf = learningState.performance;
-        console.log(`├─ Avg Reward: ${this.formatReward(perf.avgReward)}`);
-        console.log(`├─ Success Rate: ${chalk.green((perf.successRate * 100).toFixed(1) + '%')}`);
-        console.log(`└─ Total Tasks: ${chalk.cyan(perf.totalExperiences.toLocaleString())}`);
+      // Get unique agents
+      const uniqueAgents = [...new Set(experiences.map((e: any) => e.agent_id))];
+
+      console.log(chalk.cyan(`Agents with learning data: ${uniqueAgents.length}`));
+      if (agentId) {
+        console.log(chalk.gray(`  (filtered to: ${agentId})`));
       }
+      console.log(`├─ Total Experiences: ${chalk.cyan(totalExperiences.toLocaleString())}`);
+      console.log(`├─ Q-Value Entries: ${chalk.cyan(qValues.length.toLocaleString())}`);
+      console.log(`├─ Patterns Stored: ${chalk.cyan(patterns.length.toLocaleString())}`);
+      console.log(`├─ Avg Reward: ${this.formatReward(avgReward)}`);
+      console.log(`└─ Success Rate: ${chalk.green((successRate * 100).toFixed(1) + '%')}`);
 
-      // Load improvement data
-      const improvement = await memoryManager.retrieve(
-        `phase2/learning/${agentId}/improvement`,
-        { partition: 'learning' }
-      );
+      // Show top agents by experience count
+      if (uniqueAgents.length > 0 && !agentId) {
+        console.log(chalk.blue('\n👥 Top Agents by Experience:\n'));
+        const agentCounts = uniqueAgents.map(agent => ({
+          agent,
+          count: experiences.filter((e: any) => e.agent_id === agent).length
+        })).sort((a, b) => b.count - a.count).slice(0, 5);
 
-      if (improvement) {
-        console.log(chalk.blue('\n📊 Performance Trends:\n'));
-        console.log(`├─ Current Rate: ${this.formatImprovement(improvement.improvementRate)}`);
-        console.log(`├─ Days Elapsed: ${chalk.cyan(improvement.daysElapsed.toFixed(1))}`);
-        console.log(`└─ Target (20%): ${improvement.targetAchieved ? chalk.green('✅ REACHED') : chalk.yellow('⏳ In Progress')}`);
-      }
-
-      // Top patterns
-      if (learningState.patterns && learningState.patterns.length > 0) {
-        console.log(chalk.blue('\n🎯 Top Learned Patterns:\n'));
-        const topPatterns = learningState.patterns
-          .sort((a: any, b: any) => b.confidence - a.confidence)
-          .slice(0, 5);
-
-        topPatterns.forEach((pattern: any, index: number) => {
-          const prefix = index === topPatterns.length - 1 ? '└─' : '├─';
-          console.log(`${prefix} ${pattern.pattern} (confidence: ${chalk.cyan((pattern.confidence * 100).toFixed(1) + '%')})`);
+        agentCounts.forEach((item, index) => {
+          const prefix = index === agentCounts.length - 1 ? '└─' : '├─';
+          console.log(`${prefix} ${item.agent}: ${chalk.cyan(item.count)} experiences`);
         });
       }
 
-      if (options.detailed) {
-        console.log(chalk.blue('\n📈 Detailed Metrics:\n'));
-        console.log(`Model Version: ${chalk.cyan(learningState.version)}`);
-        console.log(`Last Updated: ${chalk.gray(new Date(learningState.lastUpdated).toLocaleString())}`);
-        console.log(`State Size: ${chalk.cyan(this.formatBytes(learningState.size))}`);
-        console.log(`Q-Table Entries: ${chalk.cyan(Object.keys(learningState.qTable).length.toLocaleString())}`);
+      // Top patterns by confidence
+      if (patterns.length > 0) {
+        console.log(chalk.blue('\n🎯 Top Patterns by Confidence:\n'));
+        const topPatterns = patterns.slice(0, 5);
+
+        topPatterns.forEach((pattern: any, index: number) => {
+          const prefix = index === topPatterns.length - 1 ? '└─' : '├─';
+          const patternName = pattern.id || pattern.pattern?.substring(0, 30) || 'unnamed';
+          console.log(`${prefix} ${patternName} (confidence: ${chalk.cyan((pattern.confidence * 100).toFixed(1) + '%')})`);
+        });
+      }
+
+      // Recent activity
+      if (experiences.length > 0) {
+        const latestExp = experiences[0];
+        const latestDate = latestExp.created_at
+          ? new Date(latestExp.created_at).toLocaleString()
+          : 'unknown';
+        console.log(chalk.blue('\n📅 Recent Activity:\n'));
+        console.log(`└─ Last experience: ${chalk.gray(latestDate)}`);
+      }
+
+      if (options.detailed && experiences.length > 0) {
+        console.log(chalk.blue('\n📈 Detailed Task Types:\n'));
+        const taskTypes = [...new Set(experiences.map((e: any) => e.task_type))];
+        taskTypes.slice(0, 5).forEach((taskType, index) => {
+          const count = experiences.filter((e: any) => e.task_type === taskType).length;
+          const prefix = index === taskTypes.slice(0, 5).length - 1 ? '└─' : '├─';
+          console.log(`${prefix} ${taskType}: ${chalk.cyan(count)} experiences`);
+        });
       }
 
       console.log();
@@ -153,8 +201,7 @@ export class LearningCommand {
     const spinner = ora('Enabling learning...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       if (options.all) {
         // Enable for all agents
@@ -209,8 +256,7 @@ export class LearningCommand {
     const spinner = ora('Disabling learning...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
       const config = await memoryManager.retrieve(
@@ -248,8 +294,7 @@ export class LearningCommand {
     const spinner = ora('Loading learning history...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
       const limit = options.limit || 20;
@@ -304,8 +349,7 @@ export class LearningCommand {
     const spinner = ora('Training agent...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const learningEngine = new LearningEngine(options.agent || 'default', memoryManager);
       await learningEngine.initialize();
@@ -350,8 +394,7 @@ export class LearningCommand {
     const spinner = ora('Resetting learning state...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -384,8 +427,7 @@ export class LearningCommand {
     const spinner = ora('Exporting learning data...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -492,23 +534,18 @@ export async function learnExport(options: LearnCommandOptions): Promise<void> {
 }
 
 /**
- * Show learning improvement metrics from AgentDB
+ * Show learning improvement metrics from unified memory.db
+ * ARCHITECTURE (v2.2.0): All data now stored in .agentic-qe/memory.db
  */
 export async function learnMetrics(options: any): Promise<void> {
-  const spinner = ora('Loading learning metrics from AgentDB...').start();
+  const spinner = ora('Loading learning metrics from memory.db...').start();
 
   try {
-    const { createAgentDBManager } = await import('../../../core/memory/AgentDBManager');
+    const memoryManager = await initializeSharedMemoryManager();
 
-    const agentDB = createAgentDBManager({
-      dbPath: '.agentic-qe/agentdb.db'
-    });
-
-    await agentDB.initialize();
-
-    // Query metrics from patterns table
+    // Query metrics from patterns table via SwarmMemoryManager
     // Note: The patterns table uses 'type' column, not 'agent_id'
-    const metrics = await agentDB.query(`
+    const metrics = memoryManager.queryRaw(`
       SELECT
         type as agent,
         AVG(confidence) as avg_confidence,
@@ -519,8 +556,6 @@ export async function learnMetrics(options: any): Promise<void> {
       GROUP BY type
       ORDER BY avg_confidence DESC
     `, options.agent ? [`%${options.agent}%`] : []);
-
-    await agentDB.close();
 
     spinner.succeed('Learning metrics loaded');
 

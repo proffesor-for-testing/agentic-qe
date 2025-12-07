@@ -1,313 +1,128 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="149" failures="0" errors="0" time="2.561">
-  <testsuite name="LearningEngine" errors="0" failures="0" skipped="0" timestamp="2025-12-06T16:14:47" time="0.725" tests="26">
-    <testcase classname="LearningEngine › Record Outcome" name="should record a valid learning outcome" time="0.002">
+<testsuites name="jest tests" tests="43" failures="2" errors="0" time="1.51">
+  <testsuite name="PrivacyManager" errors="0" failures="2" skipped="0" timestamp="2025-12-07T11:48:08" time="1.464" tests="43">
+    <testcase classname="PrivacyManager › Privacy Levels › PUBLIC Level" name="should allow experience sharing" time="0.016">
     </testcase>
-    <testcase classname="LearningEngine › Record Outcome" name="should reject invalid record (missing required fields)" time="0.01">
+    <testcase classname="PrivacyManager › Privacy Levels › PUBLIC Level" name="should not sanitize code by default" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Record Outcome" name="should reject record with invalid quality score" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › PUBLIC Level" name="should retain data for 1 year by default" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Record Outcome" name="should trigger analysis after reaching minimum data points" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should require team namespace" time="0.025">
     </testcase>
-    <testcase classname="LearningEngine › Record Outcome" name="should store multiple outcomes with different frameworks" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should only share within team namespace" time="0.014">
     </testcase>
-    <testcase classname="LearningEngine › Learning and Improvement" name="should detect quality improvement trends" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should sanitize code snippets" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Learning and Improvement" name="should detect edge case improvement" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should anonymize agent IDs" time="0.01">
     </testcase>
-    <testcase classname="LearningEngine › Learning and Improvement" name="should detect performance optimization" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should retain data for 90 days by default" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Learning and Improvement" name="should calculate improvement metrics correctly" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should not allow experience sharing" time="0.026">
     </testcase>
-    <testcase classname="LearningEngine › Learning and Improvement" name="should apply learning to generate recommendations" time="0.005">
+    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should encrypt action data" time="0.014">
     </testcase>
-    <testcase classname="LearningEngine › Learning and Improvement" name="should return low confidence with insufficient data" time="0.002">
+    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should decrypt encrypted action data" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Feedback Loop" name="should enable feedback loop" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should redact sensitive patterns" time="0.011">
     </testcase>
-    <testcase classname="LearningEngine › Feedback Loop" name="should disable feedback loop" time="0">
+    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should retain data for 30 days by default" time="0.011">
     </testcase>
-    <testcase classname="LearningEngine › Feedback Loop" name="should set learning rate" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should not allow persistence or sharing" time="0.013">
     </testcase>
-    <testcase classname="LearningEngine › Feedback Loop" name="should reject invalid learning rate" time="0.002">
+    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should enforce max experience age" time="0.011">
     </testcase>
-    <testcase classname="LearningEngine › Feedback Loop" name="should respect minimum data points threshold" time="0">
+    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should use aggressive redaction patterns" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Statistics and Reporting" name="should calculate accurate statistics" time="0.001">
+    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should encrypt patterns for storage" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Statistics and Reporting" name="should track all insights" time="0.001">
+    <testcase classname="PrivacyManager › Code Sanitization" name="should redact passwords from code" time="0.011">
     </testcase>
-    <testcase classname="LearningEngine › Statistics and Reporting" name="should calculate metrics with empty data" time="0.001">
+    <testcase classname="PrivacyManager › Code Sanitization" name="should redact API keys from code" time="0.013">
     </testcase>
-    <testcase classname="LearningEngine › Edge Cases" name="should handle empty learning records" time="0.001">
+    <testcase classname="PrivacyManager › Code Sanitization" name="should handle custom redaction patterns" time="0.013">
     </testcase>
-    <testcase classname="LearningEngine › Edge Cases" name="should handle single record" time="0.001">
+    <testcase classname="PrivacyManager › Code Sanitization" name="should sanitize nested objects recursively" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Edge Cases" name="should handle all failures" time="0.001">
+    <testcase classname="PrivacyManager › Code Sanitization" name="should sanitize arrays" time="0.012">
+      <failure>Error: expect(received).toContain(expected) // indexOf
+
+Expected substring: &quot;[REDACTED]&quot;
+Received string:    &quot;echo \&quot;password=secret\&quot;&quot;
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/unit/learning/privacy-manager.test.ts:432:60)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1007:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:947:3)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="LearningEngine › Edge Cases" name="should handle all flaky tests" time="0">
+    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should generate consistent anonymous IDs" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Edge Cases" name="should handle concurrent record submissions" time="0">
+    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should allow de-anonymization" time="0.015">
     </testcase>
-    <testcase classname="LearningEngine › Performance" name="should record outcomes with &lt;10ms overhead" time="0.003">
+    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should sanitize shared experience agent IDs" time="0.012">
     </testcase>
-    <testcase classname="LearningEngine › Performance" name="should analyze trends efficiently" time="0.003">
+    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should clear anonymization mappings" time="0.014">
+      <failure>Error: expect(received).toBeUndefined()
+
+Received: &quot;test-agent-001&quot;
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/unit/learning/privacy-manager.test.ts:501:24)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1007:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:947:3)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-  </testsuite>
-  <testsuite name="ExperienceSharingProtocol" errors="0" failures="0" skipped="0" timestamp="2025-12-06T16:14:48" time="0.395" tests="36">
-    <testcase classname="ExperienceSharingProtocol › initialization" name="should initialize with provided config" time="0.002">
+    <testcase classname="PrivacyManager › Data Retention Policies" name="should enforce custom retention periods" time="0.011">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › initialization" name="should use default values when not provided" time="0.001">
+    <testcase classname="PrivacyManager › Data Retention Policies" name="should handle zero retention period (keep forever)" time="0.011">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › start/stop" name="should start the protocol" time="0.001">
+    <testcase classname="PrivacyManager › Data Retention Policies" name="should provide expiration dates for retained data" time="0.012">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › start/stop" name="should warn on double start" time="0">
+    <testcase classname="PrivacyManager › Configuration Management" name="should get current privacy level" time="0.011">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › start/stop" name="should stop the protocol" time="0.001">
+    <testcase classname="PrivacyManager › Configuration Management" name="should get full configuration" time="0.013">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › start/stop" name="should be safe to stop when not started" time="0.001">
+    <testcase classname="PrivacyManager › Configuration Management" name="should update configuration" time="0.011">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › peer management" name="should register a peer" time="0.001">
+    <testcase classname="PrivacyManager › Configuration Management" name="should get privacy statistics" time="0.011">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › peer management" name="should not register self as peer" time="0.001">
+    <testcase classname="PrivacyManager › Pattern Encryption" name="should encrypt patterns in PRIVATE mode" time="0.012">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › peer management" name="should unregister a peer" time="0.001">
+    <testcase classname="PrivacyManager › Pattern Encryption" name="should decrypt patterns correctly" time="0.01">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › peer management" name="should emit peer_connected event" time="0.001">
+    <testcase classname="PrivacyManager › Pattern Encryption" name="should not encrypt patterns in PUBLIC mode" time="0.013">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › peer management" name="should emit peer_disconnected event" time="0.001">
+    <testcase classname="PrivacyManager › Pattern Encryption" name="should handle decryption errors gracefully" time="0.011">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › peer management" name="should track active connections in stats" time="0.006">
+    <testcase classname="PrivacyManager › Cleanup and Disposal" name="should stop cleanup timer on dispose" time="0.115">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › shareExperience" name="should share an experience locally" time="0.001">
+    <testcase classname="PrivacyManager › Cleanup and Disposal" name="should clear encryption key on dispose" time="0.013">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › shareExperience" name="should calculate priority when not provided" time="0">
+    <testcase classname="PrivacyManager › Cleanup and Disposal" name="should clear anonymization mappings on dispose" time="0.013">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › shareExperience" name="should use provided priority" time="0.001">
+    <testcase classname="PrivacyManager › Integration Scenarios" name="should handle PUBLIC to PRIVATE upgrade" time="0.014">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › shareExperience" name="should increment vector clock" time="0.001">
+    <testcase classname="PrivacyManager › Integration Scenarios" name="should handle PRIVATE to PARANOID upgrade" time="0.014">
     </testcase>
-    <testcase classname="ExperienceSharingProtocol › shareExperience" name="should enforce max experiences limit" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › receiveExperience" name="should receive valid experience" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › receiveExperience" name="should filter duplicate experiences" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › receiveExperience" name="should reject expired experiences" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › receiveExperience" name="should reject experiences with invalid checksum" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › receiveExperience" name="should emit experience_received event" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › receiveExperience" name="should update stats on receive" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › getRelevantExperiences" name="should return relevant experiences" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › getRelevantExperiences" name="should sort by priority and relevance" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › getAgentExperiences" name="should return experiences from specific agent" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › gossip rounds" name="should perform gossip rounds on interval" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › gossip rounds" name="should update stats after gossip" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › gossip rounds" name="should not gossip when stopped" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › clear" name="should clear all experiences" time="0">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › clear" name="should reset stats" time="0">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › export/import" name="should export experiences" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › export/import" name="should import experiences" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › conflict resolution" name="should resolve conflict with vector clock comparison" time="0.001">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › conflict resolution" name="should emit conflict_resolved event" time="0.002">
-    </testcase>
-    <testcase classname="ExperienceSharingProtocol › getStats" name="should return current statistics" time="0.001">
-    </testcase>
-  </testsuite>
-  <testsuite name="ClaudeProvider" errors="0" failures="0" skipped="0" timestamp="2025-12-06T16:14:48" time="0.335" tests="21">
-    <testcase classname="ClaudeProvider › initialization" name="should initialize successfully with API key" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › initialization" name="should throw error without API key" time="0.008">
-    </testcase>
-    <testcase classname="ClaudeProvider › initialization" name="should warn on double initialization" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › initialization" name="should use environment variable if no key provided" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › complete" name="should complete a prompt successfully" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › complete" name="should handle system messages" time="0">
-    </testcase>
-    <testcase classname="ClaudeProvider › complete" name="should track cost correctly" time="0">
-    </testcase>
-    <testcase classname="ClaudeProvider › complete" name="should throw error when not initialized" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › complete" name="should handle API errors" time="0.006">
-    </testcase>
-    <testcase classname="ClaudeProvider › complete" name="should handle array content in messages" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › streamComplete" name="should stream completion events" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › countTokens" name="should count tokens using API" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › countTokens" name="should fallback to estimation on error" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › healthCheck" name="should return healthy status when working" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › healthCheck" name="should return unhealthy status on error" time="0">
-    </testcase>
-    <testcase classname="ClaudeProvider › getMetadata" name="should return provider metadata" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › embed" name="should throw unsupported error for embeddings" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › cost tracking" name="should track cumulative cost" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › cost tracking" name="should handle cache pricing" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › shutdown" name="should shutdown gracefully" time="0.001">
-    </testcase>
-    <testcase classname="ClaudeProvider › shutdown" name="should be safe to call multiple times" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="RuvllmProvider" errors="0" failures="0" skipped="0" timestamp="2025-12-06T16:14:49" time="0.356" tests="19">
-    <testcase classname="RuvllmProvider › initialization" name="should connect to existing server if running" time="0.005">
-    </testcase>
-    <testcase classname="RuvllmProvider › initialization" name="should warn on double initialization" time="0">
-    </testcase>
-    <testcase classname="RuvllmProvider › initialization" name="should use default configuration values" time="0">
-    </testcase>
-    <testcase classname="RuvllmProvider › complete" name="should complete a prompt successfully" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › complete" name="should have zero cost for local inference" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › complete" name="should handle system messages" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › complete" name="should throw error when not initialized" time="0.026">
-    </testcase>
-    <testcase classname="RuvllmProvider › complete" name="should handle server errors" time="0.006">
-    </testcase>
-    <testcase classname="RuvllmProvider › streamComplete" name="should stream completion events" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › countTokens" name="should estimate token count" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › embed" name="should throw error when embeddings not enabled" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › embed" name="should generate embeddings when enabled" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › healthCheck" name="should return healthy when server responds" time="0">
-    </testcase>
-    <testcase classname="RuvllmProvider › healthCheck" name="should return unhealthy when server is down" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › getMetadata" name="should return provider metadata" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › getMetadata" name="should reflect embeddings capability when enabled" time="0">
-    </testcase>
-    <testcase classname="RuvllmProvider › trackCost" name="should always return zero for local inference" time="0.001">
-    </testcase>
-    <testcase classname="RuvllmProvider › shutdown" name="should shutdown gracefully" time="0">
-    </testcase>
-    <testcase classname="RuvllmProvider › shutdown" name="should be safe to call multiple times" time="0.001">
-    </testcase>
-  </testsuite>
-  <testsuite name="AgentDependencies" errors="0" failures="0" skipped="0" timestamp="2025-12-06T16:14:49" time="0.287" tests="20">
-    <testcase classname="AgentDependencies › DependencyNames" name="should define LLM provider names" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › DependencyNames" name="should define learning names" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › DependencyNames" name="should define memory names" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › DependencyNames" name="should define utility names" time="0">
-    </testcase>
-    <testcase classname="AgentDependencies › registerAgentDependencies" name="should register logger dependency" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › registerAgentDependencies" name="should register LLM dependencies when enabled" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › registerAgentDependencies" name="should skip LLM dependencies when disabled" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › registerAgentDependencies" name="should register learning dependencies when enabled" time="0">
-    </testcase>
-    <testcase classname="AgentDependencies › registerAgentDependencies" name="should register experience sharing when enabled" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › createAgentContainer" name="should create container with registered dependencies" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › createAgentContainer" name="should create child container when parent provided" time="0">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should add DI methods to base class" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should preserve base class properties" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should create container on first access" time="0">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should allow setting external container" time="0.005">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should resolve dependencies" time="0">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should try resolve and return undefined for missing" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should register dependencies" time="0">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should dispose container on terminate" time="0.001">
-    </testcase>
-    <testcase classname="AgentDependencies › withDI mixin" name="should implement IDIAgent interface" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="DIContainer" errors="0" failures="0" skipped="0" timestamp="2025-12-06T16:14:49" time="0.396" tests="27">
-    <testcase classname="DIContainer › registration" name="should register a dependency" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › registration" name="should register a singleton instance directly" time="0">
-    </testcase>
-    <testcase classname="DIContainer › registration" name="should register a factory function" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › registration" name="should warn when overwriting existing dependency" time="0">
-    </testcase>
-    <testcase classname="DIContainer › registration" name="should throw when registering to disposed container" time="0.006">
-    </testcase>
-    <testcase classname="DIContainer › singleton lifecycle" name="should return same instance for singleton" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › singleton lifecycle" name="should handle async factory for singleton" time="0.014">
-    </testcase>
-    <testcase classname="DIContainer › singleton lifecycle" name="should handle concurrent resolution of singleton" time="0.051">
-    </testcase>
-    <testcase classname="DIContainer › transient lifecycle" name="should return new instance for each resolution" time="0">
-    </testcase>
-    <testcase classname="DIContainer › scoped lifecycle" name="should return same instance within scope" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › scoped lifecycle" name="should return different instances in different scopes" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › scoped lifecycle" name="should throw when resolving scoped without scope" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › scoped lifecycle" name="should dispose scoped instances" time="0">
-    </testcase>
-    <testcase classname="DIContainer › dependency resolution" name="should resolve dependency with dependencies" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › dependency resolution" name="should throw for unregistered dependency" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › dependency resolution" name="should return undefined for tryResolve of missing dependency" time="0">
-    </testcase>
-    <testcase classname="DIContainer › dependency resolution" name="should throw when resolving from disposed container" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › hierarchical containers" name="should resolve from parent container" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › hierarchical containers" name="should override parent registration in child" time="0">
-    </testcase>
-    <testcase classname="DIContainer › hierarchical containers" name="should check parent for has()" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › initialization and disposal" name="should call initialize function" time="0">
-    </testcase>
-    <testcase classname="DIContainer › initialization and disposal" name="should call dispose function" time="0">
-    </testcase>
-    <testcase classname="DIContainer › initialization and disposal" name="should dispose in reverse registration order" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › getRegisteredNames" name="should return all registered names" time="0">
-    </testcase>
-    <testcase classname="DIContainer › getRegisteredNames" name="should include parent names" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › global container" name="should return same global container instance" time="0.001">
-    </testcase>
-    <testcase classname="DIContainer › global container" name="should reset global container" time="0">
+    <testcase classname="PrivacyManager › Integration Scenarios" name="should maintain anonymization consistency across sanitization calls" time="0.012">
     </testcase>
   </testsuite>
 </testsuites>

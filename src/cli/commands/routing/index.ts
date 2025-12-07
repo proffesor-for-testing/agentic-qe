@@ -10,6 +10,7 @@ import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 
 export interface RoutingCommandOptions {
   config?: string;
@@ -46,6 +47,14 @@ export interface RoutingConfig {
 
 export class RoutingCommand {
   private static configPath = '.agentic-qe/config/routing.json';
+
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Execute routing command
@@ -221,9 +230,7 @@ export class RoutingCommand {
       // Try to load cost data from SwarmMemoryManager via CostTracker
       try {
         // Initialize memory manager for coordination partition
-        const memoryPath = '.agentic-qe/data/swarm-memory.db';
-        const memoryManager = new SwarmMemoryManager(memoryPath);
-        await memoryManager.initialize();
+        const memoryManager = await this.getMemoryManager();
 
         // Try to retrieve cost data from CostTracker's storage location
         const costsData = await memoryManager.retrieve('routing/costs', {
@@ -296,9 +303,7 @@ export class RoutingCommand {
     try {
       console.log(chalk.blue('📊 Generating cost report...\n'));
 
-      const memoryPath = '.agentic-qe/data/swarm-memory.db';
-      const memoryManager = new SwarmMemoryManager(memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       // Retrieve cost tracking data
       const costData = await memoryManager.retrieve('routing/cost-tracking', {
@@ -362,9 +367,7 @@ export class RoutingCommand {
     try {
       console.log(chalk.blue('\n📈 Routing Statistics\n'));
 
-      const memoryPath = '.agentic-qe/data/swarm-memory.db';
-      const memoryManager = new SwarmMemoryManager(memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       // Retrieve statistics
       const stats = await memoryManager.retrieve('routing/statistics', {

@@ -276,6 +276,16 @@ export class SwarmMemoryManager {
     return this.db.prepare(sql).all(...params) as T[];
   }
 
+  /**
+   * Execute a raw SQL query (public method for CLI/admin usage)
+   * @param sql SQL query string
+   * @param params Query parameters
+   * @returns Array of results
+   */
+  queryRaw<T = any>(sql: string, params: any[] = []): T[] {
+    return this.queryAll<T>(sql, params);
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) {
       return;

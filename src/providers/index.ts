@@ -32,6 +32,17 @@ export {
 export { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 export { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
 
+// Hybrid router
+export {
+  HybridRouter,
+  HybridRouterConfig,
+  RequestPriority,
+  TaskComplexity,
+  RoutingStrategy,
+  RoutingDecision,
+  CostSavingsReport
+} from './HybridRouter';
+
 // Factory and utilities
 export {
   LLMProviderFactory,
