@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2025-12-07
+
+### Fixed
+
+#### Database Persistence Unification (Issue #118)
+- **Unified database to single `memory.db`**: Fixed database fragmentation where data was scattered across 3 files (memory.db, swarm-memory.db, agentdb.db)
+- **Fixed CLI data visibility**: `aqe learn status` and `aqe patterns list` now query actual tables (`learning_experiences`, `patterns`, `q_values`) instead of `memory_entries`
+- **Added `queryRaw()` method**: New public method on SwarmMemoryManager for direct table queries
+- **Deprecated AgentDB**: Marked for removal in v3.0.0 with proper warnings
+
+### Changed
+- All persistence now uses `getSharedMemoryManager()` / `initializeSharedMemoryManager()` singleton pattern
+- Removed default `agentdb.db` path creation from agent factory
+- CLI commands (learn, improve, patterns, routing) updated to use shared memory manager
+
 ## [2.2.0] - 2025-12-06
 
 ### 🧠 Self-Learning AQE Fleet Upgrade (Issue #118)
