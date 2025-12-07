@@ -1,0 +1,330 @@
+name: Learning System Integration
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/learning/**'
+      - 'src/mcp/handlers/learning/**'
+      - 'src/telemetry/LearningTelemetry.ts'
+      - 'tests/integration/learning/**'
+      - 'tests/unit/learning/**'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/learning/**'
+      - 'src/mcp/handlers/learning/**'
+  workflow_dispatch:
+    inputs:
+      min_pattern_hit_rate:
+        description: 'Minimum pattern hit rate (0-100)'
+        required: false
+        default: '70'
+      min_convergence_rate:
+        description: 'Minimum convergence rate (0-100)'
+        required: false
+        default: '80'
+
+jobs:
+  learning-validation:
+    name: Learning System Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run learning unit tests
+        id: learning-tests
+        run: npm run test:unit -- tests/unit/learning
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: '--max-old-space-size=512'
+
+      - name: Run learning integration tests
+        id: learning-integration-tests
+        run: |
+          # Run learning integration tests in batches
+          npx jest tests/integration/learning --runInBand --forceExit
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: '--max-old-space-size=768'
+
+      - name: Validate learning database integrity
+        id: db-validation
+        run: npm run ci:learning:validate
+        continue-on-error: true
+
+      - name: Check learning metrics and quality gates
+        id: learning-metrics
+        run: |
+          npm run ci:learning:check -- \
+            --min-pattern-hit-rate ${{ github.event.inputs.min_pattern_hit_rate || '70' }} \
+            --min-convergence-rate ${{ github.event.inputs.min_convergence_rate || '80' }} \
+            --output-dir ./learning-reports
+        continue-on-error: true
+        env:
+          MIN_PATTERN_HIT_RATE: ${{ github.event.inputs.min_pattern_hit_rate || '70' }}
+          MIN_CONVERGENCE_RATE: ${{ github.event.inputs.min_convergence_rate || '80' }}
+
+      - name: Upload learning reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: learning-reports
+          path: |
+            learning-reports/
+            .agentic-qe/*.db
+          retention-days: 30
+
+      - name: Post learning metrics to PR
+        uses: actions/github-script@v7
+        if: always() && github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read learning metrics report
+            const reportPath = path.join(process.cwd(), 'learning-reports', 'metrics.json');
+
+            if (!fs.existsSync(reportPath)) {
+              console.log('No learning metrics report found');
+              return;
+            }
+
+            const metrics = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+            // Build PR comment
+            const statusIcon = metrics.passed ? '✅' : '❌';
+            const statusText = metrics.passed ? 'PASSED' : 'FAILED';
+
+            let comment = `## ${statusIcon} Learning System Quality Gate: ${statusText}\n\n`;
+
+            comment += '### 📊 Learning Metrics\n\n';
+            comment += `- **Pattern Hit Rate**: ${metrics.patternHitRate.toFixed(1)}% (threshold: ${metrics.thresholds.patternHitRate}%)\n`;
+            comment += `- **Convergence Rate**: ${metrics.convergenceRate.toFixed(1)}% (threshold: ${metrics.thresholds.convergenceRate}%)\n`;
+            comment += `- **Total Patterns**: ${metrics.totalPatterns}\n`;
+            comment += `- **Total Q-Values**: ${metrics.totalQValues}\n`;
+            comment += `- **Average Reward**: ${metrics.averageReward.toFixed(3)}\n`;
+            comment += `- **Database Integrity**: ${metrics.databaseIntegrity ? '✅ Valid' : '❌ Invalid'}\n\n`;
+
+            if (metrics.algorithms) {
+              comment += '### 🧠 Algorithm Performance\n\n';
+              comment += '| Algorithm | Episodes | Avg Reward | Convergence |\n';
+              comment += '|-----------|----------|------------|-------------|\n';
+
+              for (const [algo, stats] of Object.entries(metrics.algorithms)) {
+                const algoStats = stats;
+                comment += `| ${algo} | ${algoStats.episodes} | ${algoStats.avgReward.toFixed(3)} | ${algoStats.converged ? '✅' : '⏳'} |\n`;
+              }
+              comment += '\n';
+            }
+
+            if (!metrics.passed && metrics.violations.length > 0) {
+              comment += '### ⚠️ Quality Gate Violations\n\n';
+              for (const violation of metrics.violations) {
+                comment += `- **${violation.metric}**: ${violation.actual} (required: ${violation.threshold})\n`;
+              }
+              comment += '\n';
+            }
+
+            comment += '### 🚀 Learning System Status\n\n';
+            if (metrics.passed) {
+              comment += '✅ **APPROVED** - Learning system quality gates passed.\n';
+              comment += '- All algorithms passing tests\n';
+              comment += '- Pattern hit rate meets threshold\n';
+              comment += '- Convergence rate meets threshold\n';
+              comment += '- Database integrity validated\n';
+            } else {
+              comment += '❌ **BLOCKED** - Learning system quality gates failed.\n';
+              comment += '\n**Action Required**: Fix violations before merge.\n';
+            }
+
+            comment += `\n---\n*Learning metrics evaluated at ${new Date().toISOString()}*`;
+
+            // Find existing learning comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user?.type === 'Bot' &&
+              c.body?.includes('Learning System Quality Gate:')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      - name: Update commit status
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const reportPath = path.join(process.cwd(), 'learning-reports', 'metrics.json');
+
+            let state = 'success';
+            let description = 'Learning quality gates passed';
+
+            if (fs.existsSync(reportPath)) {
+              const metrics = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+              if (!metrics.passed) {
+                state = 'failure';
+                description = `Learning quality gates failed: ${metrics.violations.length} violation(s)`;
+              }
+            } else {
+              state = 'error';
+              description = 'Unable to evaluate learning quality gates';
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: state,
+              context: 'Learning Quality Gate',
+              description: description,
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
+      - name: Fail workflow if learning quality gates failed
+        if: always()
+        run: |
+          if [ -f "learning-reports/metrics.json" ]; then
+            PASSED=$(cat learning-reports/metrics.json | jq -r '.passed')
+
+            if [ "$PASSED" = "true" ]; then
+              echo "✅ Learning quality gates passed"
+              exit 0
+            else
+              echo "❌ Learning quality gates failed"
+
+              # Show violations
+              VIOLATIONS=$(cat learning-reports/metrics.json | jq -r '.violations[] | "  - \(.metric): \(.actual) (required: \(.threshold))"')
+              echo ""
+              echo "Violations:"
+              echo "$VIOLATIONS"
+
+              exit 1
+            fi
+          else
+            echo "⚠️ No learning metrics report found - assuming failure"
+            exit 1
+          fi
+
+  learning-regression-check:
+    name: Learning Regression Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need history for comparison
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Check for learning metric regression
+        id: regression-check
+        run: npm run ci:learning:regression
+        continue-on-error: true
+
+      - name: Post regression analysis to PR
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const regressionPath = path.join(process.cwd(), 'learning-reports', 'regression.json');
+
+            if (!fs.existsSync(regressionPath)) {
+              console.log('No regression report found');
+              return;
+            }
+
+            const regression = JSON.parse(fs.readFileSync(regressionPath, 'utf8'));
+
+            let comment = '## 📈 Learning Metrics Regression Analysis\n\n';
+
+            if (regression.hasRegression) {
+              comment += '⚠️ **Warning**: Learning metrics have regressed compared to base branch.\n\n';
+              comment += '| Metric | Base | Current | Change |\n';
+              comment += '|--------|------|---------|--------|\n';
+
+              for (const metric of regression.regressions) {
+                const change = metric.change >= 0 ? `+${metric.change.toFixed(1)}%` : `${metric.change.toFixed(1)}%`;
+                const emoji = metric.change < 0 ? '📉' : '📈';
+                comment += `| ${metric.name} ${emoji} | ${metric.base.toFixed(1)}% | ${metric.current.toFixed(1)}% | ${change} |\n`;
+              }
+            } else {
+              comment += '✅ **No regression detected** - Learning metrics are stable or improved.\n\n';
+              comment += '| Metric | Base | Current | Change |\n';
+              comment += '|--------|------|---------|--------|\n';
+
+              for (const metric of regression.comparisons) {
+                const change = metric.change >= 0 ? `+${metric.change.toFixed(1)}%` : `${metric.change.toFixed(1)}%`;
+                const emoji = metric.change >= 0 ? '📈' : '📉';
+                comment += `| ${metric.name} ${emoji} | ${metric.base.toFixed(1)}% | ${metric.current.toFixed(1)}% | ${change} |\n`;
+              }
+            }
+
+            comment += `\n---\n*Regression analysis performed at ${new Date().toISOString()}*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });

@@ -272,3 +272,22 @@ export type {
   BM25Config,
   HybridResult,
 } from './SparseVectorSearch';
+
+// =============================================================================
+// HNSW Vector Memory (v2.2.0) - Issue #118
+// Hierarchical Navigable Small World indexing for efficient pattern matching
+// =============================================================================
+export {
+  HNSWVectorMemory,
+  createHNSWVectorMemory,
+  createHighPrecisionHNSW,
+  createHighThroughputHNSW,
+  createBalancedHNSW,
+} from './HNSWVectorMemory';
+export type {
+  HNSWConfig,
+  HNSWVectorMemoryConfig,
+  SearchMetrics,
+  MaintenanceStats,
+  BatchResult as HNSWBatchResult,
+} from './HNSWVectorMemory';

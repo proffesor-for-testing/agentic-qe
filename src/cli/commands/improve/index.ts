@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { ImprovementLoop } from '../../../learning/ImprovementLoop';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
@@ -27,9 +28,18 @@ export interface ImproveCommandOptions {
 
 /**
  * ImproveCommand - CLI handler for improvement operations
+ *
+ * Uses shared memory manager singleton to ensure all CLI, MCP, and agent
+ * operations use the same database (.agentic-qe/memory.db).
  */
 export class ImproveCommand {
-  private static memoryPath = '.agentic-qe/data/swarm-memory.db';
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Execute improve command
@@ -74,8 +84,7 @@ export class ImproveCommand {
     const spinner = ora('Loading improvement status...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -162,8 +171,7 @@ export class ImproveCommand {
     const spinner = ora('Starting improvement loop...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -214,8 +222,7 @@ export class ImproveCommand {
     const spinner = ora('Stopping improvement loop...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -246,8 +253,7 @@ export class ImproveCommand {
     const spinner = ora('Loading improvement history...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
       const days = options.days || 30;
@@ -302,8 +308,7 @@ export class ImproveCommand {
     const spinner = ora('Creating A/B test...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -354,8 +359,7 @@ export class ImproveCommand {
     const spinner = ora('Analyzing failure patterns...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -435,8 +439,7 @@ export class ImproveCommand {
     const spinner = ora('Generating improvement report...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 

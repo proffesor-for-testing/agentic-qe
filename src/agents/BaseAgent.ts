@@ -66,8 +66,8 @@ export abstract class BaseAgent extends EventEmitter {
   protected learningEngine?: LearningEngine; // Optional Q-learning engine
   protected readonly enableLearning: boolean;
   private learningConfig?: Partial<LearningConfig>; // Store config for initialization
-  protected agentDB?: AgentDBManager; // AgentDB integration for distributed coordination
-  protected agentDBConfig?: Partial<AgentDBConfig>; // Store AgentDB config for initialization (protected for subclass access)
+  protected agentDB?: AgentDBManager; // DEPRECATED: AgentDB integration (use SwarmMemoryManager instead)
+  protected agentDBConfig?: Partial<AgentDBConfig>; // DEPRECATED: Use memoryStore for all persistence
   protected performanceMetrics: {
     tasksCompleted: number;
     averageExecutionTime: number;
@@ -106,21 +106,34 @@ export abstract class BaseAgent extends EventEmitter {
     this.enableLearning = config.enableLearning ?? true; // Changed: Default to true for all agents
     this.learningConfig = config.learningConfig;
 
-    // Build AgentDB config from either agentDBConfig or shorthand properties
+    // DEPRECATED (v2.2.0): AgentDB configuration
+    // All persistence now goes through SwarmMemoryManager to .agentic-qe/memory.db
+    // AgentDB is kept for backward compatibility but should NOT be used for new code.
+    // LearningEngine handles all learning/pattern storage via memoryStore.
     if (config.agentDBConfig) {
+      console.warn(
+        `[${config.type}] AgentDB is DEPRECATED. All persistence should use SwarmMemoryManager (memory.db). ` +
+        `AgentDB will be removed in v3.0.0.`
+      );
       this.agentDBConfig = config.agentDBConfig;
     } else if (config.agentDBPath || config.enableQUICSync) {
-      this.agentDBConfig = {
-        // Updated default path to use .agentic-qe directory for consolidation
-        dbPath: config.agentDBPath || '.agentic-qe/agentdb.db',
-        enableQUICSync: config.enableQUICSync || false,
-        syncPort: config.syncPort || 4433,
-        syncPeers: config.syncPeers || [],
-        enableLearning: config.enableLearning || false,
-        enableReasoning: true,
-        cacheSize: 1000,
-        quantizationType: config.quantizationType || 'scalar',
-      };
+      console.warn(
+        `[${config.type}] AgentDB paths are DEPRECATED. All persistence now uses memory.db via SwarmMemoryManager.`
+      );
+      // Do NOT create agentDBConfig by default - let memoryStore handle everything
+      // Only create if explicitly requested with a custom path
+      if (config.agentDBPath) {
+        this.agentDBConfig = {
+          dbPath: config.agentDBPath, // Use explicit path only, no default
+          enableQUICSync: config.enableQUICSync || false,
+          syncPort: config.syncPort || 4433,
+          syncPeers: config.syncPeers || [],
+          enableLearning: config.enableLearning || false,
+          enableReasoning: true,
+          cacheSize: 1000,
+          quantizationType: config.quantizationType || 'scalar',
+        };
+      }
     }
 
     // Initialize verification hook manager with type-safe adapter
@@ -208,8 +221,9 @@ export abstract class BaseAgent extends EventEmitter {
             await this.performanceTracker.initialize();
 
             // Initialize learning engine for Q-learning
-            // Architecture: LearningEngine uses SwarmMemoryManager for all persistence
-            // No direct database dependency - memoryStore handles AgentDB coordination
+            // ARCHITECTURE (v2.2.0): LearningEngine uses SwarmMemoryManager for ALL persistence
+            // All data (experiences, patterns, Q-values) goes to unified .agentic-qe/memory.db
+            // No direct database dependency - memoryStore handles all coordination
             this.learningEngine = new LearningEngine(
               this.agentId.id,
               this.memoryStore as SwarmMemoryManager,
@@ -322,9 +336,10 @@ export abstract class BaseAgent extends EventEmitter {
 
           // Flush learning data before termination
           if (this.learningEngine && this.learningEngine.isEnabled()) {
-            // LearningEngine persists data via SwarmMemoryManager (which uses AgentDB)
+            // ARCHITECTURE (v2.2.0): LearningEngine persists to unified memory.db
+            // All data goes through SwarmMemoryManager to .agentic-qe/memory.db
             // No explicit flush needed - memoryStore handles persistence automatically
-            console.info(`[${this.agentId.id}] Learning data persisted via memoryStore (SwarmMemoryManager -> AgentDB)`);
+            console.info(`[${this.agentId.id}] Learning data persisted via SwarmMemoryManager (memory.db)`);
           }
 
           // Close AgentDB if enabled
@@ -539,7 +554,11 @@ export abstract class BaseAgent extends EventEmitter {
 
   /**
    * Initialize AgentDB integration for distributed coordination
-   * Replaces custom QUIC and Neural code with production-ready AgentDB
+   *
+   * @deprecated v2.2.0 - AgentDB is deprecated. All persistence now goes through
+   * SwarmMemoryManager to the unified .agentic-qe/memory.db database.
+   * Use memoryStore methods instead. This method will be removed in v3.0.0.
+   *
    * @param config AgentDB configuration
    */
   public async initializeAgentDB(config: Partial<AgentDBConfig>): Promise<void> {
