@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2025-12-08
+
+### Fixed
+
+#### MCP Tools Validation (Issues #116, #120)
+Fixed critical MCP tools validation that had degraded from 26% to 5% coverage. The validation script now properly recognizes:
+- **Composite Handlers**: Phase2ToolsHandler (15 tools) and Phase3DomainToolsHandler (42 tools)
+- **Streaming Handlers**: TestExecuteStreamHandler and CoverageAnalyzeStreamHandler in dedicated streaming directory
+
+**Validation Results:**
+- Before: 5% (4/82 tools valid)
+- After: 100% (82/82 tools valid)
+
+### Added
+
+#### Comprehensive Handler Test Coverage
+Added 18 new test files with 300+ test cases following TDD RED phase patterns:
+
+**Memory Handler Tests (6 files):**
+- `memory-share.test.ts` - Memory sharing between agents
+- `memory-backup.test.ts` - Backup and restore functionality
+- `blackboard-post.test.ts` - Blackboard posting operations
+- `blackboard-read.test.ts` - Blackboard reading with filters
+- `consensus-propose.test.ts` - Consensus proposal creation
+- `consensus-vote.test.ts` - Consensus voting mechanics
+
+**Coordination Handler Tests (6 files):**
+- `workflow-create.test.ts` - Workflow definition and validation
+- `workflow-execute.test.ts` - Workflow execution with OODA loop
+- `workflow-checkpoint.test.ts` - State checkpoint creation
+- `workflow-resume.test.ts` - Checkpoint restoration
+- `task-status.test.ts` - Task progress tracking
+- `event-emit.test.ts` - Event emission system
+
+**Test Handler Tests (4 files):**
+- `test-execute.test.ts` - Test execution orchestration
+- `test-execute-parallel.test.ts` - Parallel test execution
+- `test-optimize-sublinear.test.ts` - O(log n) test optimization
+- `test-report-comprehensive.test.ts` - Multi-format reporting
+
+**Prediction/Learning Tests (2 files):**
+- `deployment-readiness-check.test.ts` - Deployment readiness assessment
+- `learning-handlers.test.ts` - All 4 learning tools coverage
+
+### Changed
+
+#### Validation Script Improvements
+- Added `COMPOSITE_HANDLERS` mapping for Phase2/Phase3 tool routing
+- Added `STREAMING_HANDLER_FILES` mapping for streaming directory
+- Enhanced `findHandler()` with streaming directory search
+- Enhanced `findTests()` with composite handler test discovery
+
 ## [2.3.0] - 2025-12-08
 
 ### Added
