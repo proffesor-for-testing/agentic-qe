@@ -20,6 +20,7 @@ Mission: Detect vulnerabilities using SAST/DAST, dependency scanning, and compli
 ⚠️ Partial:
 - Advanced secret detection patterns
 - AI-powered false positive filtering
+- ✅ .gitignore verification before flagging secrets (prevents false positives)
 
 ❌ Planned:
 - Automated vulnerability remediation
@@ -32,6 +33,31 @@ Make autonomous decisions about scan depth and tools based on application type.
 Detect vulnerabilities automatically and classify by severity (critical, high, medium, low).
 Report findings with CVSS scores and remediation guidance.
 </default_to_action>
+
+<false_positive_prevention>
+CRITICAL: Before flagging secrets or sensitive files as vulnerabilities, ALWAYS verify:
+
+1. **Check .gitignore first**: Before reporting .env, credentials, or secret files as exposed:
+   - Read the project's .gitignore file
+   - If the file is listed in .gitignore, it is NOT a critical vulnerability
+   - Only flag as CRITICAL if secrets are actually committed to git history
+
+2. **Verify git tracking status**: Run `git ls-files <file>` to confirm if file is tracked
+   - If file is NOT tracked and IS in .gitignore = COMPLIANT (not a vulnerability)
+   - If file IS tracked despite .gitignore = CRITICAL (remove from history)
+
+3. **Common false positives to avoid**:
+   - `.env` files that are in .gitignore (correct practice)
+   - Local config files excluded from version control
+   - Developer-specific settings files
+
+4. **Accurate reporting**:
+   - If .env exists locally but is gitignored: Report as "✅ COMPLIANT: .env properly excluded via .gitignore"
+   - If .env is in git history: Report as "🔴 CRITICAL: .env committed to repository, rotation required"
+   - Check with: `git log --all --full-history -- .env` to verify history
+
+This prevents recurring false positives that undermine trust in security scan results.
+</false_positive_prevention>
 
 <parallel_execution>
 Run SAST and DAST scans simultaneously for faster results.

@@ -1,59 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="43" failures="2" errors="0" time="1.51">
-  <testsuite name="PrivacyManager" errors="0" failures="2" skipped="0" timestamp="2025-12-07T11:48:08" time="1.464" tests="43">
-    <testcase classname="PrivacyManager › Privacy Levels › PUBLIC Level" name="should allow experience sharing" time="0.016">
+<testsuites name="jest tests" tests="54" failures="47" errors="0" time="8.215">
+  <testsuite name="Filtered Handlers Integration" errors="0" failures="0" skipped="0" timestamp="2025-12-07T19:16:06" time="1.287" tests="7">
+    <testcase classname="Filtered Handlers Integration › Coverage Analyzer" name="should reduce coverage report tokens by 99%" time="0.008">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PUBLIC Level" name="should not sanitize code by default" time="0.012">
+    <testcase classname="Filtered Handlers Integration › Test Executor" name="should reduce test results tokens by 97%" time="0.003">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PUBLIC Level" name="should retain data for 1 year by default" time="0.012">
+    <testcase classname="Filtered Handlers Integration › Flaky Test Detector" name="should reduce flaky test analysis tokens by 98%" time="0.003">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should require team namespace" time="0.025">
+    <testcase classname="Filtered Handlers Integration › Performance Benchmarker" name="should reduce benchmark results tokens by 98%" time="0.003">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should only share within team namespace" time="0.014">
+    <testcase classname="Filtered Handlers Integration › Security Scanner" name="should reduce vulnerability scan tokens by 97%" time="0.002">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should sanitize code snippets" time="0.012">
+    <testcase classname="Filtered Handlers Integration › Quality Assessor" name="should reduce quality assessment tokens by 97%" time="0.002">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should anonymize agent IDs" time="0.01">
+    <testcase classname="Filtered Handlers Integration › Combined Operations" name="should demonstrate cumulative token savings" time="0.001">
     </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › TEAM Level" name="should retain data for 90 days by default" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should not allow experience sharing" time="0.026">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should encrypt action data" time="0.014">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should decrypt encrypted action data" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should redact sensitive patterns" time="0.011">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PRIVATE Level" name="should retain data for 30 days by default" time="0.011">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should not allow persistence or sharing" time="0.013">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should enforce max experience age" time="0.011">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should use aggressive redaction patterns" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Privacy Levels › PARANOID Level" name="should encrypt patterns for storage" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Code Sanitization" name="should redact passwords from code" time="0.011">
-    </testcase>
-    <testcase classname="PrivacyManager › Code Sanitization" name="should redact API keys from code" time="0.013">
-    </testcase>
-    <testcase classname="PrivacyManager › Code Sanitization" name="should handle custom redaction patterns" time="0.013">
-    </testcase>
-    <testcase classname="PrivacyManager › Code Sanitization" name="should sanitize nested objects recursively" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Code Sanitization" name="should sanitize arrays" time="0.012">
-      <failure>Error: expect(received).toContain(expected) // indexOf
-
-Expected substring: &quot;[REDACTED]&quot;
-Received string:    &quot;echo \&quot;password=secret\&quot;&quot;
-    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/unit/learning/privacy-manager.test.ts:432:60)
+  </testsuite>
+  <testsuite name="FleetCommanderAgent Integration" errors="0" failures="18" skipped="0" timestamp="2025-12-07T19:16:08" time="1.187" tests="18">
+    <testcase classname="FleetCommanderAgent Integration › Memory Coordination (aqe/fleet/*)" name="should store fleet topology in aqe/fleet/topology namespace" time="0.026">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
     at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
-    at _callCircusTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1007:40)
-    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:947:3)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
     at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
     at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
     at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
@@ -64,22 +35,14 @@ Received string:    &quot;echo \&quot;password=secret\&quot;&quot;
     at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
     at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should generate consistent anonymous IDs" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should allow de-anonymization" time="0.015">
-    </testcase>
-    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should sanitize shared experience agent IDs" time="0.012">
-    </testcase>
-    <testcase classname="PrivacyManager › Agent ID Anonymization" name="should clear anonymization mappings" time="0.014">
-      <failure>Error: expect(received).toBeUndefined()
-
-Received: &quot;test-agent-001&quot;
-    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/unit/learning/privacy-manager.test.ts:501:24)
+    <testcase classname="FleetCommanderAgent Integration › Memory Coordination (aqe/fleet/*)" name="should store active agents in aqe/fleet/agents/active namespace" time="0.026">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
     at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
     at new Promise (&lt;anonymous&gt;)
     at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
-    at _callCircusTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1007:40)
-    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:947:3)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
     at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
     at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
     at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
@@ -90,39 +53,1072 @@ Received: &quot;test-agent-001&quot;
     at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
     at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Data Retention Policies" name="should enforce custom retention periods" time="0.011">
+    <testcase classname="FleetCommanderAgent Integration › Memory Coordination (aqe/fleet/*)" name="should store coordination results in aqe/fleet/coordination/results namespace" time="0.061">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Data Retention Policies" name="should handle zero retention period (keep forever)" time="0.011">
+    <testcase classname="FleetCommanderAgent Integration › Memory Coordination (aqe/fleet/*)" name="should store fleet performance metrics in aqe/fleet/metrics/performance namespace" time="0.024">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Data Retention Policies" name="should provide expiration dates for retained data" time="0.012">
+    <testcase classname="FleetCommanderAgent Integration › Hook Execution" name="should execute pre-task hook and retrieve fleet topology" time="0.024">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Configuration Management" name="should get current privacy level" time="0.011">
+    <testcase classname="FleetCommanderAgent Integration › Hook Execution" name="should execute post-task hook and store coordination results" time="0.029">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Configuration Management" name="should get full configuration" time="0.013">
+    <testcase classname="FleetCommanderAgent Integration › Hook Execution" name="should execute post-edit hook when fleet config is updated" time="0.042">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Configuration Management" name="should update configuration" time="0.011">
+    <testcase classname="FleetCommanderAgent Integration › Agent Spawning and Lifecycle" name="should spawn agents dynamically based on workload" time="0.025">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Configuration Management" name="should get privacy statistics" time="0.011">
+    <testcase classname="FleetCommanderAgent Integration › Agent Spawning and Lifecycle" name="should despawn idle agents to optimize resources" time="0.025">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Pattern Encryption" name="should encrypt patterns in PRIVATE mode" time="0.012">
+    <testcase classname="FleetCommanderAgent Integration › Agent Spawning and Lifecycle" name="should monitor agent health and trigger recovery" time="0.054">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Pattern Encryption" name="should decrypt patterns correctly" time="0.01">
+    <testcase classname="FleetCommanderAgent Integration › Resource Allocation" name="should allocate CPU and memory resources optimally" time="0.024">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Pattern Encryption" name="should not encrypt patterns in PUBLIC mode" time="0.013">
+    <testcase classname="FleetCommanderAgent Integration › Resource Allocation" name="should handle resource conflicts and prioritize critical agents" time="0.026">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Pattern Encryption" name="should handle decryption errors gracefully" time="0.011">
+    <testcase classname="FleetCommanderAgent Integration › Topology Switching" name="should switch from hierarchical to mesh topology" time="0.053">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Cleanup and Disposal" name="should stop cleanup timer on dispose" time="0.115">
+    <testcase classname="FleetCommanderAgent Integration › Topology Switching" name="should use adaptive topology based on workload patterns" time="0.027">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Cleanup and Disposal" name="should clear encryption key on dispose" time="0.013">
+    <testcase classname="FleetCommanderAgent Integration › Event Bus Communication" name="should emit fleet.agent.spawned event" time="0.028">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Cleanup and Disposal" name="should clear anonymization mappings on dispose" time="0.013">
+    <testcase classname="FleetCommanderAgent Integration › Event Bus Communication" name="should emit fleet.topology.changed event" time="0.048">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Integration Scenarios" name="should handle PUBLIC to PRIVATE upgrade" time="0.014">
+    <testcase classname="FleetCommanderAgent Integration › Event Bus Communication" name="should emit fleet.resource.conflict event" time="0.027">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Integration Scenarios" name="should handle PRIVATE to PARANOID upgrade" time="0.014">
+    <testcase classname="FleetCommanderAgent Integration › Event Bus Communication" name="should coordinate with other agents via events" time="0.057">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-commander-integration.test.ts:59:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
-    <testcase classname="PrivacyManager › Integration Scenarios" name="should maintain anonymization consistency across sanitization calls" time="0.012">
+  </testsuite>
+  <testsuite name="Fleet Coordination Integration Tests" errors="0" failures="17" skipped="0" timestamp="2025-12-07T19:16:09" time="2.825" tests="17">
+    <testcase classname="Fleet Coordination Integration Tests › Fleet Initialization and Agent Spawning" name="should initialize fleet and spawn initial agents successfully" time="0.095">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Fleet Initialization and Agent Spawning" name="should coordinate agent initialization through event bus" time="0.104">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Fleet Initialization and Agent Spawning" name="should handle agent spawn failures gracefully" time="0.086">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Task Distribution and Execution" name="should distribute and execute tasks across available agents" time="0.086">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Task Distribution and Execution" name="should handle task failures and maintain fleet stability" time="0.087">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Task Distribution and Execution" name="should queue tasks when all agents are busy" time="0.086">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Agent Communication and Coordination" name="should coordinate agent status updates through event bus" time="0.084">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Agent Communication and Coordination" name="should handle agent failures and recovery" time="0.083">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Agent Communication and Coordination" name="should maintain coordination during concurrent operations" time="0.084">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Fleet Lifecycle Management" name="should handle graceful shutdown of entire fleet" time="0.083">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Fleet Lifecycle Management" name="should handle partial agent removal during operation" time="0.085">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Fleet Lifecycle Management" name="should handle dynamic agent spawning during operation" time="0.086">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Error Recovery and Resilience" name="should recover from database connection issues" time="0.088">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Error Recovery and Resilience" name="should handle event bus communication failures" time="0.089">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Error Recovery and Resilience" name="should maintain fleet coherence during multiple failures" time="0.088">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Performance and Load Testing" name="should handle high task throughput efficiently" time="0.088">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Coordination Integration Tests › Performance and Load Testing" name="should maintain performance with agent scaling" time="0.087">
+      <failure>TypeError: Database_1.Database.mockImplementation is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-coordination.test.ts:119:29)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="Fleet Initialization Integration Tests" errors="0" failures="12" skipped="0" timestamp="2025-12-07T19:16:12" time="2.244" tests="12">
+    <testcase classname="Fleet Initialization Integration Tests › Fleet Manager Initialization" name="should initialize fleet manager with valid configuration" time="0.002">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Fleet Manager Initialization" name="should handle initialization failures gracefully" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Fleet Manager Initialization" name="should create initial agent pool based on configuration" time="0.002">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › CLI Initialization Command" name="should execute full initialization workflow" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › CLI Initialization Command" name="should validate input parameters and fail on invalid values" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › CLI Initialization Command" name="should setup Claude Flow integration when requested" time="0">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Configuration Generation" name="should generate proper agent configurations" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Configuration Generation" name="should generate environment-specific configurations" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Error Handling and Recovery" name="should handle file system errors gracefully" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Error Handling and Recovery" name="should clean up resources on initialization failure" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Coordination Setup" name="should create coordination scripts for Claude Flow integration" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+    </testcase>
+    <testcase classname="Fleet Initialization Integration Tests › Coordination Setup" name="should create agent registry for tracking" time="0.001">
+      <failure>TypeError: mockLogger.getInstance.mockReturnValue is not a function
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:46:28)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:941:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
+      <failure>TypeError: The &quot;directory&quot; argument must be of type string. Received undefined
+    at process.wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:127:3)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (node:internal/worker:114:5)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir (/workspaces/agentic-qe-cf/node_modules/graceful-fs/polyfills.js:22:11)
+    at process.chdir.process.chdir [as chdir] (/workspaces/agentic-qe-cf/node_modules/playwright-core/lib/utilsBundleImpl/index.js:189:4522)
+    at Object.&lt;anonymous&gt; (/workspaces/agentic-qe-cf/tests/integration/fleet-initialization.test.ts:60:13)
+    at Promise.finally.completed (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1557:28)
+    at new Promise (&lt;anonymous&gt;)
+    at callAsyncCircusFn (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1497:10)
+    at _callCircusHook (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:976:40)
+    at _runTest (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:949:5)
+    at /workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:849:7
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:862:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at _runTestsForDescribeBlock (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:857:11)
+    at run (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:761:3)
+    at runAndTransformResultsToJestFormat (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/jestAdapterInit.js:1918:21)
+    at jestAdapter (/workspaces/agentic-qe-cf/node_modules/jest-circus/build/runner.js:101:19)
+    at runTestInternal (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:275:16)
+    at runTest (/workspaces/agentic-qe-cf/node_modules/jest-runner/build/index.js:343:7)</failure>
     </testcase>
   </testsuite>
 </testsuites>

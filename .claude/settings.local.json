@@ -8,5 +8,12 @@
       "Bash(claude mcp:*)"
     ],
     "deny": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "claude-flow",
+    "ruv-swarm",
+    "agentic-qe",
+    "claude-flow@alpha",
+    "flow-nexus"
+  ]
 }

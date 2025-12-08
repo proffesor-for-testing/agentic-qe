@@ -218,13 +218,5 @@ describe('FleetManager', () => {
       expect(agents.length).toBe(0); // No agents created during initialization
     });
 
-    // TODO: Add proper agent spawning tests with mocked createAgent factory
-    // Currently skipped because we need to mock the entire agent factory
-    it.skip('should spawn new agents', async () => {
-      const agent = await fleetManager.spawnAgent('test-executor');
-
-      expect(agent).toBeDefined();
-      expect(agent.getType()).toBe('test-executor');
-    });
   });
 });

@@ -1,12 +1,8 @@
 {
-  "timestamp": "2025-12-02T14:22:05.284Z",
-  "totalFiles": 402,
-  "totalLines": 195929,
+  "timestamp": "2025-12-07T19:04:26.535Z",
+  "totalFiles": 416,
+  "totalLines": 203865,
   "largeFiles": [
-    {
-      "path": "/workspaces/agentic-qe-cf/tests/unit/agents/TestGeneratorAgent.null-safety.test.ts",
-      "lines": 1540
-    },
     {
       "path": "/workspaces/agentic-qe-cf/tests/unit/agents/TestGeneratorAgent.comprehensive.test.ts",
       "lines": 1477
@@ -93,12 +89,11 @@
       "files": [
         "/workspaces/agentic-qe-cf/tests/agents/TestGeneratorAgent.test.ts",
         "/workspaces/agentic-qe-cf/tests/unit/agents/TestGeneratorAgent.test.ts",
-        "/workspaces/agentic-qe-cf/tests/unit/agents/TestGeneratorAgent.null-safety.test.ts",
         "/workspaces/agentic-qe-cf/tests/unit/agents/TestGeneratorAgent.comprehensive.test.ts"
       ],
-      "totalLines": 4252,
-      "overlapPercentage": 4,
-      "recommendation": "delete"
+      "totalLines": 2712,
+      "overlapPercentage": 6,
+      "recommendation": "keep"
     },
     {
       "pattern": "LearningEngine",
@@ -192,22 +187,22 @@
       "recommendation": "keep"
     },
     {
+      "pattern": "FleetManager",
+      "files": [
+        "/workspaces/agentic-qe-cf/tests/unit/FleetManager.database.test.ts",
+        "/workspaces/agentic-qe-cf/tests/core/FleetManager.test.ts"
+      ],
+      "totalLines": 1020,
+      "overlapPercentage": 0,
+      "recommendation": "keep"
+    },
+    {
       "pattern": "QUICTransport",
       "files": [
         "/workspaces/agentic-qe-cf/tests/transport/QUICTransport.test.ts",
         "/workspaces/agentic-qe-cf/tests/unit/transport/QUICTransport.test.ts"
       ],
       "totalLines": 963,
-      "overlapPercentage": 0,
-      "recommendation": "keep"
-    },
-    {
-      "pattern": "FleetManager",
-      "files": [
-        "/workspaces/agentic-qe-cf/tests/unit/FleetManager.database.test.ts",
-        "/workspaces/agentic-qe-cf/tests/core/FleetManager.test.ts"
-      ],
-      "totalLines": 961,
       "overlapPercentage": 0,
       "recommendation": "keep"
     },
@@ -252,16 +247,6 @@
       "recommendation": "keep"
     },
     {
-      "pattern": "Logger",
-      "files": [
-        "/workspaces/agentic-qe-cf/tests/utils/Logger.test.ts",
-        "/workspaces/agentic-qe-cf/tests/disabled/until-implementations/Logger.comprehensive.test.ts"
-      ],
-      "totalLines": 827,
-      "overlapPercentage": 4,
-      "recommendation": "keep"
-    },
-    {
       "pattern": "FlakyTestDetector",
       "files": [
         "/workspaces/agentic-qe-cf/tests/unit/learning/FlakyTestDetector.test.ts",
@@ -294,56 +279,56 @@
     {
       "pattern": "user",
       "files": [
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583968268/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764584065381/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583823590/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583871570/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583723189/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583584567/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583968268/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583823590/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583723189/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583589578/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583315751/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583394780/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583154104/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583006583/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582808423/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583315751/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583154104/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582661429/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582808423/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582304348/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582441589/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582032286/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582188221/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581970878/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582304348/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581920342/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581857275/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581790442/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581890526/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581837486/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581660653/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581718775/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523985451/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581660653/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523973344/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523948304/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523918059/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523948304/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523960423/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523934817/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523894087/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523864991/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523877964/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523913041/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523852630/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523839210/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523864991/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523825616/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523852630/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523811651/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523800665/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523760840/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523800665/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523788604/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523736655/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523723055/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523709766/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523748958/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523709766/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523736655/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523694543/tests/user.test.ts",
         "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523680854/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523665475/tests/user.test.ts",
-        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523650318/tests/user.test.ts"
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523650318/tests/user.test.ts",
+        "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523665475/tests/user.test.ts"
       ],
       "totalLines": 400,
       "overlapPercentage": 100,
@@ -352,20 +337,20 @@
   ],
   "categoryBreakdown": {
     "user-value": {
-      "files": 249,
-      "lines": 120848
+      "files": 250,
+      "lines": 122685
     },
     "implementation-detail": {
-      "files": 8,
-      "lines": 4940
+      "files": 7,
+      "lines": 3400
     },
     "contract": {
-      "files": 85,
-      "lines": 43788
+      "files": 90,
+      "lines": 46864
     },
     "unknown": {
-      "files": 60,
-      "lines": 26353
+      "files": 69,
+      "lines": 30916
     }
   },
   "recommendations": {
@@ -376,7 +361,6 @@
       "/workspaces/agentic-qe-cf/tests/utils/sublinear/coverageOptimizer.test.ts",
       "/workspaces/agentic-qe-cf/tests/unit/learning/FlakyTestDetector.test.ts",
       "/workspaces/agentic-qe-cf/tests/unit/learning/FlakyTestDetector.ml.test.ts",
-      "/workspaces/agentic-qe-cf/tests/unit/agents/TestGeneratorAgent.null-safety.test.ts",
       "/workspaces/agentic-qe-cf/tests/unit/agents/NeuralCapableMixin.skip.test.ts",
       "/workspaces/agentic-qe-cf/tests/core/memory/MigrationTools.test.ts"
     ],
@@ -384,56 +368,56 @@
       {
         "pattern": "user",
         "files": [
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583968268/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764584065381/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583823590/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583871570/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583723189/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583584567/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583968268/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583823590/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583723189/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583589578/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583315751/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583394780/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583154104/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583006583/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582808423/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583315751/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764583154104/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582661429/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582808423/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582304348/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582441589/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582032286/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582188221/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581970878/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764582304348/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581920342/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581857275/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581790442/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581890526/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581837486/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581660653/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581718775/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523985451/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764581660653/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523973344/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523948304/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523918059/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523948304/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523960423/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523934817/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523894087/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523864991/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523877964/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523913041/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523852630/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523839210/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523864991/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523825616/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523852630/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523811651/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523800665/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523760840/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523800665/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523788604/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523736655/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523723055/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523709766/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523748958/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523709766/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523736655/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523694543/tests/user.test.ts",
           "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523680854/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523665475/tests/user.test.ts",
-          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523650318/tests/user.test.ts"
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523650318/tests/user.test.ts",
+          "/workspaces/agentic-qe-cf/tests/temp/cli-test-1764523665475/tests/user.test.ts"
         ],
         "totalLines": 400,
         "overlapPercentage": 100,
@@ -441,8 +425,8 @@
       }
     ],
     "estimatedReduction": {
-      "files": 58,
-      "lines": 5562
+      "files": 57,
+      "lines": 4022
     }
   }
 }
