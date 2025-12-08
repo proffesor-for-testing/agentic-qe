@@ -32,6 +32,36 @@
 - ❌ NEVER save working files to root folder
 - ✅ ALWAYS use: `/docs`, `/tests`, `/src`, `/scripts`, `/examples`
 
+### Release Process
+- ❌ NEVER commit directly to main - use feature branches with PRs
+- ❌ NEVER forget package-lock.json when updating versions
+- ✅ ALWAYS use `mcp__agentic-qe__memory_store` with `persist: true` for learnings (NOT `claude-flow`)
+
+**Version Update Checklist** (all files to update):
+1. `package.json` - version field
+2. `package-lock.json` - run `npm install --package-lock-only`
+3. `README.md` - Version badge (line 12)
+4. `CHANGELOG.md` - Add new version section with changes
+5. `src/mcp/server-instructions.ts` - `SERVER_VERSION` constant
+6. `src/core/memory/HNSWVectorMemory.ts` - version in `getImplementationInfo()`
+
+**Skip**: `.claude/agents/sparc/specification.md` - `FR-X.X.X` are feature requirement IDs, NOT versions
+
+**Release Workflow**:
+```bash
+git checkout -b release/vX.X.X    # 1. Create branch
+# Update all version files above    # 2. Update versions
+npm run test:fast                   # 3. Run tests
+git commit -m "chore(release): bump version to vX.X.X"
+git push -u origin release/vX.X.X  # 4. Push branch
+gh pr create                        # 5. Create PR to main
+# Wait for CI and review            # 6. Review
+# Merge PR                          # 7. Merge
+git tag vX.X.X && git push origin vX.X.X  # 8. Tag
+gh release create vX.X.X            # 9. GitHub release
+npm publish --access public         # 10. npm publish
+```
+
 ---
 
 ## 🤖 Agentic QE Fleet Quick Reference
