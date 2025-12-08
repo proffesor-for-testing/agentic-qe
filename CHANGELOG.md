@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2025-12-07
+
+### Changed
+
+#### Test Suite Consolidation (Issue #103)
+Major test suite restructuring achieving 60% reduction in test code while maintaining coverage quality.
+
+**Metrics:**
+- **Files**: 426 → 197 (-229 files, -53.8%)
+- **Lines**: 208,253 → 82,698 (-125,555 lines, -60.3%)
+- **Large files (>600 lines)**: 149 → 25 (-83.2%)
+- **Skipped tests**: 7 → 0 (-100%)
+
+**Categories Deleted:**
+- Phase 1/2/3 milestone tests (superseded by journey tests)
+- MCP handler implementation tests (covered by contract tests)
+- Comprehensive/exhaustive internal tests
+- Duplicate algorithm tests (Q-learning, SARSA, Actor-Critic)
+- Internal utility tests (Logger, migration tools)
+- Mock-based tests with no real integration value
+
+**High-Value Tests Preserved:**
+- 7 journey tests (user workflows)
+- CLI tests (user-facing commands)
+- E2E tests (end-to-end workflows)
+- Core infrastructure tests (memory, hooks, privacy)
+- MCP contract tests (API stability)
+- Unique integration tests (neural, multi-agent)
+
+### Added
+
+#### CI/CD Optimization
+- **`.github/workflows/optimized-ci.yml`**: Parallel job execution for fast feedback
+  - Fast tests job (journeys + contracts)
+  - Infrastructure tests job (parallel)
+  - Coverage analysis on PRs
+  - Test dashboard with PR comments
+- **`scripts/test-dashboard.js`**: Metrics visualization showing progress to targets
+- **`scripts/test-ci-optimized.sh`**: Batched test execution script
+- **New test scripts in package.json**:
+  - `npm run test:journeys` - Journey tests (user workflows)
+  - `npm run test:contracts` - Contract tests (API stability)
+  - `npm run test:infrastructure` - Infrastructure tests
+  - `npm run test:regression` - Regression tests (fixed bugs)
+  - `npm run test:fast` - Fast path (journeys + contracts)
+  - `npm run test:ci:optimized` - Full optimized CI suite
+
+#### Coverage Thresholds
+- **Global**: 80% lines, 75% branches
+- **Critical paths** (core/, agents/): 85% coverage
+
+#### Journey Tests
+- `tests/journeys/init-bootstrap.test.ts` - System initialization
+- `tests/journeys/test-generation.test.ts` - AI test generation
+- `tests/journeys/test-execution.test.ts` - Test execution workflow
+- `tests/journeys/coverage-analysis.test.ts` - Coverage gap detection
+- `tests/journeys/quality-gate.test.ts` - Quality gate decisions
+- `tests/journeys/flaky-detection.test.ts` - Flaky test hunting
+- `tests/journeys/learning.test.ts` - Learning & improvement
+
 ## [2.2.1] - 2025-12-07
 
 ### Fixed
