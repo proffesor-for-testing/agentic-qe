@@ -1,20 +1,11 @@
 {
   "env": {
-    "CLAUDE_FLOW_AUTO_COMMIT": "false",
-    "CLAUDE_FLOW_AUTO_PUSH": "false",
-    "CLAUDE_FLOW_HOOKS_ENABLED": "true",
-    "CLAUDE_FLOW_TELEMETRY_ENABLED": "true",
-    "CLAUDE_FLOW_REMOTE_EXECUTION": "true",
-    "CLAUDE_FLOW_CHECKPOINTS_ENABLED": "true",
-    "AGENTDB_PATH": ".agentic-qe/agentdb.db",
-    "AGENTDB_LEARNING_ENABLED": "true",
-    "AGENTDB_REASONING_ENABLED": "true",
-    "AGENTDB_AUTO_TRAIN": "true",
-    "AQE_MEMORY_ENABLED": "true"
+    "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+    "AQE_MEMORY_ENABLED": "true",
+    "AQE_LEARNING_ENABLED": "true"
   },
   "permissions": {
     "allow": [
-      "Bash(npx claude-flow:*)",
       "Bash(npm run lint)",
       "Bash(npm run test:*)",
       "Bash(npm test:*)",
@@ -34,7 +25,6 @@
       "Bash(which:*)",
       "Bash(pwd)",
       "Bash(ls:*)",
-      "Bash(npx agentdb:*)",
       "Bash(npx aqe:*)"
     ],
     "deny": [
@@ -44,30 +34,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -r '.tool_input.command // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks pre-command --command '{}' --validate-safety true --prepare-resources true"
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks pre-edit --file '{}' --auto-assign-agents true --load-context true"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "description": "AgentDB Edit Intelligence - Query both success patterns and failure warnings",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'export AGENTDB_PATH=.agentic-qe/agentdb.db; FILE={}; { npx agentdb@latest query --domain \"failed-edits\" --query \"file:$FILE\" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r \".memories[]? | \\\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\\"unknown\\\")\\\" \" 2>/dev/null & npx agentdb@latest query --domain \"successful-edits\" --query \"file:$FILE\" --k 5 --min-confidence 0.8 --format json 2>/dev/null | jq -r \".memories[]? | \\\"💡 Past Success: \\(.pattern.summary // \\\"No similar patterns found\\\")\\\" \" 2>/dev/null & wait; } || true'"
+            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | head -1 | xargs -I {} node -e \"const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\\" + process.argv[1].replace(/'/g,\\\"''\\\") + \\\"%' ORDER BY confidence DESC LIMIT 3\\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}\" \"{}\" 2>/dev/null || true"
           }
         ]
       },
@@ -76,63 +47,22 @@
         "hooks": [
           {
             "type": "command",
-            "description": "Trajectory Prediction - Predict optimal task sequence",
-            "command": "cat | jq -r '.tool_input.prompt // .tool_input.task // empty' | jq -R '@sh' | xargs -I {} bash -c 'export AGENTDB_PATH=.agentic-qe/agentdb.db; TASK={}; npx agentdb@latest query --domain \"task-trajectories\" --query \"task:$TASK\" --k 3 --min-confidence 0.75 --format json 2>/dev/null | jq -r \".memories[]? | \\\"📋 Predicted Steps: \\(.pattern.trajectory // \\\"No trajectory data\\\") (Success Rate: \\(.confidence // 0))\\\" \" 2>/dev/null || true'"
-          },
-          {
-            "type": "command",
-            "description": "Visualization - Emit agent spawn event",
-            "command": "bash scripts/hooks/emit-task-spawn.sh"
+            "command": "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -r '.tool_input.command // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks post-command --command '{}' --track-metrics true --store-results true"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} npx claude-flow@alpha hooks post-edit --file '{}' --format true --update-memory true"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "description": "Experience Replay - Capture edit as RL experience",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'export AGENTDB_PATH=.agentic-qe/agentdb.db; FILE={}; TIMESTAMP=$(date +%s); npx agentdb@latest store-pattern --type \"experience\" --domain \"code-edits\" --pattern \"{\\\"file\\\":$FILE,\\\"timestamp\\\":$TIMESTAMP,\\\"action\\\":\\\"edit\\\",\\\"state\\\":\\\"pre-test\\\"}\" --confidence 0.5 2>/dev/null || true'"
-          },
-          {
-            "type": "command",
-            "description": "Verdict-Based Quality - Async verdict assignment after tests",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c 'export AGENTDB_PATH=.agentic-qe/agentdb.db; FILE={}; (sleep 2; TEST_RESULT=$(npm test --silent 2>&1 | grep -q \"pass\" && echo \"ACCEPT\" || echo \"REJECT\"); REWARD=$([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"1.0\" || echo \"-1.0\"); npx agentdb@latest store-pattern --type \"verdict\" --domain \"code-quality\" --pattern \"{\\\"file\\\":$FILE,\\\"verdict\\\":\\\"$TEST_RESULT\\\",\\\"reward\\\":$REWARD}\" --confidence $([ \"$TEST_RESULT\" = \"ACCEPT\" ] && echo \"0.95\" || echo \"0.3\") 2>/dev/null; if [ \"$TEST_RESULT\" = \"ACCEPT\" ]; then npx agentdb@latest store-pattern --type \"success\" --domain \"successful-edits\" --pattern \"{\\\"file\\\":$FILE,\\\"summary\\\":\\\"Edit passed tests\\\"}\" --confidence 0.9 2>/dev/null; else npx agentdb@latest store-pattern --type \"failure\" --domain \"failed-edits\" --pattern \"{\\\"file\\\":$FILE,\\\"reason\\\":\\\"Tests failed\\\"}\" --confidence 0.8 2>/dev/null; fi) &'"
-          }
-        ]
-      },
-      {
         "matcher": "Task",
         "hooks": [
           {
             "type": "command",
-            "description": "Trajectory Storage - Record task trajectory for learning",
-            "command": "cat | jq -r '.tool_input.prompt // .tool_input.task // empty, .result.success // \"unknown\"' | paste -d'\\n' - - | jq -Rs 'split(\"\\n\") | {task: (.[0] | @sh), success: .[1]}' | jq -r 'CONFIDENCE=(if .success == \"true\" then \"0.95\" else \"0.5\" end); \"export AGENTDB_PATH=.agentic-qe/agentdb.db; TASK=\\(.task); SUCCESS=\\(.success); npx agentdb@latest store-pattern --type trajectory --domain task-trajectories --pattern \\(\"{\\\\\\\"task\\\\\\\":\\\" + .task + \",\\\\\\\"success\\\\\\\":\\(.success),\\\\\\\"trajectory\\\\\\\":\\\\\\\"search→scaffold→test→refine\\\\\\\"}\\\" | @sh) --confidence \\(CONFIDENCE) 2>/dev/null || true\"' | bash"
+            "command": "node scripts/hooks/capture-task-learning.js 2>/dev/null || true"
           },
           {
             "type": "command",
-            "description": "Visualization - Emit agent completion event",
-            "command": "bash scripts/hooks/emit-task-complete.sh"
+            "command": "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
           }
         ]
       }
@@ -143,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/bin/bash -c 'INPUT=$(cat); CUSTOM=$(echo \"$INPUT\" | jq -r \".custom_instructions // \\\"\\\"\"); echo \"🔄 PreCompact Guidance:\"; echo \"📋 IMPORTANT: Review CLAUDE.md in project root for:\"; echo \"   • 54 available agents and concurrent usage patterns\"; echo \"   • Swarm coordination strategies (hierarchical, mesh, adaptive)\"; echo \"   • SPARC methodology workflows with batchtools optimization\"; echo \"   • Critical concurrent execution rules (GOLDEN RULE: 1 MESSAGE = ALL OPERATIONS)\"; if [ -n \"$CUSTOM\" ]; then echo \"🎯 Custom compact instructions: $CUSTOM\"; fi; echo \"✅ Ready for compact operation\"'"
+            "command": "/bin/bash -c 'echo \"🔄 PreCompact: Review CLAUDE.md for 19 QE agents, skills, and learning protocols\"'"
           }
         ]
       },
@@ -152,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact Guidance (Context Window Full):\"; echo \"📋 CRITICAL: Before compacting, ensure you understand:\"; echo \"   • All 54 agents available in .claude/agents/ directory\"; echo \"   • Concurrent execution patterns from CLAUDE.md\"; echo \"   • Batchtools optimization for 300% performance gains\"; echo \"   • Swarm coordination strategies for complex tasks\"; echo \"⚡ Apply GOLDEN RULE: Always batch operations in single messages\"; echo \"✅ Auto-compact proceeding with full agent context\"'"
+            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact: 19 QE agents available. Use: npx aqe learn status\"'"
           }
         ]
       }
@@ -162,16 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx claude-flow@alpha hooks session-end --generate-summary true --persist-state true --export-metrics true"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "description": "Session end - Train models and compress learnings",
-            "command": "bash -c 'export AGENTDB_PATH=.agentic-qe/agentdb.db; npx agentdb@latest train --domain \"code-edits\" --epochs 10 --batch-size 32 2>/dev/null || true; npx agentdb@latest optimize-memory --compress true --consolidate-patterns true 2>/dev/null || true'"
+            "command": "echo '📊 Session ended. Run: npx aqe learn status' 2>/dev/null || true"
           }
         ]
       }
@@ -179,8 +100,6 @@
   },
   "includeCoAuthoredBy": true,
   "enabledMcpjsonServers": [
-    "claude-flow",
-    "ruv-swarm",
     "agentic-qe"
   ],
   "statusLine": {

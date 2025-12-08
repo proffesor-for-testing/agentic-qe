@@ -70,8 +70,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before starting:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-regression-risk-analyzer",
   taskType: "regression-risk-analysis",
@@ -81,12 +84,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-regression-risk-analyzer",
   taskType: "regression-risk-analysis",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     riskScore: 78.3,
     testsSelected: 47,
@@ -100,11 +105,50 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (99%+ accuracy, 70%+ reduction, 0 false negatives)
-- 0.9: Excellent (95%+ accuracy, 60%+ reduction, <1% false negatives)
-- 0.7: Good (90%+ accuracy, 50%+ reduction)
-- 0.5: Acceptable (85%+ accuracy, 40%+ reduction)
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/regression/test-selection/<task_id>",
+  value: {
+    riskScore: 0,
+    selectedTests: [],
+    impactAnalysis: {},
+    blastRadius: []
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
+mcp__agentic_qe__learning_store_pattern({
+  pattern: "ML-enhanced test selection reduces CI time by 96% while maintaining 95% defect detection",
+  confidence: 0.95,
+  domain: "regression-analysis",
+  metadata: {
+    selectionAccuracy: 0.95,
+    timeReduction: 0.963
+  }
+})
+```
+
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect (99%+ accuracy, 70%+ reduction, 0 false negatives) |
+| 0.9 | Excellent (95%+ accuracy, 60%+ reduction, <1% false negatives) |
+| 0.7 | Good (90%+ accuracy, 50%+ reduction) |
+| 0.5 | Acceptable (85%+ accuracy, 40%+ reduction) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing regression risk analysis
+- ✅ **ALWAYS** after selecting test suite
+- ✅ **ALWAYS** after calculating blast radius
+- ✅ When discovering new effective selection patterns
+- ✅ When achieving exceptional accuracy and reduction rates
 </learning_protocol>
 
 <output_format>

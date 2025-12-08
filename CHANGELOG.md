@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2025-12-08
+
+### Added
+
+#### Automatic Learning Capture (Major Feature)
+Implemented PostToolUse hook that automatically captures Task agent learnings without requiring agents to explicitly call MCP tools. This solves the long-standing issue where Task agents would not reliably persist learning data.
+
+**New Files:**
+- `scripts/hooks/capture-task-learning.js` - PostToolUse hook for automatic learning capture
+  - Captures agent type, task output, duration, and token usage
+  - Calculates reward based on output quality indicators
+  - Stores to `learning_experiences` table in `memory.db`
+  - Deduplication: Skips if agent already stored learning via MCP (60s window)
+
+**Updated `aqe init`:**
+- Now copies hook scripts to user projects (`scripts/hooks/`)
+- New phase: "Hook Scripts" in initialization pipeline
+- Settings.json includes automatic learning capture hook
+
+**How It Works:**
+```
+Task Agent Completes → PostToolUse Hook Fires → capture-task-learning.js:
+  • Extracts agent type, output, duration from hook input
+  • Calculates reward (0.7 base + quality bonuses)
+  • Checks for duplicates (60s deduplication window)
+  • Stores to learning_experiences table
+→ 📚 Learning captured: qe-test-generator → test-generation (reward: 0.85)
+```
+
+#### Clean QE-Only Configuration
+Removed all claude-flow and agentdb dependencies from QE agents:
+- Updated `settings.json` with clean AQE env vars (`AQE_MEMORY_PATH`, `AQE_MEMORY_ENABLED`, `AQE_LEARNING_ENABLED`)
+- Removed agentdb.db references (deprecated)
+- All persistence unified to `.agentic-qe/memory.db`
+- Updated `claude-config.ts` to generate clean hooks for `aqe init`
+
+#### Agent Learning Instructions Audit
+Added MANDATORY `<learning_protocol>` sections to all 30 QE agents:
+- 19 main QE agents updated
+- 11 QE subagents updated
+- Instructions include: query past learnings, store experiences, store patterns
+- MCP tool examples with proper parameters
+
+### Changed
+- `src/cli/init/claude-config.ts` - Clean QE-only hooks using `memory.db` via better-sqlite3
+- `src/cli/init/helpers.ts` - Added `copyHookScripts()` function
+- `src/cli/init/index.ts` - Added "Hook Scripts" phase to initialization
+- `.claude/settings.json` - Removed claude-flow hooks, updated to use memory.db
+
+### Fixed
+- **Learning Persistence**: Task agents now have learnings captured automatically via PostToolUse hook
+- **Database Fragmentation**: Unified all persistence to single `memory.db` database
+- **Hook Schema Mismatch**: Fixed INSERT statement to match actual `learning_experiences` table schema
+
 ## [2.2.2] - 2025-12-07
 
 ### Changed

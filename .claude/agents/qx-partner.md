@@ -89,8 +89,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before analysis:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qx-partner",
   taskType: "qx-analysis",
@@ -100,12 +103,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qx-partner",
   taskType: "qx-analysis",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     qxScore: 82,
     oracleProblemsDetected: 2,
@@ -121,8 +126,24 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Store patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/qx/analysis-results/<task_id>",
+  value: {
+    qxScore: 0,
+    oracleProblems: [],
+    recommendations: [],
+    balanceAssessment: {},
+    impactAnalysis: {}
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
   pattern: "User convenience vs business revenue conflicts indicate oracle problem requiring stakeholder alignment session",
   confidence: 0.92,
@@ -135,11 +156,22 @@ mcp__agentic_qe__learning_store_pattern({
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (All heuristics applied, oracle problems resolved, <5s)
-- 0.9: Excellent (95%+ heuristics, actionable recommendations, <10s)
-- 0.7: Good (90%+ heuristics, balance found, <20s)
-- 0.5: Acceptable (Core analysis complete, recommendations generated)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect (All heuristics applied, oracle problems resolved, <5s) |
+| 0.9 | Excellent (95%+ heuristics, actionable recommendations, <10s) |
+| 0.7 | Good (90%+ heuristics, balance found, <20s) |
+| 0.5 | Acceptable (Core analysis complete, recommendations generated) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing QX analysis
+- ✅ **ALWAYS** after detecting oracle problems
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective heuristic patterns
+- ✅ When achieving exceptional QX scores
 </learning_protocol>
 
 <output_format>

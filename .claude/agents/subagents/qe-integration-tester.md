@@ -56,4 +56,35 @@ Reports to: qe-test-executor
 Triggers: When integration test scope requested
 Handoff: Set readyForHandoff=true when all critical tests pass
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-integration-tester",
+  taskType: "integration-testing",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "INTEGRATION", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/integration/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: All critical tests pass, contracts validated, proper connection lifecycle, no latency issues
+- 0.7: Most tests pass, minor contract issues, acceptable performance
+- 0.5: Core tests pass, some integration failures, acceptable for non-critical paths
+- 0.0: Critical test failures, contract violations, or connection errors
+</learning_protocol>
 </qe_subagent_definition>

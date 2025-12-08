@@ -58,7 +58,7 @@ export abstract class BaseAgent extends EventEmitter {
   protected readonly agentId: AgentId;
   protected readonly capabilities: Map<string, AgentCapability>;
   protected readonly context: AgentContext;
-  protected readonly memoryStore: MemoryStore;
+  protected readonly memoryStore: MemoryStore | SwarmMemoryManager;
   protected readonly eventBus: EventEmitter;
   protected currentTask?: TaskAssignment;
   protected hookManager: VerificationHookManager;
@@ -748,7 +748,8 @@ export abstract class BaseAgent extends EventEmitter {
       console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
       return;
     }
-    const namespacedKey = `agent:${this.agentId.id}:${key}`;
+    // Standardized namespace: aqe/{agentType}/{key}
+    const namespacedKey = `aqe/${this.agentId.type}/${key}`;
     await this.memoryStore.store(namespacedKey, value, ttl);
   }
 
@@ -760,7 +761,8 @@ export abstract class BaseAgent extends EventEmitter {
       console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
       return null;
     }
-    const namespacedKey = `agent:${this.agentId.id}:${key}`;
+    // Standardized namespace: aqe/{agentType}/{key}
+    const namespacedKey = `aqe/${this.agentId.type}/${key}`;
     return await this.memoryStore.retrieve(namespacedKey);
   }
 
@@ -772,7 +774,8 @@ export abstract class BaseAgent extends EventEmitter {
       console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
       return;
     }
-    const sharedKey = `shared:${this.agentId.type}:${key}`;
+    // Standardized namespace: aqe/shared/{agentType}/{key}
+    const sharedKey = `aqe/shared/${this.agentId.type}/${key}`;
     await this.memoryStore.store(sharedKey, value, ttl);
   }
 
@@ -784,7 +787,8 @@ export abstract class BaseAgent extends EventEmitter {
       console.warn(`[WARN] Memory store not available for ${this.agentId.id}`);
       return null;
     }
-    const sharedKey = `shared:${agentType}:${key}`;
+    // Standardized namespace: aqe/shared/{agentType}/{key}
+    const sharedKey = `aqe/shared/${agentType}/${key}`;
     return await this.memoryStore.retrieve(sharedKey);
   }
 

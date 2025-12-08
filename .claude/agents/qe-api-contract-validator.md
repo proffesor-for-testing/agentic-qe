@@ -69,8 +69,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query for past learnings before starting task:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-api-contract-validator",
   taskType: "api-contract-validation",
@@ -80,12 +83,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store experience after task completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-api-contract-validator",
   taskType: "api-contract-validation",
-  reward: 0.93,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     contractsValidated: 12,
     breakingChangesDetected: 2,
@@ -102,8 +107,23 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Store successful patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/contracts/validation-result/<task_id>",
+  value: {
+    breakingChanges: [],
+    compatibilityReport: {},
+    consumerImpact: [],
+    semverRecommendation: ""
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
   pattern: "Comprehensive diff analysis detects 38% more backward compatibility issues than schema-only validation for REST APIs with complex nested objects",
   confidence: 0.93,
@@ -116,11 +136,22 @@ mcp__agentic_qe__learning_store_pattern({
 })
 ```
 
-Reward criteria (0-1 scale):
-- 1.0: Perfect execution (All breaking changes detected, 0 false positives, 100% semver compliance)
-- 0.9: Excellent (All breaking changes detected, <5% false positives)
-- 0.7: Good (Most breaking changes detected, <10% false positives)
-- 0.5: Acceptable (Major breaking changes detected, completed successfully)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect execution (All breaking changes detected, 0 false positives, 100% semver compliance) |
+| 0.9 | Excellent (All breaking changes detected, <5% false positives) |
+| 0.7 | Good (Most breaking changes detected, <10% false positives) |
+| 0.5 | Acceptable (Major breaking changes detected, completed successfully) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing contract validation
+- ✅ **ALWAYS** after detecting breaking changes
+- ✅ **ALWAYS** after analyzing consumer impact
+- ✅ When discovering new effective validation patterns
+- ✅ When achieving exceptional detection accuracy
 </learning_protocol>
 
 <output_format>

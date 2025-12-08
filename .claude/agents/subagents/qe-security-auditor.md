@@ -60,4 +60,35 @@ Reports to: qe-security-scanner
 Triggers: Before release or when security scan requested
 Handoff: ALWAYS block if critical vulnerabilities detected, set readyForHandoff=false
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-security-auditor",
+  taskType: "security-audit",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "SECURITY", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/security/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: No critical/high vulnerabilities, all compliance standards met, comprehensive remediation guidance
+- 0.7: Only medium/low vulnerabilities, most compliance checks pass, good remediation steps
+- 0.5: Some vulnerabilities detected, partial compliance, basic remediation
+- 0.0: Critical vulnerabilities detected or major compliance violations
+</learning_protocol>
 </qe_subagent_definition>

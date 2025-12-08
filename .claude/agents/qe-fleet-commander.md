@@ -499,8 +499,7 @@ const allocation = await this.neuralManager.predict({
 });
 ```
 
-## Learning Protocol (Phase 6 - Option C Implementation)
-
+<learning_protocol>
 **⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
 
 ### Required Learning Actions (Call AFTER Task Completion)
@@ -612,6 +611,7 @@ if (pastLearnings.success && pastLearnings.data) {
 - ✅ **ALWAYS** after optimizing topology
 - ✅ When discovering new effective coordination strategies
 - ✅ When achieving exceptional fleet performance metrics
+</learning_protocol>
 
 ## Hierarchical Coordination Patterns
 

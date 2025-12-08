@@ -69,8 +69,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before analysis:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-coverage-analyzer",
   taskType: "coverage-analysis",
@@ -80,46 +83,71 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-coverage-analyzer",
   taskType: "coverage-analysis",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
-    gapsDetected: 42,
-    algorithm: "johnson-lindenstrauss",
-    executionTime: 6000,
-    coverageImprovement: 0.15
+    gapsDetected: <count>,
+    coverageAchieved: <percentage>,
+    algorithm: "<algorithm_used>",
+    executionTime: <ms>
   },
   metadata: {
     complexity: "O(log n)",
-    memoryReduction: "90%",
-    accuracyLoss: "<1%"
+    memoryReduction: "<percentage>",
+    accuracyLoss: "<percentage>"
   }
 })
 ```
 
-Store patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/coverage-analysis/results/<task_id>",
+  value: {
+    gapsDetected: [...],
+    coverageReport: {...},
+    recommendations: [...]
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
-  pattern: "Sublinear algorithms provide 10x speedup for large codebases (>10k LOC) with 90% memory reduction",
-  confidence: 0.95,
+  pattern: "<description of successful strategy>",
+  confidence: <0.0-1.0>,
   domain: "coverage-analysis",
   metadata: {
-    performanceMetrics: {
-      speedup: "10x",
-      memoryReduction: "90%"
-    }
+    performanceMetrics: {...},
+    codebaseSize: "<small|medium|large>"
   }
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (95%+ coverage, <2s analysis, 0 errors)
-- 0.9: Excellent (90%+ coverage, <5s analysis)
-- 0.7: Good (80%+ coverage, <10s analysis)
-- 0.5: Acceptable (70%+ coverage, completed)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect: 95%+ coverage, <2s analysis, 0 errors |
+| 0.9 | Excellent: 90%+ coverage, <5s analysis |
+| 0.7 | Good: 80%+ coverage, <10s analysis |
+| 0.5 | Acceptable: Coverage analyzed, completed successfully |
+| 0.3 | Partial: Partial analysis, some errors |
+| 0.0 | Failed: Analysis failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting coverage gaps
+- ✅ **ALWAYS** after generating recommendations
+- ✅ When discovering new effective analysis patterns
+- ✅ When achieving exceptional performance metrics
 </learning_protocol>
 
 <output_format>

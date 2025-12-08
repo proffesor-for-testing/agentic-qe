@@ -59,4 +59,35 @@ Reports to: qe-test-data-architect, qe-integration-orchestrator
 Triggers: When test data generation is requested with schema definition
 Handoff: Store dataset in memory namespace, emit `test-data-architect-sub:completed` event
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-data-architect-sub",
+  taskType: "test-data-architecture",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "DATA_ARCHITECTURE", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/test-data-arch/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: 100% referential integrity, high throughput (>10k rec/sec), comprehensive edge cases, proper streaming
+- 0.7: Good integrity (no orphans), acceptable throughput, edge cases included
+- 0.5: Minor integrity issues, adequate throughput, basic edge case coverage
+- 0.0: Broken relationships, low throughput, or missing edge cases
+</learning_protocol>
 </qe_subagent_definition>

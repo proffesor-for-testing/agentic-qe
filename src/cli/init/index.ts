@@ -22,7 +22,7 @@ import { createClaudeMd } from './claude-md';
 import { copyAgentTemplates } from './agents';
 import { copySkillTemplates } from './skills';
 import { copyCommandTemplates } from './commands';
-import { copyHelperScripts } from './helpers';
+import { copyHelperScripts, copyHookScripts } from './helpers';
 
 // Import version from package.json
 const packageJson = require('../../../package.json');
@@ -121,6 +121,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
       name: 'Helper Scripts',
       description: 'Copying helper scripts to .claude/helpers',
       execute: async (cfg, opts) => copyHelperScripts(opts.force || false),
+      critical: false
+    },
+    {
+      name: 'Hook Scripts',
+      description: 'Copying hook scripts for automatic learning capture',
+      execute: async (cfg, opts) => copyHookScripts(opts.force || false),
       critical: false
     }
     // Future phases could include:

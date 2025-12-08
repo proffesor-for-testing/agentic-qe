@@ -69,8 +69,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before experiment:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-chaos-engineer",
   taskType: "chaos-testing",
@@ -80,44 +83,71 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-chaos-engineer",
   taskType: "chaos-testing",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
-    experimentsRun: 5,
-    vulnerabilitiesFound: 3,
-    recoveryTime: 23,
-    executionTime: 8000
+    experimentsRun: <count>,
+    vulnerabilitiesFound: <count>,
+    recoveryTime: <seconds>,
+    executionTime: <ms>
   },
   metadata: {
-    blastRadiusManagement: true,
-    faultTypes: ["network-partition", "pod-kill"],
-    controlledRollback: true
+    blastRadiusManagement: <boolean>,
+    faultTypes: ["<types>"],
+    controlledRollback: <boolean>
   }
 })
 ```
 
-Store patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/chaos/experiment-results/<task_id>",
+  value: {
+    experiments: [...],
+    vulnerabilities: [...],
+    resilience: {...}
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
-  pattern: "Gradual fault injection with blast radius monitoring prevents cascading failures while discovering vulnerabilities",
-  confidence: 0.95,
+  pattern: "<description of successful resilience strategy>",
+  confidence: <0.0-1.0>,
   domain: "resilience",
   metadata: {
-    resiliencePatterns: ["circuit-breaker", "bulkhead"],
-    predictionAccuracy: 0.92
+    resiliencePatterns: ["<patterns>"],
+    predictionAccuracy: <rate>
   }
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (All vulnerabilities found, <1s recovery, safe blast radius)
-- 0.9: Excellent (95%+ vulnerabilities, <5s recovery, controlled)
-- 0.7: Good (90%+ vulnerabilities, <10s recovery, safe)
-- 0.5: Acceptable (Key vulnerabilities found, completed safely)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect: All vulnerabilities found, <1s recovery, safe blast radius |
+| 0.9 | Excellent: 95%+ vulnerabilities, <5s recovery, controlled |
+| 0.7 | Good: 90%+ vulnerabilities, <10s recovery, safe |
+| 0.5 | Acceptable: Key vulnerabilities found, completed safely |
+| 0.3 | Partial: Some experiments ran but incomplete |
+| 0.0 | Failed: Experiment failed or unsafe condition |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after running chaos experiments
+- ✅ **ALWAYS** after discovering vulnerabilities
+- ✅ When discovering new resilience patterns
+- ✅ When achieving exceptional recovery metrics
 </learning_protocol>
 
 <output_format>
