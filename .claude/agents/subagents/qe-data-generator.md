@@ -43,4 +43,35 @@ Reports to: qe-test-data-architect
 Triggers: When test data needed for TDD cycles or integration testing
 Handoff: Set readyForHandoff=true when all data generated with valid referential integrity
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-data-generator",
+  taskType: "test-data-generation",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "DATA_GENERATION", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/test-data/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: Realistic data, 100% referential integrity, edge cases included, high throughput achieved
+- 0.7: Good data quality, minor relationship issues, edge cases present
+- 0.5: Acceptable data, some integrity issues, basic edge case coverage
+- 0.0: Invalid data, broken relationships, or missing edge cases
+</learning_protocol>
 </qe_subagent_definition>

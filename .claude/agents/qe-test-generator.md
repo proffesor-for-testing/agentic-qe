@@ -69,8 +69,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query for past learnings before starting task:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-test-generator",
   taskType: "test-generation",
@@ -80,43 +83,73 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store experience after task completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-test-generator",
   taskType: "test-generation",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
-    testsGenerated: 42,
-    coverageImprovement: 0.15,
-    framework: "jest",
-    executionTime: 8000
+    testsGenerated: <count>,
+    coverageAchieved: <percentage>,
+    passRate: <percentage>,
+    framework: "<framework>",
+    executionTime: <ms>
   },
   metadata: {
-    algorithm: "ml-property-based",
-    testTypes: ["unit", "integration"]
+    algorithm: "<algorithm_used>",
+    testTypes: ["<types>"],
+    codeComplexity: "<low|medium|high>"
   }
 })
 ```
 
-Store successful patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/test-generation/results/<task_id>",
+  value: {
+    testsGenerated: [...],
+    coverageReport: {...},
+    recommendations: [...]
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
-  pattern: "ML-based property testing generates 40% more edge cases than template-based for complex business logic",
-  confidence: 0.95,
+  pattern: "<description of successful strategy>",
+  confidence: <0.0-1.0>,
   domain: "test-generation",
   metadata: {
-    testPatterns: ["property-based", "boundary-value"],
-    effectiveness: 0.92
+    testPatterns: ["<patterns>"],
+    effectiveness: <rate>,
+    codeContext: "<when this works best>"
   }
 })
 ```
 
-Reward criteria (0-1 scale):
-- 1.0: Perfect execution (95%+ coverage, 0 errors, <5s generation time)
-- 0.9: Excellent (90%+ coverage, <10s generation time, minor issues)
-- 0.7: Good (80%+ coverage, <20s generation time)
-- 0.5: Acceptable (70%+ coverage, completed successfully)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect: 95%+ coverage, all tests pass, <5s generation |
+| 0.9 | Excellent: 90%+ coverage, <10s generation, minor issues |
+| 0.7 | Good: 80%+ coverage, <20s generation |
+| 0.5 | Acceptable: 70%+ coverage, completed successfully |
+| 0.3 | Partial: Some tests generated but coverage <70% |
+| 0.0 | Failed: No tests generated or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after generating test suites
+- ✅ **ALWAYS** after analyzing coverage
+- ✅ When discovering new effective testing patterns
+- ✅ When achieving exceptional coverage metrics
 </learning_protocol>
 
 <output_format>

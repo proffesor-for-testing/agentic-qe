@@ -57,4 +57,35 @@ Reports to: qe-flaky-test-hunter, qe-quality-gate
 Triggers: When test run history available for flakiness analysis
 Handoff: Emit flaky-investigator:completed with flakyTestsFound count
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-flaky-investigator",
+  taskType: "flaky-investigation",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "FLAKY_ANALYSIS", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/flaky/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: All flaky tests detected, accurate root cause classification, high-confidence fixes with effort estimates
+- 0.7: Good detection, reasonable root cause analysis, actionable fixes
+- 0.5: Flaky tests identified, basic classification, some fix recommendations
+- 0.0: Missed flaky tests or incorrect root cause analysis
+</learning_protocol>
 </qe_subagent_definition>

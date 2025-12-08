@@ -78,4 +78,35 @@ Triggers: When TDD cycle starts with requirements
 Handoff: Store RED output in memory, emit event, qe-test-implementer (GREEN phase) picks up
 Validation: readyForHandoff=true ONLY if allTestsFailing=true
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-writer",
+  taskType: "tdd-red-phase",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "RED", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/tdd/red/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: All tests fail as expected, perfect Given-When-Then structure, comprehensive boundary coverage
+- 0.7: Tests fail correctly, good structure, minor gaps in edge cases
+- 0.5: Tests fail, acceptable structure, missing some boundaries
+- 0.0: Tests pass (implementation already exists) or invalid test structure
+</learning_protocol>
 </qe_subagent_definition>

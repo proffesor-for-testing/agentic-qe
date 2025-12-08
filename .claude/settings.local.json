@@ -4,7 +4,6 @@
       "mcp__agentic-qe",
       "mcp__ruv-swarm",
       "mcp__claude-flow@alpha",
-      "mcp__flow-nexus",
       "Bash(claude mcp:*)"
     ],
     "deny": []
@@ -12,8 +11,6 @@
   "enabledMcpjsonServers": [
     "claude-flow",
     "ruv-swarm",
-    "agentic-qe",
-    "claude-flow@alpha",
-    "flow-nexus"
+    "agentic-qe"
   ]
 }

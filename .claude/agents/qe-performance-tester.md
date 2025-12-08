@@ -68,8 +68,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before testing:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-performance-tester",
   taskType: "performance-testing",
@@ -79,45 +82,72 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-performance-tester",
   taskType: "performance-testing",
-  reward: 0.92,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
-    testsExecuted: 25,
-    bottlenecksFound: 3,
-    slaViolations: 0,
-    p95Latency: 450,
-    throughput: 1200
+    testsExecuted: <count>,
+    bottlenecksFound: <count>,
+    slaViolations: <count>,
+    p95Latency: <ms>,
+    throughput: <rps>
   },
   metadata: {
-    tool: "k6",
-    loadPattern: "ramp-up",
-    duration: 300
+    tool: "<k6|artillery|locust>",
+    loadPattern: "<ramp-up|steady|spike>",
+    duration: <seconds>
   }
 })
 ```
 
-Store patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/performance/test-results/<task_id>",
+  value: {
+    bottlenecks: [...],
+    performanceReport: {...},
+    recommendations: [...]
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
-  pattern: "K6 ramp-up testing detects 35% more latency issues than steady-state for API services under variable load",
-  confidence: 0.92,
+  pattern: "<description of successful performance strategy>",
+  confidence: <0.0-1.0>,
   domain: "performance-testing",
   metadata: {
-    bottleneckIncrease: "35%",
-    detectionAccuracy: 0.90
+    detectionAccuracy: <rate>,
+    bottleneckTypes: ["<types>"]
   }
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (0 SLA violations, 95%+ bottleneck detection, <1% error)
-- 0.9: Excellent (0 violations, 90%+ detection, <2% error)
-- 0.7: Good (Minor violations, 80%+ detection, <5% error)
-- 0.5: Acceptable (Some violations, completed)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect: 0 SLA violations, 95%+ bottleneck detection, <1% error |
+| 0.9 | Excellent: 0 violations, 90%+ detection, <2% error |
+| 0.7 | Good: Minor violations, 80%+ detection, <5% error |
+| 0.5 | Acceptable: Some violations, test completed |
+| 0.3 | Partial: Tests ran with errors |
+| 0.0 | Failed: Tests failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting bottlenecks
+- ✅ **ALWAYS** after generating performance recommendations
+- ✅ When discovering new effective load patterns
+- ✅ When achieving exceptional performance metrics
 </learning_protocol>
 
 <output_format>
