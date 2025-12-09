@@ -348,7 +348,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         name: h.testName,
         passed: h.result === 'pass',
         duration: h.duration,
-        timestamp: h.timestamp.getTime(),
+        timestamp: this.getTimestampMs(h.timestamp),
         error: h.error,
         retries: 0,
         environment: h.environment
@@ -1056,7 +1056,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         name: h.testName,
         passed: h.result === 'pass',
         duration: h.duration,
-        timestamp: h.timestamp.getTime(),
+        timestamp: this.getTimestampMs(h.timestamp),
         error: h.error,
         retries: 0,
         environment: h.environment
@@ -1111,6 +1111,17 @@ export class FlakyTestHunterAgent extends BaseAgent {
   // Private Helper Methods
   // ============================================================================
 
+  /**
+   * Safely get timestamp as milliseconds from a TestHistory entry.
+   * Handles both Date objects and ISO string representations (from JSON deserialization).
+   */
+  private getTimestampMs(timestamp: Date | string): number {
+    if (timestamp instanceof Date) {
+      return timestamp.getTime();
+    }
+    return new Date(timestamp).getTime();
+  }
+
   private aggregateTestStats(
     history: TestHistory[],
     timeWindow: number
@@ -1119,7 +1130,12 @@ export class FlakyTestHunterAgent extends BaseAgent {
     const stats: Record<string, any> = {};
 
     for (const entry of history) {
-      if (entry.timestamp.getTime() < cutoff) {
+      // Handle timestamp that might be a string (from JSON deserialization)
+      const timestamp = entry.timestamp instanceof Date
+        ? entry.timestamp
+        : new Date(entry.timestamp);
+
+      if (timestamp.getTime() < cutoff) {
         continue;
       }
 
@@ -1138,14 +1154,15 @@ export class FlakyTestHunterAgent extends BaseAgent {
 
       const stat = stats[entry.testName];
       stat.totalRuns++;
-      stat.history.push(entry);
+      // Store with normalized timestamp
+      stat.history.push({ ...entry, timestamp });
       stat.durations.push(entry.duration);
 
       if (entry.result === 'pass') {
         stat.passes++;
       } else if (entry.result === 'fail') {
         stat.failures++;
-        stat.lastFailure = entry.timestamp;
+        stat.lastFailure = timestamp;
       } else {
         stat.skips++;
       }

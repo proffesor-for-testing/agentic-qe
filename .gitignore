@@ -123,3 +123,5 @@ claude-flow.config.json
 .hive-mind/
 .claude-flow/
 .playwright-mcp/
+tests/tmp/
+aqe
