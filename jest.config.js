@@ -49,6 +49,7 @@ module.exports = {
     '^@agents/(.*)$': '<rootDir>/src/agents/$1',
     '^@cli/(.*)$': '<rootDir>/src/cli/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@types$': '<rootDir>/src/types/index.ts',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@mcp/(.*)$': '<rootDir>/src/mcp/$1',
     '^@learning/(.*)$': '<rootDir>/src/learning/$1',
