@@ -144,7 +144,8 @@ describe('Journey: Flaky Detection', () => {
       expect(detectedTest!.passes).toBeGreaterThan(10);
 
       // Verify chi-square test implicit in detection
-      expect(detectedTest!.failureRate).toBeGreaterThan(0.2);
+      // Use >= since failure rate can be exactly 0.2 (6/30 = 0.2)
+      expect(detectedTest!.failureRate).toBeGreaterThanOrEqual(0.2);
       expect(detectedTest!.failureRate).toBeLessThan(0.6);
     });
 
