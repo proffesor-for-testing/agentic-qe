@@ -827,14 +827,21 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     const rowIndices: number[] = [];
     const colIndices: number[] = [];
 
-    // Analyze each test's coverage
+    // Build O(1) lookup map for coverage point IDs to indices
+    // This prevents O(n) findIndex calls inside the loop
+    const coveragePointIndexMap = new Map<string, number>();
+    for (let i = 0; i < codeBase.coveragePoints.length; i++) {
+      coveragePointIndexMap.set(codeBase.coveragePoints[i].id, i);
+    }
+
+    // Analyze each test's coverage - now O(n*m) instead of O(n*m*k)
     for (let testIndex = 0; testIndex < testSuite.tests.length; testIndex++) {
       const test = testSuite.tests[testIndex];
       const coveragePoints = await this.analyzTestCoverage(test, codeBase);
 
       for (const point of coveragePoints) {
-        const colIndex = codeBase.coveragePoints.findIndex((cp: any) => cp.id === point.id);
-        if (colIndex !== -1) {
+        const colIndex = coveragePointIndexMap.get(point.id);
+        if (colIndex !== undefined) {
           values.push(1); // Binary coverage: 1 if test covers point, 0 otherwise
           rowIndices.push(testIndex);
           colIndices.push(colIndex);
@@ -922,42 +929,56 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   // ============================================================================
 
   private async generateCoverageReport(testSuite: TestSuite, codeBase: any): Promise<CoverageReport> {
-    const totalStatements = codeBase.coveragePoints.filter((cp: any) => cp.type === 'statement').length;
-    const totalBranches = codeBase.coveragePoints.filter((cp: any) => cp.type === 'branch').length;
-    const totalFunctions = codeBase.coveragePoints.filter((cp: any) => cp.type === 'function').length;
+    // Pre-compute totals and build lookup map - O(n) once instead of O(n) per lookup
+    let totalStatements = 0;
+    let totalBranches = 0;
+    let totalFunctions = 0;
+    const coveragePointTypeMap = new Map<string, string>();
 
-    let coveredStatements = 0;
-    let coveredBranches = 0;
-    let coveredFunctions = 0;
+    for (const cp of codeBase.coveragePoints) {
+      coveragePointTypeMap.set(cp.id, cp.type);
+      switch (cp.type) {
+        case 'statement': totalStatements++; break;
+        case 'branch': totalBranches++; break;
+        case 'function': totalFunctions++; break;
+      }
+    }
 
-    // Analyze coverage for each test
+    // Use Sets to track unique coverage - prevents duplicate counting
+    const coveredStatementIds = new Set<string>();
+    const coveredBranchIds = new Set<string>();
+    const coveredFunctionIds = new Set<string>();
+
+    // Analyze coverage for each test - now O(1) lookup per point
     for (const test of testSuite.tests) {
       const coverage = await this.analyzTestCoverage(test, codeBase);
 
       for (const point of coverage) {
-        const coveragePoint = codeBase.coveragePoints.find((cp: any) => cp.id === point.id);
-        if (coveragePoint) {
-          switch (coveragePoint.type) {
-            case 'statement': coveredStatements++; break;
-            case 'branch': coveredBranches++; break;
-            case 'function': coveredFunctions++; break;
+        const pointType = coveragePointTypeMap.get(point.id);
+        if (pointType) {
+          switch (pointType) {
+            case 'statement': coveredStatementIds.add(point.id); break;
+            case 'branch': coveredBranchIds.add(point.id); break;
+            case 'function': coveredFunctionIds.add(point.id); break;
           }
         }
       }
     }
 
-    // Remove duplicates
-    coveredStatements = Math.min(coveredStatements, totalStatements);
-    coveredBranches = Math.min(coveredBranches, totalBranches);
-    coveredFunctions = Math.min(coveredFunctions, totalFunctions);
+    const coveredStatements = coveredStatementIds.size;
+    const coveredBranches = coveredBranchIds.size;
+    const coveredFunctions = coveredFunctionIds.size;
+
+    // Handle division by zero
+    const safeDiv = (a: number, b: number) => b === 0 ? 0 : (a / b) * 100;
 
     return {
-      overall: ((coveredStatements + coveredBranches + coveredFunctions) /
-                (totalStatements + totalBranches + totalFunctions)) * 100,
-      lines: (coveredStatements / totalStatements) * 100,
-      branches: (coveredBranches / totalBranches) * 100,
-      functions: (coveredFunctions / totalFunctions) * 100,
-      statements: (coveredStatements / totalStatements) * 100
+      overall: safeDiv(coveredStatements + coveredBranches + coveredFunctions,
+                       totalStatements + totalBranches + totalFunctions),
+      lines: safeDiv(coveredStatements, totalStatements),
+      branches: safeDiv(coveredBranches, totalBranches),
+      functions: safeDiv(coveredFunctions, totalFunctions),
+      statements: safeDiv(coveredStatements, totalStatements)
     };
   }
 
@@ -967,6 +988,8 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
   private async analyzTestCoverage(test: Test, codeBase: any): Promise<any[]> {
     // Simulate test coverage analysis
+    // Use Set for O(1) duplicate detection instead of O(n) find
+    const seenIds = new Set<string>();
     const coveragePoints: any[] = [];
 
     // Simple heuristic: each test covers 10-30% of coverage points
@@ -976,7 +999,8 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     for (let i = 0; i < pointCount; i++) {
       const randomIndex = Math.floor(SecureRandom.randomFloat() * codeBase.coveragePoints.length);
       const point = codeBase.coveragePoints[randomIndex];
-      if (!coveragePoints.find(cp => cp.id === point.id)) {
+      if (!seenIds.has(point.id)) {
+        seenIds.add(point.id);
         coveragePoints.push(point);
       }
     }

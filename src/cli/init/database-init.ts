@@ -101,6 +101,9 @@ async function initializeLearningSystem(config: FleetConfig): Promise<void> {
     replayBufferSize: 10000
   };
 
+  // Ensure config directory exists (in case directory structure phase had issues)
+  await fs.ensureDir('.agentic-qe/config');
+
   // Store learning configuration
   await fs.writeJson('.agentic-qe/config/learning.json', learningConfig, { spaces: 2 });
 
@@ -149,6 +152,10 @@ async function initializeImprovementLoop(config: FleetConfig): Promise<void> {
       minSampleDuration: 3600000 // 1 hour
     }
   };
+
+  // Ensure directories exist (defensive, in case directory-structure phase had issues)
+  await fs.ensureDir('.agentic-qe/config');
+  await fs.ensureDir('.agentic-qe/data/improvement');
 
   // Store improvement configuration
   await fs.writeJson('.agentic-qe/config/improvement.json', improvementConfig, { spaces: 2 });

@@ -543,7 +543,7 @@ export class QualityGateAgent extends EventEmitter {
       recommendations.push('Consider additional manual testing for critical deployment');
     }
 
-    if (context.changes.length > 10) {
+    if (context.changes && context.changes.length > 10) {
       recommendations.push('Large changeset detected - consider breaking into smaller deployments');
     }
 
@@ -696,12 +696,55 @@ class ConsciousnessEngine {
 class PsychoSymbolicReasoner {
   async initialize(): Promise<void> {}
 
-  async reason(_params: any): Promise<any> {
-    // Simulate reasoning
+  async reason(params: any): Promise<any> {
+    // Analyze the context to produce meaningful reasoning
+    const context = params.context || {};
+    const complexityFactors = context.complexityFactors || {};
+
+    // Build reasoning based on actual quality state
+    const issues: string[] = [];
+
+    if (context.metrics?.coverage) {
+      const coverage = context.metrics.coverage;
+      if (coverage.line < 80 || coverage.branch < 75) {
+        issues.push('insufficient test coverage');
+      }
+    }
+
+    if (context.metrics?.security) {
+      const security = context.metrics.security;
+      if (security.criticalVulnerabilities > 0) {
+        issues.push('critical security vulnerabilities detected');
+      }
+    }
+
+    if (context.metrics?.testResults) {
+      const results = context.metrics.testResults;
+      if (results.failed > 0) {
+        issues.push(`${results.failed} test failures`);
+      }
+    }
+
+    // Determine confidence based on complexity
+    const baseConfidence = SecureRandom.randomFloat() * 0.3 + 0.4; // 0.4 to 0.7
+    const confidence = complexityFactors.high ? baseConfidence : baseConfidence + 0.2;
+
+    // Generate meaningful reasoning
+    let reasoning: string;
+    if (issues.length > 0) {
+      reasoning = `Quality gate escalation required: ${issues.join(', ')}. Human review recommended before deployment.`;
+    } else if (complexityFactors.high) {
+      reasoning = 'Complex quality state requires human review. Multiple factors need expert assessment before deployment decision.';
+    } else {
+      reasoning = 'Quality analysis completed. Review recommended for final deployment approval.';
+    }
+
     return {
-      reasoning: 'Complex quality state analysis completed',
-      confidence: SecureRandom.randomFloat() * 0.5 + 0.5,
-      recommendations: ['Consider additional testing']
+      reasoning,
+      confidence,
+      recommendations: issues.length > 0
+        ? [`Address: ${issues.join(', ')}`, 'Consider additional testing']
+        : ['Consider additional testing']
     };
   }
 
