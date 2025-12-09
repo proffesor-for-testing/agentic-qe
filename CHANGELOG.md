@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.2] - 2025-12-09
+
+### Fixed
+
+#### Dependency Resolution (Install Failure)
+Fixed npm install failure caused by transitive dependency issue:
+- **Root Cause**: `ruvector@latest` (0.1.25+) depends on `@ruvector/core@^0.1.25` which doesn't exist on npm (latest is 0.1.17)
+- **Solution**: Pinned `ruvector` to exact version `0.1.24` (removed caret `^`) which correctly depends on `@ruvector/core@^0.1.15`
+- Users can now successfully run `npm install -g agentic-qe@latest`
+
 ## [2.3.1] - 2025-12-08
 
 ### Fixed
