@@ -1,105 +1,4 @@
-# Claude Code Configuration - Agentic QE Fleet
-
-## ⚠️ CRITICAL POLICIES
-
-### Integrity Rule (ABSOLUTE)
-- ❌ NO shortcuts - do the work properly or don't do it
-- ❌ NO fake data - use real data, real tests, real results
-- ❌ NO false claims - only report what actually works and is verified
-- ✅ ALWAYS implement all code/tests with proper implementation
-- ✅ ALWAYS verify before claiming success
-- ✅ ALWAYS use real database queries, not mocks, for integration tests
-- ✅ ALWAYS run actual tests, not assume they pass
-
-**We value the quality we deliver to our users.**
-
-### Git Operations
-- ❌ NEVER auto-commit/push without explicit user request
-- ✅ ALWAYS wait for: "commit this" or "push to main"
-- 📋 **Full policy:** [docs/policies/git-operations.md](docs/policies/git-operations.md)
-
-### Release Verification
-- ❌ NEVER release without `aqe init` verification
-- ✅ ALWAYS test at least one agent with real database queries
-- 📋 **Full checklist:** [docs/policies/release-verification.md](docs/policies/release-verification.md)
-
-### Test Execution
-- ❌ NEVER run `npm test` (OOM risk in DevPod/Codespaces)
-- ✅ ALWAYS use batched scripts: `npm run test:unit`, `npm run test:integration`
-- 📋 **Full policy:** [docs/policies/test-execution.md](docs/policies/test-execution.md)
-
-### File Organization
-- ❌ NEVER save working files to root folder
-- ✅ ALWAYS use: `/docs`, `/tests`, `/src`, `/scripts`, `/examples`
-
-### Release Process
-- ❌ NEVER commit directly to main - use feature branches with PRs
-- ❌ NEVER forget package-lock.json when updating versions
-- ✅ ALWAYS use `mcp__agentic-qe__memory_store` with `persist: true` for learnings (NOT `claude-flow`)
-
-**Version Update Checklist** (all files to update):
-1. `package.json` - version field
-2. `package-lock.json` - run `npm install --package-lock-only`
-3. `README.md` - Version badge (line 12)
-4. `CHANGELOG.md` - Add new version section with changes
-5. `src/mcp/server-instructions.ts` - `SERVER_VERSION` constant
-6. `src/core/memory/HNSWVectorMemory.ts` - version in `getImplementationInfo()`
-
-**Skip**: `.claude/agents/sparc/specification.md` - `FR-X.X.X` are feature requirement IDs, NOT versions
-
-**Release Workflow**:
-```bash
-git checkout -b release/vX.X.X    # 1. Create branch
-# Update all version files above    # 2. Update versions
-npm run test:fast                   # 3. Run tests
-git commit -m "chore(release): bump version to vX.X.X"
-git push -u origin release/vX.X.X  # 4. Push branch
-gh pr create                        # 5. Create PR to main
-# Wait for CI and review            # 6. Review
-# Merge PR                          # 7. Merge
-git tag vX.X.X && git push origin vX.X.X  # 8. Tag
-gh release create vX.X.X            # 9. GitHub release
-npm publish --access public         # 10. npm publish
-```
-
----
-
-## 🤖 Agentic QE Fleet Quick Reference
-
-**19 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection, QX analysis
-**11 QE Subagents:** TDD specialists, code reviewers, integration testers
-**41 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing, **testability-scoring** *(contributed by [@fndlalit](https://github.com/fndlalit))*
-**8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
-
-### 📚 Complete Documentation
-
-- **[Agent Reference](docs/reference/agents.md)** - All 19 main agents + 11 subagents with capabilities and usage
-- **[Skills Reference](docs/reference/skills.md)** - All 41 QE skills organized by category
-- **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
-
-### 🎯 Quick Start
-
-**Spawn agents:**
-```javascript
-Task("Generate tests", "Create test suite for UserService", "qe-test-generator")
-Task("Analyze coverage", "Find gaps using O(log n)", "qe-coverage-analyzer")
-```
-
-**Check learning status:**
-```bash
-aqe learn status --agent test-gen
-aqe patterns list --framework jest
-```
-
-### 💡 Key Principles
-- Use Task tool for agent execution (not just MCP)
-- Batch all operations in single messages (TodoWrite, file ops, etc.)
-- Test with actual databases, not mocks
-- Document only what actually works
-
----
-
-# Claude Flow Integration (Preserved from original CLAUDE.md)
+# Claude Code Configuration - SPARC Development Environment
 
 ## 🚨 CRITICAL: CONCURRENT EXECUTION & FILE MANAGEMENT
 
@@ -118,9 +17,9 @@ aqe patterns list --framework jest
 - **Bash commands**: ALWAYS batch ALL terminal operations in ONE message
 - **Memory operations**: ALWAYS batch ALL memory store/retrieve in ONE message
 
-### 🎯 CRITICAL: Claude Code Task Tool for Claude Flow Agent Execution
+### 🎯 CRITICAL: Claude Code Task Tool for Agent Execution
 
-**Claude Code's Task tool is the PRIMARY way to spawn Claude Flow agents:**
+**Claude Code's Task tool is the PRIMARY way to spawn agents:**
 ```javascript
 // ✅ CORRECT: Use Claude Code's Task tool for parallel agent execution
 [Single Message]:
@@ -131,7 +30,7 @@ aqe patterns list --framework jest
   Task("Architect agent", "Design system architecture...", "system-architect")
 ```
 
-**Claude Flow MCP tools are ONLY for coordination setup:**
+**MCP tools are ONLY for coordination setup:**
 - `mcp__claude-flow__swarm_init` - Initialize coordination topology
 - `mcp__claude-flow__agent_spawn` - Define agent types for coordination
 - `mcp__claude-flow__task_orchestrate` - Orchestrate high-level workflows
@@ -185,7 +84,7 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 - **Clean Architecture**: Separate concerns
 - **Documentation**: Keep updated
 
-## 🚀 Claude Flow Available Agents (54 Total)
+## 🚀 Available Agents (54 Total)
 
 ### Core Development
 `coder`, `reviewer`, `tester`, `planner`, `researcher`
@@ -208,7 +107,7 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 ### Specialized Development
 `backend-dev`, `mobile-dev`, `ml-developer`, `cicd-engineer`, `api-docs`, `system-architect`, `code-analyzer`, `base-template-generator`
 
-### Claude Flow Testing & Validation
+### Testing & Validation
 `tdd-london-swarm`, `production-validator`
 
 ### Migration & Planning
@@ -245,6 +144,7 @@ This project uses SPARC (Specification, Pseudocode, Architecture, Refinement, Co
 # Add MCP servers (Claude Flow required, others optional)
 claude mcp add claude-flow npx claude-flow@alpha mcp start
 claude mcp add ruv-swarm npx ruv-swarm mcp start  # Optional: Enhanced coordination
+claude mcp add flow-nexus npx flow-nexus@latest mcp start  # Optional: Cloud features
 ```
 
 ## MCP Tool Categories
@@ -264,6 +164,22 @@ claude mcp add ruv-swarm npx ruv-swarm mcp start  # Optional: Enhanced coordinat
 ### System
 `benchmark_run`, `features_detect`, `swarm_monitor`
 
+### Flow-Nexus MCP Tools (Optional Advanced Features)
+Flow-Nexus extends MCP capabilities with 70+ cloud-based orchestration tools:
+
+**Key MCP Tool Categories:**
+- **Swarm & Agents**: `swarm_init`, `swarm_scale`, `agent_spawn`, `task_orchestrate`
+- **Sandboxes**: `sandbox_create`, `sandbox_execute`, `sandbox_upload` (cloud execution)
+- **Templates**: `template_list`, `template_deploy` (pre-built project templates)
+- **Neural AI**: `neural_train`, `neural_patterns`, `seraphina_chat` (AI assistant)
+- **GitHub**: `github_repo_analyze`, `github_pr_manage` (repository management)
+- **Real-time**: `execution_stream_subscribe`, `realtime_subscribe` (live monitoring)
+- **Storage**: `storage_upload`, `storage_list` (cloud file management)
+
+**Authentication Required:**
+- Register: `mcp__flow-nexus__user_register` or `npx flow-nexus@latest register`
+- Login: `mcp__flow-nexus__user_login` or `npx flow-nexus@latest login`
+- Access 70+ specialized MCP tools for advanced orchestration
 
 ## 🚀 Agent Execution Flow with Claude Code
 
@@ -295,9 +211,9 @@ claude mcp add ruv-swarm npx ruv-swarm mcp start  # Optional: Enhanced coordinat
   Write "database/schema.sql"
 ```
 
-## 📋 Claude Flow Agent Coordination Protocol
+## 📋 Agent Coordination Protocol
 
-### Every Claude Flow Agent Spawned via Task Tool MUST:
+### Every Agent Spawned via Task Tool MUST:
 
 **1️⃣ BEFORE Work:**
 ```bash
@@ -317,9 +233,9 @@ npx claude-flow@alpha hooks post-task --task-id "[task]"
 npx claude-flow@alpha hooks session-end --export-metrics true
 ```
 
-## 🎯 Claude Flow Concurrent Execution Examples
+## 🎯 Concurrent Execution Examples
 
-### ✅ Claude Flow CORRECT WORKFLOW: MCP Coordinates, Claude Code Executes
+### ✅ CORRECT WORKFLOW: MCP Coordinates, Claude Code Executes
 
 ```javascript
 // Step 1: MCP tools set up coordination (optional, for complex tasks)
@@ -367,6 +283,12 @@ Message 4: Write "file.js"
 // This breaks parallel coordination!
 ```
 
+## Performance Benefits
+
+- **84.8% SWE-Bench solve rate**
+- **32.3% token reduction**
+- **2.8-4.4x speed improvement**
+- **27+ neural models**
 
 ## Hooks Integration
 
@@ -391,67 +313,16 @@ Message 4: Write "file.js"
 - Restore context
 - Export workflows
 
-## 📊 Visualization Dashboard
+## Advanced Features (v2.0.0)
 
-Agent activity is automatically visualized in real-time when services are running.
-
-### Starting the Visualization
-
-```bash
-# Terminal 1: Start backend services (WebSocket + REST API)
-npx tsx scripts/start-visualization-services.ts
-
-# Terminal 2: Start frontend dashboard
-cd frontend && npm run dev
-```
-
-Then open http://localhost:3000 to view the dashboard.
-
-### Auto-Emit Events (Hook Integration)
-
-Task agents automatically emit visualization events via Claude Code hooks:
-- **PreToolUse hook**: Emits `agent:spawned` and `agent:started` events when Task tool is invoked
-- **PostToolUse hook**: Emits `agent:completed` or `agent:error` events when Task completes
-
-No manual action required - just use the Task tool and agents appear in the visualization!
-
-### Manual Event Emission
-
-For custom workflows or debugging:
-
-```bash
-# Emit spawn event with agent type
-npx tsx scripts/emit-agent-event.ts spawn <agentId> <agentType>
-
-# Emit start event
-npx tsx scripts/emit-agent-event.ts start <agentId>
-
-# Emit completion event with duration (ms)
-npx tsx scripts/emit-agent-event.ts complete <agentId> [duration]
-
-# Emit error event
-npx tsx scripts/emit-agent-event.ts error <agentId> "Error message"
-```
-
-### Programmatic API
-
-```typescript
-import { emitAgentSpawn, emitAgentComplete, emitAgentError } from './src/visualization';
-
-// Emit events in your code
-await emitAgentSpawn('my-agent', 'researcher');
-await emitAgentComplete('my-agent', 5000);
-await emitAgentError('my-agent', 'Something went wrong');
-```
-
-### Event Types
-
-| Event | Status | When |
-|-------|--------|------|
-| `agent:spawned` | `idle` | Agent created |
-| `agent:started` | `running` | Agent begins work |
-| `agent:completed` | `completed` | Agent finishes |
-| `agent:error` | `error` | Agent fails |
+- 🚀 Automatic Topology Selection
+- ⚡ Parallel Execution (2.8-4.4x speed)
+- 🧠 Neural Training
+- 📊 Bottleneck Analysis
+- 🤖 Smart Auto-Spawning
+- 🛡️ Self-Healing Workflows
+- 💾 Cross-Session Memory
+- 🔗 GitHub Integration
 
 ## Integration Tips
 
@@ -467,6 +338,7 @@ await emitAgentError('my-agent', 'Something went wrong');
 
 - Documentation: https://github.com/ruvnet/claude-flow
 - Issues: https://github.com/ruvnet/claude-flow/issues
+- Flow-Nexus Platform: https://flow-nexus.ruv.io (registration required for cloud features)
 
 ---
 
@@ -478,11 +350,3 @@ NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 Never save working files, text/mds and tests to the root folder.
-
-
----
-
-**Generated by**: Agentic QE Fleet v2.3.0
-**Initialization Date**: 2025-12-08T13:48:54.968Z
-**Fleet Topology**: hierarchical
-- We always implement all the code/tests, with proper implementation. We value the quality we deliver to our users.

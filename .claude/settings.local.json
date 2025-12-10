@@ -1,16 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "mcp__agentic-qe",
       "mcp__ruv-swarm",
       "mcp__claude-flow@alpha",
-      "Bash(claude mcp:*)"
+      "mcp__flow-nexus"
     ],
     "deny": []
-  },
-  "enabledMcpjsonServers": [
-    "claude-flow",
-    "ruv-swarm",
-    "agentic-qe"
-  ]
+  }
 }
