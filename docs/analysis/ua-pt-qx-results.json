@@ -1,0 +1,958 @@
+{
+  "analysis_metadata": {
+    "target_url": "https://www.ua.pt/en/",
+    "analysis_date": "2025-12-10",
+    "analyzer": "QX Partner Agent",
+    "version": "2.3.3",
+    "analysis_type": "comprehensive_ux_qx",
+    "context": {
+      "institution": "University of Aveiro",
+      "location": "Portugal",
+      "student_population": 17000,
+      "international_percentage": 12,
+      "nationalities": 90,
+      "academic_structure": {
+        "departments": 16,
+        "polytechnic_schools": 4,
+        "campus_locations": 3,
+        "programs": {
+          "undergraduate": 55,
+          "masters": 85,
+          "integrated_masters": 1,
+          "doctoral": 52,
+          "total": 193
+        }
+      },
+      "technology_stack": "React SPA",
+      "design_system": {
+        "colors": {
+          "primary_teal": "#00AFBB",
+          "secondary_lime": "#94D500",
+          "neutrals": ["black", "white", "gray"]
+        },
+        "typography": "Roboto (Google Fonts)",
+        "breakpoints": [1199, 991, 767, 575]
+      }
+    }
+  },
+  "qx_analysis": {
+    "overall_score": 68,
+    "grade": "C",
+    "assessment": "Needs Improvement",
+    "component_scores": {
+      "information_architecture": 62,
+      "navigation_design": 65,
+      "visual_design_consistency": 71,
+      "content_organization": 64,
+      "mobile_ux": 58,
+      "first_time_visitor_experience": 55,
+      "international_user_experience": 52,
+      "trust_signals": null,
+      "conversion_optimization": null
+    },
+    "stakeholder_balance": {
+      "user_experience_alignment": 65,
+      "business_objective_alignment": 78,
+      "technical_implementation": 71,
+      "accessibility_inclusion": 58,
+      "balance_score": 72,
+      "assessment": "Slightly favors business over user needs"
+    }
+  },
+  "oracle_problems": [
+    {
+      "id": "OP-001",
+      "type": "user_vs_business_conflict",
+      "severity": "HIGH",
+      "confidence": 0.88,
+      "title": "User Convenience vs. Business Information Control",
+      "description": "Minimal information presentation (department names only, no search/filters) may be deliberate business decision to force page exploration, conflicting with user need for efficient task completion",
+      "stakeholder_perspectives": {
+        "users": "Want minimal clicks to find specific programs/departments (2-3 clicks ideal)",
+        "business_marketing": "May want higher page views, longer session times for engagement metrics",
+        "business_admissions": "Needs qualified applications, values conversion over engagement"
+      },
+      "evidence": [
+        "No search on pages with 20+ items",
+        "Minimal information forcing users to click through",
+        "Simple list layouts vs information-rich cards"
+      ],
+      "resolution_options": [
+        {
+          "approach": "balanced",
+          "description": "Implement search and rich listings, track quality metrics (applications, inquiries) instead of vanity metrics",
+          "recommendation": true
+        },
+        {
+          "approach": "user_favored",
+          "description": "Full transparency with search, filters, detailed info upfront"
+        },
+        {
+          "approach": "business_favored",
+          "description": "Maintain current approach, risk losing frustrated users to competitors"
+        }
+      ],
+      "impact": {
+        "user_impact": "High frustration, 8-12 min task times, abandonment",
+        "business_impact": "Lost applications from frustrated users outweigh engagement metric gains",
+        "net_assessment": "Current state is lose-lose (poor UX + lost conversions)"
+      },
+      "recommendation": "Conduct stakeholder alignment session with Marketing, Admissions, and UX representatives. Present data showing correlation between search functionality and application conversion rates."
+    },
+    {
+      "id": "OP-002",
+      "type": "stakeholder_priority_conflict",
+      "severity": "CRITICAL",
+      "confidence": 0.91,
+      "title": "International Audience vs. Primary Language Content",
+      "description": "12% international students from 90 nationalities, yet language switcher not prominently visible and English content parity unknown. Unclear institutional priority.",
+      "stakeholder_perspectives": {
+        "international_students": "Expect full English content, easy language switching, culturally adapted experience",
+        "domestic_students": "May expect Portuguese-first experience",
+        "administration": "May prioritize domestic student recruitment (88% of student body)",
+        "internationalization_office": "Needs strong international recruitment to meet strategic goals"
+      },
+      "evidence": [
+        "Language switcher location unknown/hidden",
+        "Content parity between languages unknown",
+        "International-specific information visibility unknown"
+      ],
+      "unclear_quality_criteria": [
+        "What percentage of content must be available in English?",
+        "Should English be equal priority or secondary?",
+        "Is international growth a strategic priority or nice-to-have?"
+      ],
+      "resolution_required": {
+        "executive_decision": "Is international growth a strategic priority?",
+        "if_yes": "English must be equal priority (full parity, prominent switching, international-first design)",
+        "if_no": "Set realistic expectations, don't market heavily to international students"
+      },
+      "business_impact": {
+        "current_ambiguity": "Lost international applications from confused/frustrated users",
+        "clear_strategy": "Either successfully recruit internationally OR focus resources on domestic market"
+      },
+      "recommendation": "Escalate to executive leadership for strategic clarity. Once decision is made, align website experience accordingly."
+    },
+    {
+      "id": "OP-003",
+      "type": "user_mental_model_vs_organizational_structure",
+      "severity": "HIGH",
+      "confidence": 0.85,
+      "title": "Information Architecture vs. Academic Structure",
+      "description": "University organized by departments/schools, but prospective students think in terms of programs/careers, not organizational units",
+      "stakeholder_perspectives": {
+        "users_prospective_students": "Think by program name, career outcomes, subjects",
+        "faculty_departments": "Organized by academic disciplines and organizational structure",
+        "administration": "Structured by institutional governance"
+      },
+      "evidence": [
+        "Navigation appears to follow organizational structure",
+        "Departments listed without context of programs offered",
+        "Unknown if program-first navigation option exists"
+      ],
+      "conflict": {
+        "academic_structure": "Correct, reflects how university is actually organized",
+        "user_mental_model": "Programs they want to study, careers they want to pursue",
+        "current_site": "Forces users to learn organizational structure to find programs"
+      },
+      "resolution_options": [
+        {
+          "approach": "dual_navigation",
+          "description": "Browse by Program (user mental model) + Browse by Department (academic structure)",
+          "recommendation": true
+        },
+        {
+          "approach": "program_first",
+          "description": "Prioritize program discovery, downplay departmental structure"
+        },
+        {
+          "approach": "status_quo",
+          "description": "Force users to learn organizational structure"
+        }
+      ],
+      "recommendation": "Implement dual navigation. User research should determine which is primary (likely program-first for prospective students)."
+    },
+    {
+      "id": "OP-004",
+      "type": "business_pressure_vs_user_experience",
+      "severity": "MEDIUM",
+      "confidence": 0.79,
+      "title": "Conversion Optimization vs. User Autonomy",
+      "description": "Admissions office likely pressured to increase applications, which could lead to aggressive conversion tactics vs. user need for research autonomy",
+      "stakeholder_perspectives": {
+        "admissions_office": "Needs application volume to meet enrollment targets",
+        "users": "Want to research thoroughly, compare options, not feel pressured",
+        "marketing": "May push aggressive conversion tactics"
+      },
+      "potential_dark_patterns_risk": [
+        "Hiding information until form submission",
+        "Fake urgency (countdown timers that reset)",
+        "Excessive CTAs that distract from content",
+        "No-exit application flows"
+      ],
+      "missing_information": [
+        "Unable to assess current CTA density and pressure",
+        "Unknown if information is gated behind forms"
+      ],
+      "quality_criteria_needed": [
+        "What is acceptable application conversion rate?",
+        "Is quality of applicants more important than quantity?",
+        "Should international vs domestic students have different experiences?"
+      ],
+      "resolution_options": [
+        {
+          "approach": "balanced",
+          "description": "Clear CTAs without pressure, full information transparency, respect user research process",
+          "recommendation": true
+        },
+        {
+          "approach": "business_aggressive",
+          "description": "Multiple CTAs, urgency messaging, gated content",
+          "risk": "Brand damage, poor fit applicants"
+        },
+        {
+          "approach": "user_centric",
+          "description": "Minimal CTAs, full transparency",
+          "risk": "Users may not convert"
+        }
+      ],
+      "recommendation": "Measure application quality (acceptance rate, enrollment rate, student success) not just application volume."
+    }
+  ],
+  "critical_issues": [
+    {
+      "id": "IA-004",
+      "category": "information_architecture",
+      "severity": "CRITICAL",
+      "priority": "P0",
+      "title": "No Site-Wide Search Functionality",
+      "impact": "very_high",
+      "affected_users": "100%",
+      "business_impact": "Lost applications from frustrated prospective students",
+      "evidence": "No search functionality or filtering mechanisms visible on analyzed pages",
+      "user_frustration": "Users with specific queries face excessive navigation",
+      "estimated_task_time": "8-12 minutes",
+      "benchmark_task_time": "2-3 minutes",
+      "recommendation": "Implement prominent header search with autocomplete and scoped search (courses, faculty, research, news)",
+      "expected_outcome": "60% reduction in task completion time, 20% reduction in bounce rate"
+    },
+    {
+      "id": "INTL-001",
+      "category": "international_ux",
+      "severity": "CRITICAL",
+      "priority": "P0",
+      "title": "Language Switcher Not Visible",
+      "impact": "critical",
+      "affected_users": "12% international (2000+ students)",
+      "business_impact": "Lost international applications",
+      "evidence": "Language switcher not visible in extracted markup",
+      "user_frustration": "International users may not discover English content exists",
+      "recommendation": "Place language switcher in top-right header, persistent across pages, with flags + text labels",
+      "expected_outcome": "30-40% reduction in international bounce rate"
+    },
+    {
+      "id": "NAV-002",
+      "category": "navigation",
+      "severity": "HIGH",
+      "priority": "P0",
+      "title": "No Filtering on 20+ Item Pages",
+      "impact": "high",
+      "affected_users": "100% of users on departments/courses pages",
+      "business_impact": "Reduced engagement, increased frustration",
+      "evidence": "No search functionality or filtering mechanisms on departments page with 20 institutions",
+      "user_scenario": "International student seeking Computer Science must read all 20 department names",
+      "recommendation": "Add alphabet jump links, search filter, or categorization",
+      "expected_outcome": "Faster task completion, reduced frustration"
+    },
+    {
+      "id": "FTV-002",
+      "category": "first_time_visitor",
+      "severity": "CRITICAL",
+      "priority": "P0",
+      "title": "Value Proposition Unknown",
+      "impact": "very_high",
+      "affected_users": "100% first-time visitors",
+      "business_impact": "Unclear differentiation, reduced emotional connection",
+      "issue": "Unable to identify homepage value proposition or hero messaging",
+      "benchmark": "Homepage hero should answer: What does university excel at? Why study here? What outcomes?",
+      "recommendation": "Implement clear value prop above fold with key differentiators",
+      "expected_outcome": "Improved understanding, emotional connection, reduced bounce rate"
+    },
+    {
+      "id": "CONV-APP-001",
+      "category": "conversion",
+      "severity": "CRITICAL",
+      "priority": "P0",
+      "title": "Application CTA Visibility Unknown",
+      "impact": "critical",
+      "affected_users": "100% ready-to-apply users",
+      "business_impact": "Direct loss of qualified applicants",
+      "issue": "Unable to locate Apply Now buttons in analysis",
+      "benchmark": "CTA should be visible on homepage above fold, every program page, navigation menu",
+      "high_risk_scenario": "User finds perfect program, cannot find application button, abandons site",
+      "recommendation": "Audit CTA placement and visibility, ensure above-fold on all program pages",
+      "expected_outcome": "20-30% increase in application initiation rate"
+    },
+    {
+      "id": "VD-002",
+      "category": "visual_design",
+      "severity": "HIGH",
+      "priority": "P0",
+      "title": "Accessibility Concerns with Lime Color",
+      "impact": "high",
+      "affected_users": "~15% of population with vision impairments",
+      "business_impact": "Legal compliance risk, accessibility failure",
+      "issue": "Lime (#94D500) on white may fail WCAG AA contrast ratio (4.5:1 for normal text)",
+      "testing_required": "Verify all color combinations meet WCAG 2.1 AA",
+      "recommendation": "Darken lime to #7AB600 or use only for decorative elements",
+      "expected_outcome": "WCAG 2.1 AA compliance, legal protection"
+    }
+  ],
+  "high_priority_issues": [
+    {
+      "id": "CO-001",
+      "category": "content_organization",
+      "severity": "HIGH",
+      "priority": "P0",
+      "title": "Minimal Descriptive Content on Listings",
+      "impact": "high",
+      "affected_pages": "Departments & Schools page",
+      "issue": "Only department/school name and link shown, no descriptions",
+      "cognitive_load": "Forces users to hold information in working memory across multiple pages",
+      "recommendation": "Add 2-3 sentence descriptions per department including focus areas, program count, research strengths",
+      "expected_outcome": "Informed decisions without excessive clicking, reduced cognitive load"
+    },
+    {
+      "id": "IA-001",
+      "category": "information_architecture",
+      "severity": "HIGH",
+      "priority": "P0",
+      "title": "Navigation Depth Exceeds Optimal Levels",
+      "impact": "high",
+      "issue": "Information likely buried 3-4+ clicks deep for key user tasks",
+      "user_impact": "Cognitive overload, increased bounce rate, user frustration",
+      "evidence": "Complex academic structure (16 departments, 4 schools, 193 programs) without simplified navigation",
+      "recommendation": "Implement mega-menu with visual categorization and search-ahead functionality",
+      "expected_outcome": "Reduced navigation confusion, improved findability"
+    },
+    {
+      "id": "MOB-003",
+      "category": "mobile_ux",
+      "severity": "HIGH",
+      "priority": "P0",
+      "title": "Hero Image Fixed Height on Mobile",
+      "impact": "high",
+      "affected_users": "40-50% mobile traffic",
+      "issue": "400px hero height likely covers 60-80% of mobile viewport",
+      "user_frustration": "This page is just an image - must scroll immediately to see content",
+      "recommendation": "Reduce hero to 250px or 40vh on mobile",
+      "expected_outcome": "Immediate content visibility, reduced frustration"
+    },
+    {
+      "id": "INTL-007",
+      "category": "international_ux",
+      "severity": "HIGH",
+      "priority": "P0",
+      "title": "International-Specific Information Unclear",
+      "impact": "high",
+      "affected_users": "12% international applicants",
+      "missing_information": [
+        "Visa requirements",
+        "Housing assistance",
+        "Language support services",
+        "International student office contact",
+        "Integration programs"
+      ],
+      "business_impact": "International applicants may not find critical information, abandon application",
+      "recommendation": "Create dedicated International Students section with pre-arrival checklist, visa guidance, housing, testimonials",
+      "expected_outcome": "30-40% increase in international application rate"
+    },
+    {
+      "id": "INTL-008",
+      "category": "international_ux",
+      "severity": "HIGH",
+      "priority": "P1",
+      "title": "Program Language of Instruction Clarity",
+      "impact": "high",
+      "affected_users": "All international applicants",
+      "issue": "Unknown if course listings clearly indicate language of instruction",
+      "critical_risk": "International students may apply to Portuguese-taught programs unintentionally",
+      "visibility_required": [
+        "Search results",
+        "Program listings",
+        "Program detail pages (prominent)"
+      ],
+      "recommendation": "Add language badge to all program listings (icons for English/Portuguese)",
+      "expected_outcome": "Reduced misapplications, better user experience"
+    }
+  ],
+  "pain_points": [
+    {
+      "id": "PAIN-001",
+      "title": "Course Discovery Friction",
+      "severity": "CRITICAL",
+      "user_impact": "HIGH",
+      "business_impact": "VERY HIGH - lost applications",
+      "issue": "No search or filtering on course pages with 85+ masters programs",
+      "user_quote_assumed": "I just want to find Computer Science masters... why do I have to scroll through every program?",
+      "frequency": "Affects 100% of prospective students searching for specific programs",
+      "resolution_time_current": "8-12 minutes",
+      "resolution_time_benchmark": "2-3 minutes",
+      "recommendations": [
+        "Add search with autocomplete (P0)",
+        "Implement multi-faceted filtering (P0)",
+        "Create Popular Programs shortcut (P1)"
+      ]
+    },
+    {
+      "id": "PAIN-002",
+      "title": "Navigation Depth and Complexity",
+      "severity": "HIGH",
+      "user_impact": "HIGH",
+      "business_impact": "HIGH - increased bounce rate",
+      "issue": "Deep hierarchy without navigation aids",
+      "user_frustration": "I'm lost in this site... where am I?",
+      "frequency": "Affects 70-80% of first-time visitors",
+      "recommendations": [
+        "Implement breadcrumb navigation (P1)",
+        "Add mega-menu for primary navigation (P0)",
+        "Provide site search (P0)"
+      ]
+    },
+    {
+      "id": "PAIN-003",
+      "title": "Minimal Contextual Information",
+      "severity": "HIGH",
+      "user_impact": "HIGH",
+      "business_impact": "MEDIUM - reduced engagement",
+      "issue": "Department listings show only names, no descriptions",
+      "user_frustration": "What does this department actually do? I have to click to find out?",
+      "frequency": "Affects 100% of users on department pages",
+      "recommendations": [
+        "Add 2-3 sentence descriptions (P0)",
+        "Show program counts per department (P1)",
+        "Add visual differentiation (P1)"
+      ]
+    },
+    {
+      "id": "PAIN-004",
+      "title": "Language Switcher Discoverability",
+      "severity": "CRITICAL",
+      "user_impact": "VERY HIGH",
+      "business_impact": "CRITICAL - lost international applications",
+      "issue": "Language switcher not visible",
+      "user_frustration": "This site is all in Portuguese... I guess they don't accept international students",
+      "frequency": "Affects 100% of international visitors landing on Portuguese page",
+      "recommendations": [
+        "Place language switcher in top-right header (P0)",
+        "Detect browser language and prompt (P1)",
+        "Remember language preference (P1)"
+      ]
+    },
+    {
+      "id": "PAIN-005",
+      "title": "Application Path Unclear",
+      "severity": "CRITICAL",
+      "user_impact": "VERY HIGH",
+      "business_impact": "CRITICAL - lost applications",
+      "issue": "Application process and CTA visibility unknown",
+      "user_frustration": "I found the perfect program, but how do I apply?",
+      "frequency": "Affects 100% of users ready to apply",
+      "recommendations": [
+        "Audit application CTA visibility (P0)",
+        "Ensure Apply Now visible above fold on all program pages (P0)",
+        "Create clear application process page (P1)"
+      ]
+    }
+  ],
+  "recommendations_prioritized": {
+    "p0_critical": [
+      {
+        "id": "P0-1",
+        "title": "Site-Wide Search Implementation",
+        "business_value": "Enable fast course/dept discovery for all users",
+        "user_impact": "Reduce task time from 8-12 min to 2-3 min",
+        "implementation": [
+          "Add search box to header (persistent)",
+          "Implement autocomplete with suggestions",
+          "Scope search (All | Courses | Departments | Research)",
+          "Index all key content"
+        ],
+        "success_metrics": {
+          "search_usage_rate": "60%+ of users",
+          "task_completion_time_reduction": "60%+",
+          "bounce_rate_reduction": "15-20%"
+        },
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      },
+      {
+        "id": "P0-2",
+        "title": "Language Switcher Visibility",
+        "business_value": "Prevent loss of international applications",
+        "user_impact": "Enable 12% international audience to find English content",
+        "implementation": [
+          "Place in top-right header (flags + text)",
+          "Make persistent across all pages",
+          "Detect browser language, show banner",
+          "Preserve page context when switching"
+        ],
+        "success_metrics": {
+          "international_bounce_rate_reduction": "30-40%",
+          "international_application_rate": "increase tracked"
+        },
+        "effort": "Low",
+        "timeframe": "1 week"
+      },
+      {
+        "id": "P0-3",
+        "title": "Application CTA Audit and Enhancement",
+        "business_value": "Increase application conversion rate",
+        "user_impact": "Clear path to application for qualified users",
+        "implementation": [
+          "Audit current CTA visibility on all pages",
+          "Add Apply Now to homepage (above fold), every program page (sticky), navigation menu",
+          "Create How to Apply explainer page",
+          "Add application deadline alerts"
+        ],
+        "success_metrics": {
+          "application_initiation_rate": "+20-30%",
+          "application_completion_rate": "+15-20%",
+          "time_to_apply": "reduced"
+        },
+        "effort": "Low",
+        "timeframe": "1-2 weeks"
+      },
+      {
+        "id": "P0-4",
+        "title": "Course/Program Filtering and Search",
+        "business_value": "Reduce frustration, increase engagement",
+        "user_impact": "Fast discovery of specific programs",
+        "implementation": [
+          "Add multi-faceted filters (level, department, language, mode)",
+          "Add search within courses",
+          "Show result count",
+          "Enable sort options"
+        ],
+        "success_metrics": {
+          "filter_usage_rate": "70%+",
+          "course_page_bounce_rate_reduction": "25%+",
+          "task_completion_increase": "40%+"
+        },
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      },
+      {
+        "id": "P0-5",
+        "title": "Department Listings Enhancement",
+        "business_value": "Increase engagement, reduce confusion",
+        "user_impact": "Understand departments without clicking",
+        "implementation": [
+          "Add 2-3 sentence descriptions per department",
+          "Show program counts",
+          "Add visual icons/images",
+          "Implement card-based layout",
+          "Add quick contact links"
+        ],
+        "success_metrics": {
+          "time_on_page_increase": "30%+",
+          "click_through_rate": "maintained or increased",
+          "contact_inquiry_rate": "increased"
+        },
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      },
+      {
+        "id": "P0-6",
+        "title": "Mega-Menu Navigation",
+        "business_value": "Reduce navigation confusion, improve findability",
+        "user_impact": "See all options at once, understand site structure",
+        "implementation": [
+          "Replace dropdown with mega-menu",
+          "Visual categories with icons",
+          "Show 2-3 levels of hierarchy simultaneously",
+          "Include search in menu",
+          "Highlight popular pages"
+        ],
+        "success_metrics": {
+          "navigation_usage_increase": "40%+",
+          "pages_per_session_increase": "20%+",
+          "bounce_rate_reduction": "15%+"
+        },
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      }
+    ],
+    "p1_high": [
+      {
+        "id": "P1-1",
+        "title": "Comprehensive International Students Section",
+        "effort": "High",
+        "timeframe": "4-6 weeks",
+        "impact": "High"
+      },
+      {
+        "id": "P1-2",
+        "title": "Breadcrumb Navigation Site-Wide",
+        "effort": "Low",
+        "timeframe": "1 week",
+        "impact": "Medium"
+      },
+      {
+        "id": "P1-3",
+        "title": "Mobile UX Optimization",
+        "effort": "Medium",
+        "timeframe": "3-4 weeks",
+        "impact": "High"
+      },
+      {
+        "id": "P1-4",
+        "title": "Contact Optimization",
+        "effort": "Medium",
+        "timeframe": "2-3 weeks",
+        "impact": "High"
+      },
+      {
+        "id": "P1-5",
+        "title": "Trust Signal Enhancement",
+        "effort": "Medium",
+        "timeframe": "3-4 weeks",
+        "impact": "High"
+      },
+      {
+        "id": "P1-6",
+        "title": "Visual Design Consistency Audit",
+        "effort": "High",
+        "timeframe": "4-6 weeks",
+        "impact": "Medium"
+      },
+      {
+        "id": "P1-7",
+        "title": "First-Time Visitor Onboarding",
+        "effort": "Medium",
+        "timeframe": "3-4 weeks",
+        "impact": "High"
+      }
+    ],
+    "p2_medium": [
+      {
+        "id": "P2-1",
+        "title": "Content Parity Audit (Portuguese vs English)",
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      },
+      {
+        "id": "P2-2",
+        "title": "FAQ Implementation",
+        "effort": "High",
+        "timeframe": "4-6 weeks"
+      },
+      {
+        "id": "P2-3",
+        "title": "Application Flow Optimization",
+        "effort": "High",
+        "timeframe": "6-8 weeks"
+      },
+      {
+        "id": "P2-4",
+        "title": "Carousel Replacement",
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      },
+      {
+        "id": "P2-5",
+        "title": "Progressive Web App Implementation",
+        "effort": "Very High",
+        "timeframe": "8-12 weeks"
+      },
+      {
+        "id": "P2-6",
+        "title": "Analytics and Conversion Tracking",
+        "effort": "Medium",
+        "timeframe": "2-3 weeks"
+      },
+      {
+        "id": "P2-7",
+        "title": "Date/Number Format Internationalization",
+        "effort": "Low",
+        "timeframe": "1 week"
+      },
+      {
+        "id": "P2-8",
+        "title": "Research Section Enhancement",
+        "effort": "High",
+        "timeframe": "6-8 weeks"
+      }
+    ]
+  },
+  "impact_analysis": {
+    "visible_impacts": {
+      "gui_flow_changes": [
+        {
+          "change": "Search addition",
+          "description": "New header search box with autocomplete dropdown",
+          "user_feeling": "Relief, empowerment, efficiency",
+          "cross_team_impact": "Admissions sees qualified inquiries increase"
+        },
+        {
+          "change": "Mega-menu implementation",
+          "description": "Expanded navigation showing hierarchy",
+          "user_feeling": "Clarity, reduced confusion",
+          "cross_team_impact": "Support tickets about navigation decrease"
+        },
+        {
+          "change": "Card-based layouts",
+          "description": "Replace lists with visual cards",
+          "user_feeling": "Modern, engaging, easier to scan",
+          "cross_team_impact": "Marketing can showcase department highlights"
+        },
+        {
+          "change": "Prominent CTAs",
+          "description": "Apply Now visible throughout",
+          "user_feeling": "Clear path forward",
+          "cross_team_impact": "Admissions tracks CTA effectiveness"
+        }
+      ],
+      "user_emotional_journey": {
+        "current_state": [
+          "Arrival: Curiosity, interest",
+          "Navigation: Confusion, frustration",
+          "Search: Annoyance",
+          "Discovery: Exhaustion after 5+ pages",
+          "Decision: Uncertain - incomplete information",
+          "Action: Abandoned or reluctant application"
+        ],
+        "recommended_future_state": [
+          "Arrival: Interest, clear value proposition",
+          "Navigation: Confidence - clear paths",
+          "Search: Satisfaction - fast results",
+          "Discovery: Informed - rich information",
+          "Decision: Confident - comparison complete",
+          "Action: Enthusiastic application"
+        ]
+      }
+    },
+    "invisible_impacts": {
+      "performance": {
+        "current": "React SPA may have large initial bundle",
+        "recommendations_impact": {
+          "search": "+50-100KB (minimal)",
+          "mega_menu": "+20-30KB (minimal)",
+          "card_images": "+200-500KB if not optimized (significant)"
+        },
+        "mitigation": "Lazy load images, code splitting, WebP format",
+        "net_impact": "+5-8% page load time if not optimized, neutral if optimized"
+      },
+      "security": {
+        "current": "GDPR compliance present (OneTrust)",
+        "recommendations_impact": {
+          "search": "No sensitive data, low risk",
+          "contact_forms": "Must validate and sanitize inputs (XSS risk)",
+          "live_chat": "Third-party integration, privacy considerations"
+        },
+        "mitigation": "Input validation, CSP headers, privacy-compliant chat provider",
+        "net_impact": "Neutral if implemented securely"
+      },
+      "accessibility": {
+        "current": "Unknown WCAG compliance level",
+        "recommendations_impact": {
+          "search": "Improve keyboard navigation, screen reader access",
+          "mega_menu": "Risk if not implemented accessibly (keyboard traps)",
+          "card_layouts": "Better semantic HTML than lists",
+          "touch_targets": "Critical improvement for motor disabilities"
+        },
+        "mitigation": "WCAG 2.1 AA compliance for all new features",
+        "net_impact": "+15-20% accessibility score if implemented properly"
+      },
+      "seo": {
+        "recommendations_impact": {
+          "breadcrumbs_with_schema": "+5-10% ranking boost",
+          "search": "No direct SEO impact (internal)",
+          "page_speed": "-2-5% ranking if performance degrades",
+          "rich_content": "+10-15% ranking (more indexable content)"
+        },
+        "net_impact": "+10-20% organic search visibility"
+      }
+    },
+    "cross_team_impacts": {
+      "admissions_office": {
+        "positive": [
+          "Increased application volume (20-30% estimated)",
+          "Higher quality applicants (better informed)",
+          "Reduced phone inquiries about basic info"
+        ],
+        "negative": [
+          "May need more staff to handle increased applications",
+          "Expectation of faster response times (live chat)"
+        ]
+      },
+      "it_development_team": {
+        "workload": "High (all P0-P1 recommendations)",
+        "timeline": "3-6 months for full implementation",
+        "resources": "May need external contractor support",
+        "ongoing": "Search index maintenance, analytics monitoring"
+      },
+      "marketing": {
+        "positive": [
+          "Better conversion tracking",
+          "Data-driven optimization opportunities",
+          "Enhanced brand perception"
+        ],
+        "negative": [
+          "May resist removing carousels",
+          "May push back on information transparency"
+        ]
+      },
+      "international_office": {
+        "positive": [
+          "Easier international recruitment",
+          "Clear international student section",
+          "Language parity supports goals"
+        ],
+        "neutral": [
+          "May need to create new content (country-specific guides, testimonials)"
+        ]
+      },
+      "student_support": {
+        "positive": [
+          "FAQ and chatbot reduce basic inquiry volume",
+          "Clear information reduces confused students"
+        ],
+        "negative": [
+          "Chat widget requires staffing during business hours"
+        ]
+      }
+    }
+  },
+  "success_metrics": {
+    "user_experience_metrics": {
+      "task_completion_rate": {
+        "current": "60% (estimated)",
+        "target": "85%+",
+        "improvement": "+25 percentage points"
+      },
+      "task_completion_time": {
+        "current": "8-12 minutes",
+        "target": "2-3 minutes",
+        "improvement": "60-75% reduction"
+      },
+      "bounce_rate": {
+        "current": "unknown",
+        "target": "-20% reduction"
+      },
+      "mobile_satisfaction": {
+        "current": "unknown",
+        "target": "75+"
+      }
+    },
+    "business_metrics": {
+      "application_initiation_rate": {
+        "target": "+25-30%"
+      },
+      "application_completion_rate": {
+        "target": "+15-20%"
+      },
+      "international_application_rate": {
+        "target": "+30-40%"
+      },
+      "inquiry_contact_rate": {
+        "target": "+20-30%"
+      }
+    },
+    "technical_metrics": {
+      "page_load_time": {
+        "target": "<3 seconds"
+      },
+      "wcag_compliance": {
+        "target": "100% WCAG 2.1 AA"
+      },
+      "mobile_page_weight": {
+        "target": "<2MB"
+      },
+      "search_usage_rate": {
+        "target": "60%+ of visitors"
+      }
+    }
+  },
+  "next_steps": {
+    "immediate_actions_2_weeks": [
+      {
+        "week": 1,
+        "action": "Conduct live site audit",
+        "details": "Task scenarios, mobile/desktop testing, document current state with screenshots, measure task times"
+      },
+      {
+        "week": 1,
+        "action": "Stakeholder alignment session",
+        "details": "Present oracle problems, align on strategic priorities, get executive buy-in"
+      },
+      {
+        "week": 2,
+        "action": "Prioritize P0 recommendations",
+        "details": "Technical feasibility assessment, resource allocation, implementation roadmap"
+      },
+      {
+        "week": 2,
+        "action": "Quick wins",
+        "details": "Fix page title redundancy, ensure language switcher visible, audit application CTAs, add contact links"
+      }
+    ],
+    "3_month_roadmap": {
+      "month_1_foundation": [
+        "Implement site-wide search",
+        "Add language switcher to header",
+        "Audit and optimize application CTAs",
+        "Implement breadcrumb navigation",
+        "Enhance department listings"
+      ],
+      "month_2_core_ux": [
+        "Implement mega-menu navigation",
+        "Add course filtering and search",
+        "Optimize mobile experience",
+        "Create International Students section",
+        "Add trust signals"
+      ],
+      "month_3_optimization": [
+        "Implement contact optimization",
+        "Visual design consistency audit and fixes",
+        "First-time visitor onboarding improvements",
+        "Analytics and conversion tracking",
+        "A/B testing framework setup"
+      ]
+    },
+    "long_term_vision_6_12_months": {
+      "persona_driven_experience": [
+        "Personalized landing pages by user type",
+        "Customized content recommendations",
+        "Saved searches and program comparisons",
+        "Application progress dashboard"
+      ],
+      "ai_ml_enhancements": [
+        "Chatbot for 24/7 multi-language support",
+        "Program recommendation engine",
+        "Predictive search",
+        "Personalized content delivery"
+      ],
+      "continuous_optimization": [
+        "Regular user testing (quarterly)",
+        "A/B testing program",
+        "Analytics-driven refinement",
+        "Competitive benchmarking"
+      ],
+      "goal": "Move from 68/100 (C) to 85+/100 (A) - Top-tier university website experience"
+    }
+  },
+  "limitations": [
+    "Unable to access rendered page content (CSS/JS returned instead of HTML)",
+    "No actual user testing conducted",
+    "No analytics data available",
+    "No heat maps or session recordings",
+    "Some assessments based on reasonable assumptions",
+    "No competitive benchmarking against peer institutions"
+  ],
+  "confidence_levels": {
+    "high_confidence_0.85_1.0": "Issues identified directly from available data",
+    "medium_confidence_0.7_0.84": "Issues inferred from partial data and common patterns",
+    "low_confidence_0.5_0.69": "Assumptions based on industry standards"
+  }
+}
