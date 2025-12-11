@@ -125,3 +125,4 @@ claude-flow.config.json
 .playwright-mcp/
 tests/tmp/
 aqe
+__mocks__/*

@@ -46,6 +46,8 @@ export interface SleepSchedulerConfig {
   learningBudget: Partial<LearningBudget>;
   /** Minimum time between cycles in ms. Default: 3600000 (1 hour) */
   minCycleInterval?: number;
+  /** Phase durations for sleep cycle (for testing with short durations) */
+  phaseDurations?: Partial<Record<'N1_CAPTURE' | 'N2_PROCESS' | 'N3_CONSOLIDATE' | 'REM_DREAM', number>>;
   /** Enable debug logging */
   debug?: boolean;
 }
@@ -78,7 +80,7 @@ export interface SleepSchedulerState {
  * ```
  */
 export class SleepScheduler extends EventEmitter {
-  private config: Required<SleepSchedulerConfig>;
+  private config: Omit<Required<SleepSchedulerConfig>, 'phaseDurations'> & Pick<SleepSchedulerConfig, 'phaseDurations'>;
   private idleDetector: IdleDetector;
   private currentCycle: SleepCycle | null = null;
   private isRunning: boolean = false;
@@ -118,6 +120,7 @@ export class SleepScheduler extends EventEmitter {
         ...config.learningBudget,
       },
       minCycleInterval: config.minCycleInterval ?? 3600000,
+      phaseDurations: config.phaseDurations,
       debug: config.debug ?? false,
     };
 
@@ -263,6 +266,7 @@ export class SleepScheduler extends EventEmitter {
   private async executeCycle(trigger: string): Promise<CycleSummary> {
     const cycleConfig: SleepCycleConfig = {
       budget: this.config.learningBudget as LearningBudget,
+      phaseDurations: this.config.phaseDurations,
       debug: this.config.debug,
     };
 

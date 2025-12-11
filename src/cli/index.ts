@@ -36,7 +36,13 @@ import { InitCommand } from './commands/init';
 import { createQuantizationCommand } from './commands/quantization';
 import { createConstitutionCommand } from './commands/constitution';
 import * as telemetryCommands from './commands/telemetry';
+import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
+import * as fs from 'fs-extra';
+import * as path from 'path';
 import packageJson from '../../package.json';
+
+// Global sleep scheduler instance for learning system
+let sleepScheduler: SleepScheduler | null = null;
 
 const program = new Command();
 const logger = Logger.getInstance();
@@ -94,6 +100,9 @@ program
 
       console.log(chalk.green('✅ Fleet started successfully'));
 
+      // Auto-start SleepScheduler for Nightly-Learner
+      await startLearningScheduler();
+
       if (!options.daemon) {
         // Interactive mode
         await runInteractiveMode();
@@ -135,6 +144,78 @@ program
       process.exit(1);
     }
   });
+
+/**
+ * Start the learning scheduler (Nightly-Learner)
+ * Reads config from .agentic-qe/learning-config.json if it exists
+ */
+async function startLearningScheduler(): Promise<void> {
+  const configPath = path.join(process.cwd(), '.agentic-qe', 'learning-config.json');
+
+  try {
+    // Check if learning config exists
+    if (!await fs.pathExists(configPath)) {
+      logger.debug('[CLI] No learning-config.json found, skipping SleepScheduler');
+      return;
+    }
+
+    const learningConfig = await fs.readJson(configPath);
+
+    // Check if learning is enabled
+    if (!learningConfig.enabled) {
+      logger.debug('[CLI] Learning system disabled in config');
+      return;
+    }
+
+    // Build scheduler config from learning config
+    const schedulerConfig: SleepSchedulerConfig = {
+      mode: learningConfig.scheduler?.mode || 'hybrid',
+      schedule: {
+        startHour: learningConfig.scheduler?.startHour ?? 2,
+        durationMinutes: learningConfig.scheduler?.durationMinutes ?? 60,
+        daysOfWeek: learningConfig.scheduler?.daysOfWeek || [0, 1, 2, 3, 4, 5, 6],
+      },
+      learningBudget: {
+        maxPatternsPerCycle: learningConfig.scheduler?.learningBudget?.maxPatternsPerCycle ?? 50,
+        maxAgentsPerCycle: learningConfig.scheduler?.learningBudget?.maxAgentsPerCycle ?? 5,
+        maxDurationMs: learningConfig.scheduler?.learningBudget?.maxDurationMs ?? 3600000,
+      },
+      minCycleInterval: learningConfig.scheduler?.minCycleInterval ?? 3600000,
+      debug: learningConfig.debug ?? false,
+    };
+
+    // Create and start the scheduler
+    sleepScheduler = new SleepScheduler(schedulerConfig);
+
+    // Set up event listeners for monitoring
+    sleepScheduler.on('scheduler:started', (state) => {
+      console.log(chalk.cyan('🌙 Nightly-Learner started'));
+      logger.info('[CLI] SleepScheduler started', { mode: state.mode });
+    });
+
+    sleepScheduler.on('sleep:start', (event) => {
+      logger.info('[CLI] Learning cycle started', { trigger: event.trigger });
+    });
+
+    sleepScheduler.on('sleep:end', (summary) => {
+      logger.info('[CLI] Learning cycle completed', {
+        patternsDiscovered: summary.patternsDiscovered,
+        patternsConsolidated: summary.patternsConsolidated,
+        duration: summary.totalDuration,
+      });
+    });
+
+    sleepScheduler.on('error', (error) => {
+      logger.error('[CLI] SleepScheduler error', error);
+    });
+
+    await sleepScheduler.start();
+
+  } catch (error) {
+    // Non-fatal - learning is optional
+    logger.warn('[CLI] Failed to start learning scheduler (non-fatal)', error);
+  }
+}
 
 /**
  * Interactive mode
