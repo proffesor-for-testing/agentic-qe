@@ -13,6 +13,7 @@
 import { EventEmitter } from 'events';
 import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'path';
+import * as fs from 'fs';
 import { Logger } from '../../utils/Logger';
 import { SecureRandom } from '../../utils/SecureRandom';
 
@@ -162,6 +163,12 @@ export class ExperienceCapture extends EventEmitter {
       flushInterval: config?.flushInterval ?? 30000,
       debug: config?.debug ?? false,
     };
+
+    // Ensure the directory exists before opening the database
+    const dbDir = path.dirname(this.config.dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
 
     this.db = new BetterSqlite3(this.config.dbPath);
     this.initializeSchema();
