@@ -94,6 +94,9 @@ export interface CaptureStats {
  * ```
  */
 export class ExperienceCapture extends EventEmitter {
+  private static instance: ExperienceCapture | null = null;
+  private static instancePromise: Promise<ExperienceCapture> | null = null;
+
   private config: Required<ExperienceCaptureConfig>;
   private db: BetterSqlite3.Database;
   private logger: Logger;
@@ -108,6 +111,46 @@ export class ExperienceCapture extends EventEmitter {
   private byAgentType: Record<string, number> = {};
   private byTaskType: Record<string, number> = {};
   private successCount: number = 0;
+
+  /**
+   * Get or create the shared ExperienceCapture instance
+   * Uses singleton pattern to ensure all agents share the same capture buffer
+   */
+  static async getSharedInstance(config?: ExperienceCaptureConfig): Promise<ExperienceCapture> {
+    if (ExperienceCapture.instance && ExperienceCapture.instance.isRunning) {
+      return ExperienceCapture.instance;
+    }
+
+    // Handle concurrent initialization
+    if (ExperienceCapture.instancePromise) {
+      return ExperienceCapture.instancePromise;
+    }
+
+    ExperienceCapture.instancePromise = (async () => {
+      if (!ExperienceCapture.instance) {
+        ExperienceCapture.instance = new ExperienceCapture(config);
+      }
+      if (!ExperienceCapture.instance.isRunning) {
+        await ExperienceCapture.instance.start();
+      }
+      return ExperienceCapture.instance;
+    })();
+
+    const instance = await ExperienceCapture.instancePromise;
+    ExperienceCapture.instancePromise = null;
+    return instance;
+  }
+
+  /**
+   * Reset the shared instance (for testing)
+   */
+  static resetInstance(): void {
+    if (ExperienceCapture.instance) {
+      ExperienceCapture.instance.stop().catch(() => {});
+      ExperienceCapture.instance = null;
+    }
+    ExperienceCapture.instancePromise = null;
+  }
 
   constructor(config?: ExperienceCaptureConfig) {
     super();

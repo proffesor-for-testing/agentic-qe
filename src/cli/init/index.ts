@@ -23,6 +23,7 @@ import { copyAgentTemplates } from './agents';
 import { copySkillTemplates } from './skills';
 import { copyCommandTemplates } from './commands';
 import { copyHelperScripts, copyHookScripts } from './helpers';
+import { initializeLearningSystem } from './learning-init';
 
 // Import version from package.json
 const packageJson = require('../../../package.json');
@@ -128,11 +129,18 @@ export async function initCommand(options: InitOptions): Promise<void> {
       description: 'Copying hook scripts for automatic learning capture',
       execute: async (cfg, opts) => copyHookScripts(opts.force || false),
       critical: false
+    },
+    {
+      name: 'Learning System',
+      description: 'Initializing Nightly-Learner for continuous improvement',
+      execute: async (cfg) => initializeLearningSystem(cfg, {
+        mode: 'hybrid',
+        startHour: 2,
+        durationMinutes: 60,
+        enabled: true,
+      }),
+      critical: false  // Non-critical - learning is optional but valuable
     }
-    // Future phases could include:
-    // - Fleet configuration customization
-    // - CI/CD integration templates
-    // - Git hooks setup
   ];
 
   let spinner: Ora | null = null;

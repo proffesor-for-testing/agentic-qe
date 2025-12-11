@@ -16,8 +16,8 @@ import * as path from 'path';
 import { Logger } from '../../utils/Logger';
 import { SecureRandom } from '../../utils/SecureRandom';
 
-export type ConceptType = 'pattern' | 'technique' | 'domain' | 'outcome';
-export type EdgeType = 'similarity' | 'causation' | 'co_occurrence' | 'sequence';
+export type ConceptType = 'pattern' | 'technique' | 'domain' | 'outcome' | 'error';
+export type EdgeType = 'similarity' | 'causation' | 'co_occurrence' | 'sequence' | 'uses_pattern' | 'made_decision' | 'encountered_error';
 
 export interface ConceptNode {
   id: string;
@@ -475,6 +475,7 @@ export class ConceptGraph extends EventEmitter {
       technique: 0,
       domain: 0,
       outcome: 0,
+      error: 0,
     };
 
     for (const node of nodes) {

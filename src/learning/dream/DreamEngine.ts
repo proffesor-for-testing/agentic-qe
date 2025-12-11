@@ -136,6 +136,7 @@ export class DreamEngine extends EventEmitter {
 
     if (this.config.autoLoadPatterns) {
       await this.loadPatternsAsConcepts();
+      await this.loadExperiencesAsConcepts();
     }
 
     this.logger.info('[DreamEngine] Initialized', {
@@ -233,6 +234,190 @@ export class DreamEngine extends EventEmitter {
         this.logger.debug('[DreamEngine] Could not load patterns', { error });
       }
     }
+  }
+
+  /**
+   * Load captured experiences as concepts for dream processing
+   * This connects real agent execution data to the concept graph
+   */
+  private async loadExperiencesAsConcepts(): Promise<void> {
+    try {
+      // Check if table exists
+      const tableExists = this.db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='captured_experiences'
+      `).get();
+
+      if (!tableExists) {
+        if (this.config.debug) {
+          this.logger.debug('[DreamEngine] captured_experiences table does not exist yet');
+        }
+        return;
+      }
+
+      const experiences = this.db.prepare(`
+        SELECT id, agent_id, agent_type, task_type, execution, context, outcome, created_at
+        FROM captured_experiences
+        WHERE processed = 0 OR created_at > ?
+        ORDER BY created_at DESC
+        LIMIT 500
+      `).all(Date.now() - 7 * 24 * 60 * 60 * 1000) as any[]; // Last 7 days
+
+      this.logger.info('[DreamEngine] Loading experiences as concepts', { count: experiences.length });
+
+      for (const exp of experiences) {
+        const execution = JSON.parse(exp.execution);
+        const context = JSON.parse(exp.context);
+        const outcome = JSON.parse(exp.outcome);
+
+        // Create concept for the agent execution
+        const executionConcept: ConceptType = execution.success ? 'outcome' : 'error';
+
+        await this.graph.addConcept({
+          id: `exp-${exp.id}`,
+          type: executionConcept,
+          content: this.buildExperienceContent(exp, execution, context, outcome),
+          metadata: {
+            source: 'captured_experiences',
+            agentId: exp.agent_id,
+            agentType: exp.agent_type,
+            taskType: exp.task_type,
+            success: execution.success,
+            duration: execution.duration,
+            qualityScore: outcome.quality_score,
+            patternsUsed: context.patterns_used || [],
+            decisionsMode: context.decisions_made || [],
+            errorsEncountered: context.errors_encountered || [],
+            capturedAt: exp.created_at,
+          },
+        });
+
+        // Also create concepts for patterns used in this execution
+        if (context.patterns_used && context.patterns_used.length > 0) {
+          for (const patternId of context.patterns_used) {
+            const patternConceptId = `exp-pattern-${patternId}-${exp.id.substring(0, 8)}`;
+
+            // Check if concept already exists to avoid duplicates
+            const existingConcept = this.graph.getConcept(patternConceptId);
+            if (!existingConcept) {
+              await this.graph.addConcept({
+                id: patternConceptId,
+                type: 'pattern',
+                content: `Pattern ${patternId} used by ${exp.agent_type} agent`,
+                metadata: {
+                  source: 'experience_pattern',
+                  patternId,
+                  agentType: exp.agent_type,
+                  taskType: exp.task_type,
+                  success: execution.success,
+                },
+              });
+
+              // Create edge between experience and pattern concept
+              this.graph.addEdge({
+                source: `exp-${exp.id}`,
+                target: patternConceptId,
+                weight: execution.success ? 0.8 : 0.3, // Higher weight for successful patterns
+                type: 'uses_pattern',
+              });
+            }
+          }
+        }
+
+        // Create concepts for decisions made
+        if (context.decisions_made && context.decisions_made.length > 0) {
+          for (const decision of context.decisions_made) {
+            const decisionConceptId = `exp-decision-${SecureRandom.randomString(8, 'alphanumeric')}`;
+
+            await this.graph.addConcept({
+              id: decisionConceptId,
+              type: 'technique',
+              content: `Decision: ${decision}`,
+              metadata: {
+                source: 'experience_decision',
+                decision,
+                agentType: exp.agent_type,
+                taskType: exp.task_type,
+                success: execution.success,
+              },
+            });
+
+            // Link decision to experience
+            this.graph.addEdge({
+              source: `exp-${exp.id}`,
+              target: decisionConceptId,
+              weight: execution.success ? 0.7 : 0.4,
+              type: 'made_decision',
+            });
+          }
+        }
+
+        // Create concepts for errors encountered (learning from failures)
+        if (context.errors_encountered && context.errors_encountered.length > 0) {
+          for (const error of context.errors_encountered) {
+            const errorConceptId = `exp-error-${SecureRandom.randomString(8, 'alphanumeric')}`;
+
+            await this.graph.addConcept({
+              id: errorConceptId,
+              type: 'error',
+              content: `Error: ${error}`,
+              metadata: {
+                source: 'experience_error',
+                error,
+                agentType: exp.agent_type,
+                taskType: exp.task_type,
+              },
+            });
+
+            // Link error to experience
+            this.graph.addEdge({
+              source: `exp-${exp.id}`,
+              target: errorConceptId,
+              weight: 0.9, // High weight for error associations
+              type: 'encountered_error',
+            });
+          }
+        }
+      }
+
+      this.logger.info('[DreamEngine] Loaded experiences as concepts', {
+        experiences: experiences.length,
+        totalConcepts: this.graph.getStats().nodeCount,
+      });
+    } catch (error) {
+      // Table might not exist yet or other issue
+      if (this.config.debug) {
+        this.logger.debug('[DreamEngine] Could not load experiences', { error });
+      }
+    }
+  }
+
+  /**
+   * Build descriptive content for an experience concept
+   */
+  private buildExperienceContent(
+    exp: any,
+    execution: any,
+    context: any,
+    outcome: any
+  ): string {
+    const status = execution.success ? 'successful' : 'failed';
+    const quality = outcome.quality_score >= 0.7 ? 'high-quality' :
+                   outcome.quality_score >= 0.4 ? 'medium-quality' : 'low-quality';
+
+    let content = `${status} ${exp.agent_type} execution for ${exp.task_type}`;
+
+    if (context.patterns_used && context.patterns_used.length > 0) {
+      content += ` using ${context.patterns_used.length} pattern(s)`;
+    }
+
+    if (context.decisions_made && context.decisions_made.length > 0) {
+      content += ` with ${context.decisions_made.length} decision(s)`;
+    }
+
+    content += ` (${quality}, ${execution.duration}ms)`;
+
+    return content;
   }
 
   /**

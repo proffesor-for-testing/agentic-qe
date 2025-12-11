@@ -13,6 +13,8 @@ import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
 import { ProcessExit } from '../../../utils/ProcessExit';
+import { MetricsCollector, TrendAnalyzer, AlertManager, TrendPeriod } from '../../../learning/metrics';
+import { MetricsDashboard } from '../../../learning/dashboard';
 
 export interface LearnCommandOptions {
   agent?: string;
@@ -22,6 +24,10 @@ export interface LearnCommandOptions {
   output?: string;
   task?: string;
   all?: boolean;
+  period?: string;
+  format?: 'table' | 'json';
+  metric?: string;
+  ack?: string;
 }
 
 /**
@@ -64,6 +70,15 @@ export class LearningCommand {
         break;
       case 'export':
         await this.exportLearningData(options);
+        break;
+      case 'metrics':
+        await this.showMetrics(options);
+        break;
+      case 'trends':
+        await this.showTrends(options);
+        break;
+      case 'alerts':
+        await this.showAlerts(options);
         break;
       default:
         console.error(chalk.red(`❌ Unknown learn command: ${subcommand}`));
@@ -455,6 +470,177 @@ export class LearningCommand {
   }
 
   /**
+   * Show comprehensive learning metrics (Phase 3)
+   */
+  private static async showMetrics(options: LearnCommandOptions): Promise<void> {
+    const spinner = ora('Loading learning metrics...').start();
+
+    try {
+      const memoryManager = await this.getMemoryManager();
+      const metricsCollector = new MetricsCollector(memoryManager);
+
+      // Parse period option (e.g., "7d", "30d", "1m")
+      const periodDays = this.parsePeriod(options.period || '7d');
+
+      // Collect metrics
+      const metrics = await metricsCollector.collectMetrics(periodDays);
+
+      spinner.succeed('Learning metrics loaded');
+
+      // Display metrics
+      MetricsDashboard.displayMetrics(metrics, {
+        detailed: options.detailed,
+        format: options.format
+      });
+
+    } catch (error: any) {
+      spinner.fail('Failed to load metrics');
+      console.error(chalk.red('❌ Error:'), error.message);
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Show trend analysis (Phase 3)
+   */
+  private static async showTrends(options: LearnCommandOptions): Promise<void> {
+    const spinner = ora('Analyzing trends...').start();
+
+    try {
+      const memoryManager = await this.getMemoryManager();
+      const metricsCollector = new MetricsCollector(memoryManager);
+      const trendAnalyzer = new TrendAnalyzer(metricsCollector);
+
+      // Parse period
+      const period = this.parseTrendPeriod(options.period || 'weekly');
+
+      // Analyze trends
+      let trends;
+      if (options.metric) {
+        // Single metric
+        const trend = await trendAnalyzer.analyzeTrend(options.metric, this.periodToDays(period));
+        trends = [trend];
+      } else {
+        // All metrics
+        trends = await trendAnalyzer.analyzeAllTrends(period);
+      }
+
+      spinner.succeed('Trend analysis complete');
+
+      // Display trends
+      MetricsDashboard.displayTrends(trends, {
+        detailed: options.detailed,
+        format: options.format
+      });
+
+    } catch (error: any) {
+      spinner.fail('Failed to analyze trends');
+      console.error(chalk.red('❌ Error:'), error.message);
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Show and manage alerts (Phase 3)
+   */
+  private static async showAlerts(options: LearnCommandOptions): Promise<void> {
+    const spinner = ora('Loading alerts...').start();
+
+    try {
+      const memoryManager = await this.getMemoryManager();
+      const alertManager = new AlertManager(memoryManager);
+      await alertManager.initialize();
+
+      // Handle acknowledgment if provided
+      if (options.ack) {
+        spinner.text = `Acknowledging alert ${options.ack}...`;
+        await alertManager.acknowledgeAlert(options.ack);
+        spinner.succeed(`Alert ${options.ack} acknowledged`);
+        return;
+      }
+
+      // Get alerts
+      const alerts = options.all
+        ? alertManager.getAllAlerts()
+        : alertManager.getActiveAlerts();
+
+      spinner.succeed(`Found ${alerts.length} alerts`);
+
+      // Display alerts
+      MetricsDashboard.displayAlerts(alerts, {
+        format: options.format
+      });
+
+      // Show help for acknowledgment
+      if (alerts.length > 0 && !options.all) {
+        console.log(chalk.gray('Use --ack <id> to acknowledge an alert'));
+        console.log(chalk.gray('Use --all to show all alerts (including acknowledged)\n'));
+      }
+
+    } catch (error: any) {
+      spinner.fail('Failed to load alerts');
+      console.error(chalk.red('❌ Error:'), error.message);
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Parse period string to days
+   */
+  private static parsePeriod(period: string): number {
+    const match = period.match(/^(\d+)([dhwm])$/);
+    if (!match) {
+      return 7; // Default to 7 days
+    }
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+
+    switch (unit) {
+      case 'd': return value;
+      case 'h': return Math.max(1, Math.floor(value / 24));
+      case 'w': return value * 7;
+      case 'm': return value * 30;
+      default: return 7;
+    }
+  }
+
+  /**
+   * Parse trend period string
+   */
+  private static parseTrendPeriod(period: string): TrendPeriod {
+    switch (period.toLowerCase()) {
+      case 'daily':
+      case 'd':
+        return TrendPeriod.DAILY;
+      case 'weekly':
+      case 'w':
+        return TrendPeriod.WEEKLY;
+      case 'monthly':
+      case 'm':
+        return TrendPeriod.MONTHLY;
+      default:
+        return TrendPeriod.WEEKLY;
+    }
+  }
+
+  /**
+   * Convert trend period to days
+   */
+  private static periodToDays(period: TrendPeriod): number {
+    switch (period) {
+      case TrendPeriod.DAILY:
+        return 1;
+      case TrendPeriod.WEEKLY:
+        return 7;
+      case TrendPeriod.MONTHLY:
+        return 30;
+      default:
+        return 7;
+    }
+  }
+
+  /**
    * Show command help
    */
   private static showHelp(): void {
@@ -466,18 +652,32 @@ export class LearningCommand {
     console.log(chalk.cyan('  aqe learn train') + chalk.gray('          - Trigger manual training'));
     console.log(chalk.cyan('  aqe learn reset') + chalk.gray('          - Reset learning state'));
     console.log(chalk.cyan('  aqe learn export') + chalk.gray('         - Export learning data'));
+    console.log(chalk.blue('\nPhase 3 - Metrics & Analytics:\n'));
+    console.log(chalk.cyan('  aqe learn metrics') + chalk.gray('        - Show learning metrics'));
+    console.log(chalk.cyan('  aqe learn trends') + chalk.gray('         - Show trend analysis'));
+    console.log(chalk.cyan('  aqe learn alerts') + chalk.gray('         - Show active alerts'));
     console.log(chalk.blue('\nOptions:\n'));
     console.log(chalk.gray('  --agent <id>       - Target specific agent'));
     console.log(chalk.gray('  --detailed         - Show detailed information'));
     console.log(chalk.gray('  --limit <number>   - Limit results'));
     console.log(chalk.gray('  --confirm          - Confirm destructive operation'));
     console.log(chalk.gray('  --output <file>    - Output file path'));
-    console.log(chalk.gray('  --all              - Apply to all agents'));
+    console.log(chalk.gray('  --all              - Apply to all agents / Show all alerts'));
+    console.log(chalk.gray('  --period <period>  - Time period (7d, 30d, 1m, weekly, monthly)'));
+    console.log(chalk.gray('  --format <format>  - Output format (table, json)'));
+    console.log(chalk.gray('  --metric <name>    - Specific metric to analyze'));
+    console.log(chalk.gray('  --ack <id>         - Acknowledge alert by ID'));
     console.log(chalk.blue('\nExamples:\n'));
     console.log(chalk.gray('  aqe learn status --agent test-gen --detailed'));
     console.log(chalk.gray('  aqe learn enable --all'));
     console.log(chalk.gray('  aqe learn history --limit 50'));
     console.log(chalk.gray('  aqe learn export --output learning.json'));
+    console.log(chalk.blue('\nPhase 3 Examples:\n'));
+    console.log(chalk.gray('  aqe learn metrics --period 30d --detailed'));
+    console.log(chalk.gray('  aqe learn metrics --format json'));
+    console.log(chalk.gray('  aqe learn trends --metric discoveryRate --period weekly'));
+    console.log(chalk.gray('  aqe learn alerts --all'));
+    console.log(chalk.gray('  aqe learn alerts --ack alert-12345'));
     console.log();
   }
 
@@ -533,65 +733,14 @@ export async function learnExport(options: LearnCommandOptions): Promise<void> {
   await LearningCommand.execute('export', options);
 }
 
-/**
- * Show learning improvement metrics from unified memory.db
- * ARCHITECTURE (v2.2.0): All data now stored in .agentic-qe/memory.db
- */
-export async function learnMetrics(options: any): Promise<void> {
-  const spinner = ora('Loading learning metrics from memory.db...').start();
+export async function learnMetrics(options: LearnCommandOptions): Promise<void> {
+  await LearningCommand.execute('metrics', options);
+}
 
-  try {
-    const memoryManager = await initializeSharedMemoryManager();
+export async function learnTrends(options: LearnCommandOptions): Promise<void> {
+  await LearningCommand.execute('trends', options);
+}
 
-    // Query metrics from patterns table via SwarmMemoryManager
-    // Note: The patterns table uses 'type' column, not 'agent_id'
-    const metrics = memoryManager.queryRaw(`
-      SELECT
-        type as agent,
-        AVG(confidence) as avg_confidence,
-        COUNT(*) as total_patterns,
-        SUM(CASE WHEN confidence > 0.7 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as high_confidence_rate
-      FROM patterns
-      ${options.agent ? `WHERE type LIKE ?` : ''}
-      GROUP BY type
-      ORDER BY avg_confidence DESC
-    `, options.agent ? [`%${options.agent}%`] : []);
-
-    spinner.succeed('Learning metrics loaded');
-
-    if (!metrics || metrics.length === 0) {
-      console.log(chalk.yellow('\n⚠️  No learning metrics found'));
-      console.log(chalk.gray('Run some agent tasks to generate learning data\n'));
-      return;
-    }
-
-    const days = options.days || '7';
-    console.log(chalk.blue(`\n📊 Learning Metrics (Last ${days} Days)\n`));
-
-    // Format as table
-    console.log(chalk.cyan('Agent'.padEnd(30)) +
-                chalk.cyan('Avg Confidence'.padEnd(18)) +
-                chalk.cyan('Total Patterns'.padEnd(18)) +
-                chalk.cyan('High Confidence %'));
-    console.log('─'.repeat(84));
-
-    metrics.forEach((row: any) => {
-      const confidenceColor = row.avg_confidence > 0.7 ? chalk.green :
-                             row.avg_confidence > 0.5 ? chalk.yellow : chalk.red;
-
-      console.log(
-        row.agent.padEnd(30) +
-        confidenceColor((row.avg_confidence * 100).toFixed(1) + '%').padEnd(18) +
-        chalk.cyan(row.total_patterns.toString()).padEnd(18) +
-        chalk.cyan((row.high_confidence_rate || 0).toFixed(1) + '%')
-      );
-    });
-
-    console.log();
-
-  } catch (error: any) {
-    spinner.fail('Failed to load metrics');
-    console.error(chalk.red('❌ Error:'), error.message);
-    ProcessExit.exitIfNotTest(1);
-  }
+export async function learnAlerts(options: LearnCommandOptions): Promise<void> {
+  await LearningCommand.execute('alerts', options);
 }

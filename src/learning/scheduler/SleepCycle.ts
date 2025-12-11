@@ -8,14 +8,20 @@
  * - REM_DREAM: Dream engine activation (REM sleep)
  *
  * Part of the Nightly-Learner Phase 1 implementation.
+ * Updated in Phase 3 to integrate with actual learning modules.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * @module src/learning/scheduler/SleepCycle
  */
 
 import { EventEmitter } from 'events';
+import * as path from 'path';
 import { Logger } from '../../utils/Logger';
 import { LearningBudget } from './SleepScheduler';
+import { ExperienceCapture, CapturedExperience } from '../capture/ExperienceCapture';
+import { PatternSynthesis, SynthesizedPattern, SynthesisResult } from '../synthesis/PatternSynthesis';
+import { DreamEngine, DreamCycleResult } from '../dream/DreamEngine';
+import { TransferProtocol, TransferResult } from '../transfer/TransferProtocol';
 
 /**
  * Sleep phases modeled after human sleep stages
@@ -60,17 +66,26 @@ export interface SleepCycleConfig {
   phaseDurations?: Partial<Record<SleepPhase, number>>;
   /** Skip phases if true */
   skipPhases?: SleepPhase[];
+  /** Database path. Default: .agentic-qe/memory.db */
+  dbPath?: string;
   /** Enable debug logging */
   debug?: boolean;
 }
 
 /**
  * SleepCycle manages the execution of learning phases
+ *
+ * Now integrates with actual learning modules:
+ * - ExperienceCapture for N1_CAPTURE
+ * - PatternSynthesis for N2_PROCESS
+ * - DreamEngine for REM_DREAM
+ * - TransferProtocol for cross-agent transfer
  */
 export class SleepCycle extends EventEmitter {
   private id: string;
   private config: SleepCycleConfig;
   private logger: Logger;
+  private dbPath: string;
 
   private phaseDurations: Map<SleepPhase, number>;
   private currentPhase: SleepPhase | null = null;
@@ -79,10 +94,17 @@ export class SleepCycle extends EventEmitter {
   private _isAborted: boolean = false;
   private startTime: Date | null = null;
 
+  // Integrated learning modules
+  private experienceCapture: ExperienceCapture | null = null;
+  private patternSynthesis: PatternSynthesis | null = null;
+  private dreamEngine: DreamEngine | null = null;
+  private transferProtocol: TransferProtocol | null = null;
+
   // Collected data during cycle
-  private capturedExperiences: string[] = [];
-  private discoveredPatterns: string[] = [];
-  private consolidatedPatterns: string[] = [];
+  private capturedExperienceData: CapturedExperience[] = [];
+  private synthesizedPatterns: SynthesizedPattern[] = [];
+  private dreamResult: DreamCycleResult | null = null;
+  private transferResults: TransferResult[] = [];
   private processedAgents: Set<string> = new Set();
 
   constructor(config: SleepCycleConfig) {
@@ -90,6 +112,7 @@ export class SleepCycle extends EventEmitter {
     this.id = `cycle-${Date.now()}`;
     this.config = config;
     this.logger = Logger.getInstance();
+    this.dbPath = config.dbPath || path.join(process.cwd(), '.agentic-qe', 'memory.db');
 
     // Set phase durations with defaults
     this.phaseDurations = new Map([
@@ -98,6 +121,41 @@ export class SleepCycle extends EventEmitter {
       ['N3_CONSOLIDATE', config.phaseDurations?.N3_CONSOLIDATE ?? 15 * 60 * 1000], // 15 minutes
       ['REM_DREAM', config.phaseDurations?.REM_DREAM ?? 20 * 60 * 1000],       // 20 minutes
     ]);
+
+    // Initialize learning modules
+    this.initializeModules();
+  }
+
+  /**
+   * Initialize integrated learning modules
+   */
+  private initializeModules(): void {
+    try {
+      this.experienceCapture = new ExperienceCapture({
+        dbPath: this.dbPath,
+        debug: this.config.debug,
+      });
+
+      this.patternSynthesis = new PatternSynthesis({
+        dbPath: this.dbPath,
+        debug: this.config.debug,
+      });
+
+      this.dreamEngine = new DreamEngine({
+        dbPath: this.dbPath,
+        cycleDuration: this.phaseDurations.get('REM_DREAM') || 20 * 60 * 1000,
+        debug: this.config.debug,
+      });
+
+      this.transferProtocol = new TransferProtocol({
+        dbPath: this.dbPath,
+        debug: this.config.debug,
+      });
+
+      this.logger.info('[SleepCycle] Learning modules initialized');
+    } catch (error) {
+      this.logger.error('[SleepCycle] Failed to initialize learning modules', { error });
+    }
   }
 
   /**
@@ -200,7 +258,7 @@ export class SleepCycle extends EventEmitter {
     this.currentPhase = 'COMPLETE';
     summary.endTime = new Date();
     summary.totalDuration = summary.endTime.getTime() - summary.startTime.getTime();
-    summary.patternsConsolidated = this.consolidatedPatterns.length;
+    summary.patternsConsolidated = this.synthesizedPatterns.length + this.transferResults.length;
     summary.agentsProcessed = Array.from(this.processedAgents);
 
     this.logger.info('[SleepCycle] Cycle complete', {
@@ -290,72 +348,98 @@ export class SleepCycle extends EventEmitter {
 
   /**
    * N1 Phase: Capture recent experiences from agents
+   * Now uses ExperienceCapture.getRecentExperiences() for real data
    */
   private async captureExperiences(maxDuration: number): Promise<{ patterns: number; agents: string[] }> {
-    const deadline = Date.now() + maxDuration;
     const agents: string[] = [];
     let experienceCount = 0;
 
-    this.logger.debug('[SleepCycle:N1] Capturing experiences');
+    this.logger.info('[SleepCycle:N1] Capturing experiences using ExperienceCapture');
 
-    // In a real implementation, this would:
-    // 1. Query the experience buffer for recent executions
-    // 2. Filter by quality and relevance
-    // 3. Prepare experiences for pattern processing
-
-    // Simulated capture for Phase 1 prototype
-    // Phase 3 will integrate with actual ExperienceCapture
-    const mockAgents = ['test-generator', 'coverage-analyzer', 'quality-gate'];
-    const experiencesPerAgent = Math.min(10, Math.floor(this.config.budget.maxPatternsPerCycle / mockAgents.length));
-
-    for (const agent of mockAgents) {
-      if (Date.now() > deadline || this._isAborted) break;
-      if (agents.length >= this.config.budget.maxAgentsPerCycle) break;
-
-      // Simulate experience capture
-      await this.sleep(100); // Simulate processing time
-
-      agents.push(agent);
-      this.processedAgents.add(agent);
-      experienceCount += experiencesPerAgent;
-
-      this.logger.debug('[SleepCycle:N1] Captured experiences', { agent, count: experiencesPerAgent });
+    if (!this.experienceCapture) {
+      this.logger.warn('[SleepCycle:N1] ExperienceCapture not available, falling back to empty result');
+      return { patterns: 0, agents: [] };
     }
 
-    this.capturedExperiences = agents.flatMap(a => Array(experiencesPerAgent).fill(`exp-${a}`));
+    try {
+      // Get recent experiences from the last 24 hours
+      const limit = Math.min(100, this.config.budget.maxPatternsPerCycle);
+      const experiences = this.experienceCapture.getRecentExperiences(24, limit);
+
+      this.logger.info('[SleepCycle:N1] Retrieved experiences', { count: experiences.length });
+
+      // Group by agent type and collect unique agents
+      const agentTypeSet = new Set<string>();
+      for (const exp of experiences) {
+        if (this._isAborted) break;
+        if (agentTypeSet.size >= this.config.budget.maxAgentsPerCycle) break;
+
+        agentTypeSet.add(exp.agentType);
+        this.processedAgents.add(exp.agentType);
+      }
+
+      agents.push(...agentTypeSet);
+      experienceCount = experiences.length;
+
+      // Store for next phase
+      this.capturedExperienceData = experiences;
+
+      this.logger.info('[SleepCycle:N1] Captured experiences', {
+        experienceCount,
+        agentTypes: agents.length,
+        agents,
+      });
+
+    } catch (error) {
+      this.logger.error('[SleepCycle:N1] Failed to capture experiences', { error });
+    }
 
     return { patterns: experienceCount, agents };
   }
 
   /**
    * N2 Phase: Process experiences into pattern clusters
+   * Now uses PatternSynthesis.synthesize() for real pattern extraction
    */
   private async processPatterns(maxDuration: number): Promise<{ patterns: number; agents: string[] }> {
-    const deadline = Date.now() + maxDuration;
     let patternsFound = 0;
 
-    this.logger.debug('[SleepCycle:N2] Processing patterns');
+    this.logger.info('[SleepCycle:N2] Processing patterns using PatternSynthesis');
 
-    // In a real implementation, this would:
-    // 1. Cluster experiences by similarity using RuVector
-    // 2. Extract common patterns from clusters
-    // 3. Score patterns by confidence and support
+    if (!this.patternSynthesis) {
+      this.logger.warn('[SleepCycle:N2] PatternSynthesis not available, falling back to empty result');
+      return { patterns: 0, agents: Array.from(this.processedAgents) };
+    }
 
-    // Simulated processing for Phase 1 prototype
-    // Phase 3 will integrate with actual PatternSynthesis
-    const clusterCount = Math.min(5, Math.ceil(this.capturedExperiences.length / 3));
+    try {
+      // Run pattern synthesis on captured experiences
+      const result: SynthesisResult = await this.patternSynthesis.synthesize({
+        minSupport: 2, // Lower for more patterns during dev
+        minConfidence: 0.6,
+        maxPatterns: this.config.budget.maxPatternsPerCycle,
+        agentTypes: Array.from(this.processedAgents),
+      });
 
-    for (let i = 0; i < clusterCount; i++) {
-      if (Date.now() > deadline || this._isAborted) break;
+      patternsFound = result.patterns.length;
+      this.synthesizedPatterns = result.patterns;
 
-      // Simulate pattern extraction
-      await this.sleep(200);
+      this.logger.info('[SleepCycle:N2] Pattern synthesis complete', {
+        patternsFound,
+        clustersAnalyzed: result.clustersAnalyzed,
+        experiencesProcessed: result.experiencesProcessed,
+        duration: result.duration,
+        stats: result.stats,
+      });
 
-      const patternId = `pattern-${this.id}-${i}`;
-      this.discoveredPatterns.push(patternId);
-      patternsFound++;
+      // Mark experiences as processed
+      if (this.experienceCapture && this.capturedExperienceData.length > 0) {
+        const expIds = this.capturedExperienceData.map(e => e.id);
+        this.experienceCapture.markAsProcessed(expIds);
+        this.logger.debug('[SleepCycle:N2] Marked experiences as processed', { count: expIds.length });
+      }
 
-      this.logger.debug('[SleepCycle:N2] Pattern discovered', { patternId });
+    } catch (error) {
+      this.logger.error('[SleepCycle:N2] Failed to process patterns', { error });
     }
 
     return { patterns: patternsFound, agents: Array.from(this.processedAgents) };
@@ -363,31 +447,82 @@ export class SleepCycle extends EventEmitter {
 
   /**
    * N3 Phase: Consolidate patterns into long-term memory
+   * Now uses TransferProtocol for cross-agent knowledge sharing
    */
   private async consolidateMemory(maxDuration: number): Promise<{ patterns: number; agents: string[] }> {
-    const deadline = Date.now() + maxDuration;
     let consolidated = 0;
 
-    this.logger.debug('[SleepCycle:N3] Consolidating memory');
+    this.logger.info('[SleepCycle:N3] Consolidating memory and initiating cross-agent transfer');
 
-    // In a real implementation, this would:
-    // 1. Merge new patterns with existing knowledge
-    // 2. Update Q-values based on new evidence
-    // 3. Prune low-confidence patterns
-    // 4. Store in persistent memory
+    if (!this.transferProtocol) {
+      this.logger.warn('[SleepCycle:N3] TransferProtocol not available, skipping cross-agent transfer');
+      return { patterns: this.synthesizedPatterns.length, agents: Array.from(this.processedAgents) };
+    }
 
-    // Simulated consolidation for Phase 1 prototype
-    // Phase 3 will integrate with actual memory consolidation
-    for (const pattern of this.discoveredPatterns) {
-      if (Date.now() > deadline || this._isAborted) break;
+    try {
+      // Get patterns that have high confidence and could benefit other agents
+      const highConfidencePatterns = this.synthesizedPatterns.filter(p => p.confidence >= 0.7);
 
-      // Simulate consolidation
-      await this.sleep(150);
+      if (highConfidencePatterns.length === 0) {
+        this.logger.info('[SleepCycle:N3] No high-confidence patterns to transfer');
+        return { patterns: this.synthesizedPatterns.length, agents: Array.from(this.processedAgents) };
+      }
 
-      this.consolidatedPatterns.push(pattern);
-      consolidated++;
+      // For each agent type that produced patterns, try to transfer to compatible agents
+      const processedAgentsArray = Array.from(this.processedAgents);
 
-      this.logger.debug('[SleepCycle:N3] Pattern consolidated', { pattern });
+      for (const sourceAgent of processedAgentsArray) {
+        if (this._isAborted) break;
+
+        // Get patterns from this agent type
+        const agentPatterns = highConfidencePatterns.filter(p =>
+          p.agentTypes.includes(sourceAgent)
+        );
+
+        if (agentPatterns.length === 0) continue;
+
+        // Broadcast each pattern to compatible agents
+        for (const pattern of agentPatterns) {
+          if (this._isAborted) break;
+
+          try {
+            const results = await this.transferProtocol.broadcastPattern(
+              pattern.id,
+              sourceAgent
+            );
+
+            // Count successful transfers
+            const successful = results.filter(r => r.patternsTransferred > 0);
+            if (successful.length > 0) {
+              this.transferResults.push(...successful);
+              consolidated += successful.length;
+              this.logger.info('[SleepCycle:N3] Pattern broadcast complete', {
+                patternId: pattern.id,
+                source: sourceAgent,
+                successfulTransfers: successful.length,
+              });
+            }
+          } catch (transferError) {
+            this.logger.warn('[SleepCycle:N3] Pattern transfer failed', {
+              patternId: pattern.id,
+              agent: sourceAgent,
+              error: transferError,
+            });
+          }
+        }
+      }
+
+      // Consolidation count = synthesized patterns + transferred patterns
+      consolidated = this.synthesizedPatterns.length + consolidated;
+
+      this.logger.info('[SleepCycle:N3] Memory consolidation complete', {
+        synthesizedPatterns: this.synthesizedPatterns.length,
+        crossAgentTransfers: this.transferResults.length,
+        totalConsolidated: consolidated,
+      });
+
+    } catch (error) {
+      this.logger.error('[SleepCycle:N3] Failed to consolidate memory', { error });
     }
 
     return { patterns: consolidated, agents: Array.from(this.processedAgents) };
@@ -395,34 +530,51 @@ export class SleepCycle extends EventEmitter {
 
   /**
    * REM Phase: Dream engine for creative pattern generation
+   * Now uses DreamEngine.dream() for real insight discovery
    */
   private async activateDreamEngine(maxDuration: number): Promise<{ patterns: number; agents: string[] }> {
-    const deadline = Date.now() + maxDuration;
-    let dreamsGenerated = 0;
+    let insightsGenerated = 0;
 
-    this.logger.debug('[SleepCycle:REM] Activating dream engine');
+    this.logger.info('[SleepCycle:REM] Activating DreamEngine for pattern discovery');
 
-    // In a real implementation, this would:
-    // 1. Generate hypothetical scenarios from patterns
-    // 2. Test pattern combinations
-    // 3. Identify cross-agent transfer opportunities
-    // 4. Create "what-if" experiences for future learning
-
-    // Simulated dreaming for Phase 1 prototype
-    // Phase 3 will integrate with actual DreamEngine
-    const dreamCount = Math.min(3, Math.ceil(this.consolidatedPatterns.length / 2));
-
-    for (let i = 0; i < dreamCount; i++) {
-      if (Date.now() > deadline || this._isAborted) break;
-
-      // Simulate dream generation
-      await this.sleep(300);
-
-      dreamsGenerated++;
-      this.logger.debug('[SleepCycle:REM] Dream generated', { dreamId: `dream-${i}` });
+    if (!this.dreamEngine) {
+      this.logger.warn('[SleepCycle:REM] DreamEngine not available, skipping dream phase');
+      return { patterns: 0, agents: Array.from(this.processedAgents) };
     }
 
-    return { patterns: dreamsGenerated, agents: Array.from(this.processedAgents) };
+    try {
+      // Initialize dream engine (loads patterns as concepts)
+      await this.dreamEngine.initialize();
+
+      // Run the dream cycle
+      const result = await this.dreamEngine.dream();
+
+      insightsGenerated = result.insightsGenerated;
+      this.dreamResult = result;
+
+      this.logger.info('[SleepCycle:REM] Dream cycle complete', {
+        insightsGenerated,
+        associationsFound: result.associationsFound,
+        duration: result.duration,
+        status: result.status,
+        actionableInsights: result.insights.filter(i => i.actionable).length,
+      });
+
+      // Log notable insights
+      for (const insight of result.insights.slice(0, 5)) {
+        this.logger.debug('[SleepCycle:REM] Insight discovered', {
+          type: insight.type,
+          description: insight.description.substring(0, 100),
+          novelty: insight.noveltyScore.toFixed(2),
+          actionable: insight.actionable,
+        });
+      }
+
+    } catch (error) {
+      this.logger.error('[SleepCycle:REM] Failed to run dream engine', { error });
+    }
+
+    return { patterns: insightsGenerated, agents: Array.from(this.processedAgents) };
   }
 
   /**

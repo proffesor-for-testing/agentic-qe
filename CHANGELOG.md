@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.4] - 2025-12-11
+
+### Added
+
+#### Nightly-Learner System (Major Feature)
+Complete implementation of the autonomous learning system that enables QE agents to improve over time through experience capture, sleep-based consolidation, and pattern synthesis.
+
+**Phase 0: Baselines**
+- `BaselineCollector` - Establishes performance baselines for all 19 QE agent types
+- 180 standard benchmark tasks across all agent categories
+- Metrics: success rate, completion time, coverage, quality scores
+- Improvement targets: 10% minimum, 20% aspirational
+
+**Phase 1: Experience Capture**
+- `ExperienceCapture` singleton - Captures all agent task executions automatically
+- SQLite persistence via better-sqlite3 with buffered writes
+- Automatic integration with BaseAgent's `executeTask()` lifecycle
+- New methods: `captureExperience()`, `extractTaskMetrics()`
+- Event emission: `experience:captured` for monitoring
+
+**Phase 2: Sleep Cycle Processing**
+- `SleepScheduler` - Runs learning cycles during idle time (default: 2 AM)
+- `SleepCycle` - 4-phase sleep cycle (N1-Capture, N2-Process, N3-Consolidate, REM-Dream)
+- Configurable budgets: max patterns, agents, and duration per cycle
+- Schedule modes: 'idle', 'time', or 'hybrid'
+
+**Phase 3: Dream Engine**
+- `DreamEngine` - Insight generation through spreading activation
+- `ConceptGraph` - Knowledge graph with associative links
+- `SpreadingActivation` - Neural-inspired pattern activation
+- `InsightGenerator` - Cross-domain pattern synthesis
+- Pattern distillation and consolidation
+
+**Phase 3: Metrics & Monitoring**
+- `TrendAnalyzer` - Trend detection with Z-score analysis
+- `AlertManager` - Threshold-based alerting for regressions
+- `DashboardService` - Real-time metrics visualization
+- Metrics retention with configurable history
+
+**New CLI Commands**
+- `aqe learn status` - View learning system status
+- `aqe learn run` - Manually trigger learning cycle
+- `aqe dream start` - Start dream engine
+- `aqe transfer list` - View transferable patterns
+
+**New Files:**
+- `src/learning/capture/ExperienceCapture.ts`
+- `src/learning/scheduler/SleepScheduler.ts`
+- `src/learning/scheduler/SleepCycle.ts`
+- `src/learning/dream/DreamEngine.ts`
+- `src/learning/dream/ConceptGraph.ts`
+- `src/learning/dream/SpreadingActivation.ts`
+- `src/learning/dream/InsightGenerator.ts`
+- `src/learning/baselines/BaselineCollector.ts`
+- `src/learning/metrics/TrendAnalyzer.ts`
+- `src/learning/metrics/AlertManager.ts`
+- `src/learning/metrics/DashboardService.ts`
+- `src/cli/commands/learn/index.ts`
+- `src/cli/commands/dream/index.ts`
+- `src/cli/commands/transfer/index.ts`
+- `src/cli/init/learning-init.ts`
+
+#### Learning System Initialization
+- New initialization phase in `aqe init`: "Learning System"
+- Creates `learning-config.json` with scheduler settings
+- Generates `start-learning.js` script for manual scheduler startup
+- Initializes database tables for experience capture
+
+### Fixed
+
+#### Process Hanging in `aqe init`
+- **Root Cause**: ExperienceCapture started but never stopped during initialization
+- **Fix**: Added `capture.stop()` and `ExperienceCapture.resetInstance()` after database verification
+- Process now exits cleanly with code 0
+
+#### TypeScript Compilation Errors
+- Fixed missing `EventEmitter` import in TrendAnalyzer
+- Fixed return type mismatch: `'improving'/'declining'` to `'upward'/'downward'`
+- Fixed BaseAgent using `assignment.task.input` instead of `assignment.task.payload`
+
+#### Code Cleanup
+- Removed duplicate `TrendAnalyzer.ts` from `dashboard/` directory
+- Removed duplicate `AlertManager.ts` from `dashboard/` directory
+- Consolidated metrics code in `src/learning/metrics/`
+
+### Changed
+
+#### BaseAgent Integration
+- All agent executions now automatically captured for learning
+- Added `captureExperience()` method to persist execution data
+- Added `extractTaskMetrics()` to extract learning-relevant metrics
+- Emits `experience:captured` event after each task completion
+
+### Tests
+- New integration test: `learning-improvement-proof.test.ts`
+- Validates end-to-end learning pipeline: capture → sleep → dream → baseline
+
 ## [2.3.3] - 2025-12-09
 
 ### Fixed
