@@ -76,7 +76,10 @@
     "validate:phase2:vc3": "ts-node scripts/validation/phase2-vc3-clause-evaluation.ts",
     "validate:phase2:vc4": "ts-node scripts/validation/phase2-vc4-multi-agent-voting.ts",
     "validate:phase2:vc5": "ts-node scripts/validation/phase2-vc5-memory-instrumentation.ts",
-    "validate-skill": "tsx scripts/validate-skill-optimization.ts"
+    "validate-skill": "tsx scripts/validate-skill-optimization.ts",
+    "ci:learning:validate": "tsx scripts/ci-learning-validate.ts",
+    "ci:learning:check": "tsx scripts/ci-learning-check.ts",
+    "ci:learning:regression": "tsx scripts/ci-learning-regression.ts"
   },
   "keywords": [
     "quality-engineering",
