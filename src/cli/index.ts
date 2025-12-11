@@ -27,6 +27,8 @@ import * as debugCommands from './commands/debug/index.js';
 import * as memoryCommands from './commands/memory/index.js';
 import * as routingCommands from './commands/routing/index.js';
 import * as learnCommands from './commands/learn/index.js';
+import * as dreamCommands from './commands/dream/index.js';
+import * as transferCommands from './commands/transfer/index.js';
 import * as patternsCommands from './commands/patterns/index.js';
 import * as improveCommands from './commands/improve/index.js';
 import * as skillsCommands from './commands/skills/index.js';
@@ -705,14 +707,167 @@ learnCommand
 
 learnCommand
   .command('metrics')
-  .description('Show learning improvement metrics from AgentDB')
-  .option('--agent <name>', 'Filter by agent type')
-  .option('--days <n>', 'Last N days', '7')
+  .description('Show comprehensive learning metrics (Phase 3)')
+  .option('--period <period>', 'Time period (7d, 30d, 1m)', '7d')
+  .option('--detailed', 'Show detailed metrics')
+  .option('--format <format>', 'Output format (table|json)', 'table')
   .action(async (options) => {
     try {
       await learnCommands.learnMetrics(options);
     } catch (error) {
       console.error(chalk.red('❌ Learning metrics failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('trends')
+  .description('Show metric trend analysis (Phase 3)')
+  .option('--metric <name>', 'Specific metric to analyze')
+  .option('--period <period>', 'Time period (daily, weekly, monthly)', 'weekly')
+  .option('--detailed', 'Show detailed trend analysis')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnTrends(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Trend analysis failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('alerts')
+  .description('Show and manage learning alerts (Phase 3)')
+  .option('--all', 'Show all alerts including acknowledged')
+  .option('--ack <id>', 'Acknowledge alert by ID')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnAlerts(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Alerts command failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Dream commands (Nightly-Learner Phase 2)
+ * Run dream cycles and view insights
+ */
+const dreamCommand = program
+  .command('dream')
+  .description('Dream engine for pattern discovery (Nightly-Learner Phase 2)');
+
+dreamCommand
+  .command('run')
+  .description('Run a dream cycle to discover patterns')
+  .option('--duration <ms>', 'Duration in milliseconds', parseInt, 5000)
+  .option('--insights <n>', 'Target insights to generate', parseInt, 5)
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await dreamCommands.dreamRun(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Dream run failed:'), error);
+      process.exit(1);
+    }
+  });
+
+dreamCommand
+  .command('insights')
+  .description('View stored dream insights')
+  .option('--limit <n>', 'Limit results', parseInt, 20)
+  .option('--type <type>', 'Filter by insight type')
+  .option('--actionable', 'Show only actionable insights')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await dreamCommands.dreamInsights(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Dream insights failed:'), error);
+      process.exit(1);
+    }
+  });
+
+dreamCommand
+  .command('status')
+  .description('Show dream engine status')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await dreamCommands.dreamStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Dream status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Transfer commands (Nightly-Learner Phase 2)
+ * Cross-agent pattern transfer
+ */
+const transferCommand = program
+  .command('transfer')
+  .description('Cross-agent pattern transfer (Nightly-Learner Phase 2)');
+
+transferCommand
+  .command('broadcast')
+  .description('Broadcast a pattern to compatible agents')
+  .requiredOption('--pattern <id>', 'Pattern ID to transfer')
+  .requiredOption('--source <agent>', 'Source agent type')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferBroadcast(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer broadcast failed:'), error);
+      process.exit(1);
+    }
+  });
+
+transferCommand
+  .command('status')
+  .description('Show transfer statistics')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+transferCommand
+  .command('history')
+  .description('View transfer history')
+  .option('--source <agent>', 'Filter by source agent')
+  .option('--target <agent>', 'Filter by target agent')
+  .option('--limit <n>', 'Limit results', parseInt, 20)
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferHistory(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer history failed:'), error);
+      process.exit(1);
+    }
+  });
+
+transferCommand
+  .command('agents')
+  .description('List available agents for transfer')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferAgents(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer agents failed:'), error);
       process.exit(1);
     }
   });

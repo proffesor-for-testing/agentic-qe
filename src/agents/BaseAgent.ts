@@ -34,6 +34,7 @@ import { AgentDBManager, AgentDBConfig, createAgentDBManager } from '../core/mem
 import { AgentLifecycleManager } from './lifecycle/AgentLifecycleManager';
 import { AgentCoordinator } from './coordination/AgentCoordinator';
 import { AgentMemoryService } from './memory/AgentMemoryService';
+import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -297,7 +298,19 @@ export abstract class BaseAgent extends EventEmitter {
       await this.executeHook('post-task', postTaskData);
 
       // Update performance metrics
+      const duration = Date.now() - startTime;
       this.updatePerformanceMetrics(startTime, true);
+
+      // Capture experience for learning (Nightly-Learner integration)
+      await this.captureExperience({
+        taskId: assignment.id,
+        taskType: assignment.task.type || 'general',
+        input: assignment.task.payload || {},
+        output: result,
+        duration,
+        success: true,
+        metrics: this.extractTaskMetrics(result),
+      });
 
       // Store task completion in memory
       await this.memoryService.storeTaskResult(assignment.id, result);
@@ -308,7 +321,21 @@ export abstract class BaseAgent extends EventEmitter {
       return result;
 
     } catch (error) {
+      const duration = Date.now() - startTime;
       this.updatePerformanceMetrics(startTime, false);
+
+      // Capture failed experience for learning
+      await this.captureExperience({
+        taskId: assignment.id,
+        taskType: assignment.task.type || 'general',
+        input: assignment.task.payload || {},
+        output: {},
+        duration,
+        success: false,
+        error: error as Error,
+        metrics: {},
+      });
+
       this.currentTask = undefined;
       this.lifecycleManager.markError(`Task execution failed: ${error}`);
 
@@ -1049,6 +1076,34 @@ export abstract class BaseAgent extends EventEmitter {
         });
       }
 
+      // Capture experience for Dream Engine (Nightly-Learner Phase 2)
+      // This enables real agent execution data to flow into the concept graph
+      try {
+        const executionTime = this.taskStartTime ? Date.now() - this.taskStartTime : 0;
+        const experienceCapture = await ExperienceCapture.getSharedInstance();
+
+        const executionEvent: AgentExecutionEvent = {
+          agentId: this.agentId.id,
+          agentType: this.agentId.type,
+          taskId: data.assignment.id,
+          taskType: data.assignment.task.type,
+          input: data.assignment.task.payload || {},
+          output: data.result || {},
+          duration: executionTime,
+          success: validationResult.valid,
+          metrics: {
+            quality_score: validationResult.valid ? 0.85 : 0.3,
+            coverage_delta: 0, // Can be enhanced with actual coverage data
+          },
+          timestamp: new Date(),
+        };
+
+        await experienceCapture.captureExecution(executionEvent);
+      } catch (captureError) {
+        // Don't fail task due to experience capture errors
+        console.warn(`[${this.agentId.id}] Experience capture failed:`, captureError);
+      }
+
       this.emitEvent('hook.post-task.completed', {
         agentId: this.agentId,
         result: validationResult
@@ -1241,6 +1296,85 @@ export abstract class BaseAgent extends EventEmitter {
     }
 
     this.performanceMetrics.lastActivity = new Date();
+  }
+
+  /**
+   * Capture execution experience for Nightly-Learner system
+   * Automatically sends task execution data to ExperienceCapture singleton
+   */
+  private async captureExperience(data: {
+    taskId: string;
+    taskType: string;
+    input: Record<string, unknown>;
+    output: Record<string, unknown>;
+    duration: number;
+    success: boolean;
+    error?: Error;
+    metrics?: Record<string, number>;
+  }): Promise<void> {
+    try {
+      // Get the shared ExperienceCapture instance
+      const capture = await ExperienceCapture.getSharedInstance();
+
+      // Build the execution event
+      const event: AgentExecutionEvent = {
+        agentId: this.agentId.id,
+        agentType: this.agentId.type,
+        taskId: data.taskId,
+        taskType: data.taskType,
+        input: data.input,
+        output: data.output,
+        duration: data.duration,
+        success: data.success,
+        error: data.error,
+        metrics: data.metrics,
+        timestamp: new Date(),
+      };
+
+      // Capture the execution
+      await capture.captureExecution(event);
+
+      // Emit event for monitoring
+      this.emit('experience:captured', {
+        agentId: this.agentId.id,
+        taskId: data.taskId,
+        success: data.success,
+        duration: data.duration,
+      });
+
+    } catch (error) {
+      // Don't let capture failures affect task execution
+      console.warn(`[${this.agentId.id}] Failed to capture experience:`, error);
+    }
+  }
+
+  /**
+   * Extract metrics from task result for learning
+   * Override in subclasses to provide agent-specific metrics
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    // Extract common metrics if available
+    if (result && typeof result === 'object') {
+      if (typeof result.coverage === 'number') {
+        metrics.coverage = result.coverage;
+      }
+      if (typeof result.testsGenerated === 'number') {
+        metrics.testsGenerated = result.testsGenerated;
+      }
+      if (typeof result.issuesFound === 'number') {
+        metrics.issuesFound = result.issuesFound;
+      }
+      if (typeof result.confidenceScore === 'number') {
+        metrics.confidenceScore = result.confidenceScore;
+      }
+      if (typeof result.qualityScore === 'number') {
+        metrics.qualityScore = result.qualityScore;
+      }
+    }
+
+    return metrics;
   }
 
   private async storeTaskResult(taskId: string, result: any): Promise<void> {

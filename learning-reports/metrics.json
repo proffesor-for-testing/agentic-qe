@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "patternHitRate": 100,
+  "convergenceRate": 100,
+  "totalPatterns": 12,
+  "totalQValues": 518,
+  "averageReward": 1.1730290082429304,
+  "databaseIntegrity": true,
+  "thresholds": {
+    "patternHitRate": 70,
+    "convergenceRate": 80
+  },
+  "violations": [],
+  "algorithms": {}
+}

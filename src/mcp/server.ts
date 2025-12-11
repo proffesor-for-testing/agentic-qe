@@ -201,7 +201,8 @@ export class AgenticQEMCPServer {
     // REMOVED: PREDICT_DEFECTS - use PREDICT_DEFECTS_AI instead (Issue #115 Phase 1)
 
     // Enhanced test tool handlers
-    this.handlers.set(TOOL_NAMES.TEST_GENERATE_ENHANCED, new TestGenerateEnhancedHandler());
+    // Pass registry to enable automatic learning from every execution
+    this.handlers.set(TOOL_NAMES.TEST_GENERATE_ENHANCED, new TestGenerateEnhancedHandler(this.registry));
     this.handlers.set(TOOL_NAMES.TEST_EXECUTE_PARALLEL, new TestExecuteParallelHandler());
     this.handlers.set(TOOL_NAMES.TEST_OPTIMIZE_SUBLINEAR, new TestOptimizeSublinearHandler());
     this.handlers.set(TOOL_NAMES.TEST_REPORT_COMPREHENSIVE, new TestReportComprehensiveHandler());

@@ -1,17 +1,27 @@
 /**
  * Enhanced Test Generation Handler with AI
  *
+ * Routes through AgentRegistry to enable automatic learning.
+ * When users call this MCP tool, the TestGeneratorAgent:
+ * 1. Executes the task via executeTask()
+ * 2. Triggers onPostTask() hook automatically
+ * 3. Calls learningEngine.learnFromExecution()
+ * 4. Persists Q-values, patterns, and experiences to memory.db
+ *
  * Features:
  * - AI-powered code analysis
  * - Pattern recognition
  * - Anti-pattern detection
  * - Property-based test generation
  * - Multi-language support
+ * - **Automatic learning from every execution**
  *
- * @version 1.0.0
+ * @version 2.0.0 - Now with agent-based learning
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
+import { AgentRegistry } from '../../services/AgentRegistry';
+import { QEAgentType } from '../../../types';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
 export interface TestGenerateEnhancedArgs {
@@ -24,13 +34,22 @@ export interface TestGenerateEnhancedArgs {
 }
 
 export class TestGenerateEnhancedHandler extends BaseHandler {
+  private registry: AgentRegistry | null = null;
   private aiModels: Map<string, any> = new Map();
   private patternRecognizer: any;
 
-  constructor() {
+  constructor(registry?: AgentRegistry) {
     super();
+    this.registry = registry || null;
     this.initializeAIModels();
     this.initializePatternRecognizer();
+  }
+
+  /**
+   * Set the AgentRegistry for agent-based execution with learning
+   */
+  setRegistry(registry: AgentRegistry): void {
+    this.registry = registry;
   }
 
   async handle(args: TestGenerateEnhancedArgs): Promise<HandlerResponse> {
@@ -40,41 +59,173 @@ export class TestGenerateEnhancedHandler extends BaseHandler {
 
       this.validateRequired(args, ['sourceCode', 'language', 'testType']);
 
-      const { result, executionTime } = await this.measureExecutionTime(async () => {
-        // AI-powered code analysis
-        const analysis = await this.analyzeCodeWithAI(args);
+      // If registry is available, route through agent for automatic learning
+      if (this.registry) {
+        return await this.executeViaAgent(args, requestId);
+      }
 
-        // Generate tests with AI enhancement
-        const tests = await this.generateEnhancedTests(args, analysis);
+      // Fallback to direct execution (no learning)
+      this.log('warn', 'No AgentRegistry - executing without learning. Set registry for automatic learning.');
+      return await this.executeDirect(args, requestId);
+    });
+  }
 
-        // Detect anti-patterns if requested
-        const antiPatterns = args.detectAntiPatterns
-          ? await this.detectAntiPatterns(args.sourceCode, args.language)
-          : [];
+  /**
+   * Execute via TestGeneratorAgent for automatic learning
+   * This is the preferred path - agents learn from every execution
+   */
+  private async executeViaAgent(args: TestGenerateEnhancedArgs, requestId: string): Promise<HandlerResponse> {
+    const startTime = Date.now();
 
-        // Generate AI insights
-        const aiInsights = args.aiEnhancement
+    try {
+      // Spawn or reuse test-generator agent
+      const { id: agentId } = await this.registry!.spawnAgent(
+        QEAgentType.TEST_GENERATOR,
+        {
+          name: `test-gen-mcp-${requestId}`,
+          description: 'Test generator spawned via MCP for learning',
+          capabilities: ['unit-test-generation', 'ai-enhancement', 'pattern-recognition'],
+        }
+      );
+
+      this.log('info', `Spawned agent ${agentId} for test generation with learning enabled`);
+
+      // Pre-analyze code for task
+      const analysis = await this.analyzeCodeWithAI(args);
+
+      // Prepare TaskAssignment in the correct format for BaseAgent.executeTask()
+      // TestGeneratorAgent expects sourceFile + sourceContent OR sourceCode.files array
+      // This will trigger: executeTask() -> performTask() -> onPostTask() -> learningEngine.learnFromExecution()
+      const taskAssignment = {
+        id: `assignment-${requestId}`,
+        task: {
+          id: `task-${requestId}`,
+          type: 'test-generation',
+          payload: {
+            // TestGeneratorAgent.extractTestGenerationRequest looks for sourceFile + sourceContent
+            sourceFile: `mcp-input-${requestId}.${args.language === 'python' ? 'py' : 'ts'}`,
+            sourceContent: args.sourceCode,
+            language: args.language,
+            testType: args.testType,
+            aiEnhancement: args.aiEnhancement ?? true,
+            coverageTarget: args.coverageGoal ?? 80,
+            detectAntiPatterns: args.detectAntiPatterns ?? false,
+            framework: this.getFrameworkForLanguage(args.language),
+            // Include analysis data
+            complexity: analysis.complexity.score,
+            linesOfCode: args.sourceCode.split('\n').length,
+            functionCount: analysis.functions.length,
+          },
+          priority: 5,
+          status: 'pending',
+          description: `Generate ${args.testType} tests for ${args.language} code`,
+        },
+        agentId,
+        assignedAt: new Date(),
+        status: 'assigned',
+      };
+
+      // Execute task via registry - this triggers agent learning automatically
+      const agentResult = await this.registry!.executeTask(agentId, taskAssignment);
+
+      const executionTime = Date.now() - startTime;
+
+      // Combine agent result with our analysis
+      const tests = agentResult?.testSuite?.tests || await this.generateEnhancedTests(args, analysis);
+      const antiPatterns = args.detectAntiPatterns
+        ? await this.detectAntiPatterns(args.sourceCode, args.language)
+        : [];
+
+      const result = {
+        tests,
+        antiPatterns,
+        suggestions: antiPatterns.map((ap: any) => `Fix: ${ap.type} - ${ap.suggestion}`),
+        aiInsights: args.aiEnhancement
           ? await this.generateAIInsights(analysis)
-          : {};
+          : {},
+        coverage: agentResult?.generationMetrics?.coverageProjection
+          ? { predicted: agentResult.generationMetrics.coverageProjection, confidence: 0.9 }
+          : await this.predictCoverage([], args.coverageGoal || 80),
+        properties: this.extractProperties(tests),
+        language: args.language,
+        complexity: analysis.complexity,
+        // Include learning metadata so users know learning happened
+        learning: {
+          enabled: true,
+          agentId,
+          message: 'Agent learned from this execution - patterns and Q-values updated',
+        },
+      };
 
-        // Calculate predicted coverage
-        const coverage = await this.predictCoverage(tests, args.coverageGoal || 80);
-
-        return {
-          tests,
-          antiPatterns,
-          suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
-          aiInsights,
-          coverage,
-          properties: this.extractProperties(tests),
-          language: args.language,
-          complexity: analysis.complexity
-        };
+      this.log('info', `Test generation with learning completed in ${executionTime.toFixed(2)}ms`, {
+        agentId,
+        testsGenerated: result.tests.length,
+        learningEnabled: true,
       });
 
-      this.log('info', `Enhanced test generation completed in ${executionTime.toFixed(2)}ms`);
       return this.createSuccessResponse(result, requestId);
+
+    } catch (error) {
+      this.log('error', 'Agent-based execution failed, falling back to direct', { error });
+      // Fallback to direct execution if agent fails
+      return await this.executeDirect(args, requestId);
+    }
+  }
+
+  /**
+   * Direct execution without agent (fallback - no learning)
+   */
+  private async executeDirect(args: TestGenerateEnhancedArgs, requestId: string): Promise<HandlerResponse> {
+    const { result, executionTime } = await this.measureExecutionTime(async () => {
+      // AI-powered code analysis
+      const analysis = await this.analyzeCodeWithAI(args);
+
+      // Generate tests with AI enhancement
+      const tests = await this.generateEnhancedTests(args, analysis);
+
+      // Detect anti-patterns if requested
+      const antiPatterns = args.detectAntiPatterns
+        ? await this.detectAntiPatterns(args.sourceCode, args.language)
+        : [];
+
+      // Generate AI insights
+      const aiInsights = args.aiEnhancement
+        ? await this.generateAIInsights(analysis)
+        : {};
+
+      // Calculate predicted coverage
+      const coverage = await this.predictCoverage(tests, args.coverageGoal || 80);
+
+      return {
+        tests,
+        antiPatterns,
+        suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
+        aiInsights,
+        coverage,
+        properties: this.extractProperties(tests),
+        language: args.language,
+        complexity: analysis.complexity,
+        // Indicate learning was not available
+        learning: {
+          enabled: false,
+          message: 'No AgentRegistry available - learning disabled. Initialize MCP server with registry for automatic learning.',
+        },
+      };
     });
+
+    this.log('info', `Enhanced test generation (no learning) completed in ${executionTime.toFixed(2)}ms`);
+    return this.createSuccessResponse(result, requestId);
+  }
+
+  private getFrameworkForLanguage(language: string): string {
+    const frameworks: Record<string, string> = {
+      javascript: 'jest',
+      typescript: 'jest',
+      python: 'pytest',
+      java: 'junit',
+      go: 'go-test',
+    };
+    return frameworks[language] || 'jest';
   }
 
   private initializeAIModels(): void {
