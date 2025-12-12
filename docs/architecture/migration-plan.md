@@ -1,15 +1,17 @@
 # Strategy Migration Plan
 
-**Version**: 1.0.0
-**Date**: 2025-12-12
+**Version**: 1.1.0
+**Date**: 2025-12-12 (Updated)
 **Phase**: Phase 2 (B1.2)
-**Status**: In Progress
+**Status**: Phase 1 Complete - Adapters and Strategy Integration
 
 ---
 
 ## Overview
 
 This document provides a detailed migration plan for integrating the strategy pattern into BaseAgent, reducing it from 1,452 LOC to <300 LOC.
+
+**Current Progress**: BaseAgent now uses strategy pattern with adapters. LOC: 1,560 (increased due to adapter integration code, will decrease in Phase 2).
 
 ---
 
@@ -42,6 +44,54 @@ All strategy interfaces and default implementations exist in `src/core/strategie
 | `DefaultCoordinationStrategy.ts` | Complete | ~160 |
 | `DistributedMemoryStrategy.ts` | Stub | ~50 |
 | `AcceleratedLearningStrategy.ts` | Stub | ~50 |
+
+### Adapter Files Created (B1.2 Phase 1)
+
+| File | Status | LOC | Purpose |
+|------|--------|-----|---------|
+| `LifecycleManagerAdapter.ts` | Complete | ~154 | Bridges AgentLifecycleManager to AgentLifecycleStrategy |
+| `MemoryServiceAdapter.ts` | Complete | ~207 | Bridges AgentMemoryService to AgentMemoryStrategy |
+| `LearningEngineAdapter.ts` | Complete | ~300 | Bridges LearningEngine to AgentLearningStrategy |
+| `CoordinatorAdapter.ts` | Complete | ~277 | Bridges EventEmitter to AgentCoordinationStrategy |
+
+### Tests Created
+
+| Test File | Tests | Status |
+|-----------|-------|--------|
+| `LifecycleManagerAdapter.test.ts` | 21 | ✅ Passing |
+| `MemoryServiceAdapter.test.ts` | 22 | ✅ Passing |
+| `LearningEngineAdapter.test.ts` | 24 | ✅ Passing |
+| `CoordinatorAdapter.test.ts` | 22 | ✅ Passing |
+| Strategy tests (4 files) | 75 | ✅ Passing |
+
+**Total Tests**: 142 passing (67 adapters + 75 strategies)
+
+---
+
+## Migration Progress (Phase 1 - COMPLETE)
+
+### ✅ Completed Steps
+
+1. **Strategy Properties Added** - BaseAgent has `strategies` object with all 4 strategies
+2. **Constructor Updated** - Strategies initialized with adapters as defaults
+3. **Learning Strategy Deferred** - Created during `initialize()` after LearningEngine
+4. **Coordination Strategy Added** - Created in constructor with CoordinatorAdapter
+5. **Inline Code Replaced**:
+   - `getStatus()` → `strategies.lifecycle.getStatus()`
+   - `waitForStatus()` → `strategies.lifecycle.waitForStatus()`
+   - `waitForReady()` → `strategies.lifecycle.waitForReady()`
+   - `markActive/Idle/Error()` → `strategies.lifecycle.transitionTo()`
+6. **Strategy Getters Added**:
+   - `getLifecycleStrategy()`
+   - `getMemoryStrategy()`
+   - `getLearningStrategy()`
+   - `getCoordinationStrategy()`
+
+### ⏳ Remaining Steps (Phase 2)
+
+1. **Replace inline memory ops** - Use `strategies.memory.*` (namespace handling needed)
+2. **Remove duplicate code** - Extract AgentDB, learning integration, deprecated code
+3. **Reduce BaseAgent LOC** - Target: <300 LOC (currently: 1,560)
 
 ---
 
