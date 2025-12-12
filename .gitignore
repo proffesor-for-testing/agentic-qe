@@ -128,3 +128,7 @@ aqe
 # Mock files - allow agentdb mock for CI
 __mocks__/*
 !__mocks__/agentdb.ts
+
+# Test artifacts that should not be committed
+test-learning-persistence
+junit.xml
