@@ -988,4 +988,55 @@ export class SecurityScannerAgent extends BaseAgent {
       }
     };
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich security scanning metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Vulnerability summary metrics
+      if (result.summary) {
+        metrics.critical_vulnerabilities = result.summary.critical || 0;
+        metrics.high_vulnerabilities = result.summary.high || 0;
+        metrics.medium_vulnerabilities = result.summary.medium || 0;
+        metrics.low_vulnerabilities = result.summary.low || 0;
+        metrics.total_vulnerabilities = result.summary.total || 0;
+      }
+
+      // Security score
+      if (typeof result.securityScore === 'number') {
+        metrics.security_score = result.securityScore;
+      }
+
+      // Scan performance
+      if (typeof result.duration === 'number') {
+        metrics.scan_duration = result.duration;
+      }
+
+      // Pass/fail status
+      metrics.scan_passed = result.passed ? 1 : 0;
+
+      // Findings analysis
+      if (result.findings && Array.isArray(result.findings)) {
+        metrics.total_findings = result.findings.length;
+        metrics.unique_cve_count = new Set(
+          result.findings.filter((f: any) => f.cve).map((f: any) => f.cve)
+        ).size;
+        metrics.fixable_count = result.findings.filter(
+          (f: any) => f.remediation || f.fix
+        ).length;
+      }
+
+      // Compliance metrics
+      if (result.compliance) {
+        metrics.compliance_score = result.compliance.overallCompliance || 0;
+        metrics.compliance_passed = result.compliance.passed ? 1 : 0;
+      }
+    }
+
+    return metrics;
+  }
 }

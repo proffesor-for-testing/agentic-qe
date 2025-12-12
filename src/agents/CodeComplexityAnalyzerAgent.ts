@@ -601,4 +601,60 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
     this.logger.info('Cleaning up complexity analyzer resources');
     // Clean up any resources (e.g., temp files, connections)
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich code complexity metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Overall complexity metrics
+      if (result.summary) {
+        metrics.total_files = result.summary.totalFiles || 0;
+        metrics.total_functions = result.summary.totalFunctions || 0;
+        metrics.avg_complexity = result.summary.averageComplexity || 0;
+        metrics.max_complexity = result.summary.maxComplexity || 0;
+      }
+
+      // Cyclomatic complexity
+      if (result.cyclomatic) {
+        metrics.cyclomatic_avg = result.cyclomatic.average || 0;
+        metrics.cyclomatic_max = result.cyclomatic.max || 0;
+        metrics.high_complexity_count = result.cyclomatic.highComplexityCount || 0;
+      }
+
+      // Cognitive complexity
+      if (result.cognitive) {
+        metrics.cognitive_avg = result.cognitive.average || 0;
+        metrics.cognitive_max = result.cognitive.max || 0;
+      }
+
+      // Halstead metrics
+      if (result.halstead) {
+        metrics.halstead_difficulty = result.halstead.difficulty || 0;
+        metrics.halstead_effort = result.halstead.effort || 0;
+        metrics.halstead_volume = result.halstead.volume || 0;
+      }
+
+      // Maintainability
+      if (typeof result.maintainabilityIndex === 'number') {
+        metrics.maintainability_index = result.maintainabilityIndex;
+      }
+
+      // Refactoring suggestions
+      metrics.refactoring_suggestions = result.refactoringTargets?.length || 0;
+      metrics.critical_hotspots = result.hotspots?.filter((h: any) => h.severity === 'critical').length || 0;
+
+      // Lines of code
+      if (result.loc) {
+        metrics.total_loc = result.loc.total || 0;
+        metrics.code_loc = result.loc.code || 0;
+        metrics.comment_loc = result.loc.comments || 0;
+      }
+    }
+
+    return metrics;
+  }
 }

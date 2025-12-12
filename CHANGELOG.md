@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.5] - 2025-12-12
+
+### Added
+
+#### Enhanced Domain-Specific Learning Metrics
+All 17 QE agents now have custom `extractTaskMetrics()` implementations that capture domain-specific metrics for the Nightly-Learner system, enabling richer pattern learning:
+
+- **TestGeneratorAgent** - Tests generated, coverage projection, diversity score, pattern hit rate
+- **SecurityScannerAgent** - Vulnerability counts by severity, security score, compliance metrics, CVE counts
+- **PerformanceTesterAgent** - Latency percentiles (p50/p95/p99), throughput, bottleneck count, SLA violations
+- **FlakyTestHunterAgent** - Flaky test counts, root cause analysis, stabilization metrics
+- **ApiContractValidatorAgent** - Breaking changes, schema validation, backward compatibility
+- **CodeComplexityAnalyzerAgent** - Cyclomatic/cognitive complexity, Halstead metrics, maintainability index
+- **DeploymentReadinessAgent** - Readiness score, gate results, risk assessment, rollback readiness
+- **QualityAnalyzerAgent** - Quality dimensions, technical debt, trend analysis
+- **RegressionRiskAnalyzerAgent** - Risk scores, change impact, test selection metrics
+- **TestExecutorAgent** - Pass rate, parallel efficiency, retry metrics, error categories
+- **TestDataArchitectAgent** - Generation throughput, data quality, schema compliance, GDPR compliance
+- **RequirementsValidatorAgent** - Testability scores, ambiguity detection, BDD scenario counts
+- **ProductionIntelligenceAgent** - Incident analysis, RUM metrics, pattern detection
+- **QXPartnerAgent** - Visible/invisible quality scores, accessibility, usability, stakeholder satisfaction
+- **FleetCommanderAgent** - Fleet orchestration, resource utilization, scaling metrics, conflict resolution
+
+This enables the Nightly-Learner's Dream Engine to discover more nuanced patterns specific to each agent's domain.
+
 ## [2.3.4] - 2025-12-11
 
 ### Added

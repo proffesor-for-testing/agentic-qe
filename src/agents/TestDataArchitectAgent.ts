@@ -1994,6 +1994,61 @@ export class TestDataArchitectAgent extends BaseAgent {
   private generateVersionId(): string {
     return `version-${Date.now()}-${SecureRandom.generateId(5)}`;
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich test data generation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Generation metrics
+      if (result.generation) {
+        metrics.records_generated = result.generation.recordCount || 0;
+        metrics.generation_time = result.generation.duration || 0;
+        metrics.records_per_second = result.generation.throughput || 0;
+      }
+
+      // Data quality metrics
+      if (result.validation) {
+        metrics.validation_passed = result.validation.passed ? 1 : 0;
+        metrics.validation_errors = result.validation.errors?.length || 0;
+        metrics.data_quality_score = result.validation.qualityScore || 0;
+      }
+
+      // Schema compliance
+      if (result.schema) {
+        metrics.schema_compliant = result.schema.compliant ? 1 : 0;
+        metrics.schema_violations = result.schema.violations?.length || 0;
+      }
+
+      // Referential integrity
+      if (result.integrity) {
+        metrics.integrity_valid = result.integrity.valid ? 1 : 0;
+        metrics.orphan_records = result.integrity.orphanRecords || 0;
+        metrics.duplicate_records = result.integrity.duplicates || 0;
+      }
+
+      // Privacy/anonymization
+      if (result.anonymization) {
+        metrics.fields_anonymized = result.anonymization.fieldsProcessed || 0;
+        metrics.pii_detected = result.anonymization.piiDetected || 0;
+        metrics.anonymization_coverage = result.anonymization.coverage || 0;
+      }
+
+      // Dataset size
+      metrics.total_records = result.totalRecords || result.recordCount || 0;
+      metrics.total_tables = result.tables?.length || 0;
+
+      // GDPR compliance
+      if (typeof result.gdprCompliant === 'boolean') {
+        metrics.gdpr_compliant = result.gdprCompliant ? 1 : 0;
+      }
+    }
+
+    return metrics;
+  }
 }
 
 // ============================================================================

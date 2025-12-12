@@ -1572,4 +1572,48 @@ export class TestGeneratorAgent extends BaseAgent {
 
     this.logger.info(`[TestGeneratorAgent] Registered ${this.getCapabilities().length} capabilities`);
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich test generation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Test generation specific metrics
+      if (result.generationMetrics) {
+        metrics.tests_generated = result.generationMetrics.testsGenerated || 0;
+        metrics.generation_time = result.generationMetrics.generationTime || 0;
+        metrics.coverage_projection = result.generationMetrics.coverageProjection || 0;
+        metrics.optimization_ratio = result.generationMetrics.optimizationRatio || 0;
+        metrics.patterns_used = result.generationMetrics.patternsUsed || 0;
+        metrics.pattern_hit_rate = result.generationMetrics.patternHitRate || 0;
+      }
+
+      // Quality metrics
+      if (result.quality) {
+        metrics.diversity_score = result.quality.diversityScore || 0;
+        metrics.risk_coverage = result.quality.riskCoverage || 0;
+        metrics.edge_cases_covered = result.quality.edgeCasesCovered || 0;
+      }
+
+      // Pattern usage metrics
+      if (result.patterns) {
+        metrics.patterns_matched = result.patterns.matched?.length || 0;
+        metrics.patterns_applied = result.patterns.applied?.length || 0;
+        metrics.pattern_time_savings = result.patterns.savings || 0;
+      }
+
+      // Test suite metrics
+      if (result.testSuite) {
+        metrics.total_tests = result.testSuite.tests?.length || 0;
+        metrics.assertion_count = result.testSuite.tests?.reduce(
+          (sum: number, t: any) => sum + (t.assertions?.length || 0), 0
+        ) || 0;
+      }
+    }
+
+    return metrics;
+  }
 }
