@@ -43,7 +43,12 @@ import type {
   AgentLearningStrategy,
   AgentCoordinationStrategy,
 } from '../core/strategies';
-import { createLifecycleAdapter, createMemoryAdapter } from './adapters';
+import {
+  createLifecycleAdapter,
+  createMemoryAdapter,
+  createLearningAdapter,
+  createCoordinationAdapter,
+} from './adapters';
 
 export interface BaseAgentConfig {
   id?: string;
@@ -106,8 +111,8 @@ export abstract class BaseAgent extends EventEmitter {
 
   // Phase 2 (B1.2) Strategy properties - layered architecture
   // Lifecycle and memory strategies are always available (adapter or custom)
-  // Learning and coordination strategies are optional
-  protected readonly strategies: {
+  // Learning and coordination strategies are initialized during initialize()
+  protected strategies: {
     lifecycle: AgentLifecycleStrategy;
     memory: AgentMemoryStrategy;
     learning?: AgentLearningStrategy;
@@ -187,8 +192,8 @@ export abstract class BaseAgent extends EventEmitter {
     this.strategies = {
       lifecycle: config.lifecycleStrategy ?? createLifecycleAdapter(this.lifecycleManager),
       memory: config.memoryStrategy ?? createMemoryAdapter(this.memoryService, this.memoryStore),
-      learning: config.learningStrategy,
-      coordination: config.coordinationStrategy,
+      learning: config.learningStrategy, // Set during initialize() if not injected
+      coordination: config.coordinationStrategy ?? createCoordinationAdapter(this.eventBus, this.agentId),
     };
 
     // Connect lifecycle manager to event emitter for event-driven coordination
@@ -267,6 +272,12 @@ export abstract class BaseAgent extends EventEmitter {
               this.learningConfig
             );
             await this.learningEngine.initialize();
+
+            // Phase 2 (B1.2): Create learning strategy adapter
+            // Only set if not already injected via config
+            if (!this.strategies.learning) {
+              this.strategies.learning = createLearningAdapter(this.learningEngine);
+            }
           } else if (this.enableLearning && !(this.memoryStore instanceof SwarmMemoryManager)) {
             // Runtime check: Warn if learning is enabled but memoryStore doesn't support it
             console.warn(
@@ -450,9 +461,10 @@ export abstract class BaseAgent extends EventEmitter {
       lastActivity: Date;
     };
   } {
+    // Phase 2 (B1.2): Use lifecycle strategy instead of direct manager call
     return {
       agentId: this.agentId,
-      status: this.lifecycleManager.getStatus(),
+      status: this.strategies.lifecycle.getStatus(),
       currentTask: this.currentTask?.id,
       capabilities: Array.from(this.capabilities.keys()),
       performanceMetrics: { ...this.performanceMetrics }
@@ -469,9 +481,16 @@ export abstract class BaseAgent extends EventEmitter {
    * Use: await agent.waitForStatus('ready')
    */
   public async waitForStatus(status: AgentStatus, timeout: number = 10000): Promise<void> {
+    // Phase 2 (B1.2): Use lifecycle strategy for status waiting
+    // Strategy provides waitForStatus implementation
+    if (typeof this.strategies.lifecycle.waitForStatus === 'function') {
+      return this.strategies.lifecycle.waitForStatus(status, timeout);
+    }
+
+    // Fallback to event-based implementation
     return new Promise((resolve, reject) => {
       // Already at target status
-      if (this.lifecycleManager.getStatus() === status) {
+      if (this.strategies.lifecycle.getStatus() === status) {
         return resolve();
       }
 
@@ -498,7 +517,14 @@ export abstract class BaseAgent extends EventEmitter {
    * Use: await agent.waitForReady()
    */
   public async waitForReady(timeout: number = 10000): Promise<void> {
-    const currentStatus = this.lifecycleManager.getStatus();
+    // Phase 2 (B1.2): Use lifecycle strategy
+    // Strategy provides waitForReady implementation
+    if (typeof this.strategies.lifecycle.waitForReady === 'function') {
+      return this.strategies.lifecycle.waitForReady(timeout);
+    }
+
+    // Fallback to waitForStatus-based implementation
+    const currentStatus = this.strategies.lifecycle.getStatus();
     if (currentStatus === AgentStatus.IDLE || currentStatus === AgentStatus.ACTIVE) {
       return; // Already ready
     }
@@ -585,6 +611,20 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public getMemoryStrategy(): AgentMemoryStrategy {
     return this.strategies.memory;
+  }
+
+  /**
+   * Get the learning strategy (if enabled)
+   */
+  public getLearningStrategy(): AgentLearningStrategy | undefined {
+    return this.strategies.learning;
+  }
+
+  /**
+   * Get the coordination strategy
+   */
+  public getCoordinationStrategy(): AgentCoordinationStrategy | undefined {
+    return this.strategies.coordination;
   }
 
   /**

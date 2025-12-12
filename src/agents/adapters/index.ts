@@ -17,3 +17,13 @@ export {
   MemoryServiceAdapter,
   createMemoryAdapter,
 } from './MemoryServiceAdapter';
+
+export {
+  LearningEngineAdapter,
+  createLearningAdapter,
+} from './LearningEngineAdapter';
+
+export {
+  CoordinatorAdapter,
+  createCoordinationAdapter,
+} from './CoordinatorAdapter';
