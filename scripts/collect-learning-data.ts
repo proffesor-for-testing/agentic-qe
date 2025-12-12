@@ -79,12 +79,23 @@ interface UserScenario {
 
 // Simulated agent execution with experience capture
 class AgentExecutor {
-  private experienceCapture: ExperienceCapture;
+  private experienceCapture: ExperienceCapture | null = null;
   private sessionId: string;
+  private experiences: any[] = [];
 
   constructor() {
-    this.experienceCapture = ExperienceCapture.getInstance();
     this.sessionId = uuidv4();
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      this.experienceCapture = await ExperienceCapture.getSharedInstance({
+        dbPath: path.join(process.cwd(), '.agentic-qe', 'learning-data.db'),
+      });
+    } catch (error) {
+      console.warn('⚠️  ExperienceCapture not available, using local storage');
+      this.experienceCapture = null;
+    }
   }
 
   async executeWithCapture<T>(
@@ -96,34 +107,43 @@ class AgentExecutor {
     const executionId = uuidv4();
 
     try {
-      // Capture pre-execution state
-      await this.experienceCapture.captureExecution(
-        executionId,
-        agentType,
-        { taskType, sessionId: this.sessionId, phase: 'start' }
-      );
-
       // Execute the task
       const result = await task();
       const duration = Date.now() - startTime;
 
-      // Capture successful execution
+      // Create experience record
       const experience = {
         executionId,
         agentType,
         taskType,
         duration,
         success: true,
-        result: JSON.stringify(result).slice(0, 1000), // Truncate for storage
+        resultSize: JSON.stringify(result).length,
         timestamp: Date.now(),
         sessionId: this.sessionId,
       };
 
-      await this.experienceCapture.captureExecution(
-        executionId,
-        agentType,
-        { ...experience, phase: 'complete' }
-      );
+      // Try to capture in ExperienceCapture if available
+      if (this.experienceCapture) {
+        try {
+          await this.experienceCapture.captureExecution({
+            agentId: executionId,
+            taskId: `task-${executionId}`,
+            agentType,
+            taskType,
+            input: { sessionId: this.sessionId },
+            output: { success: true, resultSize: experience.resultSize },
+            duration,
+            success: true,
+            timestamp: new Date(),
+          });
+        } catch (e) {
+          // Fallback to local storage
+        }
+      }
+
+      // Also store locally
+      this.experiences.push(experience);
 
       return { result, experience };
     } catch (error) {
@@ -139,14 +159,40 @@ class AgentExecutor {
         sessionId: this.sessionId,
       };
 
-      await this.experienceCapture.captureExecution(
-        executionId,
-        agentType,
-        { ...experience, phase: 'error' }
-      );
+      // Try to capture error in ExperienceCapture
+      if (this.experienceCapture) {
+        try {
+          await this.experienceCapture.captureExecution({
+            agentId: executionId,
+            taskId: `task-${executionId}`,
+            agentType,
+            taskType,
+            input: { sessionId: this.sessionId },
+            output: { error: experience.error },
+            duration,
+            success: false,
+            timestamp: new Date(),
+          });
+        } catch (e) {
+          // Fallback
+        }
+      }
 
+      this.experiences.push(experience);
       throw error;
     }
+  }
+
+  getExperiences(): any[] {
+    return this.experiences;
+  }
+
+  async saveExperiences(): Promise<void> {
+    await fs.writeJson(
+      path.join(DIRS.experiences, `experiences-${Date.now()}.json`),
+      this.experiences,
+      { spaces: 2 }
+    );
   }
 }
 
@@ -665,6 +711,7 @@ async function main(): Promise<void> {
   await ensureDirectories();
 
   const executor = new AgentExecutor();
+  await executor.initialize();
   const allResults: any = {};
 
   try {
@@ -699,6 +746,10 @@ async function main(): Promise<void> {
       summary,
       { spaces: 2 }
     );
+
+    // Save all collected experiences
+    await executor.saveExperiences();
+    console.log(`\n📦 Saved ${executor.getExperiences().length} experience records`);
 
     console.log('\n' + '=' .repeat(50));
     console.log('✅ Learning Data Collection Complete!');
