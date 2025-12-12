@@ -1,17 +1,18 @@
 ---
 name: testability-scoring
-description: "AI-powered testability assessment using 10 principles of intrinsic testability with Playwright. Evaluates web applications against Observability, Controllability, Algorithmic Simplicity, Transparency, Stability, Explainability, Unbugginess, Smallness, Decomposability, and Similarity. Use when assessing software testability, evaluating test readiness, identifying testability improvements, or generating testability reports."
+description: "AI-powered testability assessment using 10 principles of intrinsic testability with Playwright and optional Vibium integration. Evaluates web applications against Observability, Controllability, Algorithmic Simplicity, Transparency, Stability, Explainability, Unbugginess, Smallness, Decomposability, and Similarity. Use when assessing software testability, evaluating test readiness, identifying testability improvements, or generating testability reports."
 category: testing-methodologies
 priority: high
 tokenEstimate: 1100
 agents: [qe-quality-analyzer, qx-partner, qe-visual-tester]
 implementation_status: optimized
-optimization_version: 2.1
-last_optimized: 2025-12-03
+optimization_version: 2.2
+last_optimized: 2025-12-12
 dependencies: []
 quick_reference_card: true
-tags: [testability, scoring, playwright, assessment, 10-principles, intrinsic-testability, james-bach, michael-bolton]
+tags: [testability, scoring, playwright, vibium, assessment, 10-principles, intrinsic-testability, james-bach, michael-bolton]
 contributor: "@fndlalit"
+vibium_integration: optional
 ---
 
 # Testability Scoring
@@ -175,6 +176,97 @@ const qxReport = await Task("Full QX Analysis", {
 
 ---
 
+## Vibium Integration (Optional)
+
+### Overview
+Vibium browser automation can be used alongside Playwright for enhanced testability assessment. While **Playwright remains the primary engine**, Vibium offers complementary capabilities for certain metrics.
+
+**Installation:**
+```bash
+claude mcp add vibium -- npx -y vibium
+```
+
+### Vibium-Enhanced Metrics
+
+| Principle | Vibium Enhancement | Benefit |
+|-----------|-------------------|---------|
+| **Observability** | Auto-wait duration tracking | Measures DOM stability (30s timeout, 100ms polling) |
+| **Controllability** | Element interaction success rate | Validates automation readiness via MCP |
+| **Stability** | Screenshot consistency | Visual regression detection for layout stability |
+| **Explainability** | Element attribute extraction | ARIA labels, semantic HTML validation |
+
+### When to Use Vibium
+
+✅ **USE Vibium for:**
+- Element stability metrics (auto-wait duration analysis)
+- Visual consistency checks (screenshot comparison)
+- MCP-native AI agent integration
+- Lightweight Docker images (400MB vs 1.2GB)
+
+❌ **USE Playwright for:**
+- Console error detection (Vibium V1 lacks console API)
+- Network performance metrics (BiDi network APIs coming in V2)
+- Comprehensive browser coverage (Firefox, Safari)
+- Production-proven stability (Vibium V1 released Dec 2024)
+
+### Hybrid Assessment Example
+
+```typescript
+// Testability assessment using both engines
+const assessment = {
+  // Playwright: Comprehensive metrics
+  playwright: await runPlaywrightAssessment(url),
+
+  // Vibium: Stability metrics
+  vibium: {
+    elementStability: await measureAutoWaitDuration(url),
+    visualConsistency: await compareScreenshots(url),
+    accessibilityAttributes: await extractARIALabels(url)
+  }
+};
+
+// Enhanced Observability Score
+const observability =
+  (assessment.playwright.consoleErrors * 0.6) +
+  (assessment.vibium.elementStability * 0.4);
+```
+
+### Vibium MCP Tools for Testability
+
+```typescript
+// 1. Element Stability Measurement
+const browser = await browser_launch();
+await browser_navigate({ url });
+const startTime = Date.now();
+const element = await browser_find({ selector: ".critical-element" });
+const autoWaitDuration = Date.now() - startTime;
+// Lower duration = better stability
+
+// 2. Visual Consistency Check
+const screenshot1 = await browser_screenshot();
+await browser_navigate({ url }); // Reload
+const screenshot2 = await browser_screenshot();
+const visualDiff = compareImages(screenshot1.png, screenshot2.png);
+// Lower diff = better stability
+
+// 3. Accessibility Attribute Extraction
+const elements = await browser_find({ selector: "button, a, input" });
+const ariaLabels = elements.map(el => el.attributes["aria-label"]);
+const semanticScore = (ariaLabels.filter(Boolean).length / elements.length) * 100;
+```
+
+### Migration Strategy
+
+**Current (V2.2):** Hybrid approach
+- Playwright: Primary engine for all 10 principles
+- Vibium: Optional enhancement for stability metrics
+
+**Future (V3.0):** When Vibium V2 ships
+- Evaluate Vibium as primary engine if:
+  - Console/Network APIs available
+  - Production stability proven
+  - Community adoption increases
+
 ## Agent Coordination Hints
 
 ### Memory Namespace
@@ -183,7 +275,8 @@ aqe/testability/
 ├── assessments/*       - Assessment results by URL
 ├── historical/*        - Historical scores for trend analysis
 ├── recommendations/*   - Improvement recommendations
-└── integration/*       - QX integration data
+├── integration/*       - QX integration data
+└── vibium/*           - Vibium-specific metrics (optional)
 ```
 
 ### Fleet Coordination
@@ -209,6 +302,8 @@ const testabilityFleet = await FleetManager.coordinate({
 | Partial results | Check console errors, increase network timeout |
 | Report not opening | Use `AUTO_OPEN=false`, open manually |
 | Config not updating | Use `TEST_URL` env var instead |
+| Vibium not available | Install via `claude mcp add vibium -- npx -y vibium` (optional) |
+| Hybrid mode errors | Vibium is optional; assessments work without it |
 
 ---
 
@@ -227,8 +322,14 @@ const testabilityFleet = await FleetManager.coordinate({
 
 ### Implementation
 - Based on https://github.com/fndlalit/testability-scorer (contributed by [@fndlalit](https://github.com/fndlalit))
-- Playwright v1.49.0+ with AI capabilities
+- Playwright v1.49.0+ with AI capabilities (primary engine)
+- Vibium v1.0+ with MCP integration (optional enhancement)
 - Chart.js for radar visualizations
+
+### Vibium Resources
+- GitHub: https://github.com/VibiumDev/vibium
+- MCP Integration: `claude mcp add vibium -- npx -y vibium`
+- Created by Jason Huggins (creator of Selenium/Appium)
 
 ---
 
