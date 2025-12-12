@@ -1318,4 +1318,59 @@ export default function() {
     // Simulate fetching staging metric
     return SecureRandom.randomFloat() * 100;
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich production intelligence metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Incident analysis
+      if (result.incidents && Array.isArray(result.incidents)) {
+        metrics.incidents_analyzed = result.incidents.length;
+        metrics.critical_incidents = result.incidents.filter((i: any) => i.severity === 'critical').length;
+        metrics.incidents_with_scenarios = result.incidents.filter((i: any) => i.testScenario).length;
+      }
+
+      // Test scenarios generated
+      if (result.testScenarios && Array.isArray(result.testScenarios)) {
+        metrics.scenarios_generated = result.testScenarios.length;
+        metrics.replay_scenarios = result.testScenarios.filter((s: any) => s.type === 'replay').length;
+      }
+
+      // RUM (Real User Monitoring) metrics
+      if (result.rum) {
+        metrics.rum_sessions_analyzed = result.rum.sessionsAnalyzed || 0;
+        metrics.user_journeys_captured = result.rum.userJourneys || 0;
+        metrics.error_patterns_found = result.rum.errorPatterns || 0;
+      }
+
+      // Production vs Staging comparison
+      if (result.comparison) {
+        metrics.metrics_compared = result.comparison.metricsCount || 0;
+        metrics.discrepancies_found = result.comparison.discrepancies || 0;
+        metrics.correlation_score = result.comparison.correlation || 0;
+      }
+
+      // Pattern detection
+      if (result.patterns && Array.isArray(result.patterns)) {
+        metrics.patterns_detected = result.patterns.length;
+        metrics.actionable_patterns = result.patterns.filter((p: any) => p.actionable).length;
+      }
+
+      // Coverage metrics
+      if (typeof result.productionCoverage === 'number') {
+        metrics.production_coverage = result.productionCoverage;
+      }
+
+      // Confidence
+      if (typeof result.confidence === 'number') {
+        metrics.confidence = result.confidence;
+      }
+    }
+
+    return metrics;
+  }
 }

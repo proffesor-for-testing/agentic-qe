@@ -25,6 +25,7 @@ import { ImprovementLoop } from '../learning/ImprovementLoop';
 import { QEReasoningBank, TestPattern } from '../reasoning/QEReasoningBank';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { Logger } from '../utils/Logger';
+import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
 
 // ============================================================================
 // Enhanced Configuration with Learning Support
@@ -118,6 +119,10 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   private performanceTracker?: PerformanceTracker;
   private improvementLoop?: ImprovementLoop;
   private reasoningBank?: QEReasoningBank;
+  private experienceCapture?: ExperienceCapture;
+
+  // Cached patterns for confidence boosting
+  private cachedPatterns: Array<{ pattern: string; confidence: number; successRate: number }> = [];
 
   // AgentDB integration for vector search
   private agentDB?: any;
@@ -221,6 +226,13 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       // Load learned gap detection patterns
       await this.loadGapPatterns();
 
+      // Initialize ExperienceCapture for Nightly-Learner integration
+      this.experienceCapture = await ExperienceCapture.getSharedInstance();
+      this.logger?.info('[CoverageAnalyzer] ExperienceCapture initialized for Nightly-Learner');
+
+      // Load and cache patterns for confidence boosting at task start
+      await this.loadAndCachePatternsForConfidence();
+
       // Store initialization state
       if (this.memoryStore) {
         await this.memoryStore.set('coverage-analyzer-initialized', true, 'agents');
@@ -229,7 +241,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       this.status = AgentStatus.IDLE;
       this.emit('agent.initialized', { agentId: this.id });
 
-      this.logger?.info(`CoverageAnalyzerAgent initialized with learning: ${!!this.learningEngine}`);
+      this.logger?.info(`CoverageAnalyzerAgent initialized with learning: ${!!this.learningEngine}, patterns cached: ${this.cachedPatterns.length}`);
 
     } catch (error) {
       this.status = AgentStatus.ERROR;
@@ -448,6 +460,15 @@ export class CoverageAnalyzerAgent extends EventEmitter {
         );
       }
 
+      // Capture failed experience for Nightly-Learner
+      await this.captureExperienceForLearning(
+        request,
+        null,
+        Date.now() - startTime,
+        false,
+        error as Error
+      );
+
       throw error;
     }
   }
@@ -659,6 +680,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
     // Store optimization results for future learning
     await this.storeOptimizationResults(request, result.optimization, executionTime);
+
+    // Capture experience for Nightly-Learner system
+    await this.captureExperienceForLearning(request, result, executionTime, true);
   }
 
   /**
@@ -1121,6 +1145,178 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
   private async generateFunctionTestSuggestions(func: any): Promise<string[]> {
     return [`test-${func.name}-boundary-values`, `test-${func.name}-error-conditions`];
+  }
+
+  // ============================================================================
+  // Nightly-Learner Integration - ExperienceCapture
+  // ============================================================================
+
+  /**
+   * Load patterns from database and cache for confidence boosting at task start
+   * This allows the agent to start with higher confidence based on past learnings
+   */
+  private async loadAndCachePatternsForConfidence(): Promise<void> {
+    try {
+      // Load from LearningEngine if available
+      if (this.learningEngine) {
+        const patterns = await this.learningEngine.getPatterns();
+        this.cachedPatterns = patterns.map(p => ({
+          pattern: p.pattern,
+          confidence: p.confidence,
+          successRate: p.successRate
+        }));
+        this.logger?.info(`[CoverageAnalyzer] Cached ${this.cachedPatterns.length} patterns from LearningEngine`);
+      }
+
+      // Also load from memoryStore if available
+      if (this.memoryStore) {
+        const smm = this.memoryStore as unknown as SwarmMemoryManager;
+        if (typeof smm.queryPatternsByConfidence === 'function') {
+          const dbPatterns = await smm.queryPatternsByConfidence(0.5); // High confidence only
+          const coveragePatterns = dbPatterns.filter((p: any) =>
+            p.pattern?.includes('coverage') || p.metadata?.agent_type === 'coverage-analyzer'
+          );
+
+          if (coveragePatterns.length > 0) {
+            this.logger?.info(`[CoverageAnalyzer] Found ${coveragePatterns.length} historical coverage patterns in DB`);
+            // Merge with existing patterns
+            for (const p of coveragePatterns) {
+              if (!this.cachedPatterns.find(cp => cp.pattern === p.pattern)) {
+                this.cachedPatterns.push({
+                  pattern: p.pattern,
+                  confidence: p.confidence,
+                  successRate: p.metadata?.success_rate || 0.5
+                });
+              }
+            }
+          }
+        }
+      }
+
+      this.logger?.info(`[CoverageAnalyzer] Total cached patterns for confidence boost: ${this.cachedPatterns.length}`);
+    } catch (error) {
+      this.logger?.warn('[CoverageAnalyzer] Failed to load patterns for confidence', error);
+    }
+  }
+
+  /**
+   * Calculate confidence boost based on cached historical patterns
+   * Used at task start to provide higher initial confidence
+   */
+  public getConfidenceBoostFromPatterns(taskType: string): number {
+    if (this.cachedPatterns.length === 0) {
+      return 0; // No patterns, no boost
+    }
+
+    // Find relevant patterns for this task type
+    const relevantPatterns = this.cachedPatterns.filter(p =>
+      p.pattern.includes(taskType) || p.pattern.includes('coverage')
+    );
+
+    if (relevantPatterns.length === 0) {
+      return 0;
+    }
+
+    // Calculate weighted average confidence boost
+    const totalWeight = relevantPatterns.reduce((sum, p) => sum + p.successRate, 0);
+    const weightedConfidence = relevantPatterns.reduce(
+      (sum, p) => sum + p.confidence * p.successRate,
+      0
+    );
+
+    const boost = totalWeight > 0 ? (weightedConfidence / totalWeight) * 0.3 : 0; // Max 30% boost
+
+    this.logger?.debug(`[CoverageAnalyzer] Confidence boost from ${relevantPatterns.length} patterns: ${(boost * 100).toFixed(1)}%`);
+
+    return boost;
+  }
+
+  /**
+   * Capture execution experience for Nightly-Learner system
+   * Enables cross-agent pattern synthesis and meta-learning
+   */
+  private async captureExperienceForLearning(
+    request: CoverageAnalysisRequest,
+    result: CoverageOptimizationResult | null,
+    duration: number,
+    success: boolean,
+    error?: Error
+  ): Promise<void> {
+    if (!this.experienceCapture) {
+      return; // ExperienceCapture not initialized
+    }
+
+    try {
+      const agentIdStr = typeof this.id === 'string' ? this.id : this.id.id;
+      const agentType = typeof this.id === 'object' && 'type' in this.id ? this.id.type : 'coverage-analyzer';
+
+      const event: AgentExecutionEvent = {
+        agentId: agentIdStr,
+        agentType: agentType,
+        taskId: `coverage-opt-${Date.now()}`,
+        taskType: 'coverage-optimization',
+        input: {
+          targetCoverage: request.targetCoverage,
+          testCount: request.testSuite.tests.length,
+          fileCount: request.codeBase.files.length,
+          optimizationGoals: request.optimizationGoals
+        },
+        output: success && result ? {
+          optimizedTestCount: result.optimization.optimizedTestCount,
+          coverageImprovement: result.optimization.coverageImprovement,
+          optimizationRatio: result.optimization.optimizationRatio,
+          algorithmUsed: result.optimization.algorithmUsed,
+          gapsFound: result.gaps.length,
+          accuracy: result.optimization.accuracy,
+          patternsApplied: result.learningMetrics?.patternsApplied || 0
+        } : {},
+        duration,
+        success,
+        error,
+        metrics: success && result ? {
+          coverage: result.coverageReport.overall,
+          coverage_improvement: result.optimization.coverageImprovement,
+          optimization_ratio: result.optimization.optimizationRatio,
+          gaps_detected: result.gaps.length,
+          confidence_boost: this.getConfidenceBoostFromPatterns('coverage-optimization')
+        } : {},
+        timestamp: new Date()
+      };
+
+      await this.experienceCapture.captureExecution(event);
+
+      this.logger?.debug(`[CoverageAnalyzer] Captured experience for Nightly-Learner: ${success ? 'success' : 'failure'}`);
+      this.emit('experience:captured', { agentId: agentIdStr, success, duration });
+    } catch (captureError) {
+      // Don't fail the main operation if capture fails
+      this.logger?.warn('[CoverageAnalyzer] Failed to capture experience:', captureError);
+    }
+  }
+
+  /**
+   * Get learning status including Nightly-Learner integration
+   */
+  public async getEnhancedLearningStatus(): Promise<{
+    learningEngine: any;
+    experienceCapture: any;
+    cachedPatterns: number;
+    confidenceBoost: number;
+  }> {
+    const learningStatus = this.learningEngine ? {
+      enabled: this.learningEngine.isEnabled(),
+      totalExperiences: this.learningEngine.getTotalExperiences(),
+      explorationRate: this.learningEngine.getExplorationRate(),
+      patterns: (await this.learningEngine.getPatterns()).length
+    } : null;
+
+    const captureStats = this.experienceCapture?.getStats() || null;
+
+    return {
+      learningEngine: learningStatus,
+      experienceCapture: captureStats,
+      cachedPatterns: this.cachedPatterns.length,
+      confidenceBoost: this.getConfidenceBoostFromPatterns('coverage-optimization')
+    };
   }
 }
 

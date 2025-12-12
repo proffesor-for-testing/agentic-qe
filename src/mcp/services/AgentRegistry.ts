@@ -258,7 +258,7 @@ export class AgentRegistry {
    * Execute a task on a specific agent
    *
    * @param agentId - Agent ID
-   * @param task - Task to execute
+   * @param task - Task to execute (can be raw task or TaskAssignment)
    * @returns Task result
    */
   async executeTask(agentId: string, task: any): Promise<any> {
@@ -267,13 +267,17 @@ export class AgentRegistry {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
-    this.logger.info(`Executing task on agent ${agentId}:`, { taskType: task.taskType });
+    this.logger.info(`Executing task on agent ${agentId}:`, { taskType: task.taskType || task.task?.type });
 
     const startTime = Date.now();
     registered.status = 'busy';
 
     try {
-      const result = await registered.agent.executeTask(task);
+      // Convert raw task to proper TaskAssignment format if needed
+      // BaseAgent.executeTask() expects TaskAssignment { id, task: QETask, agentId, assignedAt, status }
+      const taskAssignment = this.ensureTaskAssignment(task, agentId);
+
+      const result = await registered.agent.executeTask(taskAssignment);
 
       // Update metrics
       const executionTime = Date.now() - startTime;
@@ -290,6 +294,37 @@ export class AgentRegistry {
       this.logger.error(`Task failed on agent ${agentId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Ensure task is in proper TaskAssignment format
+   * Converts raw task payloads to the format BaseAgent.executeTask() expects
+   */
+  private ensureTaskAssignment(task: any, agentId: string): any {
+    // If already a TaskAssignment (has 'task' property with QETask structure), return as-is
+    if (task.task && typeof task.task === 'object' && task.task.type) {
+      return task;
+    }
+
+    // Convert raw task to TaskAssignment format
+    const taskId = `task-${Date.now()}-${SecureRandom.generateId(6)}`;
+
+    return {
+      id: taskId,
+      task: {
+        id: taskId,
+        type: task.taskType || task.type || 'generic',
+        payload: task.payload || task,
+        priority: task.priority || 5,
+        status: 'pending',
+        description: task.description || `Task for agent ${agentId}`,
+        context: task.context || {},
+        requirements: task.requirements || {}
+      },
+      agentId: agentId,
+      assignedAt: new Date(),
+      status: 'assigned'
+    };
   }
 
   /**

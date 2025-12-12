@@ -1165,4 +1165,53 @@ export class ApiContractValidatorAgent extends BaseAgent {
     if (changes.some((c) => c.severity === 'MEDIUM')) return 'MEDIUM';
     return 'LOW';
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich API contract validation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Validation results
+      metrics.is_valid = result.isValid ? 1 : 0;
+      metrics.total_errors = result.errors?.length || 0;
+      metrics.total_warnings = result.warnings?.length || 0;
+
+      // Breaking changes
+      if (result.breakingChanges && Array.isArray(result.breakingChanges)) {
+        metrics.breaking_changes = result.breakingChanges.length;
+        metrics.critical_changes = result.breakingChanges.filter((c: any) => c.severity === 'CRITICAL').length;
+        metrics.high_changes = result.breakingChanges.filter((c: any) => c.severity === 'HIGH').length;
+      }
+
+      // Schema validation
+      if (result.schemaValidation) {
+        metrics.schema_valid = result.schemaValidation.valid ? 1 : 0;
+        metrics.schema_errors = result.schemaValidation.errors?.length || 0;
+      }
+
+      // Backward compatibility
+      if (typeof result.backwardCompatible === 'boolean') {
+        metrics.backward_compatible = result.backwardCompatible ? 1 : 0;
+      }
+
+      // Consumer contracts
+      if (result.consumerContracts) {
+        metrics.contracts_satisfied = result.consumerContracts.satisfied || 0;
+        metrics.contracts_violated = result.consumerContracts.violated || 0;
+      }
+
+      // Confidence and coverage
+      if (typeof result.confidence === 'number') {
+        metrics.confidence = result.confidence;
+      }
+      if (typeof result.coverage === 'number') {
+        metrics.coverage = result.coverage;
+      }
+    }
+
+    return metrics;
+  }
 }

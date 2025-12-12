@@ -1689,4 +1689,57 @@ export class FlakyTestHunterAgent extends BaseAgent {
       }
     ];
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich flaky test detection metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Flaky test detection metrics
+      metrics.flaky_tests_found = result.flakyTests?.length || 0;
+      metrics.total_tests_analyzed = result.totalTestsAnalyzed || 0;
+      metrics.flakiness_rate = result.flakinessRate || 0;
+
+      // Severity breakdown
+      if (result.flakyTests && Array.isArray(result.flakyTests)) {
+        metrics.high_severity_flaky = result.flakyTests.filter(
+          (t: any) => t.severity === 'high' || t.flakinessProbability > 0.7
+        ).length;
+        metrics.medium_severity_flaky = result.flakyTests.filter(
+          (t: any) => t.severity === 'medium' || (t.flakinessProbability > 0.3 && t.flakinessProbability <= 0.7)
+        ).length;
+        metrics.low_severity_flaky = result.flakyTests.filter(
+          (t: any) => t.severity === 'low' || t.flakinessProbability <= 0.3
+        ).length;
+      }
+
+      // Root cause analysis
+      if (result.rootCauses && Array.isArray(result.rootCauses)) {
+        metrics.root_causes_identified = result.rootCauses.length;
+        metrics.timing_issues = result.rootCauses.filter((r: any) => r.type === 'timing').length;
+        metrics.race_conditions = result.rootCauses.filter((r: any) => r.type === 'race_condition').length;
+        metrics.resource_issues = result.rootCauses.filter((r: any) => r.type === 'resource').length;
+      }
+
+      // Stabilization metrics
+      if (result.stabilization) {
+        metrics.fixes_suggested = result.stabilization.suggestions?.length || 0;
+        metrics.auto_fixable = result.stabilization.autoFixable || 0;
+        metrics.confidence_score = result.stabilization.confidence || 0;
+      }
+
+      // Analysis performance
+      if (typeof result.analysisTime === 'number') {
+        metrics.analysis_time = result.analysisTime;
+      }
+      if (typeof result.executionRuns === 'number') {
+        metrics.execution_runs = result.executionRuns;
+      }
+    }
+
+    return metrics;
+  }
 }

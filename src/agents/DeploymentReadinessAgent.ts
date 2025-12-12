@@ -1498,4 +1498,55 @@ export class DeploymentReadinessAgent extends BaseAgent {
     // Store security results for aggregation
     await this.storeSharedMemory(`security-result/${data.version}`, data);
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich deployment readiness metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Overall readiness
+      metrics.is_ready = result.isReady ? 1 : 0;
+      metrics.readiness_score = result.readinessScore || 0;
+      metrics.confidence = result.confidence || 0;
+
+      // Checklist results
+      if (result.checklist) {
+        metrics.checks_passed = result.checklist.filter((c: any) => c.status === 'passed').length;
+        metrics.checks_failed = result.checklist.filter((c: any) => c.status === 'failed').length;
+        metrics.checks_warning = result.checklist.filter((c: any) => c.status === 'warning').length;
+        metrics.total_checks = result.checklist.length;
+      }
+
+      // Gate results
+      if (result.gates) {
+        metrics.gates_passed = result.gates.filter((g: any) => g.passed).length;
+        metrics.gates_failed = result.gates.filter((g: any) => !g.passed).length;
+        metrics.critical_gates_failed = result.gates.filter(
+          (g: any) => !g.passed && g.severity === 'critical'
+        ).length;
+      }
+
+      // Risk assessment
+      if (result.risk) {
+        metrics.risk_score = result.risk.score || 0;
+        metrics.risk_factors = result.risk.factors?.length || 0;
+        metrics.mitigations_required = result.risk.mitigationsRequired || 0;
+      }
+
+      // Rollback readiness
+      if (result.rollback) {
+        metrics.rollback_ready = result.rollback.ready ? 1 : 0;
+        metrics.rollback_time_estimate = result.rollback.estimatedTime || 0;
+      }
+
+      // Dependencies
+      metrics.dependency_issues = result.dependencyIssues?.length || 0;
+      metrics.blocking_issues = result.blockingIssues?.length || 0;
+    }
+
+    return metrics;
+  }
 }
