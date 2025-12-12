@@ -326,7 +326,8 @@ export abstract class BaseAgent extends EventEmitter {
       this.validateTaskAssignment(assignment);
 
       this.currentTask = assignment;
-      this.lifecycleManager.markActive();
+      // Phase 2 (B1.2): Use lifecycle strategy for status transitions
+      await this.strategies.lifecycle.transitionTo(AgentStatus.ACTIVE);
 
       // Execute pre-task hooks with verification
       const preTaskData: PreTaskData = { assignment };
@@ -363,7 +364,8 @@ export abstract class BaseAgent extends EventEmitter {
       await this.memoryService.storeTaskResult(assignment.id, result);
 
       this.currentTask = undefined;
-      this.lifecycleManager.markIdle();
+      // Phase 2 (B1.2): Use lifecycle strategy for status transitions
+      await this.strategies.lifecycle.transitionTo(AgentStatus.IDLE);
 
       return result;
 
@@ -384,7 +386,8 @@ export abstract class BaseAgent extends EventEmitter {
       });
 
       this.currentTask = undefined;
-      this.lifecycleManager.markError(`Task execution failed: ${error}`);
+      // Phase 2 (B1.2): Use lifecycle strategy for error transition
+      await this.strategies.lifecycle.transitionTo(AgentStatus.ERROR, `Task execution failed: ${error}`);
 
       // Execute error hooks
       const errorData: TaskErrorData = {
@@ -441,7 +444,8 @@ export abstract class BaseAgent extends EventEmitter {
       });
 
     } catch (error) {
-      this.lifecycleManager.transitionTo(AgentStatus.ERROR, `Termination failed: ${error}`);
+      // Phase 2 (B1.2): Use lifecycle strategy for error transition
+      await this.strategies.lifecycle.transitionTo(AgentStatus.ERROR, `Termination failed: ${error}`);
       throw error;
     }
   }
@@ -1366,8 +1370,9 @@ export abstract class BaseAgent extends EventEmitter {
 
   private setupLifecycleHooks(): void {
     // Setup default lifecycle behavior
-    this.on('error', (error) => {
-      this.lifecycleManager.transitionTo(AgentStatus.ERROR, `Error event: ${error}`);
+    // Phase 2 (B1.2): Use lifecycle strategy for error transition
+    this.on('error', async (error) => {
+      await this.strategies.lifecycle.transitionTo(AgentStatus.ERROR, `Error event: ${error}`);
       this.emitEvent('agent.error', { agentId: this.agentId, error });
     });
   }
