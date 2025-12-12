@@ -553,4 +553,57 @@ export class QualityAnalyzerAgent extends BaseAgent {
     // Close any open analysis engines
     await this.delay(100);
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich quality analysis metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Quality scores
+      if (typeof result.qualityScore === 'number') {
+        metrics.quality_score = result.qualityScore;
+      }
+      if (typeof result.overallScore === 'number') {
+        metrics.overall_score = result.overallScore;
+      }
+
+      // Issue counts by severity
+      if (result.issues && Array.isArray(result.issues)) {
+        metrics.total_issues = result.issues.length;
+        metrics.critical_issues = result.issues.filter((i: any) => i.severity === 'critical').length;
+        metrics.major_issues = result.issues.filter((i: any) => i.severity === 'major').length;
+        metrics.minor_issues = result.issues.filter((i: any) => i.severity === 'minor').length;
+      }
+
+      // Code quality dimensions
+      if (result.dimensions) {
+        metrics.maintainability = result.dimensions.maintainability || 0;
+        metrics.reliability = result.dimensions.reliability || 0;
+        metrics.security = result.dimensions.security || 0;
+        metrics.performance = result.dimensions.performance || 0;
+      }
+
+      // Trend analysis
+      if (result.trend) {
+        metrics.trend_direction = result.trend.direction === 'improving' ? 1 : result.trend.direction === 'degrading' ? -1 : 0;
+        metrics.trend_magnitude = result.trend.magnitude || 0;
+      }
+
+      // Technical debt
+      if (result.technicalDebt) {
+        metrics.debt_hours = result.technicalDebt.hours || 0;
+        metrics.debt_ratio = result.technicalDebt.ratio || 0;
+      }
+
+      // Test coverage
+      if (typeof result.coverage === 'number') {
+        metrics.coverage = result.coverage;
+      }
+    }
+
+    return metrics;
+  }
 }

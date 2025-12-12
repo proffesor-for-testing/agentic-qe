@@ -1325,4 +1325,62 @@ export class TestExecutorAgent extends BaseAgent {
 
     console.log(`Framework ${framework} validated`);
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich test execution metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Test results
+      metrics.total_tests = result.total || result.totalTests || 0;
+      metrics.tests_passed = result.passed || result.testsPassed || 0;
+      metrics.tests_failed = result.failed || result.testsFailed || 0;
+      metrics.tests_skipped = result.skipped || result.testsSkipped || 0;
+
+      // Pass rate
+      if (metrics.total_tests > 0) {
+        metrics.pass_rate = metrics.tests_passed / metrics.total_tests;
+      }
+
+      // Execution time
+      if (typeof result.duration === 'number') {
+        metrics.execution_duration = result.duration;
+      }
+      if (typeof result.executionTime === 'number') {
+        metrics.execution_time = result.executionTime;
+      }
+
+      // Parallel execution metrics
+      if (result.parallelism) {
+        metrics.parallel_workers = result.parallelism.workers || 0;
+        metrics.parallel_efficiency = result.parallelism.efficiency || 0;
+      }
+
+      // Retry metrics
+      if (result.retries) {
+        metrics.total_retries = result.retries.total || 0;
+        metrics.successful_retries = result.retries.successful || 0;
+      }
+
+      // Coverage if available
+      if (typeof result.coverage === 'number') {
+        metrics.coverage = result.coverage;
+      }
+
+      // Flaky test detection
+      metrics.flaky_tests_detected = result.flakyTests?.length || 0;
+
+      // Error categories
+      if (result.errors && Array.isArray(result.errors)) {
+        metrics.assertion_failures = result.errors.filter((e: any) => e.type === 'assertion').length;
+        metrics.timeout_errors = result.errors.filter((e: any) => e.type === 'timeout').length;
+        metrics.setup_errors = result.errors.filter((e: any) => e.type === 'setup').length;
+      }
+    }
+
+    return metrics;
+  }
 }

@@ -3037,4 +3037,65 @@ class ImpactAnalyzer {
       overallImpactScore
     };
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich Quality Experience (QX) metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Overall QX scores
+      if (typeof result.overallImpactScore === 'number') {
+        metrics.overall_impact_score = result.overallImpactScore;
+      }
+
+      // Visible quality metrics
+      if (result.visible) {
+        metrics.visible_score = result.visible.score || 0;
+        if (result.visible.accessibility) {
+          metrics.accessibility_score = result.visible.accessibility.score || 0;
+          metrics.wcag_violations = result.visible.accessibility.violations?.length || 0;
+        }
+        if (result.visible.usability) {
+          metrics.usability_score = result.visible.usability.score || 0;
+          metrics.usability_issues = result.visible.usability.issues?.length || 0;
+        }
+        if (result.visible.userFeelings) {
+          metrics.user_satisfaction = result.visible.userFeelings.satisfaction || 0;
+          metrics.frustration_points = result.visible.userFeelings.frustrationPoints?.length || 0;
+        }
+      }
+
+      // Invisible quality metrics
+      if (result.invisible) {
+        metrics.invisible_score = result.invisible.score || 0;
+        if (result.invisible.performance) {
+          metrics.performance_score = result.invisible.performance.score || 0;
+          metrics.load_time = result.invisible.performance.loadTime || 0;
+        }
+        if (result.invisible.security) {
+          metrics.security_score = result.invisible.security.score || 0;
+          metrics.security_risks = result.invisible.security.risks?.length || 0;
+        }
+      }
+
+      // Stakeholder analysis
+      if (result.stakeholders && Array.isArray(result.stakeholders)) {
+        metrics.stakeholders_analyzed = result.stakeholders.length;
+        metrics.stakeholder_satisfaction_avg = result.stakeholders.reduce(
+          (sum: number, s: any) => sum + (s.satisfaction || 0), 0
+        ) / Math.max(result.stakeholders.length, 1);
+      }
+
+      // Immutable requirements
+      if (result.immutableRequirements && Array.isArray(result.immutableRequirements)) {
+        metrics.immutable_requirements = result.immutableRequirements.length;
+        metrics.requirements_met = result.immutableRequirements.filter((r: any) => r.met).length;
+      }
+    }
+
+    return metrics;
+  }
 }

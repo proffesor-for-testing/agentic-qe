@@ -1397,4 +1397,55 @@ ${report.edgeCases.map(ec => `- ${ec}`).join('\n')}
 </body>
 </html>`;
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich requirements validation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Testability scores
+      if (result.testabilityScore) {
+        metrics.testability_overall = result.testabilityScore.overall || 0;
+        metrics.testability_clarity = result.testabilityScore.clarity || 0;
+        metrics.testability_measurability = result.testabilityScore.measurability || 0;
+        metrics.testability_atomicity = result.testabilityScore.atomicity || 0;
+      }
+
+      // Risk assessment
+      if (result.riskAssessment) {
+        const riskMap: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+        metrics.risk_level = riskMap[result.riskAssessment.overallRisk] || 0;
+        metrics.risk_factors = result.riskAssessment.factors?.length || 0;
+      }
+
+      // BDD scenarios
+      if (result.bddScenarios) {
+        metrics.scenarios_generated = result.bddScenarios.scenarios?.length || 0;
+        metrics.scenario_coverage = result.bddScenarios.coverage || 0;
+      }
+
+      // Ambiguity detection
+      if (result.ambiguities && Array.isArray(result.ambiguities)) {
+        metrics.ambiguities_found = result.ambiguities.length;
+        metrics.critical_ambiguities = result.ambiguities.filter((a: any) => a.severity === 'critical').length;
+      }
+
+      // Missing criteria
+      if (result.missingCriteria && Array.isArray(result.missingCriteria)) {
+        metrics.missing_criteria = result.missingCriteria.length;
+      }
+
+      // Validation status
+      metrics.is_valid = result.isValid || result.valid ? 1 : 0;
+      metrics.validation_confidence = result.confidence || 0;
+
+      // Recommendations
+      metrics.recommendations_count = result.recommendations?.length || 0;
+    }
+
+    return metrics;
+  }
 }

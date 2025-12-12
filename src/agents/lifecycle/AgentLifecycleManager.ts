@@ -241,9 +241,12 @@ export class AgentLifecycleManager {
       AgentStatus.TERMINATING // Allow idempotent terminate() calls
     ]));
 
-    // ERROR can transition to TERMINATING (for cleanup)
+    // ERROR can transition to TERMINATING (for cleanup) or IDLE/ACTIVE (for recovery/retry)
+    // Recovery path allows agents to be reused after non-fatal task errors
     map.set(AgentStatus.ERROR, new Set<AgentStatus>([
-      AgentStatus.TERMINATING
+      AgentStatus.TERMINATING,
+      AgentStatus.IDLE,   // Recovery: allow re-use after error
+      AgentStatus.ACTIVE  // Direct recovery: allow immediate re-execution
     ]));
 
     return map;
