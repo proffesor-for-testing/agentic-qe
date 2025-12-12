@@ -125,4 +125,6 @@ claude-flow.config.json
 .playwright-mcp/
 tests/tmp/
 aqe
+# Mock files - allow agentdb mock for CI
 __mocks__/*
+!__mocks__/agentdb.ts
