@@ -17,7 +17,8 @@ import * as path from 'path';
 import { shutdown as shutdownChaosLatency } from './src/mcp/handlers/chaos/chaos-inject-latency';
 import { shutdown as shutdownChaosFailure } from './src/mcp/handlers/chaos/chaos-inject-failure';
 
-const WORKSPACE_PATH = '/workspaces/agentic-qe-cf';
+// Use __dirname to get the actual project root (works on any machine)
+const WORKSPACE_PATH = __dirname;
 const originalCwd = process.cwd.bind(process);
 
 // CRITICAL: Mock process.cwd() BEFORE any other modules load
@@ -27,7 +28,7 @@ process.cwd = jest.fn(() => {
     const cwd = originalCwd();
     return cwd && cwd !== '' ? cwd : WORKSPACE_PATH;
   } catch (error) {
-    // Fallback to known workspace path if cwd() fails
+    // Fallback to project root if cwd() fails
     return WORKSPACE_PATH;
   }
 });
