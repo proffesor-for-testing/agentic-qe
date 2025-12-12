@@ -36,6 +36,15 @@ import { AgentCoordinator } from './coordination/AgentCoordinator';
 import { AgentMemoryService } from './memory/AgentMemoryService';
 import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
 
+// Strategy interfaces for Phase 2 (B1.3) layered architecture
+import type {
+  AgentLifecycleStrategy,
+  AgentMemoryStrategy,
+  AgentLearningStrategy,
+  AgentCoordinationStrategy,
+} from '../core/strategies';
+import { createLifecycleAdapter, createMemoryAdapter } from './adapters';
+
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
@@ -53,6 +62,13 @@ export interface BaseAgentConfig {
   syncPort?: number;
   syncPeers?: string[];
   quantizationType?: 'scalar' | 'binary' | 'product' | 'none';
+
+  // Phase 2 (B1.3) Strategy injection - optional, for future BaseAgent decomposition
+  // When provided, these strategies will be used instead of inline implementations
+  lifecycleStrategy?: AgentLifecycleStrategy;
+  memoryStrategy?: AgentMemoryStrategy;
+  learningStrategy?: AgentLearningStrategy;
+  coordinationStrategy?: AgentCoordinationStrategy;
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -87,6 +103,16 @@ export abstract class BaseAgent extends EventEmitter {
   protected readonly lifecycleManager: AgentLifecycleManager;
   protected readonly coordinator: AgentCoordinator;
   protected readonly memoryService: AgentMemoryService;
+
+  // Phase 2 (B1.2) Strategy properties - layered architecture
+  // Lifecycle and memory strategies are always available (adapter or custom)
+  // Learning and coordination strategies are optional
+  protected readonly strategies: {
+    lifecycle: AgentLifecycleStrategy;
+    memory: AgentMemoryStrategy;
+    learning?: AgentLearningStrategy;
+    coordination?: AgentCoordinationStrategy;
+  };
 
   constructor(config: BaseAgentConfig) {
     super();
@@ -154,6 +180,16 @@ export abstract class BaseAgent extends EventEmitter {
       agentId: this.agentId,
       memoryStore: this.memoryStore
     });
+
+    // Phase 2 (B1.2): Initialize strategies for layered architecture
+    // Always create strategies object with adapters as defaults
+    // This enables gradual migration to strategy pattern
+    this.strategies = {
+      lifecycle: config.lifecycleStrategy ?? createLifecycleAdapter(this.lifecycleManager),
+      memory: config.memoryStrategy ?? createMemoryAdapter(this.memoryService, this.memoryStore),
+      learning: config.learningStrategy,
+      coordination: config.coordinationStrategy,
+    };
 
     // Connect lifecycle manager to event emitter for event-driven coordination
     this.lifecycleManager.setStatusChangeCallback((status) => {
@@ -522,6 +558,33 @@ export abstract class BaseAgent extends EventEmitter {
    */
   public getCapabilities(): AgentCapability[] {
     return Array.from(this.capabilities.values());
+  }
+
+  /**
+   * Get strategies (Phase 2 B1.2)
+   * Lifecycle and memory strategies are always available (adapter or custom)
+   */
+  public getStrategies(): {
+    lifecycle: AgentLifecycleStrategy;
+    memory: AgentMemoryStrategy;
+    learning?: AgentLearningStrategy;
+    coordination?: AgentCoordinationStrategy;
+  } {
+    return this.strategies;
+  }
+
+  /**
+   * Get the lifecycle strategy
+   */
+  public getLifecycleStrategy(): AgentLifecycleStrategy {
+    return this.strategies.lifecycle;
+  }
+
+  /**
+   * Get the memory strategy
+   */
+  public getMemoryStrategy(): AgentMemoryStrategy {
+    return this.strategies.memory;
   }
 
   /**

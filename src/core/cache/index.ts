@@ -100,6 +100,20 @@ export {
   createCacheManager,
 } from './BinaryCacheManager';
 
+// Platform-optimized file operations (Phase 2 A2.2)
+// Re-export for convenient access in cache operations
+export {
+  copyFile,
+  copyDirectory,
+  cloneForIsolation,
+  linkFixture,
+  getCopyCapabilities,
+  benchmarkCopy,
+  CopyStrategy,
+  type CopyResult,
+  type CopyOptions,
+} from '../platform';
+
 /**
  * Quick Start Example:
  *

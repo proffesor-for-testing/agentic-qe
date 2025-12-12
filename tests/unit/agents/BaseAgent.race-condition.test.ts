@@ -4,10 +4,10 @@
  * Issue: #52 - Race condition in BaseAgent.initialize()
  */
 
-import { BaseAgent, BaseAgentConfig } from '../../src/agents/BaseAgent';
-import { AgentStatus, AgentCapability, QETask } from '../../src/types';
+import { BaseAgent, BaseAgentConfig } from '../../../src/agents/BaseAgent';
+import { AgentStatus, AgentCapability, QETask } from '../../../src/types';
 import { EventEmitter } from 'events';
-import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
+import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
 
 /**
  * Test implementation of BaseAgent
