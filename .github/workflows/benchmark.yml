@@ -1,0 +1,342 @@
+name: Performance Benchmarks
+
+# Comprehensive benchmark workflow with regression detection
+# Runs on every PR and main branch push to catch performance regressions early
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: 'Baseline version to compare against'
+        required: false
+        default: 'v2.3.5'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  # Benchmark execution with baseline comparison
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        node-version: ['20']
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for baseline comparison
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Download baseline results
+        id: download-baseline
+        continue-on-error: true
+        run: |
+          BASELINE_VERSION="${{ github.event.inputs.baseline || 'v2.3.5' }}"
+          echo "baseline_version=${BASELINE_VERSION}" >> $GITHUB_OUTPUT
+
+          # Check if baseline file exists
+          if [ -f "benchmarks/baselines/${BASELINE_VERSION}.json" ]; then
+            echo "baseline_found=true" >> $GITHUB_OUTPUT
+            echo "✅ Found baseline: ${BASELINE_VERSION}"
+          else
+            echo "baseline_found=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Baseline ${BASELINE_VERSION} not found, will run without comparison"
+          fi
+
+      - name: Run benchmark suite
+        id: benchmark
+        run: |
+          # Create output directory
+          mkdir -p benchmark-results
+
+          # Run benchmarks with baseline comparison
+          BASELINE_VERSION="${{ steps.download-baseline.outputs.baseline_version }}"
+
+          if [ "${{ steps.download-baseline.outputs.baseline_found }}" == "true" ]; then
+            echo "Running benchmarks with baseline comparison..."
+            npx tsx benchmarks/suite.ts --baseline="${BASELINE_VERSION}" --output=benchmark-results/current.json 2>&1 | tee benchmark-output.log
+          else
+            echo "Running benchmarks without baseline..."
+            npx tsx benchmarks/suite.ts --output=benchmark-results/current.json 2>&1 | tee benchmark-output.log
+          fi
+
+          # Capture exit code
+          BENCHMARK_EXIT=$?
+          echo "exit_code=${BENCHMARK_EXIT}" >> $GITHUB_OUTPUT
+
+          # Extract key metrics for summary
+          if [ -f "benchmark-results/current.json" ]; then
+            echo "✅ Benchmark results saved"
+
+            # Calculate summary statistics
+            TOTAL_BENCHMARKS=$(cat benchmark-results/current.json | jq '.benchmarks | length')
+            echo "total_benchmarks=${TOTAL_BENCHMARKS}" >> $GITHUB_OUTPUT
+
+            # Get average execution time
+            AVG_TIME=$(cat benchmark-results/current.json | jq '[.benchmarks[].mean] | add / length')
+            echo "avg_time=${AVG_TIME}" >> $GITHUB_OUTPUT
+          fi
+
+          exit ${BENCHMARK_EXIT}
+        env:
+          NODE_OPTIONS: '--max-old-space-size=2048'
+
+      - name: Generate benchmark report
+        if: always()
+        id: report
+        run: |
+          # Generate markdown report from benchmark output
+          cat > benchmark-report.md <<'EOF'
+          # 🚀 Performance Benchmark Report
+
+          **Commit**: ${{ github.sha }}
+          **Branch**: ${{ github.ref_name }}
+          **Node Version**: ${{ matrix.node-version }}
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Baseline**: ${{ steps.download-baseline.outputs.baseline_version }}
+
+          ## Summary
+
+          - Total Benchmarks: ${{ steps.benchmark.outputs.total_benchmarks }}
+          - Average Execution Time: ${{ steps.benchmark.outputs.avg_time }}ms
+          - Exit Code: ${{ steps.benchmark.outputs.exit_code }}
+
+          ## Benchmark Output
+
+          \`\`\`
+          $(cat benchmark-output.log)
+          \`\`\`
+
+          EOF
+
+          # Check if benchmark failed due to regression
+          if [ "${{ steps.benchmark.outputs.exit_code }}" != "0" ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "## ❌ Regression Detected" >> benchmark-report.md
+            echo "" >> benchmark-report.md
+            echo "Performance regressions were detected that exceed the 10% threshold." >> benchmark-report.md
+          else
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "## ✅ All Benchmarks Passed" >> benchmark-report.md
+            echo "" >> benchmark-report.md
+            echo "No performance regressions detected." >> benchmark-report.md
+          fi
+
+          # Add detailed results if available
+          if [ -f "benchmark-results/current.json" ]; then
+            echo "" >> benchmark-report.md
+            echo "## Detailed Results" >> benchmark-report.md
+            echo "" >> benchmark-report.md
+            echo "\`\`\`json" >> benchmark-report.md
+            cat benchmark-results/current.json | jq '.' >> benchmark-report.md
+            echo "\`\`\`" >> benchmark-report.md
+          fi
+
+          cat benchmark-report.md
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results-node-${{ matrix.node-version }}
+          path: |
+            benchmark-results/
+            benchmark-output.log
+            benchmark-report.md
+          retention-days: 30
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read benchmark report
+            let report = '';
+            try {
+              report = fs.readFileSync('benchmark-report.md', 'utf8');
+            } catch (error) {
+              report = '⚠️ Could not read benchmark report';
+            }
+
+            // Determine status emoji
+            const status = '${{ steps.report.outputs.status }}';
+            const statusEmoji = status === 'passed' ? '✅' : '❌';
+
+            // Create comment body
+            const body = `## ${statusEmoji} Performance Benchmark Results
+
+            ${report}
+
+            ---
+
+            ### Thresholds
+            - ⚠️ **Warning**: Performance degradation > 5%
+            - ❌ **Failure**: Performance degradation > 10%
+            - ✅ **Improvement**: Performance improvement > 5%
+
+            *Generated by [Benchmark CI](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+
+            // Find existing benchmark comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const benchmarkComment = comments.find(c =>
+              c.user?.type === 'Bot' && c.body?.includes('Performance Benchmark Results')
+            );
+
+            // Update or create comment
+            if (benchmarkComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: benchmarkComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
+
+      - name: Check for performance regression
+        if: always()
+        run: |
+          if [ "${{ steps.benchmark.outputs.exit_code }}" != "0" ]; then
+            echo "❌ Performance regression detected - failing CI"
+            exit 1
+          else
+            echo "✅ No performance regressions detected"
+            exit 0
+          fi
+
+  # Compare against multiple baselines (optional)
+  baseline-comparison:
+    name: Multi-Baseline Comparison
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-results-node-20
+          path: benchmark-results/
+
+      - name: Compare against recent baselines
+        run: |
+          echo "# Historical Performance Comparison" > comparison-report.md
+          echo "" >> comparison-report.md
+
+          # Find all available baselines
+          if [ -d "benchmarks/baselines" ]; then
+            BASELINES=$(find benchmarks/baselines -name "*.json" | sort -r | head -5)
+
+            echo "Comparing against recent baselines:" >> comparison-report.md
+            echo "" >> comparison-report.md
+
+            for baseline in $BASELINES; do
+              version=$(basename $baseline .json)
+              echo "- ${version}" >> comparison-report.md
+            done
+
+            cat comparison-report.md
+          else
+            echo "No baselines directory found"
+          fi
+
+      - name: Upload comparison report
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-comparison
+          path: comparison-report.md
+          retention-days: 30
+
+  # Update baseline on main branch
+  update-baseline:
+    name: Update Performance Baseline
+    runs-on: ubuntu-latest
+    needs: benchmark
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: benchmark-results-node-20
+          path: benchmark-results/
+
+      - name: Update baseline
+        run: |
+          # Get version from package.json
+          VERSION=$(cat package.json | jq -r '.version')
+
+          # Ensure baselines directory exists
+          mkdir -p benchmarks/baselines
+
+          # Copy current results as new baseline
+          if [ -f "benchmark-results/current.json" ]; then
+            cp benchmark-results/current.json benchmarks/baselines/v${VERSION}.json
+            echo "✅ Updated baseline to v${VERSION}"
+
+            # Keep only last 10 baselines
+            cd benchmarks/baselines
+            ls -t v*.json | tail -n +11 | xargs -r rm
+            echo "✅ Cleaned up old baselines"
+          fi
+
+      - name: Commit baseline update
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          VERSION=$(cat package.json | jq -r '.version')
+
+          if [ -n "$(git status --porcelain benchmarks/baselines)" ]; then
+            git add benchmarks/baselines/
+            git commit -m "chore(benchmarks): update baseline to v${VERSION} [skip ci]"
+            git push
+            echo "✅ Baseline committed and pushed"
+          else
+            echo "No changes to baseline"
+          fi
