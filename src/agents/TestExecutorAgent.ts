@@ -1179,63 +1179,11 @@ export class TestExecutorAgent extends BaseAgent {
 
   /**
    * AgentDB Integration: Store successful execution patterns for cross-agent learning
-   * Enables pattern sharing with <1ms QUIC sync latency
+   * Note: AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
    */
-  private async storeExecutionPatternsInAgentDB(result: any): Promise<void> {
-    if (!this.agentDB || !result?.results) return;
-
-    try {
-      const startTime = Date.now();
-
-      // Only store patterns from successful executions
-      const successfulTests = result.results.filter((r: QETestResult) => r.status === 'passed');
-      if (successfulTests.length === 0) {
-        this.logger.debug('[TestExecutor] No successful tests to store in AgentDB');
-        return;
-      }
-
-      // Extract execution patterns (optimization strategy, parallelization efficiency)
-      const pattern = {
-        optimizationApplied: result.optimizationApplied || false,
-        parallelEfficiency: result.parallelEfficiency || 0,
-        avgTestDuration: result.totalTime / result.results.length,
-        successRate: successfulTests.length / result.results.length,
-        totalTests: result.results.length
-      };
-
-      const patternEmbedding = await this.createExecutionPatternEmbedding(pattern);
-
-      const patternId = await this.agentDB.store({
-        id: `exec-pattern-${Date.now()}-${SecureRandom.generateId(5)}`,
-        type: 'test-execution-pattern',
-        domain: 'test-execution',
-        pattern_data: JSON.stringify(pattern),
-        confidence: pattern.successRate,
-        usage_count: 1,
-        success_count: successfulTests.length,
-        created_at: Date.now(),
-        last_used: Date.now()
-      });
-
-      const storeTime = Date.now() - startTime;
-      const agentDBConfig = (this as any).agentDBConfig;
-      const isRealDB = !(process.env.NODE_ENV === 'test' || process.env.AQE_USE_MOCK_AGENTDB === 'true');
-      const adapterType = isRealDB ? 'AgentDB' : 'mock adapter';
-
-      this.logger.info(
-        `[TestExecutor] Stored execution pattern ${patternId} in ${adapterType} ` +
-        `(${storeTime}ms, ${pattern.successRate.toFixed(2)} success rate)`
-      );
-
-      // Report QUIC sync status only if real DB and sync enabled
-      if (isRealDB && agentDBConfig?.enableQUICSync) {
-        this.logger.info(
-          `[TestExecutor] 🚀 QUIC sync to ${agentDBConfig.syncPeers?.length || 0} peers enabled`
-        );
-      }
-    } catch (error) {
-      this.logger.warn('[TestExecutor] AgentDB pattern storage failed:', error);
-    }
+  private async storeExecutionPatternsInAgentDB(_result: any): Promise<void> {
+    // AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
+    // Pattern storage is now handled through BaseAgent's memory strategy
   }
 
   /**

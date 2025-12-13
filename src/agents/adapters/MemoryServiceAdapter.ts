@@ -4,8 +4,11 @@
  * Provides backward compatibility during the B1.2 migration.
  * Wraps the existing AgentMemoryService to implement the strategy interface.
  *
+ * Phase 2 Update: Added agentId support for automatic namespace prefixing
+ * to maintain backward compatibility with BaseAgent's memory operations.
+ *
  * @module agents/adapters/MemoryServiceAdapter
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import type {
@@ -15,16 +18,21 @@ import type {
   MemoryQueryOptions,
   MemoryStats,
 } from '../../core/strategies';
-import type { QEAgentType, MemoryStore } from '../../types';
+import type { QEAgentType, MemoryStore, AgentId } from '../../types';
 import { AgentMemoryService } from '../memory/AgentMemoryService';
 import { SwarmMemoryManager } from '../../core/memory/SwarmMemoryManager';
 
 /**
  * Adapts AgentMemoryService to AgentMemoryStrategy interface
+ *
+ * Supports two namespace formats for backward compatibility:
+ * - Agent-local: aqe/{agentType}/{key}
+ * - Shared: aqe/shared/{agentType}/{key}
  */
 export class MemoryServiceAdapter implements AgentMemoryStrategy {
   private readonly service: AgentMemoryService;
   private readonly memoryStore: MemoryStore;
+  private readonly agentId?: AgentId;
   private initialized = false;
   private stats: MemoryStats = {
     totalEntries: 0,
@@ -35,9 +43,29 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
     lastCleanup: new Date(),
   };
 
-  constructor(service: AgentMemoryService, memoryStore: MemoryStore) {
+  constructor(service: AgentMemoryService, memoryStore: MemoryStore, agentId?: AgentId) {
     this.service = service;
     this.memoryStore = memoryStore;
+    this.agentId = agentId;
+  }
+
+  // === Namespace Helpers ===
+
+  /**
+   * Create agent-local namespace key: aqe/{agentType}/{key}
+   * Used for agent-private storage
+   */
+  private getLocalKey(key: string): string {
+    if (!this.agentId) return key;
+    return `aqe/${this.agentId.type}/${key}`;
+  }
+
+  /**
+   * Create shared namespace key: aqe/shared/{agentType}/{key}
+   * Used for cross-agent shared storage
+   */
+  private getSharedKey(agentType: QEAgentType, key: string): string {
+    return `aqe/shared/${agentType}/${key}`;
   }
 
   // === Basic Operations ===
@@ -83,22 +111,90 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
 
   // === Shared Memory ===
 
+  /**
+   * Store in shared memory using aqe/shared/{agentType}/{key} namespace
+   * Makes data accessible to other agents of the specified type
+   */
   async storeShared(
     agentType: QEAgentType,
     key: string,
     value: unknown,
     options?: MemoryOptions
   ): Promise<void> {
-    const sharedKey = `shared:${agentType}:${key}`;
-    await this.store(sharedKey, value, options);
+    const sharedKey = this.getSharedKey(agentType, key);
+    // Use raw store to avoid double-prefixing
+    if (this.memoryStore instanceof SwarmMemoryManager) {
+      await this.memoryStore.store(sharedKey, value, {
+        partition: options?.namespace || 'shared',
+        ttl: options?.ttl,
+        metadata: options?.metadata,
+      });
+    } else {
+      await this.memoryStore.store(sharedKey, value, options?.ttl);
+    }
+    this.stats.totalEntries++;
   }
 
+  /**
+   * Retrieve from shared memory using aqe/shared/{agentType}/{key} namespace
+   */
   async retrieveShared<T = unknown>(
     agentType: QEAgentType,
     key: string
   ): Promise<T | undefined> {
-    const sharedKey = `shared:${agentType}:${key}`;
-    return this.retrieve<T>(sharedKey);
+    const sharedKey = this.getSharedKey(agentType, key);
+    const result = await this.memoryStore.retrieve(sharedKey);
+    if (result !== undefined) {
+      this.stats.hitRate = (this.stats.hitRate * 0.9) + 0.1;
+    } else {
+      this.stats.missRate = (this.stats.missRate * 0.9) + 0.1;
+    }
+    return result as T | undefined;
+  }
+
+  // === Agent-Local Memory (BaseAgent compatibility) ===
+
+  /**
+   * Store in agent-local memory using aqe/{agentType}/{key} namespace
+   * Maintains backward compatibility with BaseAgent.storeMemory()
+   */
+  async storeLocal(key: string, value: unknown, ttl?: number): Promise<void> {
+    const localKey = this.getLocalKey(key);
+    if (this.memoryStore instanceof SwarmMemoryManager) {
+      await this.memoryStore.store(localKey, value, {
+        partition: this.agentId?.type || 'default',
+        ttl,
+      });
+    } else {
+      await this.memoryStore.store(localKey, value, ttl);
+    }
+    this.stats.totalEntries++;
+  }
+
+  /**
+   * Retrieve from agent-local memory using aqe/{agentType}/{key} namespace
+   * Maintains backward compatibility with BaseAgent.retrieveMemory()
+   */
+  async retrieveLocal<T = unknown>(key: string): Promise<T | undefined> {
+    const localKey = this.getLocalKey(key);
+    const result = await this.memoryStore.retrieve(localKey);
+    if (result !== undefined) {
+      this.stats.hitRate = (this.stats.hitRate * 0.9) + 0.1;
+    } else {
+      this.stats.missRate = (this.stats.missRate * 0.9) + 0.1;
+    }
+    return result as T | undefined;
+  }
+
+  /**
+   * Store in shared memory for this agent's type
+   * Convenience method matching BaseAgent.storeSharedMemory()
+   */
+  async storeSharedLocal(key: string, value: unknown, ttl?: number): Promise<void> {
+    if (!this.agentId) {
+      throw new Error('Cannot use storeSharedLocal without agentId');
+    }
+    await this.storeShared(this.agentId.type, key, value, { ttl });
   }
 
   // === Bulk Operations ===
@@ -198,10 +294,25 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
 
 /**
  * Create a memory strategy adapter from an existing service
+ *
+ * @param service - AgentMemoryService instance
+ * @param memoryStore - MemoryStore (typically SwarmMemoryManager)
+ * @param agentId - Optional agent ID for namespace prefixing
  */
 export function createMemoryAdapter(
   service: AgentMemoryService,
-  memoryStore: MemoryStore
-): AgentMemoryStrategy {
-  return new MemoryServiceAdapter(service, memoryStore);
+  memoryStore: MemoryStore,
+  agentId?: AgentId
+): MemoryServiceAdapter {
+  return new MemoryServiceAdapter(service, memoryStore, agentId);
+}
+
+/**
+ * Extended interface for agent-local memory operations
+ * Used internally by BaseAgent for backward compatibility
+ */
+export interface AgentLocalMemoryStrategy extends AgentMemoryStrategy {
+  storeLocal(key: string, value: unknown, ttl?: number): Promise<void>;
+  retrieveLocal<T = unknown>(key: string): Promise<T | undefined>;
+  storeSharedLocal(key: string, value: unknown, ttl?: number): Promise<void>;
 }

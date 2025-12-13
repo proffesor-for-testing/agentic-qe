@@ -1427,61 +1427,33 @@ export class TestGeneratorAgent extends BaseAgent {
   protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
 
-    // ACTUAL AgentDB Integration: Store successful patterns with QUIC sync (<1ms)
-    if (this.agentDB && data.result?.testSuite) {
+    // AgentDB Integration: Store successful patterns with QUIC sync (<1ms)
+    // Note: AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
+    if (data.result?.testSuite) {
       try {
-        const startTime = Date.now();
-
-        // Extract successful test patterns for storage
+        // Extract successful test patterns for storage via memory strategy
         const patterns = this.extractSuccessfulPatterns(data.result.testSuite);
 
         if (patterns.length === 0) {
-          this.logger.debug('[TestGeneratorAgent] No patterns to store in AgentDB');
+          this.logger.debug('[TestGeneratorAgent] No patterns to store');
           return;
         }
 
-        // ACTUALLY store patterns in AgentDB with metadata
-        let storedCount = 0;
+        // Store patterns via memory service (abstracted AgentDB access)
         for (const pattern of patterns) {
-          const patternEmbedding = await this.createPatternEmbedding(pattern);
-
-          const patternId = await this.agentDB.store({
-            id: `test-pattern-${Date.now()}-${SecureRandom.generateId(5)}`,
-            type: 'test-generation-pattern',
-            domain: 'test-generation',
-            pattern_data: JSON.stringify({
-              testType: pattern.type,
-              testName: pattern.name,
-              assertions: pattern.assertions,
-              framework: data.result.testSuite.metadata.framework,
-              coverage: data.result.testSuite.metadata.coverageProjection,
-              generationTime: data.result.generationMetrics?.generationTime
-            }),
-            confidence: data.result.quality?.diversityScore || 0.8,
-            usage_count: 1,
-            success_count: 1,
-            created_at: Date.now(),
-            last_used: Date.now()
+          await this.storeMemory(`test-pattern-${pattern.name}`, {
+            testType: pattern.type,
+            testName: pattern.name,
+            assertions: pattern.assertions,
+            framework: data.result.testSuite.metadata.framework,
+            coverage: data.result.testSuite.metadata.coverageProjection,
+            generationTime: data.result.generationMetrics?.generationTime
           });
-
-          storedCount++;
-          this.logger.debug(`[TestGeneratorAgent] ✅ Stored pattern ${patternId} in AgentDB`);
         }
 
-        const storeTime = Date.now() - startTime;
-        this.logger.info(
-          `[TestGeneratorAgent] ✅ ACTUALLY stored ${storedCount} patterns in AgentDB ` +
-          `(${storeTime}ms, avg ${(storeTime / storedCount).toFixed(1)}ms/pattern, QUIC sync active)`
-        );
-
-        // Report QUIC sync status
-        if (this.agentDBConfig?.enableQUICSync) {
-          this.logger.info(
-            `[TestGeneratorAgent] 🚀 Patterns synced via QUIC to ${this.agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
-          );
-        }
+        this.logger.debug(`[TestGeneratorAgent] Stored ${patterns.length} patterns via memory service`);
       } catch (error) {
-        this.logger.warn('[TestGeneratorAgent] AgentDB pattern storage failed:', error);
+        this.logger.warn('[TestGeneratorAgent] Pattern storage failed:', error);
       }
     }
 

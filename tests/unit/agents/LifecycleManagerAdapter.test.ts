@@ -30,7 +30,8 @@ describe('LifecycleManagerAdapter', () => {
 
     it('should reflect status changes', async () => {
       await manager.initialize();
-      expect(adapter.getStatus()).toBe(AgentStatus.ACTIVE);
+      // After initialization, agent is IDLE (ready for tasks), not ACTIVE
+      expect(adapter.getStatus()).toBe(AgentStatus.IDLE);
     });
   });
 
@@ -59,7 +60,8 @@ describe('LifecycleManagerAdapter', () => {
   describe('waitForStatus', () => {
     it('should resolve immediately if already in status', async () => {
       await manager.initialize();
-      await expect(adapter.waitForStatus(AgentStatus.ACTIVE, 1000)).resolves.toBeUndefined();
+      // After initialization, agent is IDLE (ready for tasks), not ACTIVE
+      await expect(adapter.waitForStatus(AgentStatus.IDLE, 1000)).resolves.toBeUndefined();
     });
 
     it('should timeout if status not reached', async () => {
@@ -69,7 +71,7 @@ describe('LifecycleManagerAdapter', () => {
   });
 
   describe('waitForReady', () => {
-    it('should resolve when ACTIVE', async () => {
+    it('should resolve when IDLE (ready after initialization)', async () => {
       await manager.initialize();
       await expect(adapter.waitForReady(1000)).resolves.toBeUndefined();
     });

@@ -16,6 +16,7 @@ export {
 export {
   MemoryServiceAdapter,
   createMemoryAdapter,
+  type AgentLocalMemoryStrategy,
 } from './MemoryServiceAdapter';
 
 export {

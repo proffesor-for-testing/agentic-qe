@@ -8,6 +8,7 @@ import { BaseAgent, BaseAgentConfig } from '../../../src/agents/BaseAgent';
 import { AgentStatus, AgentCapability, QETask } from '../../../src/types';
 import { EventEmitter } from 'events';
 import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
+// AdapterType import removed - AgentDB is deprecated (v2.2.0)
 
 /**
  * Test implementation of BaseAgent
@@ -340,18 +341,11 @@ describe('BaseAgent Race Condition Tests', () => {
     });
   });
 
-  describe('Integration with AgentDB', () => {
-    it('should prevent double-initialization of AgentDB', async () => {
+  describe('Integration with Learning (AgentDB deprecated)', () => {
+    it('should handle concurrent initialization with learning enabled', async () => {
       // Create fresh memory store for this test
-      const agentDBMemoryStore = new SwarmMemoryManager(':memory:');
-      await agentDBMemoryStore.initialize();
-
-      const agentDBConfig = {
-        dbPath: ':memory:',
-        enableQUICSync: false,
-        enableLearning: true,
-        enableReasoning: true
-      };
+      const learningMemoryStore = new SwarmMemoryManager(':memory:');
+      await learningMemoryStore.initialize();
 
       const config: BaseAgentConfig = {
         type: 'test-generator',
@@ -360,29 +354,28 @@ describe('BaseAgent Race Condition Tests', () => {
           environment: 'test',
           project: { name: 'test', version: '1.0.0' }
         },
-        memoryStore: agentDBMemoryStore,
+        memoryStore: learningMemoryStore,
         eventBus,
         enableLearning: true,
-        agentDBConfig
       };
 
       const agent = new TestAgent(config);
 
-      // Concurrent initialization with AgentDB
+      // Concurrent initialization with learning enabled
       await Promise.all([
         agent.initialize(),
         agent.initialize(),
         agent.initialize()
       ]);
 
-      // Verify AgentDB is initialized
-      expect(agent.hasAgentDB()).toBe(true);
+      // AgentDB is deprecated (v2.2.0) - should always return false
+      expect(agent.hasAgentDB()).toBe(false);
 
       // Verify single initialization
       expect(agent.initializeComponentsCallCount).toBe(1);
 
       await agent.terminate();
-      await agentDBMemoryStore.close();
+      await learningMemoryStore.close();
     });
   });
 });

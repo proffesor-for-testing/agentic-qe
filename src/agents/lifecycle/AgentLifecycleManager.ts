@@ -59,8 +59,9 @@ export class AgentLifecycleManager {
         await hooks.onPreInitialization();
       }
 
-      // Transition to ACTIVE
-      this.transitionTo(AgentStatus.ACTIVE, 'Initialization complete');
+      // Transition to IDLE (ready for tasks, not actively working)
+      // ACTIVE is used when agent is processing a task
+      this.transitionTo(AgentStatus.IDLE, 'Initialization complete');
 
       // Execute post-initialization hook
       if (hooks?.onPostInitialization) {
@@ -208,9 +209,11 @@ export class AgentLifecycleManager {
   private buildTransitionMap(): Map<AgentStatus, Set<AgentStatus>> {
     const map = new Map<AgentStatus, Set<AgentStatus>>();
 
-    // INITIALIZING can transition to ACTIVE, ERROR, or TERMINATING (for cleanup)
+    // INITIALIZING can transition to IDLE, ACTIVE, ERROR, or TERMINATING (for cleanup)
+    // After initialization, agent should be IDLE (ready for tasks)
     map.set(AgentStatus.INITIALIZING, new Set<AgentStatus>([
-      AgentStatus.ACTIVE,
+      AgentStatus.IDLE,       // Normal completion: ready for tasks
+      AgentStatus.ACTIVE,     // Legacy: some code may transition to ACTIVE
       AgentStatus.ERROR,
       AgentStatus.TERMINATING // Allow cleanup during initialization
     ]));
@@ -236,9 +239,12 @@ export class AgentLifecycleManager {
       AgentStatus.ERROR
     ]));
 
-    // TERMINATED is a final state - but allow re-entry of TERMINATING for idempotent cleanup
+    // TERMINATED is typically a final state, but allow:
+    // - TERMINATING for idempotent cleanup
+    // - INITIALIZING for agent re-use after termination (via reset())
     map.set(AgentStatus.TERMINATED, new Set<AgentStatus>([
-      AgentStatus.TERMINATING // Allow idempotent terminate() calls
+      AgentStatus.TERMINATING,  // Allow idempotent terminate() calls
+      AgentStatus.INITIALIZING  // Allow re-initialization (reset)
     ]));
 
     // ERROR can transition to TERMINATING (for cleanup) or IDLE/ACTIVE (for recovery/retry)

@@ -90,7 +90,8 @@ describe('FleetCommanderAgent', () => {
   describe('initialization', () => {
     it('should initialize successfully with default configuration', () => {
       const status = agent.getStatus();
-      expect(status.status).toBe(AgentStatus.ACTIVE);
+      // After initialization, agent is IDLE (ready for tasks), not ACTIVE
+      expect(status.status).toBe(AgentStatus.IDLE);
       expect(status.agentId.type).toBe(QEAgentType.FLEET_COMMANDER);
     });
 

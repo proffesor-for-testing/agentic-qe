@@ -1,9 +1,9 @@
 # Strategy Migration Plan
 
-**Version**: 1.1.0
+**Version**: 1.2.0
 **Date**: 2025-12-12 (Updated)
 **Phase**: Phase 2 (B1.2)
-**Status**: Phase 1 Complete - Adapters and Strategy Integration
+**Status**: Memory Strategy Integration Complete
 
 ---
 
@@ -59,12 +59,12 @@ All strategy interfaces and default implementations exist in `src/core/strategie
 | Test File | Tests | Status |
 |-----------|-------|--------|
 | `LifecycleManagerAdapter.test.ts` | 21 | ✅ Passing |
-| `MemoryServiceAdapter.test.ts` | 22 | ✅ Passing |
+| `MemoryServiceAdapter.test.ts` | 27 | ✅ Passing (v1.1 with namespace tests) |
 | `LearningEngineAdapter.test.ts` | 24 | ✅ Passing |
 | `CoordinatorAdapter.test.ts` | 22 | ✅ Passing |
-| Strategy tests (4 files) | 75 | ✅ Passing |
+| Strategy tests (3 files) | 75 | ✅ Passing |
 
-**Total Tests**: 142 passing (67 adapters + 75 strategies)
+**Total Tests**: 169 passing (94 adapters + 75 strategies)
 
 ---
 
@@ -87,11 +87,23 @@ All strategy interfaces and default implementations exist in `src/core/strategie
    - `getLearningStrategy()`
    - `getCoordinationStrategy()`
 
-### ⏳ Remaining Steps (Phase 2)
+### ✅ Phase 2 Progress (Memory Strategy Integration)
 
-1. **Replace inline memory ops** - Use `strategies.memory.*` (namespace handling needed)
-2. **Remove duplicate code** - Extract AgentDB, learning integration, deprecated code
-3. **Reduce BaseAgent LOC** - Target: <300 LOC (currently: 1,560)
+1. **MemoryServiceAdapter v1.1** - Added agentId support with namespace prefixing
+   - `storeLocal()` - aqe/{agentType}/{key} namespace
+   - `retrieveLocal()` - aqe/{agentType}/{key} namespace
+   - `storeSharedLocal()` - aqe/shared/{agentType}/{key} namespace
+2. **BaseAgent memory ops delegated** - All memory operations now use strategy
+   - `storeMemory()` → `strategies.memory.storeLocal()`
+   - `retrieveMemory()` → `strategies.memory.retrieveLocal()`
+   - `storeSharedMemory()` → `strategies.memory.storeSharedLocal()`
+   - `retrieveSharedMemory()` → `strategies.memory.retrieveShared()`
+3. **27 new MemoryServiceAdapter tests** - Full coverage of namespace functionality
+
+### ⏳ Remaining Steps (Phase 3)
+
+1. **Remove duplicate code** - Extract AgentDB, deprecated methods
+2. **Reduce BaseAgent LOC** - Target: <300 LOC (currently: ~1,550)
 
 ---
 
