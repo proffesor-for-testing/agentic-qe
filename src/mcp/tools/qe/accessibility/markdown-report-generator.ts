@@ -628,12 +628,46 @@ export function generateMarkdownReport(options: MarkdownReportOptions): string {
       }
     }
 
-    // Solution
-    md += `#### 🔧 Solution\n\n`;
-    if (violation.howToFix) {
+    // Solution - Generate context-specific code fixes
+    md += `#### 🔧 Context-Specific Solution\n\n`;
+
+    // Generate remediation codes for this violation
+    const remediationCodes = generateRemediationCodes(violation, { url, pageLanguage, pageTitle });
+
+    if (remediationCodes.length > 0) {
+      // Show the first (most relevant) code fix
+      const primaryFix = remediationCodes[0];
+
+      md += `**${primaryFix.title}**\n\n`;
+
+      if (primaryFix.explanation) {
+        md += `> ${primaryFix.explanation}\n\n`;
+      }
+
+      md += `**Before (Current):**\n`;
+      md += `\`\`\`${primaryFix.language}\n${primaryFix.beforeCode}\n\`\`\`\n\n`;
+
+      md += `**After (Fixed):**\n`;
+      md += `\`\`\`${primaryFix.language}\n${primaryFix.afterCode}\n\`\`\`\n\n`;
+
+      if (primaryFix.notes && primaryFix.notes.length > 0) {
+        md += `**Implementation Notes:**\n`;
+        primaryFix.notes.forEach(note => {
+          md += `- ${note}\n`;
+        });
+        md += '\n';
+      }
+
+      md += `**Estimated Fix Time:** ${primaryFix.estimatedTime}\n\n`;
+    } else if (violation.howToFix && !violation.howToFix.startsWith('http')) {
+      // Use custom howToFix if it's actual code (not a URL)
       md += `\`\`\`html\n${violation.howToFix}\n\`\`\`\n\n`;
     } else {
+      // Fallback to generic guidance
       md += `_See WCAG guidelines for ${violation.wcagCriterion}_\n\n`;
+      if (violation.helpUrl) {
+        md += `📚 Reference: ${violation.helpUrl}\n\n`;
+      }
     }
 
     md += `---\n\n`;

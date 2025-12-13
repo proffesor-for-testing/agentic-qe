@@ -947,13 +947,49 @@ export function generateRemediationCodes(
 ): RemediationCode[] {
   const codes: RemediationCode[] = [];
   const { url = '', pageLanguage = 'en', pageTitle = '', framework, colorAnalysis } = options;
+  const pageContext = { url, pageLanguage, pageTitle };
 
   // Route to appropriate generator based on violation type
-  if (violation.id === 'video-caption' || violation.id.includes('video') || violation.wcagCriterion?.includes('1.2')) {
+  const violationId = violation.id.toLowerCase();
+  const description = violation.description.toLowerCase();
+
+  // Video caption violations
+  if (violationId.includes('video') || violation.wcagCriterion?.includes('1.2')) {
     codes.push(...generateVideoCaptionRemediation(violation, pageLanguage, pageTitle));
   }
 
-  if (violation.id.includes('aria-hidden') || violation.id.includes('focus')) {
+  // Image alt text violations
+  if (violationId.includes('image-alt') || violationId.includes('alt') ||
+      description.includes('alternative text') || description.includes('alt text') ||
+      description.includes('<img>') || violation.wcagCriterion === '1.1.1') {
+    codes.push(...generateImageAltRemediation(violation, pageContext));
+  }
+
+  // Link name violations
+  if (violationId.includes('link-name') || violationId.includes('link') ||
+      description.includes('link') && description.includes('text') ||
+      description.includes('discernible text') ||
+      violation.wcagCriterion === '2.4.4') {
+    codes.push(...generateLinkNameRemediation(violation, pageContext));
+  }
+
+  // List structure violations
+  if (violationId.includes('list') ||
+      description.includes('<ul>') || description.includes('<ol>') ||
+      description.includes('<li>') || description.includes('list') ||
+      violation.wcagCriterion === '1.3.1' && description.includes('list')) {
+    codes.push(...generateListStructureRemediation(violation));
+  }
+
+  // Touch target size violations
+  if (violationId.includes('target-size') || violationId.includes('touch') ||
+      description.includes('touch target') || description.includes('target size') ||
+      violation.wcagCriterion === '2.5.8') {
+    codes.push(...generateTouchTargetRemediation(violation));
+  }
+
+  // ARIA hidden focus violations
+  if (violationId.includes('aria-hidden') || violationId.includes('focus')) {
     const detectedFramework = framework || detectFramework(
       violation.elements.map(e => e.html).join(' '),
       violation.elements.map(e => e.selector)
@@ -961,13 +997,444 @@ export function generateRemediationCodes(
     codes.push(...generateAriaHiddenFocusRemediation(violation, detectedFramework));
   }
 
-  if (violation.id.includes('color-contrast') || violation.id.includes('contrast')) {
+  // Color contrast violations
+  if (violationId.includes('color-contrast') || violationId.includes('contrast')) {
     codes.push(...generateColorContrastRemediation(violation, colorAnalysis));
   }
 
   // Always generate a Playwright test
   if (url) {
     codes.push(generatePlaywrightTest(violation, url));
+  }
+
+  return codes;
+}
+
+/**
+ * Generate image alt text remediation with context-specific suggestions
+ */
+export function generateImageAltRemediation(
+  violation: AccessibilityViolation,
+  pageContext: { url?: string; pageTitle?: string; pageLanguage?: string } = {}
+): RemediationCode[] {
+  const codes: RemediationCode[] = [];
+  const { url = '', pageTitle = '', pageLanguage = 'en' } = pageContext;
+
+  // Extract domain/brand context from URL
+  let brandContext = '';
+  if (url) {
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '');
+      brandContext = domain.split('.')[0];
+      // Capitalize first letter
+      brandContext = brandContext.charAt(0).toUpperCase() + brandContext.slice(1);
+    } catch { /* ignore */ }
+  }
+
+  for (const element of violation.elements) {
+    const html = element.html || '<img src="image.jpg">';
+    const selector = element.selector || 'img';
+    const context = element.context;
+
+    // Extract image src
+    const srcMatch = html.match(/src="([^"]+)"/);
+    const src = srcMatch ? srcMatch[1] : '';
+
+    // Extract parent link context
+    let parentLinkText = '';
+    let parentLinkHref = '';
+
+    // Check for parent link in selector or HTML
+    const ariaLabelMatch = selector.match(/aria-label=["']([^"']+)["']/i) ||
+                          html.match(/aria-label=["']([^"']+)["']/i);
+    if (ariaLabelMatch) {
+      parentLinkText = ariaLabelMatch[1];
+    }
+
+    const hrefMatch = html.match(/href="([^"]+)"/);
+    if (hrefMatch) {
+      parentLinkHref = hrefMatch[1];
+    }
+
+    // Generate context-specific alt text
+    let specificAlt = '';
+    let rationale = '';
+
+    // Priority 1: Use parent link context
+    if (parentLinkText) {
+      specificAlt = `Visual representation of: ${parentLinkText}`;
+      rationale = `Parent link says "${parentLinkText}". Alt text should describe what the image shows in this context.`;
+    }
+    // Priority 2: Analyze image filename
+    else if (src) {
+      const filename = src.split('/').pop()?.split('?')[0] || '';
+      const cleanName = filename
+        .replace(/\.(jpg|jpeg|png|svg|webp|gif|avif)$/i, '')
+        .replace(/[-_]/g, ' ')
+        .replace(/\d{4,}/g, '') // Remove long numbers
+        .trim();
+
+      // Check for common patterns in filename
+      if (src.toLowerCase().includes('logo')) {
+        specificAlt = `${brandContext || 'Company'} logo`;
+        rationale = 'Image URL contains "logo" - this appears to be a brand logo.';
+      } else if (src.toLowerCase().includes('hero') || src.toLowerCase().includes('banner')) {
+        specificAlt = `${brandContext || 'Website'} hero banner - [describe the main subject and action]`;
+        rationale = 'This is a hero/banner image. Describe the key visual message it conveys.';
+      } else if (src.toLowerCase().includes('product') || src.toLowerCase().includes('item')) {
+        specificAlt = `${brandContext || 'Product'} - [product name and key features]`;
+        rationale = 'This appears to be a product image. Include product name and distinguishing features.';
+      } else if (src.toLowerCase().includes('team') || src.toLowerCase().includes('person') || src.toLowerCase().includes('portrait')) {
+        specificAlt = `[Person's name and role/title]`;
+        rationale = 'This appears to be a person/team photo. Include the person\'s name and role.';
+      } else if (cleanName && cleanName.length > 3) {
+        specificAlt = cleanName;
+        rationale = `Inferred from filename "${filename}". Verify this accurately describes the image.`;
+      } else {
+        specificAlt = `${brandContext ? brandContext + ' - ' : ''}[Describe what this image shows]`;
+        rationale = 'Unable to infer context. Manually describe what the image depicts.';
+      }
+    }
+    // Priority 3: Use surrounding text context
+    else if (context?.surroundingText) {
+      const contextText = context.surroundingText.slice(0, 50).trim();
+      specificAlt = `Image related to: ${contextText}`;
+      rationale = `Based on surrounding text. Verify this matches the actual image content.`;
+    }
+    // Fallback
+    else {
+      specificAlt = `${brandContext ? brandContext + ' - ' : ''}[Describe the image content and purpose]`;
+      rationale = 'No context available. Manually describe what the image shows.';
+    }
+
+    codes.push({
+      violationId: violation.id,
+      wcagCriterion: violation.wcagCriterion || '1.1.1',
+      title: 'Add Descriptive Alt Text to Image',
+      language: 'html',
+      beforeCode: html.slice(0, 200) + (html.length > 200 ? '...' : ''),
+      afterCode: `<!-- Context: ${rationale} -->
+<img src="${src || 'image.jpg'}"
+     alt="${specificAlt}"
+     loading="lazy">
+
+<!-- If this is a decorative image with no informational content: -->
+<img src="${src || 'image.jpg'}"
+     alt=""
+     role="presentation">`,
+      explanation: rationale,
+      estimatedTime: '5 minutes per image',
+      notes: [
+        'Alt text should describe what the image shows, not be a caption',
+        'For decorative images, use alt="" (empty string)',
+        'Keep alt text under 125 characters for screen reader compatibility',
+        `If image is inside a link, alt should describe the link destination`
+      ],
+      relatedCriteria: ['1.1.1 Non-text Content']
+    });
+  }
+
+  return codes;
+}
+
+/**
+ * Generate link name remediation with context-specific aria-labels
+ */
+export function generateLinkNameRemediation(
+  violation: AccessibilityViolation,
+  pageContext: { url?: string; pageTitle?: string; pageLanguage?: string } = {}
+): RemediationCode[] {
+  const codes: RemediationCode[] = [];
+  const { url = '', pageTitle = '', pageLanguage = 'en' } = pageContext;
+
+  // Extract domain for brand context
+  let brandContext = '';
+  if (url) {
+    try {
+      const urlObj = new URL(url);
+      brandContext = urlObj.hostname.replace('www.', '').split('.')[0];
+      brandContext = brandContext.charAt(0).toUpperCase() + brandContext.slice(1);
+    } catch { /* ignore */ }
+  }
+
+  for (const element of violation.elements) {
+    const html = element.html || '<a href="#">Link</a>';
+    const selector = element.selector || 'a';
+    const context = element.context;
+
+    // Extract link href
+    const hrefMatch = html.match(/href="([^"]+)"/);
+    const href = hrefMatch ? hrefMatch[1] : '#';
+
+    // Extract existing title (often empty)
+    const titleMatch = html.match(/title="([^"]*)"/);
+    const existingTitle = titleMatch ? titleMatch[1] : '';
+
+    // Generate context-specific aria-label
+    let specificLabel = '';
+    let rationale = '';
+
+    // Priority 1: Analyze href for destination context
+    if (href && href !== '#') {
+      const hrefLower = href.toLowerCase();
+
+      // Product/category pages
+      if (hrefLower.includes('/produkt') || hrefLower.includes('/product')) {
+        const productSlug = href.split('/').filter(Boolean).pop() || '';
+        const productName = productSlug.replace(/-/g, ' ').replace(/\..*$/, '');
+        specificLabel = `View ${productName || 'product'} details`;
+        rationale = `Link goes to product page: ${href}`;
+      }
+      // Solution/service pages
+      else if (hrefLower.includes('/lösung') || hrefLower.includes('/solution') || hrefLower.includes('/service')) {
+        const solutionSlug = href.split('/').filter(Boolean).pop() || '';
+        const solutionName = solutionSlug.replace(/-/g, ' ').replace(/\..*$/, '');
+        specificLabel = `Learn about ${solutionName || 'our solutions'}`;
+        rationale = `Link goes to solutions/services page: ${href}`;
+      }
+      // About pages
+      else if (hrefLower.includes('/about') || hrefLower.includes('/über') || hrefLower.includes('/ueber')) {
+        specificLabel = `Learn about ${brandContext || 'us'}`;
+        rationale = `Link goes to about page: ${href}`;
+      }
+      // Contact pages
+      else if (hrefLower.includes('/contact') || hrefLower.includes('/kontakt')) {
+        specificLabel = `Contact ${brandContext || 'us'}`;
+        rationale = `Link goes to contact page: ${href}`;
+      }
+      // News/blog pages
+      else if (hrefLower.includes('/news') || hrefLower.includes('/blog') || hrefLower.includes('/artikel') || hrefLower.includes('/article')) {
+        const articleSlug = href.split('/').filter(Boolean).pop() || '';
+        const articleTitle = articleSlug.replace(/-/g, ' ').replace(/\..*$/, '');
+        specificLabel = `Read: ${articleTitle || 'news article'}`;
+        rationale = `Link goes to news/article page: ${href}`;
+      }
+      // Career pages
+      else if (hrefLower.includes('/career') || hrefLower.includes('/karriere') || hrefLower.includes('/job')) {
+        specificLabel = `Explore careers at ${brandContext || 'our company'}`;
+        rationale = `Link goes to careers page: ${href}`;
+      }
+      // Home page
+      else if (hrefLower === '/' || hrefLower.includes('/home')) {
+        specificLabel = `Go to ${brandContext || 'website'} homepage`;
+        rationale = `Link goes to homepage: ${href}`;
+      }
+      // Generic page - extract from path
+      else {
+        const pathParts = href.split('/').filter(Boolean);
+        const lastPart = pathParts[pathParts.length - 1] || '';
+        const pageName = lastPart.replace(/-/g, ' ').replace(/\..*$/, '');
+        if (pageName && pageName.length > 2) {
+          specificLabel = `Go to ${pageName}`;
+          rationale = `Link destination inferred from URL path: ${href}`;
+        } else {
+          specificLabel = `[Describe where this link goes]`;
+          rationale = `Could not determine link purpose from URL: ${href}`;
+        }
+      }
+    }
+    // Priority 2: Use surrounding context
+    else if (context?.surroundingText) {
+      const contextText = context.surroundingText.slice(0, 50).trim();
+      specificLabel = `More about ${contextText}`;
+      rationale = `Based on surrounding text. Verify this matches the link destination.`;
+    }
+    // Fallback
+    else {
+      specificLabel = `[Describe the link destination and purpose]`;
+      rationale = 'No context available. Manually describe where this link goes.';
+    }
+
+    // Handle German language context
+    if (pageLanguage === 'de' && specificLabel.startsWith('[')) {
+      specificLabel = `[Beschreiben Sie das Linkziel]`;
+    }
+
+    codes.push({
+      violationId: violation.id,
+      wcagCriterion: violation.wcagCriterion || '2.4.4',
+      title: 'Add Accessible Name to Link',
+      language: 'html',
+      beforeCode: html.slice(0, 200) + (html.length > 200 ? '...' : ''),
+      afterCode: `<!-- ${rationale} -->
+<a href="${href}"
+   aria-label="${specificLabel}">
+  <!-- Existing content (icon, image, etc.) -->
+</a>
+
+<!-- Alternative: Add visually hidden text -->
+<a href="${href}">
+  <span class="visually-hidden">${specificLabel}</span>
+  <!-- Existing visual content -->
+</a>`,
+      explanation: rationale,
+      estimatedTime: '2 minutes per link',
+      notes: [
+        'aria-label should describe where the link goes, not just "click here"',
+        'For links with images, the aria-label should be on the link, not the image',
+        'Links should make sense out of context (imagine a list of all links on the page)',
+        `Current href: ${href}`
+      ],
+      relatedCriteria: ['2.4.4 Link Purpose (In Context)', '2.4.9 Link Purpose (Link Only)']
+    });
+  }
+
+  return codes;
+}
+
+/**
+ * Generate list structure remediation code
+ */
+export function generateListStructureRemediation(
+  violation: AccessibilityViolation
+): RemediationCode[] {
+  const codes: RemediationCode[] = [];
+
+  for (const element of violation.elements) {
+    const html = element.html || '<ul><div>Invalid</div></ul>';
+    const selector = element.selector || 'ul';
+
+    // Detect what type of invalid content is present
+    const hasDiv = html.includes('<div');
+    const hasSpan = html.includes('<span');
+    const isNavigation = selector.includes('nav') || html.includes('nav');
+
+    codes.push({
+      violationId: violation.id,
+      wcagCriterion: violation.wcagCriterion || '1.3.1',
+      title: 'Fix List Structure - Only <li> Children Allowed',
+      language: 'html',
+      beforeCode: `<!-- INVALID: <ul> can only contain <li>, <script>, or <template> -->
+${html.slice(0, 300)}${html.length > 300 ? '...' : ''}`,
+      afterCode: `<!-- OPTION 1: Move wrapper outside the list -->
+<div class="container">
+  <ul${isNavigation ? ' role="menubar"' : ''}>
+    <li>Item 1</li>
+    <li>Item 2</li>
+    <li>Item 3</li>
+  </ul>
+</div>
+
+<!-- OPTION 2: Move styling div inside each <li> -->
+<ul${isNavigation ? ' role="menubar"' : ''}>
+  <li>
+    <div class="item-wrapper">Item 1</div>
+  </li>
+  <li>
+    <div class="item-wrapper">Item 2</div>
+  </li>
+</ul>
+
+<!-- OPTION 3: For carousels - use proper slide structure -->
+<div class="carousel-wrapper" role="group" aria-label="Image carousel">
+  <ul class="slides" aria-live="polite">
+    <li class="slide" aria-hidden="false">Slide 1</li>
+    <li class="slide" aria-hidden="true">Slide 2</li>
+  </ul>
+</div>`,
+      explanation: 'HTML specification requires <ul> and <ol> to only contain <li> elements as direct children. Wrapper divs must be placed outside the list or inside each list item.',
+      estimatedTime: '30 minutes',
+      notes: [
+        'Screen readers announce "list with X items" - invalid structure breaks this',
+        'For navigation menus, consider using role="menubar" and role="menuitem"',
+        'For carousels, ensure slide items are proper <li> elements'
+      ],
+      relatedCriteria: ['1.3.1 Info and Relationships', '4.1.1 Parsing']
+    });
+  }
+
+  return codes;
+}
+
+/**
+ * Generate touch target size remediation code
+ */
+export function generateTouchTargetRemediation(
+  violation: AccessibilityViolation
+): RemediationCode[] {
+  const codes: RemediationCode[] = [];
+
+  for (const element of violation.elements) {
+    const html = element.html || '<button>Small</button>';
+    const selector = element.selector || 'button';
+
+    // Detect element type
+    const isPagination = selector.includes('pagination') || html.includes('pagination');
+    const isIcon = html.includes('icon') || html.includes('svg') || html.includes('<i ');
+
+    codes.push({
+      violationId: violation.id,
+      wcagCriterion: violation.wcagCriterion || '2.5.8',
+      title: 'Increase Touch Target Size to Minimum 24×24px',
+      language: 'css',
+      beforeCode: `/* Current: Touch target too small (< 24px) */
+${selector} {
+  /* Likely: width/height not set, padding too small */
+  padding: 2px;
+}`,
+      afterCode: `/* WCAG 2.2 Level AA: Minimum 24×24px touch target */
+${selector} {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 8px; /* Ensures adequate size */
+
+  /* For better mobile UX, use 44×44px (iOS) or 48×48px (Material) */
+}
+
+/* RECOMMENDED: Best practice touch targets */
+${selector} {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 12px;
+
+  /* Ensure spacing between adjacent targets */
+  margin: 4px;
+}
+
+${isPagination ? `
+/* Pagination-specific fix: Keep visual dot small, expand hit area */
+.pagination-bullet {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  margin: 0 8px;
+  background: transparent;
+}
+
+.pagination-bullet::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;  /* Visual size */
+  height: 12px;
+  background: #999;
+  border-radius: 50%;
+}
+
+.pagination-bullet.active::before {
+  background: #000;
+}` : ''}
+
+/* Responsive: Larger targets on touch devices */
+@media (pointer: coarse) {
+  ${selector} {
+    min-width: 48px;
+    min-height: 48px;
+  }
+}`,
+      explanation: 'WCAG 2.2 Level AA requires interactive elements to be at least 24×24 CSS pixels. This helps users with motor impairments and improves mobile usability.',
+      estimatedTime: '1 hour',
+      notes: [
+        'iOS Human Interface Guidelines recommend 44×44pt minimum',
+        'Material Design recommends 48×48dp minimum',
+        'Ensure adequate spacing (8px+) between adjacent targets',
+        'Test on actual mobile devices with different finger sizes'
+      ],
+      relatedCriteria: ['2.5.8 Target Size (Minimum)']
+    });
   }
 
   return codes;
@@ -980,6 +1447,10 @@ export default {
   generateVideoCaptionRemediation,
   generateAriaHiddenFocusRemediation,
   generateColorContrastRemediation,
+  generateImageAltRemediation,
+  generateLinkNameRemediation,
+  generateListStructureRemediation,
+  generateTouchTargetRemediation,
   generatePlaywrightTest,
   generateAccessibilityCSSUtilities
 };
