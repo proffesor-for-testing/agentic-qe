@@ -28,6 +28,9 @@ export { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
 // Quality Experience (QX) Agent
 export { QXPartnerAgent } from './QXPartnerAgent';
 
+// Accessibility Testing Agent
+export { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
+
 // Agent factory for creating agents by type
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
@@ -55,6 +58,7 @@ import { TestDataArchitectAgent, TestDataArchitectAgentConfig } from './TestData
 import { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
 import { QXPartnerAgent } from './QXPartnerAgent';
 import { QXPartnerConfig } from '../types/qx';
+import { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
@@ -402,6 +406,31 @@ export class QEAgentFactory {
         return new QXPartnerAgent(qxConfig as any);
       }
 
+      case QEAgentType.ACCESSIBILITY_ALLY: {
+        const a11yConfig: AccessibilityAllyConfig = {
+          ...baseConfig,
+          wcagLevel: agentConfig?.wcagLevel || 'AA',
+          enableVisionAPI: agentConfig?.enableVisionAPI ?? true,
+          visionProvider: agentConfig?.visionProvider || 'free',
+          ollamaBaseUrl: agentConfig?.ollamaBaseUrl || 'http://localhost:11434',
+          ollamaModel: agentConfig?.ollamaModel || 'llava',
+          contextAwareRemediation: agentConfig?.contextAwareRemediation ?? true,
+          generateHTMLReport: agentConfig?.generateHTMLReport ?? false,
+          generateMarkdownReport: agentConfig?.generateMarkdownReport ?? true,
+          thresholds: agentConfig?.thresholds || {
+            minComplianceScore: 85,
+            maxCriticalViolations: 0,
+            maxSeriousViolations: 3
+          },
+          euCompliance: agentConfig?.euCompliance || {
+            enabled: true,
+            en301549Mapping: true,
+            euAccessibilityAct: true
+          }
+        };
+        return new AccessibilityAllyAgent(a11yConfig as any);
+      }
+
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
@@ -432,7 +461,9 @@ export class QEAgentFactory {
       QEAgentType.API_CONTRACT_VALIDATOR,
       QEAgentType.FLAKY_TEST_HUNTER,
       // Quality Experience (QX) Agent
-      QEAgentType.QX_PARTNER
+      QEAgentType.QX_PARTNER,
+      // Accessibility Testing Agent
+      QEAgentType.ACCESSIBILITY_ALLY
     ];
   }
 
@@ -833,6 +864,60 @@ export class QEAgentFactory {
           name: 'collaborative-qx',
           version: '1.0.0',
           description: 'Coordinate with UX and QA agents for holistic quality experience assessment'
+        }
+      ],
+
+      // Accessibility Testing Agent
+      [QEAgentType.ACCESSIBILITY_ALLY]: [
+        {
+          name: 'wcag-2.2-validation',
+          version: '1.0.0',
+          description: 'Comprehensive WCAG 2.2 compliance testing (Level A, AA, AAA)'
+        },
+        {
+          name: 'context-aware-remediation',
+          version: '1.0.0',
+          description: 'Intelligent remediation suggestions with context-specific code examples'
+        },
+        {
+          name: 'aria-intelligence',
+          version: '1.0.0',
+          description: 'Smart ARIA label generation based on element semantics and context'
+        },
+        {
+          name: 'video-accessibility-analysis',
+          version: '1.0.0',
+          description: 'AI-powered video analysis with multi-provider cascade (FREE with Ollama)'
+        },
+        {
+          name: 'webvtt-generation',
+          version: '1.0.0',
+          description: 'Automatic WebVTT caption file generation with detailed scene descriptions'
+        },
+        {
+          name: 'en301549-compliance',
+          version: '1.0.0',
+          description: 'EN 301 549 EU accessibility standard compliance mapping'
+        },
+        {
+          name: 'apg-pattern-suggestions',
+          version: '1.0.0',
+          description: 'ARIA Authoring Practices Guide pattern recommendations'
+        },
+        {
+          name: 'keyboard-navigation-testing',
+          version: '1.0.0',
+          description: 'Keyboard navigation path validation and focus management'
+        },
+        {
+          name: 'color-contrast-optimization',
+          version: '1.0.0',
+          description: 'Color contrast analysis with specific fix recommendations'
+        },
+        {
+          name: 'learning-integration',
+          version: '1.0.0',
+          description: 'Learn from remediation feedback to improve future recommendations'
         }
       ],
 

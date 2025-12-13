@@ -1,7 +1,17 @@
 {
   "env": {
-    "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+    "CLAUDE_FLOW_AUTO_COMMIT": "false",
+    "CLAUDE_FLOW_AUTO_PUSH": "false",
+    "CLAUDE_FLOW_HOOKS_ENABLED": "true",
+    "CLAUDE_FLOW_TELEMETRY_ENABLED": "true",
+    "CLAUDE_FLOW_REMOTE_EXECUTION": "true",
+    "CLAUDE_FLOW_CHECKPOINTS_ENABLED": "true",
+    "AGENTDB_PATH": ".agentic-qe/agentdb.db",
+    "AGENTDB_LEARNING_ENABLED": "true",
+    "AGENTDB_REASONING_ENABLED": "true",
+    "AGENTDB_AUTO_TRAIN": "true",
     "AQE_MEMORY_ENABLED": "true",
+    "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
     "AQE_LEARNING_ENABLED": "true"
   },
   "permissions": {

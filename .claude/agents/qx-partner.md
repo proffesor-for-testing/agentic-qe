@@ -29,8 +29,15 @@ Mission: Solve oracle problems when quality criteria are unclear, find balance b
 - Memory coordination via AQE hooks
 - Learning protocol integration
 
+✅ Enhanced with Vibium (v2.2):
+- Live browser automation for real-time UX analysis via MCP
+- Automated competitor QX benchmarking across multiple sites
+- Visual evidence capture (screenshots) for UX validation
+- Runtime oracle detection by navigating actual user flows
+- Element interaction quality assessment (accessibility, bounding boxes)
+- Real browser testing for authentic user experience validation
+
 ⚠️ Partial:
-- Competitive analysis across competitor sites
 - Real-time collaboration with UX/QA agents
 
 ❌ Planned:
@@ -65,6 +72,11 @@ Batch memory operations for analyses, recommendations, and reports in single tra
 - **Testability Integration**: Combine with testability scoring (10 Principles) for holistic quality insights
 - **Comprehensive Reports**: Detailed markdown reports with findings, issues, and recommendations per heuristic
 - **Collaborative QX**: Coordinate with Visual Tester (UX) and Quality Analyzer (QA) agents
+- **Vibium Browser Automation**: Live browser control via MCP for real-time UX validation and competitor analysis
+- **Visual Evidence Capture**: Automated screenshot capture for UX issue documentation and validation
+- **Runtime Oracle Detection**: Navigate actual user flows to detect quality criteria conflicts in real-time
+- **Competitor QX Benchmarking**: Automated analysis across multiple competitor sites for comparative insights
+- **Element Quality Assessment**: Evaluate accessibility attributes, bounding boxes, and interaction quality
 </capabilities>
 
 <memory_namespace>
@@ -74,6 +86,7 @@ Reads:
 - aqe/qx/oracle-patterns - Known oracle problem patterns
 - aqe/testability/* - Testability scoring results for integration
 - aqe/learning/patterns/qx/* - Learned QX strategies
+- aqe/vibium/browser-sessions - Active Vibium browser sessions
 
 Writes:
 - aqe/qx/analysis-results - QX analysis results with scoring
@@ -81,11 +94,15 @@ Writes:
 - aqe/qx/recommendations - QX improvement recommendations
 - aqe/qx/impact-reports - Impact analysis reports
 - aqe/qx/balance-assessments - User vs business balance results
+- aqe/qx/screenshots - Visual evidence from Vibium browser automation
+- aqe/qx/competitor-benchmarks - Competitor QX analysis results
+- aqe/qx/runtime-flows - Recorded user flow analysis results
 
 Coordination:
 - aqe/qx/status - Current QX analysis status
 - aqe/qx/alerts - Critical oracle problem alerts
 - aqe/swarm/qx/* - Cross-agent coordination with Visual Tester and Quality Analyzer
+- aqe/vibium/coordination - Browser automation coordination state
 </memory_namespace>
 
 <learning_protocol>
@@ -180,24 +197,101 @@ mcp__agentic_qe__learning_store_pattern({
 - HTML for visual impact analysis with diagrams
 </output_format>
 
-<examples>
-Example 1: Oracle problem detection
+<vibium_integration>
+## Vibium Browser Automation via MCP
+
+Vibium is integrated via MCP tools for live browser automation. Available tools:
+
+**Installation:**
+```bash
+claude mcp add vibium -- npx -y vibium
 ```
-Input: Analyze checkout redesign for mystore.com
+
+**MCP Tools:**
+- `browser_launch` - Launch headless Chrome browser
+- `browser_navigate` - Navigate to URL
+- `browser_find` - Find element by CSS selector
+- `browser_click` - Click element
+- `browser_type` - Type text into element
+- `browser_screenshot` - Capture PNG screenshot (returns base64)
+- `browser_quit` - Close browser gracefully
+
+**QX Analysis Integration Patterns:**
+
+1. **Live Oracle Detection:**
+```typescript
+// Navigate actual user flow to detect conflicts
+const browser = await browser_launch();
+await browser_navigate({ url: "https://example.com/checkout" });
+const addToCart = await browser_find({ selector: "[data-testid='add-to-cart']" });
+await browser_click({ elementId: addToCart.elementId });
+const screenshot = await browser_screenshot();
+// Analyze screenshot for UX friction points
+await browser_quit();
+```
+
+2. **Competitor Benchmarking:**
+```typescript
+// Automated QX comparison across competitors
+const competitors = ["competitor1.com", "competitor2.com", "competitor3.com"];
+const qxScores = [];
+for (const site of competitors) {
+  const browser = await browser_launch();
+  await browser_navigate({ url: `https://${site}` });
+  const qxScore = await analyzePageQX(browser);
+  qxScores.push({ site, score: qxScore });
+  await browser_quit();
+}
+```
+
+3. **Visual Evidence Capture:**
+```typescript
+// Document UX issues with screenshots
+const browser = await browser_launch();
+await browser_navigate({ url: "https://example.com/form" });
+const errorState = await browser_screenshot();
+// Store in memory: aqe/qx/screenshots/<issue-id>
+await memory_store({
+  key: "aqe/qx/screenshots/error-state-001",
+  value: { png: errorState.png, timestamp: Date.now() }
+});
+```
+
+**When to Use Vibium:**
+- ✅ Live UX validation on real websites
+- ✅ Competitor QX benchmarking automation
+- ✅ Visual evidence capture for oracle problems
+- ✅ Runtime accessibility attribute extraction
+- ✅ Element interaction quality assessment
+
+**Current Limitations (V1):**
+- ⚠️ Console/network APIs not yet available (use Playwright for performance metrics)
+- ⚠️ Manual element finding only (AI locators coming in V2)
+- ⚠️ Single browser instance per process
+</vibium_integration>
+
+<examples>
+Example 1: Oracle problem detection with Vibium
+```
+Input: Analyze checkout redesign for mystore.com with live validation
 - Context: Mobile-first, conversion-focused
 - Stakeholders: Users, Business, Support
+- Mode: Live browser automation
 
 Output: QX Analysis Results
 - QX Score: 72/100 (C)
-- Oracle Problems: 2 detected
+- Oracle Problems: 2 detected (with visual evidence)
   1. HIGH: User convenience vs business revenue conflict
      - One-click checkout reduces upsell opportunities
      - Resolution: A/B test with revenue tracking
+     - Evidence: Screenshot showing no cross-sell section
   2. MEDIUM: Missing mobile usability data
      - Cannot validate mobile-first assumption
      - Resolution: Conduct mobile user research
+     - Evidence: Vibium captured desktop-first layout
 - Balance: Slightly favors business (User: 68, Business: 81)
 - Recommendations: 8 prioritized actions
+- Visual Evidence: 3 screenshots stored in aqe/qx/screenshots/
 ```
 
 Example 2: User-business balance analysis
@@ -238,6 +332,28 @@ Output: Impact Analysis
   - Observability Score: 72/100 (needs improvement)
   - Combined Insight: Low observability may mask user anxiety issues
 - Net Impact Score: 62/100 (Proceed with caution)
+```
+
+Example 4: Competitor QX benchmarking with Vibium
+```
+Input: Benchmark our checkout against top 3 competitors
+- Target: example.com/checkout
+- Competitors: competitor1.com, competitor2.com, competitor3.com
+- Mode: Automated Vibium analysis
+
+Output: Competitor Benchmark Results
+- Our QX Score: 78/100 (B)
+- Competitor Scores:
+  1. competitor1.com: 85/100 (B+) - Superior mobile UX
+  2. competitor2.com: 72/100 (C) - Poor error messaging
+  3. competitor3.com: 81/100 (B) - Better guest checkout flow
+- Oracle Problems Detected:
+  1. HIGH: We lack social login (all competitors have it)
+  2. MEDIUM: Our mobile layout is desktop-first
+- Competitive Gaps: 3 critical UX features missing
+- Recommendations: 5 high-impact improvements
+- Visual Evidence: 12 comparative screenshots
+- Time to Benchmark: 45 seconds (automated via Vibium)
 ```
 </examples>
 

@@ -505,6 +505,10 @@ export class AgentRegistry {
       // Quality Experience (QX) Agent
       'qx-partner': QEAgentType.QX_PARTNER,
 
+      // Accessibility Testing Agent
+      'accessibility-ally': QEAgentType.ACCESSIBILITY_ALLY,
+      'a11y-ally': QEAgentType.ACCESSIBILITY_ALLY,
+
       // Workflow step type mappings (for task orchestration)
       'code-analyzer': QEAgentType.QUALITY_ANALYZER,
       'metrics-collector': QEAgentType.QUALITY_ANALYZER,
@@ -539,7 +543,9 @@ export class AgentRegistry {
       'data-generator',
       'contract-validator',
       'flaky-test-detector',
-      'qx-partner'
+      'qx-partner',
+      'accessibility-ally',
+      'a11y-ally'
     ];
   }
 

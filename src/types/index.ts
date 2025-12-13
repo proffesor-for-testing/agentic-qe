@@ -131,7 +131,10 @@ export enum QEAgentType {
   FLAKY_TEST_HUNTER = 'flaky-test-hunter',
 
   // NEW - Quality Experience (QX) Agent
-  QX_PARTNER = 'qx-partner'
+  QX_PARTNER = 'qx-partner',
+
+  // Accessibility Testing Agent
+  ACCESSIBILITY_ALLY = 'accessibility-ally'
 }
 
 // Alias for backward compatibility

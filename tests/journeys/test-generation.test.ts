@@ -428,18 +428,21 @@ describe('Journey: Test Generation', () => {
       expect(result.testSuite.metadata.coverageProjection).toBeGreaterThan(0);
 
       // Verify data was persisted to memory/database
-      // Agent stores with key format: aqe/{agentType}/{key}
+      // Agent stores with key format: aqe/{agentType}/{key} and partition: {agentType}
       const agentType = testGenerator.getStatus().agentId.type;
-      const lastGeneration = await memory.retrieve(`aqe/${agentType}/last-generation`);
+      const lastGeneration = await memory.retrieve(`aqe/${agentType}/last-generation`, { partition: agentType });
 
+      expect(lastGeneration).not.toBeNull();
       expect(lastGeneration).toBeDefined();
-      expect(lastGeneration.testSuite).toBeDefined();
-      expect(lastGeneration.testSuite.testCount).toBe(result.testSuite.tests.length);
+      // Type assertion after null check
+      const generationData = lastGeneration as { testSuite: { testCount: number; metadata: { coverageProjection: number } }; generationTime: number };
+      expect(generationData.testSuite).toBeDefined();
+      expect(generationData.testSuite.testCount).toBe(result.testSuite.tests.length);
       // Generation time could be 0ms in fast environments
-      expect(lastGeneration.generationTime).toBeGreaterThanOrEqual(0);
+      expect(generationData.generationTime).toBeGreaterThanOrEqual(0);
 
       // Verify coverage metrics were stored
-      const coverageMetrics = lastGeneration.testSuite.metadata;
+      const coverageMetrics = generationData.testSuite.metadata;
       expect(coverageMetrics).toBeDefined();
       expect(coverageMetrics.coverageProjection).toBeGreaterThan(0);
     });
@@ -511,12 +514,16 @@ describe('Journey: Test Generation', () => {
       // Pattern extraction is attempted but may return 0 patterns
       // (patterns require test code, which requires existing patterns - chicken/egg)
       // Verify the agent stores its generation results for future reuse
+      // Agent stores with partition: {agentType}
       const agentType = testGenerator.getStatus().agentId.type;
-      const lastGeneration = await memory.retrieve(`aqe/${agentType}/last-generation`);
+      const lastGeneration = await memory.retrieve(`aqe/${agentType}/last-generation`, { partition: agentType });
 
+      expect(lastGeneration).not.toBeNull();
       expect(lastGeneration).toBeDefined();
-      expect(lastGeneration.testSuite).toBeDefined();
-      expect(lastGeneration.testSuite.testCount).toBeGreaterThan(0);
+      // Type assertion after null check
+      const generationData2 = lastGeneration as { testSuite: { testCount: number } };
+      expect(generationData2.testSuite).toBeDefined();
+      expect(generationData2.testSuite.testCount).toBeGreaterThan(0);
 
       // Verify tests can be used for pattern extraction in future runs
       // (when tests have code property from applied patterns)
@@ -635,16 +642,19 @@ describe('Journey: Test Generation', () => {
       expect(result.generationMetrics.coverageProjection).toBeGreaterThan(0);
 
       // 4. Coverage data stored in database
-      // Agent stores with key format: aqe/{agentType}/{key}
+      // Agent stores with key format: aqe/{agentType}/{key} and partition: {agentType}
       const agentType = testGenerator.getStatus().agentId.type;
-      const storedData = await memory.retrieve(`aqe/${agentType}/last-generation`);
+      const storedData = await memory.retrieve(`aqe/${agentType}/last-generation`, { partition: agentType });
+      expect(storedData).not.toBeNull();
       expect(storedData).toBeDefined();
-      expect(storedData.testSuite.metadata.coverageProjection).toBeGreaterThan(0);
+      // Type assertion after null check
+      const stored = storedData as { testSuite: { testCount: number; metadata: { coverageProjection: number } } };
+      expect(stored.testSuite.metadata.coverageProjection).toBeGreaterThan(0);
 
       // 5. Generation data saved for reuse (patterns are extracted when tests have code)
       // Pattern extraction requires test code, which requires existing patterns (bootstrap issue)
       // Verify generation results are stored for future pattern learning
-      expect(storedData.testSuite.testCount).toBeGreaterThan(0);
+      expect(stored.testSuite.testCount).toBeGreaterThan(0);
 
       // 6. Quality metrics computed
       expect(result.quality).toBeDefined();

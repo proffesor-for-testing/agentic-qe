@@ -137,13 +137,20 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
 
   /**
    * Retrieve from shared memory using aqe/shared/{agentType}/{key} namespace
+   * Shared memory uses partition: 'shared'
    */
   async retrieveShared<T = unknown>(
     agentType: QEAgentType,
     key: string
   ): Promise<T | undefined> {
     const sharedKey = this.getSharedKey(agentType, key);
-    const result = await this.memoryStore.retrieve(sharedKey);
+    // Use partition: 'shared' to match storeShared behavior
+    let result: unknown;
+    if (this.memoryStore instanceof SwarmMemoryManager) {
+      result = await this.memoryStore.retrieve(sharedKey, { partition: 'shared' });
+    } else {
+      result = await this.memoryStore.retrieve(sharedKey);
+    }
     if (result !== undefined) {
       this.stats.hitRate = (this.stats.hitRate * 0.9) + 0.1;
     } else {

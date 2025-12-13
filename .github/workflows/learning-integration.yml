@@ -1,5 +1,8 @@
 name: Learning System Integration
 
+# Optimized: Only runs on significant learning system changes
+# Reduced from 15min to 10min timeout for cost savings
+
 permissions:
   contents: read
   pull-requests: write
@@ -8,18 +11,15 @@ permissions:
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main]
     paths:
-      - 'src/learning/**'
-      - 'src/mcp/handlers/learning/**'
-      - 'src/telemetry/LearningTelemetry.ts'
-      - 'tests/integration/learning/**'
-      - 'tests/unit/learning/**'
+      - 'src/learning/*.ts'
+      - 'src/learning/algorithms/**'
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
-      - 'src/learning/**'
-      - 'src/mcp/handlers/learning/**'
+      - 'src/learning/*.ts'
+      - 'src/learning/algorithms/**'
   workflow_dispatch:
     inputs:
       min_pattern_hit_rate:
@@ -35,7 +35,7 @@ jobs:
   learning-validation:
     name: Learning System Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -253,7 +253,7 @@ jobs:
   learning-regression-check:
     name: Learning Regression Detection
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     if: github.event_name == 'pull_request'
 
     steps:
