@@ -4,10 +4,11 @@
  * This module provides a unified interface for multiple LLM providers:
  * - ClaudeProvider: Anthropic Claude API
  * - RuvllmProvider: Local LLM inference via ruvllm
+ * - OpenRouterProvider: 300+ models with auto-routing and hot-swap
  * - LLMProviderFactory: Factory for provider creation and hybrid routing
  *
  * @module providers
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 // Core interface and types
@@ -31,6 +32,12 @@ export {
 // Provider implementations
 export { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 export { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
+export {
+  OpenRouterProvider,
+  OpenRouterConfig,
+  OpenRouterModel,
+  createOpenRouterProvider
+} from './OpenRouterProvider';
 
 // Hybrid router
 export {
@@ -50,6 +57,7 @@ export {
   ProviderType,
   ProviderSelectionCriteria,
   ProviderUsageStats,
+  EnvironmentSignals,
   getGlobalLLMFactory,
   setGlobalLLMFactory
 } from './LLMProviderFactory';
@@ -57,31 +65,40 @@ export {
 import type { ILLMProvider } from './ILLMProvider';
 import { ClaudeProvider } from './ClaudeProvider';
 import { RuvllmProvider } from './RuvllmProvider';
-import { LLMProviderFactory } from './LLMProviderFactory';
+import { OpenRouterProvider } from './OpenRouterProvider';
+import { LLMProviderFactory, type ProviderType } from './LLMProviderFactory';
 
 /**
- * Create a default LLM provider based on environment
+ * Create a default LLM provider based on environment using smart detection
  *
- * Uses Claude if ANTHROPIC_API_KEY is set, otherwise attempts ruvllm
+ * Provider Selection:
+ * - Claude Code + ANTHROPIC_API_KEY → Claude
+ * - OPENROUTER_API_KEY → OpenRouter (300+ models with auto-routing)
+ * - ANTHROPIC_API_KEY → Claude
+ * - ruvLLM available → Local inference
  */
 export async function createDefaultProvider(): Promise<ILLMProvider> {
-  // Try Claude first (most common use case)
-  if (process.env.ANTHROPIC_API_KEY) {
-    const provider = new ClaudeProvider();
-    await provider.initialize();
-    return provider;
-  }
+  const factory = new LLMProviderFactory({
+    enableSmartDetection: true,
+    defaultProvider: 'auto',
+  });
 
-  // Fall back to local ruvllm
-  const provider = new RuvllmProvider();
-  try {
-    await provider.initialize();
-    return provider;
-  } catch {
+  await factory.initialize();
+
+  const availableProviders = factory.getAvailableProviders();
+  if (availableProviders.length === 0) {
     throw new Error(
-      'No LLM provider available. Set ANTHROPIC_API_KEY for Claude or ensure ruvllm is installed.'
+      'No LLM provider available. Set ANTHROPIC_API_KEY for Claude, OPENROUTER_API_KEY for OpenRouter, or ensure ruvllm is installed.'
     );
   }
+
+  // Return the best provider based on smart detection
+  const provider = factory.selectBestProvider();
+  if (!provider) {
+    throw new Error('Failed to select a provider');
+  }
+
+  return provider;
 }
 
 /**
@@ -91,15 +108,66 @@ export async function createHybridProvider(config?: {
   preferLocal?: boolean;
   claudeConfig?: any;
   ruvllmConfig?: any;
+  openrouterConfig?: any;
 }): Promise<ILLMProvider> {
   const factory = new LLMProviderFactory({
     claude: config?.claudeConfig,
     ruvllm: config?.ruvllmConfig,
-    defaultProvider: config?.preferLocal ? 'ruvllm' : 'claude',
-    enableFallback: true
+    openrouter: config?.openrouterConfig,
+    defaultProvider: config?.preferLocal ? 'ruvllm' : 'auto',
+    enableFallback: true,
+    enableSmartDetection: true,
   });
 
   await factory.initialize();
 
   return factory.createHybridRouter();
 }
+
+/**
+ * Create an OpenRouter provider with auto-routing capability
+ * Useful when you need access to 300+ models with automatic cost optimization
+ */
+export async function createOpenRouterWithAutoRoute(config?: {
+  defaultModel?: string;
+  siteUrl?: string;
+  siteName?: string;
+}): Promise<OpenRouterProvider> {
+  const provider = new OpenRouterProvider({
+    defaultModel: config?.defaultModel || 'auto',
+    siteUrl: config?.siteUrl,
+    siteName: config?.siteName,
+    enableAutoRoute: true,
+    enableModelDiscovery: true,
+  });
+
+  await provider.initialize();
+  return provider;
+}
+
+/**
+ * Hot-swap model at runtime (requires OpenRouter provider)
+ */
+export async function hotSwapModel(model: string): Promise<void> {
+  const factory = getGlobalLLMFactory();
+  await factory.hotSwapModel(model);
+}
+
+/**
+ * Get current model from OpenRouter provider
+ */
+export function getCurrentModel(): string | undefined {
+  const factory = getGlobalLLMFactory();
+  return factory.getCurrentModel();
+}
+
+/**
+ * List available models from OpenRouter
+ */
+export async function listAvailableModels(): Promise<import('./OpenRouterProvider').OpenRouterModel[]> {
+  const factory = getGlobalLLMFactory();
+  return factory.listAvailableModels();
+}
+
+// Re-export getGlobalLLMFactory for convenience
+import { getGlobalLLMFactory } from './LLMProviderFactory';

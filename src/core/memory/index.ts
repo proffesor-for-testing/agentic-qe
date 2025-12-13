@@ -291,3 +291,16 @@ export type {
   MaintenanceStats,
   BatchResult as HNSWBatchResult,
 } from './HNSWVectorMemory';
+
+// =============================================================================
+// Cached HNSW Vector Memory (v2.4.0) - Binary Cache Integration
+// 10x faster pattern discovery with transparent binary caching
+// =============================================================================
+export {
+  CachedHNSWVectorMemory,
+  createCachedHNSWVectorMemory,
+} from './CachedHNSWVectorMemory';
+export type {
+  CachedHNSWConfig,
+  CachePerformanceMetrics,
+} from './CachedHNSWVectorMemory';

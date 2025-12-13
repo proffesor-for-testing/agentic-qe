@@ -99,3 +99,16 @@ export type {
   SanitizedExperience,
   RetentionPolicyResult
 } from './PrivacyManager';
+
+// SONA Feedback Loop (NEW in v2.4.0+ - ruvLLM Integration)
+export {
+  SONAFeedbackLoop,
+  createFeedbackLoop,
+  createConnectedFeedbackLoop,
+} from './SONAFeedbackLoop';
+export type {
+  FeedbackLoopConfig,
+  FeedbackEvent,
+  FeedbackAnalysis,
+  Adaptation,
+} from './SONAFeedbackLoop';

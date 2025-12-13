@@ -1,7 +1,7 @@
 /**
  * Telemetry Instrumentation - Agent and Task Tracing
  *
- * Comprehensive OpenTelemetry instrumentation for all 19 QE agents
+ * Comprehensive OpenTelemetry instrumentation for all 20 QE agents
  * with automatic span management, context propagation, and semantic attributes.
  *
  * @module telemetry/instrumentation

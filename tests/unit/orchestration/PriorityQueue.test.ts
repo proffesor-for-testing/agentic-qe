@@ -2,7 +2,7 @@
  * Unit tests for PriorityQueue
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import { PriorityQueue } from '../../../src/core/orchestration/PriorityQueue';
 
 describe('PriorityQueue', () => {

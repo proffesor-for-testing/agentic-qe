@@ -2,10 +2,19 @@
  * Unit tests for AI-powered screenshot comparison tool
  */
 
-import { describe, it, expect } from '@jest/globals';
-import { compareScreenshotsAI, type CompareScreenshotsParams } from '../../../../../src/mcp/tools/qe/visual/compare-screenshots';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { compareScreenshotsAI, type CompareScreenshotsParams } from '../../../../../../src/mcp/tools/qe/visual/compare-screenshots';
 
 describe('compareScreenshotsAI', () => {
+  // Reset all mocks before each test to ensure isolation
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Clean up after each test
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
   it('should successfully compare identical screenshots', async () => {
     const params: CompareScreenshotsParams = {
       baseline: './baseline.png',

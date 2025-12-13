@@ -1,7 +1,7 @@
 /**
  * StandardTaskSuite - Standard tasks for baseline measurement
  *
- * Defines representative tasks for each of the 19 QE agents to ensure
+ * Defines representative tasks for each of the 20 QE agents to ensure
  * consistent and reproducible baseline measurements.
  *
  * Each agent type has 10 standard tasks covering typical workloads.

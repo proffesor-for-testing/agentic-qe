@@ -132,3 +132,4 @@ __mocks__/*
 # Test artifacts that should not be committed
 test-learning-persistence
 junit.xml
+docs/qx-reports/*

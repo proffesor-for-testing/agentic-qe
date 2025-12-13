@@ -705,3 +705,355 @@ export function entryToTestPattern(entry: PatternEntry): TestPattern {
   };
 }
 
+// ============================================================================
+// TRM (Test-time Reasoning & Metacognition) Pattern Cache
+// ============================================================================
+
+/**
+ * TRM Pattern type classification
+ */
+export type TRMPatternType =
+  | 'reasoning'       // Reasoning step patterns
+  | 'refinement'      // Iterative refinement patterns
+  | 'convergence'     // Convergence detection patterns
+  | 'quality'         // Quality improvement patterns
+  | 'trajectory';     // Full trajectory patterns
+
+/**
+ * TRM Pattern entry in binary cache
+ *
+ * Optimized layout for caching TRM reasoning patterns:
+ * - Input/output embeddings for similarity search
+ * - Quality metrics for pattern selection
+ * - Trajectory data for learning
+ */
+export interface TRMPatternEntry {
+  /** Pattern unique ID */
+  id: string;
+
+  /** TRM pattern type */
+  type: TRMPatternType;
+
+  /** Input embedding (768-dim, zero-copy access) */
+  inputEmbedding: Float32Array;
+
+  /** Output embedding (768-dim, zero-copy access) */
+  outputEmbedding: Float32Array;
+
+  /** Input text (query/prompt) */
+  inputText: string;
+
+  /** Output text (response) */
+  outputText: string;
+
+  /** TRM-specific metadata */
+  metadata: TRMPatternMetadata;
+}
+
+/**
+ * TRM Pattern metadata
+ */
+export interface TRMPatternMetadata {
+  /** Final quality score (0.0-1.0) */
+  quality: number;
+
+  /** Quality metric used */
+  qualityMetric: 'coherence' | 'coverage' | 'diversity';
+
+  /** Number of TRM iterations */
+  iterations: number;
+
+  /** Convergence achieved */
+  converged: boolean;
+
+  /** Confidence score (0.0-1.0) */
+  confidence: number;
+
+  /** Creation timestamp (Unix milliseconds) */
+  createdAt: number;
+
+  /** Last usage timestamp (Unix milliseconds) */
+  lastUsed: number;
+
+  /** Usage counter */
+  usageCount: number;
+
+  /** Average latency per iteration (ms) */
+  avgIterationLatency: number;
+
+  /** LoRA adapter ID used (if any) */
+  loraAdapterId?: string;
+}
+
+/**
+ * TRM cache index data for O(1) lookup
+ */
+export interface TRMCacheIndexData {
+  /** Type → pattern IDs mapping */
+  typeIndex: Map<TRMPatternType, string[]>;
+
+  /** Quality metric → pattern IDs mapping */
+  metricIndex: Map<string, string[]>;
+
+  /** Converged → pattern IDs mapping */
+  convergedIndex: Map<boolean, string[]>;
+
+  /** Quality bucket (0.0-0.25, 0.25-0.5, 0.5-0.75, 0.75-1.0) → pattern IDs */
+  qualityBucketIndex: Map<string, string[]>;
+}
+
+/**
+ * TRM Binary Cache extension
+ *
+ * Extends the base BinaryCache with TRM-specific pattern storage.
+ */
+export interface TRMBinaryCache extends BinaryCache {
+  /** TRM pattern entries */
+  trmPatterns: TRMPatternEntry[];
+
+  /** TRM pattern indexes */
+  trmIndexes: TRMCacheIndexData;
+
+  /** LoRA adapter configurations */
+  loraAdapters: LoRAAdapterEntry[];
+}
+
+/**
+ * LoRA adapter entry in cache
+ */
+export interface LoRAAdapterEntry {
+  /** Adapter unique ID */
+  id: string;
+
+  /** Adapter name/description */
+  name: string;
+
+  /** LoRA rank */
+  rank: number;
+
+  /** LoRA alpha scaling factor */
+  alpha: number;
+
+  /** Target modules */
+  targetModules: string[];
+
+  /** Creation timestamp */
+  createdAt: number;
+
+  /** Training iterations */
+  trainingIterations: number;
+
+  /** Final loss value */
+  finalLoss: number;
+}
+
+/**
+ * TRM cache reader interface
+ *
+ * Extends BinaryCacheReader with TRM pattern access.
+ */
+export interface TRMBinaryCacheReader extends BinaryCacheReader {
+  /**
+   * Get TRM pattern by ID
+   *
+   * @param id - Pattern unique ID
+   * @returns TRM pattern entry or null if not found
+   */
+  getTRMPattern(id: string): TRMPatternEntry | null;
+
+  /**
+   * Get TRM patterns by type
+   *
+   * @param type - TRM pattern type filter
+   * @returns Array of TRM pattern entries
+   */
+  getTRMPatternsByType(type: TRMPatternType): TRMPatternEntry[];
+
+  /**
+   * Get converged TRM patterns
+   *
+   * @returns Array of TRM patterns that achieved convergence
+   */
+  getConvergedPatterns(): TRMPatternEntry[];
+
+  /**
+   * Get high-quality TRM patterns (quality >= 0.75)
+   *
+   * @returns Array of high-quality TRM pattern entries
+   */
+  getHighQualityPatterns(): TRMPatternEntry[];
+
+  /**
+   * Search TRM patterns by input similarity
+   *
+   * @param embedding - Query embedding (768-dim)
+   * @param k - Number of results to return
+   * @returns Array of similar TRM patterns with scores
+   */
+  searchByInputSimilarity(
+    embedding: Float32Array,
+    k: number
+  ): Array<{ pattern: TRMPatternEntry; score: number }>;
+
+  /**
+   * Get all TRM patterns
+   *
+   * @returns Array of all TRM pattern entries
+   */
+  getAllTRMPatterns(): TRMPatternEntry[];
+
+  /**
+   * Get LoRA adapter by ID
+   *
+   * @param id - Adapter unique ID
+   * @returns LoRA adapter entry or null if not found
+   */
+  getLoRAAdapter(id: string): LoRAAdapterEntry | null;
+
+  /**
+   * Get TRM cache statistics
+   *
+   * @returns TRM-specific cache statistics
+   */
+  getTRMCacheStats(): TRMCacheStats;
+}
+
+/**
+ * TRM cache statistics
+ */
+export interface TRMCacheStats {
+  /** Total TRM patterns */
+  totalPatterns: number;
+
+  /** Converged patterns count */
+  convergedCount: number;
+
+  /** High-quality patterns count (quality >= 0.75) */
+  highQualityCount: number;
+
+  /** Average quality score */
+  avgQuality: number;
+
+  /** Average iterations per pattern */
+  avgIterations: number;
+
+  /** LoRA adapters count */
+  loraAdaptersCount: number;
+
+  /** Cache age (milliseconds) */
+  cacheAge: number;
+}
+
+/**
+ * TRM cache builder interface
+ *
+ * Extends BinaryCacheBuilder with TRM pattern support.
+ */
+export interface TRMBinaryCacheBuilder extends BinaryCacheBuilder {
+  /**
+   * Build TRM cache from patterns
+   *
+   * @param trmPatterns - Array of TRM patterns
+   * @param loraAdapters - Array of LoRA adapter configs
+   * @param outputPath - Cache file output path
+   * @returns Build success status and metrics
+   */
+  buildTRMCache(
+    trmPatterns: TRMPatternEntry[],
+    loraAdapters: LoRAAdapterEntry[],
+    outputPath: string
+  ): Promise<TRMCacheBuildResult>;
+
+  /**
+   * Build TRM cache indexes
+   *
+   * @param patterns - Array of TRM pattern entries
+   * @returns TRM index data structure
+   */
+  buildTRMIndexes(patterns: TRMPatternEntry[]): TRMCacheIndexData;
+}
+
+/**
+ * TRM cache build result
+ */
+export interface TRMCacheBuildResult extends CacheBuildResult {
+  /** Number of TRM patterns cached */
+  trmPatternCount: number;
+
+  /** Number of LoRA adapters cached */
+  loraAdapterCount: number;
+
+  /** Converged patterns count */
+  convergedPatternCount: number;
+
+  /** Average quality of cached patterns */
+  avgQuality: number;
+}
+
+/**
+ * Default TRM cache configuration
+ */
+export const DEFAULT_TRM_CACHE_CONFIG: BinaryCacheConfig = {
+  ...DEFAULT_CACHE_CONFIG,
+  cachePath: '.aqe/cache/trm-patterns.bin',
+  maxAge: 7200000, // 2 hours (TRM patterns are more valuable)
+  version: { major: 1, minor: 1, patch: 0 }, // TRM extension version
+};
+
+/**
+ * TRM cache file magic number (0x54524D43 = "TRMC" = TRM Cache)
+ */
+export const TRM_CACHE_MAGIC_NUMBER = 0x54524D43;
+
+/**
+ * Helper: Compute quality bucket for indexing
+ *
+ * @param quality - Quality score (0.0-1.0)
+ * @returns Quality bucket string
+ */
+export function getQualityBucket(quality: number): string {
+  if (quality >= 0.75) return 'high';
+  if (quality >= 0.5) return 'medium';
+  if (quality >= 0.25) return 'low';
+  return 'very_low';
+}
+
+/**
+ * Helper: Create TRM pattern entry
+ *
+ * @param input - Input text
+ * @param output - Output text
+ * @param inputEmb - Input embedding
+ * @param outputEmb - Output embedding
+ * @param metadata - TRM metadata
+ * @returns TRM pattern entry
+ */
+export function createTRMPatternEntry(
+  input: string,
+  output: string,
+  inputEmb: number[],
+  outputEmb: number[],
+  metadata: Partial<TRMPatternMetadata>
+): TRMPatternEntry {
+  return {
+    id: `trm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type: metadata.iterations && metadata.iterations > 1 ? 'refinement' : 'reasoning',
+    inputText: input,
+    outputText: output,
+    inputEmbedding: new Float32Array(inputEmb),
+    outputEmbedding: new Float32Array(outputEmb),
+    metadata: {
+      quality: metadata.quality ?? 0.5,
+      qualityMetric: metadata.qualityMetric ?? 'coherence',
+      iterations: metadata.iterations ?? 1,
+      converged: metadata.converged ?? false,
+      confidence: metadata.confidence ?? 0.5,
+      createdAt: Date.now(),
+      lastUsed: Date.now(),
+      usageCount: 1,
+      avgIterationLatency: metadata.avgIterationLatency ?? 0,
+      loraAdapterId: metadata.loraAdapterId,
+    },
+  };
+}
+

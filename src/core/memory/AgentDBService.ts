@@ -230,8 +230,18 @@ export class AgentDBService {
   /**
    * Store a pattern with vector embedding
    */
-  async storePattern(pattern: QEPattern, embedding: Float32Array): Promise<void> {
+  async storePattern(pattern: QEPattern, embedding: Float32Array | number[]): Promise<void> {
     this.ensureInitialized();
+
+    // Convert number[] to Float32Array if needed
+    const embeddingArray = embedding instanceof Float32Array
+      ? embedding
+      : new Float32Array(embedding);
+
+    // Validate embedding dimension
+    if (embeddingArray.length !== this.config.embeddingDim) {
+      throw new Error(`Embedding dimension mismatch: expected ${this.config.embeddingDim}, got ${embeddingArray.length}`);
+    }
 
     try {
       const sql = `
@@ -248,7 +258,7 @@ export class AgentDBService {
         pattern.confidence,
         pattern.usageCount,
         pattern.successCount,
-        Buffer.from(embedding.buffer),
+        Buffer.from(embeddingArray.buffer),
         pattern.createdAt,
         pattern.lastUsed,
         pattern.metadata ? JSON.stringify(pattern.metadata) : null
@@ -259,7 +269,9 @@ export class AgentDBService {
         // Get the row ID for the pattern
         const result = await this.db.get('SELECT rowid FROM patterns WHERE id = ?', [pattern.id]);
         if (result) {
-          this.hnswIndex.addVector(result.rowid, embedding);
+          // Convert to Float32Array if needed
+          const vector = embedding instanceof Float32Array ? embedding : new Float32Array(embedding);
+          this.hnswIndex.addVector(result.rowid, vector);
         }
       }
 
@@ -276,7 +288,7 @@ export class AgentDBService {
   /**
    * Batch store patterns for better performance
    */
-  async storePatternsInBatch(patterns: Array<{ pattern: QEPattern; embedding: Float32Array }>): Promise<BatchResult> {
+  async storePatternsInBatch(patterns: Array<{ pattern: QEPattern; embedding: Float32Array | number[] }>): Promise<BatchResult> {
     this.ensureInitialized();
 
     const startTime = Date.now();
@@ -302,9 +314,11 @@ export class AgentDBService {
       // Commit transaction
       await this.db.exec('COMMIT');
 
-      // Rebuild HNSW index if needed
-      if (this.hnswIndex && this.hnswIndex.needsRebuild()) {
-        await this.hnswIndex.buildIndex('patterns');
+      // Rebuild HNSW index if needed (if supported by the HNSW implementation)
+      if (this.hnswIndex && typeof (this.hnswIndex as any).needsRebuild === 'function') {
+        if ((this.hnswIndex as any).needsRebuild()) {
+          await this.hnswIndex.buildIndex('patterns');
+        }
       }
 
       return {
@@ -323,8 +337,18 @@ export class AgentDBService {
   /**
    * Search for similar patterns using HNSW or WASM vector search
    */
-  async searchPatterns(queryEmbedding: Float32Array, options: PatternSearchOptions = {}): Promise<PatternSearchResult[]> {
+  async searchPatterns(queryEmbedding: Float32Array | number[], options: PatternSearchOptions = {}): Promise<PatternSearchResult[]> {
     this.ensureInitialized();
+
+    // Convert number[] to Float32Array if needed
+    const embedding = queryEmbedding instanceof Float32Array
+      ? queryEmbedding
+      : new Float32Array(queryEmbedding);
+
+    // Validate dimension
+    if (embedding.length !== this.config.embeddingDim) {
+      throw new Error(`Query embedding dimension mismatch: expected ${this.config.embeddingDim}, got ${embedding.length}`);
+    }
 
     const {
       k = 10,
@@ -336,7 +360,7 @@ export class AgentDBService {
     } = options;
 
     // Check cache
-    const cacheKey = `${queryEmbedding.toString()}-${k}-${threshold}-${domain}-${type}-${minConfidence}`;
+    const cacheKey = `${embedding.toString()}-${k}-${threshold}-${domain}-${type}-${minConfidence}`;
     if (this.config.enableCache) {
       const cached = this.queryCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < (this.config.cacheTTL || 3600000)) {
@@ -349,13 +373,13 @@ export class AgentDBService {
 
       // Use HNSW index if available and built
       if (this.hnswIndex && this.hnswIndex.isReady()) {
-        searchResults = await this.hnswIndex.search(queryEmbedding, k, {
+        searchResults = await this.hnswIndex.search(embedding, k, {
           threshold,
           filters: this.buildFilters(domain, type, minConfidence)
         });
       } else if (this.wasmSearch) {
         // Fallback to WASM vector search
-        searchResults = await this.wasmSearch.findKNN(queryEmbedding, k, 'patterns', {
+        searchResults = await this.wasmSearch.findKNN(embedding, k, 'patterns', {
           threshold,
           filters: this.buildFilters(domain, type, minConfidence)
         });
@@ -400,7 +424,7 @@ export class AgentDBService {
   }
 
   /**
-   * Get pattern by ID
+   * Get pattern by rowid (internal)
    */
   private async getPatternById(rowId: number): Promise<QEPattern | null> {
     const sql = 'SELECT * FROM patterns WHERE rowid = ?';
@@ -410,18 +434,122 @@ export class AgentDBService {
       return null;
     }
 
+    return this.rowToPattern(row);
+  }
+
+  /**
+   * Retrieve a pattern by its string ID
+   */
+  async retrievePattern(id: string): Promise<QEPattern | null> {
+    this.ensureInitialized();
+
+    const sql = 'SELECT * FROM patterns WHERE id = ?';
+    const row = await this.db.get(sql, [id]);
+
+    if (!row) {
+      return null;
+    }
+
+    return this.rowToPattern(row);
+  }
+
+  /**
+   * Delete a pattern by ID
+   */
+  async deletePattern(id: string): Promise<boolean> {
+    this.ensureInitialized();
+
+    try {
+      // First check if pattern exists
+      const existing = await this.db.get('SELECT id FROM patterns WHERE id = ?', [id]);
+      if (!existing) {
+        return false;
+      }
+
+      await this.db.run('DELETE FROM patterns WHERE id = ?', [id]);
+
+      // Clear cache after deletion
+      if (this.config.enableCache) {
+        this.queryCache.clear();
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error('[AgentDBService] Failed to delete pattern:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Convert database row to QEPattern
+   */
+  private rowToPattern(row: any): QEPattern {
+    let data = {};
+    try {
+      data = row.data ? JSON.parse(row.data) : {};
+    } catch {
+      data = {};
+    }
+
+    let metadata: Record<string, any> | undefined;
+    try {
+      metadata = row.metadata ? JSON.parse(row.metadata) : undefined;
+    } catch {
+      metadata = undefined;
+    }
+
     return {
       id: row.id,
       type: row.type,
       domain: row.domain,
-      data: JSON.parse(row.data),
+      data,
       confidence: row.confidence,
       usageCount: row.usage_count,
       successCount: row.success_count,
       createdAt: row.created_at,
       lastUsed: row.last_used,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+      metadata
     };
+  }
+
+  /**
+   * Search for similar patterns (alias for searchPatterns)
+   */
+  async searchSimilar(
+    queryEmbedding: number[] | Float32Array,
+    options: PatternSearchOptions = {}
+  ): Promise<PatternSearchResult[]> {
+    const embedding = queryEmbedding instanceof Float32Array
+      ? queryEmbedding
+      : new Float32Array(queryEmbedding);
+    return this.searchPatterns(embedding, options);
+  }
+
+  /**
+   * Store multiple patterns in batch (alternative signature)
+   * Accepts patterns and embeddings as separate arrays for convenience
+   */
+  async storeBatch(
+    patterns: QEPattern[],
+    embeddings: (number[] | Float32Array)[]
+  ): Promise<BatchResult> {
+    if (patterns.length !== embeddings.length) {
+      return {
+        success: false,
+        insertedIds: [],
+        errors: [{ index: 0, error: 'Patterns and embeddings arrays must have the same length' }],
+        duration: 0
+      };
+    }
+
+    const combined = patterns.map((pattern, i) => ({
+      pattern,
+      embedding: embeddings[i] instanceof Float32Array
+        ? embeddings[i] as Float32Array
+        : new Float32Array(embeddings[i] as number[])
+    }));
+
+    return this.storePatternsInBatch(combined);
   }
 
   /**
@@ -442,10 +570,12 @@ export class AgentDBService {
    */
   async getStats(): Promise<{
     totalPatterns: number;
+    size: number; // Alias for totalPatterns for backward compatibility
     hnswEnabled: boolean;
     hnswStats?: any;
     wasmStats?: any;
     cacheSize: number;
+    cacheStats?: { entries: number; hitRate: number };
   }> {
     this.ensureInitialized();
 
@@ -454,10 +584,15 @@ export class AgentDBService {
 
     return {
       totalPatterns,
+      size: totalPatterns, // Alias for backward compatibility
       hnswEnabled: this.config.enableHNSW,
       hnswStats: this.hnswIndex?.getStats(),
       wasmStats: this.wasmSearch?.getStats(),
-      cacheSize: this.queryCache.size
+      cacheSize: this.queryCache.size,
+      cacheStats: this.config.enableCache ? {
+        entries: this.queryCache.size,
+        hitRate: 0 // Would need hit tracking to compute
+      } : undefined
     };
   }
 

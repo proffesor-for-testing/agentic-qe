@@ -31,7 +31,7 @@ import {
   LLMProviderError
 } from './ILLMProvider';
 import { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
-import { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
+import { RuvllmProvider, RuvllmProviderConfig, TRMConfig, RuvllmCompletionOptions } from './RuvllmProvider';
 import { Logger } from '../utils/Logger';
 
 /**
@@ -124,6 +124,20 @@ export interface CostSavingsReport {
 }
 
 /**
+ * Extended completion options with TRM and routing configuration
+ */
+export interface HybridCompletionOptions extends LLMCompletionOptions {
+  /** TRM configuration for local provider */
+  trmConfig?: TRMConfig;
+  /** Override routing strategy for this request */
+  routingStrategy?: RoutingStrategy;
+  /** Request priority level */
+  priority?: RequestPriority;
+  /** Force use of specific provider */
+  forceProvider?: 'local' | 'cloud';
+}
+
+/**
  * Hybrid router configuration
  */
 export interface HybridRouterConfig extends LLMProviderConfig {
@@ -145,6 +159,10 @@ export interface HybridRouterConfig extends LLMProviderConfig {
   enableLearning?: boolean;
   /** Privacy-sensitive keywords for automatic local routing */
   privacyKeywords?: string[];
+  /** Auto-enable TRM for complex tasks routed locally */
+  autoEnableTRM?: boolean;
+  /** Default TRM configuration for auto-enabled requests */
+  defaultTRMConfig?: TRMConfig;
 }
 
 /**
@@ -187,6 +205,12 @@ export class HybridRouter implements ILLMProvider {
         'secret', 'password', 'token', 'key', 'credential',
         'private', 'confidential', 'internal', 'api_key'
       ],
+      autoEnableTRM: config.autoEnableTRM ?? true,
+      defaultTRMConfig: config.defaultTRMConfig ?? {
+        maxIterations: 5,
+        convergenceThreshold: 0.95,
+        qualityMetric: 'coherence'
+      },
       claude: config.claude,
       ruvllm: config.ruvllm
     };
@@ -251,29 +275,61 @@ export class HybridRouter implements ILLMProvider {
   }
 
   /**
-   * Complete a prompt with intelligent routing
+   * Complete a prompt with intelligent routing and TRM support
+   *
+   * When routing to the local provider (ruvLLM), TRM (Test-time Reasoning & Metacognition)
+   * can be enabled for iterative quality improvement.
    */
-  async complete(options: LLMCompletionOptions): Promise<LLMCompletionResponse> {
+  async complete(options: HybridCompletionOptions): Promise<LLMCompletionResponse> {
     this.ensureInitialized();
 
     const startTime = Date.now();
+    const priority = options.priority ?? RequestPriority.NORMAL;
+    const strategy = options.routingStrategy ?? this.config.defaultStrategy;
+
+    // Handle forced provider selection
+    if (options.forceProvider) {
+      const decision = this.createDecision(
+        options.forceProvider,
+        options.forceProvider === 'local' ? 'ruvllm' : 'claude',
+        'Forced provider selection',
+        this.analyzeComplexity(options),
+        priority
+      );
+      return this.executeWithDecision(decision, options, startTime);
+    }
 
     // Analyze request and make routing decision
-    const decision = this.makeRoutingDecision(options);
+    const decision = this.makeRoutingDecision(options, strategy, priority);
 
     this.logger.debug('Routing decision made', {
       provider: decision.provider,
       reason: decision.reason,
-      complexity: decision.complexity
+      complexity: decision.complexity,
+      trmEnabled: !!options.trmConfig || (this.config.autoEnableTRM && decision.complexity !== TaskComplexity.SIMPLE)
     });
 
+    return this.executeWithDecision(decision, options, startTime);
+  }
+
+  /**
+   * Execute request with routing decision
+   */
+  private async executeWithDecision(
+    decision: RoutingDecision,
+    options: HybridCompletionOptions,
+    startTime: number
+  ): Promise<LLMCompletionResponse> {
     try {
       let response: LLMCompletionResponse;
 
       if (decision.provider === 'local' && this.localProvider) {
+        // Prepare TRM-enhanced options for local provider
+        const localOptions = this.prepareTRMOptions(options, decision.complexity);
+
         response = await this.executeWithCircuitBreaker(
           'local',
-          () => this.localProvider!.complete(options)
+          () => this.localProvider!.complete(localOptions)
         );
         this.localRequestCount++;
       } else if (decision.provider === 'cloud' && this.cloudProvider) {
@@ -691,6 +747,55 @@ export class HybridRouter implements ILLMProvider {
       'NO_PROVIDERS',
       true
     );
+  }
+
+  /**
+   * Prepare TRM-enhanced options for local provider
+   *
+   * Enables TRM (Test-time Reasoning & Metacognition) for complex tasks
+   * to iteratively improve response quality through recursive refinement.
+   */
+  private prepareTRMOptions(
+    options: HybridCompletionOptions,
+    complexity: TaskComplexity
+  ): RuvllmCompletionOptions {
+    // If TRM config explicitly provided, use it
+    if (options.trmConfig) {
+      return {
+        ...options,
+        trmConfig: options.trmConfig
+      };
+    }
+
+    // Auto-enable TRM for non-simple tasks if configured
+    if (this.config.autoEnableTRM && complexity !== TaskComplexity.SIMPLE) {
+      // Adjust TRM iterations based on complexity
+      const iterationsByComplexity: Record<TaskComplexity, number> = {
+        [TaskComplexity.SIMPLE]: 1,
+        [TaskComplexity.MODERATE]: 3,
+        [TaskComplexity.COMPLEX]: 5,
+        [TaskComplexity.VERY_COMPLEX]: 7
+      };
+
+      const trmConfig: TRMConfig = {
+        maxIterations: iterationsByComplexity[complexity],
+        convergenceThreshold: this.config.defaultTRMConfig?.convergenceThreshold ?? 0.95,
+        qualityMetric: this.config.defaultTRMConfig?.qualityMetric ?? 'coherence'
+      };
+
+      this.logger.debug('Auto-enabling TRM for complex task', {
+        complexity,
+        maxIterations: trmConfig.maxIterations
+      });
+
+      return {
+        ...options,
+        trmConfig
+      };
+    }
+
+    // No TRM enhancement
+    return options;
   }
 
   /**

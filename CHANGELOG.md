@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2025-12-13
+
+### Added
+
+#### AccessibilityAllyAgent - Intelligent Accessibility Testing (PR #129)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+- **New Agent: `qe-a11y-ally`** - Comprehensive WCAG 2.2 compliance testing
+  - WCAG 2.2 Level A, AA, AAA validation using axe-core
+  - Context-aware ARIA label generation based on element semantics
+  - Intelligent remediation suggestions with code examples
+  - Keyboard navigation and screen reader testing
+  - Color contrast optimization with specific fix recommendations
+- **AI Video Analysis** - Multi-provider cascade for accessibility
+  - Vision API support: OpenAI → Anthropic → Ollama → moondream
+  - WebVTT caption generation for videos
+  - Automated audio description suggestions
+- **EU Compliance Support**
+  - EN 301 549 European accessibility standard mapping
+  - EU Accessibility Act compliance checking
+- **ARIA Authoring Practices Guide (APG)**
+  - Pattern suggestions for common UI components
+  - Accessible name computation (AccName)
+- **10 New MCP Accessibility Tools**
+  - `scan-comprehensive` - Full WCAG 2.2 scan
+  - `remediation-code-generator` - Auto-fix code generation
+  - `html-report-generator` - Detailed HTML reports
+  - `markdown-report-generator` - Markdown reports
+  - `video-vision-analyzer` - AI video accessibility analysis
+  - `webvtt-generator` - Caption file generation
+  - `accname-computation` - Accessible name calculation
+  - `apg-patterns` - ARIA pattern suggestions
+  - `en-301-549-mapping` - EU standard mapping
+  - `eu-accessibility-act` - EU Act compliance
+
+**Agent count increased from 19 → 20 QE agents**
+
+#### G4: Unified Memory Architecture - BinaryCache Integration
+- **BinaryCache Integration** with UnifiedMemoryCoordinator for TRM pattern caching
+- `cacheTRMPattern()` - Cache TRM patterns with binary serialization
+- `getCachedTRMPattern()` - Retrieve cached patterns with O(1) key access
+- `persistBinaryCache()` - Persist cache to disk with atomic writes
+- `getBinaryCacheMetrics()` - Cache statistics (hit rate, miss rate, entries)
+- `invalidateBinaryCache()` - Selective cache invalidation with triggers
+- 6x faster pattern loading compared to JSON serialization
+
+#### G6: OpenRouter Provider with Model Hot-Swap
+- **OpenRouterProvider** - Full `ILLMProvider` implementation for OpenRouter API
+  - 300+ model access via unified interface
+  - Model hot-swapping at runtime without restart
+  - Auto-routing with cost optimization (`auto` model)
+  - Vision, streaming, and embeddings support
+  - Cost tracking per model with request counting
+- **Smart Environment Detection** - Automatic provider selection
+  - Claude Code + ANTHROPIC_API_KEY → Claude
+  - OPENROUTER_API_KEY → OpenRouter (300+ models)
+  - ANTHROPIC_API_KEY → Claude
+  - ruvLLM available → Local inference
+- **LLMProviderFactory** enhancements
+  - `hotSwapModel(model)` - Switch models at runtime
+  - `getCurrentModel()` - Get active model name
+  - `listAvailableModels()` - List available OpenRouter models
+  - `detectEnvironment()` - Get environment signals
+- New helper functions in providers module:
+  - `createOpenRouterWithAutoRoute()` - Create auto-routing provider
+  - `hotSwapModel()`, `getCurrentModel()`, `listAvailableModels()`
+
+#### Environment Variables
+- `OPENROUTER_API_KEY` - OpenRouter API key
+- `OPENROUTER_DEFAULT_MODEL` - Default model (default: `auto`)
+- `OPENROUTER_SITE_URL` - Your site URL for rankings
+- `OPENROUTER_SITE_NAME` - Your site name
+- `LLM_PROVIDER` - Force specific provider (`claude`, `openrouter`, `ruvllm`, `auto`)
+
+### Files Added
+- `src/providers/OpenRouterProvider.ts` - OpenRouter provider (~500 LOC)
+- `tests/providers/OpenRouterProvider.test.ts` - 25 unit tests
+
+### Files Modified
+- `src/core/memory/UnifiedMemoryCoordinator.ts` - BinaryCache integration
+- `src/providers/LLMProviderFactory.ts` - OpenRouter + hot-swap + smart detection
+- `src/providers/index.ts` - New exports
+
+### Tests
+- OpenRouterProvider: 25 tests (metadata, init, completion, cost, hot-swap, discovery, health, embeddings, tokens, shutdown)
+
 ## [2.4.0] - 2025-12-13
 
 ### Added

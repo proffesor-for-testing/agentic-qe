@@ -43,7 +43,9 @@ describe('Constitution Schema', () => {
         metrics: [],
         thresholds: [],
         metadata: {
-          created: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          status: 'active',
           author: 'test',
           applicableTo: ['*'],
         },

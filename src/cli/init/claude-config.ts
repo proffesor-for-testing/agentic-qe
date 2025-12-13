@@ -159,7 +159,7 @@ function getAQEHooks(): any {
         hooks: [
           {
             type: "command",
-            command: `/bin/bash -c 'echo "🔄 PreCompact: Review CLAUDE.md for 19 QE agents, skills, and learning protocols"'`
+            command: `/bin/bash -c 'echo "🔄 PreCompact: Review CLAUDE.md for 20 QE agents, skills, and learning protocols"'`
           }
         ]
       },
@@ -168,7 +168,7 @@ function getAQEHooks(): any {
         hooks: [
           {
             type: "command",
-            command: `/bin/bash -c 'echo "🔄 Auto-Compact: 19 QE agents available. Use: npx aqe learn status"'`
+            command: `/bin/bash -c 'echo "🔄 Auto-Compact: 20 QE agents available. Use: npx aqe learn status"'`
           }
         ]
       }

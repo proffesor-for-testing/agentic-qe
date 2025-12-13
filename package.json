@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
-  "version": "2.4.0",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 41 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 84 MCP tools with lazy loading (87% context reduction), and native TypeScript hooks",
+  "version": "2.5.0",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 41 QE skills, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 85 MCP tools with lazy loading (87% context reduction), and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
@@ -106,6 +106,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.64.0",
+    "@axe-core/playwright": "^4.11.0",
     "@babel/parser": "^7.24.0",
     "@babel/traverse": "^7.24.0",
     "@modelcontextprotocol/sdk": "^1.24.0",
@@ -124,6 +125,7 @@
     "@opentelemetry/sdk-trace-node": "^1.28.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "@ruvector/core": "^0.1.15",
+    "@ruvector/ruvllm": "^0.2.3",
     "@types/ws": "^8.18.1",
     "@xenova/transformers": "^2.6.0",
     "agentdb": "^1.6.1",
