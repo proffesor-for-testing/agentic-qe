@@ -28,20 +28,20 @@ describe('Learning Handlers - RED Phase', () => {
   beforeEach(() => {
     // Create mock objects for dependencies
     mockRegistry = {
-      getAgent: () => null,
-      registerAgent: () => {}
+      getAgent: jest.fn().mockReturnValue(null),
+      registerAgent: jest.fn()
     };
     mockHookExecutor = {
-      executePreHook: async () => undefined,
-      executePostHook: async () => undefined,
-      executeHook: async () => undefined
+      executePreHook: jest.fn().mockResolvedValue(undefined),
+      executePostHook: jest.fn().mockResolvedValue(undefined),
+      executeHook: jest.fn().mockResolvedValue(undefined)
     };
 
     mockDb = {
-      prepare: function() { return this; },
-      run: () => ({ lastInsertRowid: 1 }),
-      get: () => null,
-      all: () => []
+      prepare: jest.fn().mockReturnThis(),
+      run: jest.fn().mockReturnValue({ lastInsertRowid: 1 }),
+      get: jest.fn().mockReturnValue(null),
+      all: jest.fn().mockReturnValue([])
     };
 
     mockMemory = {

@@ -855,3 +855,17 @@ export async function createAgent(type: string, id: string, config: any, eventBu
 
   return await factory.createAgent(type as AgentType, { id, ...config });
 }
+
+// SONA Integration (NEW in v2.4.0+ - ruvLLM Integration)
+export {
+  createSONAContext,
+  withSONALearning,
+  isSONAAvailable,
+  getRecommendedConfig,
+  quickStartSONA,
+  createLearningStrategyFactory,
+} from './SONAIntegration';
+export type {
+  SONAIntegrationConfig,
+  SONAAgentContext,
+} from './SONAIntegration';

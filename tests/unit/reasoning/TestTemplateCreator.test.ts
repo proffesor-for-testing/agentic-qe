@@ -170,9 +170,9 @@ describe('TestTemplateCreator', () => {
       const validParams = {
         suiteName: 'Test Suite',
         testName: 'Test Case',
-        input: null,
-        expectedOutput: null,
-        edgeValue: 'null'
+        input: { value: null },
+        expectedOutput: { value: null },
+        edgeValue: { type: 'null', description: 'null edge case' }
       };
 
       const result = await creator.validateTemplate(template, validParams);
@@ -223,9 +223,9 @@ describe('TestTemplateCreator', () => {
       const params = {
         suiteName: 'Calculator Tests',
         testName: 'should handle null input',
-        input: null,
-        expectedOutput: null,
-        edgeValue: 'null'
+        input: { value: null },
+        expectedOutput: { value: null },
+        edgeValue: { type: 'null', description: 'null edge case' }
       };
 
       const code = await creator.instantiateTemplate(template, TestFramework.JEST, params);
@@ -242,8 +242,8 @@ describe('TestTemplateCreator', () => {
       const params = {
         suiteName: 'Math Tests',
         testName: 'addition works',
-        input: [1, 2],
-        expectedOutput: 3
+        input: { values: [1, 2] },
+        expectedOutput: { value: 3 }
       };
 
       const code = await creator.instantiateTemplate(template, TestFramework.JEST, params);
@@ -272,8 +272,8 @@ describe('TestTemplateCreator', () => {
       const params = {
         suiteName: 'Test',
         testName: 'test',
-        input: 1,
-        expectedOutput: 1
+        input: { value: 1 },
+        expectedOutput: { value: 1 }
       };
 
       const jestCode = await creator.instantiateTemplate(template, TestFramework.JEST, params);

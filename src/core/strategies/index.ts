@@ -92,6 +92,13 @@ export {
   type AcceleratedLearningConfig,
 } from './AcceleratedLearningStrategy';
 
+export {
+  SONALearningStrategy,
+  createSONALearningStrategy,
+  type SONALearningConfig,
+  type SONAMetrics,
+} from './SONALearningStrategy';
+
 // === Strategy Configuration ===
 
 /**
@@ -128,10 +135,18 @@ export interface AgentMemoryStrategyConfig {
  * Learning strategy configuration
  */
 export interface AgentLearningStrategyConfig {
-  type: 'default' | 'accelerated' | 'disabled';
+  type: 'default' | 'accelerated' | 'sona' | 'disabled';
   enablePatternLearning?: boolean;
   learningRate?: number;
   minConfidenceThreshold?: number;
+  /** SONA-specific: Enable adaptive LoRA learning */
+  enableSONA?: boolean;
+  /** SONA-specific: MicroLoRA rank (1-2 for instant adaptation) */
+  microLoraRank?: number;
+  /** SONA-specific: BaseLoRA rank (4-16 for long-term learning) */
+  baseLoraRank?: number;
+  /** SONA-specific: Consolidation interval (default: 100 tasks) */
+  consolidationInterval?: number;
 }
 
 /**

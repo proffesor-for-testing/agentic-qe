@@ -117,7 +117,7 @@ describe('Database Migration - Unit Tests', () => {
 
       // Modify database
       const db = new Database(sourceDb);
-      db.exec('INSERT INTO episodes VALUES ("ep4", "session2", "new-task", NULL, NULL, NULL, 0.5, 0, 0, 0, 1234567893)');
+      db.exec("INSERT INTO episodes VALUES ('ep4', 'session2', 'new-task', NULL, NULL, NULL, 0.5, 0, 0, 0, 1234567893)");
       db.close();
 
       const checksum2 = calculateChecksum(sourceDb);
@@ -185,7 +185,7 @@ describe('Database Migration - Unit Tests', () => {
 
       // Corrupt target database
       const db = new Database(targetDb);
-      db.exec('DELETE FROM episodes WHERE id = "ep1"');
+      db.exec("DELETE FROM episodes WHERE id = 'ep1'");
       db.close();
 
       const sourceChecksum = calculateChecksum(sourceDb);
@@ -332,8 +332,10 @@ describe('Database Migration - Unit Tests', () => {
       const corruptDb = path.join(testDir, 'corrupt.db');
       fs.writeFileSync(corruptDb, 'NOT A VALID SQLITE DATABASE');
 
+      // better-sqlite3 may not throw on open, but will throw on query
       expect(() => {
-        new Database(corruptDb);
+        const db = new Database(corruptDb);
+        db.exec('SELECT * FROM sqlite_master'); // This will throw for corrupt file
       }).toThrow();
     });
 

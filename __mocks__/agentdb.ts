@@ -9,36 +9,125 @@
  * Instead, use a real async function that wraps jest.fn() for tracking.
  */
 
+// In-memory storage for stateful mock behavior
+const mockStorage = new Map<string, Map<string, any>>();
+
+// Get or create table storage
+const getTableStorage = (dbPath: string, table: string = 'patterns') => {
+  const key = `${dbPath}:${table}`;
+  if (!mockStorage.has(key)) {
+    mockStorage.set(key, new Map());
+  }
+  return mockStorage.get(key)!;
+};
+
 // Create mock database object with all required methods
 // AgentDBService expects: db.exec(), db.run(), db.get(), db.all(), db.close()
-const createMockDatabase = () => ({
-  // Direct methods used by AgentDBService
-  exec: jest.fn().mockResolvedValue(undefined),
-  run: jest.fn().mockResolvedValue({ lastID: 1, changes: 1 }),
-  get: jest.fn().mockResolvedValue({ count: 0, rowid: 1 }),
-  all: jest.fn().mockResolvedValue([]),
-  close: jest.fn().mockResolvedValue(undefined),
-  save: jest.fn().mockResolvedValue(undefined),
-  // Statement-based API (for sql.js compatibility)
-  prepare: jest.fn().mockReturnValue({
-    run: jest.fn(),
-    get: jest.fn(),
-    all: jest.fn().mockReturnValue([]),
-    step: jest.fn().mockReturnValue(false),
-    bind: jest.fn(),
-    free: jest.fn(),
-    getAsObject: jest.fn().mockReturnValue({})
-  })
-});
+const createMockDatabase = (dbPath: string = 'default') => {
+  let rowIdCounter = 0;
+
+  return {
+    _dbPath: dbPath,
+    // Direct methods used by AgentDBService
+    exec: jest.fn().mockResolvedValue(undefined),
+    run: jest.fn().mockImplementation(async (sql: string, params?: any[]) => {
+      const storage = getTableStorage(dbPath);
+
+      // Handle INSERT OR REPLACE
+      if (sql.includes('INSERT OR REPLACE INTO patterns')) {
+        const id = params?.[0];
+        if (id) {
+          rowIdCounter++;
+          storage.set(id, {
+            id,
+            type: params?.[1],
+            domain: params?.[2],
+            data: params?.[3],
+            confidence: params?.[4],
+            usage_count: params?.[5],
+            success_count: params?.[6],
+            embedding: params?.[7],
+            created_at: params?.[8],
+            last_used: params?.[9],
+            metadata: params?.[10],
+            rowid: rowIdCounter
+          });
+        }
+        return { lastID: rowIdCounter, changes: 1 };
+      }
+
+      // Handle DELETE
+      if (sql.includes('DELETE FROM patterns WHERE id')) {
+        const id = params?.[0];
+        const existed = storage.has(id);
+        storage.delete(id);
+        return { changes: existed ? 1 : 0 };
+      }
+
+      return { lastID: rowIdCounter, changes: 1 };
+    }),
+    get: jest.fn().mockImplementation(async (sql: string, params?: any[]) => {
+      const storage = getTableStorage(dbPath);
+
+      // Handle COUNT(*)
+      if (sql.includes('COUNT(*)')) {
+        return { count: storage.size };
+      }
+
+      // Handle SELECT by id
+      if (sql.includes('WHERE id = ?')) {
+        const id = params?.[0];
+        return storage.get(id) || null;
+      }
+
+      // Handle SELECT by rowid
+      if (sql.includes('WHERE rowid = ?')) {
+        const rowid = params?.[0];
+        for (const row of storage.values()) {
+          if (row.rowid === rowid) {
+            return row;
+          }
+        }
+        return null;
+      }
+
+      return { count: storage.size, rowid: 1 };
+    }),
+    all: jest.fn().mockImplementation(async () => {
+      const storage = getTableStorage(dbPath);
+      return Array.from(storage.values());
+    }),
+    close: jest.fn().mockImplementation(async () => {
+      // Clear storage for this database on close
+      mockStorage.delete(`${dbPath}:patterns`);
+    }),
+    save: jest.fn().mockResolvedValue(undefined),
+    // Statement-based API (for sql.js compatibility)
+    prepare: jest.fn().mockReturnValue({
+      run: jest.fn(),
+      get: jest.fn(),
+      all: jest.fn().mockReturnValue([]),
+      step: jest.fn().mockReturnValue(false),
+      bind: jest.fn(),
+      free: jest.fn(),
+      getAsObject: jest.fn().mockReturnValue({})
+    })
+  };
+};
 
 // Track calls for testing purposes
 const createDatabaseCalls: any[] = [];
+
+// Clear all mock storage between tests
+export function clearMockStorage(): void {
+  mockStorage.clear();
+}
 
 // IMPORTANT: createDatabase must return a Promise
 // Using a real async function that won't be reset by resetMocks: true
 export async function createDatabase(dbPath?: string): Promise<ReturnType<typeof createMockDatabase>> {
   createDatabaseCalls.push({ dbPath, timestamp: Date.now() });
-  return createMockDatabase();
+  return createMockDatabase(dbPath || 'default');
 }
 
 // Allow tests to check calls
@@ -174,6 +263,7 @@ export interface HNSWSearchResult {
 
 export default {
   createDatabase,
+  clearMockStorage,
   WASMVectorSearch,
   HNSWIndex,
   AgentDB,

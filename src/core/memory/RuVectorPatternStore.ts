@@ -695,8 +695,14 @@ export class RuVectorPatternStore implements IPatternStore {
 
     if (this.useNative) {
       try {
-        const nativeCount = this.nativeDb.len();
-        baseStats.count = nativeCount;
+        const nativeCountResult = this.nativeDb.len();
+        // Handle both sync and async len() implementations
+        const nativeCount = nativeCountResult instanceof Promise
+          ? await nativeCountResult
+          : nativeCountResult;
+        if (typeof nativeCount === 'number') {
+          baseStats.count = nativeCount;
+        }
         baseStats.indexType = 'HNSW';
       } catch {
         // Use pattern map count as fallback

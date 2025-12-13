@@ -100,6 +100,17 @@ export {
   createCacheManager,
 } from './BinaryCacheManager';
 
+// Standalone implementations (BinaryCacheImpl - alternative lightweight implementation)
+export {
+  BinaryCacheSerializerImpl,
+  BinaryCacheValidatorImpl,
+  BinaryCacheInvalidatorImpl,
+  BinaryCacheReaderImpl,
+  BinaryCacheBuilderImpl,
+  TRMBinaryCacheBuilderImpl,
+  createBinaryCacheManager,
+} from './BinaryCacheImpl';
+
 // Platform-optimized file operations (Phase 2 A2.2)
 // Re-export for convenient access in cache operations
 export {

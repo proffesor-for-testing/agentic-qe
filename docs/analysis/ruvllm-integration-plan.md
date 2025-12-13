@@ -1,15 +1,18 @@
 # ruvLLM + Agentic QE Fleet Integration Plan
 
-**Document Version**: 1.0.0
-**Date**: 2025-12-12
+**Document Version**: 1.1.0
+**Date**: 2025-12-13
 **Author**: GOAP Analysis Agent
-**Status**: DRAFT - Ready for Implementation
+**Status**: DRAFT - Updated for v2.4.0 Architecture
+**Last Updated**: 2025-12-13 (v2.4.0 Impact Analysis)
+
+> **v2.4.0 Update**: This plan has been updated to leverage new v2.4.0 features including strategy-based architecture, binary cache infrastructure, and namespaced memory. See [ruvllm-plan-v2.4.0-impact.md](./ruvllm-plan-v2.4.0-impact.md) for detailed analysis.
 
 ---
 
 ## Executive Summary
 
-This document provides a comprehensive GOAP (Goal-Oriented Action Planning) analysis for integrating **@ruvector/ruvllm v0.2.3** into the **Agentic QE Fleet v2.3.5**. The integration leverages TRM (Tiny Recursive Models) for enhanced agent reasoning, SONA adaptive learning for continuous improvement, and local inference capabilities for cost-effective operations.
+This document provides a comprehensive GOAP (Goal-Oriented Action Planning) analysis for integrating **@ruvector/ruvllm v0.2.3** into the **Agentic QE Fleet v2.4.0**. The integration leverages TRM (Tiny Recursive Models) for enhanced agent reasoning, SONA adaptive learning for continuous improvement, and local inference capabilities for cost-effective operations.
 
 **Key Benefits**:
 - **70-81% cost reduction** via intelligent local/cloud routing
@@ -17,6 +20,13 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 - **Adaptive learning** via SONA's two-tier LoRA with catastrophic forgetting protection
 - **Faster test generation** with pattern-based acceleration and local inference
 - **Privacy-first** option for sensitive codebases
+
+**v2.4.0 Enhancements** (12% faster integration):
+- **Strategy Pattern Integration**: Clean injection via `AgentLearningStrategy` - no BaseAgent modification needed
+- **Binary Cache Acceleration**: 6x faster pattern loading with MessagePack serialization
+- **Namespaced Memory**: Agent-local and shared namespaces for SONA LoRA isolation
+- **Benchmark Infrastructure**: Validation framework ready for performance claims
+- **Reduced Effort**: 117 hours (was 133h) - 16 hours saved via v2.4.0 architecture
 
 ---
 
@@ -190,7 +200,7 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 
 ## 3. Integration Milestones
 
-### Milestone 1: Foundation (Week 1)
+### Milestone 1: Foundation (Week 1) - **17 hours** *(was 15h, +2h for binary cache)*
 
 **M1.1: Install ruvLLM Dependencies**
 - **Actions**:
@@ -235,25 +245,81 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 - **Dependencies**: M1.2
 - **Estimated Effort**: 6 hours
 
-**Milestone 1 Deliverable**: Working local inference with basic routing
+**M1.4: Binary Cache Integration** *(NEW in v2.4.0)*
+- **Actions**:
+  1. Create `BinaryMetadataCache` instance for TRM patterns
+  2. Configure compression threshold (1KB recommended)
+  3. Integrate with RuvllmProvider pattern storage
+  4. Add cache invalidation hooks for model updates
+- **Success Criteria**:
+  - Binary cache stores/retrieves TRM reasoning patterns
+  - 6x pattern loading speedup achieved
+  - Compression working for large patterns (>1KB)
+- **Dependencies**: M1.2
+- **Estimated Effort**: 2 hours
+
+**Code Example** (v2.4.0 Binary Cache):
+```typescript
+const patternCache = new BinaryMetadataCache({
+  cachePath: '.agentic-qe/cache/ruvllm-patterns.bin',
+  compressionThreshold: 1024,
+  enableLazyDeserialization: true
+});
+
+await ruvllmProvider.initialize({
+  patternCache,
+  enableBinaryCache: true
+});
+```
+
+**Milestone 1 Deliverable**: Working local inference with basic routing and binary cache
 
 ---
 
-### Milestone 2: TRM Recursive Reasoning (Week 2)
+### Milestone 2: TRM Recursive Reasoning (Week 2) - **26 hours** *(was 30h, -4h via strategy pattern)*
 
-**M2.1: TRM Integration in TestGeneratorAgent**
+**M2.1: TRM Integration via Strategy Pattern** *(v2.4.0 approach)*
 - **Actions**:
-  1. Add `TRMReasoningEngine` class wrapping ruvLLM TRM API
+  1. Create `TRMLearningStrategy` implementing `AgentLearningStrategy` interface
   2. Implement `recursiveOptimize(testSuite, iterations)` method
-  3. Integrate with `generateTestsWithAI()` pipeline
+  3. Inject strategy into TestGeneratorAgent (no BaseAgent modification!)
   4. Add iteration tracking and convergence detection
-  5. Implement quality improvement metrics
+  5. Implement quality improvement metrics with binary cache
 - **Success Criteria**:
   - TRM iteratively improves test suites
   - Convergence detected (quality plateaus)
   - 3-7 iterations typical for complex tasks
-- **Dependencies**: M1.3
-- **Estimated Effort**: 12 hours
+  - Clean strategy injection (no tight coupling)
+- **Dependencies**: M1.4
+- **Estimated Effort**: 10 hours *(was 12h)*
+
+**Code Example** (v2.4.0 Strategy Injection):
+```typescript
+// NEW APPROACH: Inject custom strategy (clean, testable, rollback-friendly)
+class TRMLearningStrategy implements AgentLearningStrategy {
+  constructor(
+    private ruvllm: RuvLLM,
+    private learningEngine: LearningEngine,
+    private patternCache: BinaryMetadataCache
+  ) {}
+
+  async recommendStrategy(taskState: TaskState): Promise<StrategyRecommendation> {
+    const trmResult = await this.ruvllm.completeTRM({
+      messages: this.buildOptimizationPrompt(taskState),
+      maxIterations: 7,
+      convergenceThreshold: 0.95
+    });
+    await this.patternCache.set(`trm:${taskState.hash}`, trmResult);
+    return this.convertToRecommendation(trmResult);
+  }
+}
+
+// Clean injection into agent
+const agent = new TestGeneratorAgent({
+  ...config,
+  learningStrategy: new TRMLearningStrategy(ruvllm, learningEngine, cache)
+});
+```
 
 **M2.2: Recursive Optimization Pipeline**
 - **Actions**:
@@ -262,19 +328,19 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
      - Test generation (coverage maximization)
      - Pattern extraction (quality improvement)
      - Test selection (sublinear optimization)
-  3. Add performance benchmarks
+  3. Integrate with binary cache for 6x pattern retrieval speedup
   4. Document optimization strategies
 - **Success Criteria**:
   - Recursive optimization reduces test count by 15%+
   - Coverage improves by 10%+ via iteration
   - Performance benchmarks show efficiency gains
 - **Dependencies**: M2.1
-- **Estimated Effort**: 10 hours
+- **Estimated Effort**: 8 hours *(was 10h)*
 
 **M2.3: Integration Testing**
 - **Actions**:
   1. Test TRM reasoning on sample codebases
-  2. Compare quality with baseline (non-TRM)
+  2. Compare quality with baseline (non-TRM) using v2.4.0 benchmark suite
   3. Measure cost savings vs cloud-only
   4. Benchmark latency improvements
   5. Validate convergence behavior
@@ -289,76 +355,128 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 
 ---
 
-### Milestone 3: SONA Adaptive Learning (Week 3)
+### Milestone 3: SONA Adaptive Learning (Week 3) - **28 hours** *(was 36h, -8h via adapters + binary cache)*
 
-**M3.1: SONA Integration with LearningEngine**
+**M3.1: SONA Integration via LearningEngineAdapter** *(v2.4.0 approach)*
 - **Actions**:
-  1. Add `SONAAdapter` class wrapping ruvLLM SONA API
-  2. Implement MicroLoRA adaptation hooks in LearningEngine
+  1. Extend `LearningEngineAdapter` with SONA capabilities (no LearningEngine modification!)
+  2. Implement MicroLoRA adaptation hooks
   3. Add BaseLoRA consolidation scheduler (every 100 tasks)
   4. Integrate EWC++ for forgetting prevention
-  5. Store adapted weights in SwarmMemoryManager
+  5. Store adapted weights in namespaced storage (`aqe/{agentType}/sona/...`)
 - **Success Criteria**:
   - MicroLoRA adapts within 10 iterations
   - BaseLoRA consolidates successfully
   - EWC++ maintains >95% old pattern retention
+  - Clean adapter extension (no tight coupling)
 - **Dependencies**: M2.3
-- **Estimated Effort**: 14 hours
+- **Estimated Effort**: 10 hours *(was 14h)*
 
-**M3.2: ReasoningBank Integration**
+**Code Example** (v2.4.0 Adapter Extension):
+```typescript
+// NEW: Extend LearningEngineAdapter with SONA capabilities
+class SONALearningAdapter extends LearningEngineAdapter {
+  private microLoRA: MicroLoRAAdapter;
+  private baseLoRA: BaseLoRAAdapter;
+  private ewc: EWCProtection;
+  private patternCache: BinaryMetadataCache;
+
+  async recordExecution(event: ExecutionEvent): Promise<void> {
+    await super.recordExecution(event); // Parent tracking
+
+    // SONA instant adaptation (MicroLoRA)
+    await this.microLoRA.adapt({
+      input: event.state,
+      output: event.result,
+      reward: event.reward
+    });
+
+    // Store in namespaced memory (isolated per agent)
+    await this.memoryStrategy.storeLocal(
+      `sona/microLoRA/${event.taskId}`,
+      this.microLoRA.getWeights()
+    );
+
+    // Consolidate every 100 tasks
+    if (event.taskCount % 100 === 0) {
+      await this.consolidateToBaseLoRA();
+    }
+  }
+}
+```
+
+**M3.2: ReasoningBank Integration with Binary Cache**
 - **Actions**:
   1. Connect ruvLLM ReasoningBank to existing QEReasoningBank
   2. Implement K-means++ clustering for pattern organization
-  3. Add pattern quality scoring and ranking
-  4. Implement cross-agent pattern sharing via SONA
+  3. Store clusters in binary cache (6x faster retrieval)
+  4. Implement cross-agent pattern sharing via shared namespace
   5. Add pattern pruning (remove low-quality patterns)
 - **Success Criteria**:
   - Patterns organized into semantic clusters
   - Top 20% patterns account for 80% usage (Pareto)
   - Cross-agent sharing improves fleet-wide performance
 - **Dependencies**: M3.1
-- **Estimated Effort**: 12 hours
+- **Estimated Effort**: 10 hours *(was 12h)*
 
 **M3.3: Continuous Improvement Loop**
 - **Actions**:
   1. Implement feedback loop: execute → measure → adapt
   2. Add metric tracking for pattern quality over time
   3. Create visualization for learning progress
-  4. Implement A/B testing (SONA vs baseline)
+  4. Implement A/B testing (SONA vs baseline) using benchmark suite
   5. Document optimal adaptation schedules
 - **Success Criteria**:
   - Pattern quality improves 5%+ over 1000 tasks
   - Metrics show consistent upward trend
   - A/B tests validate SONA benefits
 - **Dependencies**: M3.2
-- **Estimated Effort**: 10 hours
+- **Estimated Effort**: 8 hours *(was 10h)*
 
 **Milestone 3 Deliverable**: Self-improving agents with adaptive learning
 
 ---
 
-### Milestone 4: Unified Memory Architecture (Week 4)
+### Milestone 4: Unified Memory Architecture (Week 4) - **22 hours** *(was 28h, -6h via binary cache + benchmark infrastructure)*
 
-**M4.1: HNSW Memory Consolidation**
+**M4.1: HNSW + Binary Cache Consolidation** *(v2.4.0 approach)*
 - **Actions**:
   1. Migrate all vector operations to HNSWVectorMemory
   2. Configure ruvLLM to use shared HNSW index
-  3. Consolidate AgentDB patterns into unified index
-  4. Add compression for cold patterns (SONA compression)
+  3. Add binary cache layer for cold patterns (6x faster, 4x compression)
+  4. Implement hot/cold path routing with automatic compression
   5. Implement automatic rebalancing
 - **Success Criteria**:
   - Single HNSW index for all vectors
-  - 30%+ memory reduction
+  - 30%+ memory reduction (via compression)
   - <50ms p95 retrieval latency
   - No data loss during migration
 - **Dependencies**: M3.3
-- **Estimated Effort**: 12 hours
+- **Estimated Effort**: 10 hours *(was 12h)*
+
+**Code Example** (v2.4.0 Unified Memory):
+```typescript
+class UnifiedHNSWMemory {
+  private hnswIndex: HNSWVectorMemory;
+  private binaryCache: BinaryMetadataCache;
+  private memoryStrategy: AgentMemoryStrategy;
+
+  async storeVector(vector: VectorEntry): Promise<void> {
+    if (vector.usageCount > this.hotThreshold) {
+      await this.hnswIndex.storePattern(vector); // Hot: full precision
+    } else {
+      const compressed = await this.compress(vector);
+      await this.binaryCache.set(`vector:${vector.id}`, compressed); // Cold: compressed
+    }
+  }
+}
+```
 
 **M4.2: ReasoningBank Optimization**
 - **Actions**:
-  1. Store ReasoningBank patterns in ruvLLM memory
+  1. Store ReasoningBank patterns in unified memory
   2. Use SONA clustering for pattern organization
-  3. Implement hot/cold path optimization
+  3. Leverage binary cache for cold patterns
   4. Add automatic pattern pruning (LRU + quality)
   5. Benchmark retrieval performance
 - **Success Criteria**:
@@ -366,14 +484,14 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
   - Hot patterns always in cache
   - Cold patterns compressed automatically
 - **Dependencies**: M4.1
-- **Estimated Effort**: 10 hours
+- **Estimated Effort**: 6 hours *(was 10h)*
 
-**M4.3: Performance Benchmarks**
+**M4.3: Performance Benchmarks** *(leverage v2.4.0 infrastructure)*
 - **Actions**:
-  1. Run comprehensive memory benchmarks
-  2. Compare before/after metrics
+  1. Use existing benchmark suite (`benchmarks/suite.ts`)
+  2. Compare baseline v2.4.0 with ruvLLM-enhanced
   3. Validate correctness of unified system
-  4. Document performance characteristics
+  4. Track regression via CI workflow
   5. Create optimization guide
 - **Success Criteria**:
   - Benchmarks show 30%+ memory reduction
@@ -386,14 +504,14 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 
 ---
 
-### Milestone 5: Production Readiness (Week 5)
+### Milestone 5: Production Readiness (Week 5) - **24 hours** *(unchanged)*
 
-**M5.1: Monitoring & Telemetry**
+**M5.1: Monitoring & Telemetry** *(leverage v2.4.0 AI output format)*
 - **Actions**:
   1. Add OpenTelemetry metrics for ruvLLM operations
   2. Track TRM iteration counts, convergence times
   3. Monitor SONA adaptation success rates
-  4. Add alerting for degraded performance
+  4. Export metrics using AI output format for structured analysis
   5. Create Grafana dashboards
 - **Success Criteria**:
   - All metrics collected successfully
@@ -418,12 +536,12 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 
 **M5.3: Release Preparation**
 - **Actions**:
-  1. Run full integration test suite
+  1. Run full integration test suite with benchmark validation
   2. Validate all milestones complete
   3. Perform security audit
   4. Update CHANGELOG.md
   5. Prepare release notes
-  6. Tag release v2.4.0
+  6. Tag release v2.5.0 *(ruvLLM integration release)*
 - **Success Criteria**:
   - All tests pass
   - Security vulnerabilities addressed
@@ -432,7 +550,7 @@ This document provides a comprehensive GOAP (Goal-Oriented Action Planning) anal
 - **Dependencies**: M5.2
 - **Estimated Effort**: 6 hours
 
-**Milestone 5 Deliverable**: Production-ready ruvLLM integration (v2.4.0)
+**Milestone 5 Deliverable**: Production-ready ruvLLM integration (v2.5.0)
 
 ---
 
@@ -908,14 +1026,23 @@ npm run migrate:memory -- --rollback
 - 1x QE Specialist (testing, validation)
 - 1x DevOps Engineer (deployment, monitoring)
 
-**Time Allocation**:
-- Week 1: Foundation (M1) - 15 hours
-- Week 2: TRM Integration (M2) - 30 hours
-- Week 3: SONA Learning (M3) - 36 hours
-- Week 4: Memory Consolidation (M4) - 28 hours
-- Week 5: Production Prep (M5) - 24 hours
+**Time Allocation** *(Updated for v2.4.0)*:
+- Week 1: Foundation (M1) - **17 hours** *(+2h for binary cache)*
+- Week 2: TRM Integration (M2) - **26 hours** *(-4h via strategy pattern)*
+- Week 3: SONA Learning (M3) - **28 hours** *(-8h via adapters + cache)*
+- Week 4: Memory Consolidation (M4) - **22 hours** *(-6h via cache + benchmarks)*
+- Week 5: Production Prep (M5) - **24 hours** *(unchanged)*
 
-**Total Effort**: 133 hours (~3.3 weeks for full team)
+**Total Effort**: **117 hours** (~2.9 weeks for full team) - **12% faster than original 133h estimate**
+
+| Milestone | Original | Updated | Savings |
+|-----------|----------|---------|---------|
+| M1: Foundation | 15h | 17h | +2h (binary cache) |
+| M2: TRM Integration | 30h | 26h | -4h |
+| M3: SONA Learning | 36h | 28h | -8h |
+| M4: Memory Consolidation | 28h | 22h | -6h |
+| M5: Production Prep | 24h | 24h | 0h |
+| **Total** | **133h** | **117h** | **-16h (-12%)** |
 
 ### 6.2 Infrastructure Resources
 
@@ -963,6 +1090,11 @@ npm run migrate:memory -- --rollback
 - Monthly: $540 (cloud) + $0 (local) = $540
 
 **Savings**: $1,260/month (70% reduction)
+
+**Development Cost Update** (v2.4.0):
+- Original: 133 hours × $100/hr = $13,300
+- Updated: **117 hours × $100/hr = $11,700**
+- Development savings: **$1,600 (-12%)**
 
 ---
 
@@ -1043,17 +1175,23 @@ M1.1 (Install)
 
 **Critical Path** (longest dependency chain):
 ```
-M1.1 → M1.2 → M1.3 → M2.1 → M2.2 → M2.3 → M3.1 → M3.2 → M3.3 → M4.1 → M4.2 → M4.3 → M5.1 → M5.2 → M5.3
+M1.1 → M1.2 → M1.3 → M1.4 → M2.1 → M2.2 → M2.3 → M3.1 → M3.2 → M3.3 → M4.1 → M4.2 → M4.3 → M5.1 → M5.2 → M5.3
 ```
 
-**Duration**: 133 hours (~17 business days with parallelization)
+**Duration** *(Updated for v2.4.0)*: **117 hours** (~14 business days with parallelization)
 
-**Optimization Opportunities**:
+**v2.4.0 Benefits Already Captured**:
+1. Strategy pattern reduces M2.1 complexity - **-4 hours**
+2. LearningEngineAdapter simplifies M3.1 - **-4 hours**
+3. Binary cache accelerates M3.2/M4.1 - **-4 hours**
+4. Existing benchmark suite reduces M4.3 - **-4 hours**
+
+**Additional Parallelization Opportunities**:
 1. Start documentation (M5.2) early - saves 5 hours
 2. Parallelize testing (M2.3) with optimization (M2.2) - saves 4 hours
 3. Implement monitoring (M5.1) alongside benchmarks (M4.3) - saves 3 hours
 
-**Optimized Duration**: 121 hours (~15 business days)
+**Optimized Duration**: **105 hours** (~13 business days)
 
 ---
 
@@ -1447,10 +1585,10 @@ const metrics = {
 
 **ReasoningBank**: Pattern storage and retrieval system for successful test generation patterns.
 
-### B. Cost-Benefit Analysis
+### B. Cost-Benefit Analysis *(Updated for v2.4.0)*
 
 **Costs**:
-- Development: 133 hours × $100/hr = $13,300
+- Development: **117 hours** × $100/hr = **$11,700** *(was $13,300)*
 - Infrastructure: $500/month (GPU instance)
 - Ongoing: $100/month (maintenance)
 
@@ -1458,8 +1596,9 @@ const metrics = {
 - Cost Savings: $1,260/month (70% reduction in LLM costs)
 - Efficiency Gains: 20% faster test generation = 2 hours/week saved × $100/hr = $800/month
 - Quality Improvements: Fewer production bugs = ~$2,000/month saved
+- **Development Savings**: $1,600 (12% reduction via v2.4.0 architecture)
 
-**ROI**: Break-even at ~4 months, $40K+ value in first year
+**ROI**: Break-even at **~3.5 months** *(was ~4 months)*, $42K+ value in first year
 
 ### C. Alternative Approaches Considered
 
@@ -1489,8 +1628,16 @@ const metrics = {
 
 ---
 
-**Document Status**: ✅ Complete and ready for implementation
+**Document Status**: ✅ Complete and updated for v2.4.0 architecture
+
+**Version History**:
+- v1.0.0 (2025-12-12): Initial plan created
+- v1.1.0 (2025-12-13): Updated for v2.4.0 architecture (strategy pattern, binary cache, adapters)
+
+**Impact Analysis**: See [ruvllm-plan-v2.4.0-impact.md](./ruvllm-plan-v2.4.0-impact.md) for detailed v2.4.0 change analysis
 
 **Next Review**: After Milestone 1 completion (Week 1)
 
 **Approval Required**: Technical Lead, Product Owner, QE Lead
+
+**Related Issue**: [GitHub Issue #131](https://github.com/proffesor-for-testing/agentic-qe/issues/131)

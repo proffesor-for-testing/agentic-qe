@@ -15,12 +15,30 @@
 import { ILLMProvider, LLMProviderMetadata, LLMHealthStatus, LLMCompletionOptions } from './ILLMProvider';
 import { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 import { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
+import { OpenRouterProvider, OpenRouterConfig, OpenRouterModel } from './OpenRouterProvider';
 import { Logger } from '../utils/Logger';
+import { isRuvLLMAvailable } from '../utils/ruvllm-loader';
 
 /**
  * Provider type enumeration
  */
-export type ProviderType = 'claude' | 'ruvllm' | 'auto';
+export type ProviderType = 'claude' | 'ruvllm' | 'openrouter' | 'auto';
+
+/**
+ * Environment signals for smart provider detection
+ */
+export interface EnvironmentSignals {
+  /** Has ANTHROPIC_API_KEY */
+  hasAnthropicKey: boolean;
+  /** Has OPENROUTER_API_KEY */
+  hasOpenRouterKey: boolean;
+  /** Running in Claude Code environment */
+  isClaudeCode: boolean;
+  /** ruvLLM library is available */
+  hasRuvllm: boolean;
+  /** Explicit LLM_PROVIDER override */
+  explicitProvider?: ProviderType;
+}
 
 /**
  * Provider selection criteria
@@ -57,6 +75,8 @@ export interface LLMProviderFactoryConfig {
   claude?: ClaudeProviderConfig;
   /** Ruvllm provider configuration */
   ruvllm?: RuvllmProviderConfig;
+  /** OpenRouter provider configuration */
+  openrouter?: OpenRouterConfig;
   /** Default provider to use */
   defaultProvider?: ProviderType;
   /** Enable automatic fallback */
@@ -65,6 +85,8 @@ export interface LLMProviderFactoryConfig {
   healthCheckInterval?: number;
   /** Maximum consecutive failures before marking unhealthy */
   maxConsecutiveFailures?: number;
+  /** Enable smart environment detection for auto provider selection */
+  enableSmartDetection?: boolean;
 }
 
 /**
@@ -99,10 +121,11 @@ export class LLMProviderFactory {
   constructor(config: LLMProviderFactoryConfig = {}) {
     this.logger = Logger.getInstance();
     this.config = {
-      defaultProvider: config.defaultProvider || 'claude',
+      defaultProvider: config.defaultProvider || 'auto',
       enableFallback: config.enableFallback ?? true,
       healthCheckInterval: config.healthCheckInterval ?? 60000, // 1 minute
       maxConsecutiveFailures: config.maxConsecutiveFailures ?? 3,
+      enableSmartDetection: config.enableSmartDetection ?? true,
       ...config
     };
     this.providers = new Map();
@@ -121,24 +144,44 @@ export class LLMProviderFactory {
 
     const initPromises: Promise<void>[] = [];
 
-    // Initialize Claude provider if configured
-    if (this.config.claude || process.env.ANTHROPIC_API_KEY) {
+    // Detect environment for smart provider selection
+    const signals = this.detectEnvironment();
+    this.logger.debug('Environment signals detected:', signals);
+
+    // Determine which providers to initialize based on environment
+    const providersToInit = this.determineProvidersToInitialize(signals);
+
+    // Initialize Claude provider if applicable
+    if (providersToInit.includes('claude')) {
       initPromises.push(this.initializeProvider('claude', this.config.claude));
     }
 
-    // Initialize ruvllm provider if configured
-    if (this.config.ruvllm) {
+    // Initialize OpenRouter provider if applicable
+    if (providersToInit.includes('openrouter')) {
+      initPromises.push(this.initializeProvider('openrouter', this.config.openrouter));
+    }
+
+    // Initialize ruvllm provider if applicable
+    if (providersToInit.includes('ruvllm')) {
       initPromises.push(this.initializeProvider('ruvllm', this.config.ruvllm));
     }
 
     await Promise.allSettled(initPromises);
+
+    // Update default provider based on smart detection if enabled
+    if (this.config.enableSmartDetection && this.config.defaultProvider === 'auto') {
+      const selectedDefault = this.selectDefaultProvider(signals);
+      this.config.defaultProvider = selectedDefault;
+      this.logger.info(`Smart detection selected default provider: ${selectedDefault}`);
+    }
 
     // Start health monitoring
     this.startHealthMonitoring();
 
     this.isInitialized = true;
     this.logger.info('LLMProviderFactory initialized', {
-      providers: Array.from(this.providers.keys())
+      providers: Array.from(this.providers.keys()),
+      defaultProvider: this.config.defaultProvider
     });
   }
 
@@ -372,6 +415,9 @@ export class LLMProviderFactory {
         case 'ruvllm':
           provider = new RuvllmProvider(config);
           break;
+        case 'openrouter':
+          provider = new OpenRouterProvider(config);
+          break;
         default:
           throw new Error(`Unknown provider type: ${type}`);
       }
@@ -462,6 +508,174 @@ export class LLMProviderFactory {
     } else {
       stats.failureCount++;
     }
+  }
+
+  // ============================================
+  // Smart Environment Detection (Phase 3)
+  // ============================================
+
+  /**
+   * Detect environment signals for smart provider selection
+   */
+  detectEnvironment(): EnvironmentSignals {
+    return {
+      hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+      hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
+      isClaudeCode: this.detectClaudeCodeEnvironment(),
+      hasRuvllm: isRuvLLMAvailable(),
+      explicitProvider: this.getExplicitProvider(),
+    };
+  }
+
+  /**
+   * Detect if running in Claude Code environment
+   */
+  private detectClaudeCodeEnvironment(): boolean {
+    // Check for Claude Code specific environment variables
+    if (process.env.CLAUDE_CODE) return true;
+    if (process.env.VSCODE_GIT_ASKPASS_NODE) return true;
+    if (process.env.TERM_PROGRAM === 'vscode') return true;
+
+    // Check for Claude Code user agent or shell
+    const shell = process.env.SHELL || '';
+    if (shell.includes('claude')) return true;
+
+    return false;
+  }
+
+  /**
+   * Get explicit provider override from environment
+   */
+  private getExplicitProvider(): ProviderType | undefined {
+    const explicit = process.env.LLM_PROVIDER;
+    if (explicit && ['claude', 'ruvllm', 'openrouter'].includes(explicit)) {
+      return explicit as ProviderType;
+    }
+    return undefined;
+  }
+
+  /**
+   * Determine which providers to initialize based on environment signals
+   */
+  private determineProvidersToInitialize(signals: EnvironmentSignals): ProviderType[] {
+    const providers: ProviderType[] = [];
+
+    // If explicit provider is set, only initialize that one
+    if (signals.explicitProvider && signals.explicitProvider !== 'auto') {
+      providers.push(signals.explicitProvider);
+      return providers;
+    }
+
+    // Initialize based on available credentials
+    if (signals.hasAnthropicKey) {
+      providers.push('claude');
+    }
+
+    if (signals.hasOpenRouterKey) {
+      providers.push('openrouter');
+    }
+
+    if (signals.hasRuvllm || this.config.ruvllm) {
+      providers.push('ruvllm');
+    }
+
+    return providers;
+  }
+
+  /**
+   * Select default provider based on environment signals
+   *
+   * Provider Selection Matrix:
+   * | Environment   | ANTHROPIC_KEY | OPENROUTER_KEY | Selected Provider |
+   * |---------------|---------------|----------------|-------------------|
+   * | Claude Code   | ✓             | -              | Claude            |
+   * | Claude Code   | -             | ✓              | OpenRouter        |
+   * | External      | ✓             | ✓              | OpenRouter        |
+   * | External      | ✓             | -              | Claude            |
+   * | External      | -             | ✓              | OpenRouter        |
+   * | Any           | -             | -              | ruvllm (local)    |
+   */
+  private selectDefaultProvider(signals: EnvironmentSignals): ProviderType {
+    // Priority 1: Explicit override
+    if (signals.explicitProvider && signals.explicitProvider !== 'auto') {
+      return signals.explicitProvider;
+    }
+
+    // Priority 2: Claude Code environment with Anthropic key
+    if (signals.isClaudeCode && signals.hasAnthropicKey) {
+      return 'claude';
+    }
+
+    // Priority 3: OpenRouter for external environments (more models, auto-routing)
+    if (signals.hasOpenRouterKey) {
+      return 'openrouter';
+    }
+
+    // Priority 4: Direct Anthropic if available
+    if (signals.hasAnthropicKey) {
+      return 'claude';
+    }
+
+    // Priority 5: Local inference
+    if (signals.hasRuvllm) {
+      return 'ruvllm';
+    }
+
+    // Fallback to auto (will try to find any available provider)
+    return 'auto';
+  }
+
+  // ============================================
+  // Hot-Swap Methods (G6)
+  // ============================================
+
+  /**
+   * Hot-swap to a different model at runtime
+   * Only works with OpenRouter provider which supports runtime model switching.
+   */
+  async hotSwapModel(model: string): Promise<void> {
+    const openRouterState = this.providers.get('openrouter');
+    if (!openRouterState) {
+      throw new Error('OpenRouter provider not available for hot-swapping');
+    }
+
+    const provider = openRouterState.provider as OpenRouterProvider;
+    await provider.setModel(model);
+
+    this.logger.info('Model hot-swapped', { model });
+  }
+
+  /**
+   * Get current model from OpenRouter provider
+   */
+  getCurrentModel(): string | undefined {
+    const openRouterState = this.providers.get('openrouter');
+    if (!openRouterState) {
+      return undefined;
+    }
+
+    const provider = openRouterState.provider as OpenRouterProvider;
+    return provider.getCurrentModel();
+  }
+
+  /**
+   * List available models from OpenRouter
+   */
+  async listAvailableModels(): Promise<OpenRouterModel[]> {
+    const openRouterState = this.providers.get('openrouter');
+    if (!openRouterState) {
+      return [];
+    }
+
+    const provider = openRouterState.provider as OpenRouterProvider;
+    return provider.getAvailableModels();
+  }
+
+  /**
+   * Get environment signals (for debugging/monitoring)
+   */
+  getEnvironmentSignals(): EnvironmentSignals {
+    return this.detectEnvironment();
   }
 
   /**
