@@ -117,7 +117,7 @@ Example: \`mcp__agentic_qe__test_generate_enhanced\`
 `;
 
 export const SERVER_NAME = 'agentic-qe';
-export const SERVER_VERSION = '2.3.5';
+export const SERVER_VERSION = '2.4.0';
 
 /**
  * Get formatted server info for MCP initialization

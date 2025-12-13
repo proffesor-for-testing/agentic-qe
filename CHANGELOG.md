@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2025-12-13
+
+### Added
+
+#### Binary Metadata Cache (Performance)
+- **BinaryMetadataCache** - MessagePack-serialized cache with 6x faster pattern loading
+- Lazy deserialization for O(1) key access without full cache decode
+- Automatic compression for entries > 1KB
+- File-based persistence with atomic writes
+- Stats tracking: hit rate, miss rate, eviction count
+- New file: `src/core/cache/BinaryMetadataCache.ts`
+
+#### AI-Friendly Output Mode
+- **AIOutputFormatter** - Structured JSON output optimized for AI consumption
+- `--ai-output` flag for CLI commands
+- `--ai-output-format` option: `json` (default), `yaml`, `markdown`
+- Schema-validated responses with metadata
+- New file: `src/output/AIOutputFormatter.ts`
+
+#### Automated Benchmarks in CI
+- **Benchmark Suite** - Comprehensive performance benchmarks
+- Automated baseline collection and regression detection
+- CI workflow integration with `benchmark.yml`
+- Historical tracking with JSON baselines
+- New files: `benchmarks/suite.ts`, `benchmarks/baseline-collector.ts`
+
+#### Strategy-Based Agent Architecture (Foundation)
+- **Strategy Pattern** for BaseAgent decomposition
+- LifecycleStrategy, MemoryStrategy, LearningStrategy, CoordinationStrategy interfaces
+- Adapter layer bridging existing services to strategies
+- BaseAgent reduced from 1,569 → 1,005 LOC (36% reduction)
+- Removed deprecated AgentDB direct methods
+- Simplified onPreTask/onPostTask hooks
+
+### Fixed
+- AdapterConfigValidator tests using correct `validateOrThrow()` method
+- QXPartnerAgent tests using correct `store/retrieve` memory methods
+- FleetCommanderAgent lifecycle test expecting IDLE after initialization
+- Added `getAgentId()` method for backward compatibility
+- Race condition tests updated for AgentDB adapter deprecation
+
+### Tests
+- 425 new tests for performance infrastructure
+- Strategy pattern tests: 92 passing
+- Agent tests: 166 passing
+- Adapter fail-fast tests: 17 passing
+
 ## [2.3.5] - 2025-12-12
 
 ### Added

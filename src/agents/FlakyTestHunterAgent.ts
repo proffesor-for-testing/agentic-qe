@@ -877,138 +877,20 @@ export class FlakyTestHunterAgent extends BaseAgent {
 
   /**
    * AgentDB Integration: Store flaky patterns for cross-agent learning
-   * Uses QUIC sync for <1ms latency pattern sharing
+   * Note: AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
    */
-  private async storeFlakyPatternsInAgentDB(flakyTests: FlakyTestResult[]): Promise<void> {
-    if (!this.agentDB) return;
-
-    try {
-      const startTime = Date.now();
-
-      let storedCount = 0;
-      for (const test of flakyTests) {
-        // Skip if no root cause or low confidence
-        if (!test.rootCause || test.rootCause.confidence < 0.7) {
-          console.log(`[FlakyTestHunter] Skipping ${test.testName} (no root cause or low confidence)`);
-          continue;
-        }
-
-        const patternEmbedding = await this.createFlakyPatternEmbedding(test);
-
-        const patternId = await this.agentDB.store({
-          id: `flaky-${test.testName.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`,
-          type: 'flaky-test-pattern',
-          domain: 'test-reliability',
-          pattern_data: JSON.stringify({
-            testName: test.testName,
-            pattern: test.pattern,
-            rootCause: test.rootCause.category,
-            fixes: test.suggestedFixes?.map(f => ({
-              approach: f.approach,
-              estimatedEffectiveness: f.estimatedEffectiveness
-            })),
-            severity: test.severity
-          }),
-          confidence: test.rootCause.confidence,
-          usage_count: 1,
-          success_count: test.status === 'FIXED' ? 1 : 0,
-          created_at: Date.now(),
-          last_used: Date.now()
-        });
-
-        storedCount++;
-        console.log(`[FlakyTestHunter] ✅ Stored flaky pattern ${patternId} in AgentDB`);
-      }
-
-      const storeTime = Date.now() - startTime;
-      console.log(
-        `[FlakyTestHunter] ✅ ACTUALLY stored ${storedCount}/${flakyTests.length} flaky patterns in AgentDB ` +
-        `(${storeTime}ms, avg ${storedCount > 0 ? (storeTime / storedCount).toFixed(1) : 0}ms/pattern, QUIC sync active)`
-      );
-
-      // Report QUIC sync status
-      const agentDBConfig = (this as any).agentDBConfig;
-      if (agentDBConfig?.enableQUICSync) {
-        console.log(
-          `[FlakyTestHunter] 🚀 Flaky patterns synced via QUIC to ${agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
-        );
-      }
-    } catch (error) {
-      this.logger.warn('[FlakyTestHunter] AgentDB pattern storage failed:', error);
-    }
+  private async storeFlakyPatternsInAgentDB(_flakyTests: FlakyTestResult[]): Promise<void> {
+    // AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
+    // Pattern storage is now handled through BaseAgent's memory strategy
   }
 
   /**
    * AgentDB Integration: Retrieve similar flaky patterns for prediction
-   * Uses HNSW indexing for 150x faster pattern matching
+   * Note: AgentDB direct access deprecated in v2.4.0 - queries now go through memory strategies
    */
-  private async retrieveSimilarFlakyPatterns(testName: string, pattern: string): Promise<FlakyTestResult[]> {
-    if (!this.agentDB) return [];
-
-    try {
-      const startTime = Date.now();
-
-      // Create query embedding from test characteristics
-      const queryEmbedding = await this.createFlakyQueryEmbedding(testName, pattern);
-
-      // ACTUALLY search AgentDB for similar flaky patterns with HNSW indexing
-      const result = await this.agentDB.search(
-        queryEmbedding,
-        'test-reliability',
-        10
-      );
-
-      const searchTime = Date.now() - startTime;
-
-      if (result.memories.length > 0) {
-        console.log(
-          `[FlakyTestHunter] ✅ AgentDB HNSW search: ${result.memories.length} similar patterns ` +
-          `(${searchTime}ms, ${result.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
-        );
-
-        // Log top match
-        if (result.memories.length > 0) {
-          const topMatch = result.memories[0];
-          const matchData = JSON.parse(topMatch.pattern_data);
-          console.log(
-            `[FlakyTestHunter] 🎯 Top match: ${matchData.testName} ` +
-            `(similarity=${topMatch.similarity.toFixed(3)}, confidence=${topMatch.confidence.toFixed(3)})`
-          );
-        }
-
-        // Convert AgentDB memories to FlakyTestResult format
-        return result.memories.map((m: any) => {
-          const data = JSON.parse(m.pattern_data);
-          return {
-            testName: data.testName,
-            flakinessScore: 1 - m.confidence,
-            severity: data.severity,
-            totalRuns: 0,
-            failures: 0,
-            passes: 0,
-            failureRate: 0,
-            passRate: m.confidence,
-            pattern: data.pattern,
-            rootCause: data.rootCause ? {
-              category: data.rootCause,
-              confidence: m.confidence,
-              description: '',
-              evidence: [],
-              recommendation: ''
-            } : undefined,
-            suggestedFixes: data.fixes,
-            status: m.success_count > 0 ? 'FIXED' : 'ACTIVE'
-          } as FlakyTestResult;
-        });
-      } else {
-        console.log(`[FlakyTestHunter] No similar flaky patterns found in AgentDB (${searchTime}ms)`);
-      }
-
-      return [];
-    } catch (error) {
-      this.logger.warn('[FlakyTestHunter] AgentDB pattern retrieval failed:', error);
-      return [];
-    }
+  private async retrieveSimilarFlakyPatterns(_testName: string, _pattern: string): Promise<FlakyTestResult[]> {
+    // AgentDB direct access deprecated in v2.4.0 - queries now go through memory strategies
+    return [];
   }
 
   /**

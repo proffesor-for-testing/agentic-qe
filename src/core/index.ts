@@ -37,3 +37,9 @@ export {
   createAgentContainer,
   withDI
 } from './di';
+
+// Platform Operations (A2.2)
+export * from './platform';
+
+// Agent Strategies (B1.3)
+export * from './strategies';
