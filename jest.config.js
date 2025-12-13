@@ -1,3 +1,7 @@
+// CRITICAL: Set NODE_ENV before any modules load
+// This ensures AdapterConfig correctly detects test environment
+process.env.NODE_ENV = 'test';
+
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',

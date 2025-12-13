@@ -407,7 +407,7 @@ export class PerformanceOptimizer {
       poolExhausted: 0
     };
 
-    this.logger.info('PerformanceOptimizer initialized', { config: this.config });
+    this.logger.debug('PerformanceOptimizer initialized', { config: this.config });
   }
 
   /**
@@ -747,7 +747,7 @@ export class PerformanceOptimizer {
       poolAcquisitions: 0,
       poolExhausted: 0
     };
-    this.logger.info('PerformanceOptimizer reset');
+    this.logger.debug('PerformanceOptimizer reset');
   }
 
   /**

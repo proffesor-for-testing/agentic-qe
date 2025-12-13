@@ -37,7 +37,8 @@ describe('Adapter Fail-Fast Behavior', () => {
   describe('AdapterConfigValidator', () => {
     test('throws on missing type', () => {
       const config = { dbPath: testDbPath } as AdapterConfig;
-      expect(() => AdapterConfigValidator.validate(config)).toThrow();
+      // Use validateOrThrow which throws on invalid config
+      expect(() => AdapterConfigValidator.validateOrThrow(config)).toThrow();
     });
 
     test('throws on invalid type', () => {
@@ -45,7 +46,7 @@ describe('Adapter Fail-Fast Behavior', () => {
         type: 'invalid' as AdapterType,
         dbPath: testDbPath
       };
-      expect(() => AdapterConfigValidator.validate(config)).toThrow(/Invalid adapter type/);
+      expect(() => AdapterConfigValidator.validateOrThrow(config)).toThrow(/Invalid adapter type/);
     });
 
     test('throws on REAL type without dbPath', () => {
@@ -53,15 +54,18 @@ describe('Adapter Fail-Fast Behavior', () => {
         type: AdapterType.REAL
         // Missing dbPath
       };
-      expect(() => AdapterConfigValidator.validate(config)).toThrow(/dbPath is required/);
+      expect(() => AdapterConfigValidator.validateOrThrow(config)).toThrow(/dbPath is required/);
     });
 
-    test('throws on deprecated AUTO type', () => {
+    test('returns warnings on deprecated AUTO type', () => {
+      // AUTO type generates warnings, not errors, so validate() returns valid: true with warnings
       const config: AdapterConfig = {
         type: AdapterType.AUTO,
         dbPath: testDbPath
       };
-      expect(() => AdapterConfigValidator.validate(config)).toThrow(/AUTO.*deprecated/i);
+      const result = AdapterConfigValidator.validate(config);
+      expect(result.valid).toBe(true);
+      expect(result.warnings.some(w => /AUTO.*deprecated/i.test(w))).toBe(true);
     });
 
     test('accepts valid REAL configuration', () => {
@@ -71,14 +75,14 @@ describe('Adapter Fail-Fast Behavior', () => {
         failFast: true,
         validateOnStartup: true
       };
-      expect(() => AdapterConfigValidator.validate(config)).not.toThrow();
+      expect(() => AdapterConfigValidator.validateOrThrow(config)).not.toThrow();
     });
 
     test('accepts valid MOCK configuration', () => {
       const config: AdapterConfig = {
         type: AdapterType.MOCK
       };
-      expect(() => AdapterConfigValidator.validate(config)).not.toThrow();
+      expect(() => AdapterConfigValidator.validateOrThrow(config)).not.toThrow();
     });
   });
 
@@ -107,7 +111,8 @@ describe('Adapter Fail-Fast Behavior', () => {
       process.env.AQE_USE_MOCK_AGENTDB = 'true';
 
       try {
-        const config = AdapterConfigHelper.fromEnvironment(testDbPath);
+        // fromEnvironment() doesn't take parameters - it reads from env vars
+        const config = AdapterConfigHelper.fromEnvironment();
         expect(config.type).toBe(AdapterType.MOCK);
       } finally {
         if (originalEnv === undefined) {

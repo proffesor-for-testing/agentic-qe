@@ -1,11 +1,18 @@
 import { SecureRandom } from '../../utils/SecureRandom.js';
+import {
+  OutputFormatterImpl,
+  OutputModeDetector,
+  OutputMode,
+  OutputType,
+} from '../../output';
 
 /**
  * Base Handler for Agentic QE MCP Tools
- * 
+ *
  * Provides common functionality and interface for all MCP tool handlers.
- * 
- * @version 1.0.0
+ * Includes AI-friendly output formatting for Claude Code integration.
+ *
+ * @version 1.1.0
  * @author Agentic QE Team
  */
 
@@ -22,6 +29,11 @@ export interface HandlerResponse {
 
 export abstract class BaseHandler {
   protected requestCounter = 0;
+  protected outputFormatter: OutputFormatterImpl;
+
+  constructor() {
+    this.outputFormatter = new OutputFormatterImpl();
+  }
 
   /**
    * Abstract method that must be implemented by all handlers
@@ -141,5 +153,49 @@ export abstract class BaseHandler {
     const result = await operation();
     const executionTime = performance.now() - startTime;
     return { result, executionTime };
+  }
+
+  /**
+   * Detect current output mode (AI vs Human)
+   * Returns 'ai' when running in Claude Code context
+   */
+  protected detectOutputMode(): OutputMode {
+    return OutputModeDetector.detectMode();
+  }
+
+  /**
+   * Check if running in AI/Claude context
+   */
+  protected isAIMode(): boolean {
+    return this.detectOutputMode() === OutputMode.AI;
+  }
+
+  /**
+   * Format response for AI consumption with structured JSON and action suggestions
+   * Use this when returning results that Claude will process
+   *
+   * @param data - The response data
+   * @param outputType - Type of output (test_results, coverage, agent_status, etc.)
+   * @returns Formatted string (JSON in AI mode, human-readable otherwise)
+   */
+  protected formatForAI(data: any, outputType: OutputType = 'agent_status'): string {
+    return this.outputFormatter.format(data, outputType, OutputMode.AUTO);
+  }
+
+  /**
+   * Create a success response with AI-friendly formatting
+   * Automatically includes action suggestions when in AI mode
+   */
+  protected createAIFormattedResponse(data: any, requestId?: string): HandlerResponse {
+    const formattedData = this.isAIMode()
+      ? {
+          ...data,
+          _aiFormatted: true,
+          _outputMode: 'ai',
+          _schemaVersion: '1.0.0',
+        }
+      : data;
+
+    return this.createSuccessResponse(formattedData, requestId);
   }
 }
