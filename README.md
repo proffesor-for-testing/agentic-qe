@@ -147,7 +147,7 @@ open http://localhost:3000
 ---
 
 ### 🤖 Autonomous Agent Fleet
-- **19 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis, QX analysis)
+- **20 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis, QX analysis, accessibility)
 - **11 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation + analysis)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
@@ -579,13 +579,14 @@ Model Usage:
 </details>
 
 <details>
-<summary><b>Specialized (3 agents)</b></summary>
+<summary><b>Specialized (4 agents)</b></summary>
 
 | Agent | Purpose | Key Features |
 |-------|---------|-------------|
 | **deployment-readiness** | Release validation | Multi-factor risk scoring |
 | **visual-tester** | UI regression | AI-powered comparison |
 | **chaos-engineer** | Resilience testing | Fault injection, blast radius |
+| **a11y-ally** | Accessibility testing | WCAG 2.2, AI video analysis, EU compliance |
 
 </details>
 
@@ -598,7 +599,7 @@ Model Usage:
 
 </details>
 
-**Total: 30 Agents** (19 main agents + 11 TDD subagents)
+**Total: 31 Agents** (20 main agents + 11 TDD subagents)
 
 ### TDD Subagents (11 specialized)
 

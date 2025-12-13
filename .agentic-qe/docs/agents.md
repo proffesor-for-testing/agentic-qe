@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 19 QE agents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 20 QE agents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 
@@ -373,6 +373,31 @@ Task("Chaos testing", "Test system resilience with controlled failures", "qe-cha
 
 **Memory Namespace:**
 - Stores: `aqe/chaos/results`
+- Reads: `aqe/test-plan/*`
+
+---
+
+### qe-a11y-ally
+**Intelligent accessibility testing with WCAG 2.2 compliance**
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+**Capabilities:**
+- WCAG 2.2 Level A, AA, AAA validation
+- Context-aware ARIA label generation
+- Intelligent remediation with code examples
+- Keyboard navigation and screen reader testing
+- AI video analysis with multi-provider cascade
+- WebVTT caption generation
+- EN 301 549 EU compliance mapping
+- ARIA Authoring Practices Guide (APG) patterns
+
+**Usage:**
+```javascript
+Task("Accessibility scan", "Run WCAG 2.2 AA compliance check", "qe-a11y-ally")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/accessibility/scan-results`
 - Reads: `aqe/test-plan/*`
 
 ---

@@ -73,7 +73,7 @@ async function initializeMemoryDatabase(): Promise<void> {
   console.log(chalk.gray(`    • Database: ${getSharedMemoryManagerPath()}`));
   console.log(chalk.gray(`    • Tables: 20+ tables (memory_entries, patterns, learning_experiences, q_values, etc.)`));
   console.log(chalk.gray(`    • Access control: 5 levels (private, team, swarm, public, system)`));
-  console.log(chalk.gray(`    • Used by: CLI, MCP server, all 19 QE agents`));
+  console.log(chalk.gray(`    • Used by: CLI, MCP server, all 20 QE agents`));
 }
 
 // DEPRECATED (v2.2.0): AgentDB initialization removed

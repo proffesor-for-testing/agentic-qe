@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 19 QE agents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 20 QE agents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 
@@ -374,6 +374,41 @@ Task("Chaos testing", "Test system resilience with controlled failures", "qe-cha
 **Memory Namespace:**
 - Stores: `aqe/chaos/results`
 - Reads: `aqe/test-plan/*`
+
+---
+
+### qe-a11y-ally
+**Intelligent accessibility testing with WCAG 2.2 compliance**
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+**Capabilities:**
+- WCAG 2.2 Level A, AA, AAA validation using axe-core
+- Context-aware ARIA label generation
+- Intelligent remediation with code examples
+- Keyboard navigation and screen reader testing
+- Color contrast optimization
+- AI video analysis (OpenAI, Anthropic, Ollama, moondream)
+- WebVTT caption generation
+- EN 301 549 EU compliance mapping
+- ARIA Authoring Practices Guide (APG) patterns
+
+**Usage:**
+```javascript
+Task("Accessibility scan", "Run WCAG 2.2 AA compliance check", "qe-a11y-ally")
+Task("Generate captions", "Create WebVTT captions for video", "qe-a11y-ally")
+Task("Remediation", "Fix accessibility issues with code suggestions", "qe-a11y-ally")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/accessibility/scan-results`, `aqe/accessibility/remediation`
+- Reads: `aqe/test-plan/*`
+
+**MCP Tools (10 tools):**
+- `scan-comprehensive` - Full WCAG 2.2 scan
+- `remediation-code-generator` - Auto-fix code generation
+- `html-report-generator` - Detailed HTML reports
+- `video-vision-analyzer` - AI video accessibility analysis
+- `webvtt-generator` - Caption file generation
 
 ---
 

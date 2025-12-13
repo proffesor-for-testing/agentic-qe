@@ -1,7 +1,7 @@
 /**
  * BaselineCollector - Phase 0 of Nightly-Learner System
  *
- * Collects performance baselines for all 19 QE agents to establish
+ * Collects performance baselines for all 20 QE agents to establish
  * quantitative improvement targets (10-20% above baseline).
  *
  * Architecture:

@@ -11,6 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### AccessibilityAllyAgent - Intelligent Accessibility Testing (PR #129)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+- **New Agent: `qe-a11y-ally`** - Comprehensive WCAG 2.2 compliance testing
+  - WCAG 2.2 Level A, AA, AAA validation using axe-core
+  - Context-aware ARIA label generation based on element semantics
+  - Intelligent remediation suggestions with code examples
+  - Keyboard navigation and screen reader testing
+  - Color contrast optimization with specific fix recommendations
+- **AI Video Analysis** - Multi-provider cascade for accessibility
+  - Vision API support: OpenAI → Anthropic → Ollama → moondream
+  - WebVTT caption generation for videos
+  - Automated audio description suggestions
+- **EU Compliance Support**
+  - EN 301 549 European accessibility standard mapping
+  - EU Accessibility Act compliance checking
+- **ARIA Authoring Practices Guide (APG)**
+  - Pattern suggestions for common UI components
+  - Accessible name computation (AccName)
+- **10 New MCP Accessibility Tools**
+  - `scan-comprehensive` - Full WCAG 2.2 scan
+  - `remediation-code-generator` - Auto-fix code generation
+  - `html-report-generator` - Detailed HTML reports
+  - `markdown-report-generator` - Markdown reports
+  - `video-vision-analyzer` - AI video accessibility analysis
+  - `webvtt-generator` - Caption file generation
+  - `accname-computation` - Accessible name calculation
+  - `apg-patterns` - ARIA pattern suggestions
+  - `en-301-549-mapping` - EU standard mapping
+  - `eu-accessibility-act` - EU Act compliance
+
+**Agent count increased from 19 → 20 QE agents**
+
 #### G4: Unified Memory Architecture - BinaryCache Integration
 - **BinaryCache Integration** with UnifiedMemoryCoordinator for TRM pattern caching
 - `cacheTRMPattern()` - Cache TRM patterns with binary serialization

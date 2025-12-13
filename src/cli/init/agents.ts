@@ -45,7 +45,7 @@ export async function copyAgentTemplates(config?: FleetConfig, force: boolean = 
 
   if (!sourcePath) {
     console.warn(chalk.yellow('  ⚠️  No agent templates found in package paths'));
-    console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 19 agents)'));
+    console.warn(chalk.yellow('  ℹ️  Falling back to programmatic generation (all 20 agents)'));
     await createBasicAgents(force);
     return;
   }
