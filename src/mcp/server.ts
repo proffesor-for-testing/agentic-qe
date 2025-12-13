@@ -97,6 +97,9 @@ import {
   validateApiVersioning
 } from './tools/qe/api-contract/index.js';
 import {
+  scanComprehensive
+} from './tools/qe/accessibility/index.js';
+import {
   generateTestData,
   maskSensitiveData,
   analyzeSchema
@@ -290,6 +293,8 @@ export class AgenticQEMCPServer {
 
     // Phase 3 Domain-Specific Tools Handler
     const phase3Handler = new Phase3DomainToolsHandler(this.registry, this.hookExecutor);
+    // Accessibility Tools
+    this.handlers.set(TOOL_NAMES.A11Y_SCAN_COMPREHENSIVE, phase3Handler);
     // Coverage Domain Tools
     this.handlers.set(TOOL_NAMES.COVERAGE_ANALYZE_WITH_RISK_SCORING, phase3Handler);
     this.handlers.set(TOOL_NAMES.COVERAGE_DETECT_GAPS_ML, phase3Handler);
@@ -813,6 +818,10 @@ export class AgenticQEMCPServer {
             result = await phase3Handler.handleQeQualitygateValidateMetrics(safeArgs);
           } else if (name === TOOL_NAMES.QE_QUALITYGATE_GENERATE_REPORT) {
             result = await phase3Handler.handleQeQualitygateGenerateReport(safeArgs);
+          }
+          // Accessibility Domain (1 tool)
+          else if (name === TOOL_NAMES.A11Y_SCAN_COMPREHENSIVE) {
+            result = await scanComprehensive(safeArgs as any);
           }
           // API-Contract Domain (3 tools)
           else if (name === TOOL_NAMES.QE_APICONTRACT_VALIDATE) {

@@ -2242,7 +2242,71 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  
+
+  // Category: testing | Domain: accessibility
+
+
+  {
+    name: 'mcp__agentic_qe__a11y_scan_comprehensive',
+    description: 'Comprehensive WCAG 2.2 accessibility scan with context-aware remediation',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'URL to scan for accessibility violations'
+        },
+        level: {
+          type: 'string',
+          enum: ['A', 'AA', 'AAA'],
+          default: 'AA',
+          description: 'WCAG compliance level to validate against'
+        },
+        options: {
+          type: 'object',
+          properties: {
+            includeScreenshots: {
+              type: 'boolean',
+              default: false,
+              description: 'Include annotated screenshots of violations'
+            },
+            keyboard: {
+              type: 'boolean',
+              default: true,
+              description: 'Test keyboard navigation'
+            },
+            screenReader: {
+              type: 'boolean',
+              default: true,
+              description: 'Test screen reader compatibility'
+            },
+            colorContrast: {
+              type: 'boolean',
+              default: true,
+              description: 'Test color contrast ratios'
+            },
+            includeContext: {
+              type: 'boolean',
+              default: true,
+              description: 'Enable context-aware remediation recommendations'
+            },
+            generateHTMLReport: {
+              type: 'boolean',
+              default: false,
+              description: 'Generate comprehensive HTML report with findings and recommendations'
+            },
+            reportPath: {
+              type: 'string',
+              description: 'Custom path for HTML report (defaults to docs/reports/)'
+            }
+          }
+        }
+      },
+      required: ['url']
+    }
+  },
+
+
   // Category: testing | Domain: visual
 
 
@@ -3985,6 +4049,7 @@ export const TOOL_NAMES = {
   VISUAL_COMPARE_SCREENSHOTS: 'mcp__agentic_qe__visual_compare_screenshots',
   VISUAL_VALIDATE_ACCESSIBILITY: 'mcp__agentic_qe__visual_validate_accessibility',
   VISUAL_DETECT_REGRESSION: 'mcp__agentic_qe__visual_detect_regression',
+  A11Y_SCAN_COMPREHENSIVE: 'mcp__agentic_qe__a11y_scan_comprehensive',
   // Phase 3: New Domain Tools
   // Security Domain (3 tools)
   QE_SECURITY_SCAN_COMPREHENSIVE: 'mcp__agentic_qe__qe_security_scan_comprehensive',

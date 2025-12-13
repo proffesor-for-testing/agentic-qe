@@ -71,6 +71,66 @@ claude mcp list
 # Should show: agentic-qe: npm run mcp:start - ✓ Connected
 ```
 
+### Tool Discovery System (New in v2.1.0)
+
+The MCP server uses **lazy loading** to reduce initial context by 87%.
+
+#### Discover Available Domains
+
+```javascript
+// List all available tool domains
+mcp__agentic_qe__tools_discover()
+
+// Returns:
+// {
+//   domains: [
+//     "security", "coverage", "test-generation", "test-execution",
+//     "quality-gates", "fleet-management", "memory", "learning",
+//     "patterns", "reporting"
+//   ]
+// }
+```
+
+#### Load Domain-Specific Tools
+
+```javascript
+// Load security tools (4 tools)
+mcp__agentic_qe__tools_load_domain({ domain: "security" })
+
+// Load coverage tools (3 tools)
+mcp__agentic_qe__tools_load_domain({ domain: "coverage" })
+
+// Load test generation tools (2 tools)
+mcp__agentic_qe__tools_load_domain({ domain: "test-generation" })
+```
+
+#### Automatic Loading
+
+Tools are **auto-loaded based on keywords** in agent instructions:
+
+```javascript
+// Keyword "security" triggers auto-load of security domain
+Task("Security scan", "Run security checks for vulnerabilities", "qe-security-scanner")
+
+// Keyword "coverage" triggers auto-load of coverage domain
+Task("Coverage analysis", "Find coverage gaps in UserService", "qe-coverage-analyzer")
+
+// Keyword "generate" triggers auto-load of test-generation domain
+Task("Generate tests", "Create unit tests for API endpoints", "qe-test-generator")
+```
+
+**Recognized Keywords:**
+- **security**: security, vulnerability, sast, dast, owasp
+- **coverage**: coverage, gaps, untested, branches
+- **test-generation**: generate, create tests, test suite
+- **test-execution**: execute, run tests, parallel
+- **quality-gates**: quality, gate, threshold, deployment
+- **fleet-management**: fleet, agents, orchestrate, swarm
+- **memory**: memory, store, retrieve, namespace
+- **learning**: learn, patterns, q-learning, improve
+- **patterns**: patterns, extract, search, templates
+- **reporting**: report, metrics, dashboard, export
+
 ### Using MCP Tools in Claude Code
 
 ```javascript
