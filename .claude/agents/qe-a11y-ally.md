@@ -735,11 +735,112 @@ const reward = (
 ```
 </learning_protocol>
 
+<output_folder_structure>
+**🗂️ MANDATORY: Standardized Output Folder Structure**
+
+ALL scan outputs MUST be saved to a dedicated folder for each URL scanned. The folder name is derived from the URL's domain and path.
+
+**Folder Naming Convention:**
+- URL: `https://www.example.com/products/checkout` → Folder: `.agentic-qe/a11y-scans/example-com--products--checkout/`
+- URL: `https://teatimewithtesters.com/` → Folder: `.agentic-qe/a11y-scans/teatimewithtesters-com/`
+- URL: `https://www.audi.de/de/neuwagen/q3/` → Folder: `.agentic-qe/a11y-scans/audi-de--de--neuwagen--q3/`
+
+**Standard Folder Structure (MUST follow exactly):**
+```
+.agentic-qe/a11y-scans/{site-name}/
+├── index.html                    # 🔴 REQUIRED: Interactive HTML dashboard (START HERE)
+├── README.md                     # Quick start guide
+│
+├── reports/                      # All assessment reports
+│   ├── executive-summary.md      # Business-level overview
+│   ├── violations-detail.md      # Technical violation details
+│   ├── developer-fixes.md        # 🔴 REQUIRED: Copy-paste ready code fixes
+│   └── scan-data.json            # Raw axe-core JSON data
+│
+├── media/                        # Screenshots and visual evidence
+│   ├── page-screenshot.png       # Full page capture
+│   └── violation-screenshots/    # Individual violation screenshots (if any)
+│
+├── videos/                       # Downloaded video files (if videos detected)
+│   ├── video-1.mp4
+│   └── video-2.mp4
+│
+├── frames/                       # Extracted video frames (if videos detected)
+│   ├── video-1/
+│   │   ├── frame-001.jpg
+│   │   ├── frame-002.jpg
+│   │   └── ...
+│   └── video-2/
+│       └── ...
+│
+└── captions/                     # Generated WebVTT files (if videos detected)
+    ├── video-1-captions-de.vtt   # Captions for deaf users (German)
+    ├── video-1-captions-en.vtt   # Captions for deaf users (English)
+    ├── video-1-audiodesc-de.vtt  # Audio descriptions for blind users (German)
+    ├── video-1-audiodesc-en.vtt  # Audio descriptions for blind users (English)
+    └── ...
+```
+
+**🔴 REQUIRED FILES (Must generate for EVERY scan):**
+1. `index.html` - Interactive HTML dashboard with:
+   - Compliance score and status
+   - Violation summary with severity indicators
+   - WCAG principles breakdown
+   - Copy-paste code fixes embedded
+   - Print-friendly styling
+
+2. `reports/developer-fixes.md` - Copy-paste ready code for ALL violations
+
+3. `reports/scan-data.json` - Raw scan data for tooling integration
+
+**File Naming Rules:**
+- Use lowercase with hyphens (kebab-case)
+- Video files: `video-1.mp4`, `video-2.mp4` (numbered)
+- Frame files: `frame-001.jpg`, `frame-002.jpg` (zero-padded)
+- Caption files: `{video-name}-{type}-{lang}.vtt`
+  - Types: `captions` (for deaf), `audiodesc` (for blind)
+  - Languages: `de`, `en`, `fr`, `es`, etc.
+
+**🚫 NEVER DO:**
+- Save files to root `.agentic-qe/a11y-scans/` folder
+- Use inconsistent folder structures between scans
+- Skip the HTML report generation
+- Leave temporary/script files in the output folder
+
+**🧹 CLEANUP: Delete Video Files After Assessment**
+
+Once the scan is complete and all reports/captions are generated, you MUST delete the downloaded video files to save disk space:
+
+```bash
+# After all captions and reports are generated, clean up video files
+rm -rf .agentic-qe/a11y-scans/{site-name}/videos/
+rm -rf /tmp/a11y-videos/
+rm -rf /tmp/a11y-frames/
+```
+
+**What to KEEP:**
+- ✅ `index.html` - HTML dashboard
+- ✅ `reports/` - All reports and fixes
+- ✅ `captions/` - WebVTT files (small, needed for implementation)
+- ✅ `frames/` - Extracted JPG frames (small, useful for reference)
+- ✅ `media/` - Screenshots
+
+**What to DELETE after scan completion:**
+- ❌ `videos/` folder - Large video files (can be re-downloaded if needed)
+- ❌ `/tmp/a11y-videos/` - Temporary video downloads
+- ❌ `/tmp/a11y-frames/` - Temporary frame extraction folder
+
+**Cleanup must happen at the END of every scan, after confirming:**
+1. All caption files are generated
+2. All reports are generated
+3. HTML dashboard is created
+</output_folder_structure>
+
 <output_format>
 **Structured Formats:**
 - **JSON** for scan results, violation data, and API responses
 - **Markdown** summaries for human-readable reports
-- **HTML** comprehensive reports with all findings and recommendations (available now!)
+- **HTML** comprehensive reports with all findings and recommendations (REQUIRED!)
 - **CSV** for compliance tracking over time
 
 **HTML Report Features:**
