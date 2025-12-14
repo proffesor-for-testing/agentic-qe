@@ -1006,6 +1006,128 @@ grep -r '[pattern]' --include="*.html"
 - Validation commands
 - Support resources
 
+**🔴 MANDATORY CONTENT for `executive-summary.md`:**
+
+The executive-summary.md MUST include ALL of the following sections:
+
+```markdown
+# Executive Summary: WCAG 2.2 Accessibility Audit
+## [Site Name]
+
+**Date:** [date]
+**Prepared by:** Accessibility Ally Agent (qe-a11y-ally)
+**Audit Scope:** [page/section] ([URL])
+**Standard:** WCAG 2.2 Level AA
+
+---
+
+## 🎯 Bottom Line
+[1-2 sentence summary with compliance %, violation count, fix effort, recommendation]
+
+---
+
+## 📊 Compliance Overview
+[Table with: Overall Score, Production Ready, Legal Risk, User Impact, Time to Fix, Cost to Fix]
+
+---
+
+## 🚨 Critical Findings
+[Violations breakdown table and summary of what's broken/working]
+
+---
+
+## 💼 Business Impact
+[User impact analysis by disability group, revenue impact example]
+
+---
+
+## ⚖️ Legal & Compliance Risk
+[Current legal exposure table, lawsuit trends, post-fix status]
+
+---
+
+## 💰 Cost-Benefit Analysis
+[Investment required table, ROI calculation]
+
+---
+
+## 🔧 Recommended Action Plan
+[Phased approach with effort estimates and deliverables]
+
+---
+
+## 📁 Directory Structure
+
+This folder contains all audit deliverables:
+
+\`\`\`
+{site-name}/
+├── wcag-audit-report.html      # 🔴 START HERE - Interactive HTML report
+├── reports/
+│   ├── executive-summary.md    # This file - Business overview
+│   ├── remediation-guide.md    # Developer fixes (copy-paste ready)
+│   └── scan-data.json          # Raw axe-core data
+├── media/
+│   └── page-screenshot.png     # Full page capture
+├── frames/                     # Video frames (if applicable)
+└── captions/                   # WebVTT files (if applicable)
+\`\`\`
+
+---
+
+## 🔄 Re-Running the Audit
+
+### Method 1: Playwright (Recommended)
+\`\`\`bash
+cd .agentic-qe/a11y-scans/{site-name}
+npx playwright test accessibility-scan.spec.ts --reporter=list
+\`\`\`
+
+### Method 2: axe-core CLI
+\`\`\`bash
+axe [URL] --tags wcag2a,wcag2aa,wcag22aa --save results.json
+\`\`\`
+
+### Method 3: Browser Extension
+1. Install [axe DevTools](https://www.deque.com/axe/devtools/)
+2. Open the URL in Chrome
+3. Run "Analyze" in DevTools
+
+---
+
+## 📈 Success Metrics
+[Before/after compliance metrics table, business metrics to monitor]
+
+---
+
+## 🚀 Next Steps (Immediate Action)
+[This week, next 30 days, ongoing actions]
+
+---
+
+## 📚 Supporting Documentation
+[Links to HTML report, remediation guide, scan data, screenshot]
+
+---
+
+## 🤝 Stakeholder Approval
+[Review checklist for business and technical stakeholders]
+
+---
+
+**Generated:** [date]
+**Standard:** WCAG 2.2 Level AA
+**Tool:** Accessibility Ally Agent (qe-a11y-ally) powered by axe-core
+```
+
+**🚫 NEVER generate an executive-summary.md that is missing:**
+- Directory structure overview
+- Re-run audit commands (Playwright, axe-core CLI, browser extension)
+- Cost-benefit analysis with dollar amounts
+- Legal risk assessment
+- Stakeholder approval section
+- Links to supporting documentation
+
 **File Naming Rules:**
 - Use lowercase with hyphens (kebab-case)
 - Video files: `video-1.mp4`, `video-2.mp4` (numbered)
