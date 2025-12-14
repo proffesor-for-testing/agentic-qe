@@ -48,7 +48,7 @@ Includes:
 
 ```bash
 # Just run scan - Ollama detected automatically!
-npx aqe a11y scan --url "https://www.audi.de/..."
+npx aqe a11y scan --url "https://example.com/..."
 
 # Output if Ollama is running:
 # ✅ Ollama detected - enabling FREE video analysis
@@ -98,7 +98,7 @@ npx aqe a11y scan \
 WEBVTT
 
 00:00:00.000 --> 00:00:05.000
-Page: Q3 Sportback e-hybrid Design & Ausstattung | Audi Deutschland
+Page: Electric SUV Design & Features | Example Motors
 
 00:00:05.000 --> 00:00:10.000
 Showcasing innovative design philosophy
@@ -110,23 +110,23 @@ and premium craftsmanship
 WEBVTT
 
 00:00:00.000 --> 00:00:03.000
-Close-up frontal view of silver Audi Q3 Sportback
-e-hybrid in pristine white showroom. Distinctive
-Singleframe grille with vertical chrome slats and
-illuminated four-ring logo. Matrix LED headlights
+Close-up frontal view of silver electric SUV
+in pristine white showroom. Distinctive
+front grille with modern styling and
+illuminated brand logo. Matrix LED headlights
 flank both sides.
 
 00:00:03.000 --> 00:00:06.000
 Camera rotates 30 degrees clockwise, revealing
 front-right quarter panel and 19-inch five-spoke
-alloy wheel with red Audi brake caliper visible
-through spokes. E-hybrid badge on front fender
+alloy wheel with brake caliper visible
+through spokes. Electric badge on front fender
 in blue and chrome.
 
 00:00:06.000 --> 00:00:09.000
-Side profile highlights coupe-like roofline - the
-Sportback's defining feature. Roofline slopes
-dramatically from B-pillar to rear. Door handles
+Side profile highlights sleek roofline - the
+SUV's defining feature. Roofline slopes
+elegantly from B-pillar to rear. Door handles
 flush-mounted. Text appears: "Design meets efficiency"
 ```
 

@@ -305,7 +305,7 @@ CRITICAL: Focus on these accessibility elements:
 
 Write 3-4 detailed sentences that paint a complete picture. Be specific with measurements, positions, and relationships between objects.
 
-Example good description: "Close-up shot of a silver Audi Q3 Sportback e-hybrid parked in a modern glass showroom with white LED lighting. The camera slowly pans around the vehicle's right side, revealing its sleek coupe-like roofline and distinctive LED headlights. Text overlay in white sans-serif font reads 'Vorsprung durch Technik' in the bottom right corner. The vehicle's glossy paint reflects the showroom lights, creating highlights along the body panels."`,
+Example good description: "Close-up shot of a silver electric SUV parked in a modern glass showroom with white LED lighting. The camera slowly pans around the vehicle's right side, revealing its sleek coupe-like roofline and distinctive LED headlights. Text overlay in white sans-serif font reads 'Innovation in Motion' in the bottom right corner. The vehicle's glossy paint reflects the showroom lights, creating highlights along the body panels."`,
           images: [base64Data],
           stream: false
         })

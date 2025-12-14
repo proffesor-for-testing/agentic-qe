@@ -3,10 +3,10 @@
   "image": "mcr.microsoft.com/devcontainers/base:debian12",
   "runArgs": [
     "--privileged",
-    "--memory=8g",
-    "--memory-swap=12g",
-    "--memory-reservation=4g",
-    "--cpus=4",
+    "--memory=4g",
+    "--memory-swap=6g",
+    "--memory-reservation=2g",
+    "--cpus=1.5",
     "--oom-kill-disable=false",
     "--memory-swappiness=60"
   ],
@@ -30,9 +30,9 @@
     "ghcr.io/devcontainers/features/python:1": {}
   },
   "hostRequirements": {
-    "memory": "8gb",
-    "cpus": 4,
-    "storage": "48gb"
+    "memory": "4gb",
+    "cpus": 2,
+    "storage": "32gb"
   },
   "customizations": {
     "vscode": {

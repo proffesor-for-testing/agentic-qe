@@ -240,15 +240,15 @@ async function runCustomHeuristicChecks(page: Page, params: ScanComprehensivePar
         const context = link.context.toLowerCase();
 
         if (context.includes('e-mobility') || context.includes('electric')) {
-          suggestedLabel = 'Read more about Audi e-mobility and electric vehicles';
+          suggestedLabel = 'Read more about e-mobility and electric vehicles';
         } else if (context.includes('design') || context.includes('interior')) {
-          suggestedLabel = 'Read more about Audi design and interior features';
+          suggestedLabel = 'Read more about design and interior features';
         } else if (context.includes('performance') || context.includes('engine')) {
-          suggestedLabel = 'Read more about Audi performance and engineering';
+          suggestedLabel = 'Read more about performance and engineering';
         } else if (context.includes('technology') || context.includes('innovation')) {
-          suggestedLabel = 'Read more about Audi technology and innovation';
+          suggestedLabel = 'Read more about technology and innovation';
         } else if (context.includes('sustainability') || context.includes('environment')) {
-          suggestedLabel = 'Read more about Audi sustainability initiatives';
+          suggestedLabel = 'Read more about sustainability initiatives';
         } else if (link.context && link.context.length > 5) {
           // Use the actual context
           suggestedLabel = `Read more about ${link.context.slice(0, 50)}`;
@@ -465,7 +465,7 @@ async function runCustomHeuristicChecks(page: Page, params: ScanComprehensivePar
       // Use the extracted context to generate SPECIFIC captions
       if (ctx.includes('e-mobility') || ctx.includes('electric') || ctx.includes('e-tron')) {
         captionFile += `00:00:00.000 --> 00:00:05.000
-Audi electric vehicle demonstration
+Electric vehicle demonstration
 
 00:00:05.000 --> 00:00:10.000
 Experience the future of e-mobility
@@ -504,23 +504,6 @@ protecting what matters most
 
 00:00:15.000 --> 00:00:20.000
 Technology you can trust`;
-
-      } else if (ctx.includes('audi')) {
-        // Use page title or H1 as context
-        const mainContext = video.context.split(' - ')[0] || 'Audi';
-        captionFile += `00:00:00.000 --> 00:00:05.000
-${mainContext}
-
-00:00:05.000 --> 00:00:10.000
-Innovative automotive excellence
-from ${ctx.includes('audi') ? 'Audi' : 'a premium manufacturer'}
-
-00:00:10.000 --> 00:00:15.000
-[Vehicle showcase with background music]
-
-00:00:15.000 --> 00:00:20.000
-Vorsprung durch Technik
-Progress through technology`;
 
       } else {
         // Fallback with whatever context we found
@@ -1382,21 +1365,11 @@ function generateRecommendations(violation: AccessibilityViolation): Remediation
 
         // Generate SPECIFIC alt text based on parent link
         if (parentLabel.toLowerCase().includes('e-mobility') || parentLabel.toLowerCase().includes('electric')) {
-          specificAlt = 'alt="Audi electric vehicle showcasing e-mobility technology"';
-          rationale = `Parent link: "${parentLabel}". Image shows Audi's electric vehicle for this e-mobility section.`;
+          specificAlt = 'alt="Electric vehicle showcasing e-mobility technology"';
+          rationale = `Parent link: "${parentLabel}". Image shows electric vehicle for this e-mobility section.`;
         } else {
           specificAlt = `alt="Visual for: ${parentLabel}"`;
           rationale = `Parent link says "${parentLabel}". Image provides visual context for this link.`;
-        }
-      }
-      // Analyze image URL for brand/product context
-      else if (src.includes('audi.com') || src.includes('dam.audi')) {
-        if (src.includes('mobility') || src.includes('e-tron') || src.includes('electric')) {
-          specificAlt = 'alt="Audi electric vehicle showcasing e-mobility technology"';
-          rationale = 'Image URL suggests Audi e-mobility content. Alt text describes the electric vehicle shown.';
-        } else {
-          specificAlt = 'alt="Audi promotional image"';
-          rationale = 'Image from Audi Digital Asset Management. Describe the specific Audi product or feature shown.';
         }
       }
       // Generic but more specific than placeholder
@@ -1537,7 +1510,7 @@ function generateAltTextRecommendation(violation: AccessibilityViolation): strin
     } else if (src.includes('icon')) {
       suggestedAlt = '[Decorative icon - use alt="" if purely decorative, or describe its meaning]';
     } else if (src.includes('product') || src.includes('item')) {
-      suggestedAlt = '[Product name and key features, e.g., "Audi e-tron GT electric vehicle in metallic silver"]';
+      suggestedAlt = '[Product name and key features, e.g., "Electric vehicle in metallic silver"]';
     } else if (src.includes('hero') || src.includes('banner')) {
       suggestedAlt = '[Main subject of banner image, e.g., "Customer using mobile app to track delivery"]';
     } else if (src.includes('team') || src.includes('person') || src.includes('profile')) {

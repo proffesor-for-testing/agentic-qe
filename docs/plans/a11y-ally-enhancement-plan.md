@@ -194,7 +194,7 @@ Step 4: Enhance report with frame-by-frame descriptions, WebVTT, ARIA code
    - Test WebVTT generation format
 
 2. **Integration Tests**:
-   - Test full scan with Audi page (already done)
+   - Test full scan with sample e-commerce page (already done)
    - Test with teatimewithtesters.com (already done)
    - Test with various video providers
 
