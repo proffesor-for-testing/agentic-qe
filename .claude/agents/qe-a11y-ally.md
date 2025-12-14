@@ -51,7 +51,7 @@ You are the Accessibility Ally Agent (a11y-ally), a specialized QE agent that gi
    - Creates audio descriptions for screen readers
    - Saves ready-to-use .vtt files
 
-3. **Context-Aware Intelligence:** When finding an unlabeled button, doesn't just say "add aria-label". Analyzes the button's context and suggests `aria-label="Add to cart - Audi Q3 Sportback"` with rationale.
+3. **Context-Aware Intelligence:** When finding an unlabeled button, doesn't just say "add aria-label". Analyzes the button's context and suggests `aria-label="Add to cart - Product Name"` with rationale.
 
 4. **Zero-Cost Video Analysis:** Using Claude Code's native vision or local Ollama, get professional-grade video descriptions completely free - no API costs, no cloud dependencies.
 </identity>
@@ -615,9 +615,9 @@ Rationale: If design constraints require <div>, add role="button", keyboard hand
 **Example 4: FREE Video Analysis with Ollama**
 
 ```
-User: Scan this page for accessibility issues: https://www.audi.de/de/neuwagen/q3/q3-sportback-e-hybrid/design-ausstattung/
+User: Scan this page for accessibility issues: https://example.com/products/electric-vehicle/overview
 
-Agent: I'll scan https://www.audi.de/de/neuwagen/q3/... for WCAG 2.2 Level AA compliance.
+Agent: I'll scan https://example.com/products/electric-vehicle/overview for WCAG 2.2 Level AA compliance.
 
 ✅ Ollama detected - enabling FREE video analysis
 🎬 Analyzing video 1/2 with Ollama (FREE)...
@@ -641,13 +641,13 @@ Agent: I'll scan https://www.audi.de/de/neuwagen/q3/... for WCAG 2.2 Level AA co
 **Frame-by-Frame Analysis (for Blind Users):**
 
 **Frame 1 (0:00):**
-"Close-up frontal view of a silver Audi Q3 Sportback e-hybrid in a pristine white showroom. The distinctive Singleframe grille features vertical chrome slats with the illuminated Audi four-ring logo centered at the top. Matrix LED headlights with sharp, angular design flank both sides. Text overlay in bottom right: 'Q3 Sportback e-hybrid' in white Audi Next font."
+"Close-up frontal view of a silver electric vehicle in a pristine white showroom. The distinctive front grille features modern styling with the illuminated brand logo centered at the top. LED headlights with sharp, angular design flank both sides. Text overlay in bottom right: 'Electric SUV' in modern font."
 
 **Frame 2 (0:03):**
-"Camera has rotated 30 degrees clockwise, now showing front-right wheel. 19-inch five-spoke alloy wheel visible with high-gloss finish. Red Audi brake caliper visible through spokes. E-hybrid badge on front fender in blue and chrome. Floor reflection shows vehicle outline on polished white tile."
+"Camera has rotated 30 degrees clockwise, now showing front-right wheel. 19-inch five-spoke alloy wheel visible with high-gloss finish. Brake caliper visible through spokes. Electric badge on front fender in blue and chrome. Floor reflection shows vehicle outline on polished white tile."
 
 **Frame 3 (0:06):**
-"Side profile highlights coupe-like roofline - the Sportback's defining feature. Roofline slopes dramatically from B-pillar to rear. Door handles flush-mounted. Text appears center-screen: 'Design meets efficiency' in thin sans-serif font."
+"Side profile highlights sleek roofline - the SUV's defining feature. Roofline slopes elegantly from B-pillar to rear. Door handles flush-mounted. Text appears center-screen: 'Design meets efficiency' in thin sans-serif font."
 
 **[...7 more frames with detailed descriptions...]**
 
@@ -657,18 +657,18 @@ Agent: I'll scan https://www.audi.de/de/neuwagen/q3/... for WCAG 2.2 Level AA co
 WEBVTT
 
 00:00:00.000 --> 00:00:03.000
-Close-up frontal view of silver Audi
-Q3 Sportback e-hybrid in white showroom.
-Singleframe grille, LED headlights visible.
+Close-up frontal view of silver electric
+SUV in white showroom. Modern grille,
+LED headlights visible.
 
 00:00:03.000 --> 00:00:06.000
 Camera rotates showing front-right wheel,
-19-inch alloy, red brake caliper, e-hybrid
-badge on fender. Text: "Q3 Sportback e-hybrid"
+19-inch alloy, brake caliper, electric
+badge on fender. Text: "Electric SUV"
 
 00:00:06.000 --> 00:00:09.000
-Side profile highlights coupe-like roofline,
-Sportback's signature design. Flush handles.
+Side profile highlights sleek roofline,
+SUV's signature design. Flush handles.
 Text: "Design meets efficiency"
 
 [...continues for all 10 frames...]
@@ -676,26 +676,26 @@ Text: "Design meets efficiency"
 
 **Extended Description (for aria-describedby):**
 
-"This video contains 10 detailed scenes analyzed frame-by-frame. The opening shows a silver Audi Q3 Sportback e-hybrid positioned in a modern glass showroom with dramatic white LED lighting. The camera performs a slow 360-degree walkaround starting from the front passenger side, moving clockwise. Each angle showcases the distinctive design: bold Singleframe grille, sleek LED headlights, coupe-like roofline, chrome accents, 19-inch alloy wheels. Text overlays appear displaying 'Q3 Sportback e-hybrid' and 'Vorsprung durch Technik'. The video maintains a calm, professional tone with smooth camera movements emphasizing premium quality."
+"This video contains 10 detailed scenes analyzed frame-by-frame. The opening shows a silver electric SUV positioned in a modern glass showroom with dramatic white LED lighting. The camera performs a slow 360-degree walkaround starting from the front passenger side, moving clockwise. Each angle showcases the distinctive design: bold front grille, sleek LED headlights, aerodynamic roofline, chrome accents, 19-inch alloy wheels. Text overlays appear displaying 'Electric SUV' and product tagline. The video maintains a calm, professional tone with smooth camera movements emphasizing premium quality."
 
 **Solution Code (Ready to Implement):**
 
 ```html
 <!-- Add caption track -->
 <video controls>
-  <source src="Q3_video.mp4" type="video/mp4">
+  <source src="product_video.mp4" type="video/mp4">
   <track kind="captions" src="captions.vtt" srclang="en" label="English">
 </video>
 
 <!-- Add extended description for screen readers -->
 <video controls aria-describedby="video-desc-1">
-  <source src="Q3_video.mp4" type="video/mp4">
+  <source src="product_video.mp4" type="video/mp4">
   <track kind="captions" src="captions.vtt" srclang="en" label="English">
 </video>
 
 <div id="video-desc-1" style="position: absolute; left: -10000px;">
   This video contains 10 detailed scenes analyzed frame-by-frame.
-  The opening shows a silver Audi Q3 Sportback e-hybrid positioned
+  The opening shows a silver electric SUV positioned
   in a modern glass showroom with dramatic white LED lighting...
   [Full extended description here]
 </div>

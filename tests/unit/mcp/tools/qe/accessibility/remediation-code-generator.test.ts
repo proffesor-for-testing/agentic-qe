@@ -159,7 +159,7 @@ describe('Remediation Code Generator', () => {
     };
 
     it('should generate HTML and WebVTT remediation code', () => {
-      const codes = generateVideoCaptionRemediation(violation, 'de', 'Audi Q3');
+      const codes = generateVideoCaptionRemediation(violation, 'de', 'Product Demo');
 
       expect(codes.length).toBeGreaterThanOrEqual(2);
 
@@ -172,7 +172,7 @@ describe('Remediation Code Generator', () => {
       const vttCode = codes.find(c => c.language === 'vtt');
       expect(vttCode).toBeDefined();
       expect(vttCode?.afterCode).toContain('WEBVTT');
-      expect(vttCode?.afterCode).toContain('Audi Q3');
+      expect(vttCode?.afterCode).toContain('Product Demo');
     });
 
     it('should include default English track', () => {
