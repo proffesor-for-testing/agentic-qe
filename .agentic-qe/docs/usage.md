@@ -17,7 +17,7 @@ npm install agentic-qe-cf --save-dev
 npx aqe init
 
 # This creates:
-# - .claude/agents/       (19 QE agents)
+# - .claude/agents/       (20 QE agents)
 # - .claude/skills/       (41 QE skills)
 # - .claude/commands/     (8 slash commands)
 # - .agentic-qe/config/   (fleet configuration)
@@ -500,7 +500,7 @@ claude mcp list
 
 ```bash
 ls -la .claude/agents/
-# Should show 18 agent markdown files
+# Should show 20 agent markdown files
 ```
 
 ### Check Fleet Status
@@ -563,7 +563,7 @@ Task("Hunt flaky tests", "Detect and stabilize flaky tests with ML", "qe-flaky-t
 ---
 
 **Related Documentation:**
-- [Agent Reference](agents.md) - All 19 QE agents
+- [Agent Reference](agents.md) - All 20 QE agents
 - [Skills Reference](skills.md) - All 41 QE skills
 
 **Related Policies:**

@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.1] - 2025-12-14
+
+### Changed
+
+#### A11y-Ally Agent Enhancements (PR #135)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+- **Developer-Focused Output** - Every violation now includes copy-paste ready code fixes
+  - Ready-to-use code snippets for immediate implementation
+  - Context-aware ARIA labels (not generic suggestions)
+  - Alternative approaches when constraints exist
+- **Claude Code Native Vision** - Zero-config video analysis
+  - Uses Claude's built-in multimodal capabilities directly
+  - No external API setup required when running in Claude Code
+  - Falls back to Ollama/moondream for standalone usage
+- **Mandatory Content Generation** - WebVTT captions and audio descriptions
+  - Generates actual caption files (not templates)
+  - Audio descriptions for blind/visually impaired users
+  - Multi-language support based on page locale
+- **Multi-Provider Video Analysis Cascade** updated priority:
+  1. Claude Code Native Vision (zero config)
+  2. Anthropic Claude API
+  3. OpenAI GPT-4 Vision
+  4. Ollama (free/local)
+  5. moondream (low-memory fallback)
+  6. Context-based fallback
+
+### Fixed
+
+- **Agent count consistency** - Fixed references showing 19 agents (should be 20)
+  - Updated `.agentic-qe/docs/usage.md`
+  - Updated `.agentic-qe/docs/skills.md`
+- **CLAUDE.md restored** - Restored full Agentic QE configuration (was replaced with generic SPARC config)
+- **Root file cleanup** - Moved `aqe` wrapper script from root to `scripts/aqe-wrapper`
+
+### Removed
+
+- **Brand-specific references** - Removed all Audi/Q3/Sportback branding from examples
+  - Updated scan-comprehensive.ts with generic URLs
+  - Updated video-vision-analyzer.ts with generic examples
+  - Cleaned up test files and documentation
+
+### Added
+
+- **Learning scheduler config** - Added `.agentic-qe/learning-config.json` for nightly learning
+- **Learning startup script** - Added `.agentic-qe/start-learning.js`
+- **Test video frames** - Added 10 sample frames in `tests/accessibility/frames/`
+- **Gitignore updates** - Added `CLAUDE.md.backup` and `/aqe` to `.gitignore`
+
 ## [2.5.0] - 2025-12-13
 
 ### Added

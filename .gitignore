@@ -73,6 +73,10 @@ tests/.tmp/
 .roo/
 .hive-mind/
 
+# Project-specific ignores
+CLAUDE.md.backup
+/aqe
+
 
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
@@ -152,3 +156,4 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+tests/tmp/*
