@@ -104,6 +104,12 @@ export const PRICING_TABLE: ProviderPricing[] = [
   },
   {
     provider: 'openrouter',
+    model: 'meta-llama/llama-3.1-70b-instruct',
+    inputCostPerMillion: 0.18,
+    outputCostPerMillion: 0.90,
+  },
+  {
+    provider: 'openrouter',
     model: 'openai/gpt-3.5-turbo',
     inputCostPerMillion: 0.5,
     outputCostPerMillion: 1.5,

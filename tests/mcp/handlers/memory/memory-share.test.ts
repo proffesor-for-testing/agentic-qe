@@ -13,17 +13,21 @@ import { MemoryShareHandler } from '@mcp/handlers/memory/memory-share';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('MemoryShareHandler', () => {
   let handler: MemoryShareHandler;
-  let registry: AgentRegistry;
-  let hookExecutor: HookExecutor;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
   let memoryStore: Map<string, any>;
 
   beforeEach(() => {
-    registry = new AgentRegistry();
-    hookExecutor = new HookExecutor();
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
     memoryStore = new Map();
-    handler = new MemoryShareHandler(registry, hookExecutor, memoryStore);
+    handler = new MemoryShareHandler(mockRegistry, mockHookExecutor, memoryStore);
   });
 
   afterEach(async () => {
@@ -254,7 +258,7 @@ describe('MemoryShareHandler', () => {
         throw new Error('Storage full');
       });
 
-      const errorHandler = new MemoryShareHandler(registry, hookExecutor, errorStore as any);
+      const errorHandler = new MemoryShareHandler(mockRegistry, mockHookExecutor, errorStore as any);
       const response = await errorHandler.handle({
         sourceKey: 'data',
         sourceNamespace: 'test',

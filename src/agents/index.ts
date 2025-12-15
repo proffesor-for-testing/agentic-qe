@@ -954,3 +954,16 @@ export type {
   SONAIntegrationConfig,
   SONAAgentContext,
 } from './SONAIntegration';
+
+// SONA Lifecycle Manager (NEW in v2.5.4 - Phase 2: Lifecycle Integration)
+export {
+  SONALifecycleManager,
+  getSONALifecycleManager,
+  resetSONALifecycleManager,
+  createSONALifecycleManager,
+} from './SONALifecycleManager';
+export type {
+  SONALifecycleConfig,
+  AgentSONAContext,
+  TaskCompletionFeedback,
+} from './SONALifecycleManager';

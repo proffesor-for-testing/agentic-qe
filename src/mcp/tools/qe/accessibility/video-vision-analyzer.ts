@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import type { Page } from 'playwright';
+import type { ILLMProvider } from '../../../../providers/ILLMProvider';
 
 export interface VideoFrame {
   timestamp: number;
@@ -19,7 +19,7 @@ export interface VideoAnalysisResult {
   extendedDescription: string; // For aria-describedby
 }
 
-export type VisionProvider = 'openai' | 'anthropic' | 'ollama' | 'moondream' | 'context' | 'auto';
+export type VisionProvider = 'openai' | 'anthropic' | 'ollama' | 'moondream' | 'context' | 'auto' | 'provider';
 
 export interface VisionOptions {
   provider?: VisionProvider; // Default: 'auto' (cascade through all available)
@@ -30,6 +30,8 @@ export interface VisionOptions {
   moondreamBaseUrl?: string; // Default: http://localhost:11434 (moondream via Ollama)
   videoContext?: VideoContext; // Context for intelligent fallback captions
   enableCascade?: boolean; // Default: true - automatically try next provider on failure
+  llmProvider?: ILLMProvider; // Custom LLM provider for vision analysis (replaces direct Anthropic usage)
+  model?: string; // Model to use with llmProvider (optional, uses provider default if not specified)
 }
 
 export interface VideoContext {
@@ -353,39 +355,24 @@ Example good description: "Close-up shot of a silver electric SUV parked in a mo
 }
 
 /**
- * Analyze video frames using Anthropic Claude Vision API (paid)
+ * Analyze video frames using LLM provider with vision capability
+ * Uses provider abstraction for flexibility and backward compatibility
  */
-async function analyzeVideoWithAnthropic(
+async function analyzeVideoWithVisionProvider(
   frames: VideoFrame[],
-  apiKey: string
+  provider: ILLMProvider,
+  model?: string
 ): Promise<VideoAnalysisResult> {
-  const anthropic = new Anthropic({ apiKey });
+  // Verify provider supports vision
+  const metadata = provider.getMetadata();
+  if (!metadata.capabilities.vision) {
+    throw new Error(`Provider "${metadata.name}" does not support vision. Please use a vision-capable provider like Claude.`);
+  }
 
   // Analyze each frame for scene description
   const sceneDescriptions: SceneDescription[] = [];
 
-  for (const frame of frames) {
-    // Convert data URL to base64 string (remove data:image/jpeg;base64, prefix)
-    const base64Data = frame.dataUrl.split(',')[1];
-
-    const response = await anthropic.messages.create({
-      model: 'claude-3-7-sonnet-20250219',
-      max_tokens: 500,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/jpeg',
-                data: base64Data
-              }
-            },
-            {
-              type: 'text',
-              text: `You are describing this video frame for a blind person who cannot see it. Provide a detailed, comprehensive description.
+  const framePrompt = `You are describing this video frame for a blind person who cannot see it. Provide a detailed, comprehensive description.
 
 CRITICAL: Focus on these accessibility elements:
 
@@ -408,7 +395,30 @@ CRITICAL: Focus on these accessibility elements:
 7. **Objects & Details** - Important objects, their position, condition
 8. **Perspective** - Camera angle (close-up, wide shot, aerial, etc.)
 
-Write 3-4 detailed sentences that paint a complete picture. Be specific with measurements, positions, and relationships between objects.`
+Write 3-4 detailed sentences that paint a complete picture. Be specific with measurements, positions, and relationships between objects.`;
+
+  for (const frame of frames) {
+    // Convert data URL to base64 string (remove data:image/jpeg;base64, prefix)
+    const base64Data = frame.dataUrl.split(',')[1];
+
+    const response = await provider.complete({
+      model: model || 'claude-3-7-sonnet-20250219',
+      maxTokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/jpeg',
+                data: base64Data
+              }
+            },
+            {
+              type: 'text',
+              text: framePrompt
             }
           ]
         }
@@ -434,17 +444,7 @@ Write 3-4 detailed sentences that paint a complete picture. Be specific with mea
     }
   }));
 
-  const overallResponse = await anthropic.messages.create({
-    model: 'claude-3-7-sonnet-20250219',
-    max_tokens: 300,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          ...imageBlocks,
-          {
-            type: 'text',
-            text: `You are creating a comprehensive video description for a blind person who cannot see it. Analyze all frames and create a complete narrative.
+  const overallPrompt = `You are creating a comprehensive video description for a blind person who cannot see it. Analyze all frames and create a complete narrative.
 
 CRITICAL: Provide a detailed overview covering:
 
@@ -457,7 +457,19 @@ CRITICAL: Provide a detailed overview covering:
 7. **Emotional Tone** - Is it exciting, calm, professional, dramatic?
 8. **Closing** - How does the video end?
 
-Write 4-5 sentences that tell the complete story of this video, helping a blind user understand exactly what they would see if they could watch it. Be specific about what happens when, and include all important visual details.`
+Write 4-5 sentences that tell the complete story of this video, helping a blind user understand exactly what they would see if they could watch it. Be specific about what happens when, and include all important visual details.`;
+
+  const overallResponse = await provider.complete({
+    model: model || 'claude-3-7-sonnet-20250219',
+    maxTokens: 300,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          ...imageBlocks,
+          {
+            type: 'text',
+            text: overallPrompt
           }
         ]
       }
@@ -571,6 +583,10 @@ function splitIntoLines(
 /**
  * Main function: Analyze video frames using configured vision provider
  * Defaults to FREE Ollama (no API key required)
+ *
+ * @param frames - Video frames to analyze
+ * @param options - Vision analysis options
+ * @returns Analysis result with descriptions and captions
  */
 export async function analyzeVideoWithVision(
   frames: VideoFrame[],
@@ -580,19 +596,78 @@ export async function analyzeVideoWithVision(
 
   console.log(`🔍 Using vision provider: ${provider === 'free' ? 'Ollama (FREE)' : provider}`);
 
-  // Free option: use Ollama
+  // Provider abstraction: use custom LLM provider
+  if (provider === 'provider' || options.llmProvider) {
+    if (!options.llmProvider) {
+      throw new Error('llmProvider option is required when using provider mode. Pass an ILLMProvider instance.');
+    }
+
+    // Check if provider supports vision
+    const metadata = options.llmProvider.getMetadata();
+    if (!metadata.capabilities.vision) {
+      console.warn(`⚠️  Provider "${metadata.name}" does not support vision - falling back to context-based captions`);
+
+      // Graceful fallback to context-based analysis
+      if (options.videoContext) {
+        console.log('🔄 Generating intelligent context-based captions...');
+        return generateContextBasedCaptions(frames, options.videoContext);
+      }
+
+      throw new Error(
+        `Provider "${metadata.name}" does not support vision capabilities. ` +
+        `Please provide a vision-capable provider (like Claude) or include videoContext for fallback.`
+      );
+    }
+
+    // Use provider with vision support
+    console.log(`✅ Using ${metadata.name} provider with vision support`);
+    try {
+      return await analyzeVideoWithVisionProvider(frames, options.llmProvider, options.model);
+    } catch (error) {
+      console.warn(`⚠️  Vision provider failed: ${(error as Error).message}`);
+
+      // Fallback to context-based if available
+      if (options.videoContext) {
+        console.log('🔄 Falling back to intelligent context-based captions...');
+        return generateContextBasedCaptions(frames, options.videoContext);
+      }
+
+      throw error;
+    }
+  }
+
+  // Legacy: Free option - use Ollama
   if (provider === 'free' || provider === 'ollama') {
     return analyzeVideoWithOllama(frames, options);
   }
 
-  // Paid option: use Anthropic
+  // Legacy: Paid option - use Anthropic (deprecated - prefer llmProvider)
   if (provider === 'anthropic') {
-    const apiKey = options.anthropicApiKey;
+    console.warn('⚠️  Direct Anthropic provider is deprecated. Consider using llmProvider with ClaudeProvider instead.');
+    const apiKey = options.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error('Anthropic API key required for paid provider. Use provider: "free" for Ollama instead.');
     }
-    return analyzeVideoWithAnthropic(frames, apiKey);
+
+    // Import ClaudeProvider dynamically to avoid circular dependencies
+    const { ClaudeProvider } = await import('../../../../providers/ClaudeProvider');
+    const claudeProvider = new ClaudeProvider({ apiKey });
+    await claudeProvider.initialize();
+
+    try {
+      return await analyzeVideoWithVisionProvider(frames, claudeProvider, options.model);
+    } catch (error) {
+      console.warn(`⚠️  Claude vision failed: ${(error as Error).message}`);
+
+      // Fallback to context-based if available
+      if (options.videoContext) {
+        console.log('🔄 Falling back to intelligent context-based captions...');
+        return generateContextBasedCaptions(frames, options.videoContext);
+      }
+
+      throw error;
+    }
   }
 
-  throw new Error(`Unknown vision provider: ${provider}. Use "free", "ollama", or "anthropic".`);
+  throw new Error(`Unknown vision provider: ${provider}. Use "free", "ollama", "anthropic", or "provider" (with llmProvider option).`);
 }

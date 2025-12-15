@@ -11,17 +11,21 @@ import { MemoryQueryHandler } from '@mcp/handlers/memory/memory-query';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('MemoryQueryHandler', () => {
   let handler: MemoryQueryHandler;
-  let registry: AgentRegistry;
-  let hookExecutor: HookExecutor;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
   let memoryStore: Map<string, any>;
 
   beforeEach(() => {
-    registry = new AgentRegistry();
-    hookExecutor = new HookExecutor();
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
     memoryStore = new Map();
-    handler = new MemoryQueryHandler(registry, hookExecutor, memoryStore);
+    handler = new MemoryQueryHandler(mockRegistry, mockHookExecutor, memoryStore);
 
     // Populate with test data
     const now = Date.now();
@@ -264,7 +268,7 @@ describe('MemoryQueryHandler', () => {
         entries: jest.fn(() => { throw new Error('Query error'); })
       } as any;
 
-      const errorHandler = new MemoryQueryHandler(registry, hookExecutor, errorStore);
+      const errorHandler = new MemoryQueryHandler(mockRegistry, mockHookExecutor, errorStore);
 
       const response = await errorHandler.handle({});
 
@@ -274,7 +278,7 @@ describe('MemoryQueryHandler', () => {
 
     it('should provide meaningful error messages', async () => {
       const errorStore = new Map();
-      const errorHandler = new MemoryQueryHandler(registry, hookExecutor, errorStore);
+      const errorHandler = new MemoryQueryHandler(mockRegistry, mockHookExecutor, errorStore);
 
       // Mock the entries method to throw
       Object.defineProperty(errorStore, 'entries', {
