@@ -24,6 +24,7 @@ import { copySkillTemplates } from './skills';
 import { copyCommandTemplates } from './commands';
 import { copyHelperScripts, copyHookScripts } from './helpers';
 import { initializeLearningSystem } from './learning-init';
+import { installOptionalDependencies, displayOptionalDependenciesHelp } from './optional-dependencies';
 
 // Import version from package.json
 const packageJson = require('../../../package.json');
@@ -216,15 +217,19 @@ export async function initCommand(options: InitOptions): Promise<void> {
         text: 'Creating CLAUDE.md configuration file',
         prefixText: chalk.blue('[CLAUDE.md]')
       }).start();
-      await createClaudeMd(config, (options as any).yes || (options as any).nonInteractive || false);
+      await createClaudeMd(config, options.yes || options.nonInteractive || false);
       claudeSpinner.succeed(chalk.green('Creating CLAUDE.md configuration file - Complete'));
       completedPhases.push('CLAUDE.md');
     } catch (error) {
       console.warn(chalk.yellow(`  ⚠️  CLAUDE.md creation skipped: ${error instanceof Error ? error.message : String(error)}`));
     }
 
+    // Install optional dependencies (prompt user unless -y flag)
+    console.log(chalk.cyan('\n🔧 Optional Dependencies:\n'));
+    const { installed, skipped } = await installOptionalDependencies(options);
+
     // All phases completed successfully (or skipped non-critical)
-    displaySuccessMessage(config, options);
+    displaySuccessMessage(config, options, skipped);
 
   } catch (error) {
     // Unexpected error during initialization
@@ -322,7 +327,7 @@ async function rollbackPhases(
 /**
  * Display success message with next steps
  */
-function displaySuccessMessage(config: FleetConfig, options: InitOptions): void {
+function displaySuccessMessage(config: FleetConfig, options: InitOptions, skippedDeps: string[] = []): void {
   console.log(chalk.green.bold('\n✅ Initialization Complete!\n'));
 
   console.log(chalk.blue('Fleet Configuration:'));
@@ -331,6 +336,9 @@ function displaySuccessMessage(config: FleetConfig, options: InitOptions): void 
   console.log(chalk.gray(`  • Testing Focus: ${config.testingFocus?.join(', ')}`));
   console.log(chalk.gray(`  • Environments: ${config.environments?.join(', ')}`));
   console.log(chalk.gray(`  • Frameworks: ${config.frameworks?.join(', ')}`));
+
+  // Show optional dependencies that were skipped
+  displayOptionalDependenciesHelp(skippedDeps);
 
   console.log(chalk.yellow('\n💡 Next Steps:\n'));
   console.log(chalk.white('  1. Check fleet status:'));
