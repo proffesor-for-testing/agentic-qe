@@ -13,17 +13,21 @@ import { BlackboardPostHandler } from '@mcp/handlers/memory/blackboard-post';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('BlackboardPostHandler', () => {
   let handler: BlackboardPostHandler;
-  let registry: AgentRegistry;
-  let hookExecutor: HookExecutor;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
   let blackboard: Map<string, any[]>;
 
   beforeEach(() => {
-    registry = new AgentRegistry();
-    hookExecutor = new HookExecutor();
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
     blackboard = new Map();
-    handler = new BlackboardPostHandler(registry, hookExecutor, blackboard);
+    handler = new BlackboardPostHandler(mockRegistry, mockHookExecutor, blackboard);
   });
 
   afterEach(async () => {
@@ -451,7 +455,7 @@ describe('BlackboardPostHandler', () => {
   describe('Hook Integration', () => {
     it('should execute notification hook with info level for low priority', async () => {
       // GIVEN: Mock hook executor
-      const notifySpy = jest.spyOn(hookExecutor, 'notify');
+      const notifySpy = jest.spyOn(mockHookExecutor, 'notify');
 
       // WHEN: Posting low priority hint
       await handler.handle({
@@ -470,7 +474,7 @@ describe('BlackboardPostHandler', () => {
 
     it('should execute notification hook with warn level for high priority', async () => {
       // GIVEN: Mock hook executor
-      const notifySpy = jest.spyOn(hookExecutor, 'notify');
+      const notifySpy = jest.spyOn(mockHookExecutor, 'notify');
 
       // WHEN: Posting high priority hint
       await handler.handle({
@@ -489,7 +493,7 @@ describe('BlackboardPostHandler', () => {
 
     it('should execute notification hook with error level for critical priority', async () => {
       // GIVEN: Mock hook executor
-      const notifySpy = jest.spyOn(hookExecutor, 'notify');
+      const notifySpy = jest.spyOn(mockHookExecutor, 'notify');
 
       // WHEN: Posting critical priority hint
       await handler.handle({

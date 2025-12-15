@@ -51,7 +51,7 @@ describe('WorkflowCheckpointHandler', () => {
       // THEN: Returns checkpoint with state captured
       expect(result.success).toBe(true);
       expect(result.data).toMatchObject({
-        checkpointId: expect.stringMatching(/^cp-\d+-[a-z0-9]{3}$/),
+        checkpointId: expect.stringMatching(/^cp-\d+-[a-f0-9]{6}$/),
         executionId: 'exec-123',
         timestamp: expect.any(String),
         reason: 'Before critical step',

@@ -13,17 +13,21 @@ import { ConsensusProposeHandler } from '@mcp/handlers/memory/consensus-propose'
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('ConsensusProposeHandler', () => {
   let handler: ConsensusProposeHandler;
-  let registry: AgentRegistry;
-  let hookExecutor: HookExecutor;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
   let proposals: Map<string, any>;
 
   beforeEach(() => {
-    registry = new AgentRegistry();
-    hookExecutor = new HookExecutor();
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
     proposals = new Map();
-    handler = new ConsensusProposeHandler(registry, hookExecutor, proposals);
+    handler = new ConsensusProposeHandler(mockRegistry, mockHookExecutor, proposals);
   });
 
   afterEach(async () => {
@@ -524,7 +528,7 @@ describe('ConsensusProposeHandler', () => {
   describe('Hook Integration', () => {
     it('should execute notification hook on proposal creation', async () => {
       // GIVEN: Mock hook executor
-      const notifySpy = jest.spyOn(hookExecutor, 'notify');
+      const notifySpy = jest.spyOn(mockHookExecutor, 'notify');
 
       // WHEN: Creating proposal
       await handler.handle({
