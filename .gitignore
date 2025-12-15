@@ -116,6 +116,7 @@ claude-flow
 .agentic-qe/memory/
 .agentic-qe/data/learning/state.json
 .agentic-qe/data/improvement/state.json
+.agentic-qe/a11y-scans/
 data/
 test-projects/
 
