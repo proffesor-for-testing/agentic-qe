@@ -49,13 +49,50 @@ import {
   MemoryServiceAdapter,
 } from './adapters';
 
+/**
+ * Configuration for BaseAgent
+ *
+ * @remarks
+ * IMPORTANT: If `enableLearning` is true (default), `memoryStore` MUST be a
+ * `SwarmMemoryManager` instance. Using `MemoryManager` or other implementations
+ * will cause learning features to be silently disabled.
+ *
+ * Issue #137: This was a recurring bug where FleetManager passed MemoryManager
+ * instead of SwarmMemoryManager, causing all learning features to be disabled.
+ *
+ * @see SwarmMemoryManager
+ */
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
   capabilities: AgentCapability[];
   context: AgentContext;
+  /**
+   * Memory store for agent state and learning
+   *
+   * @remarks
+   * For learning features (Q-learning, pattern recognition, performance tracking),
+   * this MUST be a SwarmMemoryManager instance. Using MemoryManager or other
+   * basic implementations will disable learning features.
+   *
+   * At compile time, this accepts any MemoryStore. Runtime validation is done
+   * via isSwarmMemoryManager() type guard. Issue #137 added early warning
+   * in constructor if learning is enabled but SwarmMemoryManager is not provided.
+   *
+   * @see SwarmMemoryManager
+   * @see isSwarmMemoryManager
+   */
   memoryStore: MemoryStore;
   eventBus: EventEmitter;
+  /**
+   * Enable learning features (Q-learning, pattern recognition, performance tracking)
+   *
+   * @remarks
+   * When true (default), requires memoryStore to be SwarmMemoryManager.
+   * A warning is logged if memoryStore doesn't support learning features.
+   *
+   * @default true
+   */
   enableLearning?: boolean;
   learningConfig?: Partial<LearningConfig>;
   /** @deprecated v2.2.0 - Use memoryStore instead */
@@ -65,6 +102,77 @@ export interface BaseAgentConfig {
   memoryStrategy?: AgentMemoryStrategy;
   learningStrategy?: AgentLearningStrategy;
   coordinationStrategy?: AgentCoordinationStrategy;
+}
+
+/**
+ * Check if a memory store is SwarmMemoryManager
+ *
+ * @remarks
+ * This is a runtime check using instanceof. Use this to verify if learning
+ * features are available before attempting to use them.
+ *
+ * Note: This is NOT a TypeScript type guard because MemoryStore and
+ * SwarmMemoryManager have incompatible method signatures. After checking
+ * with this function, use a type assertion: `store as SwarmMemoryManager`
+ *
+ * @example
+ * ```typescript
+ * if (isSwarmMemoryManager(config.memoryStore)) {
+ *   const swarm = config.memoryStore as SwarmMemoryManager;
+ *   // Use swarm's learning features
+ * }
+ * ```
+ */
+export function isSwarmMemoryManager(store: MemoryStore): boolean {
+  return store instanceof SwarmMemoryManager;
+}
+
+/**
+ * Validate agent config for learning features
+ *
+ * @remarks
+ * Call this early in agent initialization to fail fast with clear error message.
+ * This helps developers identify configuration issues immediately rather than
+ * discovering disabled learning features at runtime.
+ *
+ * Issue #137: FleetManager was passing MemoryManager instead of SwarmMemoryManager,
+ * causing learning features to be silently disabled for all agents.
+ *
+ * @param config - Agent configuration to validate
+ * @param options - Validation options
+ * @param options.throwOnMismatch - If true, throws an error instead of returning warning
+ * @returns Validation result with valid flag and optional warning message
+ *
+ * @example
+ * ```typescript
+ * // In agent constructor:
+ * const validation = validateLearningConfig(config);
+ * if (!validation.valid) {
+ *   console.warn(validation.warning);
+ * }
+ * ```
+ */
+export function validateLearningConfig(
+  config: BaseAgentConfig,
+  options: { throwOnMismatch?: boolean } = {}
+): { valid: boolean; warning?: string } {
+  const enableLearning = config.enableLearning ?? true;
+
+  if (enableLearning && !isSwarmMemoryManager(config.memoryStore)) {
+    const warning =
+      `Learning is enabled but memoryStore is not SwarmMemoryManager. ` +
+      `Got ${config.memoryStore.constructor.name}. ` +
+      `Learning features (Q-learning, patterns, metrics) will be DISABLED. ` +
+      `To fix: Use SwarmMemoryManager or set enableLearning: false.`;
+
+    if (options.throwOnMismatch) {
+      throw new Error(warning);
+    }
+
+    return { valid: false, warning };
+  }
+
+  return { valid: true };
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -105,6 +213,13 @@ export abstract class BaseAgent extends EventEmitter {
     this.eventBus = config.eventBus;
     this.enableLearning = config.enableLearning ?? true;
     this.learningConfig = config.learningConfig;
+
+    // Early validation: Warn immediately if learning config is invalid
+    // Issue #137: Fail-fast pattern to catch configuration issues at construction time
+    const validation = validateLearningConfig(config);
+    if (!validation.valid && validation.warning) {
+      console.warn(`[${this.agentId.id}] CONFIG WARNING: ${validation.warning}`);
+    }
 
     // Initialize service classes
     const memoryAdapter = new MemoryStoreAdapter(this.memoryStore);
@@ -181,6 +296,7 @@ export abstract class BaseAgent extends EventEmitter {
           }
 
           // Initialize PerformanceTracker if learning is enabled
+          // Issue #137: FleetManager now provides SwarmMemoryManager to enable learning
           if (this.enableLearning && this.memoryStore instanceof SwarmMemoryManager) {
             this.performanceTracker = new PerformanceTracker(
               this.agentId.id,
@@ -206,6 +322,7 @@ export abstract class BaseAgent extends EventEmitter {
             }
           } else if (this.enableLearning && !(this.memoryStore instanceof SwarmMemoryManager)) {
             // Runtime check: Warn if learning is enabled but memoryStore doesn't support it
+            // Note: Early warning was already emitted in constructor (Issue #137)
             console.warn(
               `[${this.agentId.id}] Learning enabled but memoryStore is not SwarmMemoryManager. ` +
               `Learning features will be disabled. Expected SwarmMemoryManager, got ${this.memoryStore.constructor.name}`

@@ -9,7 +9,7 @@
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
 
 
-**Version 2.5.1** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.5.2** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
