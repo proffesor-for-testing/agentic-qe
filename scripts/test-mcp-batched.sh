@@ -27,10 +27,10 @@ run_batch() {
 
     if $batch_cmd; then
         echo "✅ $batch_name: PASSED"
-        ((PASSED_BATCHES++))
+        PASSED_BATCHES=$((PASSED_BATCHES + 1))
     else
         echo "❌ $batch_name: FAILED"
-        ((FAILED_BATCHES++))
+        FAILED_BATCHES=$((FAILED_BATCHES + 1))
         FAILED_BATCH_NAMES="$FAILED_BATCH_NAMES $batch_name"
     fi
 
