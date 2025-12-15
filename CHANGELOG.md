@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.2] - 2025-12-15
+
+### Fixed
+
+- **Issue #137: FleetManager MemoryManager Type Mismatch** - Critical fix for disabled learning features
+  - FleetManager now uses `SwarmMemoryManager` instead of `MemoryManager`
+  - Agents spawned by FleetManager now have learning features enabled
+  - Added `validateLearningConfig()` for early warning when wrong memory store type is provided
+  - Added `isSwarmMemoryManager()` helper function for runtime type checking
+  - Added regression test to prevent future recurrence
+
+### Enhanced
+
+#### A11y-Ally Agent (PR #136)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+- **Bot Detection Bypass** - Enhanced Playwright context with realistic browser fingerprinting
+  - Webdriver detection removal
+  - Proper HTTP headers (Sec-Ch-Ua, Sec-Fetch-*, etc.)
+  - Blocked page validation (403, CloudFront errors, captcha detection)
+- **Video Analysis Pipeline** - Mandatory validation checkpoints
+  - Validation gates after video download and frame extraction
+  - Caption quality checks requiring specific visual details
+  - Clear failure reporting when steps are skipped
+- **Output Folder Standardization** - New structure `.agentic-qe/a11y-scans/{site-name}/`
+  - Standard subdirectories for reports, media, frames, captions
+  - Auto-cleanup of video files post-assessment
+- **Executive Summary Template** - Mandatory template with directory structure and re-run commands
+
+### Changed
+
+- Added `.agentic-qe/a11y-scans/` to .gitignore
+
 ## [2.5.1] - 2025-12-14
 
 ### Changed

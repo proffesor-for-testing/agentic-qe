@@ -52,7 +52,9 @@ import { Database } from '../utils/Database';
 import { Logger } from '../utils/Logger';
 import { Config, FleetConfig } from '../utils/Config';
 import { createAgent } from '../agents';
-import { MemoryManager } from './MemoryManager';
+import { SwarmMemoryManager } from './memory/SwarmMemoryManager';
+import * as path from 'path';
+import * as os from 'os';
 
 /**
  * Status information about the fleet
@@ -99,7 +101,7 @@ export class FleetManager extends EventEmitter {
   private readonly database: Database;
   private readonly logger: Logger;
   private readonly config: FleetConfig;
-  private readonly memoryManager: MemoryManager;
+  private readonly memoryManager: SwarmMemoryManager;
   private startTime: Date | null = null;
   private status: FleetStatus['status'] = 'initializing';
 
@@ -132,7 +134,12 @@ export class FleetManager extends EventEmitter {
     }
 
     this.config = config;
-    this.memoryManager = new MemoryManager(this.database);
+
+    // FIX: Use SwarmMemoryManager instead of MemoryManager to enable learning features
+    // Issue #137: Agents require SwarmMemoryManager for PerformanceTracker, LearningEngine
+    // Path: .agentic-qe/memory.db (project-local) or ~/.agentic-qe/memory.db (global)
+    const dbPath = this.resolveMemoryDbPath();
+    this.memoryManager = new SwarmMemoryManager(dbPath);
 
     this.setupEventHandlers();
   }
@@ -169,6 +176,44 @@ export class FleetManager extends EventEmitter {
         }
       }
     } as any;
+  }
+
+  /**
+   * Resolve the path for SwarmMemoryManager database
+   *
+   * @remarks
+   * Uses project-local .agentic-qe/memory.db if running from a project directory,
+   * otherwise falls back to ~/.agentic-qe/memory.db for global installations.
+   * For tests, uses in-memory database.
+   *
+   * @private
+   */
+  private resolveMemoryDbPath(): string {
+    // Use in-memory DB for tests to prevent file conflicts
+    if (process.env.NODE_ENV === 'test') {
+      return ':memory:';
+    }
+
+    // Prefer project-local path
+    const projectPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+    const globalPath = path.join(os.homedir(), '.agentic-qe', 'memory.db');
+
+    // Use project path if .agentic-qe directory exists or can be created
+    try {
+      const projectDir = path.dirname(projectPath);
+      // Check if we're in a project directory (has package.json or .git)
+      const isProjectDir =
+        require('fs').existsSync(path.join(process.cwd(), 'package.json')) ||
+        require('fs').existsSync(path.join(process.cwd(), '.git'));
+
+      if (isProjectDir) {
+        return projectPath;
+      }
+    } catch {
+      // Fall through to global path
+    }
+
+    return globalPath;
   }
 
   /**
@@ -282,9 +327,9 @@ export class FleetManager extends EventEmitter {
 
     await Promise.all(stopPromises);
 
-    // CRITICAL FIX: Shutdown memory manager to clear cleanup interval
+    // CRITICAL FIX: Close SwarmMemoryManager to release database connection
     // This prevents memory leaks and hanging processes
-    await this.memoryManager.shutdown();
+    await this.memoryManager.close();
 
     // Close database connection
     await this.database.close();
@@ -498,8 +543,12 @@ export class FleetManager extends EventEmitter {
 
   /**
    * Get memory store for agent initialization
+   *
+   * @remarks
+   * Returns SwarmMemoryManager which is REQUIRED for agent learning features.
+   * Issue #137: Using MemoryManager caused instanceof checks to fail in BaseAgent.
    */
-  private getMemoryStore(): MemoryManager {
+  private getMemoryStore(): SwarmMemoryManager {
     return this.memoryManager;
   }
 
