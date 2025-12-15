@@ -290,7 +290,8 @@ describe('Journey: Test Execution', () => {
       const maxRetries = 3;
 
       // Mock a flaky test that succeeds on 3rd attempt
-      const originalExecute = (testExecutor as any).executeSingleTestInternal;
+      // FIX: Return deterministic result on 3rd attempt instead of calling
+      // the original implementation which uses random success rate (10% failure)
       (testExecutor as any).executeSingleTestInternal = jest.fn().mockImplementation(async (test: Test) => {
         attemptCount++;
 
@@ -304,7 +305,17 @@ describe('Journey: Test Execution', () => {
         if (attemptCount < 3) {
           throw new Error('TIMEOUT'); // Retryable error
         }
-        return originalExecute.call(testExecutor, test);
+        // Return deterministic passed result on 3rd attempt
+        // (Original implementation uses random 90% success which causes flakiness)
+        return {
+          id: test.id,
+          type: test.type,
+          status: 'passed',
+          duration: 100,
+          assertions: test.assertions?.length || 1,
+          coverage: { lines: 80, branches: 75, functions: 85, statements: 80 },
+          errors: []
+        };
       });
 
       const flakyTest: Test = {
