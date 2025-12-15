@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.4] - 2025-12-15
+
+### Fixed
+
+- **Security Alert #41: Incomplete Multi-Character Sanitization** - WebVTT generator security fix
+  - HTML tag sanitization now applies repeatedly until no more changes occur
+  - Prevents bypass with nested tags like `<<script>script>`
+  - Fixes CWE-1333 incomplete multi-character sanitization vulnerability
+
+- **Flaky Test: test-execution.test.ts Retry Test** - CI stability fix
+  - Root cause: Mock called original implementation which uses 90% random success rate
+  - Fix: Return deterministic "passed" result instead of random-based simulation
+  - Eliminates ~10% random failure rate that required CI workflow re-runs
+
 ## [2.5.3] - 2025-12-15
 
 ### Fixed
