@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.3] - 2025-12-15
+
+### Fixed
+
+- **Issue #139: MCP Server Fails to Start Without @axe-core/playwright** - Critical fix for production users
+  - Changed `@axe-core/playwright` import from top-level to lazy/dynamic loading
+  - MCP server now starts successfully even when `@axe-core/playwright` is not installed
+  - Users who need accessibility scanning can install the optional dependency: `npm install @axe-core/playwright`
+  - Clear error message guides users to install dependencies when accessibility tools are used
+
+### Added
+
+- **Optional Dependencies Prompt in `aqe init`** - Better onboarding experience
+  - Interactive prompt: "Do you plan to use accessibility testing features?"
+  - If yes, automatically installs `@axe-core/playwright`
+  - When using `aqe init -y` (non-interactive), skips optional deps for faster init
+  - Success message shows how to install skipped optional dependencies later
+
 ## [2.5.2] - 2025-12-15
 
 ### Fixed
