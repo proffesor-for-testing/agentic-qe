@@ -1,14 +1,12 @@
 /**
  * MemoryStoreAdapter - Bridges MemoryStore interface to SwarmMemoryManager
  *
- * This adapter provides type-safe compatibility between the MemoryStore interface
- * used by BaseAgent and the SwarmMemoryManager expected by VerificationHookManager.
+ * Issue #65: Updated to match synchronous API.
+ * Note: This adapter provides basic compatibility. For full functionality,
+ * use SwarmMemoryManager directly.
  *
- * Key Features:
- * - Runtime validation of MemoryStore compatibility
- * - Type-safe method delegation
- * - Clear error messages for incompatible implementations
- * - Full SwarmMemoryManager interface implementation
+ * BREAKING CHANGE: Methods now return sync values instead of Promises.
+ * The underlying MemoryStore operations are fire-and-forget for non-blocking calls.
  */
 
 import { MemoryStore } from '../types';
@@ -34,22 +32,25 @@ import {
   OODACycle
 } from '../core/memory/SwarmMemoryManager';
 
+// In-memory cache for sync operations
+interface CacheEntry {
+  value: any;
+  expiresAt?: number;
+}
+
 /**
  * Adapter that wraps MemoryStore to provide ISwarmMemoryManager interface
+ * Issue #65: Now provides synchronous API with internal caching
  */
 export class MemoryStoreAdapter implements ISwarmMemoryManager {
   private initialized = false;
+  private cache: Map<string, CacheEntry> = new Map();
 
   constructor(private memoryStore: MemoryStore) {
     this.validateCompatibility();
   }
 
-  /**
-   * Validates that MemoryStore has all required methods
-   * Throws clear error if incompatible
-   */
   private validateCompatibility(): void {
-    // Check if memoryStore is null or undefined
     if (!this.memoryStore || typeof this.memoryStore !== 'object') {
       throw new Error(
         'MemoryStoreAdapter requires a valid MemoryStore instance. ' +
@@ -75,99 +76,88 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     }
   }
 
-  /**
-   * Initialize adapter (no-op, delegates to underlying MemoryStore)
-   */
   async initialize(): Promise<void> {
     this.initialized = true;
   }
 
-  /**
-   * Store value with options
-   * Maps to MemoryStore.store() with TTL and partition support
-   */
   async store(key: string, value: any, options: StoreOptions = {}): Promise<void> {
     const partition = options.partition || 'default';
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
-    await this.memoryStore.store(namespacedKey, value, options.ttl);
+
+    // Cache locally for sync access
+    this.cache.set(namespacedKey, {
+      value,
+      expiresAt: options.ttl ? Date.now() + options.ttl * 1000 : undefined
+    });
+
+    // Fire-and-forget to underlying store
+    this.memoryStore.store(namespacedKey, value, options.ttl).catch(() => {});
   }
 
-  /**
-   * Retrieve value with options
-   * Maps to MemoryStore.retrieve() with partition support
-   */
   async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
     const partition = options.partition || 'default';
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
+
+    // Check cache first
+    const cached = this.cache.get(namespacedKey);
+    if (cached) {
+      if (!cached.expiresAt || cached.expiresAt > Date.now()) {
+        return cached.value;
+      }
+      this.cache.delete(namespacedKey);
+    }
+
+    // Fallback to underlying store
     return await this.memoryStore.retrieve(namespacedKey);
   }
 
-  /**
-   * Query entries matching pattern
-   * Note: MemoryStore doesn't have native pattern matching,
-   * so this returns empty array as safe fallback
-   */
-  async query(_pattern: string, _options: RetrieveOptions = {}): Promise<MemoryEntry[]> {
-    // MemoryStore doesn't support pattern queries
-    // Return empty array as safe fallback
+  query(_pattern: string, _options: RetrieveOptions = {}): MemoryEntry[] {
     return [];
   }
 
-  /**
-   * Delete entry
-   * Maps to MemoryStore.delete() with partition support
-   */
-  async delete(key: string, partition: string = 'default', _options: DeleteOptions = {}): Promise<void> {
+  delete(key: string, partition: string = 'default', _options: DeleteOptions = {}): void {
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
-    await this.memoryStore.delete(namespacedKey);
+    this.cache.delete(namespacedKey);
+    this.memoryStore.delete(namespacedKey).catch(() => {});
   }
 
-  /**
-   * Clear partition
-   * Maps to MemoryStore.clear() with namespace support
-   */
-  async clear(partition: string = 'default'): Promise<void> {
-    await this.memoryStore.clear(partition);
+  clear(partition: string = 'default'): void {
+    // Clear cache entries for partition
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(`${partition}:`) || partition === 'default') {
+        this.cache.delete(key);
+      }
+    }
+    this.memoryStore.clear(partition).catch(() => {});
   }
 
-  /**
-   * Post hint to blackboard
-   * Stores as regular entry with hint: prefix
-   */
-  async postHint(hint: { key: string; value: any; ttl?: number }): Promise<void> {
-    await this.memoryStore.store(`hint:${hint.key}`, hint.value, hint.ttl);
+  postHint(hint: { key: string; value: any; ttl?: number }): void {
+    const key = `hint:${hint.key}`;
+    this.cache.set(key, { value: hint.value, expiresAt: hint.ttl ? Date.now() + hint.ttl * 1000 : undefined });
+    this.memoryStore.store(key, hint.value, hint.ttl).catch(() => {});
   }
 
-  /**
-   * Read hints matching pattern
-   * Returns empty array as MemoryStore doesn't support pattern matching
-   */
-  async readHints(_pattern: string): Promise<Hint[]> {
-    // MemoryStore doesn't support pattern queries
+  readHints(_pattern: string): Hint[] {
     return [];
   }
 
-  /**
-   * Clean expired entries
-   * No-op for basic MemoryStore (relies on TTL)
-   */
-  async cleanExpired(): Promise<number> {
-    return 0;
+  cleanExpired(): number {
+    let cleaned = 0;
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (entry.expiresAt && entry.expiresAt < now) {
+        this.cache.delete(key);
+        cleaned++;
+      }
+    }
+    return cleaned;
   }
 
-  /**
-   * Close connection
-   * No-op for basic MemoryStore
-   */
-  async close(): Promise<void> {
-    // No-op
+  close(): void {
+    this.cache.clear();
   }
 
-  /**
-   * Get memory statistics
-   * Returns basic stats structure
-   */
-  async stats(): Promise<{
+  stats(): {
     totalEntries: number;
     totalHints: number;
     totalEvents: number;
@@ -184,9 +174,9 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     totalOODACycles: number;
     partitions: string[];
     accessLevels: Record<string, number>;
-  }> {
+  } {
     return {
-      totalEntries: 0,
+      totalEntries: this.cache.size,
       totalHints: 0,
       totalEvents: 0,
       totalWorkflows: 0,
@@ -205,87 +195,87 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     };
   }
 
-  // ============================================================================
-  // Table-specific methods (delegated with basic implementation)
-  // ============================================================================
-
-  async storeEvent(event: Event): Promise<string> {
+  // Event operations
+  storeEvent(event: Event): string {
     const id = event.id || `event-${Date.now()}`;
-    await this.store(`events:${id}`, event, { partition: 'events', ttl: event.ttl });
+    this.cache.set(`events:${id}`, { value: event, expiresAt: event.ttl ? Date.now() + event.ttl * 1000 : undefined });
     return id;
   }
 
-  async queryEvents(_type: string): Promise<Event[]> {
+  queryEvents(_type: string): Event[] {
     return [];
   }
 
-  async getEventsBySource(_source: string): Promise<Event[]> {
+  getEventsBySource(_source: string): Event[] {
     return [];
   }
 
-  async storeWorkflowState(workflow: WorkflowState): Promise<void> {
-    await this.store(`workflow:${workflow.id}`, workflow, { partition: 'workflow_state' });
+  // Workflow operations
+  storeWorkflowState(workflow: WorkflowState): void {
+    this.cache.set(`workflow:${workflow.id}`, { value: workflow });
   }
 
-  async getWorkflowState(id: string): Promise<WorkflowState> {
-    const data = await this.retrieve(`workflow:${id}`, { partition: 'workflow_state' });
-    if (!data) {
+  getWorkflowState(id: string): WorkflowState {
+    const entry = this.cache.get(`workflow:${id}`);
+    if (!entry) {
       throw new Error(`Workflow state not found: ${id}`);
     }
-    return data as WorkflowState;
+    return entry.value as WorkflowState;
   }
 
-  async updateWorkflowState(id: string, updates: Partial<WorkflowState>): Promise<void> {
-    const current = await this.getWorkflowState(id);
-    await this.storeWorkflowState({ ...current, ...updates });
+  updateWorkflowState(id: string, updates: Partial<WorkflowState>): void {
+    const current = this.getWorkflowState(id);
+    this.storeWorkflowState({ ...current, ...updates });
   }
 
-  async queryWorkflowsByStatus(_status: string): Promise<WorkflowState[]> {
+  queryWorkflowsByStatus(_status: string): WorkflowState[] {
     return [];
   }
 
-  async storePattern(pattern: Pattern): Promise<string> {
+  // Pattern operations
+  storePattern(pattern: Pattern): string {
     const id = pattern.id || `pattern-${Date.now()}`;
-    await this.store(`patterns:${id}`, pattern, { partition: 'patterns', ttl: pattern.ttl });
+    this.cache.set(`patterns:${id}`, { value: pattern, expiresAt: pattern.ttl ? Date.now() + pattern.ttl * 1000 : undefined });
     return id;
   }
 
-  async getPattern(patternName: string): Promise<Pattern> {
-    const data = await this.retrieve(`patterns:${patternName}`, { partition: 'patterns' });
-    if (!data) {
+  getPattern(patternName: string): Pattern {
+    const entry = this.cache.get(`patterns:${patternName}`);
+    if (!entry) {
       throw new Error(`Pattern not found: ${patternName}`);
     }
-    return data as Pattern;
+    return entry.value as Pattern;
   }
 
-  async incrementPatternUsage(patternName: string): Promise<void> {
+  incrementPatternUsage(patternName: string): void {
     try {
-      const pattern = await this.getPattern(patternName);
+      const pattern = this.getPattern(patternName);
       pattern.usageCount++;
-      await this.storePattern(pattern);
+      this.storePattern(pattern);
     } catch {
       // Pattern doesn't exist, ignore
     }
   }
 
-  async queryPatternsByConfidence(_threshold: number): Promise<Pattern[]> {
+  queryPatternsByConfidence(_threshold: number): Pattern[] {
     return [];
   }
 
-  async createConsensusProposal(proposal: ConsensusProposal): Promise<void> {
-    await this.store(`consensus:${proposal.id}`, proposal, { partition: 'consensus', ttl: proposal.ttl });
+  // Consensus operations
+  createConsensusProposal(proposal: ConsensusProposal): void {
+    this.cache.set(`consensus:${proposal.id}`, { value: proposal, expiresAt: proposal.ttl ? Date.now() + proposal.ttl * 1000 : undefined });
   }
 
-  async getConsensusProposal(id: string): Promise<ConsensusProposal> {
-    const data = await this.retrieve(`consensus:${id}`, { partition: 'consensus' });
-    if (!data) {
+  getConsensusProposal(id: string): ConsensusProposal {
+    const entry = this.cache.get(`consensus:${id}`);
+    if (!entry) {
       throw new Error(`Consensus proposal not found: ${id}`);
     }
-    return data as ConsensusProposal;
+    return entry.value as ConsensusProposal;
   }
 
-  async voteOnConsensus(proposalId: string, agentId: string): Promise<boolean> {
-    const proposal = await this.getConsensusProposal(proposalId);
+  voteOnConsensus(proposalId: string, agentId: string): boolean {
+    const proposal = this.getConsensusProposal(proposalId);
     if (!proposal.votes.includes(agentId)) {
       proposal.votes.push(agentId);
     }
@@ -293,163 +283,169 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     if (approved) {
       proposal.status = 'approved';
     }
-    await this.createConsensusProposal(proposal);
+    this.createConsensusProposal(proposal);
     return approved;
   }
 
-  async queryConsensusProposals(_status: string): Promise<ConsensusProposal[]> {
+  queryConsensusProposals(_status: string): ConsensusProposal[] {
     return [];
   }
 
-  async storePerformanceMetric(metric: PerformanceMetric): Promise<string> {
+  // Performance metrics
+  storePerformanceMetric(metric: PerformanceMetric): string {
     const id = metric.id || `metric-${Date.now()}`;
-    await this.store(`metrics:${id}`, metric, { partition: 'performance_metrics' });
+    this.cache.set(`metrics:${id}`, { value: metric });
     return id;
   }
 
-  async queryPerformanceMetrics(_metricName: string): Promise<PerformanceMetric[]> {
+  queryPerformanceMetrics(_metricName: string): PerformanceMetric[] {
     return [];
   }
 
-  async getMetricsByAgent(_agentId: string): Promise<PerformanceMetric[]> {
+  getMetricsByAgent(_agentId: string): PerformanceMetric[] {
     return [];
   }
 
-  async getAverageMetric(_metricName: string): Promise<number> {
+  getAverageMetric(_metricName: string): number {
     return 0;
   }
 
-  async createArtifact(artifact: Artifact): Promise<void> {
-    await this.store(`artifact:${artifact.id}`, artifact, { partition: 'artifacts' });
+  // Artifact operations
+  createArtifact(artifact: Artifact): void {
+    this.cache.set(`artifact:${artifact.id}`, { value: artifact });
   }
 
-  async getArtifact(id: string): Promise<Artifact> {
-    const data = await this.retrieve(`artifact:${id}`, { partition: 'artifacts' });
-    if (!data) {
+  getArtifact(id: string): Artifact {
+    const entry = this.cache.get(`artifact:${id}`);
+    if (!entry) {
       throw new Error(`Artifact not found: ${id}`);
     }
-    return data as Artifact;
+    return entry.value as Artifact;
   }
 
-  async queryArtifactsByKind(_kind: string): Promise<Artifact[]> {
+  queryArtifactsByKind(_kind: string): Artifact[] {
     return [];
   }
 
-  async queryArtifactsByTag(_tag: string): Promise<Artifact[]> {
+  queryArtifactsByTag(_tag: string): Artifact[] {
     return [];
   }
 
-  async createSession(session: Session): Promise<void> {
-    await this.store(`session:${session.id}`, session, { partition: 'sessions' });
+  // Session operations
+  createSession(session: Session): void {
+    this.cache.set(`session:${session.id}`, { value: session });
   }
 
-  async getSession(id: string): Promise<Session> {
-    const data = await this.retrieve(`session:${id}`, { partition: 'sessions' });
-    if (!data) {
+  getSession(id: string): Session {
+    const entry = this.cache.get(`session:${id}`);
+    if (!entry) {
       throw new Error(`Session not found: ${id}`);
     }
-    return data as Session;
+    return entry.value as Session;
   }
 
-  async addSessionCheckpoint(sessionId: string, checkpoint: Checkpoint): Promise<void> {
-    const session = await this.getSession(sessionId);
+  addSessionCheckpoint(sessionId: string, checkpoint: Checkpoint): void {
+    const session = this.getSession(sessionId);
     session.checkpoints.push(checkpoint);
-    await this.createSession(session);
+    this.createSession(session);
   }
 
-  async getLatestCheckpoint(sessionId: string): Promise<Checkpoint | undefined> {
-    const session = await this.getSession(sessionId);
+  getLatestCheckpoint(sessionId: string): Checkpoint | undefined {
+    const session = this.getSession(sessionId);
     return session.checkpoints.length > 0
       ? session.checkpoints[session.checkpoints.length - 1]
       : undefined;
   }
 
-  async markSessionResumed(sessionId: string): Promise<void> {
-    const session = await this.getSession(sessionId);
+  markSessionResumed(sessionId: string): void {
+    const session = this.getSession(sessionId);
     session.lastResumed = Date.now();
-    await this.createSession(session);
+    this.createSession(session);
   }
 
-  async registerAgent(agent: AgentRegistration): Promise<void> {
-    await this.store(`agent:${agent.id}`, agent, { partition: 'agent_registry' });
+  // Agent registry
+  registerAgent(agent: AgentRegistration): void {
+    this.cache.set(`agent:${agent.id}`, { value: agent });
   }
 
-  async getAgent(id: string): Promise<AgentRegistration> {
-    const data = await this.retrieve(`agent:${id}`, { partition: 'agent_registry' });
-    if (!data) {
+  getAgent(id: string): AgentRegistration {
+    const entry = this.cache.get(`agent:${id}`);
+    if (!entry) {
       throw new Error(`Agent not found: ${id}`);
     }
-    return data as AgentRegistration;
+    return entry.value as AgentRegistration;
   }
 
-  async updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): Promise<void> {
-    const agent = await this.getAgent(agentId);
+  updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): void {
+    const agent = this.getAgent(agentId);
     agent.status = status;
     agent.updatedAt = Date.now();
-    await this.registerAgent(agent);
+    this.registerAgent(agent);
   }
 
-  async queryAgentsByStatus(_status: string): Promise<AgentRegistration[]> {
+  queryAgentsByStatus(_status: string): AgentRegistration[] {
     return [];
   }
 
-  async updateAgentPerformance(agentId: string, performance: any): Promise<void> {
-    const agent = await this.getAgent(agentId);
+  updateAgentPerformance(agentId: string, performance: any): void {
+    const agent = this.getAgent(agentId);
     agent.performance = performance;
     agent.updatedAt = Date.now();
-    await this.registerAgent(agent);
+    this.registerAgent(agent);
   }
 
-  async storeGOAPGoal(goal: GOAPGoal): Promise<void> {
-    await this.store(`goap_goal:${goal.id}`, goal, { partition: 'goap_goals' });
+  // GOAP operations
+  storeGOAPGoal(goal: GOAPGoal): void {
+    this.cache.set(`goap_goal:${goal.id}`, { value: goal });
   }
 
-  async getGOAPGoal(id: string): Promise<GOAPGoal> {
-    const data = await this.retrieve(`goap_goal:${id}`, { partition: 'goap_goals' });
-    if (!data) {
+  getGOAPGoal(id: string): GOAPGoal {
+    const entry = this.cache.get(`goap_goal:${id}`);
+    if (!entry) {
       throw new Error(`GOAP goal not found: ${id}`);
     }
-    return data as GOAPGoal;
+    return entry.value as GOAPGoal;
   }
 
-  async storeGOAPAction(action: GOAPAction): Promise<void> {
-    await this.store(`goap_action:${action.id}`, action, { partition: 'goap_actions' });
+  storeGOAPAction(action: GOAPAction): void {
+    this.cache.set(`goap_action:${action.id}`, { value: action });
   }
 
-  async getGOAPAction(id: string): Promise<GOAPAction> {
-    const data = await this.retrieve(`goap_action:${id}`, { partition: 'goap_actions' });
-    if (!data) {
+  getGOAPAction(id: string): GOAPAction {
+    const entry = this.cache.get(`goap_action:${id}`);
+    if (!entry) {
       throw new Error(`GOAP action not found: ${id}`);
     }
-    return data as GOAPAction;
+    return entry.value as GOAPAction;
   }
 
-  async storeGOAPPlan(plan: GOAPPlan): Promise<void> {
-    await this.store(`goap_plan:${plan.id}`, plan, { partition: 'goap_plans' });
+  storeGOAPPlan(plan: GOAPPlan): void {
+    this.cache.set(`goap_plan:${plan.id}`, { value: plan });
   }
 
-  async getGOAPPlan(id: string): Promise<GOAPPlan> {
-    const data = await this.retrieve(`goap_plan:${id}`, { partition: 'goap_plans' });
-    if (!data) {
+  getGOAPPlan(id: string): GOAPPlan {
+    const entry = this.cache.get(`goap_plan:${id}`);
+    if (!entry) {
       throw new Error(`GOAP plan not found: ${id}`);
     }
-    return data as GOAPPlan;
+    return entry.value as GOAPPlan;
   }
 
-  async storeOODACycle(cycle: OODACycle): Promise<void> {
-    await this.store(`ooda_cycle:${cycle.id}`, cycle, { partition: 'ooda_cycles' });
+  // OODA operations
+  storeOODACycle(cycle: OODACycle): void {
+    this.cache.set(`ooda_cycle:${cycle.id}`, { value: cycle });
   }
 
-  async getOODACycle(id: string): Promise<OODACycle> {
-    const data = await this.retrieve(`ooda_cycle:${id}`, { partition: 'ooda_cycles' });
-    if (!data) {
+  getOODACycle(id: string): OODACycle {
+    const entry = this.cache.get(`ooda_cycle:${id}`);
+    if (!entry) {
       throw new Error(`OODA cycle not found: ${id}`);
     }
-    return data as OODACycle;
+    return entry.value as OODACycle;
   }
 
-  async updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): Promise<void> {
-    const cycle = await this.getOODACycle(cycleId);
+  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): void {
+    const cycle = this.getOODACycle(cycleId);
     cycle.phase = phase;
 
     switch (phase) {
@@ -467,60 +463,61 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
         break;
     }
 
-    await this.storeOODACycle(cycle);
+    this.storeOODACycle(cycle);
   }
 
-  async completeOODACycle(cycleId: string, result: any): Promise<void> {
-    const cycle = await this.getOODACycle(cycleId);
+  completeOODACycle(cycleId: string, result: any): void {
+    const cycle = this.getOODACycle(cycleId);
     cycle.completed = true;
     cycle.result = result;
-    await this.storeOODACycle(cycle);
+    this.storeOODACycle(cycle);
   }
 
-  async queryOODACyclesByPhase(_phase: string): Promise<OODACycle[]> {
+  queryOODACyclesByPhase(_phase: string): OODACycle[] {
     return [];
   }
 
-  // ACL methods (basic implementation)
-  async storeACL(acl: any): Promise<void> {
-    await this.store(`acl:${acl.resourceId}`, acl, { partition: 'acl' });
+  // ACL operations
+  storeACL(acl: any): void {
+    this.cache.set(`acl:${acl.resourceId}`, { value: acl });
   }
 
-  async getACL(resourceId: string): Promise<any | null> {
-    return await this.retrieve(`acl:${resourceId}`, { partition: 'acl' });
+  getACL(resourceId: string): any | null {
+    const entry = this.cache.get(`acl:${resourceId}`);
+    return entry?.value || null;
   }
 
-  async updateACL(resourceId: string, updates: any): Promise<void> {
-    const existing = await this.getACL(resourceId);
+  updateACL(resourceId: string, updates: any): void {
+    const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
-    await this.storeACL({ ...existing, ...updates });
+    this.storeACL({ ...existing, ...updates });
   }
 
-  async grantPermission(resourceId: string, agentId: string, permissions: any[]): Promise<void> {
-    const acl = await this.getACL(resourceId);
+  grantPermission(resourceId: string, agentId: string, permissions: any[]): void {
+    const acl = this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
     acl.grantedPermissions = acl.grantedPermissions || {};
     acl.grantedPermissions[agentId] = permissions;
-    await this.storeACL(acl);
+    this.storeACL(acl);
   }
 
-  async revokePermission(resourceId: string, agentId: string, _permissions: any[]): Promise<void> {
-    const acl = await this.getACL(resourceId);
+  revokePermission(resourceId: string, agentId: string, _permissions: any[]): void {
+    const acl = this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
     if (acl.grantedPermissions && acl.grantedPermissions[agentId]) {
       delete acl.grantedPermissions[agentId];
     }
-    await this.storeACL(acl);
+    this.storeACL(acl);
   }
 
-  async blockAgent(resourceId: string, agentId: string): Promise<void> {
-    const acl = await this.getACL(resourceId);
+  blockAgent(resourceId: string, agentId: string): void {
+    const acl = this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
@@ -528,29 +525,26 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     if (!acl.blockedAgents.includes(agentId)) {
       acl.blockedAgents.push(agentId);
     }
-    await this.storeACL(acl);
+    this.storeACL(acl);
   }
 
-  async unblockAgent(resourceId: string, agentId: string): Promise<void> {
-    const acl = await this.getACL(resourceId);
+  unblockAgent(resourceId: string, agentId: string): void {
+    const acl = this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
     if (acl.blockedAgents) {
       acl.blockedAgents = acl.blockedAgents.filter((id: string) => id !== agentId);
     }
-    await this.storeACL(acl);
+    this.storeACL(acl);
   }
 
   getAccessControl(): any {
-    return null; // Not implemented in basic adapter
+    return null;
   }
 
-  // ============================================================================
-  // Learning Operations (no-op implementations for basic MemoryStore adapter)
-  // ============================================================================
-
-  async storeLearningExperience(_experience: {
+  // Learning operations (no-op for basic adapter)
+  storeLearningExperience(_experience: {
     agentId: string;
     taskId?: string;
     taskType: string;
@@ -559,45 +553,44 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     reward: number;
     nextState: string;
     episodeId?: string;
-  }): Promise<void> {
-    // No-op: basic MemoryStore doesn't support learning operations
-    // Use SwarmMemoryManager directly for learning features
+  }): void {
+    // No-op: use SwarmMemoryManager directly for learning features
   }
 
-  async upsertQValue(
+  upsertQValue(
     _agentId: string,
     _stateKey: string,
     _actionKey: string,
     _qValue: number
-  ): Promise<void> {
-    // No-op: basic MemoryStore doesn't support learning operations
+  ): void {
+    // No-op
   }
 
-  async getAllQValues(_agentId: string): Promise<Array<{
+  getAllQValues(_agentId: string): Array<{
     state_key: string;
     action_key: string;
     q_value: number;
     update_count: number;
-  }>> {
+  }> {
     return [];
   }
 
-  async getQValue(_agentId: string, _stateKey: string, _actionKey: string): Promise<number | null> {
+  getQValue(_agentId: string, _stateKey: string, _actionKey: string): number | null {
     return null;
   }
 
-  async storeLearningSnapshot(_snapshot: {
+  storeLearningSnapshot(_snapshot: {
     agentId: string;
     snapshotType: 'performance' | 'q_table' | 'pattern';
     metrics: any;
     improvementRate?: number;
     totalExperiences?: number;
     explorationRate?: number;
-  }): Promise<void> {
-    // No-op: basic MemoryStore doesn't support learning operations
+  }): void {
+    // No-op
   }
 
-  async getLearningHistory(_agentId: string, _limit?: number): Promise<Array<{
+  getLearningHistory(_agentId: string, _limit?: number): Array<{
     id: number;
     agent_id: string;
     pattern_id?: string;
@@ -608,7 +601,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     q_value?: number;
     episode?: number;
     timestamp: string;
-  }>> {
+  }> {
     return [];
   }
 }

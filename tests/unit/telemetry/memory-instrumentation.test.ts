@@ -149,8 +149,9 @@ describe('Memory Instrumentation Integration', () => {
       });
     });
 
-    it('should instrument search operations', async () => {
-      const results = await memoryManager.query('user-%', {
+    it('should instrument search operations', () => {
+      // query() is now synchronous (Issue #65)
+      const results = memoryManager.query('user-%', {
         partition: 'users'
       });
 
@@ -160,16 +161,18 @@ describe('Memory Instrumentation Integration', () => {
       );
     });
 
-    it('should record result count in instrumentation', async () => {
-      const allResults = await memoryManager.query('%', {
+    it('should record result count in instrumentation', () => {
+      // query() is now synchronous (Issue #65)
+      const allResults = memoryManager.query('%', {
         partition: 'users'
       });
 
       expect(allResults.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('should handle empty search results', async () => {
-      const results = await memoryManager.query('nonexistent-%', {
+    it('should handle empty search results', () => {
+      // query() is now synchronous (Issue #65)
+      const results = memoryManager.query('nonexistent-%', {
         partition: 'users'
       });
 
@@ -197,11 +200,11 @@ describe('Memory Instrumentation Integration', () => {
       expect(result).toBeNull();
     });
 
-    it('should handle deleting non-existent keys', async () => {
-      // Should not throw error
-      await expect(
-        memoryManager.delete('non-existent', 'test-namespace')
-      ).resolves.not.toThrow();
+    it('should handle deleting non-existent keys', () => {
+      // Should not throw error - delete() is now synchronous (Issue #65)
+      expect(() => {
+        memoryManager.delete('non-existent', 'test-namespace');
+      }).not.toThrow();
     });
   });
 

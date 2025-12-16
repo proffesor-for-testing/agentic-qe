@@ -242,8 +242,9 @@ describe('BaselineCollector', () => {
       );
 
       // Target success rate should be 20% higher (capped at 1.0)
+      // When baseline is already 100%, target equals baseline (at cap)
       expect(target.targets.targetSuccessRate).toBeLessThanOrEqual(1.0);
-      expect(target.targets.targetSuccessRate).toBeGreaterThan(baseline.metrics.successRate);
+      expect(target.targets.targetSuccessRate).toBeGreaterThanOrEqual(baseline.metrics.successRate);
 
       // Target coverage should be 20% higher (capped at 100)
       expect(target.targets.targetCoverage).toBeLessThanOrEqual(100);

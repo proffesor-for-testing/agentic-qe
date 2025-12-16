@@ -98,7 +98,8 @@ describe('AccessibilityAllyAgent', () => {
       const { agent } = await createAgent();
 
       const capabilities = agent.getCapabilities();
-      expect(capabilities.size).toBe(10);
+      // getCapabilities() returns an array, not a Map
+      expect(capabilities.length).toBe(10);
 
       await agent.terminate();
     });
