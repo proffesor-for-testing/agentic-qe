@@ -35,6 +35,15 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 
+# Local n8n data (contains credentials, database, etc.)
+.n8n-local/
+
+# Core dumps
+core
+
+# Test results (generated files)
+test-results/
+
 # IDE
 .vscode/
 .idea/
