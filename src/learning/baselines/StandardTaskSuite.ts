@@ -738,6 +738,45 @@ export class StandardTaskSuite {
         environment: 'staging',
       }),
     ]);
+
+    // Accessibility Ally
+    this.addTasks(QEAgentType.ACCESSIBILITY_ALLY, [
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'wcag-compliance-scan', 'Scan WCAG Compliance', 'high', {
+        level: 'AA',
+        pages: ['/home', '/dashboard'],
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'screen-reader-validation', 'Validate Screen Reader', 'high', {
+        reader: 'NVDA',
+        pages: ['/checkout'],
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'color-contrast-analysis', 'Analyze Color Contrast', 'medium', {
+        standard: 'WCAG-AAA',
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'keyboard-navigation-test', 'Test Keyboard Navigation', 'medium', {
+        page: '/forms',
+        tabStops: 20,
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'aria-labels-validation', 'Validate ARIA Labels', 'medium', {
+        components: ['Button', 'Modal', 'Form'],
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'focus-management-test', 'Test Focus Management', 'high', {
+        modals: true,
+        dynamicContent: true,
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'alt-text-validation', 'Validate Alt Text', 'low', {
+        images: 50,
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'heading-hierarchy-check', 'Check Heading Hierarchy', 'low', {
+        pages: ['/docs', '/faq'],
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'form-accessibility-test', 'Test Form Accessibility', 'high', {
+        forms: ['login', 'registration', 'checkout'],
+      }),
+      this.createTaskDirect(QEAgentType.ACCESSIBILITY_ALLY, 'remediation-code-generation', 'Generate Remediation Code', 'high', {
+        issues: 10,
+        framework: 'react',
+      }),
+    ]);
   }
 
   /**

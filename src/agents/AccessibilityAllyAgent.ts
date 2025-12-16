@@ -591,7 +591,23 @@ export class AccessibilityAllyAgent extends BaseAgent {
     );
 
     const recommendations = elements.map((element: any) => {
-      return generateAccessibleNameRecommendation(element, element.context || {});
+      // Create computation object from element data
+      const computation = {
+        accessibleName: element.accessibleName || '',
+        source: { type: 'none' as const, value: '', priority: 999, recommended: false },
+        allSources: [],
+        sufficient: false,
+        quality: 0,
+        issues: [],
+        trace: []
+      };
+      // Pass computation and element info to the function
+      return generateAccessibleNameRecommendation(computation, {
+        tagName: element.tagName || 'unknown',
+        role: element.role,
+        attributes: element.attributes || {},
+        context: element.context
+      });
     });
 
     return {
