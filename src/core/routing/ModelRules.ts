@@ -41,6 +41,55 @@ export const MODEL_CAPABILITIES: Record<AIModel, ModelCapability> = {
     weaknesses: ['Most expensive', 'Overkill for simple tasks'],
     rateLimitPerMin: 200,
   },
+  // RuvLLM Local Models (Zero Cost)
+  [AIModel.RUVLLM_LLAMA_3_2_1B]: {
+    model: AIModel.RUVLLM_LLAMA_3_2_1B,
+    maxTokens: 4096,
+    costPerToken: 0, // Free - local inference
+    strengths: ['Zero cost', 'Fast', 'Privacy-preserving', 'Low latency'],
+    weaknesses: ['Limited reasoning', 'Smaller model size'],
+    rateLimitPerMin: Infinity, // No cloud rate limits
+  },
+  [AIModel.RUVLLM_LLAMA_3_2_3B]: {
+    model: AIModel.RUVLLM_LLAMA_3_2_3B,
+    maxTokens: 4096,
+    costPerToken: 0, // Free - local inference
+    strengths: ['Zero cost', 'Good quality/speed balance', 'Privacy-preserving', 'TRM support'],
+    weaknesses: ['Moderate reasoning', 'Resource intensive'],
+    rateLimitPerMin: Infinity,
+  },
+  [AIModel.RUVLLM_LLAMA_3_1_8B]: {
+    model: AIModel.RUVLLM_LLAMA_3_1_8B,
+    maxTokens: 8192,
+    costPerToken: 0, // Free - local inference
+    strengths: ['Zero cost', 'Strong reasoning', 'Large context', 'SONA learning'],
+    weaknesses: ['Slower inference', 'High memory usage'],
+    rateLimitPerMin: Infinity,
+  },
+  [AIModel.RUVLLM_PHI_3_MINI]: {
+    model: AIModel.RUVLLM_PHI_3_MINI,
+    maxTokens: 4096,
+    costPerToken: 0, // Free - local inference
+    strengths: ['Zero cost', 'Very fast', 'Low resource usage', 'Good for code'],
+    weaknesses: ['Limited context', 'Basic reasoning'],
+    rateLimitPerMin: Infinity,
+  },
+  [AIModel.RUVLLM_MISTRAL_7B]: {
+    model: AIModel.RUVLLM_MISTRAL_7B,
+    maxTokens: 8192,
+    costPerToken: 0, // Free - local inference
+    strengths: ['Zero cost', 'Excellent reasoning', 'Multilingual', 'Fast inference'],
+    weaknesses: ['High memory usage', 'GPU recommended'],
+    rateLimitPerMin: Infinity,
+  },
+  [AIModel.RUVLLM_QWEN2_7B]: {
+    model: AIModel.RUVLLM_QWEN2_7B,
+    maxTokens: 8192,
+    costPerToken: 0, // Free - local inference
+    strengths: ['Zero cost', 'Strong reasoning', 'Multilingual', 'Code generation'],
+    weaknesses: ['High memory usage', 'Slower on CPU'],
+    rateLimitPerMin: Infinity,
+  },
 };
 
 /**
@@ -115,6 +164,37 @@ export const FALLBACK_CHAINS: Record<AIModel, AIModel[]> = {
     AIModel.CLAUDE_HAIKU,
     AIModel.GPT_3_5_TURBO,
   ],
+  // RuvLLM models fallback to cloud when local fails
+  [AIModel.RUVLLM_LLAMA_3_2_1B]: [
+    AIModel.RUVLLM_LLAMA_3_2_3B,
+    AIModel.GPT_3_5_TURBO,
+    AIModel.CLAUDE_HAIKU,
+  ],
+  [AIModel.RUVLLM_LLAMA_3_2_3B]: [
+    AIModel.RUVLLM_LLAMA_3_1_8B,
+    AIModel.GPT_3_5_TURBO,
+    AIModel.CLAUDE_HAIKU,
+  ],
+  [AIModel.RUVLLM_LLAMA_3_1_8B]: [
+    AIModel.RUVLLM_MISTRAL_7B,
+    AIModel.GPT_4,
+    AIModel.CLAUDE_HAIKU,
+  ],
+  [AIModel.RUVLLM_PHI_3_MINI]: [
+    AIModel.RUVLLM_LLAMA_3_2_3B,
+    AIModel.GPT_3_5_TURBO,
+    AIModel.CLAUDE_HAIKU,
+  ],
+  [AIModel.RUVLLM_MISTRAL_7B]: [
+    AIModel.RUVLLM_LLAMA_3_1_8B,
+    AIModel.GPT_4,
+    AIModel.CLAUDE_SONNET_4_5,
+  ],
+  [AIModel.RUVLLM_QWEN2_7B]: [
+    AIModel.RUVLLM_MISTRAL_7B,
+    AIModel.GPT_4,
+    AIModel.CLAUDE_SONNET_4_5,
+  ],
 };
 
 /**
@@ -169,4 +249,6 @@ export const DEFAULT_ROUTER_CONFIG = {
   enableFallback: true,
   maxRetries: 3,
   costThreshold: 0.50, // Max $0.50 per task
+  preferLocal: true, // Prefer local RuvLLM models when available (zero cost)
+  ruvllmEndpoint: process.env.RUVLLM_ENDPOINT || 'http://localhost:8080',
 };

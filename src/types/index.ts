@@ -372,6 +372,9 @@ export interface InitOptions extends CLIOptions {
   enableLearning?: boolean;
   enablePatterns?: boolean;
   enableImprovement?: boolean;
+  // Non-interactive mode
+  yes?: boolean;           // -y flag: skip prompts, use defaults
+  nonInteractive?: boolean; // --non-interactive: same as -y
 }
 
 export interface GenerateOptions extends CLIOptions {

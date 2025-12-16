@@ -18,3 +18,18 @@ export {
   getMetricsAggregator,
   resetMetricsAggregator,
 } from './MetricsAggregator.js';
+
+export {
+  InferenceCostTracker,
+  InferenceCostTrackerConfig,
+  InferenceProvider,
+  ProviderType,
+  InferenceRequest,
+  ProviderCostMetrics,
+  CostSavingsAnalysis,
+  CostReport,
+  getInferenceCostTracker,
+  resetInferenceCostTracker,
+  formatCostReport,
+  formatCostReportJSON,
+} from './InferenceCostTracker.js';

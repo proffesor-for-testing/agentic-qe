@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.5] - 2025-12-15
+
+### Added
+
+#### SONA Lifecycle Integration (Issue #144)
+Complete Sleep-Optimized Neural Architecture integration with Agent Registry for seamless memory coordination.
+
+- **SONALifecycleManager** (`src/core/learning/SONALifecycleManager.ts`) - 717 lines
+  - Automatic lifecycle hooks: `onAgentSpawn`, `onTaskComplete`, `cleanupAgent`
+  - Real-time experience capture from agent task completions
+  - Memory consolidation triggers during agent cleanup
+  - Integration with AgentRegistry for fleet-wide coordination
+  - 56 unit tests + 16 integration tests (72 total tests)
+
+- **Inference Cost Tracking** (`src/core/metrics/InferenceCostTracker.ts`) - 679 lines
+  - Track local vs cloud inference costs in real-time
+  - Support for multiple providers: ruvllm, anthropic, openrouter, openai, onnx
+  - Cost savings analysis comparing local inference to cloud baseline
+  - Multi-format reporting (text, JSON) with provider breakdown
+  - 30 unit tests with comprehensive coverage
+
+- **AdaptiveModelRouter Local Routing**
+  - Local model preference for routine tasks via RuvLLM
+  - Intelligent routing: local for simple tasks, cloud for complex
+  - Fallback cascade: ruvllm → openrouter → anthropic
+  - Cost optimization targeting 70%+ local inference
+
+### Fixed
+
+- **Video Vision Analyzer** - Fixed multimodal analysis pipeline
+  - Corrected frame extraction and analysis workflow
+  - Improved accessibility caption generation
+
+- **MCP Handler Tests** (Issue #39) - 36 files, 647+ lines
+  - Fixed flaky tests in coordination handlers
+  - Stabilized workflow-create, workflow-execute, event-emit tests
+  - Improved test isolation and cleanup
+
+### Technical Details
+
+**Database Schema**:
+- `learning_experiences` - Agent task outcomes with rewards
+- `q_values` - Reinforcement learning state-action values
+- `events` - System events for pattern analysis
+- `dream_cycles` - Nightly consolidation records
+- `synthesized_patterns` - Cross-agent pattern extraction
+
+**Verified Integration**:
+- Real agent execution proof: Database entry ID 563
+- Q-value updates from task orchestration
+- Event emission for agent lifecycle tracking
+
+### Testing
+
+- 102 new tests total (56 + 30 + 16)
+- All new code tests passing
+- Regression suite: 55 passed, 5 skipped (pre-existing issues)
+
+## [2.5.4] - 2025-12-15
+
+### Fixed
+
+- **Security Alert #41: Incomplete Multi-Character Sanitization** - WebVTT generator security fix
+  - HTML tag sanitization now applies repeatedly until no more changes occur
+  - Prevents bypass with nested tags like `<<script>script>`
+  - Fixes CWE-1333 incomplete multi-character sanitization vulnerability
+
+- **Flaky Test: test-execution.test.ts Retry Test** - CI stability fix
+  - Root cause: Mock called original implementation which uses 90% random success rate
+  - Fix: Return deterministic "passed" result instead of random-based simulation
+  - Eliminates ~10% random failure rate that required CI workflow re-runs
+
+## [2.5.3] - 2025-12-15
+
+### Fixed
+
+- **Issue #139: MCP Server Fails to Start Without @axe-core/playwright** - Critical fix for production users
+  - Changed `@axe-core/playwright` import from top-level to lazy/dynamic loading
+  - MCP server now starts successfully even when `@axe-core/playwright` is not installed
+  - Users who need accessibility scanning can install the optional dependency: `npm install @axe-core/playwright`
+  - Clear error message guides users to install dependencies when accessibility tools are used
+
+### Added
+
+- **Optional Dependencies Prompt in `aqe init`** - Better onboarding experience
+  - Interactive prompt: "Do you plan to use accessibility testing features?"
+  - If yes, automatically installs `@axe-core/playwright`
+  - When using `aqe init -y` (non-interactive), skips optional deps for faster init
+  - Success message shows how to install skipped optional dependencies later
+
 ## [2.5.2] - 2025-12-15
 
 ### Fixed

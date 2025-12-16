@@ -15,7 +15,31 @@
 
 import { QEToolResponse, QEError } from '../shared/types.js';
 import { SecureRandom } from '../../../../utils/SecureRandom.js';
-import AxeBuilder from '@axe-core/playwright';
+// Dynamic import to avoid breaking MCP server when @axe-core/playwright is not installed
+let AxeBuilder: typeof import('@axe-core/playwright').default | null = null;
+let axeLoadError: Error | null = null;
+
+async function getAxeBuilder(): Promise<typeof import('@axe-core/playwright').default> {
+  if (axeLoadError) {
+    throw axeLoadError;
+  }
+  if (!AxeBuilder) {
+    try {
+      const module = await import('@axe-core/playwright');
+      AxeBuilder = module.default;
+    } catch (error) {
+      axeLoadError = new Error(
+        'Missing required dependency: @axe-core/playwright\n' +
+        'To use accessibility scanning features, install the required packages:\n\n' +
+        '  npm install @axe-core/playwright playwright\n\n' +
+        'Original error: ' + (error instanceof Error ? error.message : String(error))
+      );
+      throw axeLoadError;
+    }
+  }
+  return AxeBuilder;
+}
+
 import { chromium, Browser, Page } from 'playwright';
 import { generateHTMLReport } from './html-report-generator.js';
 import { generateMarkdownReport } from './markdown-report-generator.js';
@@ -695,9 +719,10 @@ export async function scanComprehensive(
       language: document.documentElement.lang || document.documentElement.getAttribute('xml:lang') || 'en'
     }));
 
-    // Build axe-core configuration
+    // Build axe-core configuration (lazy load @axe-core/playwright)
     const wcagTags = getWCAGTags(params.level);
-    const axeBuilder = new AxeBuilder({ page })
+    const AxeBuilderClass = await getAxeBuilder();
+    const axeBuilder = new AxeBuilderClass({ page })
       .withTags(wcagTags);
 
     // Run axe-core scan

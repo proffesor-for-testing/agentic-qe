@@ -8,22 +8,26 @@
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { BlackboardReadHandler } from '@mcp/handlers/memory/blackboard-read';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('BlackboardReadHandler', () => {
   let handler: BlackboardReadHandler;
-  let registry: AgentRegistry;
-  let hookExecutor: HookExecutor;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
   let blackboard: Map<string, any[]>;
 
   beforeEach(() => {
-    registry = new AgentRegistry();
-    hookExecutor = new HookExecutor();
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
     blackboard = new Map();
-    handler = new BlackboardReadHandler(registry, hookExecutor, blackboard);
+    handler = new BlackboardReadHandler(mockRegistry, mockHookExecutor, blackboard);
   });
 
   afterEach(async () => {

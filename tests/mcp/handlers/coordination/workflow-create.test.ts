@@ -59,7 +59,7 @@ describe('WorkflowCreateHandler', () => {
       // THEN: Returns success with workflow ID and validation status
       expect(result.success).toBe(true);
       expect(result.data).toMatchObject({
-        workflowId: expect.stringMatching(/^workflow-\d+-[a-z0-9]{3}$/),
+        workflowId: expect.stringMatching(/^workflow-\d+-[a-f0-9]{6}$/),
         name: 'Test Generation Workflow',
         steps: expect.arrayContaining([
           expect.objectContaining({ id: 'generate-tests' }),
@@ -291,9 +291,7 @@ describe('WorkflowCreateHandler', () => {
 
       // THEN: Returns success with warning about step count
       expect(result.success).toBe(true);
-      expect(result.data?.validationStatus.warnings).toContain(
-        expect.stringMatching(/more than 20 steps/i)
-      );
+      expect(result.data?.validationStatus.warnings.some((w: string) => /more than 20 steps/i.test(w))).toBe(true);
     });
 
     it('should reject step missing required fields', async () => {

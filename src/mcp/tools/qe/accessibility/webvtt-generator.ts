@@ -235,10 +235,17 @@ export function validateWebVTT(
     }
 
     // Remove speaker tags and formatting tags for text analysis
-    const plainText = cue.text
-      .replace(/<v\s+[^>]+>/g, '')
-      .replace(/<\/v>/g, '')
-      .replace(/<[^>]+>/g, '');
+    // Apply sanitization repeatedly until no more changes occur (CWE-1333 fix)
+    // This prevents incomplete sanitization with nested tags like <<script>script>
+    let plainText = cue.text;
+    let previousText: string;
+    do {
+      previousText = plainText;
+      plainText = plainText
+        .replace(/<v\s+[^>]+>/g, '')
+        .replace(/<\/v>/g, '')
+        .replace(/<[^>]+>/g, '');
+    } while (plainText !== previousText);
 
     // Check line length
     const lines = plainText.split('\n');

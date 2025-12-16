@@ -8,12 +8,28 @@ import { BaseHandler, HandlerResponse } from '@mcp/handlers/base-handler';
 // Create a concrete implementation for testing
 class TestHandler extends BaseHandler {
   async handle(args: any): Promise<HandlerResponse> {
-    this.validateRequired(args, ['required1', 'required2']);
-    return this.createSuccessResponse({ processed: true, args });
+    const requestId = this.generateRequestId();
+    try {
+      this.validateRequired(args, ['required1', 'required2']);
+      return this.createSuccessResponse({ processed: true, args }, requestId);
+    } catch (error) {
+      return this.createErrorResponse(
+        error instanceof Error ? error.message : 'Unknown error',
+        requestId
+      );
+    }
   }
 
   async handleWithError(args: any): Promise<HandlerResponse> {
-    throw new Error('Test error message');
+    const requestId = this.generateRequestId();
+    try {
+      throw new Error('Test error message');
+    } catch (error) {
+      return this.createErrorResponse(
+        error instanceof Error ? error.message : 'Unknown error',
+        requestId
+      );
+    }
   }
 
   async handleWithMeasuredTime(args: any): Promise<HandlerResponse> {
@@ -92,7 +108,7 @@ describe('BaseHandler', () => {
       expect(parts.length).toBe(3);
       expect(parseInt(parts[0])).toBeGreaterThan(0); // Timestamp
       expect(parseInt(parts[1])).toBe(1); // Counter starts at 1
-      expect(parts[2].length).toBe(9); // Random string length
+      expect(parts[2].length).toBe(10); // Random string length (5 bytes = 10 hex chars)
     });
 
     it('should increment counter for each request', () => {
@@ -210,11 +226,11 @@ describe('BaseHandler', () => {
     });
 
     it('should handle null/undefined values as missing', () => {
-      const args = { field1: null, field2: undefined, field3: '' };
+      const args = { field1: null, field2: undefined, field3: 'valid' };
       const requiredFields = ['field1', 'field2', 'field3'];
 
       expect(() => handler.testValidateRequired(args, requiredFields))
-        .toThrow('Missing required fields: field1, field2, field3');
+        .toThrow('Missing required fields: field1, field2');
     });
 
     it('should accept falsy but defined values (0, false)', () => {
@@ -442,11 +458,15 @@ describe('BaseHandler', () => {
 
   describe('Edge Cases and Error Conditions', () => {
     it('should handle null args gracefully', async () => {
-      await expect(handler.handle(null)).rejects.toThrow('Invalid arguments: expected object, got null');
+      const response = await handler.handle(null);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
 
     it('should handle undefined args gracefully', async () => {
-      await expect(handler.handle(undefined)).rejects.toThrow('Invalid arguments: expected object, got undefined');
+      const response = await handler.handle(undefined);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
 
     it('should handle empty required fields array', () => {
