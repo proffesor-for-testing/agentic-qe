@@ -67,14 +67,15 @@ npm publish --access public         # 10. npm publish
 ## 🤖 Agentic QE Fleet Quick Reference
 
 **20 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection, QX analysis, accessibility
+**15 n8n Workflow Agents:** Workflow execution, chaos testing, compliance, security, performance *(contributed by [@fndlalit](https://github.com/fndlalit))*
 **11 QE Subagents:** TDD specialists, code reviewers, integration testers
-**41 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing, **testability-scoring** *(contributed by [@fndlalit](https://github.com/fndlalit))*
+**46 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing, n8n-workflow-testing, **testability-scoring** *(contributed by [@fndlalit](https://github.com/fndlalit))*
 **8 Slash Commands:** `/aqe-execute`, `/aqe-generate`, `/aqe-coverage`, `/aqe-quality`
 
 ### 📚 Complete Documentation
 
-- **[Agent Reference](docs/reference/agents.md)** - All 20 main agents + 11 subagents with capabilities and usage
-- **[Skills Reference](docs/reference/skills.md)** - All 41 QE skills organized by category
+- **[Agent Reference](docs/reference/agents.md)** - All 20 main QE agents + 15 n8n agents + 11 subagents with capabilities and usage
+- **[Skills Reference](docs/reference/skills.md)** - All 46 QE skills organized by category
 - **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.7] - 2025-12-17
+
+### Added
+
+#### n8n Workflow Testing Agents (PR #151)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+Comprehensive suite of **15 n8n workflow testing agents** for production-ready workflow automation testing:
+
+- **N8nWorkflowExecutorAgent** - Execute workflows with data flow validation and assertions
+- **N8nPerformanceTesterAgent** - Load/stress testing with timing metrics and percentiles
+- **N8nChaosTesterAgent** - Fault injection using N8nTestHarness for real failure simulation
+- **N8nBDDScenarioTesterAgent** - Cucumber-style BDD testing with real execution
+- **N8nSecurityAuditorAgent** - 40+ secret patterns, runtime leak detection
+- **N8nExpressionValidatorAgent** - Safe expression validation using pattern matching
+- **N8nIntegrationTestAgent** - Real API connectivity testing via workflow execution
+- **N8nTriggerTestAgent** - Webhook testing with correct n8n URL patterns
+- **N8nComplianceValidatorAgent** - GDPR/HIPAA/SOC2/PCI-DSS compliance with runtime PII tracing
+- **N8nMonitoringValidatorAgent** - SLA compliance checking with runtime metrics
+- Plus 5 additional n8n agents (node-validator, unit-tester, version-comparator, ci-orchestrator, base-agent)
+
+**5 new n8n testing skills:**
+- `n8n-workflow-testing-fundamentals` - Core workflow testing concepts
+- `n8n-security-testing` - Credential and secret management testing
+- `n8n-integration-testing-patterns` - API and webhook testing strategies
+- `n8n-expression-testing` - Safe expression validation
+- `n8n-trigger-testing-strategies` - Trigger testing patterns
+
+**Key Design Decisions:**
+- Runtime execution is DEFAULT (not opt-in)
+- Safe expression evaluation using pattern matching (no unsafe eval)
+- Correct n8n webhook URL patterns (production + test mode)
+- Dual authentication support (API key + session cookie fallback)
+
+### Changed
+
+- Updated skill count from 41 to 46 (added 5 n8n skills)
+- Updated agent documentation with n8n workflow testing section
+- Updated `aqe init` to copy n8n agent definitions to user projects
+- Added Smithery badge to README (PR #152 by @gurdasnijor)
+
 ## [2.5.6] - 2025-12-16
 
 ### Changed

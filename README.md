@@ -11,11 +11,11 @@
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.5.6** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.5.7** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
-🎨 **Real-Time Visualization** | 📊 **Testability Scoring** | 🧠 **QE Agent Learning** | 🚀 **QUIC Transport** | 📋 **Constitution System** | 📚 **41 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
+🎨 **Real-Time Visualization** | 📊 **Testability Scoring** | 🧠 **QE Agent Learning** | 🚀 **QUIC Transport** | 📋 **Constitution System** | 📚 **46 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router** | 🔄 **n8n Workflow Testing**
 
 </div>
 
@@ -62,9 +62,10 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (90%+ accuracy with root cause analysis)
-- ✅ 19 Specialized agent definitions (including qe-code-complexity)
+- ✅ 19 Specialized QE agent definitions (including qe-code-complexity)
+- ✅ 15 n8n workflow testing agents (workflow execution, chaos, compliance, security, performance by [@fndlalit](https://github.com/fndlalit))
 - ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
-- ✅ 41 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
+- ✅ 46 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, n8n testing, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
 - ✅ 8 AQE slash commands
 - ✅ Modular init system with comprehensive project setup
 
