@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 20 QE agents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 20 QE agents, 15 n8n workflow testing agents, and 11 subagents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 
@@ -412,6 +412,95 @@ Task("Remediation", "Fix accessibility issues with code suggestions", "qe-a11y-a
 
 ---
 
+## n8n Workflow Testing Agents (15 agents)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+The n8n workflow testing agents provide comprehensive testing capabilities for n8n automation workflows.
+
+### n8n-workflow-executor
+**Execute and validate n8n workflows programmatically**
+
+**Capabilities:**
+- Execute workflows via n8n REST API
+- Inject test data at workflow start or specific nodes
+- Validate node-to-node data flow
+- Assert expected outputs per node
+- Measure execution time and resource usage
+
+**Usage:**
+```javascript
+Task("Execute n8n workflow", "Test workflow with sample data", "n8n-workflow-executor")
+```
+
+---
+
+### n8n-chaos-tester
+**Fault injection and resilience testing for n8n workflows**
+
+**Capabilities:**
+- Controlled fault injection using N8nTestHarness
+- Network failure simulation
+- Node timeout testing
+- Error propagation validation
+- Recovery path verification
+
+---
+
+### n8n-security-auditor
+**Security scanning for n8n workflows**
+
+**Capabilities:**
+- 40+ secret patterns detection
+- Runtime credential leak detection
+- API key exposure scanning
+- Node permission validation
+- OWASP compliance checking
+
+---
+
+### n8n-performance-tester
+**Load and stress testing for n8n workflows**
+
+**Capabilities:**
+- Concurrent execution testing
+- Timing metrics and percentiles
+- Bottleneck identification
+- Resource usage monitoring
+- SLA validation
+
+---
+
+### n8n-compliance-validator
+**GDPR/HIPAA/SOC2/PCI-DSS compliance validation**
+
+**Capabilities:**
+- Data handling compliance checks
+- PII detection and tracing
+- Audit trail validation
+- Regulatory mapping
+- Compliance reporting
+
+---
+
+### Additional n8n Agents
+
+| Agent | Purpose |
+|-------|---------|
+| **n8n-bdd-scenario-tester** | Cucumber-style BDD testing with real execution |
+| **n8n-expression-validator** | Safe expression validation using pattern matching |
+| **n8n-integration-test** | Real API connectivity testing via workflow execution |
+| **n8n-trigger-test** | Webhook testing with correct n8n URL patterns |
+| **n8n-monitoring-validator** | SLA compliance checking with runtime metrics |
+| **n8n-node-validator** | Node configuration validation |
+| **n8n-unit-tester** | Unit testing for individual workflow nodes |
+| **n8n-version-comparator** | Version compatibility analysis |
+| **n8n-ci-orchestrator** | CI/CD pipeline integration for n8n workflows |
+| **n8n-base-agent** | Base agent with common n8n testing functionality |
+
+**Setup Guide:** [n8n Real Instance Setup](../guides/n8n-real-instance-setup.md)
+
+---
+
 ## MCP Tool Discovery System
 
 The Agentic QE Fleet uses **lazy-loaded MCP tools** to reduce initial context by 87%.
@@ -471,7 +560,7 @@ Task("Performance Test", "Load test critical paths", "qe-performance-tester")
 ---
 
 **Related Documentation:**
-- [Skills Reference](skills.md) - All 34 QE skills
+- [Skills Reference](skills.md) - All 46 QE skills
 - [Usage Guide](usage.md) - Complete usage examples
 - [AQE Hooks](../architecture/AQE-HOOKS.md) - Agent coordination details
 

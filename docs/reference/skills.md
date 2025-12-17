@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Skills Reference
 
-This document provides comprehensive reference for all 41 specialized QE skills available to agents.
+This document provides comprehensive reference for all 46 specialized QE skills available to agents.
 
 ## Overview
 
@@ -811,6 +811,101 @@ AUTO_OPEN=false node .claude/skills/testability-scoring/scripts/generate-html-re
 
 ---
 
+## n8n Workflow Testing Skills (5 skills)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+These skills provide specialized knowledge for testing n8n automation workflows.
+
+### n8n-workflow-testing-fundamentals
+**Core concepts for testing n8n workflows**
+
+Understanding workflow structure, node types, and data flow patterns in n8n.
+
+**Key Topics:**
+- Workflow anatomy
+- Node configuration testing
+- Data transformation validation
+- Error handling patterns
+
+**Usage:**
+```javascript
+Skill("n8n-workflow-testing-fundamentals")
+```
+
+---
+
+### n8n-security-testing
+**Security testing for n8n workflows**
+
+Credential management, secret detection, and API security in n8n.
+
+**Key Topics:**
+- Credential auditing
+- Secret pattern detection
+- API key management
+- Permission validation
+
+**Usage:**
+```javascript
+Skill("n8n-security-testing")
+```
+
+---
+
+### n8n-integration-testing-patterns
+**Integration testing strategies for n8n**
+
+Testing external API connections and webhook interactions.
+
+**Key Topics:**
+- API connectivity testing
+- Webhook validation
+- Mock server patterns
+- Contract testing
+
+**Usage:**
+```javascript
+Skill("n8n-integration-testing-patterns")
+```
+
+---
+
+### n8n-expression-testing
+**Testing n8n expressions safely**
+
+Validating JavaScript expressions in n8n nodes without unsafe eval.
+
+**Key Topics:**
+- Expression patterns
+- Safe validation
+- Data access testing
+- Error handling
+
+**Usage:**
+```javascript
+Skill("n8n-expression-testing")
+```
+
+---
+
+### n8n-trigger-testing-strategies
+**Testing n8n workflow triggers**
+
+Webhook, schedule, and event-based trigger testing.
+
+**Key Topics:**
+- Webhook testing
+- Schedule validation
+- Event triggers
+- URL patterns
+
+**Usage:**
+```javascript
+Skill("n8n-trigger-testing-strategies")
+```
+
+---
+
 ## Using Skills
 
 ### Via CLI
@@ -851,7 +946,7 @@ All QE agents automatically have access to relevant skills based on their specia
 ---
 
 **Related Documentation:**
-- [Agent Reference](agents.md) - All 19 QE agents
+- [Agent Reference](agents.md) - All 19 QE agents + 15 n8n agents + 11 subagents
 - [Usage Guide](usage.md) - Complete usage examples
 
 **Related Policies:**

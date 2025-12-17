@@ -124,6 +124,42 @@ export async function copyAgentTemplates(config?: FleetConfig, force: boolean = 
     console.log(chalk.green(`  ✓ Copied ${subagentsCopied} new subagent definitions (${subagentTemplates.length} total subagents)`));
   }
 
+  // Copy n8n folder if it exists (n8n workflow testing agents)
+  const n8nSourcePath = path.join(sourcePath, 'n8n');
+  const n8nTargetPath = path.join(targetPath, 'n8n');
+
+  if (await fs.pathExists(n8nSourcePath)) {
+    console.log(chalk.cyan('  📦 Copying n8n workflow testing agent definitions...'));
+    await fs.ensureDir(n8nTargetPath);
+
+    const n8nFiles = await fs.readdir(n8nSourcePath);
+    const n8nTemplates = n8nFiles.filter(f => f.endsWith('.md'));
+
+    let n8nCopied = 0;
+    let n8nUpdated = 0;
+
+    for (const n8nFile of n8nTemplates) {
+      const sourceFile = path.join(n8nSourcePath, n8nFile);
+      const targetFile = path.join(n8nTargetPath, n8nFile);
+
+      const targetExists = await fs.pathExists(targetFile);
+
+      if (!targetExists || force) {
+        await fs.copy(sourceFile, targetFile);
+        if (targetExists) {
+          n8nUpdated++;
+        } else {
+          n8nCopied++;
+        }
+      }
+    }
+
+    if (force && n8nUpdated > 0) {
+      console.log(chalk.green(`  ✓ Updated ${n8nUpdated} existing n8n agent definitions`));
+    }
+    console.log(chalk.green(`  ✓ Copied ${n8nCopied} new n8n agent definitions (${n8nTemplates.length} total n8n agents)`));
+  }
+
   if (force && updatedFiles > 0) {
     console.log(chalk.green(`  ✓ Updated ${updatedFiles} existing agent definitions`));
   }
