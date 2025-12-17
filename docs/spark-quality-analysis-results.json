@@ -1,0 +1,387 @@
+{
+  "analysis_metadata": {
+    "codebase": "Apache Spark",
+    "codebase_location": "/tmp/spark",
+    "analysis_date": "2025-12-16",
+    "analyzer": "qe-code-complexity-analyzer",
+    "analysis_scope": "Main modules (core, sql, mllib, streaming, graphx)"
+  },
+  "codebase_structure": {
+    "total_scala_files": 5627,
+    "total_java_files": 1245,
+    "total_lines_of_code": 1625368,
+    "average_file_size_loc": 289,
+    "modules_analyzed": {
+      "core": {
+        "scala_files": 983,
+        "description": "Core Spark functionality including RDD, scheduler, storage"
+      },
+      "sql": {
+        "scala_files": 3259,
+        "description": "SQL processing, catalyst optimizer, DataFrame API"
+      },
+      "mllib": {
+        "scala_files": 537,
+        "description": "Machine learning library"
+      },
+      "streaming": {
+        "scala_files": "~150",
+        "description": "Streaming data processing"
+      },
+      "graphx": {
+        "scala_files": "~50",
+        "description": "Graph processing library"
+      }
+    }
+  },
+  "code_quality_metrics": {
+    "file_size_distribution": {
+      "files_over_500_loc": 788,
+      "files_over_1000_loc": 274,
+      "percentage_large_files": "14.0%",
+      "largest_files": [
+        {
+          "file": "core/src/main/scala/org/apache/spark/SparkContext.scala",
+          "lines": 3607,
+          "methods": 141,
+          "documentation_lines": 1022,
+          "documentation_ratio": "28.3%"
+        },
+        {
+          "file": "core/src/main/scala/org/apache/spark/scheduler/DAGScheduler.scala",
+          "lines": 3328,
+          "complexity": "high",
+          "note": "Central orchestration component"
+        },
+        {
+          "file": "core/src/main/scala/org/apache/spark/util/Utils.scala",
+          "lines": 3344,
+          "type": "utility_class",
+          "note": "Multiple utility methods - candidate for refactoring"
+        },
+        {
+          "file": "sql/catalyst/src/main/scala/org/apache/spark/sql/internal/SQLConf.scala",
+          "lines": 8170,
+          "type": "configuration",
+          "note": "Centralized configuration registry"
+        },
+        {
+          "file": "sql/api/src/main/scala/org/apache/spark/sql/functions.scala",
+          "lines": 10181,
+          "type": "api_functions",
+          "note": "User-facing API functions"
+        }
+      ]
+    },
+    "modularity": {
+      "package_objects": 64,
+      "trait_composition_usage": 60,
+      "sealed_types_in_core": 30,
+      "organization_score": "Good - extensive package organization"
+    },
+    "documentation": {
+      "files_with_deprecation_markers": 52,
+      "sparkcontext_documentation_ratio": "28.3%",
+      "overall_assessment": "Excellent",
+      "details": "Comprehensive scaladoc, ASF license headers on all files, detailed method documentation"
+    },
+    "test_coverage_indicators": {
+      "test_suite_files": 1907,
+      "test_to_source_ratio": "0.34",
+      "largest_test_suites": [
+        {
+          "file": "core/src/test/scala/org/apache/spark/scheduler/DAGSchedulerSuite.scala",
+          "lines": 5678
+        },
+        {
+          "file": "sql/core/src/test/scala/org/apache/spark/sql/SQLQuerySuite.scala",
+          "lines": 5093
+        },
+        {
+          "file": "sql/core/src/test/scala/org/apache/spark/sql/DataFrameFunctionsSuite.scala",
+          "lines": 6318
+        }
+      ],
+      "assessment": "Strong test coverage with comprehensive test suites matching production complexity"
+    }
+  },
+  "code_quality_analysis": {
+    "naming_conventions": {
+      "scala_conventions": "Excellent - consistent camelCase, PascalCase for types",
+      "package_naming": "Excellent - org.apache.spark.* hierarchy",
+      "examples": [
+        "SparkContext, DAGScheduler, ExecutorDescription - clear, descriptive names",
+        "Private fields use underscore prefix or explicit private modifiers",
+        "Companion objects follow Scala conventions"
+      ]
+    },
+    "design_patterns_observed": {
+      "builder_pattern": {
+        "usage": "Extensive",
+        "example": "SparkConf configuration builder"
+      },
+      "factory_pattern": {
+        "usage": "Common",
+        "examples": "WritableFactory, WritableConverter objects"
+      },
+      "strategy_pattern": {
+        "usage": "Present",
+        "example": "Different shuffle implementations (SortShuffleWriter)"
+      },
+      "template_method": {
+        "usage": "Widespread",
+        "example": "DStreamCheckpointData with update/cleanup/restore hooks"
+      },
+      "trait_composition": {
+        "usage": "Extensive",
+        "count": 60,
+        "note": "Scala trait mixing for behavior composition"
+      }
+    },
+    "solid_principles_assessment": {
+      "single_responsibility": {
+        "score": "Good",
+        "notes": "Most classes focused, but some utilities (Utils.scala 3344 LOC) violate SRP",
+        "improvement_areas": ["Utils.scala", "SQLConf.scala - 8170 LOC configuration"]
+      },
+      "open_closed": {
+        "score": "Excellent",
+        "notes": "Heavy use of traits and sealed types enables extension without modification"
+      },
+      "liskov_substitution": {
+        "score": "Excellent",
+        "notes": "Proper inheritance hierarchies with ShuffleWriter, DStream hierarchies"
+      },
+      "interface_segregation": {
+        "score": "Good",
+        "notes": "Trait composition provides focused interfaces, some large traits exist"
+      },
+      "dependency_inversion": {
+        "score": "Excellent",
+        "notes": "Dependency injection through constructors, SparkConf abstraction"
+      }
+    },
+    "error_handling_patterns": {
+      "try_catch_usage": 582,
+      "pattern": "Comprehensive",
+      "examples": [
+        "FileNotFoundException handling with logging in HadoopFSUtils",
+        "NonFatal pattern matching for robust error recovery",
+        "Custom SparkException types with detailed error messages",
+        "Utils.tryOrIOException wrapper for consistent exception handling"
+      ],
+      "assessment": "Strong error handling with graceful degradation and detailed logging"
+    }
+  },
+  "best_practices_adherence": {
+    "functional_programming": {
+      "immutability": "Strong - extensive use of immutable collections",
+      "higher_order_functions": "Pervasive - map, filter, fold operations throughout",
+      "implicit_usage": 1244,
+      "pattern_matching": "Extensive use with sealed types for exhaustiveness checking"
+    },
+    "concurrency": {
+      "thread_safety": "Carefully managed with synchronized blocks and atomic references",
+      "examples": [
+        "AtomicBoolean in SortShuffleWriter for stopping flag",
+        "ConcurrentHashMap usage in SparkContext",
+        "Synchronized blocks in DStreamCheckpointData"
+      ]
+    },
+    "performance_optimization": {
+      "examples": [
+        "Parallel file listing with adaptive parallelism in HadoopFSUtils",
+        "ExternalSorter for memory-efficient shuffle operations",
+        "Lazy evaluation patterns throughout RDD operations",
+        "Caching strategies with BlockManager"
+      ],
+      "assessment": "Extensive performance optimization with careful memory management"
+    },
+    "technical_debt_indicators": {
+      "todo_fixme_count": 509,
+      "large_file_count": 274,
+      "deprecation_markers": 52,
+      "priority_areas": [
+        "Refactor Utils.scala (3344 LOC) into focused utility modules",
+        "Break down SQLConf.scala (8170 LOC) configuration registry",
+        "Address 509 TODO/FIXME comments",
+        "Consider splitting SparkContext.scala (3607 LOC, 141 methods)"
+      ]
+    }
+  },
+  "sample_code_analysis": {
+    "core_module_samples": [
+      {
+        "file": "SortShuffleWriter.scala",
+        "lines": 128,
+        "quality_score": 90,
+        "strengths": [
+          "Clean separation of concerns",
+          "Proper resource cleanup in finally blocks",
+          "Clear method documentation",
+          "Good encapsulation with private fields",
+          "Companion object for static utilities"
+        ],
+        "complexity": "Low-Medium"
+      },
+      {
+        "file": "HadoopFSUtils.scala",
+        "lines": 381,
+        "quality_score": 88,
+        "strengths": [
+          "Comprehensive error handling with FileNotFoundException",
+          "Adaptive parallelism strategy",
+          "Detailed scaladoc with parameter descriptions",
+          "Tail-recursive optimization with @tailrec annotation",
+          "Performance-aware file listing strategies"
+        ],
+        "complexity": "Medium-High"
+      },
+      {
+        "file": "ExecutorDescription.scala",
+        "lines": 38,
+        "quality_score": 95,
+        "strengths": [
+          "Simple, focused data class",
+          "Serializable for network transfer",
+          "Clear toString implementation",
+          "Immutable case class pattern"
+        ],
+        "complexity": "Low"
+      }
+    ],
+    "sql_module_samples": [
+      {
+        "file": "StreamingRelation.scala",
+        "lines": 135,
+        "quality_score": 92,
+        "strengths": [
+          "Case class pattern for immutability",
+          "Companion object factory methods",
+          "Multi-instance relation support",
+          "Metadata column handling",
+          "Clean trait composition (LeafNode, MultiInstanceRelation, ExposesMetadataColumns)"
+        ],
+        "complexity": "Medium"
+      }
+    ],
+    "mllib_module_samples": [
+      {
+        "file": "OneHotEncoder.scala",
+        "lines": 579,
+        "quality_score": 85,
+        "strengths": [
+          "Estimator/Model pattern following ML Pipeline API",
+          "Comprehensive parameter validation",
+          "Handle invalid data gracefully with 'keep' option",
+          "Support for single and multi-column encoding",
+          "Extensive input validation and error messages",
+          "Proper ML metadata handling"
+        ],
+        "weaknesses": [
+          "Long file (579 LOC) - could split Model and Estimator",
+          "Complex nested logic in encoding UDF"
+        ],
+        "complexity": "High"
+      }
+    ],
+    "streaming_module_samples": [
+      {
+        "file": "DStreamCheckpointData.scala",
+        "lines": 162,
+        "quality_score": 88,
+        "strengths": [
+          "Clear lifecycle methods (update, cleanup, restore)",
+          "Proper serialization with custom writeObject/readObject",
+          "Comprehensive error handling in file cleanup",
+          "Structured logging with MDC keys",
+          "HashMap for efficient checkpoint file tracking"
+        ],
+        "complexity": "Medium"
+      }
+    ],
+    "graphx_module_samples": [
+      {
+        "file": "ShortestPaths.scala",
+        "lines": 78,
+        "quality_score": 93,
+        "strengths": [
+          "Clean functional implementation using Pregel API",
+          "Type aliases for clarity (SPMap)",
+          "Immutable map operations",
+          "Well-documented algorithm with scaladoc",
+          "Concise, focused implementation"
+        ],
+        "complexity": "Low-Medium"
+      }
+    ]
+  },
+  "overall_quality_score": {
+    "score": 87,
+    "grade": "B+",
+    "breakdown": {
+      "code_structure": 85,
+      "documentation": 92,
+      "test_coverage": 88,
+      "design_patterns": 90,
+      "solid_principles": 86,
+      "error_handling": 89,
+      "naming_conventions": 93,
+      "modularity": 82
+    }
+  },
+  "recommendations": {
+    "high_priority": [
+      {
+        "area": "File Size Refactoring",
+        "action": "Break down large files (>1000 LOC) into smaller, focused modules",
+        "targets": ["Utils.scala", "SQLConf.scala", "functions.scala", "SparkContext.scala"],
+        "impact": "Improved maintainability and testability"
+      },
+      {
+        "area": "Technical Debt",
+        "action": "Address 509 TODO/FIXME comments systematically",
+        "impact": "Reduced technical debt, clearer codebase intentions"
+      }
+    ],
+    "medium_priority": [
+      {
+        "area": "Test Suite Size",
+        "action": "Split large test suites (>5000 LOC) into focused test groups",
+        "targets": ["DAGSchedulerSuite.scala", "DataFrameFunctionsSuite.scala"],
+        "impact": "Faster test execution and easier debugging"
+      },
+      {
+        "area": "Code Duplication",
+        "action": "Analyze and extract common patterns from utility classes",
+        "impact": "Better code reuse and consistency"
+      }
+    ],
+    "low_priority": [
+      {
+        "area": "Documentation Enhancement",
+        "action": "Add more inline examples in scaladoc for complex APIs",
+        "impact": "Improved developer experience"
+      }
+    ]
+  },
+  "strengths": [
+    "Excellent documentation coverage with comprehensive scaladoc",
+    "Strong test coverage with ~34% test-to-source ratio and large test suites",
+    "Consistent naming conventions following Scala best practices",
+    "Extensive use of functional programming patterns (immutability, higher-order functions)",
+    "Robust error handling with graceful degradation",
+    "Well-organized module structure with clear separation of concerns",
+    "Proper use of Scala language features (sealed types, pattern matching, implicits)",
+    "Performance-conscious implementation with optimization strategies",
+    "Strong adherence to SOLID principles with trait composition",
+    "Professional codebase with ASF license headers and community standards"
+  ],
+  "areas_for_improvement": [
+    "Large files (14% of files > 500 LOC) indicate potential SRP violations",
+    "Some utility classes aggregate too many responsibilities",
+    "509 TODO/FIXME comments suggest ongoing technical debt",
+    "Configuration classes are very large and could benefit from decomposition",
+    "Some test suites are extremely large and could be split for better maintainability"
+  ]
+}
