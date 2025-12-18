@@ -75,16 +75,89 @@ export interface OpenRouterConfig extends LLMProviderConfig {
 /**
  * Default OpenRouter pricing (per million tokens)
  * These are fallback values; actual prices come from the API
+ *
+ * Model selection aligned with issue #142 roadmap:
+ * - Local Dev: devstral-small (24B), qwen2.5-coder (32B)
+ * - Production: Devstral-2 (123B), Qwen3-Coder
  */
 const DEFAULT_PRICING: Record<string, { input: number; output: number }> = {
+  // ===========================================
+  // FREE TIER - Best for development/testing
+  // ===========================================
+  // Devstral 2 2512 FREE - 123B dense, 256K context, best for agentic coding
+  'mistralai/devstral-2512:free': { input: 0, output: 0 },
+
+  // ===========================================
+  // PAID TIER - Devstral Models (cheapest to most expensive)
+  // ===========================================
+  // Devstral Small 2505 - CHEAPEST paid option ($0.06/$0.12 per M)
+  'mistralai/devstral-small-2505': { input: 0.06, output: 0.12 },
+  // Devstral Small - 24B, 128K context ($0.07/$0.28 per M)
+  'mistralai/devstral-small': { input: 0.07, output: 0.28 },
+  // Devstral 2512 paid - same model, paid tier ($0.15/$0.60 per M)
+  'mistralai/devstral-2512': { input: 0.15, output: 0.60 },
+  // Devstral Medium - high-performance ($0.40/$2.00 per M)
+  'mistralai/devstral-medium': { input: 0.40, output: 2.00 },
+
+  // ===========================================
+  // Qwen Coder Models (per issue #142 roadmap)
+  // ===========================================
+  'qwen/qwen-2.5-coder-32b-instruct': { input: 0.18, output: 0.18 },
+  'qwen/qwen3-coder-30b-a3b': { input: 0.10, output: 0.30 }, // MoE efficient
+
+  // ===========================================
+  // Vendor Models (fallback)
+  // ===========================================
   'anthropic/claude-3.5-sonnet': { input: 3.0, output: 15.0 },
   'anthropic/claude-3-haiku': { input: 0.25, output: 1.25 },
   'openai/gpt-4o': { input: 2.5, output: 10.0 },
   'openai/gpt-4o-mini': { input: 0.15, output: 0.6 },
   'google/gemini-pro-1.5': { input: 1.25, output: 5.0 },
   'meta-llama/llama-3.1-70b-instruct': { input: 0.52, output: 0.75 },
-  'auto': { input: 0.5, output: 2.0 }, // Average estimate for auto-routing
+  'auto': { input: 0.5, output: 2.0 },
 };
+
+/**
+ * Recommended models for different use cases
+ * Aligned with issue #142 LLM Independence roadmap
+ *
+ * @see https://github.com/proffesor-for-testing/agentic-qe/issues/142
+ */
+export const RECOMMENDED_MODELS = {
+  // ===========================================
+  // FREE TIER - Development & Testing
+  // ===========================================
+  /** Devstral 2 2512 FREE - 123B, 256K context, FREE, best agentic coding */
+  AGENTIC_CODING_FREE: 'mistralai/devstral-2512:free',
+
+  // ===========================================
+  // PAID TIER - Cost-effective options
+  // ===========================================
+  /** Devstral Small 2505 - CHEAPEST ($0.06/$0.12 per M) */
+  CHEAPEST_PAID: 'mistralai/devstral-small-2505',
+  /** Devstral Small - 24B, 128K, good balance */
+  LIGHTWEIGHT_CODING: 'mistralai/devstral-small',
+  /** Devstral Medium - complex reasoning ($0.40/$2.00 per M) */
+  COMPLEX_REASONING: 'mistralai/devstral-medium',
+  /** Qwen 2.5 Coder 32B - well-tested, complex tasks */
+  QWEN_CODER: 'qwen/qwen-2.5-coder-32b-instruct',
+
+  // ===========================================
+  // Vendor Models (highest quality fallback)
+  // ===========================================
+  /** Claude 3.5 Sonnet - highest quality */
+  HIGH_QUALITY: 'anthropic/claude-3.5-sonnet',
+  /** GPT-4o Mini - cost-effective vendor */
+  COST_EFFECTIVE: 'openai/gpt-4o-mini',
+
+  // ===========================================
+  // Aliases for convenience
+  // ===========================================
+  /** Primary FREE model for development */
+  FREE: 'mistralai/devstral-2512:free',
+  /** Alias for agentic coding */
+  AGENTIC_CODING: 'mistralai/devstral-2512:free',
+} as const;
 
 /**
  * OpenRouterProvider - OpenRouter API implementation of ILLMProvider
@@ -109,13 +182,16 @@ export class OpenRouterProvider implements ILLMProvider {
       debug: config.debug ?? false,
       timeout: config.timeout ?? 60000,
       maxRetries: config.maxRetries ?? 3,
-      defaultModel: config.defaultModel || 'auto',
+      // Default to FREE Devstral 2 (123B, 256K context, best agentic coding)
+      defaultModel: config.defaultModel || RECOMMENDED_MODELS.AGENTIC_CODING,
       siteUrl: config.siteUrl || process.env.OPENROUTER_SITE_URL,
       siteName: config.siteName || process.env.OPENROUTER_SITE_NAME || 'Agentic-QE-Fleet',
+      // Fallback chain: FREE → cheapest paid → complex → vendor
       fallbackModels: config.fallbackModels || [
-        'anthropic/claude-3.5-sonnet',
-        'openai/gpt-4o-mini',
-        'meta-llama/llama-3.1-70b-instruct'
+        RECOMMENDED_MODELS.CHEAPEST_PAID,       // Devstral Small 2505 ($0.06/$0.12)
+        RECOMMENDED_MODELS.LIGHTWEIGHT_CODING,  // Devstral Small ($0.07/$0.28)
+        RECOMMENDED_MODELS.COMPLEX_REASONING,   // Devstral Medium ($0.40/$2.00)
+        RECOMMENDED_MODELS.COST_EFFECTIVE,      // GPT-4o Mini fallback
       ],
       enableModelDiscovery: config.enableModelDiscovery ?? true,
       baseUrl: config.baseUrl || 'https://openrouter.ai/api/v1',

@@ -147,6 +147,9 @@ claude-flow.config.json
 .hive-mind/
 .claude-flow/
 memory/
+!src/memory/
+!src/core/memory/
+!tests/memory/
 coordination/
 memory/claude-flow-data.json
 memory/sessions/*

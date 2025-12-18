@@ -59,7 +59,7 @@ gh pr create                        # 5. Create PR to main
 # Merge PR                          # 7. Merge
 git tag vX.X.X && git push origin vX.X.X  # 8. Tag
 gh release create vX.X.X            # 9. GitHub release
-npm publish --access public         # 10. npm publish
+monitor gh workflow triggered on release publish and verify npm published succesfully
 ```
 
 ---

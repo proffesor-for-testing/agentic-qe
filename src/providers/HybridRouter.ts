@@ -32,6 +32,7 @@ import {
 } from './ILLMProvider';
 import { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 import { RuvllmProvider, RuvllmProviderConfig, TRMConfig, RuvllmCompletionOptions } from './RuvllmProvider';
+import { RuVectorClient, RuVectorConfig, QueryResult as RuVectorQueryResult } from './RuVectorClient';
 import { Logger } from '../utils/Logger';
 
 /**
@@ -138,6 +139,28 @@ export interface HybridCompletionOptions extends LLMCompletionOptions {
 }
 
 /**
+ * RuVector cache configuration for Phase 0.5 self-learning integration
+ */
+export interface RuVectorCacheConfig {
+  /** Enable RuVector as intelligent cache layer */
+  enabled: boolean;
+  /** RuVector service base URL (default: http://localhost:8080) */
+  baseUrl?: string;
+  /** Confidence threshold for cache hits (default: 0.85) */
+  cacheThreshold?: number;
+  /** Enable automatic learning from LLM responses (default: true) */
+  learningEnabled?: boolean;
+  /** LoRA rank for adapter learning (default: 8) */
+  loraRank?: number;
+  /** Enable EWC to prevent catastrophic forgetting (default: true) */
+  ewcEnabled?: boolean;
+  /** Embedding dimension (default: 768) */
+  embeddingDimension?: number;
+  /** Skip cache for complex tasks (default: false) */
+  skipCacheForComplexTasks?: boolean;
+}
+
+/**
  * Hybrid router configuration
  */
 export interface HybridRouterConfig extends LLMProviderConfig {
@@ -145,6 +168,8 @@ export interface HybridRouterConfig extends LLMProviderConfig {
   claude?: ClaudeProviderConfig;
   /** Ruvllm provider configuration */
   ruvllm?: RuvllmProviderConfig;
+  /** RuVector cache configuration (Phase 0.5 - Self-Learning Integration) */
+  ruvector?: RuVectorCacheConfig;
   /** Default routing strategy */
   defaultStrategy?: RoutingStrategy;
   /** Enable circuit breakers */
@@ -177,9 +202,10 @@ export interface HybridRouterConfig extends LLMProviderConfig {
  */
 export class HybridRouter implements ILLMProvider {
   private readonly logger: Logger;
-  private config: Omit<Required<HybridRouterConfig>, 'claude' | 'ruvllm'> & Pick<HybridRouterConfig, 'claude' | 'ruvllm'>;
+  private config: Omit<Required<HybridRouterConfig>, 'claude' | 'ruvllm' | 'ruvector'> & Pick<HybridRouterConfig, 'claude' | 'ruvllm' | 'ruvector'>;
   private localProvider?: RuvllmProvider;
   private cloudProvider?: ClaudeProvider;
+  private ruVectorClient?: RuVectorClient;
   private circuitBreakers: Map<string, CircuitBreaker>;
   private routingHistory: RoutingOutcome[];
   private isInitialized: boolean;
@@ -187,6 +213,8 @@ export class HybridRouter implements ILLMProvider {
   private requestCount: number;
   private localRequestCount: number;
   private cloudRequestCount: number;
+  private cacheHitCount: number;
+  private cacheMissCount: number;
 
   constructor(config: HybridRouterConfig = {}) {
     this.logger = Logger.getInstance();
@@ -212,7 +240,8 @@ export class HybridRouter implements ILLMProvider {
         qualityMetric: 'coherence'
       },
       claude: config.claude,
-      ruvllm: config.ruvllm
+      ruvllm: config.ruvllm,
+      ruvector: config.ruvector
     };
 
     this.circuitBreakers = new Map();
@@ -222,6 +251,8 @@ export class HybridRouter implements ILLMProvider {
     this.requestCount = 0;
     this.localRequestCount = 0;
     this.cloudRequestCount = 0;
+    this.cacheHitCount = 0;
+    this.cacheMissCount = 0;
   }
 
   /**
@@ -231,6 +262,44 @@ export class HybridRouter implements ILLMProvider {
     if (this.isInitialized) {
       this.logger.warn('HybridRouter already initialized');
       return;
+    }
+
+    // Initialize RuVector cache layer (Phase 0.5 - Self-Learning Integration)
+    if (this.config.ruvector?.enabled) {
+      try {
+        const ruVectorConfig: RuVectorConfig = {
+          baseUrl: this.config.ruvector.baseUrl ?? 'http://localhost:8080',
+          learningEnabled: this.config.ruvector.learningEnabled ?? true,
+          cacheThreshold: this.config.ruvector.cacheThreshold ?? 0.85,
+          loraRank: this.config.ruvector.loraRank ?? 8,
+          ewcEnabled: this.config.ruvector.ewcEnabled ?? true,
+          debug: this.config.debug
+        };
+
+        this.ruVectorClient = new RuVectorClient(ruVectorConfig);
+
+        // Health check to verify connection
+        const health = await this.ruVectorClient.healthCheck();
+        if (health.status === 'healthy' || health.status === 'degraded') {
+          this.logger.info('RuVector cache layer initialized', {
+            status: health.status,
+            vectorCount: health.vectorCount,
+            gnnStatus: health.gnnStatus,
+            loraStatus: health.loraStatus
+          });
+        } else {
+          this.logger.warn('RuVector cache layer unhealthy, disabling', {
+            status: health.status,
+            lastError: health.lastError
+          });
+          this.ruVectorClient = undefined;
+        }
+      } catch (error) {
+        this.logger.warn('Failed to initialize RuVector cache layer', {
+          error: (error as Error).message
+        });
+        this.ruVectorClient = undefined;
+      }
     }
 
     // Initialize local provider (ruvllm)
@@ -270,12 +339,18 @@ export class HybridRouter implements ILLMProvider {
     this.logger.info('HybridRouter initialized', {
       hasLocal: !!this.localProvider,
       hasCloud: !!this.cloudProvider,
+      hasRuVectorCache: !!this.ruVectorClient,
       strategy: this.config.defaultStrategy
     });
   }
 
   /**
    * Complete a prompt with intelligent routing and TRM support
+   *
+   * Phase 0.5 Enhancement: RuVector cache layer for sub-ms pattern matching
+   * - Check RuVector cache first (GNN-enhanced semantic search)
+   * - If cache hit with high confidence, return cached result
+   * - Otherwise, route to LLM and store result for learning
    *
    * When routing to the local provider (ruvLLM), TRM (Test-time Reasoning & Metacognition)
    * can be enabled for iterative quality improvement.
@@ -286,6 +361,34 @@ export class HybridRouter implements ILLMProvider {
     const startTime = Date.now();
     const priority = options.priority ?? RequestPriority.NORMAL;
     const strategy = options.routingStrategy ?? this.config.defaultStrategy;
+    const complexity = this.analyzeComplexity(options);
+
+    // Phase 0.5: Try RuVector cache first (sub-ms pattern matching)
+    if (this.ruVectorClient && this.shouldUseCache(options, complexity)) {
+      try {
+        const cacheResult = await this.tryRuVectorCache(options, complexity);
+        if (cacheResult) {
+          this.cacheHitCount++;
+          this.requestCount++;
+
+          this.logger.debug('RuVector cache hit', {
+            confidence: cacheResult.confidence,
+            latency: Date.now() - startTime,
+            complexity
+          });
+
+          return cacheResult.response;
+        }
+      } catch (error) {
+        // Cache error should not block the request, continue to LLM
+        this.logger.warn('RuVector cache error, falling back to LLM', {
+          error: (error as Error).message
+        });
+      }
+    }
+
+    // Cache miss or cache disabled
+    this.cacheMissCount++;
 
     // Handle forced provider selection
     if (options.forceProvider) {
@@ -293,10 +396,10 @@ export class HybridRouter implements ILLMProvider {
         options.forceProvider,
         options.forceProvider === 'local' ? 'ruvllm' : 'claude',
         'Forced provider selection',
-        this.analyzeComplexity(options),
+        complexity,
         priority
       );
-      return this.executeWithDecision(decision, options, startTime);
+      return this.executeWithDecisionAndLearn(decision, options, startTime);
     }
 
     // Analyze request and make routing decision
@@ -309,7 +412,197 @@ export class HybridRouter implements ILLMProvider {
       trmEnabled: !!options.trmConfig || (this.config.autoEnableTRM && decision.complexity !== TaskComplexity.SIMPLE)
     });
 
-    return this.executeWithDecision(decision, options, startTime);
+    return this.executeWithDecisionAndLearn(decision, options, startTime);
+  }
+
+  /**
+   * Check if cache should be used for this request
+   */
+  private shouldUseCache(options: HybridCompletionOptions, complexity: TaskComplexity): boolean {
+    // Skip if RuVector not configured
+    if (!this.ruVectorClient) return false;
+
+    // Skip for complex tasks if configured
+    if (this.config.ruvector?.skipCacheForComplexTasks &&
+        (complexity === TaskComplexity.COMPLEX || complexity === TaskComplexity.VERY_COMPLEX)) {
+      return false;
+    }
+
+    // Skip for privacy-sensitive data (should go directly to local LLM)
+    if (this.containsPrivacySensitiveData(options)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Try to get response from RuVector cache
+   */
+  private async tryRuVectorCache(
+    options: HybridCompletionOptions,
+    complexity: TaskComplexity
+  ): Promise<{ response: LLMCompletionResponse; confidence: number } | null> {
+    if (!this.ruVectorClient || !this.localProvider) return null;
+
+    // Extract query from messages
+    const query = this.extractQueryFromOptions(options);
+    if (!query) return null;
+
+    // Generate embedding using local provider
+    let embedding: number[];
+    try {
+      const embeddingResponse = await this.localProvider.embed({
+        text: query,
+        model: 'default'
+      });
+      embedding = embeddingResponse.embedding;
+    } catch (error) {
+      this.logger.debug('Failed to generate embedding for cache lookup', {
+        error: (error as Error).message
+      });
+      return null;
+    }
+
+    // Query RuVector with learning integration
+    const result = await this.ruVectorClient.queryWithLearning(
+      query,
+      embedding,
+      async () => {
+        // This fallback won't be used here - we return null to trigger LLM routing
+        throw new Error('CACHE_MISS_MARKER');
+      }
+    );
+
+    // Check if we got a cache hit
+    if (result.source === 'cache' && result.confidence >= (this.config.ruvector?.cacheThreshold ?? 0.85)) {
+      // Convert cache result to LLMCompletionResponse
+      const response: LLMCompletionResponse = {
+        id: `ruvector-cache-${Date.now()}`,
+        content: [{
+          type: 'text',
+          text: result.content
+        }],
+        usage: {
+          input_tokens: 0, // Cache hit, no token usage
+          output_tokens: 0
+        },
+        model: 'ruvector-cache',
+        stop_reason: 'end_turn',
+        metadata: {
+          source: 'ruvector-cache',
+          confidence: result.confidence,
+          complexity,
+          latency: result.latency
+        }
+      };
+
+      return { response, confidence: result.confidence };
+    }
+
+    return null;
+  }
+
+  /**
+   * Execute with decision and store result in RuVector for learning
+   */
+  private async executeWithDecisionAndLearn(
+    decision: RoutingDecision,
+    options: HybridCompletionOptions,
+    startTime: number
+  ): Promise<LLMCompletionResponse> {
+    const response = await this.executeWithDecision(decision, options, startTime);
+
+    // Store successful response in RuVector for learning
+    if (this.ruVectorClient && this.config.ruvector?.learningEnabled !== false) {
+      this.storeResponseForLearning(options, response, decision).catch(error => {
+        this.logger.warn('Failed to store response in RuVector for learning', {
+          error: (error as Error).message
+        });
+      });
+    }
+
+    return response;
+  }
+
+  /**
+   * Store LLM response in RuVector for future learning
+   */
+  private async storeResponseForLearning(
+    options: HybridCompletionOptions,
+    response: LLMCompletionResponse,
+    decision: RoutingDecision
+  ): Promise<void> {
+    if (!this.ruVectorClient || !this.localProvider) return;
+
+    try {
+      // Extract query and response content
+      const query = this.extractQueryFromOptions(options);
+      const responseText = response.content
+        .filter(c => c.type === 'text')
+        .map(c => c.text)
+        .join('\n');
+
+      if (!query || !responseText) return;
+
+      // Generate embedding
+      const embeddingResponse = await this.localProvider.embed({
+        text: query,
+        model: 'default'
+      });
+
+      // Store pattern for future cache hits
+      await this.ruVectorClient.store(
+        {
+          embedding: embeddingResponse.embedding,
+          content: responseText,
+          metadata: {
+            query,
+            model: response.model,
+            provider: decision.provider,
+            complexity: decision.complexity,
+            timestamp: new Date().toISOString(),
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens
+          }
+        },
+        { triggerLearning: true }
+      );
+
+      this.logger.debug('Response stored in RuVector for learning', {
+        queryLength: query.length,
+        responseLength: responseText.length,
+        provider: decision.provider
+      });
+    } catch (error) {
+      // Non-critical operation, just log
+      this.logger.debug('Failed to store response for learning', {
+        error: (error as Error).message
+      });
+    }
+  }
+
+  /**
+   * Extract query string from completion options
+   */
+  private extractQueryFromOptions(options: LLMCompletionOptions): string | null {
+    if (!options.messages || options.messages.length === 0) return null;
+
+    // Get the last user message
+    const userMessages = options.messages.filter(m => m.role === 'user');
+    const lastUserMessage = userMessages[userMessages.length - 1];
+
+    if (!lastUserMessage) return null;
+
+    if (typeof lastUserMessage.content === 'string') {
+      return lastUserMessage.content;
+    }
+
+    // Extract text from content blocks
+    return lastUserMessage.content
+      .filter(c => c.type === 'text')
+      .map(c => c.text)
+      .join('\n');
   }
 
   /**
@@ -478,10 +771,33 @@ export class HybridRouter implements ILLMProvider {
   }
 
   /**
-   * Health check all providers
+   * Health check all providers including RuVector cache
    */
   async healthCheck(): Promise<LLMHealthStatus> {
-    const checks: Array<{ provider: string; status: LLMHealthStatus }> = [];
+    const checks: Array<{ provider: string; status: LLMHealthStatus | { healthy: boolean; status?: string; vectorCount?: number; error?: string } }> = [];
+
+    // Check RuVector cache layer
+    if (this.ruVectorClient) {
+      try {
+        const ruVectorHealth = await this.ruVectorClient.healthCheck();
+        checks.push({
+          provider: 'ruvector-cache',
+          status: {
+            healthy: ruVectorHealth.status === 'healthy',
+            status: ruVectorHealth.status,
+            vectorCount: ruVectorHealth.vectorCount
+          }
+        });
+      } catch (error) {
+        checks.push({
+          provider: 'ruvector-cache',
+          status: {
+            healthy: false,
+            error: (error as Error).message
+          }
+        });
+      }
+    }
 
     if (this.localProvider) {
       try {
@@ -515,7 +831,7 @@ export class HybridRouter implements ILLMProvider {
       }
     }
 
-    const healthyCount = checks.filter(c => c.status.healthy).length;
+    const healthyCount = checks.filter(c => 'healthy' in c.status && c.status.healthy).length;
 
     return {
       healthy: healthyCount > 0,
@@ -525,9 +841,20 @@ export class HybridRouter implements ILLMProvider {
         circuitBreakers: Object.fromEntries(this.circuitBreakers),
         requestCount: this.requestCount,
         localRequests: this.localRequestCount,
-        cloudRequests: this.cloudRequestCount
+        cloudRequests: this.cloudRequestCount,
+        cacheHits: this.cacheHitCount,
+        cacheMisses: this.cacheMissCount,
+        cacheHitRate: this.getCacheHitRate()
       }
     };
+  }
+
+  /**
+   * Get cache hit rate (0-1)
+   */
+  getCacheHitRate(): number {
+    const total = this.cacheHitCount + this.cacheMissCount;
+    return total > 0 ? this.cacheHitCount / total : 0;
   }
 
   /**
@@ -594,9 +921,12 @@ export class HybridRouter implements ILLMProvider {
   }
 
   /**
-   * Get cost savings report
+   * Get cost savings report including RuVector cache savings
    */
-  getCostSavingsReport(): CostSavingsReport {
+  getCostSavingsReport(): CostSavingsReport & {
+    cacheHits: number;
+    cacheSavings: number;
+  } {
     // Estimate what cloud cost would have been for all requests
     const cloudCostPerRequest = 0.01; // Rough estimate
     const estimatedCloudCost = this.requestCount * cloudCostPerRequest;
@@ -605,6 +935,9 @@ export class HybridRouter implements ILLMProvider {
       ? (savings / estimatedCloudCost) * 100
       : 0;
 
+    // Cache hits are essentially free
+    const cacheSavings = this.cacheHitCount * cloudCostPerRequest;
+
     return {
       totalRequests: this.requestCount,
       localRequests: this.localRequestCount,
@@ -612,17 +945,22 @@ export class HybridRouter implements ILLMProvider {
       totalCost: this.totalCost,
       estimatedCloudCost,
       savings,
-      savingsPercentage
+      savingsPercentage,
+      cacheHits: this.cacheHitCount,
+      cacheSavings
     };
   }
 
   /**
-   * Get routing statistics
+   * Get routing statistics including cache metrics
    */
   getRoutingStats(): {
     totalDecisions: number;
     localDecisions: number;
     cloudDecisions: number;
+    cacheHits: number;
+    cacheMisses: number;
+    cacheHitRate: number;
     averageLocalLatency: number;
     averageCloudLatency: number;
     successRate: number;
@@ -643,12 +981,84 @@ export class HybridRouter implements ILLMProvider {
       totalDecisions: this.routingHistory.length,
       localDecisions: localOutcomes.length,
       cloudDecisions: cloudOutcomes.length,
+      cacheHits: this.cacheHitCount,
+      cacheMisses: this.cacheMissCount,
+      cacheHitRate: this.getCacheHitRate(),
       averageLocalLatency: avgLocalLatency,
       averageCloudLatency: avgCloudLatency,
       successRate: this.routingHistory.length > 0
         ? (successCount / this.routingHistory.length) * 100
         : 0
     };
+  }
+
+  /**
+   * Get RuVector cache metrics (Phase 0.5)
+   */
+  async getRuVectorMetrics(): Promise<{
+    enabled: boolean;
+    healthy: boolean;
+    cacheHitRate: number;
+    patternCount: number;
+    loraUpdates: number;
+    memoryUsageMB?: number;
+  } | null> {
+    if (!this.ruVectorClient) {
+      return null;
+    }
+
+    try {
+      const metrics = await this.ruVectorClient.getMetrics();
+      const health = await this.ruVectorClient.healthCheck();
+
+      return {
+        enabled: true,
+        healthy: health.status === 'healthy',
+        cacheHitRate: metrics.cacheHitRate,
+        patternCount: metrics.patternCount,
+        loraUpdates: metrics.loraUpdates,
+        memoryUsageMB: metrics.memoryUsageMB
+      };
+    } catch (error) {
+      this.logger.warn('Failed to get RuVector metrics', {
+        error: (error as Error).message
+      });
+      return {
+        enabled: true,
+        healthy: false,
+        cacheHitRate: this.getCacheHitRate(),
+        patternCount: 0,
+        loraUpdates: 0
+      };
+    }
+  }
+
+  /**
+   * Force RuVector learning consolidation
+   */
+  async forceRuVectorLearn(): Promise<{
+    success: boolean;
+    updatedParameters?: number;
+    duration?: number;
+    error?: string;
+  }> {
+    if (!this.ruVectorClient) {
+      return { success: false, error: 'RuVector not enabled' };
+    }
+
+    try {
+      const result = await this.ruVectorClient.forceLearn();
+      return {
+        success: result.success,
+        updatedParameters: result.updatedParameters,
+        duration: result.duration
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message
+      };
+    }
   }
 
   /**
