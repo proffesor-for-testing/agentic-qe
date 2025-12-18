@@ -100,6 +100,26 @@ export interface DbStats {
 }
 
 /**
+ * GNN Learning Configuration (Phase 0.5 - Remote Learning Integration)
+ */
+export interface GNNLearningConfig {
+  /** Enable GNN-enhanced learning via remote RuVector Docker service */
+  enabled: boolean;
+  /** RuVector Docker service base URL (default: http://localhost:8080) */
+  baseUrl?: string;
+  /** Confidence threshold for cache hits (default: 0.85) */
+  cacheThreshold?: number;
+  /** LoRA rank for low-rank adaptation (default: 8) */
+  loraRank?: number;
+  /** Enable EWC for catastrophic forgetting prevention (default: true) */
+  ewcEnabled?: boolean;
+  /** Auto-sync patterns to remote service on store (default: false) */
+  autoSync?: boolean;
+  /** Sync batch size (default: 100) */
+  syncBatchSize?: number;
+}
+
+/**
  * Configuration for RuVectorPatternStore
  */
 export interface RuVectorConfig extends PatternStoreConfig {
@@ -114,6 +134,8 @@ export interface RuVectorConfig extends PatternStoreConfig {
   };
   /** Enable performance metrics collection */
   enableMetrics?: boolean;
+  /** GNN Learning configuration (Phase 0.5 - Remote Learning Integration) */
+  gnnLearning?: GNNLearningConfig;
 }
 
 /**
@@ -177,7 +199,7 @@ export function getRuVectorInfo(): {
  * @implements {IPatternStore}
  */
 export class RuVectorPatternStore implements IPatternStore {
-  private config: Required<RuVectorConfig>;
+  private config: Required<Omit<RuVectorConfig, 'gnnLearning'>> & { gnnLearning?: GNNLearningConfig };
   private initialized: boolean = false;
   private useNative: boolean = false;
   private nativeDb: any = null;
@@ -194,6 +216,10 @@ export class RuVectorPatternStore implements IPatternStore {
     lastQPS: 0,
   };
 
+  // GNN Learning client (Phase 0.5)
+  private gnnLearningClient: any = null;
+  private pendingSyncPatterns: VectorEntry[] = [];
+
   constructor(config: RuVectorConfig = {}) {
     this.config = {
       dimension: config.dimension ?? 384,
@@ -208,6 +234,7 @@ export class RuVectorPatternStore implements IPatternStore {
       },
       preferredBackend: config.preferredBackend ?? 'auto',
       enableMetrics: config.enableMetrics ?? true,
+      gnnLearning: config.gnnLearning,
     };
   }
 
@@ -253,6 +280,37 @@ export class RuVectorPatternStore implements IPatternStore {
         `[RuVector] ⚠️ Native unavailable (${process.arch}): ${error.message}`
       );
       console.log(`[RuVector]    Using in-memory fallback`);
+    }
+
+    // Initialize GNN Learning client (Phase 0.5)
+    if (this.config.gnnLearning?.enabled) {
+      try {
+        const { RuVectorClient } = require('../../providers/RuVectorClient');
+        this.gnnLearningClient = new RuVectorClient({
+          baseUrl: this.config.gnnLearning.baseUrl ?? 'http://localhost:8080',
+          learningEnabled: true,
+          cacheThreshold: this.config.gnnLearning.cacheThreshold ?? 0.85,
+          loraRank: this.config.gnnLearning.loraRank ?? 8,
+          ewcEnabled: this.config.gnnLearning.ewcEnabled ?? true,
+          debug: false
+        });
+
+        // Verify connection with health check
+        const health = await this.gnnLearningClient.healthCheck();
+        if (health.status === 'healthy' || health.status === 'degraded') {
+          console.log(
+            `[RuVector] ✅ GNN Learning enabled (${health.gnnStatus}, LoRA: ${health.loraStatus})`
+          );
+        } else {
+          console.log(`[RuVector] ⚠️ GNN Learning service unhealthy, disabling`);
+          this.gnnLearningClient = null;
+        }
+      } catch (error: any) {
+        console.log(
+          `[RuVector] ⚠️ GNN Learning unavailable: ${error.message}`
+        );
+        this.gnnLearningClient = null;
+      }
     }
 
     this.initialized = true;
@@ -885,6 +943,230 @@ export class RuVectorPatternStore implements IPatternStore {
       usageCount: entry.metadata?.usageCount,
       metadata: entry.metadata,
     };
+  }
+
+  // ============================================
+  // GNN Learning Methods (Phase 0.5)
+  // ============================================
+
+  /**
+   * Check if GNN learning is enabled and connected
+   */
+  isGNNEnabled(): boolean {
+    return this.gnnLearningClient !== null;
+  }
+
+  /**
+   * Get GNN learning configuration
+   */
+  getGNNConfig(): GNNLearningConfig | undefined {
+    return this.config.gnnLearning;
+  }
+
+  /**
+   * Sync local patterns to remote GNN learning service
+   * Batches patterns for efficient transfer
+   */
+  async syncToRemote(options?: { force?: boolean; batchSize?: number }): Promise<{
+    synced: number;
+    failed: number;
+    duration: number;
+  }> {
+    if (!this.gnnLearningClient) {
+      return { synced: 0, failed: 0, duration: 0 };
+    }
+
+    const startTime = performance.now();
+    const batchSize = options?.batchSize ?? this.config.gnnLearning?.syncBatchSize ?? 100;
+    let synced = 0;
+    let failed = 0;
+
+    // Get patterns to sync
+    const patternsToSync = options?.force
+      ? Array.from(this.patterns.values())
+      : this.pendingSyncPatterns;
+
+    // Process in batches
+    for (let i = 0; i < patternsToSync.length; i += batchSize) {
+      const batch = patternsToSync.slice(i, i + batchSize);
+
+      for (const entry of batch) {
+        try {
+          await this.gnnLearningClient.store({
+            id: entry.id,
+            embedding: entry.vector as number[],
+            content: entry.metadata?.content ?? '',
+            metadata: entry.metadata
+          });
+          synced++;
+        } catch (error) {
+          failed++;
+          console.error(`[RuVector] Failed to sync pattern ${entry.id}:`, error);
+        }
+      }
+    }
+
+    // Clear pending after successful sync
+    if (!options?.force) {
+      this.pendingSyncPatterns = [];
+    }
+
+    const duration = performance.now() - startTime;
+    return { synced, failed, duration };
+  }
+
+  /**
+   * Force GNN learning consolidation on the remote service
+   * Triggers EWC-protected parameter updates
+   */
+  async forceGNNLearn(options?: { domain?: string }): Promise<{
+    success: boolean;
+    patternsConsolidated: number;
+    ewcLoss?: number;
+    duration: number;
+  }> {
+    if (!this.gnnLearningClient) {
+      return { success: false, patternsConsolidated: 0, duration: 0 };
+    }
+
+    const startTime = performance.now();
+
+    try {
+      const result = await this.gnnLearningClient.forceLearn(options?.domain);
+      const duration = performance.now() - startTime;
+
+      return {
+        success: true,
+        patternsConsolidated: result.patternsConsolidated ?? 0,
+        ewcLoss: result.ewcLoss,
+        duration
+      };
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error('[RuVector] GNN learning failed:', error);
+      return { success: false, patternsConsolidated: 0, duration };
+    }
+  }
+
+  /**
+   * Get GNN learning metrics from remote service
+   */
+  async getGNNMetrics(): Promise<{
+    enabled: boolean;
+    cacheHitRate: number;
+    patternsLearned: number;
+    loraRank: number;
+    ewcEnabled: boolean;
+    lastLearnTime?: number;
+    totalInferences: number;
+  } | null> {
+    if (!this.gnnLearningClient) {
+      return null;
+    }
+
+    try {
+      const metrics = await this.gnnLearningClient.getMetrics();
+      return {
+        enabled: true,
+        cacheHitRate: metrics.cacheHitRate ?? 0,
+        patternsLearned: metrics.patternsLearned ?? 0,
+        loraRank: this.config.gnnLearning?.loraRank ?? 8,
+        ewcEnabled: this.config.gnnLearning?.ewcEnabled ?? true,
+        lastLearnTime: metrics.lastLearnTime,
+        totalInferences: metrics.totalInferences ?? 0
+      };
+    } catch (error) {
+      console.error('[RuVector] Failed to get GNN metrics:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Query with GNN-enhanced semantic search
+   * Uses remote service for advanced pattern matching
+   */
+  async queryWithGNN(
+    query: string,
+    embedding: number[],
+    options?: { k?: number; threshold?: number }
+  ): Promise<{
+    results: PatternSearchResult[];
+    source: 'local' | 'gnn';
+    confidence: number;
+  }> {
+    const k = options?.k ?? 10;
+    const threshold = options?.threshold ?? this.config.gnnLearning?.cacheThreshold ?? 0.85;
+
+    // Try GNN-enhanced search first
+    if (this.gnnLearningClient) {
+      try {
+        const gnnResults = await this.gnnLearningClient.search(embedding, k);
+
+        if (gnnResults.length > 0 && gnnResults[0].confidence >= threshold) {
+          // GNN had high-confidence results
+          return {
+            results: gnnResults.map((r: any) => ({
+              pattern: this.entryToPattern({
+                id: r.id,
+                vector: embedding,
+                metadata: r.metadata
+              }),
+              score: r.confidence,
+              distance: 1 - r.confidence
+            })),
+            source: 'gnn',
+            confidence: gnnResults[0].confidence
+          };
+        }
+      } catch (error) {
+        console.warn('[RuVector] GNN search failed, using local:', error);
+      }
+    }
+
+    // Fallback to local search
+    const localResults = await this.searchSimilar(embedding, { k, threshold });
+    return {
+      results: localResults,
+      source: 'local',
+      confidence: localResults.length > 0 ? localResults[0].score : 0
+    };
+  }
+
+  /**
+   * Store pattern with auto-sync to remote service
+   */
+  async storeWithSync(pattern: TestPattern): Promise<{ stored: boolean; synced: boolean }> {
+    await this.storePattern(pattern);
+
+    // Add to pending sync queue
+    const entry: VectorEntry = {
+      id: pattern.id,
+      vector: pattern.embedding,
+      metadata: {
+        type: pattern.type,
+        domain: pattern.domain,
+        content: pattern.content,
+        ...pattern.metadata
+      }
+    };
+    this.pendingSyncPatterns.push(entry);
+
+    // Auto-sync if enabled and threshold reached
+    let synced = false;
+    if (this.config.gnnLearning?.autoSync &&
+        this.pendingSyncPatterns.length >= (this.config.gnnLearning.syncBatchSize ?? 100)) {
+      const result = await this.syncToRemote();
+      synced = result.synced > 0;
+    }
+
+    return { stored: true, synced };
+  }
+
+  /**
+   * Get pending sync count
+   */
+  getPendingSyncCount(): number {
+    return this.pendingSyncPatterns.length;
   }
 }
 

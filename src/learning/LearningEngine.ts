@@ -43,6 +43,7 @@ import {
   LearningEvent
 } from './types';
 import { ExperienceSharingProtocol, SharedExperience } from './ExperienceSharingProtocol';
+import { HNSWPatternAdapter, HNSWPatternAdapterConfig, PatternSearchResult } from './HNSWPatternAdapter';
 
 /**
  * RL Algorithm type selection
@@ -56,6 +57,10 @@ export interface ExtendedLearningConfig extends LearningConfig {
   algorithm?: RLAlgorithmType; // Which RL algorithm to use
   enableExperienceSharing?: boolean; // Enable cross-agent experience sharing
   experienceSharingPriority?: number; // Minimum priority for sharing (0-1)
+  /** Enable HNSW vector search for O(log n) pattern matching (Phase 0 M0.3) */
+  enableHNSW?: boolean;
+  /** HNSW adapter configuration */
+  hnswConfig?: HNSWPatternAdapterConfig;
 }
 
 /**
@@ -73,7 +78,8 @@ const DEFAULT_CONFIG: ExtendedLearningConfig = {
   updateFrequency: 10,
   algorithm: 'q-learning', // Default to Q-Learning
   enableExperienceSharing: false, // Disabled by default for backward compatibility
-  experienceSharingPriority: 0.5 // Only share moderately valuable experiences
+  experienceSharingPriority: 0.5, // Only share moderately valuable experiences
+  enableHNSW: false, // Disabled by default for backward compatibility (Phase 0 M0.3)
 };
 
 /**
@@ -95,6 +101,8 @@ export class LearningEngine {
   private readonly stateExtractor: StateExtractor;
   private readonly rewardCalculator: RewardCalculator;
   private experienceSharing?: ExperienceSharingProtocol;
+  // Phase 0 M0.3: HNSW vector search for O(log n) pattern matching
+  private hnswAdapter?: HNSWPatternAdapter;
 
   constructor(
     agentId: string,
@@ -117,6 +125,12 @@ export class LearningEngine {
     // Initialize RL algorithm if specified
     if (this.config.algorithm && this.config.algorithm !== 'legacy') {
       this.setAlgorithm(this.config.algorithm);
+    }
+
+    // Phase 0 M0.3: Initialize HNSW adapter for O(log n) pattern matching
+    if (this.config.enableHNSW) {
+      this.hnswAdapter = new HNSWPatternAdapter(this.config.hnswConfig);
+      this.logger.info('HNSW pattern adapter created for O(log n) similarity search');
     }
 
     // UNIFIED PERSISTENCE ARCHITECTURE (v2.2.0):
@@ -153,6 +167,12 @@ export class LearningEngine {
         this.config,
         { partition: 'learning' }
       );
+    }
+
+    // Phase 0 M0.3: Initialize HNSW adapter for vector similarity search
+    if (this.hnswAdapter) {
+      await this.hnswAdapter.initialize();
+      this.logger.info('HNSW pattern adapter initialized for O(log n) similarity search');
     }
 
     this.logger.info('LearningEngine initialized successfully');
@@ -410,6 +430,45 @@ export class LearningEngine {
   }
 
   /**
+   * Search for similar patterns using HNSW vector similarity
+   * Phase 0 M0.3: O(log n) complexity with <1ms p95 latency
+   *
+   * @param query Search query (text to find similar patterns for)
+   * @param k Number of results to return (default: 5)
+   * @returns Similar patterns with similarity scores, or empty array if HNSW not enabled
+   */
+  async searchSimilarPatterns(query: string, k: number = 5): Promise<PatternSearchResult[]> {
+    if (!this.hnswAdapter) {
+      this.logger.debug('HNSW not enabled, searchSimilarPatterns returning empty');
+      return [];
+    }
+
+    try {
+      return await this.hnswAdapter.searchSimilar(query, k);
+    } catch (error) {
+      this.logger.warn('HNSW similarity search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Check if HNSW vector search is enabled
+   */
+  isHNSWEnabled(): boolean {
+    return !!this.hnswAdapter;
+  }
+
+  /**
+   * Get HNSW adapter statistics
+   */
+  async getHNSWStats(): Promise<{ patternCount: number; useRuvLLM: boolean; embeddingDimension: number } | null> {
+    if (!this.hnswAdapter) {
+      return null;
+    }
+    return this.hnswAdapter.getStats();
+  }
+
+  /**
    * Get failure patterns
    */
   getFailurePatterns(): FailurePattern[] {
@@ -635,6 +694,19 @@ export class LearningEngine {
             last_used_at: existingPattern.lastUsedAt
           }
         });
+
+        // Phase 0 M0.3: Update in HNSW for vector similarity search
+        if (this.hnswAdapter) {
+          try {
+            await this.hnswAdapter.storePattern({
+              ...existingPattern,
+              agentId: this.agentId,
+              averageReward: experience.reward,
+            });
+          } catch (hnswError) {
+            this.logger.warn('HNSW pattern update failed, continuing with SQLite only:', hnswError);
+          }
+        }
       } else {
         // Create new pattern
         const pattern: LearnedPattern = {
@@ -662,6 +734,19 @@ export class LearningEngine {
             last_used_at: pattern.lastUsedAt
           }
         });
+
+        // Phase 0 M0.3: Also store in HNSW for vector similarity search
+        if (this.hnswAdapter) {
+          try {
+            await this.hnswAdapter.storePattern({
+              ...pattern,
+              agentId: this.agentId,
+              averageReward: experience.reward,
+            });
+          } catch (hnswError) {
+            this.logger.warn('HNSW pattern storage failed, continuing with SQLite only:', hnswError);
+          }
+        }
 
         // Emit pattern discovered event
         await this.emitLearningEvent('pattern_discovered', pattern);

@@ -4,7 +4,7 @@
  */
 
 // Export all agent implementations
-export { BaseAgent, BaseAgentConfig, BaseAgentFactory } from './BaseAgent';
+export { BaseAgent, BaseAgentConfig, BaseAgentFactory, AgentLLMConfig } from './BaseAgent';
 export { TestGeneratorAgent } from './TestGeneratorAgent';
 export { TestExecutorAgent } from './TestExecutorAgent';
 export { CoverageAnalyzerAgent } from './CoverageAnalyzerAgent';

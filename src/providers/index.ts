@@ -39,16 +39,42 @@ export {
   createOpenRouterProvider
 } from './OpenRouterProvider';
 
-// Hybrid router
+// Hybrid router with RuVector cache integration (Phase 0.5)
 export {
   HybridRouter,
   HybridRouterConfig,
+  RuVectorCacheConfig,
   RequestPriority,
   TaskComplexity,
   RoutingStrategy,
   RoutingDecision,
   CostSavingsReport
 } from './HybridRouter';
+
+// RuVector client for self-learning cache (Phase 0.5)
+export {
+  RuVectorClient,
+  RuVectorConfig,
+  RuVectorError,
+  createRuVectorClient,
+  RUVECTOR_CLIENT_VERSION
+} from './RuVectorClient';
+export type {
+  SearchResult as RuVectorSearchResult,
+  Pattern as RuVectorPattern,
+  QueryResult as RuVectorQueryResult,
+  LearningMetrics as RuVectorLearningMetrics,
+  HealthCheckResponse as RuVectorHealthCheckResponse
+} from './RuVectorClient';
+
+// RuvLLM Pattern Curator integration (Phase 0 M0.6)
+export {
+  RuvllmPatternCurator,
+  createRuvllmPatternCurator
+} from './RuvllmPatternCurator';
+export type {
+  RuvllmPatternCuratorConfig
+} from './RuvllmPatternCurator';
 
 // Factory and utilities
 export {

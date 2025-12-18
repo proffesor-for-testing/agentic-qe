@@ -18,6 +18,37 @@ let loadError: Error | null = null;
 /**
  * RuvLLM module type definitions
  */
+/**
+ * SessionManager instance interface
+ * Provides multi-turn conversation management with 50% latency reduction
+ */
+export interface SessionManagerInstance {
+  /** Create a new session */
+  create(sessionId?: string): { id: string };
+  /** Get an existing session */
+  get(sessionId: string): { id: string; messages: any[] } | null;
+  /** Chat within a session (50% faster for multi-turn) */
+  chat(sessionId: string, input: string): Promise<string>;
+  /** Add system message to session */
+  addSystemMessage(sessionId: string, message: string): void;
+  /** Add context to session */
+  addContext(sessionId: string, context: string): void;
+  /** Get conversation history */
+  getHistory(sessionId: string): any[];
+  /** Clear session history */
+  clearHistory(sessionId: string): void;
+  /** End and cleanup session */
+  end(sessionId: string): void;
+  /** List all active sessions */
+  list(): string[];
+  /** Export session state */
+  export(sessionId: string): any;
+  /** Import session state */
+  import(state: any): string;
+  /** Build context for a session */
+  buildContext(sessionId: string): string;
+}
+
 export interface RuvLLMModule {
   RuvLLM: new (config?: RuvLLMConfig) => RuvLLMInstance;
   SonaCoordinator: new () => SonaCoordinatorInstance;
@@ -25,7 +56,7 @@ export interface RuvLLMModule {
   LoraManager: new (config?: any) => LoraManagerInstance;
   LoraAdapter: new (config?: LoraAdapterConfig) => LoraAdapterInstance;
   TrajectoryBuilder: new () => TrajectoryBuilderInstance;
-  SessionManager: new (llm: RuvLLMInstance) => any;
+  SessionManager: new (llm: RuvLLMInstance) => SessionManagerInstance;
   EwcManager: new (config?: any) => any;
   version: string;
   hasSimdSupport: boolean;
@@ -37,11 +68,68 @@ export interface RuvLLMConfig {
   ewcLambda?: number;
 }
 
+/**
+ * Routing decision from RuvLLM
+ * Note: Native API returns { model, contextSize, temperature, topP, confidence }
+ */
+export interface RuvLLMRoutingDecision {
+  model: string;
+  confidence: number;
+  temperature?: number;
+  topP?: number;
+  contextSize?: number;
+}
+
+/**
+ * Batch query request for parallel processing
+ * Note: Native API expects { queries: string[] }
+ */
+export interface RuvLLMBatchRequest {
+  queries: string[];
+}
+
+/**
+ * Batch query response
+ * Note: Native API returns { responses: [{text, confidence, model}], totalLatencyMs }
+ */
+export interface RuvLLMBatchResponse {
+  responses: Array<{
+    text: string;
+    confidence: number;
+    model: string;
+  }>;
+  totalLatencyMs: number;
+}
+
 export interface RuvLLMInstance {
+  /** Query the LLM */
   query: (input: string, options?: any) => any;
+  /** Generate text */
+  generate: (input: string, options?: any) => any;
+  /** Route a query to optimal model (M0.4 Observability) */
+  route: (input: string) => RuvLLMRoutingDecision;
+  /** Search memory for similar patterns */
   searchMemory: (query: string, limit: number) => any[];
+  /** Add to memory */
   addMemory: (text: string, metadata?: any) => void;
+  /** Provide feedback for learning */
+  feedback: (data: { requestId: string; correction: string; rating: number; reasoning: string }) => void;
+  /** Get statistics */
+  stats: () => any;
+  /** Force learning consolidation */
+  forceLearn: () => { patternsConsolidated: number; newWeightVersion: number };
+  /** Generate embeddings */
   embed: (text: string) => Float32Array | number[];
+  /** Calculate similarity between two texts */
+  similarity: (text1: string, text2: string) => number;
+  /** Check if SIMD is supported */
+  hasSimd: () => boolean;
+  /** Get SIMD capabilities */
+  simdCapabilities: () => string[];
+  /** Batch query for 4x throughput (M0.2) */
+  batchQuery: (request: RuvLLMBatchRequest) => RuvLLMBatchResponse;
+  /** Check if native module is loaded */
+  isNativeLoaded: () => boolean;
 }
 
 export interface SonaCoordinatorInstance {

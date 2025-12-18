@@ -1,6 +1,7 @@
 /**
  * BaseAgent - Abstract base class for all QE agents
  * Phase 2 B1.2: Decomposed with strategy pattern (~500 LOC target)
+ * Phase 0: LLM Provider integration with RuvLLM support
  */
 
 import { EventEmitter } from 'events';
@@ -28,9 +29,27 @@ import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { LearningEngine } from '../learning/LearningEngine';
 import { LearningConfig, StrategyRecommendation } from '../learning/types';
 import { AgentDBConfig } from '../core/memory/AgentDBManager';
+// Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
+import {
+  FederatedManager,
+  FederatedConfig,
+  LearnedPattern,
+  EphemeralAgent,
+} from '../learning/FederatedManager';
 import { AgentLifecycleManager } from './lifecycle/AgentLifecycleManager';
 import { AgentCoordinator } from './coordination/AgentCoordinator';
 import { AgentMemoryService } from './memory/AgentMemoryService';
+
+// LLM Provider imports (Phase 0 - RuvLLM Integration)
+import type {
+  ILLMProvider,
+  LLMCompletionOptions,
+  LLMCompletionResponse,
+  LLMEmbeddingOptions,
+  LLMEmbeddingResponse,
+} from '../providers/ILLMProvider';
+import { RuvllmProvider, RuvllmProviderConfig } from '../providers/RuvllmProvider';
+import { LLMProviderFactory, LLMProviderFactoryConfig, ProviderType } from '../providers/LLMProviderFactory';
 
 // Strategy interfaces
 import type {
@@ -61,6 +80,35 @@ import {
 export { isSwarmMemoryManager, validateLearningConfig };
 
 /**
+ * LLM configuration for agents
+ */
+export interface AgentLLMConfig {
+  /** Enable LLM capabilities for this agent */
+  enabled?: boolean;
+  /** Preferred provider type (auto, ruvllm, claude, openrouter) */
+  preferredProvider?: ProviderType;
+  /** RuvLLM specific configuration */
+  ruvllm?: Partial<RuvllmProviderConfig>;
+  /** Full factory configuration for advanced setups */
+  factoryConfig?: LLMProviderFactoryConfig;
+  /** Pre-configured LLM provider instance (for injection) */
+  provider?: ILLMProvider;
+  /** Enable session management for multi-turn conversations */
+  enableSessions?: boolean;
+  /** Enable batch processing for parallel requests */
+  enableBatch?: boolean;
+  /**
+   * Enable federated learning for team-wide pattern sharing
+   * Phase 0 M0.5 - Reduces Claude Code dependency through collective learning
+   */
+  enableFederated?: boolean;
+  /** Shared FederatedManager instance (for fleet-wide coordination) */
+  federatedManager?: FederatedManager;
+  /** Federated learning configuration */
+  federatedConfig?: Partial<FederatedConfig>;
+}
+
+/**
  * Configuration for BaseAgent
  */
 export interface BaseAgentConfig {
@@ -79,6 +127,9 @@ export interface BaseAgentConfig {
   memoryStrategy?: AgentMemoryStrategy;
   learningStrategy?: AgentLearningStrategy;
   coordinationStrategy?: AgentCoordinationStrategy;
+  // LLM Provider configuration (Phase 0)
+  /** LLM configuration - enables agents to make LLM calls via RuvLLM */
+  llm?: AgentLLMConfig;
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -96,6 +147,17 @@ export abstract class BaseAgent extends EventEmitter {
   protected performanceMetrics = { tasksCompleted: 0, averageExecutionTime: 0, errorCount: 0, lastActivity: new Date() };
   private taskStartTime?: number;
   private initializationMutex?: Promise<void>;
+
+  // LLM Provider (Phase 0 - RuvLLM Integration)
+  protected llmProvider?: ILLMProvider;
+  protected llmFactory?: LLMProviderFactory;
+  protected readonly llmConfig: AgentLLMConfig;
+  private llmSessionId?: string;
+
+  // Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
+  protected federatedManager?: FederatedManager;
+  protected ephemeralAgent?: EphemeralAgent;
+  private federatedInitialized: boolean = false;
 
   // Service classes
   protected readonly lifecycleManager: AgentLifecycleManager;
@@ -119,6 +181,9 @@ export abstract class BaseAgent extends EventEmitter {
     this.eventBus = config.eventBus;
     this.enableLearning = config.enableLearning ?? true;
     this.learningConfig = config.learningConfig;
+
+    // LLM configuration (Phase 0 - default enabled with RuvLLM)
+    this.llmConfig = config.llm ?? { enabled: true, preferredProvider: 'ruvllm' };
 
     // Early validation (Issue #137)
     const validation = validateLearningConfig(config);
@@ -188,6 +253,12 @@ export abstract class BaseAgent extends EventEmitter {
             console.warn(`[${this.agentId.id}] Learning disabled: memoryStore is ${this.memoryStore.constructor.name}`);
           }
 
+          // Initialize LLM Provider (Phase 0 - RuvLLM Integration)
+          await this.initializeLLMProvider();
+
+          // Initialize Federated Learning (Phase 0 M0.5)
+          await this.initializeFederatedLearning();
+
           await this.initializeComponents();
           await this.executeHook('post-initialization');
           this.coordinator.emitEvent('agent.initialized', { agentId: this.agentId });
@@ -244,6 +315,8 @@ export abstract class BaseAgent extends EventEmitter {
           await this.executeHook('pre-termination');
           await this.saveState();
           await this.cleanup();
+          await this.cleanupLLM(); // Phase 0: Cleanup LLM resources
+          await this.cleanupFederated(); // Phase 0 M0.5: Cleanup federated learning
           this.coordinator.clearAllHandlers();
         },
         onPostTermination: async () => {
@@ -481,6 +554,24 @@ export abstract class BaseAgent extends EventEmitter {
         duration: executionTime, metadata: { taskId: data.assignment.id, accuracy: result.accuracy, metrics: this.extractTaskMetrics(data.result) }
       });
     }
+
+    // Share successful patterns with team via federated learning (Phase 0 M0.5)
+    if (result.valid && this.federatedInitialized && this.llmProvider) {
+      try {
+        // Generate embedding for the task pattern
+        const taskDescription = `${data.assignment.task.type}: ${JSON.stringify(data.assignment.task.payload || {}).slice(0, 200)}`;
+        const embedding = await this.llmEmbed(taskDescription);
+
+        await this.shareLearnedPattern({
+          embedding,
+          quality: result.accuracy ?? 0.8,
+          category: data.assignment.task.type,
+        });
+      } catch {
+        // Pattern sharing failed - non-critical, continue
+      }
+    }
+
     this.emitEvent('hook.post-task.completed', { agentId: this.agentId, result });
   }
 
@@ -488,13 +579,13 @@ export abstract class BaseAgent extends EventEmitter {
     const executionTime = this.taskStartTime ? Date.now() - this.taskStartTime : 0;
     await this.storeMemory(`error:${data.assignment.id}`, {
       error: { message: data.error.message, name: data.error.name },
-      assignment: { id: data.assignment.id, taskType: data.assignment.task.type },
+      assignment: { id: data.assignment.id, taskType: data.assignment.task?.type ?? 'unknown' },
       timestamp: new Date(), agentId: this.agentId.id
     });
 
     if (this.strategies.lifecycle.onTaskError) await this.strategies.lifecycle.onTaskError(data);
 
-    if (this.strategies.learning?.recordExecution) {
+    if (this.strategies.learning?.recordExecution && data.assignment.task) {
       await this.strategies.learning.recordExecution({
         task: data.assignment.task, error: data.error, success: false,
         duration: executionTime, metadata: { taskId: data.assignment.id }
@@ -564,6 +655,396 @@ export abstract class BaseAgent extends EventEmitter {
 
   private async saveState(): Promise<void> {
     await this.memoryService.saveState({ performanceMetrics: this.performanceMetrics, timestamp: new Date() });
+  }
+
+  // ============================================
+  // LLM Provider Methods (Phase 0 - RuvLLM Integration)
+  // ============================================
+
+  /**
+   * Initialize LLM provider for agent use
+   * Supports RuvLLM (local), Claude, and OpenRouter providers
+   */
+  private async initializeLLMProvider(): Promise<void> {
+    if (!this.llmConfig.enabled) {
+      console.log(`[${this.agentId.id}] LLM disabled by configuration`);
+      return;
+    }
+
+    try {
+      // If a provider was injected, use it directly
+      if (this.llmConfig.provider) {
+        this.llmProvider = this.llmConfig.provider;
+        console.log(`[${this.agentId.id}] Using injected LLM provider`);
+        return;
+      }
+
+      // Create RuvLLM provider directly (preferred for local inference)
+      if (this.llmConfig.preferredProvider === 'ruvllm' || !this.llmConfig.preferredProvider) {
+        const ruvllmConfig: RuvllmProviderConfig = {
+          name: `${this.agentId.id}-ruvllm`,
+          enableSessions: this.llmConfig.enableSessions ?? true,
+          enableTRM: true,
+          enableSONA: true,
+          debug: false,
+          ...this.llmConfig.ruvllm
+        };
+
+        this.llmProvider = new RuvllmProvider(ruvllmConfig);
+        await this.llmProvider.initialize();
+
+        // Create session for this agent if sessions enabled
+        if (this.llmConfig.enableSessions) {
+          const ruvllm = this.llmProvider as RuvllmProvider;
+          const session = ruvllm.createSession();
+          this.llmSessionId = session.id;
+          console.log(`[${this.agentId.id}] LLM session created: ${this.llmSessionId}`);
+        }
+
+        console.log(`[${this.agentId.id}] RuvLLM provider initialized`);
+        return;
+      }
+
+      // Use factory for other providers (Claude, OpenRouter)
+      this.llmFactory = new LLMProviderFactory(this.llmConfig.factoryConfig || {});
+      await this.llmFactory.initialize();
+      this.llmProvider = this.llmFactory.getProvider(this.llmConfig.preferredProvider);
+
+      if (!this.llmProvider) {
+        console.warn(`[${this.agentId.id}] Preferred provider ${this.llmConfig.preferredProvider} not available, trying auto-select`);
+        this.llmProvider = this.llmFactory.selectBestProvider();
+      }
+
+      if (this.llmProvider) {
+        console.log(`[${this.agentId.id}] LLM provider initialized: ${this.llmConfig.preferredProvider}`);
+      } else {
+        console.warn(`[${this.agentId.id}] No LLM provider available`);
+      }
+    } catch (error) {
+      console.error(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
+      // Don't throw - agent can still work without LLM (algorithmic fallback)
+    }
+  }
+
+  /**
+   * Initialize Federated Learning for team-wide pattern sharing
+   * Phase 0 M0.5 - Reduces Claude Code dependency through collective learning
+   */
+  private async initializeFederatedLearning(): Promise<void> {
+    if (!this.llmConfig.enableFederated) {
+      return;
+    }
+
+    try {
+      // Use shared FederatedManager or create new one
+      if (this.llmConfig.federatedManager) {
+        this.federatedManager = this.llmConfig.federatedManager;
+      } else {
+        this.federatedManager = new FederatedManager(this.llmConfig.federatedConfig);
+        await this.federatedManager.initialize();
+      }
+
+      // Register this agent for federated learning
+      this.ephemeralAgent = this.federatedManager.registerAgent(this.agentId.id);
+      this.federatedInitialized = true;
+
+      console.log(`[${this.agentId.id}] Federated learning initialized`);
+
+      // Sync with existing team knowledge on startup
+      try {
+        await this.federatedManager.syncFromTeam(this.agentId.id);
+        console.log(`[${this.agentId.id}] Synced with team knowledge`);
+      } catch {
+        // First agent or no prior knowledge - expected
+      }
+    } catch (error) {
+      console.error(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
+      // Don't throw - agent can work without federated learning
+    }
+  }
+
+  /**
+   * Check if federated learning is available
+   */
+  public hasFederatedLearning(): boolean {
+    return this.federatedInitialized && this.federatedManager !== undefined;
+  }
+
+  /**
+   * Share a learned pattern with the team via federated learning
+   * Call this when the agent learns something useful (e.g., after successful task)
+   *
+   * @param pattern - The pattern to share (embedding, quality score, category)
+   */
+  protected async shareLearnedPattern(pattern: Omit<LearnedPattern, 'id' | 'sourceAgent' | 'timestamp'>): Promise<void> {
+    if (!this.federatedManager || !this.federatedInitialized) {
+      return;
+    }
+
+    const fullPattern: LearnedPattern = {
+      ...pattern,
+      id: `pattern-${this.agentId.id}-${Date.now()}`,
+      sourceAgent: this.agentId.id,
+      timestamp: Date.now(),
+    };
+
+    await this.federatedManager.sharePattern(this.agentId.id, fullPattern);
+  }
+
+  /**
+   * Sync this agent with team-wide learned knowledge
+   * Call this periodically or before complex tasks
+   */
+  protected async syncWithTeam(): Promise<void> {
+    if (!this.federatedManager || !this.federatedInitialized) {
+      return;
+    }
+
+    await this.federatedManager.syncFromTeam(this.agentId.id);
+  }
+
+  /**
+   * Submit this agent's learning updates to the team
+   * Call after completing a batch of tasks
+   */
+  protected async submitLearningUpdate(): Promise<void> {
+    if (!this.federatedManager || !this.federatedInitialized) {
+      return;
+    }
+
+    await this.federatedManager.submitAgentUpdate(this.agentId.id);
+  }
+
+  /**
+   * Get federated learning metrics
+   */
+  public getFederatedMetrics(): ReturnType<FederatedManager['getMetrics']> | null {
+    if (!this.federatedManager) {
+      return null;
+    }
+    return this.federatedManager.getMetrics();
+  }
+
+  /**
+   * Check if LLM is available for this agent
+   */
+  public hasLLM(): boolean {
+    return this.llmProvider !== undefined;
+  }
+
+  /**
+   * Get LLM provider (for advanced usage)
+   */
+  public getLLMProvider(): ILLMProvider | undefined {
+    return this.llmProvider;
+  }
+
+  /**
+   * Make an LLM completion call
+   * Uses RuvLLM's session management for 50% latency reduction on multi-turn
+   *
+   * @param prompt - The prompt to send to the LLM
+   * @param options - Additional completion options
+   * @returns The LLM response text
+   * @throws Error if LLM is not available
+   */
+  protected async llmComplete(prompt: string, options?: Partial<LLMCompletionOptions>): Promise<string> {
+    if (!this.llmProvider) {
+      throw new Error(`[${this.agentId.id}] LLM not available - initialize agent first`);
+    }
+
+    const completionOptions: LLMCompletionOptions = {
+      model: options?.model || this.llmConfig.ruvllm?.defaultModel || 'llama-3.2-3b-instruct',
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: options?.maxTokens,
+      temperature: options?.temperature,
+      stream: options?.stream,
+      metadata: {
+        ...options?.metadata,
+        sessionId: this.llmSessionId, // Use session for faster multi-turn
+        agentId: this.agentId.id,
+        agentType: this.agentId.type
+      }
+    };
+
+    const response = await this.llmProvider.complete(completionOptions);
+
+    // Extract text from response
+    const text = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('\n');
+
+    return text;
+  }
+
+  /**
+   * Make a batch LLM completion call (4x throughput)
+   * Uses RuvLLM's native batch API for parallel processing
+   *
+   * @param prompts - Array of prompts to process in parallel
+   * @param options - Shared completion options
+   * @returns Array of response texts in same order as prompts
+   */
+  protected async llmBatchComplete(prompts: string[], options?: Partial<LLMCompletionOptions>): Promise<string[]> {
+    if (!this.llmProvider) {
+      throw new Error(`[${this.agentId.id}] LLM not available - initialize agent first`);
+    }
+
+    // Check if provider supports batch (RuvLLM does)
+    const ruvllm = this.llmProvider as RuvllmProvider;
+    if (typeof ruvllm.batchComplete === 'function') {
+      const defaultModel = options?.model || this.llmConfig.ruvllm?.defaultModel || 'llama-3.2-3b-instruct';
+      const requests: LLMCompletionOptions[] = prompts.map(prompt => ({
+        model: defaultModel,
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: options?.maxTokens,
+        temperature: options?.temperature,
+        metadata: {
+          ...options?.metadata,
+          agentId: this.agentId.id,
+          agentType: this.agentId.type
+        }
+      }));
+
+      const responses = await ruvllm.batchComplete(requests);
+
+      return responses.map(response =>
+        response.content
+          .filter(block => block.type === 'text')
+          .map(block => block.text)
+          .join('\n')
+      );
+    }
+
+    // Fallback: sequential processing for non-batch providers
+    console.warn(`[${this.agentId.id}] Provider doesn't support batch, using sequential`);
+    const results: string[] = [];
+    for (const prompt of prompts) {
+      results.push(await this.llmComplete(prompt, options));
+    }
+    return results;
+  }
+
+  /**
+   * Generate embeddings for text
+   * Uses RuvLLM's SIMD-optimized embedding generation
+   *
+   * @param text - Text to embed
+   * @returns Embedding vector
+   */
+  protected async llmEmbed(text: string): Promise<number[]> {
+    if (!this.llmProvider) {
+      throw new Error(`[${this.agentId.id}] LLM not available - initialize agent first`);
+    }
+
+    const response = await this.llmProvider.embed({ text });
+    return response.embedding || [];
+  }
+
+  /**
+   * Chat within agent's session (50% faster for multi-turn)
+   * Only works with RuvLLM provider with sessions enabled
+   *
+   * @param input - User input to chat
+   * @returns Assistant response
+   */
+  protected async llmChat(input: string): Promise<string> {
+    if (!this.llmProvider) {
+      throw new Error(`[${this.agentId.id}] LLM not available`);
+    }
+
+    if (!this.llmSessionId) {
+      // Fallback to regular complete if no session
+      return this.llmComplete(input);
+    }
+
+    const ruvllm = this.llmProvider as RuvllmProvider;
+    if (typeof ruvllm.sessionChat === 'function') {
+      return ruvllm.sessionChat(this.llmSessionId, input);
+    }
+
+    // Fallback
+    return this.llmComplete(input);
+  }
+
+  /**
+   * Get routing decision for observability
+   * Shows which model was selected and why
+   */
+  protected getLLMRoutingDecision(input: string): any {
+    if (!this.llmProvider) {
+      return null;
+    }
+
+    const ruvllm = this.llmProvider as RuvllmProvider;
+    if (typeof ruvllm.getRoutingDecision === 'function') {
+      return ruvllm.getRoutingDecision(input);
+    }
+
+    return null;
+  }
+
+  /**
+   * Get LLM usage statistics for this agent
+   */
+  public getLLMStats(): { available: boolean; sessionId?: string; provider?: string } {
+    return {
+      available: this.hasLLM(),
+      sessionId: this.llmSessionId,
+      provider: this.llmProvider ? 'ruvllm' : undefined
+    };
+  }
+
+  /**
+   * Cleanup LLM resources on agent termination
+   */
+  private async cleanupLLM(): Promise<void> {
+    if (this.llmSessionId && this.llmProvider) {
+      const ruvllm = this.llmProvider as RuvllmProvider;
+      if (typeof ruvllm.endSession === 'function') {
+        ruvllm.endSession(this.llmSessionId);
+        console.log(`[${this.agentId.id}] LLM session ended: ${this.llmSessionId}`);
+      }
+    }
+
+    if (this.llmProvider) {
+      await this.llmProvider.shutdown();
+    }
+
+    if (this.llmFactory) {
+      await this.llmFactory.shutdown();
+    }
+  }
+
+  /**
+   * Cleanup federated learning resources on agent termination
+   * Submits final learning updates and unregisters from the coordinator
+   */
+  private async cleanupFederated(): Promise<void> {
+    if (!this.federatedManager || !this.federatedInitialized) {
+      return;
+    }
+
+    try {
+      // Submit final learning updates before terminating
+      await this.submitLearningUpdate();
+
+      // Unregister this agent from federated learning
+      this.federatedManager.unregisterAgent(this.agentId.id);
+      console.log(`[${this.agentId.id}] Federated learning cleanup complete`);
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Federated cleanup error:`, (error as Error).message);
+    }
+
+    this.federatedInitialized = false;
+    this.ephemeralAgent = undefined;
+
+    // Only shutdown the manager if we created it (not if it was shared)
+    if (!this.llmConfig.federatedManager && this.federatedManager) {
+      await this.federatedManager.shutdown();
+      this.federatedManager = undefined;
+    }
   }
 }
 

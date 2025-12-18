@@ -883,6 +883,12 @@ export class TestGeneratorAgent extends BaseAgent {
       ?.filter((s: any) => s.priority === 'high')
       .map((s: any) => s.name);
 
+    // Use LLM for test generation when available (Phase 0 - RuvLLM Integration)
+    const useLLM = this.hasLLM();
+    if (useLLM) {
+      this.logger.info('[TestGeneratorAgent] Using LLM for enhanced test generation');
+    }
+
     for (const func of functions) {
       const complexity = await this.calculateCyclomaticComplexity(func);
       let testCount = Math.min(complexity * 2, 10);
@@ -911,6 +917,17 @@ export class TestGeneratorAgent extends BaseAgent {
           this.logger.debug(`[TestGeneratorAgent] Using pattern ${pattern.pattern.name} for ${func.name}`);
         }
 
+        // Phase 0: Use LLM to generate better test code when available
+        if (useLLM && !testCode && func.code) {
+          try {
+            testCode = await this.generateTestCodeWithLLM(func, parameters, expectedResult);
+            this.logger.debug(`[TestGeneratorAgent] LLM generated test for ${func.name}`);
+          } catch (error) {
+            this.logger.warn(`[TestGeneratorAgent] LLM test generation failed for ${func.name}:`, (error as Error).message);
+            // Fall through to algorithmic generation
+          }
+        }
+
         const test: Test = {
           id: this.generateTestId(),
           name: `test_${func.name}_${i}`,
@@ -929,6 +946,35 @@ export class TestGeneratorAgent extends BaseAgent {
     }
 
     return unitTests;
+  }
+
+  /**
+   * Generate test code using LLM (Phase 0 - RuvLLM Integration)
+   * Uses session management for 50% faster multi-turn conversations
+   */
+  private async generateTestCodeWithLLM(
+    func: any,
+    parameters: any[],
+    expectedResult: any
+  ): Promise<string> {
+    const prompt = `Generate a Jest unit test for the following function:
+
+Function name: ${func.name}
+Function code:
+\`\`\`typescript
+${func.code || 'function ' + func.name + '(' + (func.parameters || []).map((p: any) => p.name).join(', ') + ') { /* implementation */ }'}
+\`\`\`
+
+Test parameters: ${JSON.stringify(parameters)}
+Expected result: ${JSON.stringify(expectedResult)}
+
+Generate ONLY the test code (no explanations), using Jest describe/it blocks with expect assertions.`;
+
+    const testCode = await this.llmChat(prompt);
+
+    // Extract code block from response if present
+    const codeMatch = testCode.match(/```(?:typescript|javascript)?\n([\s\S]*?)```/);
+    return codeMatch ? codeMatch[1].trim() : testCode.trim();
   }
 
   private async generateIntegrationTests(sourceCode: any, vectors: number[]): Promise<Test[]> {

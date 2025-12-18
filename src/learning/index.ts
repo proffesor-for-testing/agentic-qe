@@ -112,3 +112,46 @@ export type {
   FeedbackAnalysis,
   Adaptation,
 } from './SONAFeedbackLoop';
+
+// Federated Learning (NEW in v2.5.0+ - Phase 0 M0.5 LLM Independence)
+export {
+  FederatedManager,
+  FederatedCoordinator,
+  EphemeralAgent,
+  createFederatedManager,
+} from './FederatedManager';
+export type {
+  FederatedConfig,
+  FederatedMetrics,
+  LearnedPattern,
+  AgentState,
+  AggregatedKnowledge,
+} from './FederatedManager';
+
+// Pattern Curation (NEW in v2.5.0+ - Phase 0 M0.6 LLM Independence)
+export {
+  PatternCurator,
+  createPatternCurator,
+  runCurationCLI,
+} from './PatternCurator';
+export type {
+  CuratorConfig,
+  StoredPattern,
+  CuratedPattern,
+  LearningFeedback,
+  PatternAnalytics,
+  CurationSession,
+  IPatternSource,
+  ILearningTrigger,
+} from './PatternCurator';
+
+// HNSW Pattern Adapter (NEW in v2.5.0+ - Phase 0 M0.3 LLM Independence)
+export {
+  HNSWPatternAdapter,
+  createHNSWPatternAdapter,
+} from './HNSWPatternAdapter';
+export type {
+  HNSWPatternAdapterConfig,
+  EmbeddedPattern,
+  PatternSearchResult,
+} from './HNSWPatternAdapter';
