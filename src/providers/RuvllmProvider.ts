@@ -15,6 +15,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
+import { randomUUID } from 'crypto';
 import {
   ILLMProvider,
   LLMProviderConfig,
@@ -1599,7 +1600,7 @@ export class RuvllmProvider implements ILLMProvider {
     }
 
     // Fallback to local session management
-    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `session-${Date.now()}-${randomUUID().split('-')[0]}`;
     const session: SessionInfo = {
       id: sessionId,
       createdAt: Date.now(),
@@ -1938,7 +1939,7 @@ export class RuvllmProvider implements ILLMProvider {
     try {
       const results = this.ruvllm.searchMemory(query, limit);
       return results.map((r: any) => ({
-        id: r.id || `memory-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: r.id || `memory-${Date.now()}-${randomUUID().split('-')[0]}`,
         text: r.text || r.content || '',
         confidence: r.confidence ?? r.similarity ?? 0.5,
         metadata: r.metadata,
