@@ -49,7 +49,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
   private readonly config: QualityAnalyzerConfig;
   protected readonly logger: Logger = new ConsoleLogger();
 
-  constructor(config: QualityAnalyzerConfig & { context: AgentContext; memoryStore: MemoryStore; eventBus: EventEmitter }) {
+  constructor(config: QualityAnalyzerConfig & { context?: AgentContext; memoryStore: MemoryStore; eventBus?: EventEmitter }) {
     const baseConfig: BaseAgentConfig = {
       type: QEAgentType.QUALITY_ANALYZER,
       capabilities: [],

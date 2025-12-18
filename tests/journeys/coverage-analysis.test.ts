@@ -20,7 +20,7 @@
 
 import { CoverageAnalyzerAgent, CoverageAnalyzerConfig } from '@agents/CoverageAnalyzerAgent';
 import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
-import { AgentStatus, TestSuite, Test, TestType } from '@types';
+import { AgentStatus, TestSuite, Test, TestType, TaskAssignment, QETask } from '@types';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';
@@ -41,7 +41,8 @@ describe('Journey: Coverage Analysis', () => {
     await memory.initialize();
 
     const config: CoverageAnalyzerConfig = {
-      id: { type: 'coverage-analyzer', id: 'coverage-journey' },
+      id: 'coverage-journey',
+      type: 'coverage-analyzer',
       memoryStore: memory,
       enableLearning: true,
       enablePatterns: true,
@@ -62,6 +63,15 @@ describe('Journey: Coverage Analysis', () => {
 
   afterAll(async () => {
     await fs.remove(tempDir);
+  });
+
+  // Helper to create TaskAssignment from task object (BaseAgent migration)
+  const createTaskAssignment = (task: any): TaskAssignment => ({
+    id: task.id || `assignment-${Date.now()}`,
+    task: task as QETask,
+    agentId: 'coverage-journey',
+    assignedAt: new Date(),
+    status: 'pending'
   });
 
   describe('O(log n) gap detection', () => {
@@ -90,7 +100,7 @@ describe('Journey: Coverage Analysis', () => {
 
       // WHEN: Coverage analysis is performed with JL algorithm
       const startTime = Date.now();
-      const result = await coverageAnalyzer.executeTask(task);
+      const result = await coverageAnalyzer.executeTask(createTaskAssignment(task));
       const executionTime = Date.now() - startTime;
 
       // THEN: Algorithm should use Johnson-Lindenstrauss dimension reduction
@@ -146,15 +156,15 @@ describe('Journey: Coverage Analysis', () => {
 
       // WHEN: Gap detection is performed on both codebases
       // Run small first as warmup (ignore timing)
-      await coverageAnalyzer.executeTask(createTask(smallCodeBase, smallTestSuite, 'warmup'));
+      await coverageAnalyzer.executeTask(createTaskAssignment(createTask(smallCodeBase, smallTestSuite, 'warmup')));
 
       // Now run both with warm cache to measure actual algorithm performance
       const smallStart = performance.now();
-      const smallResult = await coverageAnalyzer.executeTask(createTask(smallCodeBase, smallTestSuite, 'small'));
+      const smallResult = await coverageAnalyzer.executeTask(createTaskAssignment(createTask(smallCodeBase, smallTestSuite, 'small')));
       const smallTime = performance.now() - smallStart;
 
       const largeStart = performance.now();
-      const largeResult = await coverageAnalyzer.executeTask(createTask(largeCodeBase, largeTestSuite, 'large'));
+      const largeResult = await coverageAnalyzer.executeTask(createTaskAssignment(createTask(largeCodeBase, largeTestSuite, 'large')));
       const largeTime = performance.now() - largeStart;
 
       // Log timing for debugging
@@ -209,7 +219,7 @@ describe('Journey: Coverage Analysis', () => {
       };
 
       // WHEN: Coverage analysis performs risk-based prioritization
-      const result = await coverageAnalyzer.executeTask(task);
+      const result = await coverageAnalyzer.executeTask(createTaskAssignment(task));
 
       // THEN: Gaps should be prioritized by risk level
       expect(result.gaps).toBeDefined();
@@ -266,7 +276,7 @@ describe('Journey: Coverage Analysis', () => {
       };
 
       // WHEN: Gap detection and recommendation generation occurs
-      const result = await coverageAnalyzer.executeTask(task);
+      const result = await coverageAnalyzer.executeTask(createTaskAssignment(task));
 
       // THEN: Each gap should have specific test recommendations
       expect(result.gaps.length).toBeGreaterThan(0);
@@ -321,7 +331,7 @@ describe('Journey: Coverage Analysis', () => {
       };
 
       // WHEN: Coverage analysis completes
-      const result = await coverageAnalyzer.executeTask(task);
+      const result = await coverageAnalyzer.executeTask(createTaskAssignment(task));
 
       // THEN: Analysis results should be stored in database
       expect(result).toBeDefined();
@@ -336,8 +346,8 @@ describe('Journey: Coverage Analysis', () => {
 
       // Verify gap data persistence
       const agentStatus = coverageAnalyzer.getStatus();
-      expect(agentStatus.performance).toBeDefined();
-      expect(agentStatus.performance.optimizationsCompleted).toBeGreaterThan(0);
+      expect(agentStatus.performanceMetrics).toBeDefined();
+      expect(agentStatus.performanceMetrics.tasksCompleted).toBeGreaterThan(0);
 
       // Verify optimization metrics are tracked
       expect(result.optimization).toBeDefined();
@@ -369,7 +379,7 @@ describe('Journey: Coverage Analysis', () => {
       };
 
       // WHEN: Coverage report is generated
-      const result = await coverageAnalyzer.executeTask(task);
+      const result = await coverageAnalyzer.executeTask(createTaskAssignment(task));
 
       // THEN: Report should contain visualization-ready data
       expect(result.coverageReport).toBeDefined();
@@ -441,7 +451,7 @@ describe('Journey: Coverage Analysis', () => {
 
       // WHEN: Complete coverage analysis workflow executes
       const startTime = performance.now();
-      const result = await coverageAnalyzer.executeTask(task);
+      const result = await coverageAnalyzer.executeTask(createTaskAssignment(task));
       const executionTime = performance.now() - startTime;
 
       // THEN: Complete workflow produces all expected outputs
@@ -488,7 +498,7 @@ describe('Journey: Coverage Analysis', () => {
       // 8. Agent status reflects successful analysis
       const status = coverageAnalyzer.getStatus();
       expect(status.status).toBe(AgentStatus.IDLE);
-      expect(status.performance.optimizationsCompleted).toBeGreaterThan(0);
+      expect(status.performanceMetrics.tasksCompleted).toBeGreaterThan(0);
     });
   });
 });

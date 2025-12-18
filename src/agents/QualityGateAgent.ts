@@ -166,7 +166,8 @@ export class QualityGateAgent extends BaseAgent {
    * Execute a QE task - implements BaseAgent abstract method
    */
   protected async performTask(task: QETask): Promise<QualityGateDecision> {
-    const request = task.requirements as unknown as QualityGateRequest;
+    // Task payload contains the QualityGateRequest
+    const request = task.payload as QualityGateRequest;
     return await this.evaluateQualityGate(request);
   }
 

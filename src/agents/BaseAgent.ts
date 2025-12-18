@@ -131,10 +131,10 @@ export interface AgentLLMConfig {
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
-  capabilities: AgentCapability[];
-  context: AgentContext;
+  capabilities?: AgentCapability[];  // Made optional with default []
+  context?: AgentContext;
   memoryStore: MemoryStore;
-  eventBus: EventEmitter;
+  eventBus?: EventEmitter;
   enableLearning?: boolean;
   learningConfig?: Partial<LearningConfig>;
   /** @deprecated v2.2.0 - Use memoryStore instead */
@@ -152,7 +152,7 @@ export interface BaseAgentConfig {
 export abstract class BaseAgent extends EventEmitter {
   protected readonly agentId: AgentId;
   protected readonly capabilities: Map<string, AgentCapability>;
-  protected readonly context: AgentContext;
+  protected readonly context?: AgentContext;
   protected readonly memoryStore: MemoryStore | SwarmMemoryManager;
   protected readonly eventBus: EventEmitter;
   protected currentTask?: TaskAssignment;
@@ -194,10 +194,10 @@ export abstract class BaseAgent extends EventEmitter {
   constructor(config: BaseAgentConfig) {
     super();
     this.agentId = { id: config.id || generateAgentId(config.type), type: config.type, created: new Date() };
-    this.capabilities = new Map(config.capabilities.map(cap => [cap.name, cap]));
+    this.capabilities = new Map((config.capabilities || []).map(cap => [cap.name, cap]));
     this.context = config.context;
     this.memoryStore = config.memoryStore;
-    this.eventBus = config.eventBus;
+    this.eventBus = config.eventBus || new EventEmitter();
     this.enableLearning = config.enableLearning ?? true;
     this.learningConfig = config.learningConfig;
 
