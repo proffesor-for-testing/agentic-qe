@@ -50,6 +50,14 @@ import type {
 } from '../providers/ILLMProvider';
 import { RuvllmProvider, RuvllmProviderConfig } from '../providers/RuvllmProvider';
 import { LLMProviderFactory, LLMProviderFactoryConfig, ProviderType } from '../providers/LLMProviderFactory';
+// HybridRouter with RuVector cache (Phase 0.5 - GNN Self-Learning)
+import {
+  HybridRouter,
+  HybridRouterConfig,
+  RuVectorCacheConfig,
+  RoutingStrategy,
+  TaskComplexity,
+} from '../providers/HybridRouter';
 
 // Strategy interfaces
 import type {
@@ -85,8 +93,8 @@ export { isSwarmMemoryManager, validateLearningConfig };
 export interface AgentLLMConfig {
   /** Enable LLM capabilities for this agent */
   enabled?: boolean;
-  /** Preferred provider type (auto, ruvllm, claude, openrouter) */
-  preferredProvider?: ProviderType;
+  /** Preferred provider type (auto, ruvllm, claude, openrouter, hybrid) */
+  preferredProvider?: ProviderType | 'hybrid';
   /** RuvLLM specific configuration */
   ruvllm?: Partial<RuvllmProviderConfig>;
   /** Full factory configuration for advanced setups */
@@ -106,6 +114,15 @@ export interface AgentLLMConfig {
   federatedManager?: FederatedManager;
   /** Federated learning configuration */
   federatedConfig?: Partial<FederatedConfig>;
+  /**
+   * Enable HybridRouter with RuVector cache (Phase 0.5)
+   * Provides GNN-enhanced pattern matching for 150x faster search
+   */
+  enableHybridRouter?: boolean;
+  /** RuVector cache configuration for GNN self-learning */
+  ruvectorCache?: Partial<RuVectorCacheConfig>;
+  /** HybridRouter configuration */
+  hybridRouterConfig?: Partial<HybridRouterConfig>;
 }
 
 /**
@@ -153,6 +170,8 @@ export abstract class BaseAgent extends EventEmitter {
   protected llmFactory?: LLMProviderFactory;
   protected readonly llmConfig: AgentLLMConfig;
   private llmSessionId?: string;
+  // HybridRouter with RuVector cache (Phase 0.5 - GNN Self-Learning)
+  protected hybridRouter?: HybridRouter;
 
   // Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
   protected federatedManager?: FederatedManager;
@@ -663,7 +682,7 @@ export abstract class BaseAgent extends EventEmitter {
 
   /**
    * Initialize LLM provider for agent use
-   * Supports RuvLLM (local), Claude, and OpenRouter providers
+   * Supports RuvLLM (local), Claude, OpenRouter, and HybridRouter with RuVector cache
    */
   private async initializeLLMProvider(): Promise<void> {
     if (!this.llmConfig.enabled) {
@@ -676,6 +695,40 @@ export abstract class BaseAgent extends EventEmitter {
       if (this.llmConfig.provider) {
         this.llmProvider = this.llmConfig.provider;
         console.log(`[${this.agentId.id}] Using injected LLM provider`);
+        return;
+      }
+
+      // Phase 0.5: Create HybridRouter with RuVector GNN cache for intelligent routing
+      if (this.llmConfig.enableHybridRouter || this.llmConfig.preferredProvider === 'hybrid') {
+        const hybridConfig: HybridRouterConfig = {
+          // RuVector cache configuration (GNN self-learning)
+          ruvector: {
+            enabled: true,
+            baseUrl: this.llmConfig.ruvectorCache?.baseUrl || 'http://localhost:8080',
+            cacheThreshold: this.llmConfig.ruvectorCache?.cacheThreshold ?? 0.85,
+            learningEnabled: this.llmConfig.ruvectorCache?.learningEnabled ?? true,
+            loraRank: this.llmConfig.ruvectorCache?.loraRank ?? 8,
+            ewcEnabled: this.llmConfig.ruvectorCache?.ewcEnabled ?? true,
+            ...this.llmConfig.ruvectorCache,
+          },
+          // Local LLM via ruvllm
+          ruvllm: {
+            name: `${this.agentId.id}-ruvllm`,
+            enableSessions: this.llmConfig.enableSessions ?? true,
+            enableTRM: true,
+            enableSONA: true,
+            ...this.llmConfig.ruvllm,
+          },
+          // Routing strategy
+          defaultStrategy: this.llmConfig.hybridRouterConfig?.defaultStrategy || RoutingStrategy.BALANCED,
+          ...this.llmConfig.hybridRouterConfig,
+        };
+
+        this.hybridRouter = new HybridRouter(hybridConfig);
+        await this.hybridRouter.initialize();
+        this.llmProvider = this.hybridRouter;
+
+        console.log(`[${this.agentId.id}] HybridRouter initialized with RuVector GNN cache`);
         return;
       }
 
@@ -708,7 +761,7 @@ export abstract class BaseAgent extends EventEmitter {
       // Use factory for other providers (Claude, OpenRouter)
       this.llmFactory = new LLMProviderFactory(this.llmConfig.factoryConfig || {});
       await this.llmFactory.initialize();
-      this.llmProvider = this.llmFactory.getProvider(this.llmConfig.preferredProvider);
+      this.llmProvider = this.llmFactory.getProvider(this.llmConfig.preferredProvider as ProviderType);
 
       if (!this.llmProvider) {
         console.warn(`[${this.agentId.id}] Preferred provider ${this.llmConfig.preferredProvider} not available, trying auto-select`);
@@ -988,12 +1041,185 @@ export abstract class BaseAgent extends EventEmitter {
   /**
    * Get LLM usage statistics for this agent
    */
-  public getLLMStats(): { available: boolean; sessionId?: string; provider?: string } {
+  public getLLMStats(): { available: boolean; sessionId?: string; provider?: string; hasRuVectorCache?: boolean } {
     return {
       available: this.hasLLM(),
       sessionId: this.llmSessionId,
-      provider: this.llmProvider ? 'ruvllm' : undefined
+      provider: this.hybridRouter ? 'hybrid' : (this.llmProvider ? 'ruvllm' : undefined),
+      hasRuVectorCache: this.hasRuVectorCache(),
     };
+  }
+
+  // ============================================
+  // RuVector Cache Methods (Phase 0.5 - GNN Self-Learning)
+  // ============================================
+
+  /**
+   * Check if RuVector GNN cache is available
+   */
+  public hasRuVectorCache(): boolean {
+    return this.hybridRouter !== undefined;
+  }
+
+  /**
+   * Get RuVector cache metrics
+   * Returns cache hit rate, pattern count, and learning metrics
+   */
+  public async getRuVectorMetrics(): Promise<{
+    enabled: boolean;
+    healthy: boolean;
+    cacheHitRate: number;
+    patternCount: number;
+    loraUpdates: number;
+    memoryUsageMB?: number;
+  } | null> {
+    if (!this.hybridRouter) {
+      return null;
+    }
+
+    try {
+      return await this.hybridRouter.getRuVectorMetrics();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get cache hit rate for this agent's requests
+   */
+  public getCacheHitRate(): number {
+    if (!this.hybridRouter) {
+      return 0;
+    }
+    return this.hybridRouter.getCacheHitRate();
+  }
+
+  /**
+   * Get routing statistics including cache savings
+   */
+  public getRoutingStats(): {
+    totalDecisions: number;
+    localDecisions: number;
+    cloudDecisions: number;
+    cacheHits: number;
+    cacheMisses: number;
+    cacheHitRate: number;
+    averageLocalLatency: number;
+    averageCloudLatency: number;
+    successRate: number;
+  } {
+    if (!this.hybridRouter) {
+      return {
+        totalDecisions: 0,
+        localDecisions: 0,
+        cloudDecisions: 0,
+        cacheHits: 0,
+        cacheMisses: 0,
+        cacheHitRate: 0,
+        averageLocalLatency: 0,
+        averageCloudLatency: 0,
+        successRate: 0,
+      };
+    }
+    return this.hybridRouter.getRoutingStats();
+  }
+
+  /**
+   * Force learning consolidation in the RuVector cache
+   * Triggers LoRA adaptation and EWC++ protection
+   */
+  public async forceRuVectorLearn(): Promise<{
+    success: boolean;
+    updatedParameters?: number;
+    duration?: number;
+    error?: string;
+  }> {
+    if (!this.hybridRouter) {
+      return { success: false, error: 'RuVector not enabled' };
+    }
+
+    return await this.hybridRouter.forceRuVectorLearn();
+  }
+
+  /**
+   * Get cost savings report from using RuVector cache
+   */
+  public getCostSavingsReport(): {
+    totalRequests: number;
+    localRequests: number;
+    cloudRequests: number;
+    totalCost: number;
+    estimatedCloudCost: number;
+    savings: number;
+    savingsPercentage: number;
+    cacheHits: number;
+    cacheSavings: number;
+  } {
+    if (!this.hybridRouter) {
+      return {
+        totalRequests: 0,
+        localRequests: 0,
+        cloudRequests: 0,
+        totalCost: 0,
+        estimatedCloudCost: 0,
+        savings: 0,
+        savingsPercentage: 0,
+        cacheHits: 0,
+        cacheSavings: 0,
+      };
+    }
+    return this.hybridRouter.getCostSavingsReport();
+  }
+
+  /**
+   * Make an LLM call with automatic caching and learning
+   * Uses RuVector GNN cache when available for sub-ms pattern matching
+   *
+   * @param prompt - The prompt to process
+   * @param options - Additional options
+   * @returns The response text
+   */
+  protected async llmCompleteWithLearning(
+    prompt: string,
+    options?: Partial<LLMCompletionOptions> & { complexity?: TaskComplexity }
+  ): Promise<{ response: string; source: 'cache' | 'local' | 'cloud'; confidence?: number }> {
+    if (!this.llmProvider) {
+      throw new Error(`[${this.agentId.id}] LLM not available - initialize agent first`);
+    }
+
+    // If using HybridRouter, it automatically handles caching and learning
+    if (this.hybridRouter) {
+      const completionOptions: LLMCompletionOptions = {
+        model: options?.model || 'auto',
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: options?.maxTokens,
+        temperature: options?.temperature,
+        metadata: {
+          ...options?.metadata,
+          agentId: this.agentId.id,
+          agentType: this.agentId.type,
+          complexity: options?.complexity,
+        },
+      };
+
+      const response = await this.hybridRouter.complete(completionOptions);
+
+      // Extract text from response
+      const text = response.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('\n');
+
+      return {
+        response: text,
+        source: response.metadata?.source as 'cache' | 'local' | 'cloud' || 'local',
+        confidence: response.metadata?.confidence as number,
+      };
+    }
+
+    // Fallback to regular completion
+    const text = await this.llmComplete(prompt, options);
+    return { response: text, source: 'local' };
   }
 
   /**

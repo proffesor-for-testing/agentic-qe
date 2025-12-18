@@ -65,9 +65,18 @@ BaseAgent.initialize()
     ├─ 5. Initialize LLM Provider ───────────────────────────────────┤
     │      │                                                         │
     │      └─ Selection Priority:                                    │
-    │         1. RuvLLM (LOCAL - default) ←── RuvLLM!               │
-    │         2. Claude (if ANTHROPIC_API_KEY)                       │
-    │         3. OpenRouter (if OPENROUTER_API_KEY)                  │
+    │         1. HybridRouter (if enableHybridRouter: true) ←─ NEW! │
+    │            └─ Routes: RuVector Cache → RuvLLM → Cloud         │
+    │         2. RuvLLM (LOCAL - default) ←── RuvLLM!               │
+    │         3. Claude (if ANTHROPIC_API_KEY)                       │
+    │         4. OpenRouter (if OPENROUTER_API_KEY)                  │
+    │                                                                │
+    ├─ 5b. Initialize HybridRouter  ─────────────────────────────────┤
+    │      │                                                         │
+    │      ├─ Create RuVectorClient (GNN cache client)              │
+    │      ├─ Configure cache threshold (default: 0.85)             │
+    │      ├─ Enable LoRA learning (rank: 8)                        │
+    │      └─ Enable EWC++ anti-forgetting                          │
     │                                                                │
     ├─ 6. Initialize Federated Learning (Phase 0 M0.5) ──────────────┤
     │      └─ Register with FederatedManager                         │
@@ -84,6 +93,8 @@ BaseAgent.initialize()
 │  Agent State:                                                        │
 │  ├─ learningEngine: LearningEngine (with Q-table + HNSW)            │
 │  ├─ llmProvider: RuvllmProvider (local) OR Claude/OpenRouter        │
+│  ├─ hybridRouter: HybridRouter (if enableHybridRouter) ←── NEW!    │
+│  │   └─ ruvectorClient: RuVectorClient (GNN cache)                 │
 │  ├─ llmSessionId: "sess-xxx" (for session continuity)              │
 │  ├─ federatedManager: FederatedManager (cross-agent learning)       │
 │  └─ memoryStore: SwarmMemoryManager (SQLite .agentic-qe/memory.db)  │
@@ -109,19 +120,70 @@ BaseAgent.initialize()
 │  Environment Check                        Selected Provider          │
 │  ─────────────────                        ─────────────────          │
 │                                                                      │
-│  1. LLM_PROVIDER env override     ───────► Use specified provider   │
+│  1. enableHybridRouter: true      ───────► HybridRouter (NEW!)      │
+│     (Phase 0.5)                            └─ Cache-first routing   │
 │                                                                      │
-│  2. Inside Claude Code +                                             │
+│  2. LLM_PROVIDER env override     ───────► Use specified provider   │
+│                                                                      │
+│  3. Inside Claude Code +                                             │
 │     ANTHROPIC_API_KEY             ───────► Claude API               │
 │                                                                      │
-│  3. OPENROUTER_API_KEY            ───────► OpenRouter (300+ models) │
+│  4. OPENROUTER_API_KEY            ───────► OpenRouter (300+ models) │
 │                                                                      │
-│  4. ANTHROPIC_API_KEY             ───────► Claude API               │
+│  5. ANTHROPIC_API_KEY             ───────► Claude API               │
 │                                                                      │
-│  5. RuvLLM available              ───────► RuvLLM (LOCAL, FREE)     │
+│  6. RuvLLM available              ───────► RuvLLM (LOCAL, FREE)     │
 │     (default for QE agents)                                          │
 │                                                                      │
-│  6. Fallback                      ───────► Algorithmic-only mode    │
+│  7. Fallback                      ───────► Algorithmic-only mode    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### HybridRouter with RuVector Cache
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    HYBRIDROUTER CACHE-FIRST ROUTING                  │
+│                      (src/providers/HybridRouter.ts)                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Request Flow:                                                       │
+│                                                                      │
+│  ┌──────────────────┐                                               │
+│  │  Agent Request   │  prompt + context                             │
+│  └────────┬─────────┘                                               │
+│           │                                                          │
+│           ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  1. RuVector     │  GNN cache lookup                             │
+│  │     Cache        │  - Sub-ms latency (<1ms)                      │
+│  │     (Docker)     │  - 0.85 confidence threshold                  │
+│  └────────┬─────────┘  - If HIT → return cached response            │
+│           │ MISS                                                     │
+│           ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  2. RuvLLM       │  Local inference                              │
+│  │     (Local)      │  - Zero cost                                  │
+│  │                  │  - TRM/SONA enabled                           │
+│  └────────┬─────────┘  - Cache response for future                  │
+│           │ UNAVAILABLE                                              │
+│           ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  3. Cloud LLM    │  Claude/OpenRouter fallback                   │
+│  │     (Remote)     │  - Higher quality                             │
+│  │                  │  - Cache response + trigger learning          │
+│  └──────────────────┘                                               │
+│                                                                      │
+│  Learning Features:                                                  │
+│  ├─ LoRA: Low-rank adaptation (rank: 8, alpha: 16)                 │
+│  ├─ EWC++: Elastic Weight Consolidation (anti-forgetting)          │
+│  └─ GNN: Graph Neural Network pattern matching                      │
+│                                                                      │
+│  Cost Savings:                                                       │
+│  ├─ Cache hits: ~$0.00 per request                                  │
+│  ├─ Local LLM: ~$0.00 per request                                   │
+│  └─ Cloud only when necessary                                       │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -500,8 +562,80 @@ User Request: "Generate tests for UserService.ts"
 | **RuvLLM** | `RuvllmProvider` | Local LLM inference with TRM/SONA/Sessions | `src/providers/RuvllmProvider.ts` |
 | **RuVector** | `HNSWPatternStore` | O(log n) vector similarity search | `src/memory/HNSWPatternStore.ts` |
 | **RuVector** | `HNSWPatternAdapter` | Bridge to LearningEngine | `src/learning/HNSWPatternAdapter.ts` |
+| **RuVector** | `HybridRouter` | Cache-first routing | `src/providers/HybridRouter.ts` |
+| **RuVector** | `RuVectorClient` | GNN cache client with LoRA/EWC++ | `src/providers/RuVectorClient.ts` |
 | **@ruvector/core** | VectorDB | HNSW index implementation | `node_modules/@ruvector/core` |
 | **AgentDB** | `ReasoningBank` | Pattern storage and retrieval | `node_modules/agentdb` |
+
+---
+
+## 7b. Agent RuVector Methods
+
+All QE agents that extend `BaseAgent` have access to the following RuVector methods:
+
+### Metrics & Status Methods
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `hasRuVectorCache()` | `boolean` | Check if HybridRouter with RuVector cache is enabled |
+| `getRuVectorMetrics()` | `Promise<object \| null>` | Get GNN/LoRA/cache metrics from RuVector |
+| `getCacheHitRate()` | `number` | Get cache hit rate (0-1) |
+| `getRoutingStats()` | `object` | Get routing decisions & latencies |
+| `getCostSavingsReport()` | `object` | Get cost savings from cache and local routing |
+| `getLLMStats()` | `object` | Get LLM provider status including RuVector |
+
+### Learning Methods
+
+| Method | Return Type | Description |
+|--------|-------------|-------------|
+| `forceRuVectorLearn()` | `Promise<{success, ...}>` | Trigger LoRA consolidation with EWC++ |
+
+### Usage Example
+
+```typescript
+// Configure agent with HybridRouter
+const agent = new TestGeneratorAgent({
+  type: 'test-generator',
+  capabilities: [...],
+  context: {...},
+  memoryStore,
+  eventBus,
+  llm: {
+    enabled: true,
+    enableHybridRouter: true,  // Enable Phase 0.5 features
+    ruvectorCache: {
+      baseUrl: 'http://localhost:8080',
+      cacheThreshold: 0.85,
+      learningEnabled: true,
+      loraRank: 8,
+      ewcEnabled: true,
+    },
+  },
+});
+
+// Check cache status
+console.log('RuVector enabled:', agent.hasRuVectorCache());
+console.log('Cache hit rate:', agent.getCacheHitRate());
+
+// Get cost savings
+const savings = agent.getCostSavingsReport();
+console.log(`Saved: $${savings.savings} (${savings.savingsPercentage}%)`);
+
+// Trigger learning
+const result = await agent.forceRuVectorLearn();
+console.log('Learning result:', result);
+```
+
+### MCP Tools for RuVector
+
+| Tool Name | Description |
+|-----------|-------------|
+| `ruvector_health` | Check RuVector Docker health |
+| `ruvector_metrics` | Get GNN/LoRA/cache metrics |
+| `ruvector_force_learn` | Trigger LoRA consolidation |
+| `ruvector_store_pattern` | Store pattern in GNN cache |
+| `ruvector_search` | Search similar patterns |
+| `ruvector_cost_savings` | Get cost savings report |
 
 ---
 
@@ -511,23 +645,28 @@ User Request: "Generate tests for UserService.ts"
 - Pattern templates reduce LLM calls by up to 70%
 - Local RuvLLM provides zero-cost inference
 - Session reuse cuts latency by 50%
+- HybridRouter cache-first routing further reduces cloud calls
 
 ### 2. **Continuous Improvement**
 - Q-learning optimizes strategy selection
 - Patterns improve with each successful task
 - Federated learning shares knowledge across agents
+- LoRA + EWC++ enables continuous self-learning
 
 ### 3. **Fast Pattern Retrieval**
 - HNSW provides O(log n) vector search
 - <1ms p95 latency for pattern matching
 - Scales to millions of patterns
+- **Phase 0.5**: GNN cache provides sub-ms pattern matching
 
 ### 4. **Unified Data Store**
 - Single SQLite database prevents fragmentation
 - All agents share learned patterns
 - CLI, MCP, and direct spawning all contribute
+- RuVector Docker provides distributed cache layer
 
 ### 5. **Graceful Degradation**
 - If LLM unavailable → algorithmic fallback
 - If HNSW fails → SQLite-only mode
 - If patterns unavailable → full LLM generation
+- If RuVector unavailable → fallback to RuvLLM → Cloud

@@ -39,8 +39,8 @@ import { AgentType, QEAgentType, AgentContext } from '../types';
 
 import { TestGeneratorAgent } from './TestGeneratorAgent';
 import { TestExecutorAgent, TestExecutorConfig } from './TestExecutorAgent';
-import { CoverageAnalyzerAgent } from './CoverageAnalyzerAgent';
-import { QualityGateAgent } from './QualityGateAgent';
+import { CoverageAnalyzerAgent, CoverageAnalyzerConfig } from './CoverageAnalyzerAgent';
+import { QualityGateAgent, QualityGateConfig } from './QualityGateAgent';
 import { QualityAnalyzerAgent, QualityAnalyzerConfig } from './QualityAnalyzerAgent';
 import { FleetCommanderAgent, FleetCommanderConfig } from './FleetCommanderAgent';
 import { RequirementsValidatorAgent, RequirementsValidatorConfig } from './RequirementsValidatorAgent';
@@ -121,16 +121,23 @@ export class QEAgentFactory {
         };
         return new TestExecutorAgent(executorConfig);
       }
-      case QEAgentType.COVERAGE_ANALYZER:
-        return new CoverageAnalyzerAgent(
-          { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },
-          this.config.memoryStore as any
-        ) as any as BaseAgent;
-      case QEAgentType.QUALITY_GATE:
-        return new QualityGateAgent(
-          { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },
-          this.config.memoryStore as any
-        ) as any as BaseAgent;
+      case QEAgentType.COVERAGE_ANALYZER: {
+        const coverageConfig: CoverageAnalyzerConfig = {
+          ...baseConfig,
+          enablePatterns: agentConfig?.enablePatterns ?? true,
+          targetImprovement: agentConfig?.targetImprovement ?? 0.20,
+          improvementPeriodDays: agentConfig?.improvementPeriodDays ?? 30
+        };
+        return new CoverageAnalyzerAgent(coverageConfig);
+      }
+      case QEAgentType.QUALITY_GATE: {
+        const qualityGateConfig: QualityGateConfig = {
+          ...baseConfig,
+          customCriteria: agentConfig?.customCriteria,
+          defaultThreshold: agentConfig?.defaultThreshold ?? 0.8
+        };
+        return new QualityGateAgent(qualityGateConfig);
+      }
       case QEAgentType.QUALITY_ANALYZER: {
         const analyzerConfig: QualityAnalyzerConfig & BaseAgentConfig = {
           ...baseConfig,

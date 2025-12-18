@@ -3952,6 +3952,127 @@ export const agenticQETools: Tool[] = [
         }
       }
     }
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                    RUVECTOR CACHE TOOLS (Phase 0.5 - GNN Self-Learning)
+  //                 Sub-ms pattern matching with LoRA + EWC++ learning
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  {
+    name: 'mcp__agentic_qe__ruvector_health',
+    description: 'Check RuVector GNN cache health and learning status. Returns GNN status, LoRA updates, vector count, and memory usage.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__ruvector_metrics',
+    description: 'Get RuVector cache performance metrics including cache hit rate, pattern count, LoRA updates, and cost savings.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        detailed: {
+          type: 'boolean',
+          default: false,
+          description: 'Include detailed GNN and LoRA metrics'
+        }
+      }
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__ruvector_force_learn',
+    description: 'Force LoRA learning consolidation in RuVector. Triggers immediate pattern consolidation with EWC++ protection against catastrophic forgetting.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: {
+          type: 'string',
+          description: 'Specific domain to consolidate (optional, defaults to all)'
+        }
+      }
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__ruvector_store_pattern',
+    description: 'Store a pattern in RuVector cache for GNN-enhanced retrieval. Patterns are automatically learned for future sub-ms matching.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: 'Pattern content to store'
+        },
+        category: {
+          type: 'string',
+          description: 'Pattern category (e.g., "testing", "coverage", "security")'
+        },
+        metadata: {
+          type: 'object',
+          description: 'Additional metadata for the pattern'
+        },
+        triggerLearning: {
+          type: 'boolean',
+          default: true,
+          description: 'Trigger LoRA learning after storing'
+        }
+      },
+      required: ['content', 'category']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__ruvector_search',
+    description: 'Search RuVector cache using GNN-enhanced similarity matching. Returns patterns ranked by multi-head attention.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query text'
+        },
+        topK: {
+          type: 'number',
+          default: 5,
+          minimum: 1,
+          maximum: 100,
+          description: 'Number of results to return'
+        },
+        minConfidence: {
+          type: 'number',
+          default: 0.5,
+          minimum: 0,
+          maximum: 1,
+          description: 'Minimum confidence threshold for results'
+        },
+        category: {
+          type: 'string',
+          description: 'Filter by category (optional)'
+        }
+      },
+      required: ['query']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__ruvector_cost_savings',
+    description: 'Get cost savings report from RuVector cache usage. Shows cache hits, LLM cost avoidance, and total savings.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          enum: ['hour', 'day', 'week', 'all'],
+          default: 'all',
+          description: 'Time period for savings calculation'
+        }
+      }
+    }
   }
 ];
 
@@ -4019,6 +4140,13 @@ export const TOOL_NAMES = {
   LEARNING_STORE_QVALUE: 'mcp__agentic_qe__learning_store_qvalue',
   LEARNING_STORE_PATTERN: 'mcp__agentic_qe__learning_store_pattern',
   LEARNING_QUERY: 'mcp__agentic_qe__learning_query',
+  // Phase 0.5: RuVector GNN Self-Learning Cache Tools
+  RUVECTOR_HEALTH: 'mcp__agentic_qe__ruvector_health',
+  RUVECTOR_METRICS: 'mcp__agentic_qe__ruvector_metrics',
+  RUVECTOR_FORCE_LEARN: 'mcp__agentic_qe__ruvector_force_learn',
+  RUVECTOR_STORE_PATTERN: 'mcp__agentic_qe__ruvector_store_pattern',
+  RUVECTOR_SEARCH: 'mcp__agentic_qe__ruvector_search',
+  RUVECTOR_COST_SAVINGS: 'mcp__agentic_qe__ruvector_cost_savings',
   PATTERN_STORE: 'mcp__agentic_qe__pattern_store',
   PATTERN_FIND: 'mcp__agentic_qe__pattern_find',
   PATTERN_EXTRACT: 'mcp__agentic_qe__pattern_extract',

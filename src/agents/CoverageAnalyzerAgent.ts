@@ -1,12 +1,12 @@
 /**
  * CoverageAnalyzerAgent - O(log n) coverage optimization and gap analysis
  * Phase 2 (v1.1.0) - Enhanced with Learning Capabilities
+ * Phase 0.5 (v2.5.9) - Migrated to BaseAgent for RuVector integration
  *
  * Implements sublinear algorithms from SPARC Phase 2 Section 3 with continuous
  * improvement through reinforcement learning and performance tracking.
  */
 
-import { EventEmitter } from 'events';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentId,
@@ -17,10 +17,10 @@ import {
   CoverageReport,
   SublinearMatrix,
   SublinearSolution,
-  MemoryStore
+  MemoryStore,
+  QETask
 } from '../types';
-import { LearningEngine } from '../learning/LearningEngine';
-import { PerformanceTracker } from '../learning/PerformanceTracker';
+import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { ImprovementLoop } from '../learning/ImprovementLoop';
 import { QEReasoningBank, TestPattern } from '../reasoning/QEReasoningBank';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
@@ -31,10 +31,7 @@ import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/Expe
 // Enhanced Configuration with Learning Support
 // ============================================================================
 
-export interface CoverageAnalyzerConfig {
-  id: AgentId;
-  memoryStore?: MemoryStore;
-  enableLearning?: boolean;      // Default: true
+export interface CoverageAnalyzerConfig extends BaseAgentConfig {
   enablePatterns?: boolean;       // Default: true
   targetImprovement?: number;     // Default: 0.20 (20%)
   improvementPeriodDays?: number; // Default: 30
@@ -100,23 +97,16 @@ export interface CoverageOptimizationResult {
 }
 
 // ============================================================================
-// Main Agent Class
+// Main Agent Class - Now extends BaseAgent for RuVector integration
 // ============================================================================
 
-export class CoverageAnalyzerAgent extends EventEmitter {
-  private id: AgentId;
-  private status: AgentStatus = AgentStatus.INITIALIZING;
-  private memoryStore?: MemoryStore;
-  private logger: Logger;
-
+export class CoverageAnalyzerAgent extends BaseAgent {
   // Core optimization engines
   private sublinearCore: SublinearOptimizer;
   private coverageEngine: CoverageEngine;
   private gapDetector: GapDetector;
 
-  // Learning components
-  private learningEngine?: LearningEngine;
-  private performanceTracker?: PerformanceTracker;
+  // Coverage-specific components
   private improvementLoop?: ImprovementLoop;
   private reasoningBank?: QEReasoningBank;
   private experienceCapture?: ExperienceCapture;
@@ -127,181 +117,120 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   // AgentDB integration for vector search
   private agentDB?: any;
 
-  // Configuration
-  private config: CoverageAnalyzerConfig;
+  // Coverage-specific configuration
+  private coverageConfig: {
+    enablePatterns: boolean;
+    targetImprovement: number;
+    improvementPeriodDays: number;
+  };
 
-  constructor(config: CoverageAnalyzerConfig);
-  constructor(id: AgentId, memoryStore?: MemoryStore); // Backward compatibility
-  constructor(
-    configOrId: CoverageAnalyzerConfig | AgentId,
-    memoryStore?: MemoryStore
-  ) {
-    super();
+  // Logger for this agent
+  private coverageLogger: Logger;
 
-    // Handle both constructor signatures
-    if (typeof configOrId === 'object' && 'id' in configOrId && !('id' in configOrId && typeof (configOrId as any).id === 'string')) {
-      // It's a CoverageAnalyzerConfig
-      this.config = configOrId as CoverageAnalyzerConfig;
-      this.id = this.config.id;
-      this.memoryStore = this.config.memoryStore;
-    } else {
-      // It's an AgentId (backward compatibility)
-      this.id = configOrId as AgentId;
-      this.memoryStore = memoryStore;
-      this.config = {
-        id: configOrId as AgentId,
-        memoryStore,
-        enableLearning: true,
-        enablePatterns: true,
-        targetImprovement: 0.20,
-        improvementPeriodDays: 30
-      };
-    }
+  constructor(config: CoverageAnalyzerConfig) {
+    super(config);
 
-    this.logger = Logger.getInstance();
+    this.coverageLogger = Logger.getInstance();
+
+    this.coverageConfig = {
+      enablePatterns: config.enablePatterns !== false,
+      targetImprovement: config.targetImprovement || 0.20,
+      improvementPeriodDays: config.improvementPeriodDays || 30,
+    };
 
     // Initialize core engines
     this.sublinearCore = new SublinearOptimizer();
     this.coverageEngine = new CoverageEngine();
     this.gapDetector = new GapDetector();
 
-    // Initialize learning components if enabled
-    this.initializeLearning();
-  }
-
-  // ============================================================================
-  // Learning Initialization
-  // ============================================================================
-
-  private initializeLearning(): void {
-    if (this.config.enableLearning !== false && this.memoryStore) {
-      const agentIdStr = typeof this.id === 'string' ? this.id : this.id.id;
-      const memoryManager = this.memoryStore as unknown as SwarmMemoryManager;
-
-      this.learningEngine = new LearningEngine(agentIdStr, memoryManager);
-      this.performanceTracker = new PerformanceTracker(
-        agentIdStr,
-        memoryManager
-      );
-      this.improvementLoop = new ImprovementLoop(
-        agentIdStr,
-        memoryManager,
-        this.learningEngine,
-        this.performanceTracker
-      );
-    }
-
-    if (this.config.enablePatterns !== false) {
+    // Initialize reasoning bank if patterns enabled
+    if (this.coverageConfig.enablePatterns) {
       this.reasoningBank = new QEReasoningBank();
     }
   }
 
   // ============================================================================
-  // Agent Lifecycle
+  // BaseAgent Abstract Method Implementations
   // ============================================================================
 
-  async initialize(): Promise<void> {
-    try {
-      this.status = AgentStatus.INITIALIZING;
+  protected async initializeComponents(): Promise<void> {
+    // Initialize optimization engines
+    await this.sublinearCore.initialize();
+    await this.coverageEngine.initialize();
+    await this.gapDetector.initialize();
 
-      // Initialize optimization engines
-      await this.sublinearCore.initialize();
-      await this.coverageEngine.initialize();
-      await this.gapDetector.initialize();
-
-      // Initialize learning components
-      if (this.learningEngine) {
-        await this.learningEngine.initialize();
-      }
-      if (this.performanceTracker) {
-        await this.performanceTracker.initialize();
-      }
-      if (this.improvementLoop) {
-        await this.improvementLoop.initialize();
-      }
-
-      // Load historical coverage patterns
-      await this.loadCoveragePatterns();
-
-      // Load learned gap detection patterns
-      await this.loadGapPatterns();
-
-      // Initialize ExperienceCapture for Nightly-Learner integration
-      this.experienceCapture = await ExperienceCapture.getSharedInstance();
-      this.logger?.info('[CoverageAnalyzer] ExperienceCapture initialized for Nightly-Learner');
-
-      // Load and cache patterns for confidence boosting at task start
-      await this.loadAndCachePatternsForConfidence();
-
-      // Store initialization state
-      if (this.memoryStore) {
-        await this.memoryStore.set('coverage-analyzer-initialized', true, 'agents');
-      }
-
-      this.status = AgentStatus.IDLE;
-      this.emit('agent.initialized', { agentId: this.id });
-
-      this.logger?.info(`CoverageAnalyzerAgent initialized with learning: ${!!this.learningEngine}, patterns cached: ${this.cachedPatterns.length}`);
-
-    } catch (error) {
-      this.status = AgentStatus.ERROR;
-      this.emit('agent.error', { agentId: this.id, error });
-      throw error;
+    // Initialize improvement loop if learning is enabled
+    if (this.learningEngine && this.performanceTracker) {
+      this.improvementLoop = new ImprovementLoop(
+        this.getAgentIdStr(),
+        this.memoryStore as SwarmMemoryManager,
+        this.learningEngine,
+        this.performanceTracker
+      );
+      await this.improvementLoop.initialize();
     }
+
+    // Initialize ExperienceCapture for Nightly-Learner integration
+    this.experienceCapture = await ExperienceCapture.getSharedInstance();
+    this.coverageLogger?.info('[CoverageAnalyzer] ExperienceCapture initialized for Nightly-Learner');
+
+    // Load historical patterns
+    await this.loadCoveragePatterns();
+    await this.loadGapPatterns();
+    await this.loadAndCachePatternsForConfidence();
   }
 
-  async executeTask(task: TaskSpec): Promise<CoverageOptimizationResult> {
+  protected async performTask(task: QETask): Promise<any> {
     const request = task.payload as CoverageAnalysisRequest;
     return await this.optimizeCoverageSublinear(request);
   }
 
-  async terminate(): Promise<void> {
-    try {
-      this.status = AgentStatus.STOPPING;
-
-      // Save learned patterns
-      await this.saveCoveragePatterns();
-      await this.saveGapPatterns();
-
-      // Stop improvement loop if running
-      if (this.improvementLoop?.isActive()) {
-        await this.improvementLoop.stop();
-      }
-
-      // Cleanup resources
-      await this.sublinearCore.cleanup();
-      await this.coverageEngine.cleanup();
-      await this.gapDetector.cleanup();
-
-      this.status = AgentStatus.STOPPED;
-      this.emit('agent.terminated', { agentId: this.id });
-
-    } catch (error) {
-      this.status = AgentStatus.ERROR;
-      throw error;
-    }
+  protected async loadKnowledge(): Promise<void> {
+    // Load coverage-specific knowledge
+    await this.loadCoveragePatterns();
+    await this.loadGapPatterns();
   }
 
-  getStatus(): {
-    agentId: AgentId;
-    status: AgentStatus;
-    capabilities: string[];
+  protected async cleanup(): Promise<void> {
+    // Save learned patterns
+    await this.saveCoveragePatterns();
+    await this.saveGapPatterns();
+
+    // Stop improvement loop if running
+    if (this.improvementLoop?.isActive()) {
+      await this.improvementLoop.stop();
+    }
+
+    // Cleanup engines
+    await this.sublinearCore.cleanup();
+    await this.coverageEngine.cleanup();
+    await this.gapDetector.cleanup();
+  }
+
+  // ============================================================================
+  // Public Methods - Coverage-specific
+  // ============================================================================
+
+  /**
+   * Get coverage-specific status including optimization metrics
+   */
+  getCoverageStatus(): {
     performance: any;
     learning?: any;
+    ruvector: {
+      enabled: boolean;
+      cacheHitRate: number;
+    };
   } {
     const status: any = {
-      agentId: this.id,
-      status: this.status,
-      capabilities: [
-        'coverage-optimization',
-        'gap-detection',
-        'sublinear-analysis',
-        'learning-enabled'
-      ],
       performance: {
         optimizationsCompleted: this.sublinearCore.getOptimizationCount(),
         averageOptimizationTime: this.sublinearCore.getAverageTime(),
         lastOptimizationRatio: this.sublinearCore.getLastOptimizationRatio()
+      },
+      ruvector: {
+        enabled: this.hasRuVectorCache(),
+        cacheHitRate: this.getCacheHitRate()
       }
     };
 
@@ -318,6 +247,16 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     return status;
   }
 
+  // Helper to get agent ID string
+  private getAgentIdStr(): string {
+    const agentId = super.getAgentId();
+    return typeof agentId === 'string' ? agentId : agentId.id;
+  }
+
+  // ============================================================================
+  // Agent Lifecycle (handled by BaseAgent)
+  // ============================================================================
+
   // ============================================================================
   // Core Coverage Optimization - SPARC Algorithm 3.1 + Learning
   // ============================================================================
@@ -332,8 +271,6 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     const startTime = Date.now();
 
     try {
-      this.status = AgentStatus.ACTIVE;
-
       // Get learned strategy recommendation if available
       let strategy = 'johnson-lindenstrauss-sublinear';
       if (this.learningEngine) {
@@ -348,7 +285,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
         if (recommendation.confidence > 0.7) {
           strategy = recommendation.strategy;
-          this.logger?.info(`Using learned strategy: ${strategy} (confidence: ${recommendation.confidence})`);
+          this.coverageLogger?.info(`Using learned strategy: ${strategy} (confidence: ${recommendation.confidence})`);
         }
       }
 
@@ -445,12 +382,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       // Track performance and learn from execution
       await this.trackAndLearn(request, result, executionTime);
 
-      this.status = AgentStatus.IDLE;
-
       return result;
 
     } catch (error) {
-      this.status = AgentStatus.ERROR;
 
       // Learn from failure if learning is enabled
       if (this.learningEngine) {
@@ -543,7 +477,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           // Calculate likelihood from historical gap patterns
           const avgLikelihood = result.memories.reduce((sum: number, m: any) => sum + m.confidence, 0) / result.memories.length;
 
-          this.logger?.debug(
+          this.coverageLogger?.debug(
             `[CoverageAnalyzer] ✅ AgentDB HNSW search: ${(avgLikelihood * 100).toFixed(1)}% likelihood ` +
             `(${searchTime}ms, ${result.memories.length} patterns, ` +
             `${result.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
@@ -553,7 +487,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           if (result.memories.length > 0) {
             const topMatch = result.memories[0];
             const gapData = JSON.parse(topMatch.pattern_data);
-            this.logger?.debug(
+            this.coverageLogger?.debug(
               `[CoverageAnalyzer] 🎯 Top gap match: ${gapData.location} ` +
               `(similarity=${topMatch.similarity.toFixed(3)}, confidence=${topMatch.confidence.toFixed(3)})`
             );
@@ -561,10 +495,10 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
           return avgLikelihood;
         } else {
-          this.logger?.debug(`[CoverageAnalyzer] No gap patterns found in AgentDB (${searchTime}ms)`);
+          this.coverageLogger?.debug(`[CoverageAnalyzer] No gap patterns found in AgentDB (${searchTime}ms)`);
         }
       } catch (error) {
-        this.logger?.warn('[CoverageAnalyzer] AgentDB gap prediction failed, using fallback:', error);
+        this.coverageLogger?.warn('[CoverageAnalyzer] AgentDB gap prediction failed, using fallback:', error);
       }
     }
 
@@ -631,15 +565,15 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       const improvement = await this.performanceTracker.calculateImprovement();
 
       if (improvement.targetAchieved) {
-        this.logger?.info(`🎯 20% improvement target achieved! Current: ${improvement.improvementRate.toFixed(2)}%`);
+        this.coverageLogger?.info(`🎯 20% improvement target achieved! Current: ${improvement.improvementRate.toFixed(2)}%`);
       } else {
-        this.logger?.debug(`Progress: ${improvement.improvementRate.toFixed(2)}% / 20% target`);
+        this.coverageLogger?.debug(`Progress: ${improvement.improvementRate.toFixed(2)}% / 20% target`);
       }
 
       // Add learning metrics to result
       result.learningMetrics = {
         improvementRate: improvement.improvementRate,
-        confidence: (improvement.daysElapsed / (this.config.improvementPeriodDays || 30)),
+        confidence: (improvement.daysElapsed / (this.coverageConfig.improvementPeriodDays || 30)),
         patternsApplied: this.learningEngine ? (await this.learningEngine.getPatterns()).length : 0
       };
     }
@@ -674,7 +608,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     if (this.improvementLoop && !this.improvementLoop.isActive()) {
       // Run in background
       this.improvementLoop.runImprovementCycle().catch(error =>
-        this.logger?.warn('Improvement cycle failed', error)
+        this.coverageLogger?.warn('Improvement cycle failed', error)
       );
     }
 
@@ -717,11 +651,11 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           });
 
           storedCount++;
-          this.logger?.debug(`[CoverageAnalyzer] ✅ Stored gap pattern ${gapId} in AgentDB`);
+          this.coverageLogger?.debug(`[CoverageAnalyzer] ✅ Stored gap pattern ${gapId} in AgentDB`);
         }
 
         const storeTime = Date.now() - startTime;
-        this.logger?.info(
+        this.coverageLogger?.info(
           `[CoverageAnalyzer] ✅ ACTUALLY stored ${storedCount} gap patterns in AgentDB ` +
           `(${storeTime}ms, avg ${(storeTime / storedCount).toFixed(1)}ms/pattern, QUIC sync active)`
         );
@@ -729,12 +663,12 @@ export class CoverageAnalyzerAgent extends EventEmitter {
         // Report QUIC sync status
         const agentDBConfig = (this as any).agentDBConfig;
         if (agentDBConfig?.enableQUICSync) {
-          this.logger?.info(
+          this.coverageLogger?.info(
             `[CoverageAnalyzer] 🚀 Gap patterns synced via QUIC to ${agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
           );
         }
       } catch (error) {
-        this.logger?.warn('[CoverageAnalyzer] AgentDB gap storage failed:', error);
+        this.coverageLogger?.warn('[CoverageAnalyzer] AgentDB gap storage failed:', error);
       }
     }
 
@@ -774,9 +708,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
     try {
       const gapPatterns = await this.reasoningBank.searchByTags(['coverage-gap']);
-      this.logger?.info(`Loaded ${gapPatterns.length} gap patterns from ReasoningBank`);
+      this.coverageLogger?.info(`Loaded ${gapPatterns.length} gap patterns from ReasoningBank`);
     } catch (error) {
-      this.logger?.warn('No gap patterns found in ReasoningBank');
+      this.coverageLogger?.warn('No gap patterns found in ReasoningBank');
     }
   }
 
@@ -787,7 +721,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     if (!this.reasoningBank) return;
 
     const stats = await this.reasoningBank.getStatistics();
-    this.logger?.info(`Saved ${stats.totalPatterns} patterns to ReasoningBank`);
+    this.coverageLogger?.info(`Saved ${stats.totalPatterns} patterns to ReasoningBank`);
   }
 
   /**
@@ -1165,7 +1099,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           confidence: p.confidence,
           successRate: p.successRate
         }));
-        this.logger?.info(`[CoverageAnalyzer] Cached ${this.cachedPatterns.length} patterns from LearningEngine`);
+        this.coverageLogger?.info(`[CoverageAnalyzer] Cached ${this.cachedPatterns.length} patterns from LearningEngine`);
       }
 
       // Also load from memoryStore if available
@@ -1178,7 +1112,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
           );
 
           if (coveragePatterns.length > 0) {
-            this.logger?.info(`[CoverageAnalyzer] Found ${coveragePatterns.length} historical coverage patterns in DB`);
+            this.coverageLogger?.info(`[CoverageAnalyzer] Found ${coveragePatterns.length} historical coverage patterns in DB`);
             // Merge with existing patterns
             for (const p of coveragePatterns) {
               if (!this.cachedPatterns.find(cp => cp.pattern === p.pattern)) {
@@ -1193,9 +1127,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
         }
       }
 
-      this.logger?.info(`[CoverageAnalyzer] Total cached patterns for confidence boost: ${this.cachedPatterns.length}`);
+      this.coverageLogger?.info(`[CoverageAnalyzer] Total cached patterns for confidence boost: ${this.cachedPatterns.length}`);
     } catch (error) {
-      this.logger?.warn('[CoverageAnalyzer] Failed to load patterns for confidence', error);
+      this.coverageLogger?.warn('[CoverageAnalyzer] Failed to load patterns for confidence', error);
     }
   }
 
@@ -1226,7 +1160,7 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
     const boost = totalWeight > 0 ? (weightedConfidence / totalWeight) * 0.3 : 0; // Max 30% boost
 
-    this.logger?.debug(`[CoverageAnalyzer] Confidence boost from ${relevantPatterns.length} patterns: ${(boost * 100).toFixed(1)}%`);
+    this.coverageLogger?.debug(`[CoverageAnalyzer] Confidence boost from ${relevantPatterns.length} patterns: ${(boost * 100).toFixed(1)}%`);
 
     return boost;
   }
@@ -1247,8 +1181,8 @@ export class CoverageAnalyzerAgent extends EventEmitter {
     }
 
     try {
-      const agentIdStr = typeof this.id === 'string' ? this.id : this.id.id;
-      const agentType = typeof this.id === 'object' && 'type' in this.id ? this.id.type : 'coverage-analyzer';
+      const agentIdStr = this.getAgentIdStr();
+      const agentType = 'coverage-analyzer';
 
       const event: AgentExecutionEvent = {
         agentId: agentIdStr,
@@ -1285,11 +1219,11 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
       await this.experienceCapture.captureExecution(event);
 
-      this.logger?.debug(`[CoverageAnalyzer] Captured experience for Nightly-Learner: ${success ? 'success' : 'failure'}`);
+      this.coverageLogger?.debug(`[CoverageAnalyzer] Captured experience for Nightly-Learner: ${success ? 'success' : 'failure'}`);
       this.emit('experience:captured', { agentId: agentIdStr, success, duration });
     } catch (captureError) {
       // Don't fail the main operation if capture fails
-      this.logger?.warn('[CoverageAnalyzer] Failed to capture experience:', captureError);
+      this.coverageLogger?.warn('[CoverageAnalyzer] Failed to capture experience:', captureError);
     }
   }
 
