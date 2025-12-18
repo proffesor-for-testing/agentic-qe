@@ -620,7 +620,8 @@ export abstract class BaseAgent extends EventEmitter {
       const method = `on${hookName.charAt(0).toUpperCase()}${hookName.slice(1).replace(/-/g, '')}`;
       if (typeof (this as any)[method] === 'function') await (this as any)[method](data);
     } catch (error) {
-      console.error(`Hook ${hookName} failed:`, error);
+      // Use warn - hooks are optional and failures shouldn't break agent operation
+      console.warn(`Hook ${hookName} failed:`, error);
     }
   }
 
@@ -774,7 +775,8 @@ export abstract class BaseAgent extends EventEmitter {
         console.warn(`[${this.agentId.id}] No LLM provider available`);
       }
     } catch (error) {
-      console.error(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
+      // Use warn instead of error - this is expected fallback behavior, not a failure
+      console.warn(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
       // Don't throw - agent can still work without LLM (algorithmic fallback)
     }
   }
@@ -811,7 +813,8 @@ export abstract class BaseAgent extends EventEmitter {
         // First agent or no prior knowledge - expected
       }
     } catch (error) {
-      console.error(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
+      // Use warn instead of error - this is expected fallback behavior
+      console.warn(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
       // Don't throw - agent can work without federated learning
     }
   }
