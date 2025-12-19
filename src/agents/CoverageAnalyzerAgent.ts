@@ -124,41 +124,26 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   // Cached patterns for confidence boosting
   private cachedPatterns: Array<{ pattern: string; confidence: number; successRate: number }> = [];
 
-  // AgentDB integration for vector search
-  private agentDB?: any;
+  // Coverage-specific configuration
+  private coverageConfig: {
+    enablePatterns: boolean;
+    targetImprovement: number;
+    improvementPeriodDays: number;
+  };
 
-  // Configuration
-  private config: CoverageAnalyzerConfig;
+  // Logger for this agent
+  private coverageLogger: Logger;
 
-  constructor(config: CoverageAnalyzerConfig);
-  constructor(id: AgentId, memoryStore?: MemoryStore); // Backward compatibility
-  constructor(
-    configOrId: CoverageAnalyzerConfig | AgentId,
-    memoryStore?: MemoryStore
-  ) {
-    super();
+  constructor(config: CoverageAnalyzerConfig) {
+    super(config);
 
-    // Handle both constructor signatures
-    if (typeof configOrId === 'object' && 'id' in configOrId && !('id' in configOrId && typeof (configOrId as any).id === 'string')) {
-      // It's a CoverageAnalyzerConfig
-      this.config = configOrId as CoverageAnalyzerConfig;
-      this.id = this.config.id;
-      this.memoryStore = this.config.memoryStore;
-    } else {
-      // It's an AgentId (backward compatibility)
-      this.id = configOrId as AgentId;
-      this.memoryStore = memoryStore;
-      this.config = {
-        id: configOrId as AgentId,
-        memoryStore,
-        enableLearning: true,
-        enablePatterns: true,
-        targetImprovement: 0.20,
-        improvementPeriodDays: 30
-      };
-    }
+    this.coverageLogger = Logger.getInstance();
 
-    this.logger = Logger.getInstance();
+    this.coverageConfig = {
+      enablePatterns: config.enablePatterns !== false,
+      targetImprovement: config.targetImprovement || 0.20,
+      improvementPeriodDays: config.improvementPeriodDays || 30,
+    };
 
     // Initialize core engines
     this.sublinearCore = new SublinearOptimizer();
@@ -518,53 +503,53 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   }
 
   /**
-   * AgentDB Integration: Predict gap likelihood using vector search
-   * Uses AgentDB's HNSW indexing for 150x faster pattern matching
+   * Predict gap likelihood using cached patterns and learning engine
+   * Uses in-memory pattern matching with O(n) complexity on cached patterns
    */
   async predictGapLikelihood(file: string, functionName: string): Promise<number> {
-    // Try ACTUAL AgentDB vector search first (150x faster than traditional search)
-    if (this.agentDB) {
-      try {
-        const startTime = Date.now();
+    const startTime = Date.now();
 
-        // Create query embedding from file and function context
-        const queryEmbedding = await this.createGapQueryEmbedding(file, functionName);
+    // Try cached patterns first (fast in-memory search)
+    if (this.cachedPatterns.length > 0) {
+      const filePattern = file.toLowerCase();
+      const funcPattern = functionName.toLowerCase();
 
-        // ACTUALLY search AgentDB for similar gap patterns with HNSW indexing
-        const result = await this.agentDB.search(
-          queryEmbedding,
-          'coverage-gaps',
-          5
-        );
+      // Find matching patterns from cache
+      const matches = this.cachedPatterns.filter(p => {
+        const pattern = p.pattern.toLowerCase();
+        return pattern.includes(filePattern) || pattern.includes(funcPattern);
+      });
 
+      if (matches.length > 0) {
+        const avgLikelihood = matches.reduce((sum, m) => sum + m.confidence, 0) / matches.length;
         const searchTime = Date.now() - startTime;
 
-        if (result.memories.length > 0) {
-          // Calculate likelihood from historical gap patterns
-          const avgLikelihood = result.memories.reduce((sum: number, m: any) => sum + m.confidence, 0) / result.memories.length;
+        this.coverageLogger?.debug(
+          `[CoverageAnalyzer] Pattern cache hit: ${(avgLikelihood * 100).toFixed(1)}% likelihood ` +
+          `(${searchTime}ms, ${matches.length} patterns)`
+        );
 
-          this.logger?.debug(
-            `[CoverageAnalyzer] ✅ AgentDB HNSW search: ${(avgLikelihood * 100).toFixed(1)}% likelihood ` +
-            `(${searchTime}ms, ${result.memories.length} patterns, ` +
-            `${result.metadata.cacheHit ? 'cache hit' : 'cache miss'})`
+        return avgLikelihood;
+      }
+    }
+
+    // Try ReasoningBank if available
+    if (this.reasoningBank) {
+      try {
+        const gapPatterns = await this.reasoningBank.searchByTags(['coverage-gap']);
+        const filePatterns = gapPatterns.filter(p =>
+          p.name.includes('gap') || p.description?.includes(file)
+        );
+
+        if (filePatterns.length > 0) {
+          const avgLikelihood = filePatterns.reduce((sum, p) => sum + p.confidence, 0) / filePatterns.length;
+          this.coverageLogger?.debug(
+            `[CoverageAnalyzer] ReasoningBank match: ${(avgLikelihood * 100).toFixed(1)}% likelihood`
           );
-
-          // Log top match details
-          if (result.memories.length > 0) {
-            const topMatch = result.memories[0];
-            const gapData = JSON.parse(topMatch.pattern_data);
-            this.logger?.debug(
-              `[CoverageAnalyzer] 🎯 Top gap match: ${gapData.location} ` +
-              `(similarity=${topMatch.similarity.toFixed(3)}, confidence=${topMatch.confidence.toFixed(3)})`
-            );
-          }
-
           return avgLikelihood;
-        } else {
-          this.logger?.debug(`[CoverageAnalyzer] No gap patterns found in AgentDB (${searchTime}ms)`);
         }
-      } catch (error) {
-        this.logger?.warn('[CoverageAnalyzer] AgentDB gap prediction failed, using fallback:', error);
+      } catch {
+        // ReasoningBank query failed, continue to learning engine
       }
     }
 
@@ -686,60 +671,13 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   }
 
   /**
-   * AgentDB Integration: Store gap patterns with QUIC sync
-   * Enables cross-agent pattern sharing with <1ms latency
+   * Store gap patterns in ReasoningBank for future pattern matching
+   * Patterns are used by predictGapLikelihood for coverage gap prediction
    */
   private async storeGapPatterns(gaps: CoverageOptimizationResult['gaps']): Promise<void> {
-    // ACTUALLY store in AgentDB for fast vector search with QUIC sync
-    if (this.agentDB) {
-      try {
-        const startTime = Date.now();
-
-        let storedCount = 0;
-        for (const gap of gaps) {
-          const gapEmbedding = await this.createGapEmbedding(gap);
-
-          const gapId = await this.agentDB.store({
-            id: `gap-${gap.location.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`,
-            type: 'coverage-gap-pattern',
-            domain: 'coverage-gaps',
-            pattern_data: JSON.stringify({
-              location: gap.location,
-              gapType: gap.type,
-              severity: gap.severity,
-              suggestedTests: gap.suggestedTests
-            }),
-            confidence: gap.likelihood,
-            usage_count: 1,
-            success_count: 1,
-            created_at: Date.now(),
-            last_used: Date.now()
-          });
-
-          storedCount++;
-          this.logger?.debug(`[CoverageAnalyzer] ✅ Stored gap pattern ${gapId} in AgentDB`);
-        }
-
-        const storeTime = Date.now() - startTime;
-        this.logger?.info(
-          `[CoverageAnalyzer] ✅ ACTUALLY stored ${storedCount} gap patterns in AgentDB ` +
-          `(${storeTime}ms, avg ${(storeTime / storedCount).toFixed(1)}ms/pattern, QUIC sync active)`
-        );
-
-        // Report QUIC sync status
-        const agentDBConfig = (this as any).agentDBConfig;
-        if (agentDBConfig?.enableQUICSync) {
-          this.logger?.info(
-            `[CoverageAnalyzer] 🚀 Gap patterns synced via QUIC to ${agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
-          );
-        }
-      } catch (error) {
-        this.logger?.warn('[CoverageAnalyzer] AgentDB gap storage failed:', error);
-      }
-    }
-
-    // Also store in ReasoningBank for compatibility
     if (!this.reasoningBank) return;
+
+    const startTime = Date.now();
 
     for (const gap of gaps) {
       const pattern: TestPattern = {
@@ -764,6 +702,11 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
       await this.reasoningBank.storePattern(pattern);
     }
+
+    const storeTime = Date.now() - startTime;
+    this.coverageLogger?.debug(
+      `[CoverageAnalyzer] Stored ${gaps.length} gap patterns in ReasoningBank (${storeTime}ms)`
+    );
   }
 
   /**
@@ -788,36 +731,6 @@ export class CoverageAnalyzerAgent extends EventEmitter {
 
     const stats = await this.reasoningBank.getStatistics();
     this.logger?.info(`Saved ${stats.totalPatterns} patterns to ReasoningBank`);
-  }
-
-  /**
-   * AgentDB Helper: Create gap query embedding for vector search
-   */
-  private async createGapQueryEmbedding(file: string, functionName: string): Promise<number[]> {
-    // Simplified embedding - replace with actual model in production
-    const queryStr = `${file}:${functionName}`;
-    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
-
-    // Add semantic hash for reproducibility
-    const hash = queryStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    embedding[0] = (hash % 100) / 100;
-
-    return embedding;
-  }
-
-  /**
-   * AgentDB Helper: Create gap embedding for storage
-   */
-  private async createGapEmbedding(gap: CoverageOptimizationResult['gaps'][0]): Promise<number[]> {
-    // Simplified embedding - replace with actual model in production
-    const gapStr = `${gap.location}:${gap.type}:${gap.severity}`;
-    const embedding = new Array(384).fill(0).map(() => SecureRandom.randomFloat());
-
-    // Add semantic hash
-    const hash = gapStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    embedding[0] = (hash % 100) / 100;
-
-    return embedding;
   }
 
   /**
