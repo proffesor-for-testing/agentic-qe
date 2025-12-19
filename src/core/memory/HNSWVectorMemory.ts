@@ -660,7 +660,7 @@ export class HNSWVectorMemory implements IPatternStore {
   } {
     return {
       type: 'agentdb',
-      version: '2.5.9',
+      version: '2.5.10',
       features: ['hnsw', 'vector-search', 'persistence', 'batch-operations'],
     };
   }

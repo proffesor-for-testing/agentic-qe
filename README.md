@@ -11,7 +11,7 @@
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.5.9** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.5.10** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
@@ -393,7 +393,7 @@ mcp__agentic_qe__coverage_analyze({
 })
 ```
 
-**All 85 MCP Tools Available:**
+**All 91 MCP Tools Available:**
 - Fleet Management (9 tools): init, spawn, status, coordinate, orchestrate
 - Test Generation (2 tools): generate enhanced, execute
 - Test Execution (3 tools): execute, parallel, stream

@@ -5,8 +5,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "8080:8080"  # REST API
-      - "9090:9090"  # gRPC
+      - "5432:5432"  # PostgreSQL
 
     environment:
       # Core Configuration
@@ -41,11 +40,11 @@ services:
       # - ./config/ruvector.yml:/app/config.yml:ro
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      test: ["CMD-SHELL", "pg_isready -U ruvector -d ruvector_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
     # Resource limits (adjust based on your needs)
     deploy:
@@ -82,9 +81,7 @@ services:
       RUVECTOR_EWC_LAMBDA: "0.3"
 
     ports:
-      - "8080:8080"
-      - "9090:9090"
-      - "6060:6060"  # Profiling endpoint
+      - "5432:5432"  # PostgreSQL
 
     volumes:
       - ruvector-data-dev:/data

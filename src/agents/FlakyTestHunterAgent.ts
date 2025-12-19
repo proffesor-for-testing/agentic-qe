@@ -170,6 +170,9 @@ export class FlakyTestHunterAgent extends BaseAgent {
     avgConfidence: 0
   };
 
+  // Phase 0.5: Pattern store for self-learning flaky detection patterns
+  private patternStoreEnabled: boolean = true;
+
   constructor(baseConfig: BaseAgentConfig, config: FlakyTestHunterConfig = {}) {
     super({
       ...baseConfig,
@@ -267,6 +270,11 @@ export class FlakyTestHunterAgent extends BaseAgent {
       86400 // 24 hours
     );
 
+    // Phase 0.5: Store flaky detection patterns for self-learning
+    if (this.patternStoreEnabled && data.result?.flakyTests?.length > 0) {
+      await this.storeFlakynessPatterns(data.result.flakyTests);
+    }
+
     // Emit flaky test detection event for other agents
     this.eventBus.emit(`${this.agentId.type}:completed`, {
       agentId: this.agentId,
@@ -279,6 +287,103 @@ export class FlakyTestHunterAgent extends BaseAgent {
       taskId: data.assignment.id,
       flakyTestsFound: data.result?.flakyTests?.length || 0
     });
+  }
+
+  /**
+   * Phase 0.5: Store flaky test detection patterns for self-learning
+   * Enables pattern recognition and reuse across detection sessions
+   */
+  private async storeFlakynessPatterns(flakyTests: FlakyTestResult[]): Promise<void> {
+    if (!this.qePatternStore) {
+      return;
+    }
+
+    for (const flakyTest of flakyTests) {
+      try {
+        // Create pattern from flaky test detection result
+        const pattern = {
+          id: `flaky_${flakyTest.testName}_${Date.now()}`,
+          type: 'flaky-detection' as const,
+          domain: 'flaky-test-hunter',
+          embedding: this.generateFlakyPatternEmbedding(flakyTest),
+          content: JSON.stringify({
+            testName: flakyTest.testName,
+            pattern: flakyTest.pattern,
+            rootCause: flakyTest.rootCause,
+            severity: flakyTest.severity,
+            suggestedFixes: flakyTest.suggestedFixes
+          }),
+          framework: 'jest', // Default framework
+          coverage: flakyTest.passRate,
+          verdict: flakyTest.status === 'FIXED' ? 'success' as const : 'failure' as const,
+          createdAt: Date.now(),
+          lastUsed: Date.now(),
+          usageCount: 1,
+          metadata: {
+            flakinessScore: flakyTest.flakinessScore,
+            category: flakyTest.rootCause?.category || 'UNKNOWN',
+            confidence: flakyTest.rootCause?.confidence || 0
+          }
+        };
+
+        await this.qePatternStore.storePattern(pattern);
+        this.logger.debug(`Stored flaky pattern for: ${flakyTest.testName}`);
+      } catch (error) {
+        this.logger.warn(`Failed to store flaky pattern: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * Generate embedding for flaky test pattern
+   * Uses root cause and pattern characteristics for similarity matching
+   */
+  private generateFlakyPatternEmbedding(flakyTest: FlakyTestResult): number[] {
+    // Generate 768-dim embedding based on flaky test characteristics
+    const embedding = new Array(768).fill(0);
+
+    // Encode root cause category (indices 0-49)
+    const categories = ['RACE_CONDITION', 'TIMEOUT', 'NETWORK_FLAKE', 'DATA_DEPENDENCY', 'ORDER_DEPENDENCY', 'MEMORY_LEAK', 'UNKNOWN'];
+    const categoryIdx = categories.indexOf(flakyTest.rootCause?.category || 'UNKNOWN');
+    if (categoryIdx >= 0) {
+      embedding[categoryIdx * 7] = 1.0;
+    }
+
+    // Encode severity (indices 50-99)
+    const severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const severityIdx = severities.indexOf(flakyTest.severity);
+    if (severityIdx >= 0) {
+      embedding[50 + severityIdx * 12] = 1.0;
+    }
+
+    // Encode flakiness score (indices 100-199)
+    embedding[100 + Math.floor(flakyTest.flakinessScore * 99)] = flakyTest.flakinessScore;
+
+    // Encode failure rate (indices 200-299)
+    embedding[200 + Math.floor(flakyTest.failureRate * 99)] = flakyTest.failureRate;
+
+    // Encode pattern hash (indices 300-767)
+    const patternHash = this.hashString(flakyTest.pattern || '');
+    for (let i = 0; i < Math.min(patternHash.length, 468); i++) {
+      embedding[300 + i] = patternHash.charCodeAt(i) / 255;
+    }
+
+    // Normalize embedding
+    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0)) || 1;
+    return embedding.map(val => val / magnitude);
+  }
+
+  /**
+   * Simple hash function for pattern strings
+   */
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(36);
   }
 
   /**

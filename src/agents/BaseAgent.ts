@@ -128,6 +128,27 @@ export interface AgentLLMConfig {
 /**
  * Configuration for BaseAgent
  */
+/**
+ * QE Pattern Store Configuration
+ * Enables QE agents to store learned patterns in RuVector for 150x faster retrieval
+ */
+export interface QEPatternStoreConfig {
+  /** Enable QE pattern storage (default: true) */
+  enabled: boolean;
+  /** Use RuVector Docker when available (default: true) */
+  useRuVector: boolean;
+  /** Use local HNSW fallback (default: true) */
+  useHNSW: boolean;
+  /** Write to both RuVector and HNSW during migration (default: false) */
+  dualWrite: boolean;
+  /** RuVector Docker base URL (default: http://localhost:8080) */
+  ruvectorUrl?: string;
+  /** Pattern storage path (default: ./data/qe-patterns.ruvector) */
+  storagePath?: string;
+  /** Auto-sync patterns to RuVector (default: false) */
+  autoSync?: boolean;
+}
+
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
@@ -147,6 +168,9 @@ export interface BaseAgentConfig {
   // LLM Provider configuration (Phase 0)
   /** LLM configuration - enables agents to make LLM calls via RuvLLM */
   llm?: AgentLLMConfig;
+  // QE Pattern Store configuration (Phase 0.5)
+  /** Pattern store configuration for QE agents */
+  patternStore?: Partial<QEPatternStoreConfig>;
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -178,6 +202,11 @@ export abstract class BaseAgent extends EventEmitter {
   protected ephemeralAgent?: EphemeralAgent;
   private federatedInitialized: boolean = false;
 
+  // QE Pattern Store (Phase 0.5 - RuVector Integration)
+  protected qePatternStore?: any; // RuVectorPatternStore
+  protected readonly qePatternConfig: Required<QEPatternStoreConfig>;
+  private patternStoreInitialized: boolean = false;
+
   // Service classes
   protected readonly lifecycleManager: AgentLifecycleManager;
   protected readonly coordinator: AgentCoordinator;
@@ -203,6 +232,24 @@ export abstract class BaseAgent extends EventEmitter {
 
     // LLM configuration (Phase 0 - default enabled with RuvLLM)
     this.llmConfig = config.llm ?? { enabled: true, preferredProvider: 'ruvllm' };
+
+    // QE Pattern Store configuration (Phase 0.5 - RuVector Integration)
+    // Environment variables take precedence, then config, then defaults
+    // RuVector is OPT-IN to maintain backward compatibility with existing users
+    const envRuVectorEnabled = process.env.AQE_RUVECTOR_ENABLED?.toLowerCase() === 'true';
+    const envRuVectorUrl = process.env.AQE_RUVECTOR_URL || process.env.RUVECTOR_URL;
+    const envPatternStoreEnabled = process.env.AQE_PATTERN_STORE_ENABLED?.toLowerCase() !== 'false';
+
+    this.qePatternConfig = {
+      enabled: config.patternStore?.enabled ?? envPatternStoreEnabled,
+      // RuVector defaults to FALSE - opt-in for advanced self-learning
+      useRuVector: config.patternStore?.useRuVector ?? envRuVectorEnabled,
+      useHNSW: config.patternStore?.useHNSW ?? true,
+      dualWrite: config.patternStore?.dualWrite ?? (process.env.AQE_PATTERN_DUAL_WRITE === 'true'),
+      ruvectorUrl: config.patternStore?.ruvectorUrl ?? envRuVectorUrl ?? 'postgresql://ruvector:ruvector@localhost:5432/ruvector_db',
+      storagePath: config.patternStore?.storagePath ?? process.env.AQE_PATTERN_STORE_PATH ?? './data/qe-patterns.ruvector',
+      autoSync: config.patternStore?.autoSync ?? (process.env.AQE_PATTERN_AUTO_SYNC === 'true'),
+    };
 
     // Early validation (Issue #137)
     const validation = validateLearningConfig(config);
@@ -278,6 +325,9 @@ export abstract class BaseAgent extends EventEmitter {
           // Initialize Federated Learning (Phase 0 M0.5)
           await this.initializeFederatedLearning();
 
+          // Initialize QE Pattern Store (Phase 0.5)
+          await this.initializePatternStore();
+
           await this.initializeComponents();
           await this.executeHook('post-initialization');
           this.coordinator.emitEvent('agent.initialized', { agentId: this.agentId });
@@ -336,6 +386,7 @@ export abstract class BaseAgent extends EventEmitter {
           await this.cleanup();
           await this.cleanupLLM(); // Phase 0: Cleanup LLM resources
           await this.cleanupFederated(); // Phase 0 M0.5: Cleanup federated learning
+          await this.cleanupPatternStore(); // Phase 0.5: Cleanup pattern store
           this.coordinator.clearAllHandlers();
         },
         onPostTermination: async () => {
@@ -1044,12 +1095,23 @@ export abstract class BaseAgent extends EventEmitter {
   /**
    * Get LLM usage statistics for this agent
    */
-  public getLLMStats(): { available: boolean; sessionId?: string; provider?: string; hasRuVectorCache?: boolean } {
+  public getLLMStats(): {
+    available: boolean;
+    sessionId?: string;
+    provider?: string;
+    hasRuVectorCache?: boolean;
+    hasPatternStore?: boolean;
+    patternStoreType?: 'ruvector' | 'fallback';
+  } {
     return {
       available: this.hasLLM(),
       sessionId: this.llmSessionId,
       provider: this.hybridRouter ? 'hybrid' : (this.llmProvider ? 'ruvllm' : undefined),
       hasRuVectorCache: this.hasRuVectorCache(),
+      hasPatternStore: this.hasPatternStore(),
+      patternStoreType: this.hasPatternStore() ?
+        (this.qePatternStore?.getImplementationInfo?.()?.type as 'ruvector' | 'fallback') :
+        undefined,
     };
   }
 
@@ -1223,6 +1285,340 @@ export abstract class BaseAgent extends EventEmitter {
     // Fallback to regular completion
     const text = await this.llmComplete(prompt, options);
     return { response: text, source: 'local' };
+  }
+
+  // ============================================
+  // QE Pattern Store Methods (Phase 0.5 - RuVector Integration)
+  // ============================================
+
+  /**
+   * Initialize QE Pattern Store for learned pattern storage
+   * Supports both RuVector Docker (150x faster) and local HNSW fallback
+   */
+  private async initializePatternStore(): Promise<void> {
+    if (!this.qePatternConfig.enabled) {
+      console.log(`[${this.agentId.id}] QE Pattern Store disabled by configuration`);
+      return;
+    }
+
+    try {
+      // Phase 0.5: Use PostgreSQL adapter when RuVector is enabled
+      if (this.qePatternConfig.useRuVector) {
+        try {
+          const { createDockerRuVectorAdapter } = require('../providers/RuVectorPostgresAdapter');
+
+          // Parse PostgreSQL connection URL or use defaults
+          const url = this.qePatternConfig.ruvectorUrl || '';
+          const isPostgres = url.startsWith('postgresql://') || url.startsWith('postgres://');
+
+          if (isPostgres) {
+            // Parse connection URL
+            const parsed = new URL(url);
+            this.qePatternStore = createDockerRuVectorAdapter({
+              host: parsed.hostname,
+              port: parseInt(parsed.port) || 5432,
+              database: parsed.pathname.slice(1) || 'ruvector_db',
+              user: parsed.username || 'ruvector',
+              password: parsed.password || 'ruvector',
+              learningEnabled: true,
+              cacheThreshold: 0.85,
+            });
+          } else {
+            // Use default Docker configuration
+            this.qePatternStore = createDockerRuVectorAdapter({
+              host: process.env.RUVECTOR_HOST || 'localhost',
+              port: parseInt(process.env.RUVECTOR_PORT || '5432'),
+              database: process.env.RUVECTOR_DATABASE || 'ruvector_db',
+              user: process.env.RUVECTOR_USER || 'ruvector',
+              password: process.env.RUVECTOR_PASSWORD || 'ruvector',
+              learningEnabled: true,
+              cacheThreshold: 0.85,
+            });
+          }
+
+          await this.qePatternStore.initialize();
+          this.patternStoreInitialized = true;
+
+          console.log(`[${this.agentId.id}] QE Pattern Store initialized (RuVector PostgreSQL: enabled)`);
+          return;
+        } catch (postgresError) {
+          console.warn(`[${this.agentId.id}] RuVector PostgreSQL unavailable, falling back to HNSW:`, (postgresError as Error).message);
+          // Fall through to HNSW fallback
+        }
+      }
+
+      // Fallback: Use local RuVectorPatternStore (HNSW-based)
+      const { RuVectorPatternStore } = require('../memory/RuVectorPatternStore');
+
+      // Configure pattern store with local HNSW
+      const storeConfig: any = {
+        dimension: 384,
+        metric: 'cosine',
+        storagePath: this.qePatternConfig.storagePath,
+        autoPersist: true,
+        enableMetrics: true,
+        hnsw: {
+          m: 32,
+          efConstruction: 200,
+          efSearch: 100,
+        },
+      };
+
+      this.qePatternStore = new RuVectorPatternStore(storeConfig);
+      await this.qePatternStore.initialize();
+      this.patternStoreInitialized = true;
+
+      console.log(`[${this.agentId.id}] QE Pattern Store initialized (HNSW fallback)`);
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Pattern Store initialization failed:`, (error as Error).message);
+      // Don't throw - agent can work without pattern store
+    }
+  }
+
+  /**
+   * Check if QE pattern store is available
+   */
+  public hasPatternStore(): boolean {
+    return this.patternStoreInitialized && this.qePatternStore !== undefined;
+  }
+
+  /**
+   * Store a QE learned pattern
+   * Automatically uses RuVector when available, falls back to HNSW
+   *
+   * @param pattern - The QE pattern to store
+   * @returns Success status
+   */
+  protected async storeQEPattern(pattern: {
+    id: string;
+    type: string;
+    domain: string;
+    content: string;
+    embedding: number[];
+    framework?: string;
+    coverage?: number;
+    metadata?: Record<string, any>;
+  }): Promise<{ success: boolean; synced?: boolean }> {
+    if (!this.hasPatternStore()) {
+      return { success: false };
+    }
+
+    try {
+      const testPattern = {
+        id: pattern.id,
+        type: pattern.type,
+        domain: pattern.domain,
+        content: pattern.content,
+        embedding: pattern.embedding,
+        framework: pattern.framework,
+        coverage: pattern.coverage,
+        createdAt: Date.now(),
+        lastUsed: Date.now(),
+        usageCount: 0,
+        metadata: {
+          agentId: this.agentId.id,
+          agentType: this.agentId.type,
+          ...pattern.metadata,
+        },
+      };
+
+      // Use auto-sync variant if enabled
+      if (this.qePatternConfig.autoSync && this.qePatternStore.storeWithSync) {
+        const result = await this.qePatternStore.storeWithSync(testPattern);
+        return { success: result.stored, synced: result.synced };
+      }
+
+      await this.qePatternStore.storePattern(testPattern);
+      return { success: true };
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Failed to store QE pattern:`, (error as Error).message);
+      return { success: false };
+    }
+  }
+
+  /**
+   * Search for similar QE patterns
+   * Uses RuVector's 150x faster search when available
+   *
+   * @param embedding - Query embedding vector
+   * @param k - Number of results to return (default: 10)
+   * @param options - Additional search options
+   * @returns Array of similar patterns with scores
+   */
+  protected async searchQEPatterns(
+    embedding: number[],
+    k: number = 10,
+    options?: {
+      domain?: string;
+      type?: string;
+      framework?: string;
+      threshold?: number;
+      useMMR?: boolean;
+    }
+  ): Promise<Array<{
+    pattern: any;
+    score: number;
+  }>> {
+    if (!this.hasPatternStore()) {
+      return [];
+    }
+
+    try {
+      const results = await this.qePatternStore.searchSimilar(embedding, {
+        k,
+        domain: options?.domain,
+        type: options?.type,
+        framework: options?.framework,
+        threshold: options?.threshold ?? 0.7,
+        useMMR: options?.useMMR ?? false,
+      });
+
+      return results;
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Pattern search failed:`, (error as Error).message);
+      return [];
+    }
+  }
+
+  /**
+   * Get QE pattern store metrics
+   * Returns performance and usage statistics
+   */
+  public getQEPatternMetrics(): {
+    enabled: boolean;
+    patternCount: number;
+    implementation: 'ruvector' | 'fallback';
+    performance?: {
+      avgSearchTime: number;
+      p50SearchTime: number;
+      p99SearchTime: number;
+      estimatedQPS: number;
+    };
+    gnnLearning?: {
+      enabled: boolean;
+      cacheHitRate: number;
+      patternsLearned: number;
+    };
+  } | null {
+    if (!this.hasPatternStore()) {
+      return null;
+    }
+
+    try {
+      const stats = this.qePatternStore.getStats?.();
+      const perfMetrics = this.qePatternStore.getPerformanceMetrics?.();
+
+      const metrics: any = {
+        enabled: true,
+        patternCount: stats?.count ?? 0,
+        implementation: stats?.implementation ?? 'fallback',
+      };
+
+      if (perfMetrics) {
+        metrics.performance = {
+          avgSearchTime: perfMetrics.avgSearchTime,
+          p50SearchTime: perfMetrics.p50SearchTime,
+          p99SearchTime: perfMetrics.p99SearchTime,
+          estimatedQPS: perfMetrics.estimatedQPS,
+        };
+      }
+
+      // GNN learning metrics if available
+      if (this.qePatternStore.isGNNEnabled?.()) {
+        const gnnMetrics = this.qePatternStore.getGNNMetrics?.();
+        if (gnnMetrics) {
+          metrics.gnnLearning = {
+            enabled: gnnMetrics.enabled,
+            cacheHitRate: gnnMetrics.cacheHitRate,
+            patternsLearned: gnnMetrics.patternsLearned,
+          };
+        }
+      }
+
+      return metrics;
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Failed to get pattern metrics:`, (error as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * Sync local patterns to remote RuVector service
+   * Only applicable when RuVector Docker is enabled
+   */
+  protected async syncPatternsToRemote(options?: { force?: boolean }): Promise<{
+    synced: number;
+    failed: number;
+    duration: number;
+  }> {
+    if (!this.hasPatternStore() || !this.qePatternStore.syncToRemote) {
+      return { synced: 0, failed: 0, duration: 0 };
+    }
+
+    try {
+      const result = await this.qePatternStore.syncToRemote(options);
+      console.log(`[${this.agentId.id}] Synced ${result.synced} patterns to remote (${result.duration}ms)`);
+      return result;
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Pattern sync failed:`, (error as Error).message);
+      return { synced: 0, failed: 0, duration: 0 };
+    }
+  }
+
+  /**
+   * Force GNN learning consolidation on remote service
+   * Triggers LoRA parameter updates with EWC protection
+   */
+  protected async forcePatternLearning(): Promise<{
+    success: boolean;
+    patternsConsolidated: number;
+    duration: number;
+  }> {
+    if (!this.hasPatternStore() || !this.qePatternStore.forceGNNLearn) {
+      return { success: false, patternsConsolidated: 0, duration: 0 };
+    }
+
+    try {
+      const result = await this.qePatternStore.forceGNNLearn({
+        domain: this.agentId.type,
+      });
+      return {
+        success: result.success,
+        patternsConsolidated: result.patternsConsolidated,
+        duration: result.duration,
+      };
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Force learning failed:`, (error as Error).message);
+      return { success: false, patternsConsolidated: 0, duration: 0 };
+    }
+  }
+
+  /**
+   * Cleanup pattern store resources on agent termination
+   */
+  private async cleanupPatternStore(): Promise<void> {
+    if (!this.patternStoreInitialized || !this.qePatternStore) {
+      return;
+    }
+
+    try {
+      // Sync pending patterns before shutdown
+      if (this.qePatternConfig.autoSync && this.qePatternStore.syncToRemote) {
+        await this.qePatternStore.syncToRemote({ force: true });
+      }
+
+      // Shutdown and release resources
+      if (this.qePatternStore.shutdown) {
+        await this.qePatternStore.shutdown();
+      }
+
+      console.log(`[${this.agentId.id}] Pattern Store cleanup complete`);
+    } catch (error) {
+      console.warn(`[${this.agentId.id}] Pattern Store cleanup error:`, (error as Error).message);
+    }
+
+    this.patternStoreInitialized = false;
+    this.qePatternStore = undefined;
   }
 
   /**

@@ -49,9 +49,7 @@
   },
   "postCreateCommand": "bash .devcontainer/setup-memory.sh && bash .devcontainer/install-tools.sh",
   "shutdownAction": "none",
-  "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-  ],
+  "mounts": [],
   "capAdd": [
     "SYS_ADMIN",
     "SYS_PTRACE"

@@ -35,6 +35,7 @@ import * as skillsCommands from './commands/skills/index.js';
 import { InitCommand } from './commands/init';
 import { createQuantizationCommand } from './commands/quantization';
 import { createConstitutionCommand } from './commands/constitution';
+import { createRuVectorCommand } from './commands/ruvector';
 import * as telemetryCommands from './commands/telemetry';
 import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
 import * as fs from 'fs-extra';
@@ -1363,6 +1364,11 @@ program.addCommand(createQuantizationCommand());
  * Constitution commands
  */
 program.addCommand(createConstitutionCommand());
+
+/**
+ * RuVector Self-Learning commands (Phase 0.5)
+ */
+program.addCommand(createRuVectorCommand());
 
 // Parse command line arguments
 program.parse();
