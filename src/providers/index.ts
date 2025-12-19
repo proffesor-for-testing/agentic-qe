@@ -67,6 +67,17 @@ export type {
   HealthCheckResponse as RuVectorHealthCheckResponse
 } from './RuVectorClient';
 
+// RuVector PostgreSQL adapter for Docker-based self-learning (Phase 0.5)
+export {
+  RuVectorPostgresAdapter,
+  createRuVectorPostgresAdapter,
+  createDockerRuVectorAdapter,
+  RUVECTOR_POSTGRES_ADAPTER_VERSION
+} from './RuVectorPostgresAdapter';
+export type {
+  RuVectorPostgresConfig
+} from './RuVectorPostgresAdapter';
+
 // RuvLLM Pattern Curator integration (Phase 0 M0.6)
 export {
   RuvllmPatternCurator,

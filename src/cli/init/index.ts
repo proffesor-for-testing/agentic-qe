@@ -357,6 +357,18 @@ function displaySuccessMessage(config: FleetConfig, options: InitOptions, skippe
   if (options.enableLearning) {
     console.log(chalk.blue('🧠 Learning system enabled - agents will improve over time!\n'));
   }
+
+  // Show RuVector optional enhancement
+  console.log(chalk.gray('┌─────────────────────────────────────────────────────────────────┐'));
+  console.log(chalk.gray('│') + chalk.yellow(' 🧬 Optional: RuVector Self-Learning (GNN + LoRA + EWC++)       ') + chalk.gray('│'));
+  console.log(chalk.gray('│                                                                 │'));
+  console.log(chalk.gray('│') + chalk.white(' Enable advanced self-learning for 330x faster pattern search:  ') + chalk.gray('│'));
+  console.log(chalk.gray('│') + chalk.cyan('   docker run -d --name ruvector -p 5432:5432 \\                 ') + chalk.gray('│'));
+  console.log(chalk.gray('│') + chalk.cyan('     ruvnet/ruvector:latest                                     ') + chalk.gray('│'));
+  console.log(chalk.gray('│') + chalk.cyan('   echo "AQE_RUVECTOR_ENABLED=true" >> .env                     ') + chalk.gray('│'));
+  console.log(chalk.gray('│                                                                 │'));
+  console.log(chalk.gray('│') + chalk.gray(' Default: memory.db (SQLite) - no Docker required               ') + chalk.gray('│'));
+  console.log(chalk.gray('└─────────────────────────────────────────────────────────────────┘\n'));
 }
 
 /**

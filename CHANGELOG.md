@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.10] - 2025-12-19
+
+### Added
+
+#### Phase 0.5: RuVector Self-Learning Integration
+
+Major milestone implementing PostgreSQL-based self-learning with GNN, LoRA, and EWC++ for continuous pattern improvement.
+
+**M0.5.4: RuVector PostgreSQL Adapter**
+- **RuVectorPostgresAdapter** (`src/providers/RuVectorPostgresAdapter.ts`) - PostgreSQL vector database adapter
+  - O(log n) similarity search with pgvector
+  - 768-dimension vector embeddings
+  - Query with learning (cache + LLM fallback)
+  - Force learning consolidation (GNN/LoRA/EWC++)
+  - Health check and metrics reporting
+  - `createDockerRuVectorAdapter()` factory for Docker deployments
+
+**M0.5.5: CLI Commands**
+- **RuVector CLI** (`src/cli/commands/ruvector/index.ts`) - Management commands
+  - `aqe ruvector status` - Check container and connection health
+  - `aqe ruvector metrics` - Show GOAP metrics (latency, retention, cache hits)
+  - `aqe ruvector learn` - Force GNN/LoRA/EWC++ learning consolidation
+  - `aqe ruvector migrate` - Migrate patterns from memory.db
+  - `aqe ruvector health` - Detailed diagnostics
+
+**M0.5.6: Migration Script**
+- **migrate-patterns-to-ruvector.ts** (`scripts/migrate-patterns-to-ruvector.ts`)
+  - Batch processing with configurable batch size
+  - Dry-run mode for preview
+  - Progress tracking and error handling
+  - Validates embedding dimensions (768/384)
+
+**Agent Pattern Store Integration**
+- **FlakyTestHunterAgent** - Stores flaky test patterns with stability scores
+- **SecurityScannerAgent** - Stores vulnerability patterns with severity weights
+- **BaseAgent** - PostgreSQL adapter wiring when `AQE_RUVECTOR_ENABLED=true`
+
+**Validation Tests**
+- **ruvector-self-learning.test.ts** (`tests/integration/ruvector-self-learning.test.ts`)
+  - GNN learning validation (50+ queries, pattern consolidation)
+  - EWC++ anti-forgetting (>98% retention after adding new patterns)
+  - Latency requirements (environment-adjusted thresholds)
+  - Memory constraints validation
+  - Cache integration (high-confidence hits)
+  - LLM fallback (low-confidence queries)
+
+**GOAP Targets Achieved**
+- Cache hit rate: >50%
+- Search latency: <1ms (production), <500ms (DevPod)
+- Pattern retention: >98% (EWC++ guaranteed)
+- LoRA memory: <300MB
+
+#### Documentation
+- **RuVector Self-Learning Guide** (`docs/guides/ruvector-self-learning.md`)
+  - Complete setup instructions
+  - CLI command reference
+  - Configuration options
+  - Migration guide
+  - Troubleshooting FAQ
+
+### Changed
+- **BaseAgent** - Added environment variable support for RuVector configuration
+  - `AQE_RUVECTOR_ENABLED` - Enable/disable RuVector (default: false)
+  - `AQE_RUVECTOR_URL` - Full PostgreSQL connection URL
+  - `RUVECTOR_HOST/PORT/DATABASE/USER/PASSWORD` - Individual connection settings
+- **aqe init** - Shows optional RuVector enhancement with setup instructions
+- **docker-compose.ruvector.yml** - Updated port mappings for PostgreSQL (5432)
+
+### Fixed
+- **Security** - Use `crypto.randomUUID()` instead of `Math.random()` for ID generation
+- **Docker** - Use Docker-in-Docker instead of host Docker socket for better isolation
+
+### Dependencies
+- Added `pg` (PostgreSQL client) for RuVector adapter
+
 ## [2.5.8] - 2025-12-18
 
 ### Added

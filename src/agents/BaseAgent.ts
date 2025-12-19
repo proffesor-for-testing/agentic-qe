@@ -219,14 +219,21 @@ export abstract class BaseAgent extends EventEmitter {
     this.llmConfig = config.llm ?? { enabled: true, preferredProvider: 'ruvllm' };
 
     // QE Pattern Store configuration (Phase 0.5 - RuVector Integration)
+    // Environment variables take precedence, then config, then defaults
+    // RuVector is OPT-IN to maintain backward compatibility with existing users
+    const envRuVectorEnabled = process.env.AQE_RUVECTOR_ENABLED?.toLowerCase() === 'true';
+    const envRuVectorUrl = process.env.AQE_RUVECTOR_URL || process.env.RUVECTOR_URL;
+    const envPatternStoreEnabled = process.env.AQE_PATTERN_STORE_ENABLED?.toLowerCase() !== 'false';
+
     this.qePatternConfig = {
-      enabled: config.patternStore?.enabled ?? true,
-      useRuVector: config.patternStore?.useRuVector ?? true,
+      enabled: config.patternStore?.enabled ?? envPatternStoreEnabled,
+      // RuVector defaults to FALSE - opt-in for advanced self-learning
+      useRuVector: config.patternStore?.useRuVector ?? envRuVectorEnabled,
       useHNSW: config.patternStore?.useHNSW ?? true,
-      dualWrite: config.patternStore?.dualWrite ?? false,
-      ruvectorUrl: config.patternStore?.ruvectorUrl ?? 'http://localhost:8080',
-      storagePath: config.patternStore?.storagePath ?? './data/qe-patterns.ruvector',
-      autoSync: config.patternStore?.autoSync ?? false,
+      dualWrite: config.patternStore?.dualWrite ?? (process.env.AQE_PATTERN_DUAL_WRITE === 'true'),
+      ruvectorUrl: config.patternStore?.ruvectorUrl ?? envRuVectorUrl ?? 'postgresql://ruvector:ruvector@localhost:5432/ruvector_db',
+      storagePath: config.patternStore?.storagePath ?? process.env.AQE_PATTERN_STORE_PATH ?? './data/qe-patterns.ruvector',
+      autoSync: config.patternStore?.autoSync ?? (process.env.AQE_PATTERN_AUTO_SYNC === 'true'),
     };
 
     // Early validation (Issue #137)
@@ -1243,9 +1250,55 @@ export abstract class BaseAgent extends EventEmitter {
     }
 
     try {
-      const { RuVectorPatternStore } = require('../core/memory/RuVectorPatternStore');
+      // Phase 0.5: Use PostgreSQL adapter when RuVector is enabled
+      if (this.qePatternConfig.useRuVector) {
+        try {
+          const { createDockerRuVectorAdapter } = require('../providers/RuVectorPostgresAdapter');
 
-      // Configure pattern store with RuVector + GNN learning
+          // Parse PostgreSQL connection URL or use defaults
+          const url = this.qePatternConfig.ruvectorUrl || '';
+          const isPostgres = url.startsWith('postgresql://') || url.startsWith('postgres://');
+
+          if (isPostgres) {
+            // Parse connection URL
+            const parsed = new URL(url);
+            this.qePatternStore = createDockerRuVectorAdapter({
+              host: parsed.hostname,
+              port: parseInt(parsed.port) || 5432,
+              database: parsed.pathname.slice(1) || 'ruvector_db',
+              user: parsed.username || 'ruvector',
+              password: parsed.password || 'ruvector',
+              learningEnabled: true,
+              cacheThreshold: 0.85,
+            });
+          } else {
+            // Use default Docker configuration
+            this.qePatternStore = createDockerRuVectorAdapter({
+              host: process.env.RUVECTOR_HOST || 'localhost',
+              port: parseInt(process.env.RUVECTOR_PORT || '5432'),
+              database: process.env.RUVECTOR_DATABASE || 'ruvector_db',
+              user: process.env.RUVECTOR_USER || 'ruvector',
+              password: process.env.RUVECTOR_PASSWORD || 'ruvector',
+              learningEnabled: true,
+              cacheThreshold: 0.85,
+            });
+          }
+
+          await this.qePatternStore.initialize();
+          this.patternStoreInitialized = true;
+
+          console.log(`[${this.agentId.id}] QE Pattern Store initialized (RuVector PostgreSQL: enabled)`);
+          return;
+        } catch (postgresError) {
+          console.warn(`[${this.agentId.id}] RuVector PostgreSQL unavailable, falling back to HNSW:`, (postgresError as Error).message);
+          // Fall through to HNSW fallback
+        }
+      }
+
+      // Fallback: Use local RuVectorPatternStore (HNSW-based)
+      const { RuVectorPatternStore } = require('../memory/RuVectorPatternStore');
+
+      // Configure pattern store with local HNSW
       const storeConfig: any = {
         dimension: 384,
         metric: 'cosine',
@@ -1259,24 +1312,11 @@ export abstract class BaseAgent extends EventEmitter {
         },
       };
 
-      // Enable GNN learning if RuVector Docker is configured
-      if (this.qePatternConfig.useRuVector) {
-        storeConfig.gnnLearning = {
-          enabled: true,
-          baseUrl: this.qePatternConfig.ruvectorUrl,
-          cacheThreshold: 0.85,
-          loraRank: 8,
-          ewcEnabled: true,
-          autoSync: this.qePatternConfig.autoSync,
-          syncBatchSize: 100,
-        };
-      }
-
       this.qePatternStore = new RuVectorPatternStore(storeConfig);
       await this.qePatternStore.initialize();
       this.patternStoreInitialized = true;
 
-      console.log(`[${this.agentId.id}] QE Pattern Store initialized (RuVector: ${this.qePatternConfig.useRuVector})`);
+      console.log(`[${this.agentId.id}] QE Pattern Store initialized (HNSW fallback)`);
     } catch (error) {
       console.warn(`[${this.agentId.id}] Pattern Store initialization failed:`, (error as Error).message);
       // Don't throw - agent can work without pattern store
