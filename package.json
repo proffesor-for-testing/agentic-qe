@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe",
   "version": "2.5.10",
-  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 46 QE skills, n8n workflow testing agents, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 85 MCP tools with lazy loading (87% context reduction), and native TypeScript hooks",
+  "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 46 QE skills, n8n workflow testing agents, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 91 MCP tools with lazy loading (87% context reduction), and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
   "bin": {
