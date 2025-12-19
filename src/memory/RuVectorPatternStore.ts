@@ -145,10 +145,7 @@ export class RuVectorPatternStore implements IPatternStore {
 
     // Initialize legacy store if needed
     if (this.isDualMode() && legacyDbPath) {
-      this.legacyStore = new SwarmMemoryManager({
-        dbPath: legacyDbPath,
-        swarmId: 'pattern-migration',
-      });
+      this.legacyStore = new SwarmMemoryManager(legacyDbPath);
     } else {
       this.legacyStore = null;
     }

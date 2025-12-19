@@ -26,6 +26,8 @@ import { QEReasoningBank, TestPattern } from '../reasoning/QEReasoningBank';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { Logger } from '../utils/Logger';
 import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
+// RuVector Integration (Phase 0.5 M0.5.3-M0.5.5)
+import { RuVectorPatternStore, RuVectorConfig } from '../core/memory/RuVectorPatternStore';
 
 // ============================================================================
 // Enhanced Configuration with Learning Support
@@ -38,6 +40,14 @@ export interface CoverageAnalyzerConfig {
   enablePatterns?: boolean;       // Default: true
   targetImprovement?: number;     // Default: 0.20 (20%)
   improvementPeriodDays?: number; // Default: 30
+  // RuVector Integration (Phase 0.5)
+  ruVector?: {
+    enabled?: boolean;           // Default: true
+    baseUrl?: string;            // Default: http://localhost:8080
+    storagePath?: string;        // Default: ./data/coverage-patterns.db
+    dimension?: number;          // Default: 384
+    cacheThreshold?: number;     // Default: 0.85
+  };
 }
 
 // ============================================================================
@@ -104,10 +114,11 @@ export interface CoverageOptimizationResult {
 // ============================================================================
 
 export class CoverageAnalyzerAgent extends EventEmitter {
-  private id: AgentId;
+  private readonly id: AgentId;
   private status: AgentStatus = AgentStatus.INITIALIZING;
-  private memoryStore?: MemoryStore;
-  private logger: Logger;
+  private readonly memoryStore?: MemoryStore;
+  private readonly logger: Logger;
+  private readonly config: CoverageAnalyzerConfig;
 
   // Core optimization engines
   private sublinearCore: SublinearOptimizer;
@@ -124,6 +135,10 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   // Cached patterns for confidence boosting
   private cachedPatterns: Array<{ pattern: string; confidence: number; successRate: number }> = [];
 
+  // RuVector Pattern Store (Phase 0.5)
+  private ruVectorStore?: RuVectorPatternStore;
+  private ruVectorEnabled: boolean = false;
+
   // Coverage-specific configuration
   private coverageConfig: {
     enablePatterns: boolean;
@@ -135,9 +150,14 @@ export class CoverageAnalyzerAgent extends EventEmitter {
   private coverageLogger: Logger;
 
   constructor(config: CoverageAnalyzerConfig) {
-    super(config);
+    super();
 
-    this.coverageLogger = Logger.getInstance();
+    // Initialize required properties
+    this.config = config;
+    this.id = config.id;
+    this.memoryStore = config.memoryStore;
+    this.logger = Logger.getInstance();
+    this.coverageLogger = this.logger;
 
     this.coverageConfig = {
       enablePatterns: config.enablePatterns !== false,
@@ -204,6 +224,9 @@ export class CoverageAnalyzerAgent extends EventEmitter {
       if (this.improvementLoop) {
         await this.improvementLoop.initialize();
       }
+
+      // Initialize RuVector Pattern Store (Phase 0.5 - 150x faster)
+      await this.initializeRuVectorStore();
 
       // Load historical coverage patterns
       await this.loadCoveragePatterns();
@@ -985,6 +1008,157 @@ export class CoverageAnalyzerAgent extends EventEmitter {
         estimatedDuration: selectedTests.reduce((total, test) => total + (test as any).estimatedDuration || 1000, 0)
       }
     };
+  }
+
+  // ============================================================================
+  // RuVector Pattern Store Integration (Phase 0.5 M0.5.3-M0.5.5)
+  // ============================================================================
+
+  /**
+   * Initialize RuVector Pattern Store for pattern matching
+   * Falls back gracefully if RuVector Docker is not available
+   */
+  private async initializeRuVectorStore(): Promise<void> {
+    try {
+      const ruVectorConfig: RuVectorConfig = {
+        dimension: 384,
+        metric: 'cosine',
+        storagePath: './data/coverage-patterns.db',
+        autoPersist: true,
+        enableMetrics: true,
+        hnsw: {
+          m: 32,
+          efConstruction: 200,
+          efSearch: 100,
+        },
+        gnnLearning: {
+          enabled: true,
+          baseUrl: 'http://localhost:8080',
+          cacheThreshold: 0.85,
+          loraRank: 8,
+          ewcEnabled: true,
+        }
+      };
+
+      this.ruVectorStore = new RuVectorPatternStore(ruVectorConfig);
+      await this.ruVectorStore.initialize();
+      this.ruVectorEnabled = true;
+
+      const info = this.ruVectorStore.getImplementationInfo();
+      this.coverageLogger?.info(`[CoverageAnalyzer] RuVector Pattern Store initialized (${info.type} v${info.version})`);
+    } catch (error) {
+      this.coverageLogger?.warn(`[CoverageAnalyzer] RuVector initialization failed, using fallback: ${(error as Error).message}`);
+      this.ruVectorEnabled = false;
+    }
+  }
+
+  /**
+   * Store a coverage pattern in RuVector for future learning
+   */
+  public async storeCoveragePattern(pattern: {
+    id: string;
+    type: string;
+    content: string;
+    embedding: number[];
+    coverage: number;
+    framework?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ success: boolean; synced?: boolean }> {
+    if (!this.ruVectorEnabled || !this.ruVectorStore) {
+      return { success: false };
+    }
+
+    try {
+      const testPattern = {
+        id: pattern.id,
+        type: pattern.type as 'test-generation' | 'coverage-analysis' | 'flaky-detection' | 'code-review',
+        domain: 'coverage-analysis',
+        content: pattern.content,
+        embedding: pattern.embedding,
+        framework: pattern.framework,
+        coverage: pattern.coverage,
+        createdAt: Date.now(),
+        lastUsed: Date.now(),
+        usageCount: 0,
+        metadata: {
+          agentId: typeof this.id === 'string' ? this.id : this.id.id,
+          ...pattern.metadata,
+        },
+      };
+
+      await this.ruVectorStore.storePattern(testPattern);
+      return { success: true };
+    } catch (error) {
+      this.coverageLogger?.warn(`[CoverageAnalyzer] Failed to store pattern: ${(error as Error).message}`);
+      return { success: false };
+    }
+  }
+
+  /**
+   * Search for similar coverage patterns using RuVector's HNSW index
+   * Returns patterns ranked by similarity
+   */
+  public async searchCoveragePatterns(
+    embedding: number[],
+    k: number = 10,
+    options?: {
+      type?: string;
+      framework?: string;
+      threshold?: number;
+    }
+  ): Promise<Array<{ pattern: any; score: number }>> {
+    if (!this.ruVectorEnabled || !this.ruVectorStore) {
+      return [];
+    }
+
+    try {
+      const results = await this.ruVectorStore.searchSimilar(embedding, {
+        k,
+        type: options?.type as any,
+        framework: options?.framework,
+        threshold: options?.threshold ?? 0.7,
+      });
+
+      return results;
+    } catch (error) {
+      this.coverageLogger?.warn(`[CoverageAnalyzer] Pattern search failed: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Check if RuVector pattern store is available
+   */
+  public hasRuVectorCache(): boolean {
+    return this.ruVectorEnabled && this.ruVectorStore !== undefined;
+  }
+
+  /**
+   * Get RuVector store statistics for monitoring
+   */
+  public async getRuVectorStats(): Promise<{
+    enabled: boolean;
+    patternCount: number;
+    searchLatencyP50?: number;
+    implementationType?: string;
+  }> {
+    if (!this.ruVectorEnabled || !this.ruVectorStore) {
+      return { enabled: false, patternCount: 0 };
+    }
+
+    try {
+      const stats = await this.ruVectorStore.getStats();
+      const info = this.ruVectorStore.getImplementationInfo();
+
+      return {
+        enabled: true,
+        patternCount: stats.count,
+        searchLatencyP50: undefined, // Metrics tracked separately
+        implementationType: info.type,
+      };
+    } catch {
+      return { enabled: true, patternCount: 0 };
+    }
   }
 
   // Placeholder implementations for complex methods

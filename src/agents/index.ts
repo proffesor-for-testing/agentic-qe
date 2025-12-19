@@ -122,10 +122,12 @@ export class QEAgentFactory {
         return new TestExecutorAgent(executorConfig);
       }
       case QEAgentType.COVERAGE_ANALYZER:
-        return new CoverageAnalyzerAgent(
-          { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },
-          this.config.memoryStore as any
-        ) as any as BaseAgent;
+        return new CoverageAnalyzerAgent({
+          id: { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },
+          memoryStore: this.config.memoryStore as any,
+          enableLearning: true,
+          enablePatterns: true,
+        }) as any as BaseAgent;
       case QEAgentType.QUALITY_GATE:
         return new QualityGateAgent(
           { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },

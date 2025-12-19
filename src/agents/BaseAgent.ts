@@ -50,6 +50,7 @@ import type {
 } from '../providers/ILLMProvider';
 import { RuvllmProvider, RuvllmProviderConfig } from '../providers/RuvllmProvider';
 import { LLMProviderFactory, LLMProviderFactoryConfig, ProviderType } from '../providers/LLMProviderFactory';
+import { HybridRouter, TaskComplexity } from '../providers/HybridRouter';
 
 // Strategy interfaces
 import type {
@@ -177,6 +178,9 @@ export abstract class BaseAgent extends EventEmitter {
   protected llmFactory?: LLMProviderFactory;
   protected readonly llmConfig: AgentLLMConfig;
   private llmSessionId?: string;
+
+  // HybridRouter (Phase 0.5 - RuVector Cache Integration)
+  protected hybridRouter?: HybridRouter;
 
   // Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
   protected federatedManager?: FederatedManager;
