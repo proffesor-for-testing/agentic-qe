@@ -26,7 +26,9 @@ import {
   AgentStatus,
   TaskSpec,
   QualityMetrics,
-  QETestResult
+  QETestResult,
+  TaskAssignment,
+  QETask
 } from '@types';
 import * as path from 'path';
 import * as fs from 'fs-extra';
@@ -49,9 +51,14 @@ describe('Journey: Quality Gate', () => {
     memory = new SwarmMemoryManager(tempDbPath);
     await memory.initialize();
 
-    // Create Quality Gate Agent with real memory store
+    // Create Quality Gate Agent with real memory store using BaseAgentConfig pattern
     agentId = { id: 'quality-gate-journey', type: 'quality-gate' };
-    qualityGateAgent = new QualityGateAgent(agentId, memory);
+    qualityGateAgent = new QualityGateAgent({
+      id: 'quality-gate-journey',
+      type: 'quality-gate',
+      memoryStore: memory,
+      enableLearning: true
+    });
     await qualityGateAgent.initialize();
   });
 
@@ -64,6 +71,15 @@ describe('Journey: Quality Gate', () => {
 
   afterAll(async () => {
     await fs.remove(tempDir);
+  });
+
+  // Helper to create TaskAssignment from task object (BaseAgent migration)
+  const createTaskAssignment = (task: any): TaskAssignment => ({
+    id: task.id || `assignment-${Date.now()}`,
+    task: task as QETask,
+    agentId: 'quality-gate-journey',
+    assignedAt: new Date(),
+    status: 'pending'
   });
 
   describe('GO/NO-GO decisions', () => {
@@ -136,7 +152,7 @@ describe('Journey: Quality Gate', () => {
       };
 
       // WHEN: Quality gate evaluates the metrics
-      const decision = await qualityGateAgent.executeTask(task);
+      const decision = await qualityGateAgent.executeTask(createTaskAssignment(task));
 
       // THEN: Decision should evaluate all metric categories
       expect(decision).toBeDefined();
@@ -208,7 +224,7 @@ describe('Journey: Quality Gate', () => {
       };
 
       // WHEN: Policy rules are applied
-      const decision = await qualityGateAgent.executeTask(task);
+      const decision = await qualityGateAgent.executeTask(createTaskAssignment(task));
 
       // THEN: Decision should PASS because metrics meet minimum requirements
       expect(decision.decision).toBe('PASS');
@@ -275,7 +291,7 @@ describe('Journey: Quality Gate', () => {
       };
 
       // WHEN: Quality gate evaluates failing metrics
-      const decision = await qualityGateAgent.executeTask(task);
+      const decision = await qualityGateAgent.executeTask(createTaskAssignment(task));
 
       // THEN: Decision should NOT PASS (either FAIL or ESCALATE due to risk factors)
       expect(['FAIL', 'ESCALATE']).toContain(decision.decision);
@@ -359,7 +375,7 @@ describe('Journey: Quality Gate', () => {
       };
 
       // WHEN: Quality gate evaluates for production deployment
-      const decision = await qualityGateAgent.executeTask(task);
+      const decision = await qualityGateAgent.executeTask(createTaskAssignment(task));
 
       // THEN: Deployment should be BLOCKED (FAIL or ESCALATE decision)
       expect(['FAIL', 'ESCALATE']).toContain(decision.decision);
@@ -414,7 +430,7 @@ describe('Journey: Quality Gate', () => {
         priority: 1
       };
 
-      decisions.push(await qualityGateAgent.executeTask(passTask));
+      decisions.push(await qualityGateAgent.executeTask(createTaskAssignment(passTask)));
 
       // Decision 2: FAIL
       const failRequest: QualityGateRequest = {
@@ -439,7 +455,7 @@ describe('Journey: Quality Gate', () => {
         priority: 1
       };
 
-      decisions.push(await qualityGateAgent.executeTask(failTask));
+      decisions.push(await qualityGateAgent.executeTask(createTaskAssignment(failTask)));
 
       // WHEN: Retrieving audit trail from database
       const storedDecisions = await memory.query('decision-%', { partition: 'decisions' });
@@ -548,7 +564,7 @@ describe('Journey: Quality Gate', () => {
       };
 
       // WHEN: Complete quality gate evaluation executes
-      const decision = await qualityGateAgent.executeTask(task);
+      const decision = await qualityGateAgent.executeTask(createTaskAssignment(task));
 
       // THEN: Complete decision should be generated
       expect(decision).toBeDefined();

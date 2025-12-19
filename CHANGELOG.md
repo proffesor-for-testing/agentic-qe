@@ -82,6 +82,53 @@ Major milestone implementing PostgreSQL-based self-learning with GNN, LoRA, and 
 ### Dependencies
 - Added `pg` (PostgreSQL client) for RuVector adapter
 
+## [2.5.9] - 2025-12-18
+
+### Changed
+
+#### Phase 0.5: Universal RuVector Integration
+
+Complete migration of all QE agents to BaseAgent inheritance pattern, enabling RuVector GNN self-learning capabilities across the entire fleet.
+
+**Agent Architecture Migration**
+- **CoverageAnalyzerAgent** - Migrated from EventEmitter to extend BaseAgent
+  - Full RuVector integration with HybridRouter support
+  - Implements abstract methods: `initializeComponents()`, `performTask()`, `loadKnowledge()`, `cleanup()`
+  - New `getCoverageStatus()` method for agent-specific status
+  - Configuration via `CoverageAnalyzerConfig` extending `BaseAgentConfig`
+
+- **QualityGateAgent** - Migrated from EventEmitter to extend BaseAgent
+  - Full RuVector integration with HybridRouter support
+  - Implements abstract methods: `initializeComponents()`, `performTask()`, `loadKnowledge()`, `cleanup()`
+  - New `getQualityGateStatus()` method for agent-specific status
+  - Configuration via `QualityGateConfig` extending `BaseAgentConfig`
+
+**Agent Factory Updates**
+- Updated `QEAgentFactory` to use new single-config constructor pattern for:
+  - `CoverageAnalyzerAgent` with `CoverageAnalyzerConfig`
+  - `QualityGateAgent` with `QualityGateConfig`
+
+### Added
+
+**RuVector Methods Now Available on All Agents**
+All QE agents now inherit these methods from BaseAgent:
+- `hasRuVectorCache()` - Check if RuVector GNN cache is enabled
+- `getRuVectorMetrics()` - Get GNN/LoRA/cache performance metrics
+- `getCacheHitRate()` - Get cache hit rate (0-1)
+- `getRoutingStats()` - Get routing decisions and latency statistics
+- `forceRuVectorLearn()` - Trigger LoRA learning consolidation
+- `getCostSavingsReport()` - Get cost savings from caching
+- `getLLMStats()` - Get LLM provider status including RuVector
+
+**Verification**
+- Updated `verify-ruvector-integration.ts` - All 6 tests pass
+  - Method Inheritance: 7/7 RuVector methods
+  - Cross-Agent Inheritance: All agents have RuVector methods
+  - Configuration Acceptance: enableHybridRouter, ruvectorCache configs
+  - Method Return Types: Correct structures
+  - MCP Tool Exposure: 6 RuVector tools
+  - HybridRouter Export: All enums and classes
+
 ## [2.5.8] - 2025-12-18
 
 ### Added

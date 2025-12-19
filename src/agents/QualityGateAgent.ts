@@ -6,20 +6,19 @@
  * - LearningEngine for Q-learning and pattern discovery
  * - ExperienceCapture for Nightly-Learner integration
  * - Pattern caching for confidence boosting
+ *
+ * Phase 0.5 (v2.5.9) - Migrated to BaseAgent for RuVector integration
  */
 
-import { EventEmitter } from 'events';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentId,
   AgentStatus,
-  TaskSpec,
   QualityMetrics,
   QETestResult,
-  MemoryStore
+  QETask
 } from '../types';
-import { LearningEngine } from '../learning/LearningEngine';
-import { PerformanceTracker } from '../learning/PerformanceTracker';
+import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { Logger } from '../utils/Logger';
@@ -80,19 +79,23 @@ export interface RiskFactor {
   mitigation: string[];
 }
 
-export class QualityGateAgent extends EventEmitter {
-  private id: AgentId;
-  private status: AgentStatus = AgentStatus.INITIALIZING;
-  private memoryStore?: MemoryStore;
+// ============================================================================
+// Configuration - Extends BaseAgentConfig for RuVector integration
+// ============================================================================
+
+export interface QualityGateConfig extends BaseAgentConfig {
+  customCriteria?: QualityCriterion[];
+  defaultThreshold?: number;  // Default: 0.8
+}
+
+export class QualityGateAgent extends BaseAgent {
   private decisionEngine: DecisionEngine;
   private consciousnessEngine: ConsciousnessEngine;
   private psychoSymbolicReasoner: PsychoSymbolicReasoner;
   private riskAnalyzer: RiskAnalyzer;
-  private logger: Logger;
+  private qualityGateLogger: Logger;
 
-  // Learning components
-  private learningEngine?: LearningEngine;
-  private performanceTracker?: PerformanceTracker;
+  // ExperienceCapture for Nightly-Learner integration
   private experienceCapture?: ExperienceCapture;
 
   // Cached patterns for confidence boosting
@@ -108,124 +111,98 @@ export class QualityGateAgent extends EventEmitter {
     { name: 'code_quality_score', threshold: 0.80, weight: 0.10, type: 'minimum_threshold', critical: false }
   ];
 
-  constructor(id: AgentId, memoryStore?: MemoryStore) {
-    super();
-    this.id = id;
-    this.memoryStore = memoryStore;
-    this.logger = Logger.getInstance();
+  constructor(config: QualityGateConfig) {
+    super(config);
+    this.qualityGateLogger = Logger.getInstance();
     this.decisionEngine = new DecisionEngine();
     this.consciousnessEngine = new ConsciousnessEngine();
     this.psychoSymbolicReasoner = new PsychoSymbolicReasoner();
     this.riskAnalyzer = new RiskAnalyzer();
-
-    // Initialize learning components if memoryStore is SwarmMemoryManager
-    this.initializeLearning();
   }
 
   /**
-   * Initialize learning components if SwarmMemoryManager is available
+   * Get string representation of agent ID (handles AgentId object or string)
    */
-  private initializeLearning(): void {
-    if (this.memoryStore) {
-      const agentIdStr = typeof this.id === 'string' ? this.id : this.id.id;
-      const memoryManager = this.memoryStore as unknown as SwarmMemoryManager;
-
-      // Check if it's actually a SwarmMemoryManager
-      if (typeof memoryManager.storePattern === 'function') {
-        this.learningEngine = new LearningEngine(agentIdStr, memoryManager);
-        this.performanceTracker = new PerformanceTracker(agentIdStr, memoryManager);
-        this.logger.info(`[QualityGate] Learning components initialized`);
-      } else {
-        this.logger.warn(`[QualityGate] memoryStore is not SwarmMemoryManager, learning disabled`);
-      }
-    }
+  private getAgentIdStr(): string {
+    const agentId = super.getAgentId();
+    return typeof agentId === 'string' ? agentId : agentId.id;
   }
 
   // ============================================================================
-  // Agent Lifecycle
+  // BaseAgent Abstract Method Implementations
   // ============================================================================
 
-  async initialize(): Promise<void> {
-    try {
-      this.status = AgentStatus.INITIALIZING;
+  /**
+   * Initialize agent-specific components
+   * Called by BaseAgent.initialize()
+   */
+  protected async initializeComponents(): Promise<void> {
+    // Initialize decision engines
+    await this.decisionEngine.initialize();
+    await this.consciousnessEngine.initialize();
+    await this.psychoSymbolicReasoner.initialize();
+    await this.riskAnalyzer.initialize();
 
-      // Initialize decision engines
-      await this.decisionEngine.initialize();
-      await this.consciousnessEngine.initialize();
-      await this.psychoSymbolicReasoner.initialize();
-      await this.riskAnalyzer.initialize();
+    // Initialize ExperienceCapture for Nightly-Learner integration
+    this.experienceCapture = await ExperienceCapture.getSharedInstance();
+    this.qualityGateLogger.info('[QualityGate] ExperienceCapture initialized for Nightly-Learner');
 
-      // Initialize learning components
-      if (this.learningEngine) {
-        await this.learningEngine.initialize();
-      }
-      if (this.performanceTracker) {
-        await this.performanceTracker.initialize();
-      }
+    // Load historical decision patterns
+    await this.loadDecisionPatterns();
 
-      // Initialize ExperienceCapture for Nightly-Learner integration
-      this.experienceCapture = await ExperienceCapture.getSharedInstance();
-      this.logger.info('[QualityGate] ExperienceCapture initialized for Nightly-Learner');
+    // Load and cache patterns for confidence boosting
+    await this.loadAndCachePatternsForConfidence();
 
-      // Load historical decision patterns
-      await this.loadDecisionPatterns();
-
-      // Load and cache patterns for confidence boosting
-      await this.loadAndCachePatternsForConfidence();
-
-      // Store initialization state
-      if (this.memoryStore) {
-        await this.memoryStore.set('quality-gate-initialized', true, 'agents');
-      }
-
-      this.status = AgentStatus.IDLE;
-      this.emit('agent.initialized', { agentId: this.id });
-
-      this.logger.info(`[QualityGate] Initialized with learning: ${!!this.learningEngine}, patterns cached: ${this.cachedPatterns.length}`);
-
-    } catch (error) {
-      this.status = AgentStatus.ERROR;
-      this.emit('agent.error', { agentId: this.id, error });
-      throw error;
+    // Store initialization state
+    const memoryStore = this.memoryStore;
+    if (memoryStore) {
+      await memoryStore.set('quality-gate-initialized', true, 'agents');
     }
+
+    this.qualityGateLogger.info(`[QualityGate] Initialized with learning: ${!!this.learningEngine}, patterns cached: ${this.cachedPatterns.length}`);
   }
 
-  async executeTask(task: TaskSpec): Promise<QualityGateDecision> {
+  /**
+   * Execute a QE task - implements BaseAgent abstract method
+   */
+  protected async performTask(task: QETask): Promise<QualityGateDecision> {
+    // Task payload contains the QualityGateRequest
     const request = task.payload as QualityGateRequest;
     return await this.evaluateQualityGate(request);
   }
 
-  async terminate(): Promise<void> {
-    try {
-      this.status = AgentStatus.STOPPING;
-
-      // Save learned decision patterns
-      await this.saveDecisionPatterns();
-
-      // Cleanup resources
-      await this.decisionEngine.cleanup();
-      await this.consciousnessEngine.cleanup();
-      await this.psychoSymbolicReasoner.cleanup();
-      await this.riskAnalyzer.cleanup();
-
-      this.status = AgentStatus.STOPPED;
-      this.emit('agent.terminated', { agentId: this.id });
-
-    } catch (error) {
-      this.status = AgentStatus.ERROR;
-      throw error;
-    }
+  /**
+   * Load knowledge/patterns - implements BaseAgent abstract method
+   */
+  protected async loadKnowledge(): Promise<void> {
+    await this.loadDecisionPatterns();
+    await this.loadAndCachePatternsForConfidence();
   }
 
-  getStatus(): {
-    agentId: AgentId;
-    status: AgentStatus;
+  /**
+   * Cleanup agent resources - implements BaseAgent abstract method
+   */
+  protected async cleanup(): Promise<void> {
+    // Save learned decision patterns
+    await this.saveDecisionPatterns();
+
+    // Cleanup resources
+    await this.decisionEngine.cleanup();
+    await this.consciousnessEngine.cleanup();
+    await this.psychoSymbolicReasoner.cleanup();
+    await this.riskAnalyzer.cleanup();
+  }
+
+  /**
+   * Get quality gate specific status
+   */
+  getQualityGateStatus(): {
+    agentId: string;
     capabilities: string[];
     performance: any;
   } {
     return {
-      agentId: this.id,
-      status: this.status,
+      agentId: this.getAgentIdStr(),
       capabilities: ['quality-evaluation', 'risk-analysis', 'decision-making'],
       performance: {
         decisionsEvaluated: this.decisionEngine.getDecisionCount(),
@@ -247,7 +224,6 @@ export class QualityGateAgent extends EventEmitter {
     const startTime = Date.now();
 
     try {
-      this.status = AgentStatus.ACTIVE;
 
       // Provide default context if missing
       const context = request.context || {
@@ -409,12 +385,9 @@ export class QualityGateAgent extends EventEmitter {
       // Capture experience for Nightly-Learner
       await this.captureExperienceForLearning(request, gateDecision, executionTime, true);
 
-      this.status = AgentStatus.IDLE;
-
       return gateDecision;
 
     } catch (error) {
-      this.status = AgentStatus.ERROR;
 
       // Capture failed experience
       await this.captureExperienceForLearning(
@@ -780,7 +753,7 @@ export class QualityGateAgent extends EventEmitter {
           confidence: p.confidence,
           successRate: p.successRate
         }));
-        this.logger.info(`[QualityGate] Cached ${this.cachedPatterns.length} patterns from LearningEngine`);
+        this.qualityGateLogger.info(`[QualityGate] Cached ${this.cachedPatterns.length} patterns from LearningEngine`);
       }
 
       // Also load from memoryStore if available
@@ -793,7 +766,7 @@ export class QualityGateAgent extends EventEmitter {
           );
 
           if (qualityPatterns.length > 0) {
-            this.logger.info(`[QualityGate] Found ${qualityPatterns.length} historical quality gate patterns in DB`);
+            this.qualityGateLogger.info(`[QualityGate] Found ${qualityPatterns.length} historical quality gate patterns in DB`);
 
             // Merge with existing patterns
             for (const p of qualityPatterns) {
@@ -815,9 +788,9 @@ export class QualityGateAgent extends EventEmitter {
         this.historicalDecisionAccuracy = totalSuccessRate / this.cachedPatterns.length;
       }
 
-      this.logger.info(`[QualityGate] Total cached patterns: ${this.cachedPatterns.length}, historical accuracy: ${(this.historicalDecisionAccuracy * 100).toFixed(1)}%`);
+      this.qualityGateLogger.info(`[QualityGate] Total cached patterns: ${this.cachedPatterns.length}, historical accuracy: ${(this.historicalDecisionAccuracy * 100).toFixed(1)}%`);
     } catch (error) {
-      this.logger.warn('[QualityGate] Failed to load patterns for confidence', error);
+      this.qualityGateLogger.warn('[QualityGate] Failed to load patterns for confidence', error);
     }
   }
 
@@ -848,7 +821,7 @@ export class QualityGateAgent extends EventEmitter {
 
     const boost = totalWeight > 0 ? (weightedConfidence / totalWeight) * 0.25 : 0; // Max 25% boost
 
-    this.logger.debug(`[QualityGate] Confidence boost from ${relevantPatterns.length} patterns: ${(boost * 100).toFixed(1)}%`);
+    this.qualityGateLogger.debug(`[QualityGate] Confidence boost from ${relevantPatterns.length} patterns: ${(boost * 100).toFixed(1)}%`);
 
     return boost;
   }
@@ -869,8 +842,8 @@ export class QualityGateAgent extends EventEmitter {
     }
 
     try {
-      const agentIdStr = typeof this.id === 'string' ? this.id : this.id.id;
-      const agentType = typeof this.id === 'object' && 'type' in this.id ? this.id.type : 'quality-gate';
+      const agentIdStr = this.getAgentIdStr();
+      const agentType = 'quality-gate';
 
       const event: AgentExecutionEvent = {
         agentId: agentIdStr,
@@ -909,11 +882,11 @@ export class QualityGateAgent extends EventEmitter {
 
       await this.experienceCapture.captureExecution(event);
 
-      this.logger.debug(`[QualityGate] Captured experience for Nightly-Learner: ${success ? 'success' : 'failure'}, decision: ${decision?.decision || 'N/A'}`);
+      this.qualityGateLogger.debug(`[QualityGate] Captured experience for Nightly-Learner: ${success ? 'success' : 'failure'}, decision: ${decision?.decision || 'N/A'}`);
       this.emit('experience:captured', { agentId: agentIdStr, success, duration });
     } catch (captureError) {
       // Don't fail the main operation if capture fails
-      this.logger.warn('[QualityGate] Failed to capture experience:', captureError);
+      this.qualityGateLogger.warn('[QualityGate] Failed to capture experience:', captureError);
     }
   }
 

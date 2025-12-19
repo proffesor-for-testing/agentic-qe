@@ -50,7 +50,14 @@ import type {
 } from '../providers/ILLMProvider';
 import { RuvllmProvider, RuvllmProviderConfig } from '../providers/RuvllmProvider';
 import { LLMProviderFactory, LLMProviderFactoryConfig, ProviderType } from '../providers/LLMProviderFactory';
-import { HybridRouter, TaskComplexity } from '../providers/HybridRouter';
+// HybridRouter with RuVector cache (Phase 0.5 - GNN Self-Learning)
+import {
+  HybridRouter,
+  HybridRouterConfig,
+  RuVectorCacheConfig,
+  RoutingStrategy,
+  TaskComplexity,
+} from '../providers/HybridRouter';
 
 // Strategy interfaces
 import type {
@@ -86,8 +93,8 @@ export { isSwarmMemoryManager, validateLearningConfig };
 export interface AgentLLMConfig {
   /** Enable LLM capabilities for this agent */
   enabled?: boolean;
-  /** Preferred provider type (auto, ruvllm, claude, openrouter) */
-  preferredProvider?: ProviderType;
+  /** Preferred provider type (auto, ruvllm, claude, openrouter, hybrid) */
+  preferredProvider?: ProviderType | 'hybrid';
   /** RuvLLM specific configuration */
   ruvllm?: Partial<RuvllmProviderConfig>;
   /** Full factory configuration for advanced setups */
@@ -107,6 +114,15 @@ export interface AgentLLMConfig {
   federatedManager?: FederatedManager;
   /** Federated learning configuration */
   federatedConfig?: Partial<FederatedConfig>;
+  /**
+   * Enable HybridRouter with RuVector cache (Phase 0.5)
+   * Provides GNN-enhanced pattern matching for 150x faster search
+   */
+  enableHybridRouter?: boolean;
+  /** RuVector cache configuration for GNN self-learning */
+  ruvectorCache?: Partial<RuVectorCacheConfig>;
+  /** HybridRouter configuration */
+  hybridRouterConfig?: Partial<HybridRouterConfig>;
 }
 
 /**
@@ -136,10 +152,10 @@ export interface QEPatternStoreConfig {
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
-  capabilities: AgentCapability[];
-  context: AgentContext;
+  capabilities?: AgentCapability[];  // Made optional with default []
+  context?: AgentContext;
   memoryStore: MemoryStore;
-  eventBus: EventEmitter;
+  eventBus?: EventEmitter;
   enableLearning?: boolean;
   learningConfig?: Partial<LearningConfig>;
   /** @deprecated v2.2.0 - Use memoryStore instead */
@@ -160,7 +176,7 @@ export interface BaseAgentConfig {
 export abstract class BaseAgent extends EventEmitter {
   protected readonly agentId: AgentId;
   protected readonly capabilities: Map<string, AgentCapability>;
-  protected readonly context: AgentContext;
+  protected readonly context?: AgentContext;
   protected readonly memoryStore: MemoryStore | SwarmMemoryManager;
   protected readonly eventBus: EventEmitter;
   protected currentTask?: TaskAssignment;
@@ -178,8 +194,7 @@ export abstract class BaseAgent extends EventEmitter {
   protected llmFactory?: LLMProviderFactory;
   protected readonly llmConfig: AgentLLMConfig;
   private llmSessionId?: string;
-
-  // HybridRouter (Phase 0.5 - RuVector Cache Integration)
+  // HybridRouter with RuVector cache (Phase 0.5 - GNN Self-Learning)
   protected hybridRouter?: HybridRouter;
 
   // Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
@@ -208,10 +223,10 @@ export abstract class BaseAgent extends EventEmitter {
   constructor(config: BaseAgentConfig) {
     super();
     this.agentId = { id: config.id || generateAgentId(config.type), type: config.type, created: new Date() };
-    this.capabilities = new Map(config.capabilities.map(cap => [cap.name, cap]));
+    this.capabilities = new Map((config.capabilities || []).map(cap => [cap.name, cap]));
     this.context = config.context;
     this.memoryStore = config.memoryStore;
-    this.eventBus = config.eventBus;
+    this.eventBus = config.eventBus || new EventEmitter();
     this.enableLearning = config.enableLearning ?? true;
     this.learningConfig = config.learningConfig;
 
@@ -656,7 +671,8 @@ export abstract class BaseAgent extends EventEmitter {
       const method = `on${hookName.charAt(0).toUpperCase()}${hookName.slice(1).replace(/-/g, '')}`;
       if (typeof (this as any)[method] === 'function') await (this as any)[method](data);
     } catch (error) {
-      console.error(`Hook ${hookName} failed:`, error);
+      // Use warn - hooks are optional and failures shouldn't break agent operation
+      console.warn(`Hook ${hookName} failed:`, error);
     }
   }
 
@@ -718,7 +734,7 @@ export abstract class BaseAgent extends EventEmitter {
 
   /**
    * Initialize LLM provider for agent use
-   * Supports RuvLLM (local), Claude, and OpenRouter providers
+   * Supports RuvLLM (local), Claude, OpenRouter, and HybridRouter with RuVector cache
    */
   private async initializeLLMProvider(): Promise<void> {
     if (!this.llmConfig.enabled) {
@@ -731,6 +747,40 @@ export abstract class BaseAgent extends EventEmitter {
       if (this.llmConfig.provider) {
         this.llmProvider = this.llmConfig.provider;
         console.log(`[${this.agentId.id}] Using injected LLM provider`);
+        return;
+      }
+
+      // Phase 0.5: Create HybridRouter with RuVector GNN cache for intelligent routing
+      if (this.llmConfig.enableHybridRouter || this.llmConfig.preferredProvider === 'hybrid') {
+        const hybridConfig: HybridRouterConfig = {
+          // RuVector cache configuration (GNN self-learning)
+          ruvector: {
+            enabled: true,
+            baseUrl: this.llmConfig.ruvectorCache?.baseUrl || 'http://localhost:8080',
+            cacheThreshold: this.llmConfig.ruvectorCache?.cacheThreshold ?? 0.85,
+            learningEnabled: this.llmConfig.ruvectorCache?.learningEnabled ?? true,
+            loraRank: this.llmConfig.ruvectorCache?.loraRank ?? 8,
+            ewcEnabled: this.llmConfig.ruvectorCache?.ewcEnabled ?? true,
+            ...this.llmConfig.ruvectorCache,
+          },
+          // Local LLM via ruvllm
+          ruvllm: {
+            name: `${this.agentId.id}-ruvllm`,
+            enableSessions: this.llmConfig.enableSessions ?? true,
+            enableTRM: true,
+            enableSONA: true,
+            ...this.llmConfig.ruvllm,
+          },
+          // Routing strategy
+          defaultStrategy: this.llmConfig.hybridRouterConfig?.defaultStrategy || RoutingStrategy.BALANCED,
+          ...this.llmConfig.hybridRouterConfig,
+        };
+
+        this.hybridRouter = new HybridRouter(hybridConfig);
+        await this.hybridRouter.initialize();
+        this.llmProvider = this.hybridRouter;
+
+        console.log(`[${this.agentId.id}] HybridRouter initialized with RuVector GNN cache`);
         return;
       }
 
@@ -763,7 +813,7 @@ export abstract class BaseAgent extends EventEmitter {
       // Use factory for other providers (Claude, OpenRouter)
       this.llmFactory = new LLMProviderFactory(this.llmConfig.factoryConfig || {});
       await this.llmFactory.initialize();
-      this.llmProvider = this.llmFactory.getProvider(this.llmConfig.preferredProvider);
+      this.llmProvider = this.llmFactory.getProvider(this.llmConfig.preferredProvider as ProviderType);
 
       if (!this.llmProvider) {
         console.warn(`[${this.agentId.id}] Preferred provider ${this.llmConfig.preferredProvider} not available, trying auto-select`);
@@ -776,7 +826,8 @@ export abstract class BaseAgent extends EventEmitter {
         console.warn(`[${this.agentId.id}] No LLM provider available`);
       }
     } catch (error) {
-      console.error(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
+      // Use warn instead of error - this is expected fallback behavior, not a failure
+      console.warn(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
       // Don't throw - agent can still work without LLM (algorithmic fallback)
     }
   }
@@ -813,7 +864,8 @@ export abstract class BaseAgent extends EventEmitter {
         // First agent or no prior knowledge - expected
       }
     } catch (error) {
-      console.error(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
+      // Use warn instead of error - this is expected fallback behavior
+      console.warn(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
       // Don't throw - agent can work without federated learning
     }
   }
