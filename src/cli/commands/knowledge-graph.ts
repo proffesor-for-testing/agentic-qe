@@ -15,6 +15,9 @@ import * as path from 'path';
 import { CodeIntelligenceOrchestrator } from '../../code-intelligence/orchestrator/CodeIntelligenceOrchestrator.js';
 import { ProcessExit } from '../../utils/ProcessExit.js';
 import { KGOutputFormatter } from '../formatters/KGOutputFormatter.js';
+import { MermaidGenerator } from '../../code-intelligence/visualization/MermaidGenerator.js';
+import { ClassDiagramBuilder } from '../../code-intelligence/visualization/ClassDiagramBuilder.js';
+import { DependencyGraphBuilder } from '../../code-intelligence/visualization/DependencyGraphBuilder.js';
 import type { IndexingProgress, QueryContext, QueryResult } from '../../code-intelligence/orchestrator/types.js';
 
 export interface KGIndexOptions {
@@ -387,73 +390,114 @@ export class KnowledgeGraphCommand {
       throw new Error('Orchestrator not initialized');
     }
 
-    // Get graph stats
-    const stats = this.orchestrator.getStats();
-    const fileName = path.basename(filePath);
+    const graphBuilder = this.orchestrator.getGraphBuilder();
+    const nodes = graphBuilder.findNodesInFile(filePath);
+
+    // Get all edges for these nodes
+    const edges = this.getEdgesForNodes(graphBuilder, nodes);
+
+    if (nodes.length === 0) {
+      const fileName = path.basename(filePath);
+      return format === 'mermaid'
+        ? `%% No graph data found for ${fileName}\n%% Run 'aqe kg index' first to index the codebase`
+        : `// No graph data found for ${fileName}\n// Run 'aqe kg index' first to index the codebase`;
+    }
 
     if (format === 'mermaid') {
       if (type === 'class') {
-        return this.generateMermaidClassDiagram(filePath, fileName);
+        return ClassDiagramBuilder.build(nodes, edges, { includeMethods: true });
       } else {
-        return this.generateMermaidDependencyDiagram(filePath, fileName);
+        return DependencyGraphBuilder.build(nodes, edges, { direction: 'TD' });
       }
     } else {
       // DOT format
       if (type === 'class') {
-        return this.generateDotClassDiagram(filePath, fileName);
+        return this.generateDotClassDiagram(nodes, edges);
       } else {
-        return this.generateDotDependencyDiagram(filePath, fileName);
+        return this.generateDotDependencyDiagram(nodes, edges);
       }
     }
   }
 
   /**
-   * Generate Mermaid class diagram
+   * Get all edges connecting the given nodes
    */
-  private generateMermaidClassDiagram(filePath: string, fileName: string): string {
-    // This would query the graph for class relationships
-    // For now, return a simple example
-    return `classDiagram
-    class ${fileName.replace(/\./g, '_')} {
-        +function1()
-        +function2()
+  private getEdgesForNodes(graphBuilder: any, nodes: any[]): any[] {
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const edges: any[] = [];
+    const seenEdges = new Set<string>();
+
+    for (const node of nodes) {
+      // Get outgoing edges
+      const outgoing = graphBuilder.getOutgoingEdges(node.id);
+      for (const edge of outgoing) {
+        if (!seenEdges.has(edge.id)) {
+          edges.push(edge);
+          seenEdges.add(edge.id);
+        }
+      }
+
+      // Get incoming edges from nodes in our set
+      const incoming = graphBuilder.getIncomingEdges(node.id);
+      for (const edge of incoming) {
+        if (nodeIds.has(edge.source) && !seenEdges.has(edge.id)) {
+          edges.push(edge);
+          seenEdges.add(edge.id);
+        }
+      }
     }
 
-    Note: Full implementation requires graph query API`;
+    return edges;
   }
 
   /**
-   * Generate Mermaid dependency diagram
+   * Generate DOT class diagram from real graph data
    */
-  private generateMermaidDependencyDiagram(filePath: string, fileName: string): string {
-    return `graph TD
-    ${fileName.replace(/\./g, '_')}[${fileName}]
+  private generateDotClassDiagram(nodes: any[], edges: any[]): string {
+    const lines: string[] = ['digraph G {', '  rankdir=BT;', '  node [shape=box];', ''];
 
-    Note: Full implementation requires graph query API`;
+    // Add nodes
+    for (const node of nodes) {
+      const label = node.metadata?.signature || node.label;
+      lines.push(`  "${node.id}" [label="${label}"];`);
+    }
+
+    lines.push('');
+
+    // Add edges
+    for (const edge of edges) {
+      const style = edge.type === 'extends' ? 'solid' : 'dashed';
+      lines.push(`  "${edge.source}" -> "${edge.target}" [style=${style}, label="${edge.type}"];`);
+    }
+
+    lines.push('}');
+    return lines.join('\n');
   }
 
   /**
-   * Generate DOT class diagram
+   * Generate DOT dependency diagram from real graph data
    */
-  private generateDotClassDiagram(filePath: string, fileName: string): string {
-    return `digraph G {
-  rankdir=BT;
-  "${fileName}" [shape=box];
+  private generateDotDependencyDiagram(nodes: any[], edges: any[]): string {
+    const lines: string[] = ['digraph G {', '  rankdir=LR;', '  node [shape=box];', ''];
 
-  // Note: Full implementation requires graph query API
-}`;
-  }
+    // Filter to file nodes and import edges
+    const fileNodes = nodes.filter(n => n.type === 'file');
+    const importEdges = edges.filter(e => e.type === 'imports');
 
-  /**
-   * Generate DOT dependency diagram
-   */
-  private generateDotDependencyDiagram(filePath: string, fileName: string): string {
-    return `digraph G {
-  rankdir=LR;
-  "${fileName}" [shape=box];
+    // Add nodes
+    for (const node of fileNodes) {
+      lines.push(`  "${node.id}" [label="${node.label}"];`);
+    }
 
-  // Note: Full implementation requires graph query API
-}`;
+    lines.push('');
+
+    // Add edges
+    for (const edge of importEdges) {
+      lines.push(`  "${edge.source}" -> "${edge.target}";`);
+    }
+
+    lines.push('}');
+    return lines.join('\n');
   }
 
   /**

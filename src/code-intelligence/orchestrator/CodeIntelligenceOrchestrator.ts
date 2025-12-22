@@ -461,6 +461,20 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
   }
 
   /**
+   * Get the graph builder (for visualization and context building).
+   */
+  getGraphBuilder(): GraphBuilder {
+    return this.graphBuilder;
+  }
+
+  /**
+   * Get the search engine (for context building).
+   */
+  getSearchEngine(): HybridSearchEngine {
+    return this.searchEngine;
+  }
+
+  /**
    * Shutdown the orchestrator.
    */
   async shutdown(): Promise<void> {

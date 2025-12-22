@@ -54,10 +54,11 @@ export class OllamaClient {
       const data: OllamaHealthResponse = await response.json();
 
       // Check if nomic-embed-text model is available
+      // Model names may include tags like ":latest", so use startsWith for matching
       if (data.models) {
         return data.models.some(
-          model => model.name === EMBEDDING_CONFIG.MODEL ||
-                   model.model === EMBEDDING_CONFIG.MODEL
+          model => model.name?.startsWith(EMBEDDING_CONFIG.MODEL) ||
+                   model.model?.startsWith(EMBEDDING_CONFIG.MODEL)
         );
       }
 
