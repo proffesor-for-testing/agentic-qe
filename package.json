@@ -181,6 +181,9 @@
     "graceful-fs": "^4.2.11",
     "stack-utils": "^2.0.6"
   },
+  "overrides": {
+    "tree-sitter": "^0.22.4"
+  },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
     "@faker-js/faker": "^10.0.0",
