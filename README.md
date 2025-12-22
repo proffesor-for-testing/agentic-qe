@@ -62,7 +62,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
 - ✅ ML Flaky Detection (90%+ accuracy with root cause analysis)
-- ✅ 19 Specialized QE agent definitions (including qe-code-complexity)
+- ✅ 21 Specialized QE agent definitions (including qe-code-intelligence for 80% token reduction)
 - ✅ 15 n8n workflow testing agents (workflow execution, chaos, compliance, security, performance by [@fndlalit](https://github.com/fndlalit))
 - ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
 - ✅ 46 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, n8n testing, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
@@ -80,6 +80,7 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 | **Flaky tests waste developer time debugging false failures** | ML-powered detection (90%+ accuracy) with root cause analysis and fix recommendations |
 | **AI testing tools are expensive** | Multi-model routing cuts costs by up to 70-81% by matching task complexity to model |
 | **No memory between test runs—every analysis starts from scratch** | Self-learning system remembers patterns, strategies, and what works for your codebase |
+| **Agents waste tokens reading irrelevant code** | Code Intelligence provides 80% token reduction with semantic search and knowledge graphs |
 | **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
 
 ---

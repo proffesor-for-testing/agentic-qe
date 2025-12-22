@@ -2,6 +2,8 @@
 
 The Code Intelligence System provides deep codebase understanding through Tree-sitter parsing, semantic embeddings, and knowledge graph relationships. It achieves **80% token reduction** when providing context to QE agents.
 
+> 📊 **Benchmark Results**: See [Token Reduction Benchmark](../benchmarks/code-intelligence-token-reduction.md) for detailed performance analysis showing 79.9% token reduction and 92% context relevance.
+
 ## Prerequisites
 
 ### 1. Ollama with nomic-embed-text
