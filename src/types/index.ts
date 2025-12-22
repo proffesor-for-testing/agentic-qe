@@ -134,7 +134,10 @@ export enum QEAgentType {
   QX_PARTNER = 'qx-partner',
 
   // Accessibility Testing Agent
-  ACCESSIBILITY_ALLY = 'accessibility-ally'
+  ACCESSIBILITY_ALLY = 'accessibility-ally',
+
+  // Code Intelligence Agent (Wave 6)
+  CODE_INTELLIGENCE = 'code-intelligence'
 }
 
 // Alias for backward compatibility

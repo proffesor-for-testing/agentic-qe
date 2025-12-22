@@ -66,7 +66,7 @@ monitor gh workflow triggered on release publish and verify npm published succes
 
 ## 🤖 Agentic QE Fleet Quick Reference
 
-**20 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection, QX analysis, accessibility
+**21 QE Agents:** Test generation, coverage analysis, performance, security, flaky detection, QX analysis, accessibility, code intelligence
 **15 n8n Workflow Agents:** Workflow execution, chaos testing, compliance, security, performance *(contributed by [@fndlalit](https://github.com/fndlalit))*
 **11 QE Subagents:** TDD specialists, code reviewers, integration testers
 **46 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, accessibility-testing, shift-left-testing, n8n-workflow-testing, **testability-scoring** *(contributed by [@fndlalit](https://github.com/fndlalit))*
@@ -74,7 +74,8 @@ monitor gh workflow triggered on release publish and verify npm published succes
 
 ### 📚 Complete Documentation
 
-- **[Agent Reference](docs/reference/agents.md)** - All 20 main QE agents + 15 n8n agents + 11 subagents with capabilities and usage
+- **[Agent Reference](docs/reference/agents.md)** - All 21 main QE agents + 15 n8n agents + 11 subagents with capabilities and usage
+- **[Code Intelligence Guide](docs/guides/code-intelligence-quickstart.md)** - Setup and usage for knowledge graph code understanding
 - **[Skills Reference](docs/reference/skills.md)** - All 46 QE skills organized by category
 - **[Usage Guide](docs/reference/usage.md)** - Complete usage examples and workflows
 

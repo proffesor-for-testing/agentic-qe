@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 20 QE agents, 15 n8n workflow testing agents, and 11 subagents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 21 QE agents, 15 n8n workflow testing agents, and 11 subagents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 
@@ -244,6 +244,49 @@ Task("Deployment check", "Assess deployment readiness", "qe-deployment-readiness
 **Memory Namespace:**
 - Stores: `aqe/deployment/readiness`
 - Reads: `aqe/quality/*`, `aqe/test-results/*`
+
+---
+
+## Code Understanding Agent (1 agent)
+
+### qe-code-intelligence
+**Knowledge graph-based code understanding with 80% token reduction**
+
+**Capabilities:**
+- Tree-sitter multi-language parsing (TypeScript, Python, Go, Rust, JavaScript)
+- Semantic embeddings via Ollama nomic-embed-text (768 dimensions)
+- RuVector PostgreSQL storage with vector similarity search
+- Hybrid search (BM25 + Vector with RRF fusion)
+- Knowledge graph with entity relationships (imports, extends, calls)
+- Context building for other agents with 80% token reduction
+- Mermaid diagram generation (class diagrams, dependency graphs)
+- Incremental indexing with git change detection
+
+**Usage:**
+```javascript
+// Index codebase
+Task("Index codebase", "Parse and index all TypeScript files in src/", "qe-code-intelligence")
+
+// Semantic search
+Task("Find auth code", "Search for code related to JWT authentication", "qe-code-intelligence")
+
+// Build context for another agent
+Task("Build test context", "Create context for UserService to pass to test-generator", "qe-code-intelligence")
+```
+
+**CLI Commands:**
+```bash
+aqe kg index              # Index codebase
+aqe kg query "search"     # Semantic search
+aqe kg graph file.ts      # Generate diagram
+aqe kg stats              # Show statistics
+```
+
+**Memory Namespace:**
+- Stores: `aqe/code-intelligence/index-stats`, `aqe/code-intelligence/context/*`
+- Reads: `aqe/project-metadata/*`
+
+**Prerequisites:** Ollama + nomic-embed-text, RuVector PostgreSQL. See [Code Intelligence Quick Start](../guides/code-intelligence-quickstart.md).
 
 ---
 
