@@ -100,7 +100,12 @@ module.exports = {
     '/node_modules/',
     '/dist/',
     '/coverage/',
-    '\\.skip\\.(test|spec)\\.(ts|js)$'
+    '\\.skip\\.(test|spec)\\.(ts|js)$',
+    // CRITICAL: Benchmark and code-intelligence tests corrupt tree-sitter native module state
+    // They must run in separate Jest projects (jest.config.benchmarks.js, jest.config.code-intelligence.js)
+    '/benchmarks/',
+    'benchmarks\\.test\\.(ts|js)$',
+    '/code-intelligence/'
   ],
 
   // Custom reporters for memory tracking

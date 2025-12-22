@@ -15,7 +15,7 @@ import { ProcessExit } from '../../utils/ProcessExit';
 // Phase modules (will be created incrementally)
 import { createDirectoryStructure } from './directory-structure';
 import { initializeDatabases } from './database-init';
-import { generateClaudeSettings, setupMCPServer } from './claude-config';
+import { generateClaudeSettings, generateMcpJson, setupMCPServer } from './claude-config';
 import { copyDocumentation } from './documentation';
 import { createBashWrapper } from './bash-wrapper';
 import { createClaudeMd } from './claude-md';
@@ -25,6 +25,7 @@ import { copyCommandTemplates } from './commands';
 import { copyHelperScripts, copyHookScripts } from './helpers';
 import { initializeLearningSystem } from './learning-init';
 import { installOptionalDependencies, displayOptionalDependenciesHelp } from './optional-dependencies';
+import { initializeCodeIntelligence } from './code-intelligence-init';
 
 // Import version from package.json
 const packageJson = require('../../../package.json');
@@ -85,6 +86,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
       description: 'Generating Claude Code settings and MCP server',
       execute: async (cfg) => {
         await generateClaudeSettings(cfg);
+        await generateMcpJson(cfg);  // Creates .claude/mcp.json with server definitions
         await setupMCPServer();
       },
       critical: true  // CRITICAL for learning system!
@@ -141,6 +143,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
         enabled: true,
       }),
       critical: false  // Non-critical - learning is optional but valuable
+    },
+    {
+      name: 'Code Intelligence',
+      description: 'Setting up Code Intelligence System (semantic search + knowledge graph)',
+      execute: async (cfg, opts) => initializeCodeIntelligence(cfg, !opts.yes && !opts.nonInteractive),
+      critical: false  // Non-critical - requires Ollama + PostgreSQL
     }
   ];
 
@@ -378,6 +386,7 @@ export {
   createDirectoryStructure,
   initializeDatabases,
   generateClaudeSettings,
+  generateMcpJson,
   setupMCPServer,
   copyDocumentation,
   createBashWrapper

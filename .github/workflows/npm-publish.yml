@@ -34,7 +34,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run type check
         run: npm run typecheck
@@ -91,7 +91,7 @@ jobs:
           path: dist/
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Verify package version matches tag
         if: github.event_name == 'release'

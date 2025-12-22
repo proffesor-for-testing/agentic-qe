@@ -225,9 +225,73 @@ function mergeHooks(existing: any, aqeHooks: any): any {
 }
 
 /**
+ * Generate MCP server definitions file
+ *
+ * Creates the .claude/mcp.json file that defines available MCP servers.
+ * This is REQUIRED for enabledMcpjsonServers in settings.json to work.
+ *
+ * @param config - Fleet configuration
+ */
+export async function generateMcpJson(_fleetConfig: FleetConfig): Promise<void> {
+  const mcpJsonPath = path.join(process.cwd(), '.claude', 'mcp.json');
+
+  // Check if mcp.json already exists
+  const mcpJsonExists = await fs.pathExists(mcpJsonPath);
+
+  let existingConfig: any = { mcpServers: {} };
+  if (mcpJsonExists) {
+    console.log(chalk.yellow('  ⓘ  .claude/mcp.json already exists - merging AQE server'));
+    try {
+      existingConfig = await fs.readJson(mcpJsonPath);
+      if (!existingConfig.mcpServers) {
+        existingConfig.mcpServers = {};
+      }
+    } catch (error) {
+      console.log(chalk.red('  ⚠️  Could not parse existing mcp.json - creating backup'));
+      await fs.copy(mcpJsonPath, `${mcpJsonPath}.backup`);
+      console.log(chalk.gray(`    Backup saved to: ${mcpJsonPath}.backup`));
+    }
+  }
+
+  // Define agentic-qe MCP server
+  const aqeMcpServer = {
+    command: "npx",
+    args: ["aqe-mcp"],
+    env: {
+      AQE_MEMORY_PATH: ".agentic-qe/memory.db",
+      AQE_LEARNING_ENABLED: "true",
+      NODE_NO_WARNINGS: "1"
+    }
+  };
+
+  // Merge with existing config
+  const mcpConfig = {
+    mcpServers: {
+      ...existingConfig.mcpServers,
+      "agentic-qe": aqeMcpServer
+    }
+  };
+
+  await fs.ensureDir(path.dirname(mcpJsonPath));
+  await fs.writeJson(mcpJsonPath, mcpConfig, { spaces: 2 });
+
+  if (mcpJsonExists) {
+    console.log(chalk.green('  ✓ Merged agentic-qe server into existing .claude/mcp.json'));
+  } else {
+    console.log(chalk.green('  ✓ Created .claude/mcp.json with agentic-qe server'));
+  }
+  console.log(chalk.gray('    • Server: agentic-qe'));
+  console.log(chalk.gray('    • Command: npx aqe-mcp'));
+  console.log(chalk.gray('    • Tools: 102 MCP tools for learning, memory, analysis'));
+}
+
+/**
  * Setup MCP server configuration
  *
- * Configures the Model Context Protocol server for agent coordination
+ * Configures the Model Context Protocol server for agent coordination.
+ * This function handles both:
+ * 1. Project-level config (.claude/mcp.json) - via generateMcpJson()
+ * 2. Global config (claude mcp add) - for users who prefer global setup
  */
 export async function setupMCPServer(): Promise<void> {
   console.log(chalk.cyan('\n  🔌 Setting up MCP server integration...\n'));
@@ -240,17 +304,18 @@ export async function setupMCPServer(): Promise<void> {
       execSync('which claude', { stdio: 'ignore' });
     } catch {
       console.log(chalk.yellow('  ⚠️  Claude Code CLI not found'));
-      console.log(chalk.gray('  ℹ️  Please add MCP server manually after installing Claude Code:'));
+      console.log(chalk.gray('  ℹ️  MCP server defined in .claude/mcp.json (project-level)'));
+      console.log(chalk.gray('  ℹ️  For global setup after installing Claude Code:'));
       console.log(chalk.cyan('     claude mcp add agentic-qe npx aqe-mcp'));
       console.log(chalk.gray('\n  Download Claude Code: https://claude.com/claude-code'));
       return;
     }
 
-    // Check if MCP server is already added
+    // Check if MCP server is already added globally
     try {
       const mcpList = execSync('claude mcp list', { encoding: 'utf-8' });
       if (mcpList.includes('agentic-qe')) {
-        console.log(chalk.green('  ✓ MCP server already configured'));
+        console.log(chalk.green('  ✓ MCP server already configured globally'));
         console.log(chalk.gray('    • Server: agentic-qe'));
         console.log(chalk.gray('    • Command: npx aqe-mcp'));
         return;
@@ -259,8 +324,8 @@ export async function setupMCPServer(): Promise<void> {
       // Ignore errors, proceed with adding
     }
 
-    // Add MCP server
-    console.log(chalk.gray('  • Adding MCP server to Claude Code...'));
+    // Add MCP server globally
+    console.log(chalk.gray('  • Adding MCP server to Claude Code globally...'));
     execSync('claude mcp add agentic-qe npx aqe-mcp', { stdio: 'inherit' });
 
     console.log(chalk.green('\n  ✓ MCP server added successfully'));
@@ -269,9 +334,10 @@ export async function setupMCPServer(): Promise<void> {
     console.log(chalk.gray('    • Memory: Shared memory coordination enabled'));
 
   } catch (error: any) {
-    console.log(chalk.yellow('  ⚠️  Could not auto-configure MCP server'));
+    console.log(chalk.yellow('  ⚠️  Could not auto-configure MCP server globally'));
     console.log(chalk.gray(`  Error: ${error.message}`));
-    console.log(chalk.gray('\n  Please add manually:'));
+    console.log(chalk.gray('  ℹ️  Project-level config in .claude/mcp.json will still work'));
+    console.log(chalk.gray('\n  For global setup, run manually:'));
     console.log(chalk.cyan('     claude mcp add agentic-qe npx aqe-mcp'));
   }
 }

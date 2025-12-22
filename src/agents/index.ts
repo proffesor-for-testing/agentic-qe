@@ -31,6 +31,9 @@ export { QXPartnerAgent } from './QXPartnerAgent';
 // Accessibility Testing Agent
 export { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
 
+// Code Intelligence Agent (Wave 6)
+export { CodeIntelligenceAgent, CodeIntelligenceAgentConfig, createCodeIntelligenceAgent } from './CodeIntelligenceAgent';
+
 // Agent factory for creating agents by type
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
@@ -59,6 +62,7 @@ import { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
 import { QXPartnerAgent } from './QXPartnerAgent';
 import { QXPartnerConfig } from '../types/qx';
 import { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
+import { CodeIntelligenceAgent, CodeIntelligenceAgentConfig } from './CodeIntelligenceAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
@@ -438,6 +442,26 @@ export class QEAgentFactory {
         return new AccessibilityAllyAgent(a11yConfig as any);
       }
 
+      case QEAgentType.CODE_INTELLIGENCE: {
+        const codeIntelConfig: CodeIntelligenceAgentConfig = {
+          ...baseConfig,
+          rootDir: agentConfig?.rootDir || process.cwd(),
+          ollamaUrl: agentConfig?.ollamaUrl || 'http://localhost:11434',
+          database: agentConfig?.database || {
+            enabled: true,
+            host: process.env.PGHOST || 'localhost',
+            port: parseInt(process.env.PGPORT || '5432'),
+            database: process.env.PGDATABASE || 'ruvector_db',
+            user: process.env.PGUSER || 'ruvector',
+            password: process.env.PGPASSWORD || 'ruvector',
+          },
+          includePatterns: agentConfig?.includePatterns,
+          excludePatterns: agentConfig?.excludePatterns,
+          incrementalIndexing: agentConfig?.incrementalIndexing ?? true,
+        };
+        return new CodeIntelligenceAgent(codeIntelConfig);
+      }
+
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
@@ -470,7 +494,9 @@ export class QEAgentFactory {
       // Quality Experience (QX) Agent
       QEAgentType.QX_PARTNER,
       // Accessibility Testing Agent
-      QEAgentType.ACCESSIBILITY_ALLY
+      QEAgentType.ACCESSIBILITY_ALLY,
+      // Code Intelligence Agent (Wave 6)
+      QEAgentType.CODE_INTELLIGENCE
     ];
   }
 
@@ -930,7 +956,46 @@ export class QEAgentFactory {
 
       // Other core agents (placeholder capabilities - future implementation)
       [QEAgentType.CHAOS_ENGINEER]: [],
-      [QEAgentType.VISUAL_TESTER]: []
+      [QEAgentType.VISUAL_TESTER]: [],
+
+      // Code Intelligence Agent (Wave 6)
+      [QEAgentType.CODE_INTELLIGENCE]: [
+        {
+          name: 'tree-sitter-parsing',
+          version: '1.0.0',
+          description: 'Multi-language AST parsing with Tree-sitter (TypeScript, Python, Go, Rust, JavaScript)'
+        },
+        {
+          name: 'semantic-embeddings',
+          version: '1.0.0',
+          description: 'Ollama nomic-embed-text embeddings (768 dimensions, 8192 context)'
+        },
+        {
+          name: 'hybrid-search',
+          version: '1.0.0',
+          description: 'BM25 + Vector search with RRF fusion for accurate code retrieval'
+        },
+        {
+          name: 'knowledge-graph',
+          version: '1.0.0',
+          description: 'Entity relationships (imports, extends, calls) with graph traversal'
+        },
+        {
+          name: 'context-building',
+          version: '1.0.0',
+          description: '80% token reduction through intelligent code context generation'
+        },
+        {
+          name: 'visualization',
+          version: '1.0.0',
+          description: 'Mermaid class diagrams and dependency graphs'
+        },
+        {
+          name: 'incremental-indexing',
+          version: '1.0.0',
+          description: 'Git change detection for efficient incremental updates'
+        }
+      ]
     };
 
     return capabilityMap[type as QEAgentType] || [];
