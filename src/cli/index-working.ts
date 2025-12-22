@@ -542,11 +542,12 @@ program
     console.log(chalk.blue('⚠️  Feature available in future release'));
   });
 
-// Knowledge Graph Commands
+// Knowledge Graph / Code Intelligence Commands
 const kgCommand = program
   .command('kg')
   .alias('knowledge-graph')
-  .description('Knowledge Graph operations for code intelligence');
+  .alias('code-intel')
+  .description('Code Intelligence: semantic search, knowledge graph, and code analysis');
 
 // kg index - Index codebase
 kgCommand
@@ -609,6 +610,88 @@ kgCommand
   .option('-v, --verbose', 'Verbose output with detailed stats', false)
   .action(async (options: KGStatsOptions) => {
     await KnowledgeGraphCommand.stats(options);
+  });
+
+// kg setup - Setup Code Intelligence prerequisites
+kgCommand
+  .command('setup')
+  .description('Check and setup Code Intelligence prerequisites')
+  .action(async () => {
+    console.log(chalk.blue.bold('\n🧠 Code Intelligence Setup\n'));
+
+    // Check prerequisites
+    const { checkCodeIntelligencePrerequisites } = await import('./init/code-intelligence-init.js');
+    const prereqs = await checkCodeIntelligencePrerequisites();
+
+    console.log(chalk.white('Prerequisites Status:\n'));
+    console.log(`  Ollama:           ${prereqs.ollama ? chalk.green('✓ Running') : chalk.red('✗ Not running')}`);
+    console.log(`  nomic-embed-text: ${prereqs.ollamaModel ? chalk.green('✓ Available') : chalk.yellow('✗ Not installed')}`);
+    console.log(`  RuVector DB:      ${prereqs.postgres ? chalk.green('✓ Connected') : chalk.red('✗ Not available')}`);
+
+    if (!prereqs.allReady) {
+      console.log(chalk.yellow('\n⚠️  Missing prerequisites:\n'));
+      prereqs.messages.forEach(msg => console.log(chalk.gray(`  • ${msg}`)));
+
+      console.log(chalk.cyan('\n📋 Setup Instructions:\n'));
+      if (!prereqs.ollama) {
+        console.log(chalk.white('  1. Start Ollama:'));
+        console.log(chalk.gray('     ollama serve'));
+      }
+      if (!prereqs.ollamaModel) {
+        console.log(chalk.white('  2. Pull embedding model:'));
+        console.log(chalk.gray('     ollama pull nomic-embed-text'));
+      }
+      if (!prereqs.postgres) {
+        console.log(chalk.white('  3. Start RuVector PostgreSQL:'));
+        console.log(chalk.gray('     docker-compose up -d ruvector'));
+      }
+    } else {
+      console.log(chalk.green('\n✓ All prerequisites ready!'));
+      console.log(chalk.gray('\nTo index your codebase:'));
+      console.log(chalk.cyan('  aqe kg index'));
+    }
+    console.log('');
+  });
+
+// kg enable - Enable Code Intelligence
+kgCommand
+  .command('enable')
+  .description('Enable Code Intelligence for this project')
+  .action(async () => {
+    const { initializeCodeIntelligence } = await import('./init/code-intelligence-init.js');
+    const config = {} as any; // FleetConfig not needed for this operation
+    await initializeCodeIntelligence(config, true);
+  });
+
+// kg status - Show service status
+kgCommand
+  .command('status')
+  .description('Show Code Intelligence service status')
+  .option('--json', 'JSON output format', false)
+  .action(async (options: { json: boolean }) => {
+    const { loadCodeIntelligenceConfig } = await import('./init/code-intelligence-init.js');
+    const config = await loadCodeIntelligenceConfig();
+
+    if (options.json) {
+      console.log(JSON.stringify(config, null, 2));
+      return;
+    }
+
+    console.log(chalk.blue.bold('\n🧠 Code Intelligence Status\n'));
+
+    if (!config) {
+      console.log(chalk.yellow('  ⚠️  Code Intelligence not configured'));
+      console.log(chalk.gray('     Run: aqe kg setup'));
+      console.log('');
+      return;
+    }
+
+    console.log(`  Enabled:     ${config.enabled ? chalk.green('Yes') : chalk.gray('No')}`);
+    console.log(`  Ollama URL:  ${chalk.gray(config.ollamaUrl)}`);
+    console.log(`  Model:       ${chalk.gray(config.embeddingModel)}`);
+    console.log(`  Database:    ${chalk.gray(`${config.database.host}:${config.database.port}/${config.database.database}`)}`);
+    console.log(`  Index Paths: ${chalk.gray(config.indexPaths.join(', '))}`);
+    console.log('');
   });
 
 // Error handling

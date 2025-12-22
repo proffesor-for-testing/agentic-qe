@@ -407,7 +407,7 @@ export class KnowledgeGraphCommand {
       if (type === 'class') {
         return ClassDiagramBuilder.build(nodes, edges, { includeMethods: true });
       } else {
-        return DependencyGraphBuilder.build(nodes, edges, { direction: 'TD' });
+        return DependencyGraphBuilder.build(nodes, edges, { direction: 'TB' });
       }
     } else {
       // DOT format

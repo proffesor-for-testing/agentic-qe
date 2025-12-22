@@ -339,7 +339,7 @@ export class CodeIntelligenceAgent extends BaseAgent {
     return {
       success: true,
       taskType: 'context',
-      context: enrichedContext.formatted,
+      context: enrichedContext.formatted.content,
       tokenEstimate: enrichedContext.metadata.tokenEstimate,
       tokenReduction: enrichedContext.metadata.tokenReduction || 80,
     };

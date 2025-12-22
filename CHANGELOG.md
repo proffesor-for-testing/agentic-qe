@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2025-12-22
+
+### Added
+
+#### Code Intelligence System v2.0 - Major Feature
+
+A comprehensive knowledge graph and semantic search system for intelligent code understanding.
+
+**Core Components**
+- **Tree-sitter Parser** (`src/code-intelligence/parser/`) - Multi-language AST analysis
+  - TypeScript, Python, Go, Rust, JavaScript support
+  - Entity extraction (classes, functions, interfaces, types)
+  - Relationship detection (imports, calls, extends, implements)
+  - 36x faster than regex-based parsing
+
+- **Semantic Search** (`src/code-intelligence/search/`)
+  - Hybrid search: BM25 + vector similarity
+  - RRF (Reciprocal Rank Fusion) for result merging
+  - Ollama nomic-embed-text embeddings (768 dimensions)
+  - <10ms query latency
+
+- **Knowledge Graph** (`src/code-intelligence/graph/`)
+  - PostgreSQL-based graph storage
+  - Relationship types: IMPORTS, CALLS, TESTS, DOCUMENTS, DEFINES, REFERENCES
+  - Graph expansion for context building
+  - Mermaid visualization export
+
+- **RAG Context Builder** (`src/code-intelligence/rag/`)
+  - Intelligent context assembly for LLM queries
+  - 70-80% token reduction through smart chunking
+  - Configurable context limits
+
+**Agent Integration**
+- **CodeIntelligenceAgent** (`src/agents/CodeIntelligenceAgent.ts`) - Dedicated agent for code queries
+- **BaseAgent Enhancement** - Auto-injection of Code Intelligence context
+- **FleetManager Integration** - Automatic Code Intelligence sharing across agents
+
+**CLI Commands**
+- `aqe kg index <directory>` - Index codebase
+- `aqe kg search <query>` - Semantic code search
+- `aqe kg visualize <entity>` - Generate Mermaid diagrams
+- `aqe code-intel setup` - Check prerequisites
+- `aqe code-intel enable` - Enable for project
+
+**Infrastructure**
+- `generateMcpJson()` - Creates `.claude/mcp.json` for MCP server definition
+- Code Intelligence init phase in `aqe init`
+- 31 new test files with comprehensive coverage
+
+### Fixed
+
+- **MCP Server Configuration** - `.claude/mcp.json` now created during `aqe init`
+- **Learning Persistence** - Task tool agents now persist learning via `capture-task-learning.js` hook
+- **Settings Merging** - `aqe init` properly merges with existing `.claude/settings.json`
+
+### Changed
+
+- Updated `.claude/settings.json` to include `agentic-qe` in `enabledMcpjsonServers`
+- Added `mcp__agentic-qe` permission to default allow list
+- Enhanced `PostToolUse` hooks to capture Task agent learnings
+
 ## [2.5.10] - 2025-12-19
 
 ### Added

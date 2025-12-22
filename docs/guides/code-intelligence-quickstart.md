@@ -68,22 +68,52 @@ Expected output:
 ✅ E2E Test PASSED - Code Intelligence System is operational!
 ```
 
+## Quick Setup via CLI
+
+```bash
+# Check prerequisites and get setup instructions
+aqe code-intel setup
+
+# Enable Code Intelligence for this project
+aqe code-intel enable
+
+# Index your codebase
+aqe code-intel index
+
+# Check status
+aqe code-intel status
+```
+
 ## Usage Options
 
 ### Option 1: CLI Commands
 
 ```bash
-# Index your codebase (one-time or periodic)
+# Setup and status
+aqe code-intel setup        # Check prerequisites
+aqe code-intel enable       # Enable for project
+aqe code-intel status       # Show current config
+
+# Indexing
+aqe code-intel index                    # Full index
+aqe code-intel index --incremental      # Incremental update
+aqe code-intel index --watch            # Watch mode
+
+# Searching
+aqe code-intel query "how does authentication work"
+aqe code-intel query "JWT validation" --k 20 --verbose
+
+# Visualization
+aqe code-intel graph src/services/UserService.ts --type class
+aqe code-intel graph src/services --type dependency
+
+# Statistics
+aqe code-intel stats
+aqe code-intel stats --verbose
+
+# Aliases: aqe kg, aqe knowledge-graph work identically
 aqe kg index
-
-# Search for code by meaning
-aqe kg query "how does authentication work"
-
-# Generate class diagram
-aqe kg graph src/services/UserService.ts --type class
-
-# Show statistics
-aqe kg stats
+aqe kg query "find all API endpoints"
 ```
 
 ### Option 2: Agent via Task Tool (Recommended)
@@ -135,7 +165,27 @@ const results = await orchestrator.query({
 console.log(results);
 ```
 
-### Option 4: In Your Own Agents
+### Option 4: Automatic Agent Injection
+
+When Code Intelligence is enabled (via `aqe code-intel enable`), the **FleetManager automatically injects** Code Intelligence components into all spawned agents. No code changes required!
+
+**How it works:**
+1. `aqe init` or `aqe code-intel enable` creates `.agentic-qe/config/code-intelligence.json`
+2. When FleetManager initializes, it loads the config and starts CodeIntelligenceService
+3. Every agent spawned via `fleet.spawnAgent()` automatically receives `codeIntelligence` config
+4. Agents can then use `this.hasCodeIntelligence()` and `this.getCodeIntelligenceContext()`
+
+**FleetManager code (automatic):**
+```typescript
+// FleetManager.spawnAgent() automatically does this:
+const agentConfig = {
+  memoryStore: this.getMemoryStore(),
+  codeIntelligence: this.getCodeIntelligenceConfig(), // Auto-injected!
+  ...userConfig
+};
+```
+
+### Option 5: In Your Own Agents
 
 Agents extending `BaseAgent` automatically have access to Code Intelligence:
 
