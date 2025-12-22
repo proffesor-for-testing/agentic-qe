@@ -1,4 +1,5 @@
-import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from '@jest/globals';
+import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser.js';
 import fs from 'fs';
 import path from 'path';
 

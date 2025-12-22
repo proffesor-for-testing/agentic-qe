@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll } from '@jest/globals';
 import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser';
 import fs from 'fs';
 import path from 'path';

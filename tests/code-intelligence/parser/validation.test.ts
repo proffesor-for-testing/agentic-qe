@@ -2,7 +2,7 @@
  * Validation tests for Tree-sitter parser implementation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser.js';
 import type { CodeEntity } from '../../../src/code-intelligence/parser/types.js';
 

@@ -4,17 +4,31 @@
  */
 
 import Parser from 'tree-sitter';
-// @ts-expect-error - Tree-sitter language bindings don't have TypeScript types
 import TypeScript from 'tree-sitter-typescript';
-// @ts-expect-error - Tree-sitter language bindings don't have TypeScript types
 import Python from 'tree-sitter-python';
-// @ts-expect-error - Tree-sitter language bindings don't have TypeScript types
 import Go from 'tree-sitter-go';
-// @ts-expect-error - Tree-sitter language bindings don't have TypeScript types
 import Rust from 'tree-sitter-rust';
-// @ts-expect-error - Tree-sitter language bindings don't have TypeScript types
 import JavaScript from 'tree-sitter-javascript';
 import { createHash } from 'crypto';
+
+/**
+ * Type workaround for tree-sitter version mismatch.
+ *
+ * tree-sitter@0.22.4 is required for Node.js 24 (C++20 requirement),
+ * but language bindings declare peer dependency on ^0.21.x.
+ * The runtime API is compatible, only TypeScript declarations differ.
+ *
+ * Alternative solutions considered:
+ * 1. web-tree-sitter (WASM) - adds complexity and different API
+ * 2. Downgrade Node.js - not practical for production
+ * 3. Wait for updated language bindings - external dependency
+ *
+ * This type assertion is safe because:
+ * - tree-sitter 0.22 is backward compatible with 0.21 API
+ * - Only the TypeScript type declarations differ
+ * - Verified at runtime with language binding tests
+ */
+type TreeSitterLanguage = Parameters<typeof Parser.prototype.setLanguage>[0];
 
 import { CodeEntity, Language, ParseResult, ParseError } from './types.js';
 import { LanguageRegistry } from './LanguageRegistry.js';
@@ -37,29 +51,25 @@ export class TreeSitterParser {
    * Initialize parsers for all supported languages
    */
   private initializeParsers(): void {
-    // TypeScript
+    // See TreeSitterLanguage type comment above for why type assertions are needed
     const tsParser = new Parser();
-    tsParser.setLanguage(TypeScript.typescript);
+    tsParser.setLanguage(TypeScript.typescript as TreeSitterLanguage);
     this.parsers.set('typescript', tsParser);
 
-    // JavaScript
     const jsParser = new Parser();
-    jsParser.setLanguage(JavaScript);
+    jsParser.setLanguage(JavaScript as TreeSitterLanguage);
     this.parsers.set('javascript', jsParser);
 
-    // Python
     const pyParser = new Parser();
-    pyParser.setLanguage(Python);
+    pyParser.setLanguage(Python as TreeSitterLanguage);
     this.parsers.set('python', pyParser);
 
-    // Go
     const goParser = new Parser();
-    goParser.setLanguage(Go);
+    goParser.setLanguage(Go as TreeSitterLanguage);
     this.parsers.set('go', goParser);
 
-    // Rust
     const rustParser = new Parser();
-    rustParser.setLanguage(Rust);
+    rustParser.setLanguage(Rust as TreeSitterLanguage);
     this.parsers.set('rust', rustParser);
   }
 
@@ -207,6 +217,11 @@ export class TreeSitterParser {
     const config = LanguageRegistry.getConfig(language);
 
     const walk = (n: Parser.SyntaxNode, parentClass?: string): void => {
+      // Guard against undefined nodes (can happen with corrupted tree-sitter state)
+      if (!n || !n.type) {
+        return;
+      }
+
       // Extract functions
       if (config.functionTypes.includes(n.type)) {
         const entity = this.extractFunction(n, source, filePath, language);
@@ -558,7 +573,10 @@ export class TreeSitterParser {
 
     // Check node and parent for modifier
     const checkNode = (n: Parser.SyntaxNode): boolean => {
+      if (!n || !n.children) return false;
       for (const child of n.children) {
+        // Guard against corrupted tree nodes
+        if (!child || !child.text) continue;
         if (keywords.includes(child.text.toLowerCase())) {
           return true;
         }
@@ -566,6 +584,7 @@ export class TreeSitterParser {
       return false;
     };
 
+    if (!node) return false;
     return checkNode(node) || (node.parent ? checkNode(node.parent) : false);
   }
 
