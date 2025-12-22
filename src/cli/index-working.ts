@@ -12,6 +12,8 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { SecureRandom } from '../utils/SecureRandom.js';
+import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
+import type { KGIndexOptions, KGQueryOptions, KGGraphOptions, KGStatsOptions } from './commands/knowledge-graph.js';
 
 const program = new Command();
 
@@ -538,6 +540,75 @@ program
     console.log(chalk.yellow('🧠 Pattern Learning'));
     console.log(chalk.gray(`Period: ${options.fromHistory}, Patterns: ${options.patterns}`));
     console.log(chalk.blue('⚠️  Feature available in future release'));
+  });
+
+// Knowledge Graph Commands
+const kgCommand = program
+  .command('kg')
+  .alias('knowledge-graph')
+  .description('Knowledge Graph operations for code intelligence');
+
+// kg index - Index codebase
+kgCommand
+  .command('index')
+  .description('Index codebase with incremental and watch modes')
+  .option('--watch', 'Watch mode for continuous indexing', false)
+  .option('--incremental', 'Incremental indexing', false)
+  .option('--git-since <commit>', 'Index changes since git commit')
+  .option('-v, --verbose', 'Verbose output', false)
+  .option('--json', 'JSON output format', false)
+  .action(async (options: KGIndexOptions) => {
+    await KnowledgeGraphCommand.index(options);
+  });
+
+// kg query - Natural language search
+kgCommand
+  .command('query <query>')
+  .description('Natural language code search with hybrid search')
+  .option('--hybrid', 'Enable hybrid search (BM25 + Vector)', true)
+  .option('-k <number>', 'Number of results to return', '10')
+  .option('--lang <language>', 'Filter by programming language')
+  .option('--graph-depth <number>', 'Graph expansion depth', '2')
+  .option('--json', 'JSON output format', false)
+  .option('-v, --verbose', 'Verbose output with full details', false)
+  .action(async (query: string, options: any) => {
+    const queryOptions: KGQueryOptions = {
+      hybrid: options.hybrid,
+      k: parseInt(options.k),
+      lang: options.lang,
+      graphDepth: parseInt(options.graphDepth),
+      json: options.json,
+      verbose: options.verbose,
+    };
+    await KnowledgeGraphCommand.query(query, queryOptions);
+  });
+
+// kg graph - Generate diagram
+kgCommand
+  .command('graph <file-path>')
+  .description('Generate Mermaid or DOT diagram for file/module')
+  .option('--type <type>', 'Diagram type: class, dependency', 'dependency')
+  .option('-o, --output <path>', 'Output file path')
+  .option('--format <format>', 'Output format: mermaid, dot', 'mermaid')
+  .option('--json', 'JSON output format', false)
+  .action(async (filePath: string, options: any) => {
+    const graphOptions: KGGraphOptions = {
+      type: options.type === 'class' ? 'class' : 'dependency',
+      output: options.output,
+      format: options.format === 'dot' ? 'dot' : 'mermaid',
+      json: options.json,
+    };
+    await KnowledgeGraphCommand.graph(filePath, graphOptions);
+  });
+
+// kg stats - Display statistics
+kgCommand
+  .command('stats')
+  .description('Display knowledge graph statistics')
+  .option('--json', 'JSON output format', false)
+  .option('-v, --verbose', 'Verbose output with detailed stats', false)
+  .action(async (options: KGStatsOptions) => {
+    await KnowledgeGraphCommand.stats(options);
   });
 
 // Error handling
