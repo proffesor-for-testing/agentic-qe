@@ -13,6 +13,8 @@ import { FleetConfig } from '../tools.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
 import { SecureRandom } from '../../utils/SecureRandom.js';
+import { AgentSpawnHandler } from './agent-spawn.js';
+import { QEAgentType } from '../../types/index.js';
 
 export interface FleetInitArgs {
   config: FleetConfig;
@@ -21,6 +23,10 @@ export interface FleetInitArgs {
     language?: string;
     buildSystem?: string;
   };
+  /** Enable agent pool warmup during initialization (default: true) */
+  enablePoolWarmup?: boolean;
+  /** Agent types to pre-warm in pool */
+  warmupTypes?: QEAgentType[];
 }
 
 export interface FleetInstance {
@@ -32,17 +38,43 @@ export interface FleetInstance {
   coordinationChannels: string[];
   createdAt: string;
   configuration: FleetConfig;
+  /** Pool warmup status */
+  poolWarmup?: {
+    enabled: boolean;
+    warmedTypes: QEAgentType[];
+    warmupTimeMs: number;
+    poolStats?: {
+      totalAgents: number;
+      availableAgents: number;
+    };
+  };
 }
 
 export class FleetInitHandler extends BaseHandler {
   private activeFleets: Map<string, FleetInstance> = new Map();
   private registry: AgentRegistry;
   private hookExecutor: HookExecutor;
+  private spawnHandler: AgentSpawnHandler | null = null;
+
+  /** Default types to warm up during fleet initialization */
+  private static readonly DEFAULT_WARMUP_TYPES: QEAgentType[] = [
+    QEAgentType.TEST_GENERATOR,
+    QEAgentType.COVERAGE_ANALYZER,
+    QEAgentType.QUALITY_GATE,
+  ];
 
   constructor(registry: AgentRegistry, hookExecutor: HookExecutor) {
     super();
     this.registry = registry;
     this.hookExecutor = hookExecutor;
+  }
+
+  /**
+   * Set the spawn handler for pool warmup integration
+   * This allows fleet init to trigger pool warmup during initialization
+   */
+  setSpawnHandler(spawnHandler: AgentSpawnHandler): void {
+    this.spawnHandler = spawnHandler;
   }
 
   async handle(args: FleetInitArgs): Promise<HandlerResponse> {
@@ -60,8 +92,14 @@ export class FleetInitHandler extends BaseHandler {
       this.validateRequired(args, ['config']);
       this.validateFleetConfig(args.config);
 
+      const enablePoolWarmup = args.enablePoolWarmup !== false;
       const { result: fleetInstance, executionTime } = await this.measureExecutionTime(
-        () => this.initializeFleet(args.config, args.projectContext)
+        () => this.initializeFleet(
+          args.config,
+          args.projectContext,
+          enablePoolWarmup,
+          args.warmupTypes
+        )
       );
 
       // Execute post-task hook
@@ -71,14 +109,22 @@ export class FleetInitHandler extends BaseHandler {
           fleetId: fleetInstance.id,
           topology: fleetInstance.topology,
           maxAgents: fleetInstance.maxAgents,
-          status: fleetInstance.status
+          status: fleetInstance.status,
+          poolWarmup: fleetInstance.poolWarmup
         }
       });
 
       this.log('info', `Fleet initialized successfully in ${executionTime.toFixed(2)}ms`, {
         fleetId: fleetInstance.id,
         topology: fleetInstance.topology,
-        maxAgents: fleetInstance.maxAgents
+        maxAgents: fleetInstance.maxAgents,
+        poolWarmup: fleetInstance.poolWarmup
+          ? {
+              enabled: true,
+              warmupTimeMs: fleetInstance.poolWarmup.warmupTimeMs,
+              agentsWarmed: fleetInstance.poolWarmup.poolStats?.totalAgents,
+            }
+          : { enabled: false }
       });
 
       return this.createSuccessResponse(fleetInstance, requestId);
@@ -102,7 +148,12 @@ export class FleetInitHandler extends BaseHandler {
     }
   }
 
-  private async initializeFleet(config: FleetConfig, projectContext?: any): Promise<FleetInstance> {
+  private async initializeFleet(
+    config: FleetConfig,
+    projectContext?: any,
+    enablePoolWarmup: boolean = true,
+    warmupTypes?: QEAgentType[]
+  ): Promise<FleetInstance> {
     const fleetId = `fleet-${Date.now()}-${SecureRandom.generateId(5)}`;
 
     // Create coordination channels based on topology
@@ -124,6 +175,38 @@ export class FleetInitHandler extends BaseHandler {
 
     // Simulate Claude Flow integration
     await this.integrateWithClaudeFlow(fleetInstance, projectContext);
+
+    // Pool warmup during fleet initialization (Phase 3 D1)
+    if (enablePoolWarmup && this.spawnHandler) {
+      const typesToWarm = warmupTypes || FleetInitHandler.DEFAULT_WARMUP_TYPES;
+      this.log('info', 'Warming up agent pool during fleet init', {
+        fleetId,
+        types: typesToWarm,
+      });
+
+      const warmupStart = Date.now();
+      await this.spawnHandler.warmupPool(typesToWarm);
+      const warmupTime = Date.now() - warmupStart;
+
+      const poolStats = this.spawnHandler.getPoolStats();
+      fleetInstance.poolWarmup = {
+        enabled: true,
+        warmedTypes: typesToWarm,
+        warmupTimeMs: warmupTime,
+        poolStats: poolStats
+          ? {
+              totalAgents: poolStats.totalAgents,
+              availableAgents: poolStats.availableAgents,
+            }
+          : undefined,
+      };
+
+      this.log('info', 'Pool warmup completed', {
+        fleetId,
+        warmupTimeMs: warmupTime,
+        poolStats: fleetInstance.poolWarmup.poolStats,
+      });
+    }
 
     // Store fleet instance
     this.activeFleets.set(fleetId, fleetInstance);

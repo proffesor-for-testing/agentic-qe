@@ -9,7 +9,23 @@
  * - Memory: <100MB for 100k patterns
  */
 
-import { VectorDB, type DbOptions, type SearchQuery, type VectorEntry } from '@ruvector/core';
+import { VectorDB, type SearchQuery, type VectorEntry } from '@ruvector/core';
+
+/**
+ * Database options for VectorDB initialization
+ * Defined locally since @ruvector/core doesn't export this type
+ */
+interface DbOptions {
+  dimensions: number;
+  distanceMetric: unknown;
+  storagePath?: string;
+  hnswConfig?: {
+    m: number;
+    efConstruction: number;
+    efSearch: number;
+    maxElements: number;
+  };
+}
 // Import JsDistanceMetric for runtime usage
 const ruvectorCore = require('@ruvector/core');
 const JsDistanceMetric = ruvectorCore.JsDistanceMetric;
