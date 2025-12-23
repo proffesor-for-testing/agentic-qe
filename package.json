@@ -165,7 +165,7 @@
     "tree-sitter-javascript": "^0.23.0",
     "tree-sitter-python": "^0.23.5",
     "tree-sitter-rust": "^0.24.0",
-    "tree-sitter-typescript": "^0.21.2",
+    "tree-sitter-typescript": "^0.23.2",
     "uuid": "^11.0.5",
     "winston": "^3.18.3",
     "ws": "^8.18.3",
@@ -182,7 +182,21 @@
     "stack-utils": "^2.0.6"
   },
   "overrides": {
-    "tree-sitter": "^0.22.4"
+    "tree-sitter-go": {
+      "tree-sitter": "$tree-sitter"
+    },
+    "tree-sitter-javascript": {
+      "tree-sitter": "$tree-sitter"
+    },
+    "tree-sitter-typescript": {
+      "tree-sitter": "$tree-sitter"
+    },
+    "tree-sitter-python": {
+      "tree-sitter": "$tree-sitter"
+    },
+    "tree-sitter-rust": {
+      "tree-sitter": "$tree-sitter"
+    }
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
