@@ -1538,4 +1538,59 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       }
     ];
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich regression risk metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Risk scores
+      if (typeof result.riskScore === 'number') {
+        metrics.risk_score = result.riskScore;
+      }
+      if (typeof result.overallRisk === 'number') {
+        metrics.overall_risk = result.overallRisk;
+      }
+
+      // Change impact
+      if (result.changedFiles && Array.isArray(result.changedFiles)) {
+        metrics.files_changed = result.changedFiles.length;
+        metrics.lines_added = result.changedFiles.reduce((sum: number, f: any) => sum + (f.linesAdded || 0), 0);
+        metrics.lines_deleted = result.changedFiles.reduce((sum: number, f: any) => sum + (f.linesDeleted || 0), 0);
+        metrics.high_criticality_files = result.changedFiles.filter((f: any) => f.criticality > 0.7).length;
+      }
+
+      // Test selection
+      if (result.selectedTests && Array.isArray(result.selectedTests)) {
+        metrics.tests_selected = result.selectedTests.length;
+        metrics.critical_tests = result.selectedTests.filter((t: any) => t.priority === 'critical').length;
+      }
+
+      // Coverage analysis
+      if (result.impactedAreas && Array.isArray(result.impactedAreas)) {
+        metrics.impacted_areas = result.impactedAreas.length;
+      }
+
+      // Regression probability
+      if (typeof result.regressionProbability === 'number') {
+        metrics.regression_probability = result.regressionProbability;
+      }
+
+      // Historical data
+      if (result.historical) {
+        metrics.historical_failures = result.historical.failures || 0;
+        metrics.similar_changes_analyzed = result.historical.similarChanges || 0;
+      }
+
+      // Confidence
+      if (typeof result.confidence === 'number') {
+        metrics.confidence = result.confidence;
+      }
+    }
+
+    return metrics;
+  }
 }

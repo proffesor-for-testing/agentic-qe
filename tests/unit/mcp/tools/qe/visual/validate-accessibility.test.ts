@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
-import { validateAccessibilityWCAG, type ValidateAccessibilityParams, type WCAGLevel } from '../../../../../src/mcp/tools/qe/visual/validate-accessibility';
+import { validateAccessibilityWCAG, type ValidateAccessibilityParams, type WCAGLevel } from '../../../../../../src/mcp/tools/qe/visual/validate-accessibility';
 
 describe('validateAccessibilityWCAG', () => {
   it('should successfully validate accessibility for WCAG AA', async () => {

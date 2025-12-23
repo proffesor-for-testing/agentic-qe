@@ -1,677 +1,227 @@
 ---
 name: code-review-quality
-description: Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices.
+description: "Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices."
+category: development-practices
+priority: high
+tokenEstimate: 900
+agents: [qe-quality-analyzer, qe-security-scanner, qe-performance-tester, qe-coverage-analyzer]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-02
+dependencies: []
+quick_reference_card: true
+tags: [code-review, feedback, quality, testability, maintainability, pr-review]
 ---
 
 # Code Review Quality
 
-## Core Philosophy
+<default_to_action>
+When reviewing code or establishing review practices:
+1. PRIORITIZE feedback: 🔴 Blocker (must fix) → 🟡 Major → 🟢 Minor → 💡 Suggestion
+2. FOCUS on: Bugs, security, testability, maintainability (not style preferences)
+3. ASK questions over commands: "Have you considered...?" > "Change this to..."
+4. PROVIDE context: Why this matters, not just what to change
+5. LIMIT scope: Review < 400 lines at a time for effectiveness
 
-Code review is about learning, teaching, and improving quality - not gatekeeping or showing off. Be constructive, be specific, be kind.
+**Quick Review Checklist:**
+- Logic: Does it work correctly? Edge cases handled?
+- Security: Input validation? Auth checks? Injection risks?
+- Testability: Can this be tested? Is it tested?
+- Maintainability: Clear naming? Single responsibility? DRY?
+- Performance: O(n²) loops? N+1 queries? Memory leaks?
 
-**Key principle:** Review code like you're helping a colleague, not judging them.
+**Critical Success Factors:**
+- Review the code, not the person
+- Catching bugs > nitpicking style
+- Fast feedback (< 24h) > thorough feedback
+</default_to_action>
 
-## The Code Review Mindset
+## Quick Reference Card
 
-### What You're Looking For
+### When to Use
+- PR code reviews
+- Pair programming feedback
+- Establishing team review standards
+- Mentoring developers
 
-**Must address:**
-- Bugs and logic errors
-- Security vulnerabilities
-- Performance issues
-- Breaking changes
+### Feedback Priority Levels
+| Level | Icon | Meaning | Action |
+|-------|------|---------|--------|
+| Blocker | 🔴 | Bug/security/crash | Must fix before merge |
+| Major | 🟡 | Logic issue/test gap | Should fix before merge |
+| Minor | 🟢 | Style/naming | Nice to fix |
+| Suggestion | 💡 | Alternative approach | Consider for future |
 
-**Should address:**
-- Unclear naming
-- Missing tests
-- Duplicated code
-- Complex logic
+### Review Scope Limits
+| Lines Changed | Recommendation |
+|---------------|----------------|
+| < 200 | Single review session |
+| 200-400 | Review in chunks |
+| > 400 | Request PR split |
 
-**Nice to have:**
-- Style inconsistencies (if not auto-fixable)
-- Minor optimizations
-- Suggestions for improvement
+### What to Focus On
+| ✅ Review | ❌ Skip |
+|-----------|---------|
+| Logic correctness | Formatting (use linter) |
+| Security risks | Naming preferences |
+| Test coverage | Architecture debates |
+| Performance issues | Style opinions |
+| Error handling | Trivial changes |
 
-**Not your job:**
-- Enforcing personal preferences
-- Rewriting in your style
-- Nitpicking formatting (use linter)
+---
 
-### Questions to Ask Yourself
+## Feedback Templates
 
-**Is this a problem or a preference?**
-- Problem: Will cause bugs, confuse future maintainers
-- Preference: "I would have done it differently"
-
-**Is this blocking or non-blocking?**
-- Blocking: Must fix before merge
-- Non-blocking: Suggestion for future improvement
-
-**Am I teaching or judging?**
-- Teaching: "Here's why this could be better"
-- Judging: "This is wrong"
-
-## Feedback Levels
-
-Use these prefixes to indicate severity:
-
-**🔴 BLOCKER** - Must fix before merging
-```
-🔴 This function has SQL injection vulnerability.
-Use parameterized queries instead.
-```
-
-**🟡 MAJOR** - Should fix, but not necessarily blocking
-```
-🟡 This test doesn't actually verify the error handling.
-Consider adding assertion for error message.
-```
-
-**🟢 MINOR** - Nice to have, optional
-```
-🟢 Consider extracting this into a separate function
-for better readability (optional).
-```
-
-**💡 SUGGESTION** - Ideas for improvement
-```
-💡 For future consideration: We could cache this
-result to improve performance.
-```
-
-## The Review Process
-
-### 1. Understand the Context
-
-**Before reviewing code, check:**
-- PR description - What problem does this solve?
-- Linked issues/tickets - Why is this needed?
-- Related PRs - Is this part of larger change?
-
-**Bad start:** Jump straight to code and criticize
-**Good start:** Understand what they're trying to accomplish
-
-### 2. Review at Different Levels
-
-**High-level (5 min):**
-- Does approach make sense?
-- Are there architectural concerns?
-- Does it fit with existing patterns?
-
-**Detail-level (15-30 min):**
-- Logic correctness
-- Edge cases handled?
-- Error handling adequate?
-- Tests sufficient?
-
-**Micro-level (5 min):**
-- Naming clear?
-- Code readable?
-- Comments where needed?
-
-### 3. Look for Common Issues
-
-**Logic Errors**
-```javascript
-// 🔴 BLOCKER: Logic error
-if (price > 100 && price < 50) { // Impossible condition
-  applyDiscount();
-}
-
-// Should be:
-if (price > 100 || (price >= 50 && price <= 100)) {
-  applyDiscount();
-}
-```
-
-**Null/Undefined Handling**
-```javascript
-// 🟡 MAJOR: Possible null reference
-function calculateTotal(order) {
-  return order.items.reduce(...); // What if order.items is null?
-}
-
-// Suggestion:
-function calculateTotal(order) {
-  if (!order?.items?.length) return 0;
-  return order.items.reduce(...);
-}
-```
-
-**Race Conditions**
-```javascript
-// 🔴 BLOCKER: Race condition
-async function updateInventory(productId, quantity) {
-  const product = await db.products.findById(productId);
-  product.stock -= quantity; // Not atomic!
-  await product.save();
-}
-
-// Suggestion:
-async function updateInventory(productId, quantity) {
-  await db.products.updateOne(
-    { _id: productId, stock: { $gte: quantity } },
-    { $inc: { stock: -quantity } }
-  );
-}
-```
-
-**Missing Tests**
-```javascript
-// 🟡 MAJOR: Missing test coverage
-function calculateDiscount(price, customerType) {
-  // Complex business logic
-  // ...
-}
-
-// No tests provided. Should test:
-// - Different customer types
-// - Edge cases (price = 0, negative)
-// - Boundary values
-```
-
-**Security Issues**
-```javascript
-// 🔴 BLOCKER: SQL injection vulnerability
-const query = `SELECT * FROM users WHERE email = '${email}'`;
-
-// Use parameterized query:
-const query = 'SELECT * FROM users WHERE email = ?';
-db.query(query, [email]);
-```
-
-## Writing Good Review Comments
-
-### Be Specific
-
-**Bad:**
-```
-This function is too long.
-```
-
-**Good:**
-```
-🟡 This function has 4 distinct responsibilities:
-1. Validation
-2. Calculation  
-3. Database save
-4. Email sending
-
-Consider extracting into separate functions for easier testing:
-- validateOrder()
-- calculateTotal()
-- saveOrder()
-- sendConfirmation()
-```
-
-### Explain Why
-
-**Bad:**
-```
-Don't use var.
-```
-
-**Good:**
-```
-🟢 Consider using `const` or `let` instead of `var`.
-`var` has function scope which can lead to unexpected 
-behavior with closures. `const`/`let` have block scope
-which is more predictable.
-```
-
-### Suggest Solutions
-
-**Bad:**
-```
-This won't work.
-```
-
-**Good:**
-```
-🔴 This will fail when items array is empty.
-
-Suggested fix:
-if (!items || items.length === 0) {
-  return 0;
-}
-```
-
-### Ask Questions
-
-**Accusatory:**
-```
-Why did you do it this way?
-```
-
-**Curious:**
-```
-💡 I'm curious about the approach here. Have you
-considered using X pattern? It might simplify
-the error handling. What do you think?
-```
-
-### Praise Good Work
-
-**Don't just criticize, also highlight good things:**
-```
-✅ Nice use of early returns to avoid nested conditionals.
-This is much more readable than the previous version!
-```
-
-```
-✅ Great test coverage on the edge cases. The negative
-price test is especially important.
-```
-
-## The Comment Template
-
+### Blocker (Must Fix)
 ```markdown
-🔴/🟡/🟢/💡 [Brief description of issue]
+🔴 **BLOCKER: SQL Injection Risk**
 
-**Current code:**
-```[language]
-[code snippet]
+This query is vulnerable to SQL injection:
+```javascript
+db.query(`SELECT * FROM users WHERE id = ${userId}`)
 ```
 
-**Issue:**
-[Explain what's wrong and why it matters]
-
-**Suggested fix:**
-```[language]
-[code snippet with solution]
+**Fix:** Use parameterized queries:
+```javascript
+db.query('SELECT * FROM users WHERE id = ?', [userId])
 ```
 
-**Alternative:**
-[If applicable, mention other approaches]
+**Why:** User input directly in SQL allows attackers to execute arbitrary queries.
 ```
 
-### Example Using Template
-
+### Major (Should Fix)
 ```markdown
-🔴 SQL injection vulnerability in user search
+🟡 **MAJOR: Missing Error Handling**
 
-**Current code:**
+What happens if `fetchUser()` throws? The error bubbles up unhandled.
+
+**Suggestion:** Add try/catch with appropriate error response:
 ```javascript
-const query = `SELECT * FROM users WHERE name LIKE '%${searchTerm}%'`;
-const results = await db.query(query);
-```
-
-**Issue:**
-User input is directly interpolated into SQL query. An attacker
-could inject SQL code (e.g., searchTerm = "'; DROP TABLE users--")
-
-**Suggested fix:**
-```javascript
-const query = 'SELECT * FROM users WHERE name LIKE ?';
-const results = await db.query(query, [`%${searchTerm}%`]);
-```
-
-**Alternative:**
-If using an ORM:
-```javascript
-const results = await User.findAll({
-  where: {
-    name: { [Op.like]: `%${searchTerm}%` }
-  }
-});
+try {
+  const user = await fetchUser(id);
+  return user;
+} catch (error) {
+  logger.error('Failed to fetch user', { id, error });
+  throw new NotFoundError('User not found');
+}
 ```
 ```
 
-## What NOT to Review
+### Minor (Nice to Fix)
+```markdown
+🟢 **minor:** Variable name could be clearer
 
-### Don't Review (Automate Instead)
+`d` doesn't convey meaning. Consider `daysSinceLastLogin`.
+```
 
-**Formatting**
-- Indentation, spacing, line breaks
-- **Solution:** Use Prettier, ESLint with auto-fix
+### Suggestion (Consider)
+```markdown
+💡 **suggestion:** Consider extracting this to a helper
 
-**Code Style**
-- Semicolons, quotes, naming conventions
-- **Solution:** ESLint, style guide enforced in CI
+This validation logic appears in 3 places. A `validateEmail()` helper would reduce duplication. Not blocking, but might be worth a follow-up PR.
+```
 
-**Import Order**
-- Which imports come first
-- **Solution:** ESLint plugin for imports
+---
 
-**Type Errors**
-- TypeScript compile errors
-- **Solution:** TypeScript in CI
+## Review Questions to Ask
 
-### Focus Human Review On
-
-- Logic correctness
-- Business logic implementation
-- Test quality and coverage
-- Security concerns
-- Performance issues
-- API design
-- Error handling
-- Edge cases
-
-## Review Checklist
-
-### Functionality
-- [ ] Does code do what PR says it does?
-- [ ] Are edge cases handled?
-- [ ] Is error handling adequate?
-- [ ] What happens with invalid input?
-
-### Tests
-- [ ] Are there tests?
-- [ ] Do tests actually test the logic?
-- [ ] Are edge cases tested?
-- [ ] Are error cases tested?
-- [ ] Can I understand what's being tested?
+### Logic
+- What happens when X is null/empty/negative?
+- Is there a race condition here?
+- What if the API call fails?
 
 ### Security
-- [ ] Input validation present?
-- [ ] SQL injection prevented?
-- [ ] XSS prevented?
-- [ ] Authorization checks in place?
-- [ ] Secrets not hardcoded?
+- Is user input validated/sanitized?
+- Are auth checks in place?
+- Any secrets or PII exposed?
 
-### Performance
-- [ ] No obvious performance issues?
-- [ ] Database queries optimized?
-- [ ] No N+1 queries?
-- [ ] Appropriate use of caching?
+### Testability
+- How would you test this?
+- Are dependencies injectable?
+- Is there a test for the happy path? Edge cases?
 
 ### Maintainability
-- [ ] Code is readable?
-- [ ] Naming is clear?
-- [ ] Complex logic is commented?
-- [ ] No obvious duplication?
-- [ ] Follows existing patterns?
+- Will the next developer understand this?
+- Is this doing too many things?
+- Is there duplication we could reduce?
 
-### Documentation
-- [ ] Public API documented?
-- [ ] Complex logic explained?
-- [ ] README updated if needed?
+---
 
-## Handling Disagreements
-
-### When Author Disagrees with Your Feedback
-
-**Your comment:**
-```
-🟡 Consider extracting this into a separate function.
-```
-
-**Their response:**
-```
-I don't think that's necessary. The function is fine as is.
-```
-
-**Your options:**
-
-**If non-blocking (🟢💡):**
-```
-Fair enough! It's a stylistic preference. Feel free to leave as is.
-```
-
-**If important (🟡):**
-```
-I understand your perspective. My concern is that this
-function currently handles 4 different responsibilities,
-which makes it harder to test in isolation. Would you be
-open to extracting just the calculation logic?
-```
-
-**If critical (🔴):**
-```
-I appreciate you're trying to keep it simple, but this
-is a security vulnerability. We need to fix this before
-merging. Let's discuss the best approach - happy to pair
-on it if helpful.
-```
-
-### When You're Wrong
-
-**Happens to everyone. Be gracious:**
-```
-You're absolutely right - I missed that this is handled
-in the middleware layer. Thanks for clarifying! 
-Resolving this comment.
-```
-
-## Review Timing
-
-### How Long Should Review Take?
-
-**Small PR (<100 lines):** 10-15 minutes
-**Medium PR (100-500 lines):** 30-45 minutes  
-**Large PR (>500 lines):** 1-2 hours (or ask to split)
-
-### When to Request Changes
-
-**Immediately:** Critical bugs, security issues
-**Within 4 hours:** Normal business hours, blocking work
-**Within 24 hours:** Non-urgent, non-blocking
-
-### When PR is Too Large
-
-```
-This PR is quite large (847 lines). Would you consider
-splitting into smaller PRs? It's hard to review thoroughly
-in one go, and increases risk of missing issues.
-
-Suggested splits:
-1. Database schema changes
-2. API endpoints
-3. Frontend components
-4. Tests
-
-Happy to prioritize reviewing the first chunk today!
-```
-
-## Common Review Smells
-
-### Unhelpful Reviews
-
-**❌ Just "LGTM"**
-- Not helpful unless you actually reviewed thoroughly
-
-**❌ Nitpicking**
-- 20 comments about spacing and naming
-- 0 comments about logic
-
-**❌ Rewriting in Your Style**
-- "I would do it this way" (but their way works fine)
-
-**❌ Demanding Perfection**
-- "Rewrite this entire module"
-- (When minor improvements would suffice)
-
-**❌ Being a Gatekeeper**
-- Blocking PRs unnecessarily
-- Making approval feel like pulling teeth
-
-### Helpful Reviews
-
-**✅ Constructive Feedback**
-- Specific, actionable, explained
-
-**✅ Praise + Improvements**
-- Highlight good work
-- Suggest improvements where needed
-
-**✅ Teaching Moments**
-- Explain why, not just what
-- Share knowledge and context
-
-**✅ Focus on Impact**
-- Prioritize important issues
-- Let minor things go
-
-**✅ Timely Response**
-- Review within reasonable time
-- Don't block progress unnecessarily
-
-## Example Reviews
-
-### Excellent Review Comment
-
-```markdown
-🔴 Memory leak in event handler
-
-**Current code:**
-```javascript
-useEffect(() => {
-  window.addEventListener('resize', handleResize);
-}, []);
-```
-
-**Issue:**
-Event listener is registered but never cleaned up. On component
-unmount, the listener remains active, causing a memory leak.
-This will accumulate if component mounts/unmounts frequently.
-
-**Suggested fix:**
-```javascript
-useEffect(() => {
-  window.addEventListener('resize', handleResize);
-  
-  return () => {
-    window.removeEventListener('resize', handleResize);
-  };
-}, []);
-```
-
-The return function acts as cleanup, removing the listener when
-component unmounts.
-
-**Further reading:**
-React docs on cleanup: https://react.dev/learn/synchronizing-with-effects#step-3-add-cleanup-if-needed
-```
-
-### Poor Review Comment
-
-```markdown
-This is bad. Rewrite it.
-```
-
-**Problems:**
-- Not specific
-- No explanation
-- No suggestion
-- Unhelpful tone
-
-## Reviewing Your Own Code
-
-Before requesting review:
-
-### Self-Review Checklist
-- [ ] Read through entire diff
-- [ ] Remove debug code, console.logs
-- [ ] Check for commented-out code
-- [ ] Verify tests pass locally
-- [ ] Update documentation if needed
-- [ ] Write clear PR description
-- [ ] Add screenshots/videos if UI change
-- [ ] Link related issues
-
-### Pre-Review Your Own Comments
-
-Add comments explaining:
-- Non-obvious decisions
-- Workarounds and why
-- Areas you're unsure about
-- Questions for reviewers
-
-```javascript
-// NOTE: Using setTimeout here instead of requestAnimationFrame
-// because we need this to run after React's commit phase.
-// Tried RAF but it caused flicker on initial render.
-setTimeout(() => scrollToElement(ref.current), 0);
-```
-
-## Using with QE Agents
-
-### Automated Code Review with qe-quality-analyzer
-
-**qe-quality-analyzer** performs intelligent code review:
-```typescript
-// Agent analyzes PR for quality issues
-const reviewAnalysis = await agent.reviewCode({
-  files: prChanges,
-  depth: 'comprehensive',
-  checkBugs: true,
-  checkSecurity: true,
-  checkPerformance: true,
-  checkMaintainability: true
-});
-
-// Returns categorized feedback
-// {
-//   blockers: [{ file, line, issue, severity: 'BLOCKER' }],
-//   major: [{ file, line, issue, severity: 'MAJOR' }],
-//   suggestions: [{ file, line, suggestion, severity: 'MINOR' }],
-//   qualityScore: 0.87
-// }
-```
-
-### Human-Agent Collaborative Review
+## Agent-Assisted Reviews
 
 ```typescript
-// Agent does first-pass review, human refines
-const agentReview = await qe-quality-analyzer.reviewCode(prChanges);
-const humanRefinements = await human.refineReview(agentReview);
-const finalReview = await agent.formatFeedback({
-  agentFindings: agentReview,
-  humanInsights: humanRefinements,
-  useEmojis: true  // 🔴 🟡 🟢 💡
-});
+// Comprehensive code review
+await Task("Code Review", {
+  prNumber: 123,
+  checks: ['security', 'performance', 'testability', 'maintainability'],
+  feedbackLevels: ['blocker', 'major', 'minor'],
+  autoApprove: { maxBlockers: 0, maxMajor: 2 }
+}, "qe-quality-analyzer");
+
+// Security-focused review
+await Task("Security Review", {
+  prFiles: changedFiles,
+  scanTypes: ['injection', 'auth', 'secrets', 'dependencies']
+}, "qe-security-scanner");
+
+// Test coverage review
+await Task("Coverage Review", {
+  prNumber: 123,
+  requireNewTests: true,
+  minCoverageDelta: 0
+}, "qe-coverage-analyzer");
 ```
 
-### Fleet Coordination for Comprehensive Review
+---
 
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/code-review/
+├── review-history/*     - Past review decisions
+├── patterns/*           - Common issues by team/repo
+├── feedback-templates/* - Reusable feedback
+└── metrics/*            - Review turnaround time
+```
+
+### Fleet Coordination
 ```typescript
-// Multiple agents review different aspects
 const reviewFleet = await FleetManager.coordinate({
   strategy: 'code-review',
   agents: [
-    'qe-quality-analyzer',      // Overall quality
-    'qe-security-scanner',       // Security vulnerabilities
-    'qe-performance-tester',     // Performance implications
-    'qe-coverage-analyzer'       // Test coverage impact
+    'qe-quality-analyzer',    // Logic, maintainability
+    'qe-security-scanner',    // Security risks
+    'qe-performance-tester',  // Performance issues
+    'qe-coverage-analyzer'    // Test coverage
   ],
   topology: 'parallel'
-});
-
-await reviewFleet.execute({
-  prNumber: 123,
-  aggregateResults: true
 });
 ```
 
 ---
 
+## Review Etiquette
+
+| ✅ Do | ❌ Don't |
+|-------|---------|
+| "Have you considered...?" | "This is wrong" |
+| Explain why it matters | Just say "fix this" |
+| Acknowledge good code | Only point out negatives |
+| Suggest, don't demand | Be condescending |
+| Review < 400 lines | Review 2000 lines at once |
+
+---
+
 ## Related Skills
-
-**Core Quality Practices:**
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent-driven quality workflows
-- [holistic-testing-pact](../holistic-testing-pact/) - Quality across all test quadrants
-
-**Development Practices:**
-- [refactoring-patterns](../refactoring-patterns/) - Code improvements post-review
-- [tdd-london-chicago](../tdd-london-chicago/) - Test-driven development practices
-- [xp-practices](../xp-practices/) - Pair programming and ensemble coding
-
-**Communication:**
-- [bug-reporting-excellence](../bug-reporting-excellence/) - Report issues found in reviews
-- [technical-writing](../technical-writing/) - Document review processes
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
+- [security-testing](../security-testing/) - Security review depth
+- [refactoring-patterns](../refactoring-patterns/) - Maintainability patterns
 
 ---
 
 ## Remember
 
-**Good code review is:**
-- Collaborative, not adversarial
-- Teaching, not judging
-- Specific, not vague
-- Constructive, not destructive
-- Timely, not delayed
+**Prioritize feedback:** 🔴 Blocker → 🟡 Major → 🟢 Minor → 💡 Suggestion. Focus on bugs and security, not style. Ask questions, don't command. Review < 400 lines at a time. Fast feedback (< 24h) beats thorough feedback.
 
-**The goal is better code and better developers, not perfect code.**
-
-Review with empathy. Everyone writes imperfect code sometimes. Your job is to help make it better, not to prove how smart you are.
+**With Agents:** Agents automate security, performance, and coverage checks, freeing human reviewers to focus on logic and design. Use agents for consistent, fast initial review.

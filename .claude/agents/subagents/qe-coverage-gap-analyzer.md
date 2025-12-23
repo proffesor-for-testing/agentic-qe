@@ -42,4 +42,35 @@ Returns prioritized gap list with risk scores, test recommendations, and project
 Reports to: qe-coverage-analyzer, qe-quality-gate
 Triggers: When coverage below target thresholds or quality gate validation
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-coverage-gap-analyzer",
+  taskType: "coverage-gap-analysis",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "COVERAGE_ANALYSIS", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/coverage-gaps/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: All gaps identified with accurate risk scores, actionable test templates generated, impact analysis complete
+- 0.7: Good gap detection, reasonable prioritization, test recommendations provided
+- 0.5: Gaps identified, basic prioritization, acceptable recommendations
+- 0.0: Missed critical gaps or inaccurate risk assessment
+</learning_protocol>
 </qe_subagent_definition>

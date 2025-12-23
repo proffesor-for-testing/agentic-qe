@@ -205,7 +205,10 @@ describe('Security Report Generation', () => {
         scanResults: []
       } as any;
 
-      await expect(handler.handle(args)).rejects.toThrow();
+      // Handler returns error response instead of throwing
+      const response = await handler.handle(args);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
   });
 });

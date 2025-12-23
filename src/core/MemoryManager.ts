@@ -48,9 +48,13 @@ export class MemoryManager extends EventEmitter {
     this.logger = Logger.getInstance();
 
     // Setup automatic cleanup every 5 minutes
+    // Use unref() to prevent interval from keeping process alive
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpired();
     }, 5 * 60 * 1000);
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
 
     // Track this instance for cleanup
     MemoryManager.instances.add(this);

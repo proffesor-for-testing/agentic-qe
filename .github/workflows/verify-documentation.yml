@@ -1,13 +1,11 @@
 name: Verify Documentation Accuracy
 
+# Optimized: Removed daily cron to reduce CI costs
+# Only runs on PRs to main and manual dispatch
+
 on:
-  push:
-    branches: [main, develop, testing-with-qe]
   pull_request:
-    branches: [main, develop]
-  schedule:
-    # Run daily at 2 AM UTC
-    - cron: '0 2 * * *'
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -126,33 +124,3 @@ jobs:
           echo "::error::Documentation verification failed. Please review the reports."
           exit 1
 
-      - name: Create issue on failure
-        if: failure() && github.event_name == 'schedule'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = 'Documentation Verification Failed - Daily Check';
-            const body = `## Automated Documentation Verification Failed
-
-            The daily documentation verification check has detected issues.
-
-            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Please review the verification reports and fix the issues:
-            1. Check the workflow artifacts for detailed reports
-            2. Run verification scripts locally to diagnose
-            3. Update documentation or fix implementation as needed
-
-            ### Quick Fixes
-            - For count mismatches: \`npm run update:counts\`
-            - For skill references: Review and fix agent markdown files
-            - For feature claims: Verify implementation or update docs
-            `;
-
-            github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['documentation', 'automated-issue', 'verification']
-            });

@@ -23,6 +23,19 @@ import { SwarmMemoryManager, type MemoryEntry, type StoreOptions, type RetrieveO
 import { AgentDBService, type QEPattern, type PatternSearchOptions as AgentDBSearchOptions, type PatternSearchResult as AgentDBSearchResult } from './AgentDBService';
 import { RuVectorPatternStore, type TestPattern, type PatternSearchOptions, type PatternSearchResult } from './RuVectorPatternStore';
 import { isRuVectorAvailable } from './RuVectorPatternStore';
+import {
+  BinaryCacheManager,
+  BinaryCacheReaderImpl,
+  BinaryCacheBuilderImpl,
+  TRMBinaryCacheBuilderImpl,
+} from '../cache/BinaryCacheImpl';
+import type {
+  TRMPatternEntry,
+  PatternEntry,
+  BinaryCacheConfig,
+  CacheMetrics,
+  CacheBuildResult,
+} from '../cache/BinaryMetadataCache';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 
@@ -60,6 +73,12 @@ export interface MemoryConfig {
 
   /** Vector dimension */
   vectorDimension?: number;
+
+  /** Enable binary cache for TRM patterns */
+  enableBinaryCache?: boolean;
+
+  /** Binary cache configuration */
+  binaryCacheConfig?: Partial<BinaryCacheConfig>;
 }
 
 /**
@@ -171,6 +190,11 @@ export class UnifiedMemoryCoordinator {
   private agentDB?: AgentDBService;
   private vectorStore?: RuVectorPatternStore;
 
+  // Binary cache for TRM patterns (G4 integration)
+  private binaryCacheManager?: BinaryCacheManager;
+  private trmCacheBuilder?: TRMBinaryCacheBuilderImpl;
+  private pendingTRMPatterns: TRMPatternEntry[] = [];
+
   // In-memory fallback
   private jsonStore: Map<string, { value: any; ttl?: number; createdAt: number }>;
 
@@ -197,6 +221,8 @@ export class UnifiedMemoryCoordinator {
       dbPaths: config.dbPaths ?? {},
       enableVectorOps: config.enableVectorOps ?? true,
       vectorDimension: config.vectorDimension ?? 384,
+      enableBinaryCache: config.enableBinaryCache ?? true,
+      binaryCacheConfig: config.binaryCacheConfig ?? {},
     };
 
     this.jsonStore = new Map();
@@ -238,6 +264,11 @@ export class UnifiedMemoryCoordinator {
       // Initialize RuVector if available
       if (availableBackends.includes('vector') && this.config.enableVectorOps) {
         await this.initializeVectorStore();
+      }
+
+      // Initialize Binary Cache for TRM patterns (G4)
+      if (this.config.enableBinaryCache) {
+        await this.initializeBinaryCache();
       }
 
       // Select optimal backend
@@ -408,6 +439,47 @@ export class UnifiedMemoryCoordinator {
         errorCount: 1,
         details: { error: String(error) },
       });
+    }
+  }
+
+  /**
+   * Initialize Binary Cache for TRM patterns (G4 integration)
+   */
+  private async initializeBinaryCache(): Promise<void> {
+    try {
+      const cachePath = path.join(
+        this.config.dbPaths?.ruvector ?? path.join(process.cwd(), '.agentic-qe'),
+        'pattern-cache.bin'
+      );
+
+      // Ensure directory exists
+      await fs.ensureDir(path.dirname(cachePath));
+
+      // Create cache manager with merged config
+      const cacheConfig: Partial<BinaryCacheConfig> = {
+        cachePath,
+        enabled: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours default
+        ...this.config.binaryCacheConfig,
+      };
+
+      this.binaryCacheManager = new BinaryCacheManager(cacheConfig);
+      this.trmCacheBuilder = new TRMBinaryCacheBuilderImpl();
+      this.pendingTRMPatterns = [];
+
+      // Try to load existing cache
+      const loaded = await this.binaryCacheManager.load();
+      if (loaded) {
+        this.logger.info('Binary cache loaded successfully');
+        const metrics = this.binaryCacheManager.getMetrics();
+        this.logger.debug(`Binary cache: ${metrics.patternCount} patterns, ${metrics.cacheFileSize} bytes`);
+      } else {
+        this.logger.debug('No existing binary cache found, will create on first persist');
+      }
+    } catch (error) {
+      this.logger.warn('Failed to initialize binary cache, continuing without it:', error);
+      this.binaryCacheManager = undefined;
+      this.trmCacheBuilder = undefined;
     }
   }
 
@@ -878,6 +950,181 @@ export class UnifiedMemoryCoordinator {
   }
 
   /**
+   * Get binary cache manager (G4)
+   */
+  getBinaryCacheManager(): BinaryCacheManager | undefined {
+    return this.binaryCacheManager;
+  }
+
+  // ============================================
+  // TRM Pattern Caching Methods (G4 Integration)
+  // ============================================
+
+  /**
+   * Cache a TRM pattern for fast lookup
+   * Patterns are staged in memory and persisted on flush or shutdown.
+   */
+  async cacheTRMPattern(pattern: TRMPatternEntry): Promise<void> {
+    if (!this.binaryCacheManager) {
+      this.logger.debug('Binary cache not available, skipping TRM pattern cache');
+      return;
+    }
+
+    this.pendingTRMPatterns.push(pattern);
+
+    // Auto-persist when batch size reaches threshold
+    if (this.pendingTRMPatterns.length >= 100) {
+      await this.persistBinaryCache();
+    }
+  }
+
+  /**
+   * Get a cached TRM pattern by ID
+   */
+  getCachedTRMPattern(id: string): PatternEntry | null {
+    if (!this.binaryCacheManager) {
+      return null;
+    }
+
+    // Check pending patterns first (not yet persisted)
+    const pending = this.pendingTRMPatterns.find(p => p.id === id);
+    if (pending) {
+      // Convert TRMPatternEntry to PatternEntry format
+      return {
+        id: pending.id,
+        type: pending.type,
+        domain: pending.metadata.qualityMetric || 'default',
+        content: pending.inputText + '\n---\n' + pending.outputText,
+        embedding: pending.inputEmbedding || new Float32Array([]),
+        framework: pending.metadata.iterations?.toString() || 'unknown',
+        metadata: {
+          coverage: pending.metadata.quality,
+          flakinessScore: 0,
+          verdict: pending.metadata.converged ? 'success' : 'unknown',
+          createdAt: pending.metadata.createdAt || Date.now(),
+          usageCount: pending.metadata.usageCount || 1,
+          lastUsed: pending.metadata.lastUsed || Date.now(),
+          successCount: pending.metadata.converged ? 1 : 0,
+        },
+      };
+    }
+
+    // Check persisted cache
+    return this.binaryCacheManager.getPattern(id);
+  }
+
+  /**
+   * Get all cached TRM patterns of a specific type
+   */
+  getCachedTRMPatternsByType(type: string): PatternEntry[] {
+    if (!this.binaryCacheManager) {
+      return [];
+    }
+    return this.binaryCacheManager.getPatternsByType(type);
+  }
+
+  /**
+   * Persist all pending TRM patterns to binary cache
+   */
+  async persistBinaryCache(): Promise<CacheBuildResult | null> {
+    if (!this.binaryCacheManager || this.pendingTRMPatterns.length === 0) {
+      return null;
+    }
+
+    const startTime = Date.now();
+    this.logger.debug(`Persisting ${this.pendingTRMPatterns.length} TRM patterns to binary cache`);
+
+    try {
+      // Convert TRM patterns to TestPattern format for the builder
+      const testPatterns: TestPattern[] = this.pendingTRMPatterns.map(p => ({
+        id: p.id,
+        type: p.type,
+        domain: p.metadata.qualityMetric || 'default',
+        content: p.inputText + '\n---\n' + p.outputText,
+        embedding: Array.from(p.inputEmbedding || []),
+        metadata: {
+          quality: p.metadata.quality,
+          converged: p.metadata.converged,
+          iterations: p.metadata.iterations,
+          qualityMetric: p.metadata.qualityMetric,
+        },
+      }));
+
+      // Merge with existing patterns from cache
+      const existingPatterns = this.binaryCacheManager.getAllPatterns();
+      const mergedTestPatterns = this.mergePatterns(existingPatterns, testPatterns);
+
+      // Build and save cache
+      const result = await this.binaryCacheManager.buildAndSave(mergedTestPatterns);
+
+      if (result.success) {
+        this.logger.info(`Binary cache persisted: ${result.patternCount} patterns, ${result.cacheFileSize} bytes, ${Date.now() - startTime}ms`);
+        this.pendingTRMPatterns = []; // Clear pending
+      } else {
+        this.logger.error('Failed to persist binary cache:', result.error);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error persisting binary cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Merge existing PatternEntry with new TestPattern (dedup by id)
+   */
+  private mergePatterns(existing: PatternEntry[], newPatterns: TestPattern[]): TestPattern[] {
+    const merged = new Map<string, TestPattern>();
+
+    // Add existing patterns
+    for (const p of existing) {
+      merged.set(p.id, {
+        id: p.id,
+        type: p.type,
+        domain: p.domain,
+        content: p.content,
+        embedding: Array.from(p.embedding),
+        metadata: p.metadata,
+      });
+    }
+
+    // Overwrite/add new patterns
+    for (const p of newPatterns) {
+      merged.set(p.id, p);
+    }
+
+    return Array.from(merged.values());
+  }
+
+  /**
+   * Get binary cache metrics
+   */
+  getBinaryCacheMetrics(): CacheMetrics | null {
+    if (!this.binaryCacheManager) {
+      return null;
+    }
+    return this.binaryCacheManager.getMetrics();
+  }
+
+  /**
+   * Invalidate binary cache (forces rebuild on next persist)
+   */
+  invalidateBinaryCache(trigger: 'pattern_stored' | 'pattern_deleted' | 'config_updated' | 'schema_migration' | 'ttl_expired' | 'manual'): void {
+    if (this.binaryCacheManager) {
+      this.binaryCacheManager.invalidate(trigger);
+      this.logger.debug(`Binary cache invalidated: ${trigger}`);
+    }
+  }
+
+  /**
+   * Check if binary cache should be rebuilt
+   */
+  shouldRebuildBinaryCache(): boolean {
+    return this.binaryCacheManager?.shouldRebuild() ?? false;
+  }
+
+  /**
    * Check health of all backends
    */
   async checkHealth(): Promise<Map<MemoryBackend, MemoryHealth>> {
@@ -1171,6 +1418,17 @@ export class UnifiedMemoryCoordinator {
 
     if (this.syncTimer) {
       clearInterval(this.syncTimer);
+    }
+
+    // Persist binary cache before shutdown (G4)
+    if (this.binaryCacheManager && this.pendingTRMPatterns.length > 0) {
+      this.logger.debug('Persisting pending TRM patterns before shutdown...');
+      await this.persistBinaryCache();
+    }
+
+    // Close binary cache
+    if (this.binaryCacheManager) {
+      this.binaryCacheManager.close();
     }
 
     // Final sync

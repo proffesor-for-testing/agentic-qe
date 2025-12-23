@@ -38,24 +38,35 @@ export async function generateClaudeSettings(_fleetConfig: FleetConfig): Promise
   }
 
   // Merge AQE settings with existing settings
-  // AGENTDB_PATH ensures hooks use the same database as QE agents
+  // AQE_MEMORY_PATH ensures hooks use the unified QE database (.agentic-qe/memory.db)
+  // Note: agentdb.db is deprecated - all QE agents now use memory.db
   const aqeEnv = {
-    AGENTDB_PATH: ".agentic-qe/agentdb.db",
-    AGENTDB_LEARNING_ENABLED: "true",
-    AGENTDB_REASONING_ENABLED: "true",
-    AGENTDB_AUTO_TRAIN: "true",
-    AQE_MEMORY_ENABLED: "true"
+    AQE_MEMORY_PATH: ".agentic-qe/memory.db",
+    AQE_MEMORY_ENABLED: "true",
+    AQE_LEARNING_ENABLED: "true"
   };
 
   const aqePermissions = [
-    "Bash(npx agentdb:*)",
     "Bash(npx aqe:*)",
+    "Bash(npm run lint)",
     "Bash(npm run test:*)",
+    "Bash(npm test:*)",
     "Bash(git status)",
     "Bash(git diff:*)",
     "Bash(git log:*)",
     "Bash(git add:*)",
-    "Bash(git commit:*)"
+    "Bash(git commit:*)",
+    "Bash(git push)",
+    "Bash(git config:*)",
+    "Bash(git tag:*)",
+    "Bash(git branch:*)",
+    "Bash(git checkout:*)",
+    "Bash(git stash:*)",
+    "Bash(jq:*)",
+    "Bash(node:*)",
+    "Bash(which:*)",
+    "Bash(pwd)",
+    "Bash(ls:*)"
   ];
 
   const settings = {
@@ -84,23 +95,27 @@ export async function generateClaudeSettings(_fleetConfig: FleetConfig): Promise
   if (settingsExists) {
     console.log(chalk.green('  ✓ Merged AQE configuration into existing .claude/settings.json'));
   } else {
-    console.log(chalk.green('  ✓ Created .claude/settings.json with AgentDB learning hooks'));
+    console.log(chalk.green('  ✓ Created .claude/settings.json with QE learning hooks'));
   }
-  console.log(chalk.gray('    • PreToolUse: AgentDB edit intelligence (parallel success/failure queries)'));
-  console.log(chalk.gray('    • PostToolUse: Experience replay + verdict-based quality'));
-  console.log(chalk.gray('    • Stop: Model training + memory optimization'));
+  console.log(chalk.gray('    • PreToolUse: Pattern intelligence from memory.db'));
+  console.log(chalk.gray('    • PostToolUse: Task visualization events'));
+  console.log(chalk.gray('    • PreCompact: QE agent reminder'));
+  console.log(chalk.gray('    • Stop: Session summary'));
 }
 
 /**
  * Get AQE hooks configuration
  *
- * SECURITY: All hook commands use jq -R '@sh' for proper shell escaping
+ * Clean QE-only hooks that use memory.db directly via better-sqlite3.
+ * Note: agentdb.db and agentdb CLI are deprecated - all QE agents use memory.db
+ *
+ * SECURITY: All hook commands use jq for proper input handling
  * to prevent shell injection attacks from malicious file paths/inputs.
  */
 function getAQEHooks(): any {
-  // All hooks must export AGENTDB_PATH to ensure data is saved to the correct database
-  // The env vars in settings.json are not inherited by bash -c subshells
-  const DB_PATH_PREFIX = 'export AGENTDB_PATH=.agentic-qe/agentdb.db;';
+  // Pattern intelligence hook - queries memory.db for relevant patterns when editing files
+  // Uses better-sqlite3 for direct database access (fast, no external CLI dependency)
+  const patternQueryCommand = `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | head -1 | xargs -I {} node -e "const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\" + process.argv[1].replace(/'/g,\\"''\\")+\\"%' ORDER BY confidence DESC LIMIT 3\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}" "{}" 2>/dev/null || true`;
 
   return {
     PreToolUse: [
@@ -109,8 +124,7 @@ function getAQEHooks(): any {
         hooks: [
           {
             type: "command",
-            description: "AgentDB Edit Intelligence - Query both success patterns and failure warnings",
-            command: `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} FILE={}; { npx agentdb@latest query --domain "failed-edits" --query "file:$FILE" --k 3 --min-confidence 0.7 --format json 2>/dev/null | jq -r ".memories[]? | \\"🚨 Warning: Similar edit failed - \\(.pattern.reason // \\"unknown\\")\\" " 2>/dev/null & npx agentdb@latest query --domain "successful-edits" --query "file:$FILE" --k 5 --min-confidence 0.8 --format json 2>/dev/null | jq -r ".memories[]? | \\"💡 Past Success: \\(.pattern.summary // \\"No similar patterns found\\")\\" " 2>/dev/null & wait; } || true'`
+            command: patternQueryCommand
           }
         ]
       },
@@ -119,35 +133,42 @@ function getAQEHooks(): any {
         hooks: [
           {
             type: "command",
-            description: "Trajectory Prediction - Predict optimal task sequence",
-            command: `cat | jq -r '.tool_input.prompt // .tool_input.task // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} TASK={}; npx agentdb@latest query --domain "task-trajectories" --query "task:$TASK" --k 3 --min-confidence 0.75 --format json 2>/dev/null | jq -r ".memories[]? | \\"📋 Predicted Steps: \\(.pattern.trajectory // \\"No trajectory data\\") (Success Rate: \\(.confidence // 0))\\" " 2>/dev/null || true'`
+            command: "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
           }
         ]
       }
     ],
     PostToolUse: [
       {
-        matcher: "Write|Edit|MultiEdit",
-        hooks: [
-          {
-            type: "command",
-            description: "Experience Replay - Capture edit as RL experience",
-            command: `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} FILE={}; TIMESTAMP=$(date +%s); npx agentdb@latest store-pattern --type "experience" --domain "code-edits" --pattern "{\\"file\\":$FILE,\\"timestamp\\":$TIMESTAMP,\\"action\\":\\"edit\\",\\"state\\":\\"pre-test\\"}" --confidence 0.5 2>/dev/null || true'`
-          },
-          {
-            type: "command",
-            description: "Verdict-Based Quality - Async verdict assignment after tests",
-            command: `cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | jq -R '@sh' | xargs -I {} bash -c '${DB_PATH_PREFIX} FILE={}; (sleep 2; TEST_RESULT=$(npm test --silent 2>&1 | grep -q "pass" && echo "ACCEPT" || echo "REJECT"); REWARD=$([ "$TEST_RESULT" = "ACCEPT" ] && echo "1.0" || echo "-1.0"); npx agentdb@latest store-pattern --type "verdict" --domain "code-quality" --pattern "{\\"file\\":$FILE,\\"verdict\\":\\"$TEST_RESULT\\",\\"reward\\":$REWARD}" --confidence $([ "$TEST_RESULT" = "ACCEPT" ] && echo "0.95" || echo "0.3") 2>/dev/null; if [ "$TEST_RESULT" = "ACCEPT" ]; then npx agentdb@latest store-pattern --type "success" --domain "successful-edits" --pattern "{\\"file\\":$FILE,\\"summary\\":\\"Edit passed tests\\"}" --confidence 0.9 2>/dev/null; else npx agentdb@latest store-pattern --type "failure" --domain "failed-edits" --pattern "{\\"file\\":$FILE,\\"reason\\":\\"Tests failed\\"}" --confidence 0.8 2>/dev/null; fi) &'`
-          }
-        ]
-      },
-      {
         matcher: "Task",
         hooks: [
           {
             type: "command",
-            description: "Trajectory Storage - Record task trajectory for learning",
-            command: `cat | jq -r '.tool_input.prompt // .tool_input.task // empty, .result.success // "unknown"' | paste -d'\\n' - - | jq -Rs 'split("\\n") | {task: (.[0] | @sh), success: .[1]}' | jq -r 'CONFIDENCE=(if .success == "true" then "0.95" else "0.5" end); "export AGENTDB_PATH=.agentic-qe/agentdb.db; TASK=\\(.task); SUCCESS=\\(.success); npx agentdb@latest store-pattern --type trajectory --domain task-trajectories --pattern \\("{\\\\\\"task\\\\\\":\\" + .task + ",\\\\\\"success\\\\\\":\\(.success),\\\\\\"trajectory\\\\\\":\\\\\\"search→scaffold→test→refine\\\\\\"}" | @sh) --confidence \\(CONFIDENCE) 2>/dev/null || true"' | bash`
+            command: "node scripts/hooks/capture-task-learning.js 2>/dev/null || true"
+          },
+          {
+            type: "command",
+            command: "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    PreCompact: [
+      {
+        matcher: "manual",
+        hooks: [
+          {
+            type: "command",
+            command: `/bin/bash -c 'echo "🔄 PreCompact: Review CLAUDE.md for 20 QE agents, skills, and learning protocols"'`
+          }
+        ]
+      },
+      {
+        matcher: "auto",
+        hooks: [
+          {
+            type: "command",
+            command: `/bin/bash -c 'echo "🔄 Auto-Compact: 20 QE agents available. Use: npx aqe learn status"'`
           }
         ]
       }
@@ -157,8 +178,7 @@ function getAQEHooks(): any {
         hooks: [
           {
             type: "command",
-            description: "Session end - Train models and compress learnings",
-            command: `bash -c '${DB_PATH_PREFIX} npx agentdb@latest train --domain "code-edits" --epochs 10 --batch-size 32 2>/dev/null || true; npx agentdb@latest optimize-memory --compress true --consolidate-patterns true 2>/dev/null || true'`
+            command: `echo '📊 Session ended. Run: npx aqe learn status' 2>/dev/null || true`
           }
         ]
       }
@@ -205,9 +225,73 @@ function mergeHooks(existing: any, aqeHooks: any): any {
 }
 
 /**
+ * Generate MCP server definitions file
+ *
+ * Creates the .claude/mcp.json file that defines available MCP servers.
+ * This is REQUIRED for enabledMcpjsonServers in settings.json to work.
+ *
+ * @param config - Fleet configuration
+ */
+export async function generateMcpJson(_fleetConfig: FleetConfig): Promise<void> {
+  const mcpJsonPath = path.join(process.cwd(), '.claude', 'mcp.json');
+
+  // Check if mcp.json already exists
+  const mcpJsonExists = await fs.pathExists(mcpJsonPath);
+
+  let existingConfig: any = { mcpServers: {} };
+  if (mcpJsonExists) {
+    console.log(chalk.yellow('  ⓘ  .claude/mcp.json already exists - merging AQE server'));
+    try {
+      existingConfig = await fs.readJson(mcpJsonPath);
+      if (!existingConfig.mcpServers) {
+        existingConfig.mcpServers = {};
+      }
+    } catch (error) {
+      console.log(chalk.red('  ⚠️  Could not parse existing mcp.json - creating backup'));
+      await fs.copy(mcpJsonPath, `${mcpJsonPath}.backup`);
+      console.log(chalk.gray(`    Backup saved to: ${mcpJsonPath}.backup`));
+    }
+  }
+
+  // Define agentic-qe MCP server
+  const aqeMcpServer = {
+    command: "npx",
+    args: ["aqe-mcp"],
+    env: {
+      AQE_MEMORY_PATH: ".agentic-qe/memory.db",
+      AQE_LEARNING_ENABLED: "true",
+      NODE_NO_WARNINGS: "1"
+    }
+  };
+
+  // Merge with existing config
+  const mcpConfig = {
+    mcpServers: {
+      ...existingConfig.mcpServers,
+      "agentic-qe": aqeMcpServer
+    }
+  };
+
+  await fs.ensureDir(path.dirname(mcpJsonPath));
+  await fs.writeJson(mcpJsonPath, mcpConfig, { spaces: 2 });
+
+  if (mcpJsonExists) {
+    console.log(chalk.green('  ✓ Merged agentic-qe server into existing .claude/mcp.json'));
+  } else {
+    console.log(chalk.green('  ✓ Created .claude/mcp.json with agentic-qe server'));
+  }
+  console.log(chalk.gray('    • Server: agentic-qe'));
+  console.log(chalk.gray('    • Command: npx aqe-mcp'));
+  console.log(chalk.gray('    • Tools: 102 MCP tools for learning, memory, analysis'));
+}
+
+/**
  * Setup MCP server configuration
  *
- * Configures the Model Context Protocol server for agent coordination
+ * Configures the Model Context Protocol server for agent coordination.
+ * This function handles both:
+ * 1. Project-level config (.claude/mcp.json) - via generateMcpJson()
+ * 2. Global config (claude mcp add) - for users who prefer global setup
  */
 export async function setupMCPServer(): Promise<void> {
   console.log(chalk.cyan('\n  🔌 Setting up MCP server integration...\n'));
@@ -220,17 +304,18 @@ export async function setupMCPServer(): Promise<void> {
       execSync('which claude', { stdio: 'ignore' });
     } catch {
       console.log(chalk.yellow('  ⚠️  Claude Code CLI not found'));
-      console.log(chalk.gray('  ℹ️  Please add MCP server manually after installing Claude Code:'));
+      console.log(chalk.gray('  ℹ️  MCP server defined in .claude/mcp.json (project-level)'));
+      console.log(chalk.gray('  ℹ️  For global setup after installing Claude Code:'));
       console.log(chalk.cyan('     claude mcp add agentic-qe npx aqe-mcp'));
       console.log(chalk.gray('\n  Download Claude Code: https://claude.com/claude-code'));
       return;
     }
 
-    // Check if MCP server is already added
+    // Check if MCP server is already added globally
     try {
       const mcpList = execSync('claude mcp list', { encoding: 'utf-8' });
       if (mcpList.includes('agentic-qe')) {
-        console.log(chalk.green('  ✓ MCP server already configured'));
+        console.log(chalk.green('  ✓ MCP server already configured globally'));
         console.log(chalk.gray('    • Server: agentic-qe'));
         console.log(chalk.gray('    • Command: npx aqe-mcp'));
         return;
@@ -239,8 +324,8 @@ export async function setupMCPServer(): Promise<void> {
       // Ignore errors, proceed with adding
     }
 
-    // Add MCP server
-    console.log(chalk.gray('  • Adding MCP server to Claude Code...'));
+    // Add MCP server globally
+    console.log(chalk.gray('  • Adding MCP server to Claude Code globally...'));
     execSync('claude mcp add agentic-qe npx aqe-mcp', { stdio: 'inherit' });
 
     console.log(chalk.green('\n  ✓ MCP server added successfully'));
@@ -249,9 +334,10 @@ export async function setupMCPServer(): Promise<void> {
     console.log(chalk.gray('    • Memory: Shared memory coordination enabled'));
 
   } catch (error: any) {
-    console.log(chalk.yellow('  ⚠️  Could not auto-configure MCP server'));
+    console.log(chalk.yellow('  ⚠️  Could not auto-configure MCP server globally'));
     console.log(chalk.gray(`  Error: ${error.message}`));
-    console.log(chalk.gray('\n  Please add manually:'));
+    console.log(chalk.gray('  ℹ️  Project-level config in .claude/mcp.json will still work'));
+    console.log(chalk.gray('\n  For global setup, run manually:'));
     console.log(chalk.cyan('     claude mcp add agentic-qe npx aqe-mcp'));
   }
 }

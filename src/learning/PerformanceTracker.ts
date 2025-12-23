@@ -440,6 +440,32 @@ export class PerformanceTracker {
   }
 
   /**
+   * Deserialize PerformanceMetrics from stored data
+   * JSON serialization converts Date objects to ISO strings, so we need to convert them back
+   */
+  private deserializeMetrics(data: unknown): PerformanceMetrics {
+    const metrics = data as PerformanceMetrics;
+    return {
+      ...metrics,
+      period: {
+        start: new Date(metrics.period.start),
+        end: new Date(metrics.period.end)
+      }
+    };
+  }
+
+  /**
+   * Deserialize PerformanceSnapshot from stored data
+   */
+  private deserializeSnapshot(data: unknown): PerformanceSnapshot {
+    const snapshot = data as PerformanceSnapshot;
+    return {
+      timestamp: new Date(snapshot.timestamp),
+      metrics: this.deserializeMetrics(snapshot.metrics)
+    };
+  }
+
+  /**
    * Load snapshots from memory
    */
   private async loadSnapshots(): Promise<void> {
@@ -450,7 +476,7 @@ export class PerformanceTracker {
         { partition: 'learning' }
       );
       if (baseline) {
-        this.baselineMetrics = baseline as PerformanceMetrics;
+        this.baselineMetrics = this.deserializeMetrics(baseline);
       }
 
       // Load snapshots (query pattern)
@@ -460,7 +486,7 @@ export class PerformanceTracker {
       );
 
       this.snapshots = snapshotEntries
-        .map(entry => entry.value as PerformanceSnapshot)
+        .map(entry => this.deserializeSnapshot(entry.value))
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       this.logger.info(`Loaded ${this.snapshots.length} performance snapshots`);

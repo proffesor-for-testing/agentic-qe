@@ -1,187 +1,222 @@
 ---
 name: contract-testing
-description: Consumer-driven contract testing for microservices using Pact, schema validation, API versioning, and backward compatibility testing. Use when testing API contracts, preventing breaking changes, or coordinating distributed teams.
+description: "Consumer-driven contract testing for microservices using Pact, schema validation, API versioning, and backward compatibility testing. Use when testing API contracts or coordinating distributed teams."
+category: testing-methodologies
+priority: high
+tokenEstimate: 900
+agents: [qe-api-contract-validator, qe-test-generator, qe-security-scanner]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-02
+dependencies: []
+quick_reference_card: true
+tags: [contract, pact, consumer-driven, api, microservices, schema-validation]
 ---
 
 # Contract Testing
 
-## Core Principle
+<default_to_action>
+When testing API contracts or microservices:
+1. DEFINE consumer expectations (what consumers actually need)
+2. VERIFY provider fulfills contracts (Pact verification)
+3. DETECT breaking changes before deployment (CI/CD integration)
+4. VERSION APIs semantically (breaking = major bump)
+5. MAINTAIN backward compatibility for supported versions
 
-**Microservices fail when API contracts break.**
+**Quick Contract Testing Steps:**
+- Consumer: Define expected request/response pairs
+- Provider: Verify against all consumer contracts
+- CI/CD: Block deploys that break contracts
+- Versioning: Document supported versions and deprecation
 
-Contract testing validates that providers (APIs) fulfill contracts expected by consumers (clients). Prevents breaking changes that cause production failures in distributed systems.
+**Critical Success Factors:**
+- Consumers own the contract (they define what they need)
+- Provider must pass all consumer contracts before deploy
+- Breaking changes require coordination, not surprise
+</default_to_action>
 
-## What is Contract Testing?
+## Quick Reference Card
 
-**Contract:** Agreement between API provider and consumer about request/response structure.
+### When to Use
+- Microservices communication
+- Third-party API integrations
+- Distributed team coordination
+- Preventing breaking changes
 
-**Traditional Testing Problems:**
+### Consumer-Driven Contract Flow
 ```
-Consumer Team: "We need user.id as integer"
-Provider Team: "We changed it to UUID string"
-→ Production failure! No one noticed until deployed.
+Consumer → Defines Expectations → Contract
+                    ↓
+Provider → Verifies Contract → Pass/Fail
+                    ↓
+CI/CD → Blocks Breaking Changes
 ```
 
-**Contract Testing Solution:**
-```
-1. Consumer defines expected contract
-2. Provider validates against contract
-3. Breaking changes caught before deployment
-```
+### Breaking vs Non-Breaking Changes
+| Change Type | Breaking? | Semver |
+|-------------|-----------|--------|
+| Remove field | ✅ Yes | Major |
+| Rename field | ✅ Yes | Major |
+| Change type | ✅ Yes | Major |
+| Add optional field | ❌ No | Minor |
+| Add new endpoint | ❌ No | Minor |
+| Bug fix | ❌ No | Patch |
 
-## Consumer-Driven Contracts (Pact)
+### Tools
+| Tool | Best For |
+|------|----------|
+| **Pact** | Consumer-driven contracts |
+| **OpenAPI/Swagger** | API-first design |
+| **JSON Schema** | Schema validation |
+| **GraphQL** | Schema-first contracts |
 
-**Install Pact:**
-```bash
-npm install --save-dev @pact-foundation/pact
-```
+---
 
-**Consumer Test (defines contract):**
+## Consumer Contract (Pact)
+
 ```javascript
-import { PactV3 } from '@pact-foundation/pact';
+// Consumer defines what it needs
+const { Pact } = require('@pact-foundation/pact');
 
-const provider = new PactV3({
-  consumer: 'UserWebApp',
-  provider: 'UserAPI'
-});
+describe('Order API Consumer', () => {
+  const provider = new Pact({
+    consumer: 'CheckoutUI',
+    provider: 'OrderService'
+  });
 
-test('get user by id', async () => {
-  // Define expected interaction
-  await provider
-    .given('user 123 exists')
-    .uponReceiving('a request for user 123')
-    .withRequest({
-      method: 'GET',
-      path: '/users/123'
-    })
-    .willRespondWith({
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: {
-        id: 123,
-        email: 'user@example.com',
-        name: 'John Doe'
+  beforeAll(() => provider.setup());
+  afterAll(() => provider.finalize());
+
+  it('creates an order', async () => {
+    await provider.addInteraction({
+      state: 'products exist',
+      uponReceiving: 'a create order request',
+      withRequest: {
+        method: 'POST',
+        path: '/orders',
+        body: { productId: 'abc', quantity: 2 }
+      },
+      willRespondWith: {
+        status: 201,
+        body: {
+          orderId: like('order-123'),  // Any string matching pattern
+          total: like(19.99)           // Any number
+        }
       }
     });
 
-  // Execute test
-  await provider.executeTest(async (mockServer) => {
-    const api = new UserAPI(mockServer.url);
-    const user = await api.getUser(123);
-
-    expect(user.id).toBe(123);
-    expect(user.email).toBe('user@example.com');
+    const response = await orderClient.create({ productId: 'abc', quantity: 2 });
+    expect(response.orderId).toBeDefined();
   });
 });
-
-// Generates pact contract file
 ```
 
-**Provider Verification:**
+---
+
+## Provider Verification
+
 ```javascript
-import { Verifier } from '@pact-foundation/pact';
+// Provider verifies it fulfills all consumer contracts
+const { Verifier } = require('@pact-foundation/pact');
 
-test('provider honors all consumer contracts', async () => {
-  const verifier = new Verifier({
-    provider: 'UserAPI',
-    providerBaseUrl: 'http://localhost:3000',
-
-    // Load contracts from Pact Broker
-    pactBrokerUrl: 'https://pact-broker.example.com',
-    pactBrokerToken: process.env.PACT_BROKER_TOKEN,
-
-    // Or load local contracts
-    pactUrls: ['./pacts/UserWebApp-UserAPI.json'],
-
-    // Provider states
-    stateHandlers: {
-      'user 123 exists': async () => {
-        await db.users.create({ id: 123, email: 'user@example.com', name: 'John Doe' });
+describe('Order Service Provider', () => {
+  it('fulfills all consumer contracts', async () => {
+    await new Verifier({
+      provider: 'OrderService',
+      providerBaseUrl: 'http://localhost:3000',
+      pactUrls: ['./pacts/checkoutui-orderservice.json'],
+      stateHandlers: {
+        'products exist': async () => {
+          await db.products.create({ id: 'abc', price: 9.99 });
+        }
       }
-    }
+    }).verifyProvider();
   });
-
-  await verifier.verifyProvider();
-  // Fails if provider doesn't match consumer expectations
 });
 ```
 
-## Schema Validation
+---
 
-**JSON Schema Contract:**
-```javascript
-const userSchema = {
-  type: 'object',
-  required: ['id', 'email'],
-  properties: {
-    id: { type: 'integer' },
-    email: { type: 'string', format: 'email' },
-    name: { type: 'string' },
-    createdAt: { type: 'string', format: 'date-time' }
-  }
-};
+## Breaking Change Detection
 
-test('API response matches schema', async () => {
-  const response = await fetch('/api/users/123');
-  const user = await response.json();
+```typescript
+// Agent detects breaking changes
+await Task("Contract Validation", {
+  currentContract: 'openapi-v2.yaml',
+  previousContract: 'openapi-v1.yaml',
+  detectBreaking: true,
+  calculateSemver: true,
+  generateMigrationGuide: true
+}, "qe-api-contract-validator");
 
-  const validator = new Ajv();
-  const valid = validator.validate(userSchema, user);
+// Output:
+// Breaking changes found: 2
+// - Removed field: order.discount
+// - Type change: order.total (number → string)
+// Recommended version: 3.0.0 (major bump)
+```
 
-  expect(valid).toBe(true);
-  expect(validator.errors).toBeNull();
+---
+
+## CI/CD Integration
+
+```yaml
+name: Contract Tests
+on: [push]
+
+jobs:
+  consumer-tests:
+    steps:
+      - run: npm run test:contract
+      - name: Publish Pacts
+        run: npx pact-broker publish ./pacts --broker-base-url $PACT_BROKER
+
+  provider-verification:
+    needs: consumer-tests
+    steps:
+      - name: Verify Provider
+        run: npm run verify:contracts
+      - name: Can I Deploy?
+        run: npx pact-broker can-i-deploy --pacticipant OrderService --version $VERSION
+```
+
+---
+
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/contract-testing/
+├── contracts/*           - Current contracts
+├── breaking-changes/*    - Detected breaking changes
+├── versioning/*          - Version compatibility matrix
+└── verification-results/* - Provider verification history
+```
+
+### Fleet Coordination
+```typescript
+const contractFleet = await FleetManager.coordinate({
+  strategy: 'contract-testing',
+  agents: [
+    'qe-api-contract-validator',  // Validation, breaking detection
+    'qe-test-generator',          // Generate contract tests
+    'qe-security-scanner'         // API security
+  ],
+  topology: 'sequential'
 });
 ```
 
-## API Versioning Testing
-
-**Test backward compatibility:**
-```javascript
-test('v2 API is backward compatible with v1', async () => {
-  // v1 client
-  const v1Response = await fetch('/api/v1/users/123');
-  const v1User = await v1Response.json();
-
-  // v2 client
-  const v2Response = await fetch('/api/v2/users/123');
-  const v2User = await v2Response.json();
-
-  // v2 must include all v1 fields
-  expect(v2User).toMatchObject(v1User);
-
-  // v2 can have additional fields
-  expect(v2User.newField).toBeDefined();
-});
-
-test('deprecated fields still present', async () => {
-  const response = await fetch('/api/v2/users/123');
-  const user = await response.json();
-
-  // Deprecated field still works (with warning header)
-  expect(user.oldField).toBeDefined();
-  expect(response.headers.get('Deprecation')).toBeTruthy();
-});
-```
+---
 
 ## Related Skills
-
 - [api-testing-patterns](../api-testing-patterns/) - API testing strategies
-- [regression-testing](../regression-testing/) - Contract regression
-- [agentic-quality-engineering](../agentic-quality-engineering/)
+- [shift-left-testing](../shift-left-testing/) - Early contract validation
+- [cicd-pipeline-qe-orchestrator](../cicd-pipeline-qe-orchestrator/) - Pipeline integration
+
+---
 
 ## Remember
 
-**Breaking API changes break production.**
+**Consumers own the contract.** They define what they need; providers must fulfill it. Breaking changes require major version bumps and coordination. CI/CD blocks deploys that break contracts. Use Pact for consumer-driven, OpenAPI for API-first.
 
-- Microservices depend on each other
-- Changes propagate across services
-- Integration tests miss distributed issues
-- Contract testing catches breaks early
-
-**Consumer-driven prevents surprises:**
-- Consumers define expectations
-- Providers validate before deployment
-- Breaking changes caught in CI
-- Safe, independent deployments
-
-**With Agents:** `qe-api-contract-validator` automatically validates contracts, detects breaking changes, and ensures backward compatibility across all API versions.
+**With Agents:** Agents validate contracts, detect breaking changes with semver recommendations, and generate migration guides. Use agents to maintain contract compliance at scale.

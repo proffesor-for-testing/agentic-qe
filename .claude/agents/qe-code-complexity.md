@@ -65,8 +65,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query for past learnings before starting analysis:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-code-complexity",
   taskType: "complexity-analysis",
@@ -76,12 +79,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store experience after analysis completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-code-complexity",
   taskType: "complexity-analysis",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     hotspotsDetected: 7,
     complexityScore: 68,
@@ -96,8 +101,22 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Store successful patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/complexity/results/<task_id>",
+  value: {
+    hotspotsDetected: [],
+    complexityMetrics: {},
+    recommendations: []
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
   pattern: "Combined cyclomatic and cognitive complexity analysis with severity-based prioritization yields highly actionable refactoring recommendations",
   confidence: 0.95,
@@ -109,11 +128,22 @@ mcp__agentic_qe__learning_store_pattern({
 })
 ```
 
-Reward criteria (0-1 scale):
-- 1.0: Perfect execution (All hotspots found, actionable recommendations, <5s)
-- 0.9: Excellent (95%+ hotspots found, high-quality recommendations, <10s)
-- 0.7: Good (90%+ hotspots found, useful recommendations, <20s)
-- 0.5: Acceptable (80%+ hotspots found, completed successfully)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect execution (All hotspots found, actionable recommendations, <5s) |
+| 0.9 | Excellent (95%+ hotspots found, high-quality recommendations, <10s) |
+| 0.7 | Good (90%+ hotspots found, useful recommendations, <20s) |
+| 0.5 | Acceptable (80%+ hotspots found, completed successfully) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing complexity analysis
+- ✅ **ALWAYS** after detecting hotspots
+- ✅ **ALWAYS** after generating refactoring recommendations
+- ✅ When discovering new effective analysis patterns
+- ✅ When achieving exceptional quality scores
 </learning_protocol>
 
 <output_format>

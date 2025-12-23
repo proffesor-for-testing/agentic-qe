@@ -52,7 +52,15 @@ import { Database } from '../utils/Database';
 import { Logger } from '../utils/Logger';
 import { Config, FleetConfig } from '../utils/Config';
 import { createAgent } from '../agents';
-import { MemoryManager } from './MemoryManager';
+import { SwarmMemoryManager } from './memory/SwarmMemoryManager';
+import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs';
+
+// Code Intelligence imports (Wave 6)
+import { CodeIntelligenceService, CodeIntelligenceServiceConfig } from '../code-intelligence/service/CodeIntelligenceService.js';
+import type { HybridSearchEngine } from '../code-intelligence/search/HybridSearchEngine.js';
+import type { GraphBuilder } from '../code-intelligence/graph/GraphBuilder.js';
 
 /**
  * Status information about the fleet
@@ -99,9 +107,13 @@ export class FleetManager extends EventEmitter {
   private readonly database: Database;
   private readonly logger: Logger;
   private readonly config: FleetConfig;
-  private readonly memoryManager: MemoryManager;
+  private readonly memoryManager: SwarmMemoryManager;
   private startTime: Date | null = null;
   private status: FleetStatus['status'] = 'initializing';
+
+  // Code Intelligence Service (Wave 6 - Knowledge Graph Integration)
+  private codeIntelligenceService?: CodeIntelligenceService;
+  private codeIntelligenceEnabled: boolean = false;
 
   constructor(config: FleetConfig, dependencies?: FleetManagerDependencies) {
     super();
@@ -132,7 +144,12 @@ export class FleetManager extends EventEmitter {
     }
 
     this.config = config;
-    this.memoryManager = new MemoryManager(this.database);
+
+    // FIX: Use SwarmMemoryManager instead of MemoryManager to enable learning features
+    // Issue #137: Agents require SwarmMemoryManager for PerformanceTracker, LearningEngine
+    // Path: .agentic-qe/memory.db (project-local) or ~/.agentic-qe/memory.db (global)
+    const dbPath = this.resolveMemoryDbPath();
+    this.memoryManager = new SwarmMemoryManager(dbPath);
 
     this.setupEventHandlers();
   }
@@ -169,6 +186,44 @@ export class FleetManager extends EventEmitter {
         }
       }
     } as any;
+  }
+
+  /**
+   * Resolve the path for SwarmMemoryManager database
+   *
+   * @remarks
+   * Uses project-local .agentic-qe/memory.db if running from a project directory,
+   * otherwise falls back to ~/.agentic-qe/memory.db for global installations.
+   * For tests, uses in-memory database.
+   *
+   * @private
+   */
+  private resolveMemoryDbPath(): string {
+    // Use in-memory DB for tests to prevent file conflicts
+    if (process.env.NODE_ENV === 'test') {
+      return ':memory:';
+    }
+
+    // Prefer project-local path
+    const projectPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+    const globalPath = path.join(os.homedir(), '.agentic-qe', 'memory.db');
+
+    // Use project path if .agentic-qe directory exists or can be created
+    try {
+      const projectDir = path.dirname(projectPath);
+      // Check if we're in a project directory (has package.json or .git)
+      const isProjectDir =
+        require('fs').existsSync(path.join(process.cwd(), 'package.json')) ||
+        require('fs').existsSync(path.join(process.cwd(), '.git'));
+
+      if (isProjectDir) {
+        return projectPath;
+      }
+    } catch {
+      // Fall through to global path
+    }
+
+    return globalPath;
   }
 
   /**
@@ -212,6 +267,9 @@ export class FleetManager extends EventEmitter {
 
       // Initialize memory manager
       await this.memoryManager.initialize();
+
+      // Initialize Code Intelligence if configured (Wave 6)
+      await this.initializeCodeIntelligence();
 
       // Create initial agent pool
       await this.createInitialAgents();
@@ -282,9 +340,15 @@ export class FleetManager extends EventEmitter {
 
     await Promise.all(stopPromises);
 
-    // CRITICAL FIX: Shutdown memory manager to clear cleanup interval
+    // CRITICAL FIX: Close SwarmMemoryManager to release database connection
     // This prevents memory leaks and hanging processes
-    await this.memoryManager.shutdown();
+    await this.memoryManager.close();
+
+    // Shutdown Code Intelligence Service if initialized
+    if (this.codeIntelligenceService) {
+      await this.codeIntelligenceService.shutdown();
+      this.codeIntelligenceEnabled = false;
+    }
 
     // Close database connection
     await this.database.close();
@@ -321,6 +385,8 @@ export class FleetManager extends EventEmitter {
       const agentConfig = {
         memoryStore: config.memoryStore || this.getMemoryStore(),
         context: config.context || { id: agentId, type, status: 'initializing' as any },
+        // Inject Code Intelligence if available (Wave 6)
+        codeIntelligence: config.codeIntelligence || this.getCodeIntelligenceConfig(),
         ...config
       };
 
@@ -498,8 +564,12 @@ export class FleetManager extends EventEmitter {
 
   /**
    * Get memory store for agent initialization
+   *
+   * @remarks
+   * Returns SwarmMemoryManager which is REQUIRED for agent learning features.
+   * Issue #137: Using MemoryManager caused instanceof checks to fail in BaseAgent.
    */
-  private getMemoryStore(): MemoryManager {
+  private getMemoryStore(): SwarmMemoryManager {
     return this.memoryManager;
   }
 
@@ -524,6 +594,91 @@ export class FleetManager extends EventEmitter {
         await this.spawnAgent(agentConfig.type, agentConfig.config);
       }
     }
+  }
+
+  /**
+   * Initialize Code Intelligence Service if configured
+   *
+   * Loads configuration from .agentic-qe/config/code-intelligence.json
+   * and initializes the shared CodeIntelligenceService for agent injection.
+   *
+   * @private
+   */
+  private async initializeCodeIntelligence(): Promise<void> {
+    // Check for configuration file
+    const configPath = path.join(process.cwd(), '.agentic-qe', 'config', 'code-intelligence.json');
+
+    try {
+      if (!fs.existsSync(configPath)) {
+        this.logger.debug('Code Intelligence config not found, skipping initialization');
+        return;
+      }
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+      if (!config.enabled) {
+        this.logger.debug('Code Intelligence disabled in config');
+        return;
+      }
+
+      // Check prerequisites before initializing
+      const prereqs = await CodeIntelligenceService.checkPrerequisites();
+      if (!prereqs.allReady) {
+        this.logger.warn('Code Intelligence prerequisites not available:');
+        prereqs.messages.forEach(msg => this.logger.warn(`  • ${msg}`));
+        return;
+      }
+
+      // Initialize the service
+      const serviceConfig: CodeIntelligenceServiceConfig = {
+        rootDir: process.cwd(),
+        ollamaUrl: config.ollamaUrl || process.env.OLLAMA_URL || 'http://localhost:11434',
+        database: config.database ? {
+          enabled: true,
+          host: config.database.host || 'localhost',
+          port: config.database.port || 5432,
+          database: config.database.database || 'ruvector_db',
+          user: config.database.user || 'ruvector',
+          password: config.database.password || 'ruvector',
+        } : undefined,
+      };
+
+      this.codeIntelligenceService = CodeIntelligenceService.getInstance(serviceConfig);
+      await this.codeIntelligenceService.initialize();
+      this.codeIntelligenceEnabled = true;
+
+      this.logger.info('Code Intelligence Service initialized for fleet');
+      const status = await this.codeIntelligenceService.getStatus();
+      this.logger.info(`  • Indexed chunks: ${status.indexedChunks}`);
+      this.logger.info(`  • Graph nodes: ${status.graphNodes}`);
+    } catch (error) {
+      this.logger.warn('Code Intelligence initialization failed:', (error as Error).message);
+      // Don't throw - agent operation continues without Code Intelligence
+    }
+  }
+
+  /**
+   * Get Code Intelligence config for agent injection
+   *
+   * @returns Configuration object for BaseAgentConfig.codeIntelligence
+   */
+  public getCodeIntelligenceConfig(): {
+    enabled: boolean;
+    searchEngine?: HybridSearchEngine;
+    graphBuilder?: GraphBuilder;
+  } {
+    if (!this.codeIntelligenceEnabled || !this.codeIntelligenceService) {
+      return { enabled: false };
+    }
+
+    return this.codeIntelligenceService.getAgentConfig();
+  }
+
+  /**
+   * Check if Code Intelligence is available
+   */
+  public hasCodeIntelligence(): boolean {
+    return this.codeIntelligenceEnabled && this.codeIntelligenceService?.isReady() === true;
   }
 
   /**

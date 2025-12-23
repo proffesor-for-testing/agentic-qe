@@ -35,6 +35,25 @@ export {
 // Metrics exports
 export * from './metrics';
 
+// Learning telemetry exports
+export {
+  LearningMetrics,
+  createLearningMetrics,
+  getLearningMetrics,
+  recordLearningEpisode,
+  recordQValueUpdate,
+  recordPatternMatch,
+  recordAlgorithmSwitch,
+  recordExperienceSharing,
+  updateSharingConnections,
+  updateGaugeValue,
+  updateGaugeValues,
+  withLearningSpan,
+  recordLearningSession,
+  getPatternHitRate,
+  resetPatternHitTracking,
+} from './LearningTelemetry';
+
 /**
  * Quick start function for initializing telemetry with defaults
  *
@@ -44,6 +63,7 @@ export * from './metrics';
 export async function quickStartTelemetry(serviceName?: string) {
   const { initTelemetry } = await import('./bootstrap');
   const { initializeAllMetrics } = await import('./metrics');
+  const { createLearningMetrics } = await import('./LearningTelemetry');
 
   const result = await initTelemetry({
     serviceName: serviceName || 'agentic-qe-fleet',
@@ -52,8 +72,9 @@ export async function quickStartTelemetry(serviceName?: string) {
   });
 
   if (result.success) {
-    // Initialize all metrics
+    // Initialize all metrics including learning metrics
     initializeAllMetrics();
+    createLearningMetrics();
   }
 
   return result;

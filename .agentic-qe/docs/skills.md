@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Skills Reference
 
-This document provides comprehensive reference for all 38 specialized QE skills available to agents.
+This document provides comprehensive reference for all 41 specialized QE skills available to agents.
 
 ## Overview
 
@@ -723,7 +723,7 @@ Skill("sherlock-review")
 #### cicd-pipeline-qe-orchestrator
 **Comprehensive quality orchestration across CI/CD pipeline phases**
 
-Intelligently select QE skills and coordinate specialized agents for holistic quality coverage throughout the software delivery lifecycle. Integrates all 38 AQE skills and 18 agents.
+Intelligently select QE skills and coordinate specialized agents for holistic quality coverage throughout the software delivery lifecycle. Integrates all 41 AQE skills and 20 agents.
 
 **Key Topics:**
 - Pipeline phase analysis
@@ -746,6 +746,68 @@ Skill("cicd-pipeline-qe-orchestrator")
 - Microservice pipeline testing
 - Monolith pipeline testing
 - Mobile app pipeline testing
+
+---
+
+## Phase 4: Community Contributed Skills (1 skill)
+
+### Testability Assessment
+
+#### testability-scoring
+**Automated testability assessment using 10 principles of intrinsic testability**
+
+Evaluates software testability through automated analysis of 10 intrinsic principles, providing actionable scores (0-100) with letter grades, AI-powered recommendations, and visual HTML reports with Chart.js radar visualizations.
+
+*Contributed by [@fndlalit](https://github.com/fndlalit)* - Based on [testability-scorer](https://github.com/fndlalit/testability-scorer)
+
+**Key Topics:**
+- Observability & Controllability assessment
+- Algorithmic simplicity & transparency
+- Explainability & similarity analysis
+- Stability & unbugginess metrics
+- Smallness & decomposability evaluation
+- HTML reports with radar charts
+- AI-powered improvement recommendations
+
+**The 10 Principles:**
+1. **Observability** (15%) - State transparency and monitoring
+2. **Controllability** (15%) - State manipulation and test data injection
+3. **Algorithmic Simplicity** (10%) - Clear input-output relationships
+4. **Algorithmic Transparency** (10%) - Understandable logic flow
+5. **Explainability** (10%) - Documentation and clarity
+6. **Similarity** (5%) - Standard patterns and familiar architecture
+7. **Algorithmic Stability** (10%) - API versioning and compatibility
+8. **Unbugginess** (10%) - Low defect rate
+9. **Smallness** (10%) - Manageable size and modularity
+10. **Decomposability** (5%) - Component isolation
+
+**Usage:**
+```javascript
+Skill("testability-scoring")
+```
+
+**Quick Start:**
+```bash
+# Run full assessment (10 principles)
+.claude/skills/testability-scoring/scripts/run-assessment.sh https://your-app.com chromium
+
+# Generate HTML report from JSON
+AUTO_OPEN=false node .claude/skills/testability-scoring/scripts/generate-html-report.js tests/reports/testability-results-*.json
+```
+
+**Use Cases:**
+- Assessing application testability before test automation
+- Identifying testability gaps and improvements
+- Generating visual testability reports
+- Tracking testability improvements over time
+- CI/CD quality gate integration
+
+**Scoring Scale:**
+- **A (90-100)**: Excellent testability
+- **B (80-89)**: Good testability
+- **C (70-79)**: Acceptable testability
+- **D (60-69)**: Below average
+- **F (0-59)**: Poor testability
 
 ---
 
@@ -789,7 +851,7 @@ All QE agents automatically have access to relevant skills based on their specia
 ---
 
 **Related Documentation:**
-- [Agent Reference](agents.md) - All 18 QE agents
+- [Agent Reference](agents.md) - All 20 QE agents
 - [Usage Guide](usage.md) - Complete usage examples
 
 **Related Policies:**

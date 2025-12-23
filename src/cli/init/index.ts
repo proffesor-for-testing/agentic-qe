@@ -15,14 +15,17 @@ import { ProcessExit } from '../../utils/ProcessExit';
 // Phase modules (will be created incrementally)
 import { createDirectoryStructure } from './directory-structure';
 import { initializeDatabases } from './database-init';
-import { generateClaudeSettings, setupMCPServer } from './claude-config';
+import { generateClaudeSettings, generateMcpJson, setupMCPServer } from './claude-config';
 import { copyDocumentation } from './documentation';
 import { createBashWrapper } from './bash-wrapper';
 import { createClaudeMd } from './claude-md';
 import { copyAgentTemplates } from './agents';
 import { copySkillTemplates } from './skills';
 import { copyCommandTemplates } from './commands';
-import { copyHelperScripts } from './helpers';
+import { copyHelperScripts, copyHookScripts } from './helpers';
+import { initializeLearningSystem } from './learning-init';
+import { installOptionalDependencies, displayOptionalDependenciesHelp } from './optional-dependencies';
+import { initializeCodeIntelligence } from './code-intelligence-init';
 
 // Import version from package.json
 const packageJson = require('../../../package.json');
@@ -83,6 +86,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
       description: 'Generating Claude Code settings and MCP server',
       execute: async (cfg) => {
         await generateClaudeSettings(cfg);
+        await generateMcpJson(cfg);  // Creates .claude/mcp.json with server definitions
         await setupMCPServer();
       },
       critical: true  // CRITICAL for learning system!
@@ -122,11 +126,30 @@ export async function initCommand(options: InitOptions): Promise<void> {
       description: 'Copying helper scripts to .claude/helpers',
       execute: async (cfg, opts) => copyHelperScripts(opts.force || false),
       critical: false
+    },
+    {
+      name: 'Hook Scripts',
+      description: 'Copying hook scripts for automatic learning capture',
+      execute: async (cfg, opts) => copyHookScripts(opts.force || false),
+      critical: false
+    },
+    {
+      name: 'Learning System',
+      description: 'Initializing Nightly-Learner for continuous improvement',
+      execute: async (cfg) => initializeLearningSystem(cfg, {
+        mode: 'hybrid',
+        startHour: 2,
+        durationMinutes: 60,
+        enabled: true,
+      }),
+      critical: false  // Non-critical - learning is optional but valuable
+    },
+    {
+      name: 'Code Intelligence',
+      description: 'Setting up Code Intelligence System (semantic search + knowledge graph)',
+      execute: async (cfg, opts) => initializeCodeIntelligence(cfg, !opts.yes && !opts.nonInteractive),
+      critical: false  // Non-critical - requires Ollama + PostgreSQL
     }
-    // Future phases could include:
-    // - Fleet configuration customization
-    // - CI/CD integration templates
-    // - Git hooks setup
   ];
 
   let spinner: Ora | null = null;
@@ -202,15 +225,19 @@ export async function initCommand(options: InitOptions): Promise<void> {
         text: 'Creating CLAUDE.md configuration file',
         prefixText: chalk.blue('[CLAUDE.md]')
       }).start();
-      await createClaudeMd(config, (options as any).yes || (options as any).nonInteractive || false);
+      await createClaudeMd(config, options.yes || options.nonInteractive || false);
       claudeSpinner.succeed(chalk.green('Creating CLAUDE.md configuration file - Complete'));
       completedPhases.push('CLAUDE.md');
     } catch (error) {
       console.warn(chalk.yellow(`  ⚠️  CLAUDE.md creation skipped: ${error instanceof Error ? error.message : String(error)}`));
     }
 
+    // Install optional dependencies (prompt user unless -y flag)
+    console.log(chalk.cyan('\n🔧 Optional Dependencies:\n'));
+    const { installed, skipped } = await installOptionalDependencies(options);
+
     // All phases completed successfully (or skipped non-critical)
-    displaySuccessMessage(config, options);
+    displaySuccessMessage(config, options, skipped);
 
   } catch (error) {
     // Unexpected error during initialization
@@ -308,7 +335,7 @@ async function rollbackPhases(
 /**
  * Display success message with next steps
  */
-function displaySuccessMessage(config: FleetConfig, options: InitOptions): void {
+function displaySuccessMessage(config: FleetConfig, options: InitOptions, skippedDeps: string[] = []): void {
   console.log(chalk.green.bold('\n✅ Initialization Complete!\n'));
 
   console.log(chalk.blue('Fleet Configuration:'));
@@ -317,6 +344,9 @@ function displaySuccessMessage(config: FleetConfig, options: InitOptions): void 
   console.log(chalk.gray(`  • Testing Focus: ${config.testingFocus?.join(', ')}`));
   console.log(chalk.gray(`  • Environments: ${config.environments?.join(', ')}`));
   console.log(chalk.gray(`  • Frameworks: ${config.frameworks?.join(', ')}`));
+
+  // Show optional dependencies that were skipped
+  displayOptionalDependenciesHelp(skippedDeps);
 
   console.log(chalk.yellow('\n💡 Next Steps:\n'));
   console.log(chalk.white('  1. Check fleet status:'));
@@ -335,6 +365,18 @@ function displaySuccessMessage(config: FleetConfig, options: InitOptions): void 
   if (options.enableLearning) {
     console.log(chalk.blue('🧠 Learning system enabled - agents will improve over time!\n'));
   }
+
+  // Show RuVector optional enhancement
+  console.log(chalk.gray('┌─────────────────────────────────────────────────────────────────┐'));
+  console.log(chalk.gray('│') + chalk.yellow(' 🧬 Optional: RuVector Self-Learning (GNN + LoRA + EWC++)       ') + chalk.gray('│'));
+  console.log(chalk.gray('│                                                                 │'));
+  console.log(chalk.gray('│') + chalk.white(' Enable advanced self-learning for 330x faster pattern search:  ') + chalk.gray('│'));
+  console.log(chalk.gray('│') + chalk.cyan('   docker run -d --name ruvector -p 5432:5432 \\                 ') + chalk.gray('│'));
+  console.log(chalk.gray('│') + chalk.cyan('     ruvnet/ruvector:latest                                     ') + chalk.gray('│'));
+  console.log(chalk.gray('│') + chalk.cyan('   echo "AQE_RUVECTOR_ENABLED=true" >> .env                     ') + chalk.gray('│'));
+  console.log(chalk.gray('│                                                                 │'));
+  console.log(chalk.gray('│') + chalk.gray(' Default: memory.db (SQLite) - no Docker required               ') + chalk.gray('│'));
+  console.log(chalk.gray('└─────────────────────────────────────────────────────────────────┘\n'));
 }
 
 /**
@@ -344,6 +386,7 @@ export {
   createDirectoryStructure,
   initializeDatabases,
   generateClaudeSettings,
+  generateMcpJson,
   setupMCPServer,
   copyDocumentation,
   createBashWrapper

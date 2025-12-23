@@ -1,6 +1,9 @@
 /**
  * Memory interfaces for type-safe memory store implementations
  *
+ * Issue #65: Updated to reflect synchronous better-sqlite3 API.
+ * All methods except initialize() and store/retrieve (which have auto-init) are now synchronous.
+ *
  * These interfaces define the contract for memory stores used across the system.
  * They enable adapter patterns and dependency injection for better testability.
  */
@@ -29,26 +32,31 @@ import {
 /**
  * Base memory operations interface
  * Minimal interface required for verification hooks
+ *
+ * NOTE: initialize(), store(), and retrieve() remain async for auto-initialization.
+ * All other operations are synchronous (better-sqlite3 is intentionally sync).
  */
 export interface IMemoryStore {
   initialize(): Promise<void>;
   store(key: string, value: any, options?: StoreOptions): Promise<void>;
   retrieve(key: string, options?: RetrieveOptions): Promise<any>;
-  query(pattern: string, options?: RetrieveOptions): Promise<MemoryEntry[]>;
-  delete(key: string, partition?: string, options?: DeleteOptions): Promise<void>;
-  clear(partition?: string): Promise<void>;
-  postHint(hint: { key: string; value: any; ttl?: number }): Promise<void>;
-  readHints(pattern: string): Promise<Hint[]>;
-  cleanExpired(): Promise<number>;
-  close(): Promise<void>;
+  query(pattern: string, options?: RetrieveOptions): MemoryEntry[];
+  delete(key: string, partition?: string, options?: DeleteOptions): void;
+  clear(partition?: string): void;
+  postHint(hint: { key: string; value: any; ttl?: number }): void;
+  readHints(pattern: string): Hint[];
+  cleanExpired(): number;
+  close(): void;
 }
 
 /**
  * Extended memory operations interface
  * Includes specialized table operations
+ *
+ * Issue #65: All methods are now synchronous except initialize() and store/retrieve.
  */
 export interface ISwarmMemoryManager extends IMemoryStore {
-  stats(): Promise<{
+  stats(): {
     totalEntries: number;
     totalHints: number;
     totalEvents: number;
@@ -65,80 +73,80 @@ export interface ISwarmMemoryManager extends IMemoryStore {
     totalOODACycles: number;
     partitions: string[];
     accessLevels: Record<string, number>;
-  }>;
+  };
 
   // Event operations
-  storeEvent(event: Event): Promise<string>;
-  queryEvents(type: string): Promise<Event[]>;
-  getEventsBySource(source: string): Promise<Event[]>;
+  storeEvent(event: Event): string;
+  queryEvents(type: string): Event[];
+  getEventsBySource(source: string): Event[];
 
   // Workflow operations
-  storeWorkflowState(workflow: WorkflowState): Promise<void>;
-  getWorkflowState(id: string): Promise<WorkflowState>;
-  updateWorkflowState(id: string, updates: Partial<WorkflowState>): Promise<void>;
-  queryWorkflowsByStatus(status: string): Promise<WorkflowState[]>;
+  storeWorkflowState(workflow: WorkflowState): void;
+  getWorkflowState(id: string): WorkflowState;
+  updateWorkflowState(id: string, updates: Partial<WorkflowState>): void;
+  queryWorkflowsByStatus(status: string): WorkflowState[];
 
   // Pattern operations
-  storePattern(pattern: Pattern): Promise<string>;
-  getPattern(patternName: string): Promise<Pattern>;
-  incrementPatternUsage(patternName: string): Promise<void>;
-  queryPatternsByConfidence(threshold: number): Promise<Pattern[]>;
+  storePattern(pattern: Pattern): string;
+  getPattern(patternName: string): Pattern;
+  incrementPatternUsage(patternName: string): void;
+  queryPatternsByConfidence(threshold: number): Pattern[];
 
   // Consensus operations
-  createConsensusProposal(proposal: ConsensusProposal): Promise<void>;
-  getConsensusProposal(id: string): Promise<ConsensusProposal>;
-  voteOnConsensus(proposalId: string, agentId: string): Promise<boolean>;
-  queryConsensusProposals(status: string): Promise<ConsensusProposal[]>;
+  createConsensusProposal(proposal: ConsensusProposal): void;
+  getConsensusProposal(id: string): ConsensusProposal;
+  voteOnConsensus(proposalId: string, agentId: string): boolean;
+  queryConsensusProposals(status: string): ConsensusProposal[];
 
   // Performance metrics
-  storePerformanceMetric(metric: PerformanceMetric): Promise<string>;
-  queryPerformanceMetrics(metricName: string): Promise<PerformanceMetric[]>;
-  getMetricsByAgent(agentId: string): Promise<PerformanceMetric[]>;
-  getAverageMetric(metricName: string): Promise<number>;
+  storePerformanceMetric(metric: PerformanceMetric): string;
+  queryPerformanceMetrics(metricName: string): PerformanceMetric[];
+  getMetricsByAgent(agentId: string): PerformanceMetric[];
+  getAverageMetric(metricName: string): number;
 
   // Artifact operations
-  createArtifact(artifact: Artifact): Promise<void>;
-  getArtifact(id: string): Promise<Artifact>;
-  queryArtifactsByKind(kind: string): Promise<Artifact[]>;
-  queryArtifactsByTag(tag: string): Promise<Artifact[]>;
+  createArtifact(artifact: Artifact): void;
+  getArtifact(id: string): Artifact;
+  queryArtifactsByKind(kind: string): Artifact[];
+  queryArtifactsByTag(tag: string): Artifact[];
 
   // Session operations
-  createSession(session: Session): Promise<void>;
-  getSession(id: string): Promise<Session>;
-  addSessionCheckpoint(sessionId: string, checkpoint: Checkpoint): Promise<void>;
-  getLatestCheckpoint(sessionId: string): Promise<Checkpoint | undefined>;
-  markSessionResumed(sessionId: string): Promise<void>;
+  createSession(session: Session): void;
+  getSession(id: string): Session;
+  addSessionCheckpoint(sessionId: string, checkpoint: Checkpoint): void;
+  getLatestCheckpoint(sessionId: string): Checkpoint | undefined;
+  markSessionResumed(sessionId: string): void;
 
   // Agent registry
-  registerAgent(agent: AgentRegistration): Promise<void>;
-  getAgent(id: string): Promise<AgentRegistration>;
-  updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): Promise<void>;
-  queryAgentsByStatus(status: string): Promise<AgentRegistration[]>;
-  updateAgentPerformance(agentId: string, performance: any): Promise<void>;
+  registerAgent(agent: AgentRegistration): void;
+  getAgent(id: string): AgentRegistration;
+  updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): void;
+  queryAgentsByStatus(status: string): AgentRegistration[];
+  updateAgentPerformance(agentId: string, performance: any): void;
 
   // GOAP operations
-  storeGOAPGoal(goal: GOAPGoal): Promise<void>;
-  getGOAPGoal(id: string): Promise<GOAPGoal>;
-  storeGOAPAction(action: GOAPAction): Promise<void>;
-  getGOAPAction(id: string): Promise<GOAPAction>;
-  storeGOAPPlan(plan: GOAPPlan): Promise<void>;
-  getGOAPPlan(id: string): Promise<GOAPPlan>;
+  storeGOAPGoal(goal: GOAPGoal): void;
+  getGOAPGoal(id: string): GOAPGoal;
+  storeGOAPAction(action: GOAPAction): void;
+  getGOAPAction(id: string): GOAPAction;
+  storeGOAPPlan(plan: GOAPPlan): void;
+  getGOAPPlan(id: string): GOAPPlan;
 
   // OODA operations
-  storeOODACycle(cycle: OODACycle): Promise<void>;
-  getOODACycle(id: string): Promise<OODACycle>;
-  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): Promise<void>;
-  completeOODACycle(cycleId: string, result: any): Promise<void>;
-  queryOODACyclesByPhase(phase: string): Promise<OODACycle[]>;
+  storeOODACycle(cycle: OODACycle): void;
+  getOODACycle(id: string): OODACycle;
+  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): void;
+  completeOODACycle(cycleId: string, result: any): void;
+  queryOODACyclesByPhase(phase: string): OODACycle[];
 
   // ACL operations
-  storeACL(acl: any): Promise<void>;
-  getACL(resourceId: string): Promise<any | null>;
-  updateACL(resourceId: string, updates: any): Promise<void>;
-  grantPermission(resourceId: string, agentId: string, permissions: any[]): Promise<void>;
-  revokePermission(resourceId: string, agentId: string, permissions: any[]): Promise<void>;
-  blockAgent(resourceId: string, agentId: string): Promise<void>;
-  unblockAgent(resourceId: string, agentId: string): Promise<void>;
+  storeACL(acl: any): void;
+  getACL(resourceId: string): any | null;
+  updateACL(resourceId: string, updates: any): void;
+  grantPermission(resourceId: string, agentId: string, permissions: any[]): void;
+  revokePermission(resourceId: string, agentId: string, permissions: any[]): void;
+  blockAgent(resourceId: string, agentId: string): void;
+  unblockAgent(resourceId: string, agentId: string): void;
   getAccessControl(): any;
 
   // Learning operations (Q-learning and experience storage)
@@ -155,7 +163,7 @@ export interface ISwarmMemoryManager extends IMemoryStore {
     reward: number;
     nextState: string;
     episodeId?: string;
-  }): Promise<void>;
+  }): void;
 
   /**
    * Upsert a Q-value for a state-action pair
@@ -169,19 +177,19 @@ export interface ISwarmMemoryManager extends IMemoryStore {
     stateKey: string,
     actionKey: string,
     qValue: number
-  ): Promise<void>;
+  ): void;
 
   /**
    * Get all Q-values for an agent
    * @param agentId The agent ID
    * @returns Array of Q-values with state/action keys
    */
-  getAllQValues(agentId: string): Promise<Array<{
+  getAllQValues(agentId: string): Array<{
     state_key: string;
     action_key: string;
     q_value: number;
     update_count: number;
-  }>>;
+  }>;
 
   /**
    * Get Q-value for a specific state-action pair
@@ -190,7 +198,7 @@ export interface ISwarmMemoryManager extends IMemoryStore {
    * @param actionKey The action key
    * @returns The Q-value or null if not found
    */
-  getQValue(agentId: string, stateKey: string, actionKey: string): Promise<number | null>;
+  getQValue(agentId: string, stateKey: string, actionKey: string): number | null;
 
   /**
    * Store a learning performance snapshot
@@ -203,7 +211,7 @@ export interface ISwarmMemoryManager extends IMemoryStore {
     improvementRate?: number;
     totalExperiences?: number;
     explorationRate?: number;
-  }): Promise<void>;
+  }): void;
 
   /**
    * Get learning history for an agent
@@ -211,7 +219,7 @@ export interface ISwarmMemoryManager extends IMemoryStore {
    * @param limit Maximum number of records to return
    * @returns Array of learning history records
    */
-  getLearningHistory(agentId: string, limit?: number): Promise<Array<{
+  getLearningHistory(agentId: string, limit?: number): Array<{
     id: number;
     agent_id: string;
     pattern_id?: string;
@@ -222,5 +230,5 @@ export interface ISwarmMemoryManager extends IMemoryStore {
     q_value?: number;
     episode?: number;
     timestamp: string;
-  }>>;
+  }>;
 }

@@ -58,4 +58,35 @@ Reports to: qe-performance-tester
 Triggers: After performance test execution completes
 Handoff: Set readyForHandoff=true only if all SLA validations pass
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-performance-validator",
+  taskType: "performance-validation",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "PERFORMANCE", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/performance/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: All SLA validations pass, no regressions, performance budgets met
+- 0.7: Most SLAs pass, minor regressions (<10%), acceptable performance
+- 0.5: Core SLAs pass, some violations, acceptable for non-critical endpoints
+- 0.0: Critical SLA violations or significant performance regressions (>10%)
+</learning_protocol>
 </qe_subagent_definition>

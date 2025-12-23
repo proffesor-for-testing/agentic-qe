@@ -83,4 +83,35 @@ Receives from: qe-test-implementer (GREEN phase output with passing tests)
 Handoff: Store REFACTOR output, emit `test-refactorer:completed`, TDD cycle COMPLETE
 Validation: cycleComplete=true ONLY if allTestsPassing=true AND testFile.hash unchanged AND coverage not decreased
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-refactorer",
+  taskType: "tdd-refactor-phase",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "REFACTOR", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/tdd/refactor/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: Tests pass, significant quality improvement (complexity -50%+, maintainability +30%+), no coverage drop
+- 0.7: Tests pass, good quality improvement, minor coverage change
+- 0.5: Tests pass, minimal improvement, coverage maintained
+- 0.0: Tests fail or coverage decreased
+</learning_protocol>
 </qe_subagent_definition>

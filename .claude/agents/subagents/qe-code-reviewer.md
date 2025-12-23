@@ -42,4 +42,35 @@ Returns approval/rejection verdict with detailed issues list, quality metrics, a
 Reports to: qe-test-generator (TDD workflow coordinator)
 Triggers: After REFACTOR phase completes, before final code acceptance
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-code-reviewer",
+  taskType: "code-review",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "REVIEW", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/review/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: No critical issues, complexity <15, coverage ≥95%, security scan clean, all quality gates pass
+- 0.7: Minor issues only, complexity <20, coverage ≥90%, no security vulnerabilities
+- 0.5: Some issues, acceptable quality thresholds met
+- 0.0: Critical issues detected, security vulnerabilities, or quality gate failures
+</learning_protocol>
 </qe_subagent_definition>

@@ -17,11 +17,22 @@ import { SwarmMemoryManager } from '../../core/memory/SwarmMemoryManager';
 import { getSharedMemoryManager } from '../../core/memory/MemoryManagerFactory';
 import { Database } from '../../utils/Database';
 import { SecureRandom } from '../../utils/SecureRandom';
+import {
+  SONALifecycleManager,
+  getSONALifecycleManager,
+  type SONALifecycleConfig,
+  type TaskCompletionFeedback,
+} from '../../agents/SONALifecycleManager';
+import type { FeedbackEvent } from '../../learning/SONAFeedbackLoop';
 
 export interface AgentRegistryConfig {
   maxAgents?: number;
   defaultTimeout?: number;
   enableMetrics?: boolean;
+  /** Enable SONA lifecycle integration (Phase 2) */
+  enableSONALifecycle?: boolean;
+  /** SONA lifecycle configuration */
+  sonaLifecycleConfig?: SONALifecycleConfig;
 }
 
 export interface RegisteredAgent {
@@ -67,12 +78,15 @@ export class AgentRegistry {
   private eventBus: EventBus;
   private memoryStore: SwarmMemoryManager;
   private factory: QEAgentFactory;
+  private sonaLifecycleManager?: SONALifecycleManager;
 
   constructor(config: AgentRegistryConfig = {}) {
     this.config = {
       maxAgents: config.maxAgents || 50,
       defaultTimeout: config.defaultTimeout || 300000, // 5 minutes
-      enableMetrics: config.enableMetrics !== false
+      enableMetrics: config.enableMetrics !== false,
+      enableSONALifecycle: config.enableSONALifecycle !== false,
+      sonaLifecycleConfig: config.sonaLifecycleConfig
     };
     this.logger = Logger.getInstance();
 
@@ -94,6 +108,12 @@ export class AgentRegistry {
       memoryStore: this.memoryStore as any, // SwarmMemoryManager extends MemoryStore interface
       context: this.createDefaultContext()
     });
+
+    // Phase 2: Initialize SONA lifecycle manager
+    if (this.config.enableSONALifecycle) {
+      this.sonaLifecycleManager = getSONALifecycleManager(this.config.sonaLifecycleConfig);
+      this.logger.info('SONA lifecycle integration enabled');
+    }
   }
 
   /**
@@ -221,6 +241,17 @@ export class AgentRegistry {
 
       this.agents.set(agentId, registeredAgent);
 
+      // Phase 2: SONA lifecycle hook - onAgentSpawn
+      if (this.sonaLifecycleManager) {
+        try {
+          await this.sonaLifecycleManager.onAgentSpawn(agentId, agentType);
+          this.logger.info(`SONA context initialized for agent ${agentId}`);
+        } catch (error) {
+          this.logger.warn(`Failed to initialize SONA for agent ${agentId}:`, error);
+          // Continue without SONA - not critical
+        }
+      }
+
       this.logger.info(`Agent spawned successfully: ${agentId}`);
 
       return { id: agentId, agent };
@@ -258,7 +289,7 @@ export class AgentRegistry {
    * Execute a task on a specific agent
    *
    * @param agentId - Agent ID
-   * @param task - Task to execute
+   * @param task - Task to execute (can be raw task or TaskAssignment)
    * @returns Task result
    */
   async executeTask(agentId: string, task: any): Promise<any> {
@@ -267,13 +298,17 @@ export class AgentRegistry {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
-    this.logger.info(`Executing task on agent ${agentId}:`, { taskType: task.taskType });
+    this.logger.info(`Executing task on agent ${agentId}:`, { taskType: task.taskType || task.task?.type });
 
     const startTime = Date.now();
     registered.status = 'busy';
 
     try {
-      const result = await registered.agent.executeTask(task);
+      // Convert raw task to proper TaskAssignment format if needed
+      // BaseAgent.executeTask() expects TaskAssignment { id, task: QETask, agentId, assignedAt, status }
+      const taskAssignment = this.ensureTaskAssignment(task, agentId);
+
+      const result = await registered.agent.executeTask(taskAssignment);
 
       // Update metrics
       const executionTime = Date.now() - startTime;
@@ -282,14 +317,83 @@ export class AgentRegistry {
       registered.lastActivity = new Date();
       registered.status = 'idle';
 
+      // Phase 2: SONA lifecycle hook - onTaskComplete
+      if (this.sonaLifecycleManager) {
+        const feedback: TaskCompletionFeedback = {
+          task: taskAssignment.task,
+          success: true,
+          duration: executionTime,
+          quality: result?.quality,
+          result: result,
+          patternsUsed: result?.patternsUsed,
+        };
+
+        try {
+          await this.sonaLifecycleManager.onTaskComplete(agentId, feedback);
+        } catch (error) {
+          this.logger.warn(`SONA task completion hook failed for ${agentId}:`, error);
+          // Continue - don't break execution flow
+        }
+      }
+
       this.logger.info(`Task completed on agent ${agentId} in ${executionTime}ms`);
 
       return result;
     } catch (error) {
       registered.status = 'error';
+
+      // Phase 2: SONA lifecycle hook - onTaskComplete (failure)
+      if (this.sonaLifecycleManager) {
+        const executionTime = Date.now() - startTime;
+        const feedback: TaskCompletionFeedback = {
+          task: task.task || task,
+          success: false,
+          duration: executionTime,
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+
+        try {
+          await this.sonaLifecycleManager.onTaskComplete(agentId, feedback);
+        } catch (sonaError) {
+          this.logger.warn(`SONA task completion hook failed for ${agentId}:`, sonaError);
+          // Continue - don't mask original error
+        }
+      }
+
       this.logger.error(`Task failed on agent ${agentId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Ensure task is in proper TaskAssignment format
+   * Converts raw task payloads to the format BaseAgent.executeTask() expects
+   */
+  private ensureTaskAssignment(task: any, agentId: string): any {
+    // If already a TaskAssignment (has 'task' property with QETask structure), return as-is
+    if (task.task && typeof task.task === 'object' && task.task.type) {
+      return task;
+    }
+
+    // Convert raw task to TaskAssignment format
+    const taskId = `task-${Date.now()}-${SecureRandom.generateId(6)}`;
+
+    return {
+      id: taskId,
+      task: {
+        id: taskId,
+        type: task.taskType || task.type || 'generic',
+        payload: task.payload || task,
+        priority: task.priority || 5,
+        status: 'pending',
+        description: task.description || `Task for agent ${agentId}`,
+        context: task.context || {},
+        requirements: task.requirements || {}
+      },
+      agentId: agentId,
+      assignedAt: new Date(),
+      status: 'assigned'
+    };
   }
 
   /**
@@ -306,6 +410,17 @@ export class AgentRegistry {
     this.logger.info(`Terminating agent: ${agentId}`);
 
     try {
+      // Phase 2: SONA lifecycle hook - cleanup before termination
+      if (this.sonaLifecycleManager) {
+        try {
+          await this.sonaLifecycleManager.cleanupAgent(agentId);
+          this.logger.info(`SONA context cleaned up for agent ${agentId}`);
+        } catch (error) {
+          this.logger.warn(`Failed to cleanup SONA for agent ${agentId}:`, error);
+          // Continue with termination
+        }
+      }
+
       // Call public terminate method instead of protected cleanup
       // The agent will handle cleanup internally
       await registered.agent.terminate();
@@ -366,6 +481,74 @@ export class AgentRegistry {
       averageExecutionTime,
       uptime,
       status: registered.status
+    };
+  }
+
+  /**
+   * Phase 2: Get SONA metrics for an agent
+   *
+   * @param agentId - Agent ID
+   * @returns SONA metrics or undefined
+   */
+  async getSONAMetrics(agentId: string): Promise<any> {
+    if (!this.sonaLifecycleManager) {
+      return undefined;
+    }
+
+    return await this.sonaLifecycleManager.getMetrics(agentId);
+  }
+
+  /**
+   * Phase 2: Record feedback for an agent
+   *
+   * @param agentId - Agent ID
+   * @param event - Feedback event
+   */
+  async recordFeedback(agentId: string, event: FeedbackEvent): Promise<void> {
+    if (!this.sonaLifecycleManager) {
+      this.logger.warn('SONA lifecycle not enabled, cannot record feedback');
+      return;
+    }
+
+    await this.sonaLifecycleManager.onFeedback(agentId, event);
+  }
+
+  /**
+   * Phase 2: Manually trigger training for an agent
+   *
+   * @param agentId - Agent ID
+   * @param iterations - Number of training iterations
+   * @returns Training result
+   */
+  async trainAgent(agentId: string, iterations: number = 10): Promise<any> {
+    if (!this.sonaLifecycleManager) {
+      throw new Error('SONA lifecycle not enabled');
+    }
+
+    return await this.sonaLifecycleManager.train(agentId, iterations);
+  }
+
+  /**
+   * Phase 2: Get SONA lifecycle statistics
+   *
+   * @returns Lifecycle statistics
+   */
+  getSONAStatistics(): any {
+    if (!this.sonaLifecycleManager) {
+      return {
+        enabled: false,
+        totalAgents: 0,
+        totalSuccessfulTasks: 0,
+        totalFailedTasks: 0,
+        averageSuccessRate: 0,
+        totalConsolidations: 0,
+        ruvLLMAvailable: false,
+      };
+    }
+
+    return {
+      enabled: true,
+      ...this.sonaLifecycleManager.getStatistics(),
     };
   }
 
@@ -470,6 +653,10 @@ export class AgentRegistry {
       // Quality Experience (QX) Agent
       'qx-partner': QEAgentType.QX_PARTNER,
 
+      // Accessibility Testing Agent
+      'accessibility-ally': QEAgentType.ACCESSIBILITY_ALLY,
+      'a11y-ally': QEAgentType.ACCESSIBILITY_ALLY,
+
       // Workflow step type mappings (for task orchestration)
       'code-analyzer': QEAgentType.QUALITY_ANALYZER,
       'metrics-collector': QEAgentType.QUALITY_ANALYZER,
@@ -504,7 +691,9 @@ export class AgentRegistry {
       'data-generator',
       'contract-validator',
       'flaky-test-detector',
-      'qx-partner'
+      'qx-partner',
+      'accessibility-ally',
+      'a11y-ally'
     ];
   }
 

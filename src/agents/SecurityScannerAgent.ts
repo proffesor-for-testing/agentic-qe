@@ -102,6 +102,9 @@ export class SecurityScannerAgent extends BaseAgent {
   private baselineFindings: Map<string, VulnerabilityFinding> = new Map();
   private realScanner: RealSecurityScanner;
 
+  // Phase 0.5: Pattern store for self-learning vulnerability patterns
+  private patternStoreEnabled: boolean = true;
+
   constructor(config: SecurityScannerConfig) {
     super({
       id: config.id || `security-scanner-${Date.now()}`,
@@ -223,6 +226,12 @@ export class SecurityScannerAgent extends BaseAgent {
       },
       86400
     );
+
+    // Phase 0.5: Store vulnerability patterns for self-learning
+    const findings = data.result?.findings || data.result?.vulnerabilities || [];
+    if (this.patternStoreEnabled && findings.length > 0) {
+      await this.storeSecurityPatterns(findings);
+    }
 
     this.eventBus.emit(`${this.agentId.type}:completed`, {
       agentId: this.agentId,
@@ -987,5 +996,200 @@ export class SecurityScannerAgent extends BaseAgent {
         scanScope: this.config.scanScope
       }
     };
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich security scanning metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Vulnerability summary metrics
+      if (result.summary) {
+        metrics.critical_vulnerabilities = result.summary.critical || 0;
+        metrics.high_vulnerabilities = result.summary.high || 0;
+        metrics.medium_vulnerabilities = result.summary.medium || 0;
+        metrics.low_vulnerabilities = result.summary.low || 0;
+        metrics.total_vulnerabilities = result.summary.total || 0;
+      }
+
+      // Security score
+      if (typeof result.securityScore === 'number') {
+        metrics.security_score = result.securityScore;
+      }
+
+      // Scan performance
+      if (typeof result.duration === 'number') {
+        metrics.scan_duration = result.duration;
+      }
+
+      // Pass/fail status
+      metrics.scan_passed = result.passed ? 1 : 0;
+
+      // Findings analysis
+      if (result.findings && Array.isArray(result.findings)) {
+        metrics.total_findings = result.findings.length;
+        metrics.unique_cve_count = new Set(
+          result.findings.filter((f: any) => f.cve).map((f: any) => f.cve)
+        ).size;
+        metrics.fixable_count = result.findings.filter(
+          (f: any) => f.remediation || f.fix
+        ).length;
+      }
+
+      // Compliance metrics
+      if (result.compliance) {
+        metrics.compliance_score = result.compliance.overallCompliance || 0;
+        metrics.compliance_passed = result.compliance.passed ? 1 : 0;
+      }
+    }
+
+    return metrics;
+  }
+
+  // ============================================================================
+  // Phase 0.5: Pattern Store Integration for Self-Learning Security Patterns
+  // ============================================================================
+
+  /**
+   * Store security vulnerability patterns for self-learning
+   * Enables pattern recognition and reuse across scanning sessions
+   */
+  private async storeSecurityPatterns(findings: VulnerabilityFinding[]): Promise<void> {
+    if (!this.qePatternStore) {
+      return;
+    }
+
+    for (const finding of findings) {
+      try {
+        // Create pattern from security finding
+        const pattern = {
+          id: `vuln_${finding.id}_${Date.now()}`,
+          type: 'security-vulnerability' as const,
+          domain: 'security-scanner',
+          embedding: this.generateSecurityPatternEmbedding(finding),
+          content: JSON.stringify({
+            title: finding.title,
+            description: finding.description,
+            type: finding.type,
+            severity: finding.severity,
+            cwe: finding.cwe,
+            cve: finding.cve,
+            cvss: finding.cvss,
+            remediation: finding.remediation,
+            location: finding.location
+          }),
+          framework: finding.type, // sast, dast, dependency, container
+          coverage: this.getSeverityWeight(finding.severity),
+          verdict: finding.remediation ? 'success' as const : 'failure' as const,
+          createdAt: Date.now(),
+          lastUsed: Date.now(),
+          usageCount: 1,
+          metadata: {
+            scanType: finding.type,
+            severity: finding.severity,
+            cwe: finding.cwe || 'unknown',
+            cve: finding.cve || 'unknown',
+            cvss: finding.cvss || 0
+          }
+        };
+
+        await this.qePatternStore.storePattern(pattern);
+        console.log(`[SecurityScanner] Stored vulnerability pattern: ${finding.id}`);
+      } catch (error) {
+        console.warn(`[SecurityScanner] Failed to store security pattern: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * Generate embedding for security vulnerability pattern
+   * Uses vulnerability characteristics for similarity matching
+   */
+  private generateSecurityPatternEmbedding(finding: VulnerabilityFinding): number[] {
+    // Generate 768-dim embedding based on vulnerability characteristics
+    const embedding = new Array(768).fill(0);
+
+    // Encode scan type (indices 0-49)
+    const scanTypes = ['sast', 'dast', 'dependency', 'container'];
+    const typeIdx = scanTypes.indexOf(finding.type);
+    if (typeIdx >= 0) {
+      embedding[typeIdx * 12] = 1.0;
+    }
+
+    // Encode severity (indices 50-99)
+    const severities = ['info', 'low', 'medium', 'high', 'critical'];
+    const severityIdx = severities.indexOf(finding.severity);
+    if (severityIdx >= 0) {
+      embedding[50 + severityIdx * 10] = 1.0;
+      // Also encode severity weight
+      embedding[50 + severityIdx * 10 + 1] = this.getSeverityWeight(finding.severity);
+    }
+
+    // Encode CWE category (indices 100-199)
+    if (finding.cwe) {
+      const cweNum = parseInt(finding.cwe.replace(/\D/g, '')) || 0;
+      embedding[100 + (cweNum % 100)] = 1.0;
+    }
+
+    // Encode CVSS score (indices 200-299)
+    if (finding.cvss) {
+      const cvssIdx = Math.floor(finding.cvss * 10); // 0-100 range
+      embedding[200 + cvssIdx] = finding.cvss / 10;
+    }
+
+    // Encode title hash (indices 300-499)
+    const titleHash = this.hashString(finding.title);
+    for (let i = 0; i < Math.min(titleHash.length, 200); i++) {
+      embedding[300 + i] = titleHash.charCodeAt(i) / 255;
+    }
+
+    // Encode location hash (indices 500-699)
+    const locationHash = this.hashString(finding.location);
+    for (let i = 0; i < Math.min(locationHash.length, 200); i++) {
+      embedding[500 + i] = locationHash.charCodeAt(i) / 255;
+    }
+
+    // Encode remediation availability (indices 700-767)
+    if (finding.remediation) {
+      embedding[700] = 1.0;
+      const remediationHash = this.hashString(finding.remediation);
+      for (let i = 0; i < Math.min(remediationHash.length, 67); i++) {
+        embedding[701 + i] = remediationHash.charCodeAt(i) / 255;
+      }
+    }
+
+    // Normalize embedding
+    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0)) || 1;
+    return embedding.map(val => val / magnitude);
+  }
+
+  /**
+   * Get numeric weight for severity level
+   */
+  private getSeverityWeight(severity: string): number {
+    const weights: Record<string, number> = {
+      'critical': 1.0,
+      'high': 0.8,
+      'medium': 0.5,
+      'low': 0.25,
+      'info': 0.1
+    };
+    return weights[severity] || 0.1;
+  }
+
+  /**
+   * Simple hash function for pattern strings
+   */
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(36);
   }
 }

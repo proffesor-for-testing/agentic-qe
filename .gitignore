@@ -35,6 +35,15 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 
+# Local n8n data (contains credentials, database, etc.)
+.n8n-local/
+
+# Core dumps
+core
+
+# Test results (generated files)
+test-results/
+
 # IDE
 .vscode/
 .idea/
@@ -73,6 +82,10 @@ tests/.tmp/
 .roo/
 .hive-mind/
 
+# Project-specific ignores
+CLAUDE.md.backup
+/aqe
+
 
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
@@ -110,8 +123,21 @@ coordination/orchestration/*
 *.sqlite-wal
 claude-flow
 .agentic-qe/memory/
+.agentic-qe/data/learning/state.json
+.agentic-qe/data/improvement/state.json
+.agentic-qe/a11y-scans/
 data/
 test-projects/
+
+
+# Mock files - allow agentdb mock for CI
+__mocks__/*
+!__mocks__/agentdb.ts
+
+# Test artifacts that should not be committed
+test-learning-persistence
+junit.xml
+docs/qx-reports/*
 
 # Claude Flow generated files
 .claude/settings.local.json
@@ -120,4 +146,27 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-.playwright-mcp/
+memory/
+!src/memory/
+!src/core/memory/
+!tests/memory/
+coordination/
+memory/claude-flow-data.json
+memory/sessions/*
+!memory/sessions/README.md
+memory/agents/*
+!memory/agents/README.md
+coordination/memory_bank/*
+coordination/subtasks/*
+coordination/orchestration/*
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+claude-flow
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+tests/tmp/*
+tmp/*

@@ -4,7 +4,7 @@
  */
 
 // Export all agent implementations
-export { BaseAgent, BaseAgentConfig, BaseAgentFactory } from './BaseAgent';
+export { BaseAgent, BaseAgentConfig, BaseAgentFactory, AgentLLMConfig } from './BaseAgent';
 export { TestGeneratorAgent } from './TestGeneratorAgent';
 export { TestExecutorAgent } from './TestExecutorAgent';
 export { CoverageAnalyzerAgent } from './CoverageAnalyzerAgent';
@@ -28,6 +28,12 @@ export { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
 // Quality Experience (QX) Agent
 export { QXPartnerAgent } from './QXPartnerAgent';
 
+// Accessibility Testing Agent
+export { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
+
+// Code Intelligence Agent (Wave 6)
+export { CodeIntelligenceAgent, CodeIntelligenceAgentConfig, createCodeIntelligenceAgent } from './CodeIntelligenceAgent';
+
 // Agent factory for creating agents by type
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
@@ -36,8 +42,8 @@ import { AgentType, QEAgentType, AgentContext } from '../types';
 
 import { TestGeneratorAgent } from './TestGeneratorAgent';
 import { TestExecutorAgent, TestExecutorConfig } from './TestExecutorAgent';
-import { CoverageAnalyzerAgent } from './CoverageAnalyzerAgent';
-import { QualityGateAgent } from './QualityGateAgent';
+import { CoverageAnalyzerAgent, CoverageAnalyzerConfig } from './CoverageAnalyzerAgent';
+import { QualityGateAgent, QualityGateConfig } from './QualityGateAgent';
 import { QualityAnalyzerAgent, QualityAnalyzerConfig } from './QualityAnalyzerAgent';
 import { FleetCommanderAgent, FleetCommanderConfig } from './FleetCommanderAgent';
 import { RequirementsValidatorAgent, RequirementsValidatorConfig } from './RequirementsValidatorAgent';
@@ -55,6 +61,8 @@ import { TestDataArchitectAgent, TestDataArchitectAgentConfig } from './TestData
 import { FlakyTestHunterAgent } from './FlakyTestHunterAgent';
 import { QXPartnerAgent } from './QXPartnerAgent';
 import { QXPartnerConfig } from '../types/qx';
+import { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
+import { CodeIntelligenceAgent, CodeIntelligenceAgentConfig } from './CodeIntelligenceAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
@@ -94,7 +102,11 @@ export class QEAgentFactory {
       context: this.config.context,
       memoryStore: this.config.memoryStore,
       eventBus: this.config.eventBus,
-      ...agentConfig
+      // ARCHITECTURE (v2.2.0): All persistence goes through SwarmMemoryManager to memory.db
+      // AgentDB path removed - patterns/learning/experiences stored in unified memory.db
+      // LearningEngine uses memoryStore (SwarmMemoryManager) for all persistence
+      enableLearning: true,
+      ...agentConfig  // Allow caller to override
     };
 
     switch (type) {
@@ -113,16 +125,23 @@ export class QEAgentFactory {
         };
         return new TestExecutorAgent(executorConfig);
       }
-      case QEAgentType.COVERAGE_ANALYZER:
-        return new CoverageAnalyzerAgent(
-          { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },
-          this.config.memoryStore as any
-        ) as any as BaseAgent;
-      case QEAgentType.QUALITY_GATE:
-        return new QualityGateAgent(
-          { id: baseConfig.id || this.generateAgentId(type), type, created: new Date() },
-          this.config.memoryStore as any
-        ) as any as BaseAgent;
+      case QEAgentType.COVERAGE_ANALYZER: {
+        const coverageConfig: CoverageAnalyzerConfig = {
+          ...baseConfig,
+          enablePatterns: agentConfig?.enablePatterns ?? true,
+          targetImprovement: agentConfig?.targetImprovement ?? 0.20,
+          improvementPeriodDays: agentConfig?.improvementPeriodDays ?? 30
+        };
+        return new CoverageAnalyzerAgent(coverageConfig);
+      }
+      case QEAgentType.QUALITY_GATE: {
+        const qualityGateConfig: QualityGateConfig = {
+          ...baseConfig,
+          customCriteria: agentConfig?.customCriteria,
+          defaultThreshold: agentConfig?.defaultThreshold ?? 0.8
+        };
+        return new QualityGateAgent(qualityGateConfig);
+      }
       case QEAgentType.QUALITY_ANALYZER: {
         const analyzerConfig: QualityAnalyzerConfig & BaseAgentConfig = {
           ...baseConfig,
@@ -398,6 +417,51 @@ export class QEAgentFactory {
         return new QXPartnerAgent(qxConfig as any);
       }
 
+      case QEAgentType.ACCESSIBILITY_ALLY: {
+        const a11yConfig: AccessibilityAllyConfig = {
+          ...baseConfig,
+          wcagLevel: agentConfig?.wcagLevel || 'AA',
+          enableVisionAPI: agentConfig?.enableVisionAPI ?? true,
+          visionProvider: agentConfig?.visionProvider || 'free',
+          ollamaBaseUrl: agentConfig?.ollamaBaseUrl || 'http://localhost:11434',
+          ollamaModel: agentConfig?.ollamaModel || 'llava',
+          contextAwareRemediation: agentConfig?.contextAwareRemediation ?? true,
+          generateHTMLReport: agentConfig?.generateHTMLReport ?? false,
+          generateMarkdownReport: agentConfig?.generateMarkdownReport ?? true,
+          thresholds: agentConfig?.thresholds || {
+            minComplianceScore: 85,
+            maxCriticalViolations: 0,
+            maxSeriousViolations: 3
+          },
+          euCompliance: agentConfig?.euCompliance || {
+            enabled: true,
+            en301549Mapping: true,
+            euAccessibilityAct: true
+          }
+        };
+        return new AccessibilityAllyAgent(a11yConfig as any);
+      }
+
+      case QEAgentType.CODE_INTELLIGENCE: {
+        const codeIntelConfig: CodeIntelligenceAgentConfig = {
+          ...baseConfig,
+          rootDir: agentConfig?.rootDir || process.cwd(),
+          ollamaUrl: agentConfig?.ollamaUrl || 'http://localhost:11434',
+          database: agentConfig?.database || {
+            enabled: true,
+            host: process.env.PGHOST || 'localhost',
+            port: parseInt(process.env.PGPORT || '5432'),
+            database: process.env.PGDATABASE || 'ruvector_db',
+            user: process.env.PGUSER || 'ruvector',
+            password: process.env.PGPASSWORD || 'ruvector',
+          },
+          includePatterns: agentConfig?.includePatterns,
+          excludePatterns: agentConfig?.excludePatterns,
+          incrementalIndexing: agentConfig?.incrementalIndexing ?? true,
+        };
+        return new CodeIntelligenceAgent(codeIntelConfig);
+      }
+
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
@@ -428,7 +492,11 @@ export class QEAgentFactory {
       QEAgentType.API_CONTRACT_VALIDATOR,
       QEAgentType.FLAKY_TEST_HUNTER,
       // Quality Experience (QX) Agent
-      QEAgentType.QX_PARTNER
+      QEAgentType.QX_PARTNER,
+      // Accessibility Testing Agent
+      QEAgentType.ACCESSIBILITY_ALLY,
+      // Code Intelligence Agent (Wave 6)
+      QEAgentType.CODE_INTELLIGENCE
     ];
   }
 
@@ -832,9 +900,102 @@ export class QEAgentFactory {
         }
       ],
 
+      // Accessibility Testing Agent
+      [QEAgentType.ACCESSIBILITY_ALLY]: [
+        {
+          name: 'wcag-2.2-validation',
+          version: '1.0.0',
+          description: 'Comprehensive WCAG 2.2 compliance testing (Level A, AA, AAA)'
+        },
+        {
+          name: 'context-aware-remediation',
+          version: '1.0.0',
+          description: 'Intelligent remediation suggestions with context-specific code examples'
+        },
+        {
+          name: 'aria-intelligence',
+          version: '1.0.0',
+          description: 'Smart ARIA label generation based on element semantics and context'
+        },
+        {
+          name: 'video-accessibility-analysis',
+          version: '1.0.0',
+          description: 'AI-powered video analysis with multi-provider cascade (FREE with Ollama)'
+        },
+        {
+          name: 'webvtt-generation',
+          version: '1.0.0',
+          description: 'Automatic WebVTT caption file generation with detailed scene descriptions'
+        },
+        {
+          name: 'en301549-compliance',
+          version: '1.0.0',
+          description: 'EN 301 549 EU accessibility standard compliance mapping'
+        },
+        {
+          name: 'apg-pattern-suggestions',
+          version: '1.0.0',
+          description: 'ARIA Authoring Practices Guide pattern recommendations'
+        },
+        {
+          name: 'keyboard-navigation-testing',
+          version: '1.0.0',
+          description: 'Keyboard navigation path validation and focus management'
+        },
+        {
+          name: 'color-contrast-optimization',
+          version: '1.0.0',
+          description: 'Color contrast analysis with specific fix recommendations'
+        },
+        {
+          name: 'learning-integration',
+          version: '1.0.0',
+          description: 'Learn from remediation feedback to improve future recommendations'
+        }
+      ],
+
       // Other core agents (placeholder capabilities - future implementation)
       [QEAgentType.CHAOS_ENGINEER]: [],
-      [QEAgentType.VISUAL_TESTER]: []
+      [QEAgentType.VISUAL_TESTER]: [],
+
+      // Code Intelligence Agent (Wave 6)
+      [QEAgentType.CODE_INTELLIGENCE]: [
+        {
+          name: 'tree-sitter-parsing',
+          version: '1.0.0',
+          description: 'Multi-language AST parsing with Tree-sitter (TypeScript, Python, Go, Rust, JavaScript)'
+        },
+        {
+          name: 'semantic-embeddings',
+          version: '1.0.0',
+          description: 'Ollama nomic-embed-text embeddings (768 dimensions, 8192 context)'
+        },
+        {
+          name: 'hybrid-search',
+          version: '1.0.0',
+          description: 'BM25 + Vector search with RRF fusion for accurate code retrieval'
+        },
+        {
+          name: 'knowledge-graph',
+          version: '1.0.0',
+          description: 'Entity relationships (imports, extends, calls) with graph traversal'
+        },
+        {
+          name: 'context-building',
+          version: '1.0.0',
+          description: '80% token reduction through intelligent code context generation'
+        },
+        {
+          name: 'visualization',
+          version: '1.0.0',
+          description: 'Mermaid class diagrams and dependency graphs'
+        },
+        {
+          name: 'incremental-indexing',
+          version: '1.0.0',
+          description: 'Git change detection for efficient incremental updates'
+        }
+      ]
     };
 
     return capabilityMap[type as QEAgentType] || [];
@@ -851,3 +1012,30 @@ export async function createAgent(type: string, id: string, config: any, eventBu
 
   return await factory.createAgent(type as AgentType, { id, ...config });
 }
+
+// SONA Integration (NEW in v2.4.0+ - ruvLLM Integration)
+export {
+  createSONAContext,
+  withSONALearning,
+  isSONAAvailable,
+  getRecommendedConfig,
+  quickStartSONA,
+  createLearningStrategyFactory,
+} from './SONAIntegration';
+export type {
+  SONAIntegrationConfig,
+  SONAAgentContext,
+} from './SONAIntegration';
+
+// SONA Lifecycle Manager (NEW in v2.5.4 - Phase 2: Lifecycle Integration)
+export {
+  SONALifecycleManager,
+  getSONALifecycleManager,
+  resetSONALifecycleManager,
+  createSONALifecycleManager,
+} from './SONALifecycleManager';
+export type {
+  SONALifecycleConfig,
+  AgentSONAContext,
+  TaskCompletionFeedback,
+} from './SONALifecycleManager';

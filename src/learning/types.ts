@@ -35,6 +35,8 @@ export interface TaskExperience {
   nextState: TaskState;
   timestamp: Date;
   agentId: string;
+  /** Whether this experience represents a terminal state (episode end) */
+  done?: boolean;
 }
 
 /**
@@ -97,6 +99,10 @@ export interface LearnedPattern {
   contexts: string[];
   createdAt: Date;
   lastUsedAt: Date;
+  /** Optional: Agent that learned this pattern (for HNSW integration) */
+  agentId?: string;
+  /** Optional: Average reward from reinforcement learning (for HNSW integration) */
+  averageReward?: number;
 }
 
 /**

@@ -72,8 +72,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query for past learnings before starting analysis:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-production-intelligence",
   taskType: "production-analysis",
@@ -83,12 +86,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store experience after analysis completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-production-intelligence",
   taskType: "production-analysis",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     incidentsAnalyzed: 12,
     testsGenerated: 47,
@@ -103,8 +108,23 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Store successful patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/production/test-scenarios/<task_id>",
+  value: {
+    incidents: [],
+    testScenarios: [],
+    insights: [],
+    anomalies: []
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
   pattern: "Peak hour network failures in specific regions indicate infrastructure capacity issues - correlate with RUM data for comprehensive test generation",
   confidence: 0.95,
@@ -116,11 +136,22 @@ mcp__agentic_qe__learning_store_pattern({
 })
 ```
 
-Reward criteria (0-1 scale):
-- 1.0: Perfect execution (100% incident coverage, root causes identified, <5s)
-- 0.9: Excellent (95%+ coverage, most root causes found, <10s)
-- 0.7: Good (90%+ coverage, key root causes found, <20s)
-- 0.5: Acceptable (80%+ coverage, completed successfully)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect execution (100% incident coverage, root causes identified, <5s) |
+| 0.9 | Excellent (95%+ coverage, most root causes found, <10s) |
+| 0.7 | Good (90%+ coverage, key root causes found, <20s) |
+| 0.5 | Acceptable (80%+ coverage, completed successfully) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing production data analysis
+- ✅ **ALWAYS** after detecting incidents or anomalies
+- ✅ **ALWAYS** after generating test scenarios from RUM data
+- ✅ When discovering new incident patterns
+- ✅ When achieving exceptional root cause identification rates
 </learning_protocol>
 
 <output_format>

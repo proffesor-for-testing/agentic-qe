@@ -10,6 +10,7 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import { QEReasoningBank, TestPattern } from '../../../reasoning/QEReasoningBank';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { ProcessExit } from '../../../utils/ProcessExit';
 
 export interface PatternsCommandOptions {
@@ -26,10 +27,20 @@ export interface PatternsCommandOptions {
 
 /**
  * PatternsCommand - CLI handler for pattern operations
+ *
+ * Uses shared memory manager singleton to ensure all CLI, MCP, and agent
+ * operations use the same database (.agentic-qe/memory.db).
  */
 export class PatternsCommand {
   private static reasoningBank: QEReasoningBank;
-  private static memoryPath = '.agentic-qe/data/swarm-memory.db';
+
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Initialize reasoning bank
@@ -38,10 +49,9 @@ export class PatternsCommand {
     if (!this.reasoningBank) {
       this.reasoningBank = new QEReasoningBank();
 
-      // Load patterns from memory if available
+      // Load patterns from shared memory manager (.agentic-qe/memory.db)
       try {
-        const memoryManager = new SwarmMemoryManager(this.memoryPath);
-        await memoryManager.initialize();
+        const memoryManager = await this.getMemoryManager();
 
         const patterns = await memoryManager.query('phase2/patterns/%', {
           partition: 'patterns'
@@ -104,56 +114,92 @@ export class PatternsCommand {
     const spinner = ora('Loading patterns...').start();
 
     try {
-      const stats = await this.reasoningBank.getStatistics();
+      const memoryManager = await this.getMemoryManager();
 
-      if (stats.totalPatterns === 0) {
+      // ARCHITECTURE (v2.2.0): Query patterns directly from patterns table
+      // Data is stored via storePattern() to dedicated table, not memory_entries
+      const dbPatterns = memoryManager.queryRaw<any>(
+        'SELECT * FROM patterns ORDER BY confidence DESC'
+      );
+
+      // Also check legacy location for backward compatibility
+      const legacyPatterns = await memoryManager.query('phase2/patterns/%', {
+        partition: 'patterns'
+      });
+
+      const totalPatterns = dbPatterns.length + legacyPatterns.length;
+
+      if (totalPatterns === 0) {
         spinner.info('No patterns found');
         console.log(chalk.yellow('\n💡 Run "aqe patterns extract <directory>" to discover patterns'));
         return;
       }
 
-      spinner.succeed(`Found ${stats.totalPatterns} patterns`);
+      spinner.succeed(`Found ${totalPatterns} patterns`);
 
-      console.log(chalk.blue('\n📦 Test Patterns\n'));
-
-      // Filter by framework if specified
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
-
-      let patterns = await memoryManager.query('phase2/patterns/%', {
-        partition: 'patterns'
-      });
-
-      let filteredPatterns = patterns.map(p => p.value as TestPattern);
-
-      if (options.framework) {
-        filteredPatterns = filteredPatterns.filter(p => p.framework === options.framework);
-      }
-
-      if (options.type) {
-        filteredPatterns = filteredPatterns.filter(p => p.category === options.type);
-      }
-
-      // Sort by confidence
-      filteredPatterns.sort((a, b) => b.confidence - a.confidence);
+      console.log(chalk.blue('\n📦 Stored Patterns\n'));
 
       // Apply limit
       const limit = options.limit || 20;
-      const displayPatterns = filteredPatterns.slice(0, limit);
 
-      displayPatterns.forEach((pattern, index) => {
-        const prefix = index === displayPatterns.length - 1 ? '└─' : '├─';
-        console.log(`${prefix} ${chalk.cyan(pattern.name)}`);
-        console.log(`   ├─ Type: ${pattern.category}`);
-        console.log(`   ├─ Framework: ${pattern.framework}`);
-        console.log(`   ├─ Confidence: ${this.formatConfidence(pattern.confidence)}`);
-        console.log(`   ├─ Success Rate: ${chalk.green((pattern.successRate * 100).toFixed(1) + '%')}`);
-        console.log(`   └─ Usage: ${chalk.gray(pattern.usageCount + ' times')}`);
-        console.log();
-      });
+      // Display patterns from dedicated table first
+      if (dbPatterns.length > 0) {
+        const displayPatterns = dbPatterns.slice(0, limit);
 
-      if (filteredPatterns.length > limit) {
-        console.log(chalk.gray(`... and ${filteredPatterns.length - limit} more`));
+        displayPatterns.forEach((pattern: any, index: number) => {
+          const prefix = index === displayPatterns.length - 1 && legacyPatterns.length === 0 ? '└─' : '├─';
+          const patternName = pattern.id || 'unnamed';
+
+          // Parse metadata if available
+          let metadata: any = {};
+          try {
+            metadata = pattern.metadata ? JSON.parse(pattern.metadata) : {};
+          } catch { /* ignore parse errors */ }
+
+          console.log(`${prefix} ${chalk.cyan(patternName)}`);
+          console.log(`   ├─ Confidence: ${this.formatConfidence(pattern.confidence)}`);
+          console.log(`   ├─ Usage Count: ${chalk.gray((pattern.usage_count || 0) + ' times')}`);
+          if (metadata.domain) {
+            console.log(`   ├─ Domain: ${metadata.domain}`);
+          }
+          if (pattern.agent_id) {
+            console.log(`   ├─ Agent: ${pattern.agent_id}`);
+          }
+          console.log(`   └─ Created: ${chalk.gray(pattern.created_at ? new Date(pattern.created_at).toLocaleString() : 'unknown')}`);
+          console.log();
+        });
+      }
+
+      // Display legacy patterns if any
+      if (legacyPatterns.length > 0) {
+        console.log(chalk.blue('\n📦 Legacy Patterns (memory_entries)\n'));
+        let filteredPatterns = legacyPatterns.map(p => p.value as TestPattern);
+
+        if (options.framework) {
+          filteredPatterns = filteredPatterns.filter(p => p.framework === options.framework);
+        }
+
+        if (options.type) {
+          filteredPatterns = filteredPatterns.filter(p => p.category === options.type);
+        }
+
+        filteredPatterns.sort((a, b) => b.confidence - a.confidence);
+        const displayLegacy = filteredPatterns.slice(0, limit);
+
+        displayLegacy.forEach((pattern, index) => {
+          const prefix = index === displayLegacy.length - 1 ? '└─' : '├─';
+          console.log(`${prefix} ${chalk.cyan(pattern.name)}`);
+          console.log(`   ├─ Type: ${pattern.category}`);
+          console.log(`   ├─ Framework: ${pattern.framework}`);
+          console.log(`   ├─ Confidence: ${this.formatConfidence(pattern.confidence)}`);
+          console.log(`   ├─ Success Rate: ${chalk.green((pattern.successRate * 100).toFixed(1) + '%')}`);
+          console.log(`   └─ Usage: ${chalk.gray(pattern.usageCount + ' times')}`);
+          console.log();
+        });
+      }
+
+      if (totalPatterns > limit) {
+        console.log(chalk.gray(`... showing ${limit} of ${totalPatterns} patterns`));
         console.log(chalk.gray(`Use --limit <n> to see more\n`));
       }
 
@@ -308,8 +354,7 @@ export class PatternsCommand {
       await this.reasoningBank.storePattern(mockPattern);
 
       // Store in memory
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
       await memoryManager.store(
         `phase2/patterns/${mockPattern.id}`,
         mockPattern,
@@ -386,8 +431,7 @@ export class PatternsCommand {
     const spinner = ora('Deleting pattern...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       await memoryManager.delete(`phase2/patterns/${patternId}`, 'patterns');
 
@@ -413,8 +457,7 @@ export class PatternsCommand {
     const spinner = ora('Exporting patterns...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       let patterns = await memoryManager.query('phase2/patterns/%', {
         partition: 'patterns'
@@ -457,8 +500,7 @@ export class PatternsCommand {
         return;
       }
 
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       for (const pattern of patterns) {
         await this.reasoningBank.storePattern(pattern);

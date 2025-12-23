@@ -18,6 +18,13 @@ const PACKAGE_VERSION = packageJson.version;
 /**
  * Initialize all databases for the Agentic QE Fleet
  *
+ * ARCHITECTURE (v2.2.0): All persistence now goes to a SINGLE database:
+ * - .agentic-qe/memory.db - The unified database for ALL operations
+ *
+ * This ensures CLI, MCP, and agents all share the same data.
+ * AgentDB (.agentic-qe/agentdb.db) is no longer used - all learning,
+ * patterns, and agent data goes through SwarmMemoryManager to memory.db.
+ *
  * @param config - Fleet configuration
  */
 export async function initializeDatabases(config: FleetConfig): Promise<void> {
@@ -26,87 +33,53 @@ export async function initializeDatabases(config: FleetConfig): Promise<void> {
 
   console.log(chalk.gray(`  • Initializing databases in ${dataDir}`));
 
-  // Phase 1: Initialize memory database FIRST (required for agents)
+  // Phase 1: Initialize the UNIFIED memory database (required for ALL operations)
+  // This is the ONLY database used by CLI, MCP, and agents
   await initializeMemoryDatabase();
 
-  // Phase 2: Initialize AgentDB for learning (v1.8.0 - replaces patterns.db)
-  await initializeAgentDB(config);
-
-  // Phase 3: Initialize learning system
+  // Phase 2: Initialize learning system configuration
   await initializeLearningSystem(config);
 
-  // Phase 4: Initialize improvement loop
+  // Phase 3: Initialize improvement loop configuration
   await initializeImprovementLoop(config);
 
   console.log(chalk.green('  ✓ All databases initialized'));
+  console.log(chalk.cyan('    ℹ All persistence unified to .agentic-qe/memory.db'));
 }
 
 /**
  * Initialize Memory Manager database
  *
- * Creates and initializes the SwarmMemoryManager database with 12 tables
- * for persistent memory storage across agents.
+ * Creates and initializes the UNIFIED SwarmMemoryManager database.
+ * This is the SINGLE database for all persistence in the Agentic QE Fleet.
+ *
+ * Uses the shared memory manager singleton to ensure all components
+ * (CLI, MCP, agents) use the same database connection.
  */
 async function initializeMemoryDatabase(): Promise<void> {
   const dbPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
 
-  console.log(chalk.cyan('  💾 Initializing Memory Manager database...'));
+  console.log(chalk.cyan('  💾 Initializing unified memory database...'));
 
-  // Import SwarmMemoryManager dynamically
-  const { SwarmMemoryManager } = await import('../../core/memory/SwarmMemoryManager');
+  // Use the shared memory manager singleton for consistent persistence
+  const { initializeSharedMemoryManager, getSharedMemoryManagerPath } = await import('../../core/memory/MemoryManagerFactory');
 
-  const memoryManager = new SwarmMemoryManager(dbPath);
-  await memoryManager.initialize();
+  const memoryManager = await initializeSharedMemoryManager();
 
   // Verify tables created
   const stats = await memoryManager.stats();
 
-  await memoryManager.close();
-
-  console.log(chalk.green('  ✓ Memory Manager initialized'));
-  console.log(chalk.gray(`    • Database: ${dbPath}`));
-  console.log(chalk.gray(`    • Tables: 12 tables (memory_entries, hints, events, workflow_state, patterns, etc.)`));
+  console.log(chalk.green('  ✓ Unified memory database initialized'));
+  console.log(chalk.gray(`    • Database: ${getSharedMemoryManagerPath()}`));
+  console.log(chalk.gray(`    • Tables: 20+ tables (memory_entries, patterns, learning_experiences, q_values, etc.)`));
   console.log(chalk.gray(`    • Access control: 5 levels (private, team, swarm, public, system)`));
+  console.log(chalk.gray(`    • Used by: CLI, MCP server, all 20 QE agents`));
 }
 
-/**
- * Initialize AgentDB for Learning (v1.8.0 - replaces patterns.db)
- *
- * Consolidated learning storage for all QE agents using AgentDB.
- * Replaces the deprecated patterns.db with vector-based learning storage.
- */
-async function initializeAgentDB(config: FleetConfig): Promise<void> {
-  const dbPath = path.join(process.cwd(), '.agentic-qe', 'agentdb.db');
-
-  console.log(chalk.cyan('  🧠 Initializing AgentDB learning system...'));
-
-  // Import AgentDB dynamically
-  const { createAgentDBManager } = await import('../../core/memory/AgentDBManager');
-
-  // Initialize AgentDB with learning configuration
-  const agentDB = await createAgentDBManager({
-    dbPath,
-    enableLearning: true,
-    enableReasoning: true,
-    cacheSize: 1000,
-    quantizationType: 'scalar'
-  });
-
-  // CRITICAL: Must initialize before calling getStats()
-  await agentDB.initialize();
-
-  // Verify initialization
-  const stats = await agentDB.getStats();
-  await agentDB.close();
-
-  console.log(chalk.green('  ✓ AgentDB learning system initialized'));
-  console.log(chalk.gray(`    • Database: ${dbPath}`));
-  console.log(chalk.gray(`    • Episodes stored: ${stats.episodeCount || 0}`));
-  console.log(chalk.gray(`    • Vector search: HNSW enabled (150x faster)`));
-  console.log(chalk.gray(`    • Learning: Reflexion pattern + Q-values`));
-  console.log(chalk.gray(`    • Used by: All 18 QE agents`));
-  console.log(chalk.yellow(`    ⓘ  patterns.db deprecated - using AgentDB for all learning`));
-}
+// DEPRECATED (v2.2.0): AgentDB initialization removed
+// All learning data now persists to the unified memory.db via SwarmMemoryManager.
+// The separate agentdb.db file is no longer used.
+// See: Sherlock Investigation Report - Database Fragmentation Root Cause
 
 /**
  * Initialize Phase 2 Learning System
@@ -127,6 +100,9 @@ async function initializeLearningSystem(config: FleetConfig): Promise<void> {
     updateFrequency: 10,
     replayBufferSize: 10000
   };
+
+  // Ensure config directory exists (in case directory structure phase had issues)
+  await fs.ensureDir('.agentic-qe/config');
 
   // Store learning configuration
   await fs.writeJson('.agentic-qe/config/learning.json', learningConfig, { spaces: 2 });
@@ -176,6 +152,10 @@ async function initializeImprovementLoop(config: FleetConfig): Promise<void> {
       minSampleDuration: 3600000 // 1 hour
     }
   };
+
+  // Ensure directories exist (defensive, in case directory-structure phase had issues)
+  await fs.ensureDir('.agentic-qe/config');
+  await fs.ensureDir('.agentic-qe/data/improvement');
 
   // Store improvement configuration
   await fs.writeJson('.agentic-qe/config/improvement.json', improvementConfig, { spaces: 2 });

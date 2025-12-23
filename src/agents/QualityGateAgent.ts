@@ -1,18 +1,27 @@
 /**
  * QualityGateAgent - Intelligent quality gate evaluation with decision trees
  * Implements SPARC Phase 2 Section 7.1 - Intelligent Quality Gate Algorithm
+ *
+ * Enhanced with full learning support (v2.3.5):
+ * - LearningEngine for Q-learning and pattern discovery
+ * - ExperienceCapture for Nightly-Learner integration
+ * - Pattern caching for confidence boosting
+ *
+ * Phase 0.5 (v2.5.9) - Migrated to BaseAgent for RuVector integration
  */
 
-import { EventEmitter } from 'events';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentId,
   AgentStatus,
-  TaskSpec,
   QualityMetrics,
   QETestResult,
-  MemoryStore
+  QETask
 } from '../types';
+import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
+import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+import { Logger } from '../utils/Logger';
 
 export interface QualityGateRequest {
   testResults: QETestResult[];
@@ -70,14 +79,28 @@ export interface RiskFactor {
   mitigation: string[];
 }
 
-export class QualityGateAgent extends EventEmitter {
-  private id: AgentId;
-  private status: AgentStatus = AgentStatus.INITIALIZING;
-  private memoryStore?: MemoryStore;
+// ============================================================================
+// Configuration - Extends BaseAgentConfig for RuVector integration
+// ============================================================================
+
+export interface QualityGateConfig extends BaseAgentConfig {
+  customCriteria?: QualityCriterion[];
+  defaultThreshold?: number;  // Default: 0.8
+}
+
+export class QualityGateAgent extends BaseAgent {
   private decisionEngine: DecisionEngine;
   private consciousnessEngine: ConsciousnessEngine;
   private psychoSymbolicReasoner: PsychoSymbolicReasoner;
   private riskAnalyzer: RiskAnalyzer;
+  private qualityGateLogger: Logger;
+
+  // ExperienceCapture for Nightly-Learner integration
+  private experienceCapture?: ExperienceCapture;
+
+  // Cached patterns for confidence boosting
+  private cachedPatterns: Array<{ pattern: string; confidence: number; successRate: number }> = [];
+  private historicalDecisionAccuracy: number = 0.5;
 
   // Default quality criteria based on industry standards
   private readonly defaultCriteria: QualityCriterion[] = [
@@ -88,84 +111,98 @@ export class QualityGateAgent extends EventEmitter {
     { name: 'code_quality_score', threshold: 0.80, weight: 0.10, type: 'minimum_threshold', critical: false }
   ];
 
-  constructor(id: AgentId, memoryStore?: MemoryStore) {
-    super();
-    this.id = id;
-    this.memoryStore = memoryStore;
+  constructor(config: QualityGateConfig) {
+    super(config);
+    this.qualityGateLogger = Logger.getInstance();
     this.decisionEngine = new DecisionEngine();
     this.consciousnessEngine = new ConsciousnessEngine();
     this.psychoSymbolicReasoner = new PsychoSymbolicReasoner();
     this.riskAnalyzer = new RiskAnalyzer();
   }
 
-  // ============================================================================
-  // Agent Lifecycle
-  // ============================================================================
-
-  async initialize(): Promise<void> {
-    try {
-      this.status = AgentStatus.INITIALIZING;
-
-      // Initialize decision engines
-      await this.decisionEngine.initialize();
-      await this.consciousnessEngine.initialize();
-      await this.psychoSymbolicReasoner.initialize();
-      await this.riskAnalyzer.initialize();
-
-      // Load historical decision patterns
-      await this.loadDecisionPatterns();
-
-      // Store initialization state
-      if (this.memoryStore) {
-        await this.memoryStore.set('quality-gate-initialized', true, 'agents');
-      }
-
-      this.status = AgentStatus.IDLE;
-      this.emit('agent.initialized', { agentId: this.id });
-
-    } catch (error) {
-      this.status = AgentStatus.ERROR;
-      this.emit('agent.error', { agentId: this.id, error });
-      throw error;
-    }
+  /**
+   * Get string representation of agent ID (handles AgentId object or string)
+   */
+  private getAgentIdStr(): string {
+    const agentId = super.getAgentId();
+    return typeof agentId === 'string' ? agentId : agentId.id;
   }
 
-  async executeTask(task: TaskSpec): Promise<QualityGateDecision> {
+  // ============================================================================
+  // BaseAgent Abstract Method Implementations
+  // ============================================================================
+
+  /**
+   * Initialize agent-specific components
+   * Called by BaseAgent.initialize()
+   */
+  protected async initializeComponents(): Promise<void> {
+    // Initialize decision engines
+    await this.decisionEngine.initialize();
+    await this.consciousnessEngine.initialize();
+    await this.psychoSymbolicReasoner.initialize();
+    await this.riskAnalyzer.initialize();
+
+    // Initialize ExperienceCapture for Nightly-Learner integration
+    this.experienceCapture = await ExperienceCapture.getSharedInstance();
+    this.qualityGateLogger.info('[QualityGate] ExperienceCapture initialized for Nightly-Learner');
+
+    // Load historical decision patterns
+    await this.loadDecisionPatterns();
+
+    // Load and cache patterns for confidence boosting
+    await this.loadAndCachePatternsForConfidence();
+
+    // Store initialization state
+    const memoryStore = this.memoryStore;
+    if (memoryStore) {
+      await memoryStore.set('quality-gate-initialized', true, 'agents');
+    }
+
+    this.qualityGateLogger.info(`[QualityGate] Initialized with learning: ${!!this.learningEngine}, patterns cached: ${this.cachedPatterns.length}`);
+  }
+
+  /**
+   * Execute a QE task - implements BaseAgent abstract method
+   */
+  protected async performTask(task: QETask): Promise<QualityGateDecision> {
+    // Task payload contains the QualityGateRequest
     const request = task.payload as QualityGateRequest;
     return await this.evaluateQualityGate(request);
   }
 
-  async terminate(): Promise<void> {
-    try {
-      this.status = AgentStatus.STOPPING;
-
-      // Save learned decision patterns
-      await this.saveDecisionPatterns();
-
-      // Cleanup resources
-      await this.decisionEngine.cleanup();
-      await this.consciousnessEngine.cleanup();
-      await this.psychoSymbolicReasoner.cleanup();
-      await this.riskAnalyzer.cleanup();
-
-      this.status = AgentStatus.STOPPED;
-      this.emit('agent.terminated', { agentId: this.id });
-
-    } catch (error) {
-      this.status = AgentStatus.ERROR;
-      throw error;
-    }
+  /**
+   * Load knowledge/patterns - implements BaseAgent abstract method
+   */
+  protected async loadKnowledge(): Promise<void> {
+    await this.loadDecisionPatterns();
+    await this.loadAndCachePatternsForConfidence();
   }
 
-  getStatus(): {
-    agentId: AgentId;
-    status: AgentStatus;
+  /**
+   * Cleanup agent resources - implements BaseAgent abstract method
+   */
+  protected async cleanup(): Promise<void> {
+    // Save learned decision patterns
+    await this.saveDecisionPatterns();
+
+    // Cleanup resources
+    await this.decisionEngine.cleanup();
+    await this.consciousnessEngine.cleanup();
+    await this.psychoSymbolicReasoner.cleanup();
+    await this.riskAnalyzer.cleanup();
+  }
+
+  /**
+   * Get quality gate specific status
+   */
+  getQualityGateStatus(): {
+    agentId: string;
     capabilities: string[];
     performance: any;
   } {
     return {
-      agentId: this.id,
-      status: this.status,
+      agentId: this.getAgentIdStr(),
       capabilities: ['quality-evaluation', 'risk-analysis', 'decision-making'],
       performance: {
         decisionsEvaluated: this.decisionEngine.getDecisionCount(),
@@ -187,7 +224,6 @@ export class QualityGateAgent extends EventEmitter {
     const startTime = Date.now();
 
     try {
-      this.status = AgentStatus.ACTIVE;
 
       // Provide default context if missing
       const context = request.context || {
@@ -303,18 +339,65 @@ export class QualityGateAgent extends EventEmitter {
         }
       };
 
-      // Phase 9: Learn from Decision
+      // Phase 9: Learn from Decision using LearningEngine
       await this.storeLearningData(gateDecision, request.testResults, request.metrics);
 
       // Store decision for future learning
       await this.storeDecisionResult(gateDecision, Date.now() - startTime);
 
-      this.status = AgentStatus.IDLE;
+      // Learn from execution with Q-learning
+      const executionTime = Date.now() - startTime;
+      if (this.learningEngine) {
+        await this.learningEngine.learnFromExecution(
+          {
+            id: `quality-gate-${Date.now()}`,
+            type: 'quality-gate-evaluation',
+            requirements: {
+              capabilities: ['quality-evaluation', 'risk-analysis']
+            }
+          },
+          {
+            success: gateDecision.decision !== 'FAIL',
+            executionTime,
+            strategy: 'decision-tree',
+            confidence: gateDecision.confidence,
+            toolsUsed: ['decision-engine', 'consciousness-engine', 'risk-analyzer'],
+            score: gateDecision.score
+          }
+        );
+      }
+
+      // Track performance
+      if (this.performanceTracker) {
+        await this.performanceTracker.recordSnapshot({
+          metrics: {
+            tasksCompleted: 1,
+            successRate: gateDecision.decision === 'PASS' ? 1 : 0,
+            averageExecutionTime: executionTime,
+            errorRate: gateDecision.decision === 'FAIL' ? 1 : 0,
+            userSatisfaction: gateDecision.confidence,
+            resourceEfficiency: gateDecision.score
+          },
+          trends: []
+        });
+      }
+
+      // Capture experience for Nightly-Learner
+      await this.captureExperienceForLearning(request, gateDecision, executionTime, true);
 
       return gateDecision;
 
     } catch (error) {
-      this.status = AgentStatus.ERROR;
+
+      // Capture failed experience
+      await this.captureExperienceForLearning(
+        request,
+        null,
+        Date.now() - startTime,
+        false,
+        error as Error
+      );
+
       throw error;
     }
   }
@@ -543,7 +626,7 @@ export class QualityGateAgent extends EventEmitter {
       recommendations.push('Consider additional manual testing for critical deployment');
     }
 
-    if (context.changes.length > 10) {
+    if (context.changes && context.changes.length > 10) {
       recommendations.push('Large changeset detected - consider breaking into smaller deployments');
     }
 
@@ -651,6 +734,189 @@ export class QualityGateAgent extends EventEmitter {
   private async calculateChangeMagnitude(changes: any[]): Promise<number> {
     return changes.reduce((sum, change) => sum + change.complexity, 0) / Math.max(1, changes.length * 10);
   }
+
+  // ============================================================================
+  // Nightly-Learner Integration - ExperienceCapture & Pattern Loading
+  // ============================================================================
+
+  /**
+   * Load patterns from database and cache for confidence boosting at task start
+   * This allows the agent to make decisions with higher confidence based on past learnings
+   */
+  private async loadAndCachePatternsForConfidence(): Promise<void> {
+    try {
+      // Load from LearningEngine if available
+      if (this.learningEngine) {
+        const patterns = await this.learningEngine.getPatterns();
+        this.cachedPatterns = patterns.map(p => ({
+          pattern: p.pattern,
+          confidence: p.confidence,
+          successRate: p.successRate
+        }));
+        this.qualityGateLogger.info(`[QualityGate] Cached ${this.cachedPatterns.length} patterns from LearningEngine`);
+      }
+
+      // Also load from memoryStore if available
+      if (this.memoryStore) {
+        const smm = this.memoryStore as unknown as SwarmMemoryManager;
+        if (typeof smm.queryPatternsByConfidence === 'function') {
+          const dbPatterns = await smm.queryPatternsByConfidence(0.5); // High confidence only
+          const qualityPatterns = dbPatterns.filter((p: any) =>
+            p.pattern?.includes('quality-gate') || p.metadata?.agent_type === 'quality-gate'
+          );
+
+          if (qualityPatterns.length > 0) {
+            this.qualityGateLogger.info(`[QualityGate] Found ${qualityPatterns.length} historical quality gate patterns in DB`);
+
+            // Merge with existing patterns
+            for (const p of qualityPatterns) {
+              if (!this.cachedPatterns.find(cp => cp.pattern === p.pattern)) {
+                this.cachedPatterns.push({
+                  pattern: p.pattern,
+                  confidence: p.confidence,
+                  successRate: p.metadata?.success_rate || 0.5
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Calculate historical accuracy from patterns
+      if (this.cachedPatterns.length > 0) {
+        const totalSuccessRate = this.cachedPatterns.reduce((sum, p) => sum + p.successRate, 0);
+        this.historicalDecisionAccuracy = totalSuccessRate / this.cachedPatterns.length;
+      }
+
+      this.qualityGateLogger.info(`[QualityGate] Total cached patterns: ${this.cachedPatterns.length}, historical accuracy: ${(this.historicalDecisionAccuracy * 100).toFixed(1)}%`);
+    } catch (error) {
+      this.qualityGateLogger.warn('[QualityGate] Failed to load patterns for confidence', error);
+    }
+  }
+
+  /**
+   * Calculate confidence boost based on cached historical patterns
+   * Used to improve decision confidence based on past successful decisions
+   */
+  public getConfidenceBoostFromPatterns(): number {
+    if (this.cachedPatterns.length === 0) {
+      return 0; // No patterns, no boost
+    }
+
+    // Find relevant quality gate patterns
+    const relevantPatterns = this.cachedPatterns.filter(p =>
+      p.pattern.includes('quality-gate') || p.pattern.includes('decision')
+    );
+
+    if (relevantPatterns.length === 0) {
+      return 0;
+    }
+
+    // Calculate weighted average confidence boost
+    const totalWeight = relevantPatterns.reduce((sum, p) => sum + p.successRate, 0);
+    const weightedConfidence = relevantPatterns.reduce(
+      (sum, p) => sum + p.confidence * p.successRate,
+      0
+    );
+
+    const boost = totalWeight > 0 ? (weightedConfidence / totalWeight) * 0.25 : 0; // Max 25% boost
+
+    this.qualityGateLogger.debug(`[QualityGate] Confidence boost from ${relevantPatterns.length} patterns: ${(boost * 100).toFixed(1)}%`);
+
+    return boost;
+  }
+
+  /**
+   * Capture execution experience for Nightly-Learner system
+   * Enables cross-agent pattern synthesis and quality gate learning
+   */
+  private async captureExperienceForLearning(
+    request: QualityGateRequest,
+    decision: QualityGateDecision | null,
+    duration: number,
+    success: boolean,
+    error?: Error
+  ): Promise<void> {
+    if (!this.experienceCapture) {
+      return; // ExperienceCapture not initialized
+    }
+
+    try {
+      const agentIdStr = this.getAgentIdStr();
+      const agentType = 'quality-gate';
+
+      const event: AgentExecutionEvent = {
+        agentId: agentIdStr,
+        agentType: agentType,
+        taskId: `quality-gate-${Date.now()}`,
+        taskType: 'quality-gate-evaluation',
+        input: {
+          testResultCount: request.testResults.length,
+          deploymentTarget: request.context?.deploymentTarget,
+          criticality: request.context?.criticality,
+          changeCount: request.context?.changes?.length || 0,
+          customCriteriaCount: request.customCriteria?.length || 0
+        },
+        output: success && decision ? {
+          decision: decision.decision,
+          score: decision.score,
+          threshold: decision.threshold,
+          confidence: decision.confidence,
+          riskFactorCount: decision.riskFactors.length,
+          recommendationCount: decision.recommendations.length,
+          criteriaEvaluated: decision.criteriaEvaluations.length
+        } : {},
+        duration,
+        success,
+        error,
+        metrics: success && decision ? {
+          decision_score: decision.score,
+          confidence: decision.confidence,
+          risk_factor_count: decision.riskFactors.length,
+          criteria_passed: decision.criteriaEvaluations.filter(e => e.passed).length,
+          criteria_failed: decision.criteriaEvaluations.filter(e => !e.passed).length,
+          confidence_boost: this.getConfidenceBoostFromPatterns()
+        } : {},
+        timestamp: new Date()
+      };
+
+      await this.experienceCapture.captureExecution(event);
+
+      this.qualityGateLogger.debug(`[QualityGate] Captured experience for Nightly-Learner: ${success ? 'success' : 'failure'}, decision: ${decision?.decision || 'N/A'}`);
+      this.emit('experience:captured', { agentId: agentIdStr, success, duration });
+    } catch (captureError) {
+      // Don't fail the main operation if capture fails
+      this.qualityGateLogger.warn('[QualityGate] Failed to capture experience:', captureError);
+    }
+  }
+
+  /**
+   * Get learning status including Nightly-Learner integration
+   */
+  public async getEnhancedLearningStatus(): Promise<{
+    learningEngine: any;
+    experienceCapture: any;
+    cachedPatterns: number;
+    confidenceBoost: number;
+    historicalAccuracy: number;
+  }> {
+    const learningStatus = this.learningEngine ? {
+      enabled: this.learningEngine.isEnabled(),
+      totalExperiences: this.learningEngine.getTotalExperiences(),
+      explorationRate: this.learningEngine.getExplorationRate(),
+      patterns: (await this.learningEngine.getPatterns()).length
+    } : null;
+
+    const captureStats = this.experienceCapture?.getStats() || null;
+
+    return {
+      learningEngine: learningStatus,
+      experienceCapture: captureStats,
+      cachedPatterns: this.cachedPatterns.length,
+      confidenceBoost: this.getConfidenceBoostFromPatterns(),
+      historicalAccuracy: this.historicalDecisionAccuracy
+    };
+  }
 }
 
 // ============================================================================
@@ -696,12 +962,55 @@ class ConsciousnessEngine {
 class PsychoSymbolicReasoner {
   async initialize(): Promise<void> {}
 
-  async reason(_params: any): Promise<any> {
-    // Simulate reasoning
+  async reason(params: any): Promise<any> {
+    // Analyze the context to produce meaningful reasoning
+    const context = params.context || {};
+    const complexityFactors = context.complexityFactors || {};
+
+    // Build reasoning based on actual quality state
+    const issues: string[] = [];
+
+    if (context.metrics?.coverage) {
+      const coverage = context.metrics.coverage;
+      if (coverage.line < 80 || coverage.branch < 75) {
+        issues.push('insufficient test coverage');
+      }
+    }
+
+    if (context.metrics?.security) {
+      const security = context.metrics.security;
+      if (security.criticalVulnerabilities > 0) {
+        issues.push('critical security vulnerabilities detected');
+      }
+    }
+
+    if (context.metrics?.testResults) {
+      const results = context.metrics.testResults;
+      if (results.failed > 0) {
+        issues.push(`${results.failed} test failures`);
+      }
+    }
+
+    // Determine confidence based on complexity
+    const baseConfidence = SecureRandom.randomFloat() * 0.3 + 0.4; // 0.4 to 0.7
+    const confidence = complexityFactors.high ? baseConfidence : baseConfidence + 0.2;
+
+    // Generate meaningful reasoning
+    let reasoning: string;
+    if (issues.length > 0) {
+      reasoning = `Quality gate escalation required: ${issues.join(', ')}. Human review recommended before deployment.`;
+    } else if (complexityFactors.high) {
+      reasoning = 'Complex quality state requires human review. Multiple factors need expert assessment before deployment decision.';
+    } else {
+      reasoning = 'Quality analysis completed. Review recommended for final deployment approval.';
+    }
+
     return {
-      reasoning: 'Complex quality state analysis completed',
-      confidence: SecureRandom.randomFloat() * 0.5 + 0.5,
-      recommendations: ['Consider additional testing']
+      reasoning,
+      confidence,
+      recommendations: issues.length > 0
+        ? [`Address: ${issues.join(', ')}`, 'Consider additional testing']
+        : ['Consider additional testing']
     };
   }
 

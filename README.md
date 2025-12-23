@@ -1,5 +1,6 @@
 # Agentic Quality Engineering Fleet
 
+
 <div align="center">
 
 [![npm version](https://img.shields.io/npm/v/agentic-qe.svg)](https://www.npmjs.com/package/agentic-qe)
@@ -7,13 +8,14 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 <img alt="NPM Downloads" src="https://img.shields.io/npm/dw/agentic-qe">
+[![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.0.0** | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.6.1** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-> Agentic test automation with AI learning, real-time visualization, QUIC transport, testability scoring, OpenTelemetry observability, persistent event storage, constitutional AI governance, and intelligent model routing.
+> AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
-🎨 **Real-Time Visualization** | 📊 **Testability Scoring** | 🧠 **QE Agent Learning** | 🚀 **QUIC Transport** | 📋 **Constitution System** | 📚 **41 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router**
+🎨 **Real-Time Visualization** | 📊 **Testability Scoring** | 🧠 **QE Agent Learning** | 🚀 **QUIC Transport** | 📋 **Constitution System** | 📚 **46 QE Skills** | 🎯 **Flaky Detection** | 💰 **Multi-Model Router** | 🔄 **n8n Workflow Testing**
 
 </div>
 
@@ -54,25 +56,40 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ```
 
 **What gets initialized:**
-- ✅ **Phase 3 Visualization**: Real-time dashboards, interactive graphs (v1.9.0)
-- ✅ **Phase 1-2 Infrastructure**: OpenTelemetry, Event Store, Constitution System
+- ✅ Real-time dashboards, interactive graphs (v1.9.0)
+- ✅ OpenTelemetry, Event Store, Constitution System
 - ✅ Multi-Model Router (70-81% cost savings - opt-in)
 - ✅ Learning System (20% improvement target)
 - ✅ Pattern Bank (cross-project reuse)
-- ✅ ML Flaky Detection (100% accuracy)
-- ✅ 19 Specialized agent definitions (including qe-code-complexity)
+- ✅ ML Flaky Detection (90%+ accuracy with root cause analysis)
+- ✅ 21 Specialized QE agent definitions (including qe-code-intelligence for 80% token reduction)
+- ✅ 15 n8n workflow testing agents (workflow execution, chaos, compliance, security, performance by [@fndlalit](https://github.com/fndlalit))
 - ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
-- ✅ 41 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
+- ✅ 46 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, n8n testing, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
 - ✅ 8 AQE slash commands
 - ✅ Modular init system with comprehensive project setup
 
 ---
 
+## 🎯 Why AQE?
+
+| Problem | AQE Solution |
+|---------|--------------|
+| **Writing comprehensive tests is tedious and time-consuming** | AI agents generate tests automatically with pattern reuse across projects |
+| **Test suites become slow and expensive at scale** | Sublinear O(log n) algorithms for coverage analysis and intelligent test selection |
+| **Flaky tests waste developer time debugging false failures** | ML-powered detection (90%+ accuracy) with root cause analysis and fix recommendations |
+| **AI testing tools are expensive** | Multi-model routing cuts costs by up to 70-81% by matching task complexity to model |
+| **No memory between test runs—every analysis starts from scratch** | Self-learning system remembers patterns, strategies, and what works for your codebase |
+| **Agents waste tokens reading irrelevant code** | Code Intelligence provides 80% token reduction with semantic search and knowledge graphs |
+| **Tools don't understand your testing frameworks** | Works with Jest, Cypress, Playwright, Vitest, Mocha, Jasmine, AVA |
+
+---
+
 ## ✨ Features
 
-### 🎨 Phase 3: Real-Time Visualization (v1.9.0)
+### Real-Time Visualization (since v1.9.0)
 
-**Production-Ready Observability Dashboards**
+**Observability Dashboards**
 
 #### 📊 Interactive React Frontend
 - **MindMap Component**: Cytoscape.js-powered graph visualization with 6 layout algorithms
@@ -129,57 +146,80 @@ cd frontend && npm run dev
 open http://localhost:3000
 ```
 
-**Documentation**: See `PHASE3-COMPLETE.md` for full details
+**Documentation**: See `docs/PHASE3-COMPLETE.md` for full details
 
 ---
 
-### 🏗️ Phase 1-2: Foundation & Infrastructure
-
-**Enterprise-Grade Observability & Governance**
-
-#### 📊 OpenTelemetry Integration
-- **Full OTEL SDK**: 12 OpenTelemetry packages for comprehensive observability
-- **Auto-Instrumentation**: HTTP, file system, and custom metrics
-- **Metrics Export**: gRPC and HTTP exporters for Grafana, Prometheus, Jaeger
-- **Agent Metrics**: Task completion, success rate, error tracking
-- **Quality Metrics**: Coverage %, defect density, test effectiveness
-- **System Metrics**: Memory, CPU, latency, throughput
-
-#### 💾 Event Sourcing & Persistence
-- **Event Store**: SQLite-based event sourcing with correlation tracking
-- **Reasoning Capture**: Agent decision tracking and prompt/response analysis
-- **Metrics Aggregation**: Time-window aggregation (hourly, daily, weekly)
-- **Performance Optimization**: Prepared statements, indexes, connection pooling
-- **Query API**: Time-range queries with pagination support
-
-#### 📋 Constitutional AI Governance
-- **JSON Schema Validation**: Type-safe constitution definitions
-- **4 Base Constitutions**: Default, test-generation, code-review, performance
-- **Inheritance & Merge**: Constitution composition with override support
-- **Agent-Specific**: Per-agent constitutional rules and guidelines
-- **Validation Pipeline**: Ensure agents follow constitutional principles
-
-**Benefits:**
-- 🔍 **Full Observability**: Track every agent action, metric, and decision
-- 📈 **Data-Driven**: Historical analysis for continuous improvement
-- 🛡️ **Governance**: Constitutional AI ensures quality and compliance
-- 🚀 **Production Ready**: Enterprise-grade persistence and monitoring
-
 ### 🤖 Autonomous Agent Fleet
-- **18 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis)
+- **20 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis, QX analysis, accessibility)
 - **11 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation + analysis)
 - **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
 - **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
 - **Scalable**: From single developer projects to enterprise-scale testing infrastructure
 
-### 🧠 Intelligence & Learning (v1.1.0)
+### 🧠 Intelligence & Learning
 - **QE Agent Learning System**: Q-Learning integrated with AgentDB's 9 RL algorithms, 20% improvement target with automatic strategy optimization
 - **Pattern Bank**: 85%+ matching accuracy across 6 test frameworks (Jest, Mocha, Cypress, Vitest, Jasmine, AVA)
-- **ML Flaky Detection**: 100% accuracy with root cause analysis and automated fix recommendations
+- **ML Flaky Detection**: 90%+ accuracy with root cause analysis and automated fix recommendations
 - **Continuous Improvement**: A/B testing framework with 95%+ statistical confidence
 - **Experience Replay**: Learn from 10,000+ past executions
 
-### 💰 Cost Optimization (v1.0.5)
+### 🧠 Self-Learning System (from v2.2.0)
+
+AQE agents learn from every interaction and improve over time. Unlike traditional tools that start from scratch each run, the Self-Learning System builds institutional knowledge for your codebase.
+
+**How It Works:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Self-Learning Pipeline                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
+│   │  Agent   │───▶│ Execute  │───▶│ Evaluate │───▶│  Learn   │  │
+│   │  Action  │    │   Task   │    │  Result  │    │ & Store  │  │
+│   └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
+│        │                                               │         │
+│        │         ┌─────────────────────────────┐       │         │
+│        └────────▶│     Pattern Bank (AgentDB)  │◀──────┘         │
+│                  │  • Successful strategies    │                 │
+│                  │  • Framework patterns       │                 │
+│                  │  • Q-values per action      │                 │
+│                  └─────────────────────────────┘                 │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Reinforcement Learning Algorithms:**
+- **Q-Learning**: Default algorithm - learns optimal action-value functions
+- **SARSA**: On-policy learning for safer exploration
+- **Actor-Critic (A2C)**: Combines value and policy learning
+- **PPO**: Advanced policy optimization for complex scenarios
+
+**What Gets Learned:**
+- Which test patterns work best for your framework (Jest, Cypress, etc.)
+- Optimal strategies for your codebase structure
+- Common failure patterns and how to prevent them
+- Cost-effective model routing decisions
+
+**CLI Commands:**
+```bash
+# Check learning status for an agent
+aqe learn status --agent qe-test-generator
+
+# List learned patterns for a framework
+aqe patterns list --framework jest
+
+# View algorithm performance
+aqe learn metrics --algorithm q-learning
+
+# Switch learning algorithm
+aqe learn set-algorithm --agent qe-test-generator --algorithm sarsa
+```
+
+**Persistence:** All learning is stored in AgentDB (SQLite-based) and persists across sessions. Your agents get smarter with every run.
+
+### 💰 Cost Optimization
 - **Multi-Model Router**: 70-81% cost savings through intelligent model selection (opt-in feature)
 - **4+ AI Models**: GPT-3.5, GPT-4, Claude Haiku, Claude Sonnet 4.5
 - **Smart Routing**: Automatic complexity analysis and optimal model selection
@@ -193,7 +233,7 @@ open http://localhost:3000
 - **Performance Testing**: k6, JMeter, Gatling integration
 - **Real-Time Streaming**: Live progress updates for all operations
 
-### 🎓 41 QE Skills Library (v1.9.0)
+### 🎓 41 QE Skills Library
 **95%+ coverage of modern QE practices**
 
 <details>
@@ -293,7 +333,7 @@ claude "Run the full AQE quality pipeline:
 2. qe-test-generator - generate comprehensive test suite
 3. qe-test-executor - run tests with parallel execution
 4. qe-coverage-analyzer - analyze gaps using O(log n) algorithms
-5. qe-flaky-test-hunter - detect flaky tests with 100% ML accuracy
+5. qe-flaky-test-hunter - detect flaky tests with ML-powered analysis
 6. qe-security-scanner - run SAST/DAST scans
 7. qe-performance-tester - load test critical paths
 8. qe-quality-gate - validate all quality criteria met
@@ -354,27 +394,26 @@ mcp__agentic_qe__coverage_analyze({
 })
 ```
 
-**All 102 MCP Tools Available:**
+**All 91 MCP Tools Available:**
 - Fleet Management (9 tools): init, spawn, status, coordinate, orchestrate
-- Test Generation (4 tools): generate, enhanced, unit, integration  
+- Test Generation (2 tools): generate enhanced, execute
 - Test Execution (3 tools): execute, parallel, stream
-- Coverage Analysis (6 tools): analyze, gaps, trends, risk scoring, ML detection, recommendations
-- Quality Gates (5 tools): execute, validate, assess risk, policy check, generate report
-- Flaky Test Detection (3 tools): detect, analyze patterns, auto-stabilize
-- Performance Testing (4 tools): benchmark, monitor, analyze bottlenecks, generate report
-- Security Scanning (5 tools): comprehensive scan, vulnerabilities, auth validation, authz check, dependencies
+- Coverage Analysis (4 tools): analyze with risk scoring, detect gaps ML, trends, recommendations
+- Quality Gates (3 tools): execute, validate metrics, generate report
+- Flaky Test Detection (2 tools): detect statistical, analyze patterns
+- Performance Testing (3 tools): benchmark, analyze bottlenecks, generate a report
+- Security Scanning (2 tools): comprehensive scan, detect vulnerabilities
 - Visual Testing (3 tools): compare screenshots, accessibility validation, regression detection
 - API Contract Testing (3 tools): validate, breaking changes, versioning
 - Test Data Management (3 tools): generate, mask, analyze schema
-- Requirements Engineering (2 tools): validate, generate BDD
 - Code Quality (2 tools): complexity analysis, metrics
 - Memory & Collaboration (5 tools): store, retrieve, query, share, backup
 - Blackboard System (2 tools): post, read
 - Consensus Mechanisms (2 tools): propose, vote
 - Workflow Management (4 tools): create, execute, checkpoint, resume
 - Event System (2 tools): emit, subscribe
-- Regression Analysis (2 tools): risk analyze, select tests
-- Production Monitoring (2 tools): incident replay, RUM analyze
+- Regression Analysis (2 tools): analyze risk, select tests
+- Production Monitoring (2 tools): incident replay, RUM analysis
 - Mutation Testing (1 tool): execute
 - Deployment Readiness (1 tool): check
 - Artifact Management (1 tool): manifest
@@ -539,18 +578,19 @@ Model Usage:
 | **regression-risk-analyzer** | Smart test selection | ML patterns, AST analysis | ✅ Pattern matching |
 | **test-data-architect** | Realistic data generation | 10k+ records/sec, GDPR compliant | - |
 | **api-contract-validator** | Breaking change detection | OpenAPI, GraphQL, gRPC | - |
-| **flaky-test-hunter** | Stability analysis | Statistical detection, auto-fix | ✅ 100% accuracy ML detection |
+| **flaky-test-hunter** | Stability analysis | Statistical detection, auto-fix | ✅ 90%+ accuracy ML detection |
 
 </details>
 
 <details>
-<summary><b>Specialized (3 agents)</b></summary>
+<summary><b>Specialized (4 agents)</b></summary>
 
 | Agent | Purpose | Key Features |
 |-------|---------|-------------|
 | **deployment-readiness** | Release validation | Multi-factor risk scoring |
 | **visual-tester** | UI regression | AI-powered comparison |
 | **chaos-engineer** | Resilience testing | Fault injection, blast radius |
+| **a11y-ally** | Accessibility testing | WCAG 2.2, AI video analysis, EU compliance |
 
 </details>
 
@@ -563,7 +603,7 @@ Model Usage:
 
 </details>
 
-**Total: 29 Agents** (18 main agents + 11 TDD subagents)
+**Total: 31 Agents** (20 main agents + 11 TDD subagents)
 
 ### TDD Subagents (11 specialized)
 
@@ -649,136 +689,17 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 
 ---
 
-## 📊 Performance Benchmarks
+## 📊 Performance
 
-| Feature | Target | Actual | Status |
-|---------|--------|--------|--------|
-| **Pattern Matching (p95)** | <50ms | 32ms | ✅ Exceeded |
-| **Learning Iteration** | <100ms | 68ms | ✅ Exceeded |
-| **ML Flaky Detection (1000 tests)** | <500ms | 385ms | ✅ Exceeded |
-| **Agent Memory** | <100MB | 85MB | ✅ Exceeded |
-| **Cost Savings** | 70%+ | 70-81% | ✅ Achieved |
-| **Test Improvement** | 20%+ | 23%+ | ✅ Exceeded |
-| **Flaky Detection Accuracy** | 90%+ | 100% | ✅ Exceeded |
-| **False Positive Rate** | <5% | 0% | ✅ Exceeded |
+For detailed performance benchmarks and metrics, see [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ### Core Performance
-- **Test Generation**: 1000+ tests/minute
-- **Parallel Execution**: 10,000+ concurrent tests
-- **Coverage Analysis**: O(log n) complexity
-- **Data Generation**: 10,000+ records/second
+- **Test Generation**: Pattern-based with cross-project reuse
+- **Parallel Execution**: Multi-framework concurrent tests
+- **Coverage Analysis**: O(log n) sublinear algorithms
+- **Data Generation**: 10,000+ records/second with GDPR compliance
 - **Agent Spawning**: <100ms per agent
-- **Memory Efficient**: <2GB for typical projects
-
----
-
-## 📝 What's New in v1.9.4
-
-🔧 **Critical Memory & Learning System Fixes** (2025-11-30)
-
-This release delivers critical fixes to the memory, learning, and patterns system. All QE agents now have a fully functional learning system with proper vector embeddings, Q-value reinforcement learning, and persistent pattern storage.
-
-### Key Fixes
-
-- **Vector embeddings now stored correctly**: Fixed `RealAgentDBAdapter.store()` to properly store 384-dimension embeddings as BLOB data
-- **SQL parameter style bug**: Fixed agentdb's `SqlJsDatabase` wrapper to use spread params instead of array params
-- **HNSW index schema mismatch**: Added `pattern_id` generated column for agentdb's HNSWIndex compatibility
-- **Learning experience retrieval**: Added missing getter methods for Q-learning and experience replay
-- **Hooks saving to wrong database**: Fixed all Claude Code hooks to explicitly export `AGENTDB_PATH` so learning data is saved correctly
-- **CI platform compatibility**: Moved ARM64-only ruvector packages to optionalDependencies for x64 CI compatibility
-
-### New Features
-
-- **SwarmMemoryManager learning methods**: `getBestAction()`, `getRecentLearningExperiences()`, `getLearningStats()`, and more
-- **Phase 4 Alerting & Reporting**: AlertManager, FeedbackRouter, StrategyApplicator modules
-- **Quality Gate CI workflow**: GitHub Actions integration for automated quality validation
-
-**Upgrade**: `npm install agentic-qe@1.9.4`
-
----
-
-## 📝 What's New in v1.9.3
-
-📦 **NPM Package Fix** (2025-11-26)
-
-This release fixes missing files in the npm package distribution that caused `aqe init` to fail.
-
-### Key Fixes
-
-- **Added missing `templates/` directory**: Includes `aqe.sh` wrapper script
-- **Added missing `.claude/helpers/` directory**: Includes 6 helper scripts (checkpoint-manager.sh, github-safe.js, etc.)
-- **Added missing `docs/reference/` directory**: Includes reference documentation (agents.md, skills.md, usage.md)
-
-**Upgrade**: `npm install agentic-qe@1.9.3`
-
----
-
-## 📝 What's New in v1.9.2
-
-🐛 **Learning Persistence Fix** (2025-11-26)
-
-This release fixes critical learning persistence issues (Issue #79) where learning data was not being saved to SQLite.
-
-### Key Fixes
-
-- **Database schema fixes**: Added missing columns to patterns, q_values, and learning_experiences tables
-- **Memory persistence**: MemoryStoreHandler now actually persists to SQLite when `persist: true`
-- **Database migrations**: Automatic migrations for existing databases
-
-**Upgrade**: `npm install agentic-qe@1.9.2`
-
----
-
-## 📝 What's New in v1.8.3
-
-🔄 **Phase 4: TDD Subagent Coordination** (2025-01-19)
-
-This release implements comprehensive TDD subagent coordination, solving the disconnected tests/code/refactor issue where RED-GREEN-REFACTOR cycle agents were producing inconsistent outputs.
-
-### Key Improvements
-
-- **TDD Coordination Protocol** - Memory-based coordination for consistent TDD cycles
-  - ✅ Cycle-based memory namespace (`aqe/tdd/cycle-{cycleId}/*`)
-  - ✅ File hash validation ensures test file integrity across phases
-  - ✅ Handoff gates prevent premature phase transitions
-  - ✅ Phase output interfaces for typed contracts
-
-- **Runtime Enforcement** - TDDPhaseValidator class validates memory state
-  - ✅ Validates memory keys exist before phase transitions
-  - ✅ Enforces output schema compliance
-  - ✅ Checks file hash integrity across RED→GREEN→REFACTOR
-  - ✅ Coverage comparison warnings
-
-- **New Subagents (3)** - Specialized quality engineering agents
-  - ✅ `qe-flaky-investigator` - Detects flaky tests, analyzes root causes
-  - ✅ `qe-coverage-gap-analyzer` - Identifies coverage gaps, risk-scores untested code
-  - ✅ `qe-test-data-architect-sub` - High-volume test data generation
-
-### Updated Subagents (8)
-All existing subagents now include coordination protocol:
-- `qe-test-writer`, `qe-test-implementer`, `qe-test-refactorer` (TDD phases)
-- `qe-code-reviewer`, `qe-integration-tester`, `qe-performance-validator`
-- `qe-security-auditor`, `qe-data-generator`
-
-### Testing
-- 22 integration tests for TDD coordination
-- All tests passing
-
-### Documentation
-- Coordination guide at `docs/subagents/coordination-guide.md`
-
-### Impact
-✅ **Build Status**: Passing (0 errors)
-✅ **TDD Coordination**: Fully operational
-✅ **Subagents**: 11 total (3 new, 8 updated)
-✅ **Integration Tests**: 22 passing
-❌ **Breaking Changes**: None
-
-**Upgrade**: `npm install agentic-qe@1.8.3`
-
-**Previous Releases**: See [CHANGELOG.md](CHANGELOG.md) for complete version history.
-
-[📖 View Full Changelog](CHANGELOG.md) | [🐛 Report Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)
+- **Flaky Detection**: 90%+ accuracy with ML-powered root cause analysis
 
 ---
 
@@ -875,41 +796,36 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 ---
 
-## 🗺️ Roadmap
-
-### Current (v1.5)
-- ✅ Learning System with Q-learning
-- ✅ Pattern Bank with cross-project sharing
-- ✅ ML Flaky Detection (100% accuracy)
-- ✅ Continuous Improvement Loop
-- ✅ 18 specialized agents + 11 TDD subagents
-- ✅ Complete TDD workflow automation (RED/GREEN/REFACTOR/REVIEW)
-- ✅ Multi-framework test execution
-- ✅ Real-time coverage analysis
-- ✅ MCP integration
-- ✅ Multi-model router (70-81% cost savings)
-- ✅ 40 QE skills library
-- ✅ Modular init system for streamlined project setup
-
-### Planned (v1.4)
-- 🔄 Web dashboard for visualization
-- 🔄 GraphQL API
-- 🔄 CI/CD integrations (GitHub Actions, GitLab CI)
-- 🔄 Enhanced pattern adaptation across frameworks
-- 🔄 Real-time collaboration features
-
-### Future (v2.0)
-- 📋 Natural language test generation
-- 📋 Self-healing test suites
-- 📋 Multi-language support (Python, Java, Go)
-- 📋 Advanced analytics and insights
-- 📋 Cloud deployment support
-
----
-
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👥 Contributors
+
+Thanks to all the amazing people who have contributed to Agentic QE Fleet!
+
+<!-- ALL-CONTRIBUTORS-LIST:START -->
+| <img src="https://github.com/proffesor-for-testing.png" width="60" style="border-radius:50%"/><br/>**[@proffesor-for-testing](https://github.com/proffesor-for-testing)**<br/>Project Lead | <img src="https://github.com/fndlalit.png" width="60" style="border-radius:50%"/><br/>**[@fndlalit](https://github.com/fndlalit)**<br/>QX Partner, Testability | <img src="https://github.com/shaal.png" width="60" style="border-radius:50%"/><br/>**[@shaal](https://github.com/shaal)**<br/>Core Development | <img src="https://github.com/mondweep.png" width="60" style="border-radius:50%"/><br/>**[@mondweep](https://github.com/mondweep)**<br/>Architecture |
+|:---:|:---:|:---:|:---:|
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+[View all contributors](CONTRIBUTORS.md) | [Become a contributor](CONTRIBUTING.md)
+
+---
+
+## 💖 Support the Project
+
+If you find Agentic QE Fleet valuable, consider supporting its development:
+
+| | Monthly | Annual (Save $10) |
+|---|:---:|:---:|
+| **Price** | $5/month | $50/year |
+| **Benefits** | Sponsor recognition, Priority support | All monthly + Featured in README, Roadmap input |
+| **Subscribe** | [**Monthly**](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-88G03706DU8150205NEYZZAY) | [**Annual**](https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-39189175UE6623540NEYZ2CI) |
+
+[View sponsorship details](FUNDING.md)
 
 ---
 
@@ -926,6 +842,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the Agentic QE Team**
 
-[⭐ Star us on GitHub](https://github.com/proffesor-for-testing/agentic-qe) • [🐦 Follow on Twitter](https://twitter.com/agenticqe)
+[⭐ Star us on GitHub](https://github.com/proffesor-for-testing/agentic-qe) | [💖 Sponsor](FUNDING.md) | [👥 Contributors](CONTRIBUTORS.md)
 
 </div>

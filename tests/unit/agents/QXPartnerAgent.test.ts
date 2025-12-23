@@ -3,7 +3,7 @@
  * Tests for Quality Experience (QX) analysis agent
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Jest test file - using jest globals
 import { QXPartnerAgent } from '../../../src/agents/QXPartnerAgent';
 import { QEAgentType } from '../../../src/types';
 import { QXTaskType, QXHeuristic } from '../../../src/types/qx';
@@ -17,12 +17,15 @@ describe('QXPartnerAgent', () => {
   beforeEach(async () => {
     eventBus = new EventEmitter();
     memoryStore = {
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn().mockResolvedValue(undefined),
-      has: vi.fn().mockResolvedValue(false),
-      delete: vi.fn().mockResolvedValue(true),
-      keys: vi.fn().mockResolvedValue([]),
-      clear: vi.fn().mockResolvedValue(undefined)
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      has: jest.fn().mockResolvedValue(false),
+      delete: jest.fn().mockResolvedValue(true),
+      keys: jest.fn().mockResolvedValue([]),
+      clear: jest.fn().mockResolvedValue(undefined),
+      // Required by VerificationHookManager
+      store: jest.fn().mockResolvedValue(undefined),
+      retrieve: jest.fn().mockResolvedValue(null)
     };
 
     agent = new QXPartnerAgent({
@@ -71,7 +74,7 @@ describe('QXPartnerAgent', () => {
 
     it('should be in idle status after initialization', () => {
       const status = agent.getStatus();
-      expect(status).toBe('idle');
+      expect(status.status).toBe('idle');
     });
   });
 
@@ -79,7 +82,7 @@ describe('QXPartnerAgent', () => {
     it('should perform full QX analysis', async () => {
       const task = {
         id: 'test-full-analysis',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -112,7 +115,7 @@ describe('QXPartnerAgent', () => {
     it('should include testability integration when enabled', async () => {
       const task = {
         id: 'test-with-testability',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -135,7 +138,7 @@ describe('QXPartnerAgent', () => {
     it('should detect oracle problems when enabled', async () => {
       const task = {
         id: 'test-oracle-detection',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -159,7 +162,7 @@ describe('QXPartnerAgent', () => {
     it('should detect oracle problems only', async () => {
       const task = {
         id: 'test-oracle-only',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -231,7 +234,7 @@ describe('QXPartnerAgent', () => {
     it('should analyze user-business balance', async () => {
       const task = {
         id: 'test-balance',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -255,7 +258,7 @@ describe('QXPartnerAgent', () => {
     it('should identify when favoring users', async () => {
       const task = {
         id: 'test-user-favor',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -278,7 +281,7 @@ describe('QXPartnerAgent', () => {
     it('should perform impact analysis', async () => {
       const task = {
         id: 'test-impact',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -304,7 +307,7 @@ describe('QXPartnerAgent', () => {
     it('should apply specific heuristic', async () => {
       const task = {
         id: 'test-heuristic',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -334,7 +337,7 @@ describe('QXPartnerAgent', () => {
     it('should throw error if heuristic parameter missing', async () => {
       const task = {
         id: 'test-missing-heuristic',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -353,7 +356,7 @@ describe('QXPartnerAgent', () => {
     it('should generate QX recommendations', async () => {
       const task = {
         id: 'test-recommendations',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -384,7 +387,7 @@ describe('QXPartnerAgent', () => {
     it('should sort recommendations by priority', async () => {
       const task = {
         id: 'test-sorted-recs',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -409,7 +412,7 @@ describe('QXPartnerAgent', () => {
     it('should calculate scores within valid range', async () => {
       const task = {
         id: 'test-scoring',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -434,7 +437,7 @@ describe('QXPartnerAgent', () => {
     it('should assign correct grade based on score', async () => {
       const task = {
         id: 'test-grading',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -460,7 +463,7 @@ describe('QXPartnerAgent', () => {
     it('should store analysis results in memory', async () => {
       const task = {
         id: 'test-memory',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -472,8 +475,8 @@ describe('QXPartnerAgent', () => {
 
       await agent.executeTask(task);
 
-      // Verify memory store was called
-      expect(memoryStore.set).toHaveBeenCalled();
+      // Verify memory store was called - MemoryServiceAdapter uses store(), not set()
+      expect(memoryStore.store).toHaveBeenCalled();
     });
 
     it('should retrieve historical analyses from memory', async () => {
@@ -483,11 +486,12 @@ describe('QXPartnerAgent', () => {
         ]
       };
 
-      memoryStore.get.mockResolvedValueOnce(historicalData);
+      // MemoryServiceAdapter uses retrieve(), not get()
+      memoryStore.retrieve.mockResolvedValueOnce(historicalData);
 
       const task = {
         id: 'test-history',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -499,7 +503,7 @@ describe('QXPartnerAgent', () => {
 
       await agent.executeTask(task);
 
-      expect(memoryStore.get).toHaveBeenCalled();
+      expect(memoryStore.retrieve).toHaveBeenCalled();
     });
   });
 
@@ -594,7 +598,7 @@ describe('QXPartnerAgent', () => {
     it('should handle invalid task type', async () => {
       const task = {
         id: 'test-invalid',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -610,7 +614,7 @@ describe('QXPartnerAgent', () => {
     it('should handle missing target', async () => {
       const task = {
         id: 'test-no-target',
-        assignee: agent.getAgentId(),
+        assignee: agent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -647,17 +651,17 @@ describe('QXPartnerAgent', () => {
       });
 
       // Before initialization
-      expect(newAgent.getStatus()).toBe('initializing');
+      expect(newAgent.getStatus().status).toBe('initializing');
 
       await newAgent.initialize();
 
       // After initialization
-      expect(newAgent.getStatus()).toBe('idle');
+      expect(newAgent.getStatus().status).toBe('idle');
 
       // During task execution
       const taskPromise = newAgent.executeTask({
         id: 'test-lifecycle',
-        assignee: newAgent.getAgentId(),
+        assignee: newAgent.getStatus().agentId,
         task: {
           type: 'qx-task',
           payload: {
@@ -673,12 +677,12 @@ describe('QXPartnerAgent', () => {
       await taskPromise;
 
       // After task completion
-      expect(newAgent.getStatus()).toBe('idle');
+      expect(newAgent.getStatus().status).toBe('idle');
 
       await newAgent.terminate();
 
       // After termination
-      expect(newAgent.getStatus()).toBe('terminated');
+      expect(newAgent.getStatus().status).toBe('terminated');
     });
   });
 });

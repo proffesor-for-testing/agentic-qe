@@ -27,14 +27,23 @@ import * as debugCommands from './commands/debug/index.js';
 import * as memoryCommands from './commands/memory/index.js';
 import * as routingCommands from './commands/routing/index.js';
 import * as learnCommands from './commands/learn/index.js';
+import * as dreamCommands from './commands/dream/index.js';
+import * as transferCommands from './commands/transfer/index.js';
 import * as patternsCommands from './commands/patterns/index.js';
 import * as improveCommands from './commands/improve/index.js';
 import * as skillsCommands from './commands/skills/index.js';
 import { InitCommand } from './commands/init';
 import { createQuantizationCommand } from './commands/quantization';
 import { createConstitutionCommand } from './commands/constitution';
+import { createRuVectorCommand } from './commands/ruvector';
 import * as telemetryCommands from './commands/telemetry';
+import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
+import * as fs from 'fs-extra';
+import * as path from 'path';
 import packageJson from '../../package.json';
+
+// Global sleep scheduler instance for learning system
+let sleepScheduler: SleepScheduler | null = null;
 
 const program = new Command();
 const logger = Logger.getInstance();
@@ -92,6 +101,9 @@ program
 
       console.log(chalk.green('✅ Fleet started successfully'));
 
+      // Auto-start SleepScheduler for Nightly-Learner
+      await startLearningScheduler();
+
       if (!options.daemon) {
         // Interactive mode
         await runInteractiveMode();
@@ -133,6 +145,78 @@ program
       process.exit(1);
     }
   });
+
+/**
+ * Start the learning scheduler (Nightly-Learner)
+ * Reads config from .agentic-qe/learning-config.json if it exists
+ */
+async function startLearningScheduler(): Promise<void> {
+  const configPath = path.join(process.cwd(), '.agentic-qe', 'learning-config.json');
+
+  try {
+    // Check if learning config exists
+    if (!await fs.pathExists(configPath)) {
+      logger.debug('[CLI] No learning-config.json found, skipping SleepScheduler');
+      return;
+    }
+
+    const learningConfig = await fs.readJson(configPath);
+
+    // Check if learning is enabled
+    if (!learningConfig.enabled) {
+      logger.debug('[CLI] Learning system disabled in config');
+      return;
+    }
+
+    // Build scheduler config from learning config
+    const schedulerConfig: SleepSchedulerConfig = {
+      mode: learningConfig.scheduler?.mode || 'hybrid',
+      schedule: {
+        startHour: learningConfig.scheduler?.startHour ?? 2,
+        durationMinutes: learningConfig.scheduler?.durationMinutes ?? 60,
+        daysOfWeek: learningConfig.scheduler?.daysOfWeek || [0, 1, 2, 3, 4, 5, 6],
+      },
+      learningBudget: {
+        maxPatternsPerCycle: learningConfig.scheduler?.learningBudget?.maxPatternsPerCycle ?? 50,
+        maxAgentsPerCycle: learningConfig.scheduler?.learningBudget?.maxAgentsPerCycle ?? 5,
+        maxDurationMs: learningConfig.scheduler?.learningBudget?.maxDurationMs ?? 3600000,
+      },
+      minCycleInterval: learningConfig.scheduler?.minCycleInterval ?? 3600000,
+      debug: learningConfig.debug ?? false,
+    };
+
+    // Create and start the scheduler
+    sleepScheduler = new SleepScheduler(schedulerConfig);
+
+    // Set up event listeners for monitoring
+    sleepScheduler.on('scheduler:started', (state) => {
+      console.log(chalk.cyan('🌙 Nightly-Learner started'));
+      logger.info('[CLI] SleepScheduler started', { mode: state.mode });
+    });
+
+    sleepScheduler.on('sleep:start', (event) => {
+      logger.info('[CLI] Learning cycle started', { trigger: event.trigger });
+    });
+
+    sleepScheduler.on('sleep:end', (summary) => {
+      logger.info('[CLI] Learning cycle completed', {
+        patternsDiscovered: summary.patternsDiscovered,
+        patternsConsolidated: summary.patternsConsolidated,
+        duration: summary.totalDuration,
+      });
+    });
+
+    sleepScheduler.on('error', (error) => {
+      logger.error('[CLI] SleepScheduler error', error);
+    });
+
+    await sleepScheduler.start();
+
+  } catch (error) {
+    // Non-fatal - learning is optional
+    logger.warn('[CLI] Failed to start learning scheduler (non-fatal)', error);
+  }
+}
 
 /**
  * Interactive mode
@@ -705,14 +789,167 @@ learnCommand
 
 learnCommand
   .command('metrics')
-  .description('Show learning improvement metrics from AgentDB')
-  .option('--agent <name>', 'Filter by agent type')
-  .option('--days <n>', 'Last N days', '7')
+  .description('Show comprehensive learning metrics (Phase 3)')
+  .option('--period <period>', 'Time period (7d, 30d, 1m)', '7d')
+  .option('--detailed', 'Show detailed metrics')
+  .option('--format <format>', 'Output format (table|json)', 'table')
   .action(async (options) => {
     try {
       await learnCommands.learnMetrics(options);
     } catch (error) {
       console.error(chalk.red('❌ Learning metrics failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('trends')
+  .description('Show metric trend analysis (Phase 3)')
+  .option('--metric <name>', 'Specific metric to analyze')
+  .option('--period <period>', 'Time period (daily, weekly, monthly)', 'weekly')
+  .option('--detailed', 'Show detailed trend analysis')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnTrends(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Trend analysis failed:'), error);
+      process.exit(1);
+    }
+  });
+
+learnCommand
+  .command('alerts')
+  .description('Show and manage learning alerts (Phase 3)')
+  .option('--all', 'Show all alerts including acknowledged')
+  .option('--ack <id>', 'Acknowledge alert by ID')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .action(async (options) => {
+    try {
+      await learnCommands.learnAlerts(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Alerts command failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Dream commands (Nightly-Learner Phase 2)
+ * Run dream cycles and view insights
+ */
+const dreamCommand = program
+  .command('dream')
+  .description('Dream engine for pattern discovery (Nightly-Learner Phase 2)');
+
+dreamCommand
+  .command('run')
+  .description('Run a dream cycle to discover patterns')
+  .option('--duration <ms>', 'Duration in milliseconds', parseInt, 5000)
+  .option('--insights <n>', 'Target insights to generate', parseInt, 5)
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await dreamCommands.dreamRun(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Dream run failed:'), error);
+      process.exit(1);
+    }
+  });
+
+dreamCommand
+  .command('insights')
+  .description('View stored dream insights')
+  .option('--limit <n>', 'Limit results', parseInt, 20)
+  .option('--type <type>', 'Filter by insight type')
+  .option('--actionable', 'Show only actionable insights')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await dreamCommands.dreamInsights(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Dream insights failed:'), error);
+      process.exit(1);
+    }
+  });
+
+dreamCommand
+  .command('status')
+  .description('Show dream engine status')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await dreamCommands.dreamStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Dream status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Transfer commands (Nightly-Learner Phase 2)
+ * Cross-agent pattern transfer
+ */
+const transferCommand = program
+  .command('transfer')
+  .description('Cross-agent pattern transfer (Nightly-Learner Phase 2)');
+
+transferCommand
+  .command('broadcast')
+  .description('Broadcast a pattern to compatible agents')
+  .requiredOption('--pattern <id>', 'Pattern ID to transfer')
+  .requiredOption('--source <agent>', 'Source agent type')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferBroadcast(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer broadcast failed:'), error);
+      process.exit(1);
+    }
+  });
+
+transferCommand
+  .command('status')
+  .description('Show transfer statistics')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+transferCommand
+  .command('history')
+  .description('View transfer history')
+  .option('--source <agent>', 'Filter by source agent')
+  .option('--target <agent>', 'Filter by target agent')
+  .option('--limit <n>', 'Limit results', parseInt, 20)
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferHistory(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer history failed:'), error);
+      process.exit(1);
+    }
+  });
+
+transferCommand
+  .command('agents')
+  .description('List available agents for transfer')
+  .option('--format <format>', 'Output format (table|json)', 'table')
+  .option('--verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await transferCommands.transferAgents(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Transfer agents failed:'), error);
       process.exit(1);
     }
   });
@@ -1127,6 +1364,11 @@ program.addCommand(createQuantizationCommand());
  * Constitution commands
  */
 program.addCommand(createConstitutionCommand());
+
+/**
+ * RuVector Self-Learning commands (Phase 0.5)
+ */
+program.addCommand(createRuVectorCommand());
 
 // Parse command line arguments
 program.parse();

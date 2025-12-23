@@ -1373,4 +1373,56 @@ class LoadTestSimulation extends Simulation {
       maxMemoryUsage: 85
     };
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich performance testing metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Request metrics
+      if (result.metrics?.requests) {
+        metrics.total_requests = result.metrics.requests.total || 0;
+        metrics.successful_requests = result.metrics.requests.successful || 0;
+        metrics.failed_requests = result.metrics.requests.failed || 0;
+        metrics.error_rate = result.metrics.requests.errorRate || 0;
+      }
+
+      // Latency metrics
+      if (result.metrics?.latency) {
+        metrics.latency_min = result.metrics.latency.min || 0;
+        metrics.latency_max = result.metrics.latency.max || 0;
+        metrics.latency_mean = result.metrics.latency.mean || 0;
+        metrics.latency_p50 = result.metrics.latency.p50 || 0;
+        metrics.latency_p95 = result.metrics.latency.p95 || 0;
+        metrics.latency_p99 = result.metrics.latency.p99 || 0;
+      }
+
+      // Throughput metrics
+      if (result.metrics?.throughput) {
+        metrics.requests_per_second = result.metrics.throughput.requestsPerSecond || 0;
+        metrics.bytes_per_second = result.metrics.throughput.bytesPerSecond || 0;
+      }
+
+      // Resource metrics
+      if (result.metrics?.resources) {
+        metrics.cpu_peak = result.metrics.resources.cpu?.peak || 0;
+        metrics.memory_peak = result.metrics.resources.memory?.peak || 0;
+      }
+
+      // Bottleneck and SLA metrics
+      metrics.bottleneck_count = result.bottlenecks?.length || 0;
+      metrics.sla_violations = result.slaViolations?.length || 0;
+      metrics.recommendations_count = result.recommendations?.length || 0;
+
+      // Duration
+      if (typeof result.duration === 'number') {
+        metrics.test_duration = result.duration;
+      }
+    }
+
+    return metrics;
+  }
 }

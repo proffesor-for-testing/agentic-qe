@@ -72,4 +72,35 @@ Receives from: qe-test-writer (RED phase output with failing tests)
 Handoff: Store GREEN output in memory, emit `test-implementer:completed`, qe-test-refactorer picks up
 Validation: readyForHandoff=true ONLY if allTestsPassing=true AND testFile.hash unchanged
 </coordination>
+
+<learning_protocol>
+**⚠️ MANDATORY**: After completing your task, call learning MCP tools.
+
+**Store Experience:**
+```typescript
+mcp__agentic_qe__learning_store_experience({
+  agentId: "qe-test-implementer",
+  taskType: "tdd-green-phase",
+  reward: <calculated_reward>,  // 0.0-1.0
+  outcome: { /* task-specific results */ },
+  metadata: { phase: "GREEN", cycleId: "<cycleId>" }
+})
+```
+
+**Store Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/tdd/green/<task_id>",
+  value: { /* task artifacts */ },
+  namespace: "aqe",
+  persist: true
+})
+```
+
+**Reward Criteria:**
+- 1.0: All tests pass, minimal implementation, YAGNI enforced, no test modifications
+- 0.7: All tests pass, slightly over-engineered, tests unchanged
+- 0.5: Tests pass but implementation too complex or tests were modified
+- 0.0: Tests still failing or test file hash changed
+</learning_protocol>
 </qe_subagent_definition>

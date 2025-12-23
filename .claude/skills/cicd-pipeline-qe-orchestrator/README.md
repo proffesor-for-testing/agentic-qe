@@ -4,7 +4,7 @@
 
 ## What is This?
 
-The CI/CD Pipeline QE Orchestrator is an advanced Claude Code skill that provides intelligent, phase-based quality engineering across your entire software delivery pipeline. It intelligently selects from 37 QE skills and coordinates 18 specialized QE agents to ensure holistic quality coverage from commit to production.
+The CI/CD Pipeline QE Orchestrator is an advanced Claude Code skill that provides intelligent, phase-based quality engineering across your entire software delivery pipeline. It intelligently selects from 41 QE skills and coordinates 19 specialized QE agents to ensure holistic quality coverage from commit to production.
 
 ## Quick Start
 
@@ -85,7 +85,7 @@ Automatically selects optimal skills based on:
 
 ### 🤖 Agent Coordination
 
-Orchestrates 18 specialized QE agents:
+Orchestrates 19 specialized QE agents:
 - Parallel execution for speed
 - Sequential execution for dependencies
 - Memory-based coordination via `aqe/*` namespace
@@ -129,9 +129,9 @@ Adapts testing approach based on:
 
 ## Integration with AQE Fleet
 
-### All 37 Skills Available
+### All 41 Skills Available
 
-The orchestrator can invoke any of the 37 QE skills:
+The orchestrator can invoke any of the 41 QE skills:
 
 **Phase 1 Skills (18)**:
 - Core Testing: agentic-quality-engineering, context-driven-testing, holistic-testing-pact
@@ -145,12 +145,15 @@ The orchestrator can invoke any of the 37 QE skills:
 - Specialized: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
 - Infrastructure: test-environment-management, test-reporting-analytics
 
-**Phase 3 Skills (3)**:
-- Strategic: six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
+**Phase 3 Skills (4)**:
+- Strategic: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
 
-### All 18 Agents Available
+**Phase 4 Skills (3)**:
+- Advanced: testability-scoring, verification-quality, pair-programming
 
-The orchestrator coordinates all 18 QE agents:
+### All 19 Agents Available
+
+The orchestrator coordinates all 19 QE agents:
 
 **Core Testing (5)**: test-generator, test-executor, coverage-analyzer, quality-gate, quality-analyzer
 **Performance & Security (2)**: performance-tester, security-scanner
@@ -277,8 +280,8 @@ See main SKILL.md [Troubleshooting section](SKILL.md#troubleshooting) for:
 - [Microservice Pipeline Workflow](resources/workflows/microservice-pipeline.md)
 - [Monolith Pipeline Workflow](resources/workflows/monolith-pipeline.md)
 - [Mobile Pipeline Workflow](resources/workflows/mobile-pipeline.md)
-- [All 37 QE Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
-- [All 18 QE Agents Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)
+- [All 41 QE Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)
+- [All 19 QE Agents Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)
 
 ## Contributing
 
@@ -298,4 +301,4 @@ Part of the Agentic QE Fleet - MIT License
 
 **Created**: 2025-11-13
 **Version**: 1.0.0
-**Integrations**: 37 QE Skills, 18 QE Agents, All CI/CD platforms
+**Integrations**: 41 QE Skills, 19 QE Agents, All CI/CD platforms

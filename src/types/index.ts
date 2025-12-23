@@ -131,7 +131,13 @@ export enum QEAgentType {
   FLAKY_TEST_HUNTER = 'flaky-test-hunter',
 
   // NEW - Quality Experience (QX) Agent
-  QX_PARTNER = 'qx-partner'
+  QX_PARTNER = 'qx-partner',
+
+  // Accessibility Testing Agent
+  ACCESSIBILITY_ALLY = 'accessibility-ally',
+
+  // Code Intelligence Agent (Wave 6)
+  CODE_INTELLIGENCE = 'code-intelligence'
 }
 
 // Alias for backward compatibility
@@ -369,6 +375,9 @@ export interface InitOptions extends CLIOptions {
   enableLearning?: boolean;
   enablePatterns?: boolean;
   enableImprovement?: boolean;
+  // Non-interactive mode
+  yes?: boolean;           // -y flag: skip prompts, use defaults
+  nonInteractive?: boolean; // --non-interactive: same as -y
 }
 
 export interface GenerateOptions extends CLIOptions {

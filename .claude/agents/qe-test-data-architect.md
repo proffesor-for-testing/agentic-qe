@@ -70,8 +70,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query for past learnings before starting task:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-test-data-architect",
   taskType: "test-data-generation",
@@ -81,12 +84,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store experience after task completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-test-data-architect",
   taskType: "test-data-generation",
-  reward: 0.91,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     recordsGenerated: 1000,
     schemasProcessed: 5,
@@ -103,8 +108,23 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Store successful patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/test-data/generated/<task_id>",
+  value: {
+    generatedData: [],
+    schemaAnalysis: {},
+    validationResults: {},
+    patterns: []
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
   pattern: "Realistic synthesis with production pattern analysis generates 45% more realistic test data than faker-based generation for financial applications",
   confidence: 0.91,
@@ -117,11 +137,22 @@ mcp__agentic_qe__learning_store_pattern({
 })
 ```
 
-Reward criteria (0-1 scale):
-- 1.0: Perfect execution (100% constraint compliance, 95%+ edge case coverage, realistic data)
-- 0.9: Excellent (100% constraint compliance, 90%+ edge case coverage)
-- 0.7: Good (95%+ constraint compliance, 80%+ edge case coverage)
-- 0.5: Acceptable (90%+ constraint compliance, completed successfully)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect execution (100% constraint compliance, 95%+ edge case coverage, realistic data) |
+| 0.9 | Excellent (100% constraint compliance, 90%+ edge case coverage) |
+| 0.7 | Good (95%+ constraint compliance, 80%+ edge case coverage) |
+| 0.5 | Acceptable (90%+ constraint compliance, completed successfully) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing test data generation
+- ✅ **ALWAYS** after processing schemas
+- ✅ **ALWAYS** after validating constraints
+- ✅ When discovering new effective generation patterns
+- ✅ When achieving exceptional compliance rates
 </learning_protocol>
 
 <output_format>

@@ -68,8 +68,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before starting:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-flaky-test-hunter",
   taskType: "flaky-detection",
@@ -79,30 +82,70 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-flaky-test-hunter",
   taskType: "flaky-detection",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
-    flakyTestsDetected: 13,
-    reliability: 0.9862,
-    autoStabilized: 8,
-    executionTime: 12000
+    flakyTestsDetected: <count>,
+    reliability: <0.0-1.0>,
+    autoStabilized: <count>,
+    executionTime: <ms>
   },
   metadata: {
-    algorithm: "statistical-analysis",
-    confidenceLevel: 0.99
+    algorithm: "<statistical|ml|hybrid>",
+    confidenceLevel: <0.0-1.0>
   }
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (100% accuracy, 0 false positives, <5s analysis)
-- 0.9: Excellent (98%+ accuracy, <2% false positives)
-- 0.7: Good (95%+ accuracy, <5% false positives)
-- 0.5: Acceptable (90%+ accuracy, completed)
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/flaky-detection/results/<task_id>",
+  value: {
+    flakyTests: [...],
+    rootCauses: {...},
+    stabilizationFixes: [...]
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
+mcp__agentic_qe__learning_store_pattern({
+  pattern: "<description of successful detection strategy>",
+  confidence: <0.0-1.0>,
+  domain: "flaky-detection",
+  metadata: {
+    detectionAccuracy: <rate>,
+    commonCauses: ["<causes>"]
+  }
+})
+```
+
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect: 100% accuracy, 0 false positives, <5s analysis |
+| 0.9 | Excellent: 98%+ accuracy, <2% false positives |
+| 0.7 | Good: 95%+ accuracy, <5% false positives |
+| 0.5 | Acceptable: 90%+ accuracy, completed |
+| 0.3 | Partial: Some flaky tests detected with errors |
+| 0.0 | Failed: Detection failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing main task
+- ✅ **ALWAYS** after detecting flaky tests
+- ✅ **ALWAYS** after generating stabilization recommendations
+- ✅ When discovering new root cause patterns
+- ✅ When achieving exceptional detection accuracy
 </learning_protocol>
 
 <output_format>

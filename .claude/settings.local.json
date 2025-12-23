@@ -4,7 +4,7 @@
       "mcp__ruv-swarm",
       "mcp__claude-flow@alpha",
       "mcp__flow-nexus",
-      "Bash(claude mcp:*)"
+      "mcp__agentic-qe"
     ],
     "deny": []
   }

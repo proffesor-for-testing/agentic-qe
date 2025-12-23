@@ -1,3 +1,7 @@
+// CRITICAL: Set NODE_ENV before any modules load
+// This ensures AdapterConfig correctly detects test environment
+process.env.NODE_ENV = 'test';
+
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -40,8 +44,8 @@ module.exports = {
   ],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts', '<rootDir>/tests/setup.ts'],
   testEnvironmentOptions: {
-    // Use explicit path instead of process.cwd() to prevent initialization errors
-    cwd: '/workspaces/agentic-qe-cf'
+    // Use dynamic cwd - process.cwd() at config load time is stable
+    cwd: process.cwd()
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -49,6 +53,7 @@ module.exports = {
     '^@agents/(.*)$': '<rootDir>/src/agents/$1',
     '^@cli/(.*)$': '<rootDir>/src/cli/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@types$': '<rootDir>/src/types/index.ts',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
     '^@mcp/(.*)$': '<rootDir>/src/mcp/$1',
     '^@learning/(.*)$': '<rootDir>/src/learning/$1',
@@ -56,6 +61,8 @@ module.exports = {
     '^@streaming/(.*)$': '<rootDir>/src/streaming/$1',
     '^@routing/(.*)$': '<rootDir>/src/core/routing/$1',
     '^@memory/(.*)$': '<rootDir>/src/memory/$1',
+    // Mock agentdb ESM module to avoid "Unexpected token 'export'" errors
+    '^agentdb$': '<rootDir>/__mocks__/agentdb.ts',
     // Map .js imports to .ts source files for Jest
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
@@ -93,7 +100,12 @@ module.exports = {
     '/node_modules/',
     '/dist/',
     '/coverage/',
-    '\\.skip\\.(test|spec)\\.(ts|js)$'
+    '\\.skip\\.(test|spec)\\.(ts|js)$',
+    // CRITICAL: Benchmark and code-intelligence tests corrupt tree-sitter native module state
+    // They must run in separate Jest projects (jest.config.benchmarks.js, jest.config.code-intelligence.js)
+    '/benchmarks/',
+    'benchmarks\\.test\\.(ts|js)$',
+    '/code-intelligence/'
   ],
 
   // Custom reporters for memory tracking
@@ -101,15 +113,37 @@ module.exports = {
     'default',
     ['<rootDir>/tests/utils/memory-reporter.js', {
       enabled: process.env.TRACK_MEMORY === 'true'
+    }],
+    // JUnit reporter for CI integration (generates junit.xml)
+    ['jest-junit', {
+      outputDirectory: '.',
+      outputName: 'junit.xml',
+      classNameTemplate: '{classname}',
+      titleTemplate: '{title}',
+      ancestorSeparator: ' › ',
+      usePathForSuiteName: true
     }]
   ],
 
   // Force garbage collection between test files
   testSequencer: '<rootDir>/tests/sequencers/MemorySafeSequencer.js',
 
-  // Coverage thresholds
+  // Coverage thresholds - Migration targets
   coverageThreshold: {
     global: {
+      branches: 75,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    },
+    // Critical path coverage (higher threshold)
+    './src/core/': {
+      branches: 85,
+      functions: 85,
+      lines: 85,
+      statements: 85
+    },
+    './src/agents/': {
       branches: 80,
       functions: 80,
       lines: 80,

@@ -917,6 +917,48 @@ export class WorkflowOrchestrator {
     return Array.from(this.executions.values());
   }
 
+  /**
+   * Get the current queue depth (number of pending tasks)
+   */
+  getQueueDepth(): number {
+    return this.taskQueue.size();
+  }
+
+  /**
+   * Get orchestrator status summary
+   */
+  getStatus(): {
+    status: 'idle' | 'running' | 'busy' | 'shutdown';
+    queueDepth: number;
+    activeExecutions: number;
+    registeredWorkflows: number;
+  } {
+    if (this.isShutdown) {
+      return {
+        status: 'shutdown',
+        queueDepth: 0,
+        activeExecutions: 0,
+        registeredWorkflows: this.workflows.size
+      };
+    }
+
+    const activeExecutions = Array.from(this.executions.values())
+      .filter(e => e.status === 'running').length;
+    const queueDepth = this.taskQueue.size();
+
+    let status: 'idle' | 'running' | 'busy' = 'idle';
+    if (activeExecutions > 0 || queueDepth > 0) {
+      status = queueDepth > 10 ? 'busy' : 'running';
+    }
+
+    return {
+      status,
+      queueDepth,
+      activeExecutions,
+      registeredWorkflows: this.workflows.size
+    };
+  }
+
   // ============= HELPERS =============
 
   /**

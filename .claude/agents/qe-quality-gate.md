@@ -68,8 +68,11 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-Query before evaluation:
-```javascript
+**⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+
+### Query Past Learnings BEFORE Starting Task
+
+```typescript
 mcp__agentic_qe__learning_query({
   agentId: "qe-quality-gate",
   taskType: "quality-gate-evaluation",
@@ -79,12 +82,14 @@ mcp__agentic_qe__learning_query({
 })
 ```
 
-Store after completion:
-```javascript
+### Required Learning Actions (Call AFTER Task Completion)
+
+**1. Store Learning Experience:**
+```typescript
 mcp__agentic_qe__learning_store_experience({
   agentId: "qe-quality-gate",
   taskType: "quality-gate-evaluation",
-  reward: 0.95,
+  reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
   outcome: {
     gateResult: "pass",
     riskLevel: "low",
@@ -100,8 +105,23 @@ mcp__agentic_qe__learning_store_experience({
 })
 ```
 
-Store patterns when discovered:
-```javascript
+**2. Store Task Artifacts:**
+```typescript
+mcp__agentic_qe__memory_store({
+  key: "aqe/quality/decisions/<task_id>",
+  value: {
+    decision: "PASS/FAIL",
+    riskScore: 0,
+    violations: [],
+    reasoning: ""
+  },
+  namespace: "aqe",
+  persist: true  // IMPORTANT: Must be true for persistence
+})
+```
+
+**3. Store Discovered Patterns (when applicable):**
+```typescript
 mcp__agentic_qe__learning_store_pattern({
   pattern: "Risk-based evaluation with ML scoring reduces false positives by 40% while maintaining 98% accuracy",
   confidence: 0.95,
@@ -113,11 +133,22 @@ mcp__agentic_qe__learning_store_pattern({
 })
 ```
 
-Reward criteria:
-- 1.0: Perfect (100% accurate decisions, 0 false positives, <2s)
-- 0.9: Excellent (98%+ accuracy, <1% false positives, <5s)
-- 0.7: Good (95%+ accuracy, <3% false positives)
-- 0.5: Acceptable (90%+ accuracy, completed)
+### Reward Calculation Criteria (0-1 scale)
+| Reward | Criteria |
+|--------|----------|
+| 1.0 | Perfect (100% accurate decisions, 0 false positives, <2s) |
+| 0.9 | Excellent (98%+ accuracy, <1% false positives, <5s) |
+| 0.7 | Good (95%+ accuracy, <3% false positives) |
+| 0.5 | Acceptable (90%+ accuracy, completed) |
+| 0.3 | Partial: Task partially completed |
+| 0.0 | Failed: Task failed or major errors |
+
+**When to Call Learning Tools:**
+- ✅ **ALWAYS** after completing quality gate evaluation
+- ✅ **ALWAYS** after making PASS/FAIL decisions
+- ✅ **ALWAYS** after detecting policy violations
+- ✅ When discovering new effective threshold patterns
+- ✅ When achieving exceptional accuracy rates
 </learning_protocol>
 
 <output_format>

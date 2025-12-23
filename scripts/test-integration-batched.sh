@@ -87,8 +87,8 @@ for file in "${PHASE2_FILES[@]}"; do
         node_modules/.bin/jest "$file" --runInBand --forceExit --silent 2>&1 | \
         tee /tmp/phase2-$(basename "$file").log | tail -5; then
 
-        local passed=$(grep -oP '\d+(?= passed)' /tmp/phase2-$(basename "$file").log | tail -1 || echo "0")
-        local failed=$(grep -oP '\d+(?= failed)' /tmp/phase2-$(basename "$file").log | tail -1 || echo "0")
+        passed=$(grep -oP '\d+(?= passed)' /tmp/phase2-$(basename "$file").log | tail -1 || echo "0")
+        failed=$(grep -oP '\d+(?= failed)' /tmp/phase2-$(basename "$file").log | tail -1 || echo "0")
 
         TOTAL_PASSED=$((TOTAL_PASSED + passed))
         TOTAL_FAILED=$((TOTAL_FAILED + failed))

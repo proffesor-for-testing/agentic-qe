@@ -20,6 +20,10 @@ import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { EventEmitter } from 'events';
 import { chromium, Browser, Page } from 'playwright';
+import * as fs from 'fs';
+import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import {
   QXAnalysis,
   QXPartnerConfig,
@@ -36,6 +40,8 @@ import {
   QXContext,
   TestabilityIntegration
 } from '../types/qx';
+
+const execAsync = promisify(exec);
 
 // Simple logger interface
 interface Logger {
@@ -330,16 +336,22 @@ export class QXPartnerAgent extends BaseAgent {
     // 4. Analyze business needs
     const businessNeeds = await this.analyzeBusinessNeeds(context, problemAnalysis);
 
-    // 5. Detect oracle problems
-    const oracleProblems = this.config.detectOracleProblems 
+    // 5. Analyze creativity - drawing inspiration from diverse domains
+    const creativityAnalysis = await this.analyzeCreativity(context, problemAnalysis);
+
+    // 6. Analyze design - exactness, intuitive, and counter-intuitive design
+    const designAnalysis = await this.analyzeDesign(context, problemAnalysis);
+
+    // 7. Detect oracle problems
+    const oracleProblems = this.config.detectOracleProblems
       ? await this.detectOracleProblemsFromContext(context, userNeeds, businessNeeds)
       : [];
 
-    // 6. Perform impact analysis
+    // 8. Perform impact analysis
     const impactAnalysis = await this.analyzeImpact(context, problemAnalysis);
 
-    // 7. Apply heuristics
-    const heuristics = await this.applyAllHeuristics(context, problemAnalysis, userNeeds, businessNeeds);
+    // 9. Apply heuristics
+    const heuristics = await this.applyAllHeuristics(context, problemAnalysis, userNeeds, businessNeeds, creativityAnalysis, designAnalysis);
 
     // 8. Integrate testability (if enabled)
     const testabilityIntegration = this.config.integrateTestability
@@ -362,6 +374,8 @@ export class QXPartnerAgent extends BaseAgent {
       problemAnalysis,
       userNeeds,
       businessNeeds,
+      creativityAnalysis,
+      designAnalysis,
       impactAnalysis,
       heuristics
     );
@@ -376,6 +390,8 @@ export class QXPartnerAgent extends BaseAgent {
       problemAnalysis,
       userNeeds,
       businessNeeds,
+      creativityAnalysis,
+      designAnalysis,
       oracleProblems,
       impactAnalysis,
       heuristics,
@@ -390,7 +406,636 @@ export class QXPartnerAgent extends BaseAgent {
     const duration = Date.now() - startTime;
     this.logger.info(`QX analysis completed in ${duration}ms. Score: ${overallScore}/100 (${grade})`);
 
+    // Generate HTML report and auto-launch
+    try {
+      const reportPath = await this.generateHTMLReport(analysis);
+      this.logger.info(`HTML report generated: ${reportPath}`);
+
+      // Auto-launch browser
+      await this.launchReportInBrowser(reportPath);
+      this.logger.info(`Report launched in browser`);
+    } catch (error) {
+      this.logger.warn(`Failed to generate/launch HTML report:`, error);
+      // Don't fail the analysis if report generation fails
+    }
+
     return analysis;
+  }
+
+  /**
+   * Generate HTML report from QX analysis
+   */
+  private async generateHTMLReport(analysis: QXAnalysis): Promise<string> {
+    const sanitizedTarget = analysis.target.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 50);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const filename = `qx-report-${sanitizedTarget}-${timestamp}.html`;
+    const reportsDir = path.join(process.cwd(), 'docs', 'qx-reports');
+
+    // Ensure reports directory exists
+    if (!fs.existsSync(reportsDir)) {
+      fs.mkdirSync(reportsDir, { recursive: true });
+    }
+
+    const reportPath = path.join(reportsDir, filename);
+    const html = this.generateHTMLContent(analysis);
+
+    fs.writeFileSync(reportPath, html, 'utf8');
+
+    return reportPath;
+  }
+
+  /**
+   * Generate HTML content for the report
+   */
+  private generateHTMLContent(analysis: QXAnalysis): string {
+    const date = analysis.timestamp.toLocaleDateString();
+    const time = analysis.timestamp.toLocaleTimeString();
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QX Analysis: ${this.escapeHtml(analysis.target)}</title>
+    ${this.getReportStyles()}
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍵 Quality Experience (QX) Analysis</h1>
+            <div class="subtitle">${this.escapeHtml(analysis.target)}</div>
+            <div class="meta">
+                <strong>URL:</strong> ${this.escapeHtml(analysis.target)}<br>
+                <strong>Analysis Date:</strong> ${date} at ${time}<br>
+                <strong>Framework:</strong> QX Partner (Quality + UX Advocacy)
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Executive Summary -->
+            <div class="section">
+                <h2>📊 Executive Summary</h2>
+                <p>
+                    This comprehensive QX analysis evaluates <strong>${this.escapeHtml(analysis.context.title || analysis.target)}</strong>
+                    through the lens of Quality Experience, examining how quality is co-created for all stakeholders.
+                </p>
+            </div>
+
+            <!-- Overall QX Score -->
+            <div class="section">
+                <h2>🎯 Overall QX Score</h2>
+                <div class="score-card">
+                    <div class="score-item">
+                        <h4>Problem Clarity</h4>
+                        <div class="score-value">${analysis.problemAnalysis.clarityScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>User Needs Alignment</h4>
+                        <div class="score-value">${analysis.userNeeds.alignmentScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>Business Alignment</h4>
+                        <div class="score-value">${analysis.businessNeeds.alignmentScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>Impact Assessment</h4>
+                        <div class="score-value">${100 - analysis.impactAnalysis.overallImpactScore}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 30px;">
+                    <div class="score-value" style="font-size: 3em; color: ${this.getScoreColor(analysis.overallScore)};">${analysis.overallScore}</div>
+                    <div class="score-label" style="font-size: 1.2em;">OVERALL QX SCORE (Grade: ${analysis.grade})</div>
+                </div>
+            </div>
+
+            <!-- Problem Analysis -->
+            <div class="section">
+                <h2>🔍 Problem Analysis</h2>
+                <div class="info-box">
+                    <h3>Problem Statement</h3>
+                    <p>${this.escapeHtml(analysis.problemAnalysis.problemStatement)}</p>
+                    <p><strong>Complexity:</strong> ${analysis.problemAnalysis.complexity}</p>
+                    <p><strong>Clarity Score:</strong> ${analysis.problemAnalysis.clarityScore}/100</p>
+                </div>
+                ${analysis.problemAnalysis.potentialFailures.length > 0 ? `
+                <div class="improvements">
+                    <h3>⚠️ Potential Failure Modes</h3>
+                    <ul>
+                        ${analysis.problemAnalysis.potentialFailures.map(f => `
+                            <li>
+                                <strong>[${f.severity.toUpperCase()}]</strong> ${this.escapeHtml(f.description)}
+                                <br><small>Likelihood: ${f.likelihood}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- User Needs -->
+            <div class="section">
+                <h2>👥 User Needs Analysis</h2>
+                <p><strong>Suitability:</strong> ${analysis.userNeeds.suitability} | <strong>Score:</strong> ${analysis.userNeeds.alignmentScore}/100</p>
+                ${analysis.userNeeds.needs.length > 0 ? `
+                <div class="strengths">
+                    <h3>✅ User Needs</h3>
+                    <ul>
+                        ${analysis.userNeeds.needs.map(n => `
+                            <li>
+                                <strong>[${n.priority}]</strong> ${this.escapeHtml(n.description)}
+                                ${n.addressed ? '✓ Addressed' : '✗ Not Addressed'}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                ${analysis.userNeeds.challenges.length > 0 ? `
+                <div class="improvements">
+                    <h3>⚠️ User Challenges</h3>
+                    <ul>
+                        ${analysis.userNeeds.challenges.map(c => `<li>${this.escapeHtml(c)}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Business Needs -->
+            <div class="section">
+                <h2>💼 Business Needs Analysis</h2>
+                <p><strong>Primary Goal:</strong> ${analysis.businessNeeds.primaryGoal}</p>
+                <p><strong>Compromises UX:</strong> ${analysis.businessNeeds.compromisesUX ? 'Yes ⚠️' : 'No ✓'}</p>
+                ${analysis.businessNeeds.kpisAffected.length > 0 ? `
+                <div class="info-box">
+                    <h3>KPIs Affected</h3>
+                    <ul>
+                        ${analysis.businessNeeds.kpisAffected.map(k => `<li>${this.escapeHtml(k)}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Creativity Analysis -->
+            <div class="section">
+                <h2>🎨 Creativity & Innovation Analysis</h2>
+                <p><strong>Creativity Score:</strong> ${analysis.creativityAnalysis.creativityScore}/100</p>
+                <p><strong>Domains Explored:</strong> ${analysis.creativityAnalysis.domainsExplored.join(', ')}</p>
+                ${analysis.creativityAnalysis.innovativeApproaches.length > 0 ? `
+                <div class="strengths">
+                    <h3>✨ Innovative Testing Approaches</h3>
+                    <ul>
+                        ${analysis.creativityAnalysis.innovativeApproaches.map(a => `
+                            <li>
+                                <strong>[${a.inspirationSource.toUpperCase()}]</strong> ${this.escapeHtml(a.description)}
+                                <br><small>Applicability: ${a.applicability} | Novelty: ${a.novelty}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+                ${analysis.creativityAnalysis.perspectives.length > 0 ? `
+                <div class="info-box">
+                    <h3>🔍 Testing Perspectives Applied</h3>
+                    <ul>
+                        ${analysis.creativityAnalysis.perspectives.map(p => `<li>${this.escapeHtml(p)}</li>`).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Design Quality Analysis -->
+            <div class="section">
+                <h2>🎯 Design Quality Analysis</h2>
+                <p><strong>Overall Design Score:</strong> ${analysis.designAnalysis.overallDesignScore}/100</p>
+
+                <!-- Exactness -->
+                <div class="info-box" style="margin-top: 20px;">
+                    <h3>📏 Exactness & Clarity (${analysis.designAnalysis.exactness.score}/100)</h3>
+                    <p><strong>Clarity Level:</strong> ${analysis.designAnalysis.exactness.clarity}</p>
+                    ${analysis.designAnalysis.exactness.clearElements.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>✓ Clear Elements:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.exactness.clearElements.map(e => `<li>${this.escapeHtml(e)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    ${analysis.designAnalysis.exactness.unclearElements.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>⚠️ Unclear Elements:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.exactness.unclearElements.map(e => `<li>${this.escapeHtml(e)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <!-- Intuitive Design -->
+                <div class="strengths" style="margin-top: 20px;">
+                    <h3>🧭 Intuitive Design (${analysis.designAnalysis.intuitive.score}/100)</h3>
+                    <p><strong>Follows Conventions:</strong> ${analysis.designAnalysis.intuitive.followsConventions ? 'Yes ✓' : 'No ⚠️'}</p>
+                    ${analysis.designAnalysis.intuitive.intuitivePatterns.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>Intuitive Patterns Detected:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.intuitive.intuitivePatterns.map(p => `<li>${this.escapeHtml(p)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    ${analysis.designAnalysis.intuitive.culturalIssues.length > 0 ? `
+                    <div style="margin-top: 15px;">
+                        <strong>⚠️ Cultural Considerations:</strong>
+                        <ul>
+                            ${analysis.designAnalysis.intuitive.culturalIssues.map(i => `<li>${this.escapeHtml(i)}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <!-- Counter-intuitive Design -->
+                ${analysis.designAnalysis.counterIntuitive.deviations.length > 0 ? `
+                <div class="improvements" style="margin-top: 20px;">
+                    <h3>🔄 Counter-intuitive Design Patterns</h3>
+                    <p><strong>Issues Found:</strong> ${analysis.designAnalysis.counterIntuitive.issuesCount}</p>
+                    <p><strong>Fresh Eyes Perspective Applied:</strong> ${analysis.designAnalysis.counterIntuitive.freshEyesPerspective ? 'Yes ✓' : 'No'}</p>
+                    <ul>
+                        ${analysis.designAnalysis.counterIntuitive.deviations.map(d => `
+                            <li>
+                                <strong>${this.escapeHtml(d.element)}</strong>
+                                <br>Expected: ${this.escapeHtml(d.expectedBehavior)}
+                                <br>Actual: ${this.escapeHtml(d.actualBehavior)}
+                                <br><small>Impact: ${d.impact} ${d.justification ? '| ' + this.escapeHtml(d.justification) : ''}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Oracle Problems -->
+            ${analysis.oracleProblems.length > 0 ? `
+            <div class="section">
+                <h2>🔮 Oracle Problems Detected</h2>
+                ${analysis.oracleProblems.map(p => `
+                <div class="improvements">
+                    <h3>[${p.severity.toUpperCase()}] ${p.type}</h3>
+                    <p>${this.escapeHtml(p.description)}</p>
+                    ${p.stakeholders ? `<p><strong>Stakeholders:</strong> ${p.stakeholders.join(', ')}</p>` : ''}
+                    ${p.resolutionApproach ? `
+                    <p><strong>Resolution Approach:</strong></p>
+                    <ul>
+                        ${p.resolutionApproach.map(r => `<li>${this.escapeHtml(r)}</li>`).join('')}
+                    </ul>
+                    ` : ''}
+                </div>
+                `).join('')}
+            </div>
+            ` : ''}
+
+            <!-- Recommendations -->
+            <div class="section">
+                <h2>💡 Strategic Recommendations</h2>
+                ${analysis.recommendations.slice(0, 10).map((rec, idx) => `
+                <div class="recommendations">
+                    <h3>🎯 Priority ${idx + 1}: ${this.escapeHtml(rec.principle)}</h3>
+                    <p>${this.escapeHtml(rec.recommendation)}</p>
+                    <p>
+                        <strong>Severity:</strong> ${rec.severity} |
+                        <strong>Impact:</strong> ${rec.impactPercentage || rec.impact}% |
+                        <strong>Effort:</strong> ${rec.estimatedEffort || rec.effort}
+                    </p>
+                </div>
+                `).join('')}
+            </div>
+
+            <!-- Heuristics Results -->
+            ${analysis.heuristics.length > 0 ? `
+            <div class="section">
+                <h2>📐 Heuristics Analysis</h2>
+                <div class="score-card">
+                    ${analysis.heuristics.slice(0, 8).map(h => `
+                    <div class="score-item">
+                        <h4>${this.formatHeuristicName(h.name)}</h4>
+                        <div class="score-value" style="font-size: 1.8em; color: ${this.getScoreColor(h.score)};">${h.score}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+            <!-- Impact Analysis -->
+            <div class="section">
+                <h2>⚡ Impact Analysis</h2>
+                <div class="score-card">
+                    <div class="score-item">
+                        <h4>Visible Impact</h4>
+                        <div class="score-value">${analysis.impactAnalysis.visible.score}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                    <div class="score-item">
+                        <h4>Invisible Impact</h4>
+                        <div class="score-value">${analysis.impactAnalysis.invisible.score}</div>
+                        <div class="score-label">/ 100</div>
+                    </div>
+                </div>
+                ${analysis.impactAnalysis.visible.userFeelings && analysis.impactAnalysis.visible.userFeelings.length > 0 ? `
+                <div class="info-box">
+                    <h3>User Feelings</h3>
+                    <ul>
+                        ${analysis.impactAnalysis.visible.userFeelings.map(f => {
+                            if (typeof f === 'string') {
+                                return `<li>${this.escapeHtml(f)}</li>`;
+                            } else {
+                                return `<li><strong>${f.feeling}</strong> (${f.likelihood}): ${this.escapeHtml(f.context)}</li>`;
+                            }
+                        }).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+            </div>
+
+            <!-- Conclusion -->
+            <div class="section">
+                <h2>🎓 Conclusion</h2>
+                <p>
+                    This QX analysis reveals an overall score of <strong>${analysis.overallScore}/100 (Grade: ${analysis.grade})</strong>.
+                    ${this.getScoreInterpretation(analysis.overallScore)}
+                </p>
+            </div>
+
+            <!-- QX Methodology -->
+            <div class="section" style="background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%); padding: 30px; border-radius: 8px; margin-top: 40px;">
+                <h2>📚 QX Methodology: Key Concepts</h2>
+
+                <div style="margin-top: 20px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🤝 What is Quality Experience (QX)?</h3>
+                    <p style="text-align: justify;">
+                        <strong>Quality Experience (QX)</strong> is the marriage between <strong>Quality Advocacy (QA)</strong> and
+                        <strong>User Experience (UX)</strong>. Unlike traditional testing that focuses solely on defects, QX recognizes
+                        that quality is co-created by everyone associated with the product—developers, testers, designers, users, and
+                        business stakeholders. QX enables testers to collaborate meaningfully with UX professionals by understanding
+                        design effectiveness beyond technical correctness.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🎨 Creativity in Testing</h3>
+                    <p style="text-align: justify;">
+                        QX encourages drawing inspiration from <strong>diverse domains</strong>—philosophy, social science, medicine,
+                        e-commerce, fashion, gaming—to generate innovative test ideas when conventional approaches fall short. This
+                        cross-disciplinary perspective helps testers uncover unconventional risks and approach problems from fresh angles
+                        that technical testing alone might miss.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">📏 Exactness & Clarity</h3>
+                    <p style="text-align: justify;">
+                        <strong>Exactness</strong> evaluates how clearly a product communicates its intent to users. Testers should assess
+                        whether menu items, buttons, labels, and terminology are self-evident. Are component interactions obvious? Do users
+                        understand what will happen when they click? Exactness testing identifies ambiguities that create confusion, focusing
+                        on <em>clarity of communication</em> rather than just functional correctness.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🧭 Intuitive Design</h3>
+                    <p style="text-align: justify;">
+                        <strong>Intuitive design</strong> follows common conventions and user expectations. QX testing evaluates whether
+                        component interactions follow familiar patterns, respect cultural sensitivities, and align with mental models users
+                        bring from other products. Intuitive design reduces cognitive load and makes products immediately usable without
+                        extensive training.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px;">
+                    <h3 style="color: #667eea; margin-bottom: 10px;">🔄 Counter-intuitive Design Detection</h3>
+                    <p style="text-align: justify;">
+                        QX testing deliberately <strong>looks at products like an unexperienced user</strong> to spot design elements that
+                        deviate from expectations. Counter-intuitive patterns aren't always bad—they might represent innovation—but they
+                        require justification. The key is distinguishing between deliberate, valuable innovations and accidental friction
+                        that experienced users have normalized but newcomers will struggle with.
+                    </p>
+                </div>
+
+                <div style="margin-top: 25px; padding: 20px; background: white; border-left: 4px solid #667eea; border-radius: 4px;">
+                    <p style="text-align: justify; font-style: italic;">
+                        <strong>The QX Advantage:</strong> By combining quality advocacy with UX design thinking, QX enables testers to
+                        contribute informed insights about user-facing quality, bridge the gap between QA and UX teams, and ensure that
+                        testing serves the genuine experience quality that all stakeholders care about—not just technical correctness.
+                    </p>
+                </div>
+
+                <div style="margin-top: 20px; text-align: center;">
+                    <p style="font-size: 0.9em;">
+                        <strong>Learn more:</strong>
+                        <a href="https://talesoftesting.com/quality-experienceqx-co-creating-quality-experience-for-everyone-associated-with-the-product/"
+                           target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: none;">
+                            Quality Experience (QX) - Tales of Testing
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>QX Analysis Report</strong></p>
+            <p>Generated by: Agentic QE Fleet v2.1.0 - QX Partner Agent</p>
+            <p>Framework: Quality Experience (QX) Analysis</p>
+            <p>Analysis Date: ${date} at ${time}</p>
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #dee2e6;">
+            <p style="font-size: 0.9em; line-height: 1.6;">
+                This report applies the QX framework developed to bridge Quality Advocacy (QA) and User Experience (UX).<br>
+                <em>"Quality is value to someone who matters"</em> - when multiple stakeholders matter simultaneously,<br>
+                QX helps find balance and solve oracle problems. It is one of the key concepts originally covered in
+                <a href="https://talesoftesting.com/qcsd/" target="_blank" rel="noopener noreferrer" style="color: #007bff; text-decoration: none;">
+                QCSD - Quality Conscious Software Delivery Framework</a> created by Lalitkumar Bhamare.
+            </p>
+        </div>
+    </div>
+</body>
+</html>`;
+  }
+
+  /**
+   * Get CSS styles for the report
+   */
+  private getReportStyles(): string {
+    return `
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; font-weight: 700; }
+        .header .subtitle { font-size: 1.2em; opacity: 0.9; }
+        .header .meta { margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
+        .content { padding: 40px; }
+        .section { margin-bottom: 40px; }
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        .section h3 { color: #764ba2; font-size: 1.4em; margin: 25px 0 15px 0; }
+        .section p { margin-bottom: 15px; text-align: justify; }
+        .score-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .score-item {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .score-item:hover { transform: translateY(-5px); box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .score-item h4 { color: #667eea; font-size: 1.1em; margin-bottom: 10px; }
+        .score-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #764ba2;
+            margin: 10px 0;
+        }
+        .score-label {
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .strengths, .improvements, .recommendations, .info-box {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .strengths { border-left: 5px solid #28a745; }
+        .improvements { border-left: 5px solid #ffc107; }
+        .recommendations { border-left: 5px solid #17a2b8; }
+        .info-box { border-left: 5px solid #6c757d; }
+        .strengths h3 { color: #28a745; }
+        .improvements h3 { color: #ffc107; }
+        .recommendations h3 { color: #17a2b8; }
+        .info-box h3 { color: #6c757d; }
+        ul { margin-left: 20px; margin-top: 10px; }
+        li { margin-bottom: 10px; line-height: 1.8; }
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p { margin-bottom: 10px; }
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; }
+        }
+    </style>`;
+  }
+
+  /**
+   * Escape HTML special characters
+   */
+  private escapeHtml(text: string): string {
+    const map: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+  }
+
+  /**
+   * Format heuristic name for display
+   */
+  private formatHeuristicName(name: string): string {
+    return name
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  /**
+   * Get color based on score
+   */
+  private getScoreColor(score: number): string {
+    if (score >= 90) return '#28a745'; // Green
+    if (score >= 80) return '#17a2b8'; // Blue
+    if (score >= 70) return '#ffc107'; // Yellow
+    if (score >= 60) return '#fd7e14'; // Orange
+    return '#dc3545'; // Red
+  }
+
+  /**
+   * Get score interpretation
+   */
+  private getScoreInterpretation(score: number): string {
+    if (score >= 90) {
+      return 'Excellent quality experience with strong alignment across all dimensions.';
+    } else if (score >= 80) {
+      return 'Good quality experience with minor areas for improvement.';
+    } else if (score >= 70) {
+      return 'Adequate quality experience but significant improvements recommended.';
+    } else if (score >= 60) {
+      return 'Below target quality experience. Priority improvements required.';
+    } else {
+      return 'Poor quality experience. Immediate action needed across multiple areas.';
+    }
+  }
+
+  /**
+   * Launch report in default browser
+   */
+  private async launchReportInBrowser(reportPath: string): Promise<void> {
+    try {
+      const platform = process.platform;
+      let command: string;
+
+      if (platform === 'darwin') {
+        command = `open "${reportPath}"`;
+      } else if (platform === 'win32') {
+        command = `start "" "${reportPath}"`;
+      } else {
+        // Linux and others
+        command = `xdg-open "${reportPath}"`;
+      }
+
+      await execAsync(command);
+      this.logger.info(`Launched report in browser: ${reportPath}`);
+    } catch (error) {
+      this.logger.warn(`Failed to auto-launch browser:`, error);
+      this.logger.info(`Report available at: ${reportPath}`);
+    }
   }
 
   /**
@@ -1046,6 +1691,226 @@ export class QXPartnerAgent extends BaseAgent {
   }
 
   /**
+   * Analyze Creativity - Drawing inspiration from diverse domains
+   */
+  private async analyzeCreativity(context: QXContext, problemAnalysis: ProblemAnalysis): Promise<import('../types/qx').CreativityAnalysis> {
+    this.logger.debug('Analyzing creativity and innovation');
+
+    const innovativeApproaches: Array<{
+      description: string;
+      inspirationSource: string;
+      applicability: 'high' | 'medium' | 'low';
+      novelty: 'highly-novel' | 'moderately-novel' | 'incremental';
+    }> = [];
+
+    // Analyze based on problem complexity
+    if (problemAnalysis.complexity === 'complex' || problemAnalysis.complexity === 'moderate') {
+      // Philosophy-inspired: Question fundamental assumptions
+      innovativeApproaches.push({
+        description: 'Question fundamental assumptions about user mental models and expected workflows',
+        inspirationSource: 'philosophy',
+        applicability: 'high',
+        novelty: 'moderately-novel'
+      });
+
+      // Medicine-inspired: Diagnostic approach
+      if (context.errorIndicators?.hasErrorMessages) {
+        innovativeApproaches.push({
+          description: 'Apply diagnostic testing - systematically isolate error sources through controlled scenarios',
+          inspirationSource: 'medicine',
+          applicability: 'high',
+          novelty: 'moderately-novel'
+        });
+      }
+    }
+
+    // E-commerce/Fashion-inspired: User journey and aesthetics
+    if (context.domMetrics?.forms && context.domMetrics.forms > 0) {
+      innovativeApproaches.push({
+        description: 'Test checkout/form flows like fashion retail - focus on friction points, abandonment triggers',
+        inspirationSource: 'e-commerce',
+        applicability: 'high',
+        novelty: 'incremental'
+      });
+    }
+
+    // Social Science-inspired: Cultural sensitivity and demographics
+    innovativeApproaches.push({
+      description: 'Analyze through diverse demographic lenses (age, gender, culture, ability) for inclusive testing',
+      inspirationSource: 'social science',
+      applicability: 'high',
+      novelty: 'moderately-novel'
+    });
+
+    // Gaming-inspired: Edge cases and exploits
+    if (context.domMetrics?.interactiveElements && context.domMetrics.interactiveElements > 20) {
+      innovativeApproaches.push({
+        description: 'Test for "game-breaking" exploits - unexpected interaction sequences, boundary conditions',
+        inspirationSource: 'gaming',
+        applicability: 'medium',
+        novelty: 'highly-novel'
+      });
+    }
+
+    const domainsExplored = [...new Set(innovativeApproaches.map(a => a.inspirationSource))];
+
+    const perspectives = [
+      'Unexperienced user perspective (fresh eyes)',
+      'Power user perspective (efficiency focus)',
+      'Accessibility perspective (assistive tech users)',
+      'International perspective (cultural differences)'
+    ];
+
+    // Calculate creativity score
+    let creativityScore = 50; // Base score
+    creativityScore += innovativeApproaches.length * 8; // +8 per approach
+    creativityScore += domainsExplored.length * 5; // +5 per domain
+    creativityScore = Math.min(100, creativityScore);
+
+    return {
+      innovativeApproaches,
+      domainsExplored,
+      perspectives,
+      creativityScore,
+      notes: [
+        'Creativity draws from diverse domains to uncover unconventional testing approaches',
+        'Higher complexity problems benefit from cross-disciplinary inspiration',
+        `Applied ${innovativeApproaches.length} creative approaches from ${domainsExplored.length} domains`
+      ]
+    };
+  }
+
+  /**
+   * Analyze Design - Exactness, Intuitive, and Counter-intuitive Design
+   */
+  private async analyzeDesign(context: QXContext, _problemAnalysis: ProblemAnalysis): Promise<import('../types/qx').DesignAnalysis> {
+    this.logger.debug('Analyzing design quality');
+
+    // 1. Exactness Analysis - How clearly the product communicates its intent
+    const clearElements: string[] = [];
+    const unclearElements: string[] = [];
+
+    // Check semantic structure for clarity
+    if (context.domMetrics?.semanticStructure?.hasNav) {
+      clearElements.push('Navigation structure clearly defined with semantic <nav> element');
+    }
+    if (context.domMetrics?.semanticStructure?.hasMain) {
+      clearElements.push('Main content area clearly identified');
+    }
+    if (context.domMetrics?.semanticStructure?.hasHeader && context.domMetrics?.semanticStructure?.hasFooter) {
+      clearElements.push('Header and footer provide clear page structure');
+    }
+
+    // Check for unclear elements
+    const ariaLabels = context.semanticQuality?.ariaLabels || 0;
+    const interactiveElements = context.domMetrics?.interactiveElements || 0;
+    if (interactiveElements > 0 && ariaLabels < interactiveElements * 0.5) {
+      unclearElements.push('Many interactive elements lack ARIA labels for clarity');
+    }
+
+    if (context.errorIndicators?.hasErrorMessages) {
+      unclearElements.push('Error messages present - may indicate unclear user guidance');
+    }
+
+    const exactnessClarity: 'excellent' | 'good' | 'adequate' | 'poor' =
+      unclearElements.length === 0 ? 'excellent' :
+      unclearElements.length <= 2 ? 'good' :
+      unclearElements.length <= 4 ? 'adequate' : 'poor';
+
+    let exactnessScore = 50;
+    exactnessScore += clearElements.length * 10;
+    exactnessScore -= unclearElements.length * 8;
+    exactnessScore = Math.max(0, Math.min(100, exactnessScore));
+
+    // 2. Intuitive Design Analysis
+    const intuitivePatterns: string[] = [];
+    const culturalIssues: string[] = [];
+
+    if (context.domMetrics?.semanticStructure?.hasNav) {
+      intuitivePatterns.push('Standard navigation patterns (semantic nav element)');
+    }
+    if (context.domMetrics?.forms && context.domMetrics.forms > 0) {
+      intuitivePatterns.push('Standard form patterns detected');
+    }
+    if (context.metadata?.viewport) {
+      intuitivePatterns.push('Responsive design viewport configured');
+    }
+
+    // Cultural sensitivity check (basic)
+    if (context.title && /[^\x00-\x7F]/.test(context.title || '')) {
+      // Non-ASCII characters detected - could be good (internationalization) or need review
+      culturalIssues.push('International characters detected - ensure cultural appropriateness');
+    }
+
+    const followsConventions = intuitivePatterns.length >= 2;
+    let intuitiveScore = followsConventions ? 70 : 50;
+    intuitiveScore += intuitivePatterns.length * 8;
+    intuitiveScore -= culturalIssues.length * 10;
+    intuitiveScore = Math.max(0, Math.min(100, intuitiveScore));
+
+    // 3. Counter-intuitive Design Detection
+    const deviations: Array<{
+      element: string;
+      expectedBehavior: string;
+      actualBehavior: string;
+      impact: 'positive' | 'negative' | 'neutral';
+      justification?: string;
+    }> = [];
+
+    // Check for potential counter-intuitive patterns
+    const buttons = context.domMetrics?.buttons || 0;
+    const forms = context.domMetrics?.forms || 0;
+    if (buttons > 20 && forms === 0) {
+      deviations.push({
+        element: 'Multiple buttons without forms',
+        expectedBehavior: 'Forms typically accompany many buttons',
+        actualBehavior: 'Many buttons present without traditional forms',
+        impact: 'neutral',
+        justification: 'May be single-page app or API-driven interface'
+      });
+    }
+
+    if (!context.domMetrics?.semanticStructure?.hasMain && (context.domMetrics?.totalElements || 0) > 50) {
+      deviations.push({
+        element: 'Complex page without main landmark',
+        expectedBehavior: 'Complex pages typically have <main> landmark',
+        actualBehavior: 'No main content landmark defined',
+        impact: 'negative',
+        justification: 'Reduces accessibility and clarity'
+      });
+    }
+
+    const innovativeJustification = deviations.some(d => d.impact === 'positive' || d.justification?.includes('innovation'));
+    const freshEyesPerspective = deviations.length > 0; // We're looking from unexperienced user view
+    const issuesCount = deviations.filter(d => d.impact === 'negative').length;
+
+    // 4. Overall Design Score
+    const overallDesignScore = Math.round((exactnessScore + intuitiveScore) / 2);
+
+    return {
+      exactness: {
+        clarity: exactnessClarity,
+        clearElements,
+        unclearElements,
+        score: exactnessScore
+      },
+      intuitive: {
+        followsConventions,
+        intuitivePatterns,
+        culturalIssues,
+        score: intuitiveScore
+      },
+      counterIntuitive: {
+        deviations,
+        innovativeJustification,
+        freshEyesPerspective,
+        issuesCount
+      },
+      overallDesignScore
+    };
+  }
+
+  /**
    * Detect oracle problems from analysis context
    */
   private async detectOracleProblemsFromContext(
@@ -1078,13 +1943,70 @@ export class QXPartnerAgent extends BaseAgent {
     context: QXContext,
     problemAnalysis: ProblemAnalysis,
     userNeeds: UserNeedsAnalysis,
-    businessNeeds: BusinessNeedsAnalysis
+    businessNeeds: BusinessNeedsAnalysis,
+    creativityAnalysis: import('../types/qx').CreativityAnalysis,
+    designAnalysis: import('../types/qx').DesignAnalysis
   ): Promise<QXHeuristicResult[]> {
     if (!this.heuristicsEngine) {
       throw new Error('Heuristics engine not initialized');
     }
 
-    return this.heuristicsEngine.applyAll(context, problemAnalysis, userNeeds, businessNeeds);
+    // Get standard heuristics
+    const standardHeuristics = await this.heuristicsEngine.applyAll(context, problemAnalysis, userNeeds, businessNeeds);
+
+    // Add creativity and design heuristics
+    const creativityHeuristic: QXHeuristicResult = {
+      name: 'creativity-innovation',
+      category: 'creativity',
+      applied: true,
+      score: creativityAnalysis.creativityScore,
+      findings: [
+        `Applied ${creativityAnalysis.innovativeApproaches.length} creative approaches`,
+        `Explored ${creativityAnalysis.domainsExplored.length} diverse domains: ${creativityAnalysis.domainsExplored.join(', ')}`,
+        ...creativityAnalysis.notes
+      ],
+      issues: creativityAnalysis.innovativeApproaches
+        .filter(a => a.applicability === 'low')
+        .map(a => ({
+          description: `Low applicability approach: ${a.description}`,
+          severity: 'low' as const
+        })),
+      recommendations: creativityAnalysis.innovativeApproaches
+        .filter(a => a.applicability === 'high')
+        .map(a => `Consider: ${a.description} (${a.inspirationSource})`)
+    };
+
+    const designHeuristic: QXHeuristicResult = {
+      name: 'design-quality',
+      category: 'design',
+      applied: true,
+      score: designAnalysis.overallDesignScore,
+      findings: [
+        `Exactness: ${designAnalysis.exactness.clarity} (${designAnalysis.exactness.score}/100)`,
+        `Intuitive Design: ${designAnalysis.intuitive.followsConventions ? 'Follows' : 'Deviates from'} conventions (${designAnalysis.intuitive.score}/100)`,
+        `Counter-intuitive issues: ${designAnalysis.counterIntuitive.issuesCount}`,
+        ...designAnalysis.exactness.clearElements.map(e => `✓ ${e}`),
+        ...designAnalysis.intuitive.intuitivePatterns.map(p => `✓ ${p}`)
+      ],
+      issues: [
+        ...designAnalysis.exactness.unclearElements.map(e => ({
+          description: e,
+          severity: 'medium' as const
+        })),
+        ...designAnalysis.counterIntuitive.deviations
+          .filter(d => d.impact === 'negative')
+          .map(d => ({
+            description: `${d.element}: ${d.expectedBehavior} vs ${d.actualBehavior}`,
+            severity: 'medium' as const
+          }))
+      ],
+      recommendations: [
+        ...designAnalysis.exactness.unclearElements.map(e => `Improve clarity: ${e}`),
+        ...designAnalysis.intuitive.culturalIssues.map(i => `Address: ${i}`)
+      ]
+    };
+
+    return [...standardHeuristics, creativityHeuristic, designHeuristic];
   }
 
   /**
@@ -1250,13 +2172,6 @@ export class QXPartnerAgent extends BaseAgent {
     return sorted;
   }
 
-  private formatHeuristicName(heuristic: string): string {
-    return heuristic
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }
-
   /**
    * Calculate overall QX score
    */
@@ -1264,16 +2179,20 @@ export class QXPartnerAgent extends BaseAgent {
     problemAnalysis: ProblemAnalysis,
     userNeeds: UserNeedsAnalysis,
     businessNeeds: BusinessNeedsAnalysis,
+    creativityAnalysis: import('../types/qx').CreativityAnalysis,
+    designAnalysis: import('../types/qx').DesignAnalysis,
     impactAnalysis: ImpactAnalysis,
     heuristics: QXHeuristicResult[]
   ): number {
     // Weighted average of all components
     const weights = {
-      problem: 0.20,
-      userNeeds: 0.25,
-      businessNeeds: 0.20,
-      impact: 0.15,
-      heuristics: 0.20
+      problem: 0.15,        // Reduced from 0.20
+      userNeeds: 0.20,      // Reduced from 0.25
+      businessNeeds: 0.15,  // Reduced from 0.20
+      creativity: 0.15,     // NEW
+      design: 0.15,         // NEW
+      impact: 0.10,         // Reduced from 0.15
+      heuristics: 0.10      // Reduced from 0.20
     };
 
     const heuristicsAvg = heuristics.length > 0
@@ -1286,6 +2205,8 @@ export class QXPartnerAgent extends BaseAgent {
       problemAnalysis.clarityScore * weights.problem +
       userNeeds.alignmentScore * weights.userNeeds +
       businessNeeds.alignmentScore * weights.businessNeeds +
+      creativityAnalysis.creativityScore * weights.creativity +
+      designAnalysis.overallDesignScore * weights.design +
       impactScore * weights.impact +
       heuristicsAvg * weights.heuristics;
 
@@ -2115,5 +3036,66 @@ class ImpactAnalyzer {
       immutableRequirements,
       overallImpactScore
     };
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich Quality Experience (QX) metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Overall QX scores
+      if (typeof result.overallImpactScore === 'number') {
+        metrics.overall_impact_score = result.overallImpactScore;
+      }
+
+      // Visible quality metrics
+      if (result.visible) {
+        metrics.visible_score = result.visible.score || 0;
+        if (result.visible.accessibility) {
+          metrics.accessibility_score = result.visible.accessibility.score || 0;
+          metrics.wcag_violations = result.visible.accessibility.violations?.length || 0;
+        }
+        if (result.visible.usability) {
+          metrics.usability_score = result.visible.usability.score || 0;
+          metrics.usability_issues = result.visible.usability.issues?.length || 0;
+        }
+        if (result.visible.userFeelings) {
+          metrics.user_satisfaction = result.visible.userFeelings.satisfaction || 0;
+          metrics.frustration_points = result.visible.userFeelings.frustrationPoints?.length || 0;
+        }
+      }
+
+      // Invisible quality metrics
+      if (result.invisible) {
+        metrics.invisible_score = result.invisible.score || 0;
+        if (result.invisible.performance) {
+          metrics.performance_score = result.invisible.performance.score || 0;
+          metrics.load_time = result.invisible.performance.loadTime || 0;
+        }
+        if (result.invisible.security) {
+          metrics.security_score = result.invisible.security.score || 0;
+          metrics.security_risks = result.invisible.security.risks?.length || 0;
+        }
+      }
+
+      // Stakeholder analysis
+      if (result.stakeholders && Array.isArray(result.stakeholders)) {
+        metrics.stakeholders_analyzed = result.stakeholders.length;
+        metrics.stakeholder_satisfaction_avg = result.stakeholders.reduce(
+          (sum: number, s: any) => sum + (s.satisfaction || 0), 0
+        ) / Math.max(result.stakeholders.length, 1);
+      }
+
+      // Immutable requirements
+      if (result.immutableRequirements && Array.isArray(result.immutableRequirements)) {
+        metrics.immutable_requirements = result.immutableRequirements.length;
+        metrics.requirements_met = result.immutableRequirements.filter((r: any) => r.met).length;
+      }
+    }
+
+    return metrics;
   }
 }

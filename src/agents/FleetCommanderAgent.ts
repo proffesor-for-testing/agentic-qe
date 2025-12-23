@@ -1310,4 +1310,65 @@ export class FleetCommanderAgent extends BaseAgent {
       scalingHistory: this.scalingHistory.slice(-10) // Last 10 scaling decisions
     };
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich fleet coordination metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: any): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Fleet size and composition
+      metrics.total_agents = result.totalAgents || result.agentCount || 0;
+      metrics.active_agents = result.activeAgents || 0;
+      metrics.idle_agents = result.idleAgents || 0;
+
+      // Task orchestration
+      if (result.orchestration) {
+        metrics.tasks_distributed = result.orchestration.tasksDistributed || 0;
+        metrics.tasks_completed = result.orchestration.tasksCompleted || 0;
+        metrics.tasks_failed = result.orchestration.tasksFailed || 0;
+        metrics.distribution_efficiency = result.orchestration.efficiency || 0;
+      }
+
+      // Resource utilization
+      if (result.resources) {
+        metrics.cpu_utilization = result.resources.cpuUtilization || 0;
+        metrics.memory_utilization = result.resources.memoryUtilization || 0;
+        metrics.resource_efficiency = result.resources.efficiency || 0;
+      }
+
+      // Scaling metrics
+      if (result.scaling) {
+        metrics.scale_up_events = result.scaling.scaleUpEvents || 0;
+        metrics.scale_down_events = result.scaling.scaleDownEvents || 0;
+        metrics.auto_scaling_decisions = result.scaling.autoDecisions || 0;
+      }
+
+      // Conflict resolution
+      if (result.conflicts) {
+        metrics.conflicts_detected = result.conflicts.detected || 0;
+        metrics.conflicts_resolved = result.conflicts.resolved || 0;
+        metrics.resolution_time_avg = result.conflicts.avgResolutionTime || 0;
+      }
+
+      // Topology metrics
+      if (result.topology) {
+        metrics.topology_changes = result.topology.changes || 0;
+        metrics.topology_stability = result.topology.stability || 0;
+      }
+
+      // Workload queue
+      metrics.queue_size = result.queueSize || result.workloadQueueSize || 0;
+      metrics.queue_wait_time_avg = result.avgQueueWaitTime || 0;
+
+      // Overall fleet health
+      if (typeof result.fleetHealth === 'number') {
+        metrics.fleet_health = result.fleetHealth;
+      }
+    }
+
+    return metrics;
+  }
 }

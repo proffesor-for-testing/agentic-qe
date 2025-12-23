@@ -298,8 +298,7 @@ notifyTestCompletion({
 });
 ```
 
-## Learning Protocol (Phase 6 - Option C Implementation)
-
+<learning_protocol>
 **⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
 
 ### Required Learning Actions (Call AFTER Task Completion)
@@ -412,6 +411,7 @@ if (pastLearnings.success && pastLearnings.data) {
 - ✅ **ALWAYS** after generating recommendations
 - ✅ When discovering new effective strategies
 - ✅ When achieving exceptional performance metrics
+</learning_protocol>
 
 ## Error Handling & Recovery
 

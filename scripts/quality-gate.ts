@@ -157,6 +157,42 @@ async function extractTestResults(outputDir: string): Promise<TestResults> {
     };
   }
 
+  // Try to parse from test log files in output directory
+  const testUnitLog = path.join(outputDir, 'test-unit.log');
+  const testIntegrationLog = path.join(outputDir, 'test-integration.log');
+
+  let total = 0, passed = 0, failed = 0, skipped = 0;
+
+  for (const logPath of [testUnitLog, testIntegrationLog]) {
+    if (await fs.pathExists(logPath)) {
+      const content = await fs.readFile(logPath, 'utf8');
+      // Parse Jest output: "Tests:  X passed, Y failed, Z total"
+      const passedMatch = content.match(/(\d+)\s+passed/g);
+      const failedMatch = content.match(/(\d+)\s+failed/g);
+      const totalMatch = content.match(/(\d+)\s+total/g);
+
+      if (passedMatch) {
+        for (const m of passedMatch) {
+          passed += parseInt(m.match(/\d+/)?.[0] || '0', 10);
+        }
+      }
+      if (failedMatch) {
+        for (const m of failedMatch) {
+          failed += parseInt(m.match(/\d+/)?.[0] || '0', 10);
+        }
+      }
+      if (totalMatch) {
+        for (const m of totalMatch) {
+          total += parseInt(m.match(/\d+/)?.[0] || '0', 10);
+        }
+      }
+    }
+  }
+
+  if (total > 0) {
+    return { total, passed, failed, skipped, duration: 0 };
+  }
+
   // Fallback: parse from coverage data
   const coverage = await extractCoverage();
   if (coverage) {
@@ -170,6 +206,8 @@ async function extractTestResults(outputDir: string): Promise<TestResults> {
     };
   }
 
+  // No test results found - return empty but log warning
+  console.warn('⚠️  No test results found in test-results.json or log files');
   return {
     total: 0,
     passed: 0,

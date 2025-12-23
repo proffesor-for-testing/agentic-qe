@@ -17,40 +17,46 @@
 export interface QXAnalysis {
   /** Overall QX score (0-100) */
   overallScore: number;
-  
+
   /** QX grade (A/B/C/D/F) */
   grade: 'A' | 'B' | 'C' | 'D' | 'F';
-  
+
   /** Timestamp of analysis */
   timestamp: Date;
-  
+
   /** Target URL or product identifier */
   target: string;
-  
+
   /** Problem understanding and analysis */
   problemAnalysis: ProblemAnalysis;
-  
+
   /** User needs assessment */
   userNeeds: UserNeedsAnalysis;
-  
+
   /** Business needs assessment */
   businessNeeds: BusinessNeedsAnalysis;
-  
+
+  /** Creativity assessment - drawing inspiration from diverse domains */
+  creativityAnalysis: CreativityAnalysis;
+
+  /** Design assessment - exactness, intuitive & counter-intuitive design */
+  designAnalysis: DesignAnalysis;
+
   /** Oracle problems detected (if any) */
   oracleProblems: OracleProblem[];
-  
+
   /** Impact analysis results */
   impactAnalysis: ImpactAnalysis;
-  
+
   /** Applied heuristics and results */
   heuristics: QXHeuristicResult[];
-  
+
   /** Contextual recommendations */
   recommendations: QXRecommendation[];
-  
+
   /** Integration with testability scoring */
   testabilityIntegration?: TestabilityIntegration;
-  
+
   /** Raw context collected during analysis */
   context: QXContext;
 }
@@ -109,25 +115,113 @@ export interface UserNeedsAnalysis {
 export interface BusinessNeedsAnalysis {
   /** Primary goal: ease of business vs user experience */
   primaryGoal: 'business-ease' | 'user-experience' | 'balanced';
-  
+
   /** Business KPIs affected */
   kpisAffected: string[];
-  
+
   /** Cross-team impact */
   crossTeamImpact: Array<{
     team: string;
     impactType: 'positive' | 'negative' | 'neutral' | 'unknown';
     description: string;
   }>;
-  
+
   /** Does business ease compromise user experience? */
   compromisesUX: boolean;
-  
+
   /** Does UX improvement impact business KPIs? */
   impactsKPIs: boolean;
-  
+
   /** Business needs alignment score (0-100) */
   alignmentScore: number;
+}
+
+/**
+ * Creativity Analysis
+ * Drawing inspiration from diverse domains (philosophy, social science, medicine, etc.)
+ * to generate innovative test ideas when conventional approaches fall short
+ */
+export interface CreativityAnalysis {
+  /** Creative testing ideas generated */
+  innovativeApproaches: Array<{
+    description: string;
+    inspirationSource: string; // e.g., "philosophy", "medicine", "fashion", "social science"
+    applicability: 'high' | 'medium' | 'low';
+    novelty: 'highly-novel' | 'moderately-novel' | 'incremental';
+  }>;
+
+  /** Domains explored for inspiration */
+  domainsExplored: string[];
+
+  /** Unconventional perspectives applied */
+  perspectives: string[];
+
+  /** Creativity score (0-100) */
+  creativityScore: number;
+
+  /** Notes on creative approach */
+  notes: string[];
+}
+
+/**
+ * Design Analysis
+ * Evaluating exactness (clarity of intent), intuitive design (follows conventions),
+ * and counter-intuitive design (deviates from expectations)
+ */
+export interface DesignAnalysis {
+  /** Exactness - How clearly the product communicates its intent */
+  exactness: {
+    /** Are menu items, buttons, labels self-evident? */
+    clarity: 'excellent' | 'good' | 'adequate' | 'poor';
+
+    /** Examples of clear design elements */
+    clearElements: string[];
+
+    /** Examples of unclear/ambiguous elements */
+    unclearElements: string[];
+
+    /** Exactness score (0-100) */
+    score: number;
+  };
+
+  /** Intuitive Design - Follows common conventions and user expectations */
+  intuitive: {
+    /** Do component interactions follow conventions? */
+    followsConventions: boolean;
+
+    /** Examples of intuitive patterns */
+    intuitivePatterns: string[];
+
+    /** Cultural sensitivity issues */
+    culturalIssues: string[];
+
+    /** Intuitive design score (0-100) */
+    score: number;
+  };
+
+  /** Counter-intuitive Design - Deviates from user expectations */
+  counterIntuitive: {
+    /** Deliberate deviations detected */
+    deviations: Array<{
+      element: string;
+      expectedBehavior: string;
+      actualBehavior: string;
+      impact: 'positive' | 'negative' | 'neutral';
+      justification?: string;
+    }>;
+
+    /** Are deviations justified by innovation? */
+    innovativeJustification: boolean;
+
+    /** Unexperienced user perspective considered? */
+    freshEyesPerspective: boolean;
+
+    /** Counter-intuitive issues count */
+    issuesCount: number;
+  };
+
+  /** Overall design quality score (0-100) */
+  overallDesignScore: number;
 }
 
 /**

@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 18 QE agents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 20 QE agents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 
@@ -374,6 +374,74 @@ Task("Chaos testing", "Test system resilience with controlled failures", "qe-cha
 **Memory Namespace:**
 - Stores: `aqe/chaos/results`
 - Reads: `aqe/test-plan/*`
+
+---
+
+### qe-a11y-ally
+**Intelligent accessibility testing with WCAG 2.2 compliance**
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+**Capabilities:**
+- WCAG 2.2 Level A, AA, AAA validation using axe-core
+- Context-aware ARIA label generation
+- Intelligent remediation with code examples
+- Keyboard navigation and screen reader testing
+- Color contrast optimization
+- AI video analysis (OpenAI, Anthropic, Ollama, moondream)
+- WebVTT caption generation
+- EN 301 549 EU compliance mapping
+- ARIA Authoring Practices Guide (APG) patterns
+
+**Usage:**
+```javascript
+Task("Accessibility scan", "Run WCAG 2.2 AA compliance check", "qe-a11y-ally")
+Task("Generate captions", "Create WebVTT captions for video", "qe-a11y-ally")
+Task("Remediation", "Fix accessibility issues with code suggestions", "qe-a11y-ally")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/accessibility/scan-results`, `aqe/accessibility/remediation`
+- Reads: `aqe/test-plan/*`
+
+**MCP Tools (10 tools):**
+- `scan-comprehensive` - Full WCAG 2.2 scan
+- `remediation-code-generator` - Auto-fix code generation
+- `html-report-generator` - Detailed HTML reports
+- `video-vision-analyzer` - AI video accessibility analysis
+- `webvtt-generator` - Caption file generation
+
+---
+
+## MCP Tool Discovery System
+
+The Agentic QE Fleet uses **lazy-loaded MCP tools** to reduce initial context by 87%.
+
+### Tool Discovery
+
+```javascript
+// Discover available tool domains
+mcp__agentic_qe__tools_discover()
+// Returns: security, coverage, test-generation, test-execution, quality-gates,
+//          fleet-management, memory, learning, patterns, reporting
+
+// Load specific domain tools
+mcp__agentic_qe__tools_load_domain({ domain: "security" })
+mcp__agentic_qe__tools_load_domain({ domain: "coverage" })
+```
+
+### Automatic Loading
+
+Tools are **auto-loaded based on keywords** when agents work:
+- "security", "vulnerability" → loads security tools
+- "coverage", "gaps" → loads coverage tools
+- "generate", "create tests" → loads test-generation tools
+- "execute", "run tests" → loads test-execution tools
+
+### Benefits
+
+- **87% context reduction** (from 15,000 to 2,000 tokens initially)
+- **Faster agent spawning** with minimal overhead
+- **On-demand loading** only when tools are needed
 
 ---
 
