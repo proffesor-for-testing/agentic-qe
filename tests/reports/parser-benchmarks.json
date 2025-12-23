@@ -1,84 +1,84 @@
 {
-  "timestamp": "2025-12-22T20:15:50.855Z",
+  "timestamp": "2025-12-22T20:33:03.258Z",
   "platform": "linux",
   "nodeVersion": "v24.11.1",
   "results": [
     {
       "operation": "Parse small TypeScript file",
       "iterations": 100,
-      "totalTimeMs": 13.07,
-      "avgTimeMs": 0.13,
-      "minTimeMs": 0.11,
-      "maxTimeMs": 0.19,
-      "throughput": "7652 ops/sec"
+      "totalTimeMs": 12.24,
+      "avgTimeMs": 0.12,
+      "minTimeMs": 0.1,
+      "maxTimeMs": 0.18,
+      "throughput": "8169 ops/sec"
     },
     {
       "operation": "Parse large TypeScript file (~1000 lines)",
       "iterations": 50,
-      "totalTimeMs": 73.6,
-      "avgTimeMs": 1.47,
-      "minTimeMs": 1.02,
-      "maxTimeMs": 3.42,
-      "throughput": "679 ops/sec"
+      "totalTimeMs": 69.5,
+      "avgTimeMs": 1.39,
+      "minTimeMs": 1.1,
+      "maxTimeMs": 2.49,
+      "throughput": "719 ops/sec"
     },
     {
       "operation": "Parse Python file",
       "iterations": 100,
-      "totalTimeMs": 4.27,
+      "totalTimeMs": 3.84,
       "avgTimeMs": 0.04,
       "minTimeMs": 0.03,
-      "maxTimeMs": 0.08,
-      "throughput": "23423 ops/sec"
+      "maxTimeMs": 0.07,
+      "throughput": "26045 ops/sec"
     },
     {
       "operation": "Parse Go file",
       "iterations": 100,
-      "totalTimeMs": 3.48,
+      "totalTimeMs": 3.2,
       "avgTimeMs": 0.03,
       "minTimeMs": 0.03,
-      "maxTimeMs": 0.08,
-      "throughput": "28720 ops/sec"
+      "maxTimeMs": 0.05,
+      "throughput": "31205 ops/sec"
     },
     {
       "operation": "Parse Rust file",
       "iterations": 100,
-      "totalTimeMs": 5.2,
-      "avgTimeMs": 0.05,
+      "totalTimeMs": 3.21,
+      "avgTimeMs": 0.03,
       "minTimeMs": 0.03,
-      "maxTimeMs": 0.11,
-      "throughput": "19227 ops/sec"
+      "maxTimeMs": 0.06,
+      "throughput": "31188 ops/sec"
     },
     {
       "operation": "Batch parse 100 TypeScript files",
       "iterations": 100,
-      "totalTimeMs": 3.82,
-      "avgTimeMs": 0.04,
+      "totalTimeMs": 2.8,
+      "avgTimeMs": 0.03,
       "minTimeMs": 0,
       "maxTimeMs": 0,
-      "throughput": "26206 files/sec"
+      "throughput": "35657 files/sec"
     },
     {
       "operation": "Incremental parsing speedup",
       "iterations": 20,
-      "totalTimeMs": 0.9920829999973648,
-      "avgTimeMs": 0.05,
+      "totalTimeMs": 0.8103320000154781,
+      "avgTimeMs": 0.04,
       "minTimeMs": 0.02,
-      "maxTimeMs": 0.31,
-      "throughput": "3.6x faster than initial"
+      "maxTimeMs": 0.23,
+      "throughput": "3.4x faster than initial"
     },
     {
       "operation": "Large file incremental speedup",
       "iterations": 1,
-      "totalTimeMs": 0.06954099999711616,
-      "avgTimeMs": 0.07,
-      "minTimeMs": 0.07,
-      "maxTimeMs": 0.07,
-      "throughput": "20.3x faster"
+      "totalTimeMs": 0.08383299999695737,
+      "avgTimeMs": 0.08,
+      "minTimeMs": 0.08,
+      "maxTimeMs": 0.08,
+      "throughput": "13.6x faster"
     },
     {
       "operation": "Entity extraction throughput",
       "iterations": 50,
-      "totalTimeMs": 6.17,
+      "totalTimeMs": 5.97,
       "avgTimeMs": 0.12,
       "minTimeMs": 0,
       "maxTimeMs": 0,
@@ -87,47 +87,47 @@
     {
       "operation": "Parse TypeScript",
       "iterations": 50,
-      "totalTimeMs": 0.5062100000141072,
-      "avgTimeMs": 0.01,
+      "totalTimeMs": 0.19666900001902832,
+      "avgTimeMs": 0,
       "minTimeMs": 0,
-      "maxTimeMs": 0.03,
-      "throughput": "98773 files/sec"
+      "maxTimeMs": 0.02,
+      "throughput": "254234 files/sec"
     },
     {
       "operation": "Parse JavaScript",
       "iterations": 50,
-      "totalTimeMs": 0.33042000002023997,
-      "avgTimeMs": 0.01,
+      "totalTimeMs": 0.23495299999194685,
+      "avgTimeMs": 0,
       "minTimeMs": 0,
       "maxTimeMs": 0.02,
-      "throughput": "151323 files/sec"
+      "throughput": "212809 files/sec"
     },
     {
       "operation": "Parse Python",
       "iterations": 50,
-      "totalTimeMs": 0.20424399996409193,
-      "avgTimeMs": 0,
+      "totalTimeMs": 7.504627000016626,
+      "avgTimeMs": 0.15,
       "minTimeMs": 0,
-      "maxTimeMs": 0.01,
-      "throughput": "244805 files/sec"
+      "maxTimeMs": 7.3,
+      "throughput": "6663 files/sec"
     },
     {
       "operation": "Parse Go",
       "iterations": 50,
-      "totalTimeMs": 1.6421660000050906,
+      "totalTimeMs": 1.547833000033279,
       "avgTimeMs": 0.03,
       "minTimeMs": 0.03,
-      "maxTimeMs": 0.08,
-      "throughput": "30448 files/sec"
+      "maxTimeMs": 0.09,
+      "throughput": "32303 files/sec"
     },
     {
       "operation": "Parse Rust",
       "iterations": 50,
-      "totalTimeMs": 0.22000099997239886,
-      "avgTimeMs": 0,
+      "totalTimeMs": 0.2658799999699113,
+      "avgTimeMs": 0.01,
       "minTimeMs": 0,
       "maxTimeMs": 0.03,
-      "throughput": "227272 files/sec"
+      "throughput": "188055 files/sec"
     }
   ]
 }

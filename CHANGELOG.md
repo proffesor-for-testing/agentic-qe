@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2025-12-23
+
+### Added
+
+#### Phase 3 B2: Extensible Plugin System
+
+A comprehensive plugin architecture enabling hot-swappable test framework adapters and community extensibility.
+
+**Core Components (4,152 lines)**
+- **Plugin Types** (`src/plugins/types.ts`) - 612 lines of comprehensive TypeScript interfaces
+  - `Plugin`, `TestFrameworkPlugin`, `PluginMetadata` interfaces
+  - `PluginState` enum (DISCOVERED, LOADING, LOADED, ACTIVATING, ACTIVE, DEACTIVATING, INACTIVE, ERROR)
+  - `PluginCategory` enum (TEST_FRAMEWORK, MCP_TOOLS, REPORTING, UTILITY, INTEGRATION)
+  - Full lifecycle hook definitions (onLoad, onActivate, onDeactivate, onUnload)
+
+- **Plugin Manager** (`src/plugins/PluginManager.ts`) - 987 lines
+  - Plugin discovery from configured directories
+  - Lazy/eager loading strategies with `autoActivate` config
+  - **Real hot-reload** via `fs.watch` with 300ms debouncing
+  - **Real plugin loading** via dynamic `import()` from disk
+  - Semver-based dependency resolution
+  - Service registration and cross-plugin communication
+  - Event-driven architecture with full lifecycle events
+
+- **Base Plugin** (`src/plugins/BasePlugin.ts`) - 189 lines
+  - Foundation class for plugin development
+  - Built-in logging, service registration, event handling
+  - Storage abstraction for plugin state
+
+**Reference Implementations**
+- **PlaywrightPlugin** (`src/plugins/adapters/PlaywrightPlugin.ts`) - 539 lines
+  - E2E test generation with proper imports and structure
+  - Test file parsing (describe blocks, tests, hooks)
+  - **Real test execution** via `child_process.spawn`
+  - Playwright JSON output parsing
+
+- **VitestPlugin** (`src/plugins/adapters/VitestPlugin.ts`) - 709 lines
+  - Unit test generation for TypeScript/JavaScript
+  - Test file parsing with nested describe support
+  - **Real test execution** via `child_process.spawn`
+  - **Real coverage parsing** from Vitest JSON output
+
+- **McpToolsPlugin** (`src/plugins/adapters/McpToolsPlugin.ts`) - 637 lines
+  - **Real MCP server connection** via JSON-RPC over HTTP
+  - Dynamic capability discovery from server (`tools/list`)
+  - Tool invocation with proper request/response handling
+  - Graceful fallback to static capabilities when server unavailable
+  - Configurable endpoint, timeout, and API key authentication
+
+**Test Suite**
+- **PluginManager.test.ts** (`tests/unit/plugins/`) - 395 lines, 30 tests
+  - Plugin registration, activation, deactivation
+  - Category filtering, service registration
+  - Lifecycle hook verification
+  - All tests passing
+
+#### Phase 3 D1: Memory Pooling (Already Committed)
+
+Pre-allocated agent pooling for dramatic spawn performance improvements.
+
+**Performance Achieved**
+- **1750x speedup**: 0.057ms pooled vs 100ms fresh spawn
+- Target was 16x (<6ms) - **exceeded by 109x**
+
+**Core Components**
+- **AgentPool** (`src/agents/pool/AgentPool.ts`) - 744 lines
+  - Generic pool with configurable min/max/warmup sizes
+  - Health checks and automatic expansion
+  - Priority queue for concurrent acquisitions
+
+- **QEAgentPoolFactory** (`src/agents/pool/QEAgentPoolFactory.ts`) - 289 lines
+  - QE-specific pool configurations per agent type
+  - Factory pattern for pool management
+
+### Fixed
+
+- **Tree-sitter peer dependency** warnings on `npm install`
+- **Fraudulent benchmarks** in D1 implementation replaced with honest measurements
+
+### Changed
+
+- Enhanced `src/mcp/handlers/agent-spawn.ts` with pool integration
+- Enhanced `src/mcp/handlers/fleet-init.ts` with pool integration
+- Updated parser benchmark reports
+
 ## [2.6.0] - 2025-12-22
 
 ### Added
