@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.2] - 2025-12-24
+
+### Added
+
+#### Phase 2: LLM Independence - Intelligent Routing & Cost Optimization
+
+Complete implementation of Phase 2 features for smart model selection and cost reduction.
+
+**ML-Based Complexity Classification** (`src/routing/ComplexityClassifier.ts`)
+- Multi-dimensional task analysis (code metrics, NLP features, domain context)
+- 4-level complexity classification: SIMPLE, MODERATE, COMPLEX, VERY_COMPLEX
+- Configurable feature weights with ML pattern learning
+- Integrated into HybridRouter for automatic routing decisions
+
+**Model Capability Registry** (`src/routing/ModelCapabilityRegistry.ts`)
+- December 2025 model catalog with 25+ models including:
+  - Claude Opus 4.5, Claude Sonnet 4, Claude Haiku
+  - DeepSeek R1 (671B reasoning), DeepSeek V3 (685B)
+  - GPT-5, GPT-4 Turbo, o1-preview, o3-mini
+  - Gemini 2.5 Pro, Gemini 2.0 Flash
+  - Llama 3.3 70B, Qwen 3 Coder 30B
+- Capability scoring: reasoning, coding, speed, context, cost-efficiency
+- Provider support tracking (Anthropic, OpenRouter, Groq, Ollama)
+
+**Cost Optimization Strategies** (`src/providers/CostOptimizationStrategies.ts`)
+- `PromptCompressor`: Whitespace normalization, filler word removal
+- `CachingStrategy`: Semantic similarity caching with TTL
+- `BatchingStrategy`: Request batching for cost reduction
+- `CostOptimizationManager`: Orchestrates all strategies
+- Honest compression benchmarks: 2-8% realistic savings (not inflated claims)
+
+**HybridRouter Integration** (`src/providers/HybridRouter.ts`)
+- Integrated ComplexityClassifier for automatic task analysis
+- Integrated CostOptimizationManager for prompt compression
+- Model selection based on complexity level and capabilities
+- New methods: `getCompressionStats()`, `getMLClassifierStats()`
+
+### Changed
+
+**README.md Quick Start Section**
+- Removed version numbers from feature list (user-focused)
+- Added `.env` configuration snippet for advanced features
+- Improved formatting with bold labels for scannability
+
+**Environment Configuration** (`.env.example`)
+- Complete rewrite with Phase 2 configuration
+- LLM Provider selection: `LLM_PROVIDER=auto`, `LLM_MODE=hybrid`
+- RuVector self-learning: `AQE_RUVECTOR_ENABLED`, PostgreSQL settings
+- Pattern Store: `AQE_PATTERN_STORE_ENABLED`, `AQE_PATTERN_DUAL_WRITE`
+- Code Intelligence: Ollama URL, PostgreSQL for knowledge graph
+- Removed outdated `.env.agentic-flow.example`
+
+**CONTRIBUTORS.md**
+- Added [@fndlalit](https://github.com/fndlalit)'s n8n workflow testing agents contribution (PR #151)
+- Updated Hall of Fame entry
+
+### Fixed
+
+- **HybridRouter RuVector test**: Fixed test isolation by disabling ML classifier for cache skip verification
+- **Compression expectations**: Adjusted benchmarks to realistic 2-8% savings vs false 50% claims
+
+### New Test Files
+
+- `tests/unit/routing/ComplexityClassifier.test.ts` - ML classifier unit tests
+- `tests/unit/routing/ModelCapabilityRegistry.test.ts` - Model registry tests
+- `tests/unit/routing/CompressionBenchmark.test.ts` - Honest compression benchmarks
+- `tests/unit/providers/HybridRouter-complexity-integration.test.ts` - Integration tests
+- `tests/unit/providers/HybridRouter-model-selection.test.ts` - Model selection tests
+- `tests/unit/providers/HybridRouter-cost-tracking.test.ts` - Cost tracking tests
+- `tests/unit/providers/CostOptimizationStrategies.test.ts` - Strategy unit tests
+
 ## [2.6.1] - 2025-12-23
 
 ### Added

@@ -364,7 +364,10 @@ describe('HybridRouter RuVector Integration', () => {
           enabled: true,
           cacheThreshold: 0.85,
           skipCacheForComplexTasks: true
-        }
+        },
+        // Disable Phase 2 features to test RuVector behavior in isolation
+        useMLClassifier: false,
+        useCostOptimization: false
       });
       await router.initialize();
 

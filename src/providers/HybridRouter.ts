@@ -34,6 +34,17 @@ import { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 import { RuvllmProvider, RuvllmProviderConfig, TRMConfig, RuvllmCompletionOptions } from './RuvllmProvider';
 import { RuVectorClient, RuVectorConfig, QueryResult as RuVectorQueryResult } from './RuVectorClient';
 import { Logger } from '../utils/Logger';
+import {
+  ComplexityClassifier,
+  ComplexityClassifierConfig,
+  RoutingHistoryEntry,
+  TaskFeatures
+} from '../routing/ComplexityClassifier';
+import {
+  CostOptimizationManager,
+  CostOptimizationConfig,
+  CompressionResult
+} from './CostOptimizationStrategies';
 
 /**
  * Request priority levels
@@ -122,6 +133,53 @@ export interface CostSavingsReport {
   estimatedCloudCost: number;
   savings: number;
   savingsPercentage: number;
+  cacheHits: number;
+  cacheSavings: number;
+  // Advanced tracking fields
+  costByProvider: Record<string, number>;
+  costByTaskType: Record<string, number>;
+  costByModel: Record<string, number>;
+  averageCostPerRequest: number;
+  topCostlyTasks: Array<{ taskType: string; cost: number; count: number }>;
+  monthlyCostProjection: number;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+/**
+ * Budget configuration
+ */
+export interface BudgetConfig {
+  monthlyBudget?: number;
+  dailyBudget?: number;
+  perTaskBudget?: Record<string, number>;
+  alertThreshold: number;  // 0-1, e.g., 0.8 = alert at 80%
+  enforceLimit: boolean;   // If true, reject requests over budget
+}
+
+/**
+ * Budget status
+ */
+export interface BudgetStatus {
+  dailySpent: number;
+  dailyRemaining: number;
+  monthlySpent: number;
+  monthlyRemaining: number;
+  utilizationPercentage: number;
+  isOverBudget: boolean;
+  alertTriggered: boolean;
+}
+
+/**
+ * Cost history entry
+ */
+interface CostHistoryEntry {
+  timestamp: Date;
+  provider: string;
+  model: string;
+  taskType: string;
+  cost: number;
+  tokens: number;
 }
 
 /**
@@ -188,6 +246,14 @@ export interface HybridRouterConfig extends LLMProviderConfig {
   autoEnableTRM?: boolean;
   /** Default TRM configuration for auto-enabled requests */
   defaultTRMConfig?: TRMConfig;
+  /** ML-based complexity classifier configuration (Phase 2.1.2) */
+  complexityClassifier?: ComplexityClassifierConfig;
+  /** Cost optimization configuration (Phase 2.3.2) */
+  costOptimization?: CostOptimizationConfig;
+  /** Enable ML-based complexity classification (default: true) */
+  useMLClassifier?: boolean;
+  /** Enable cost optimization strategies (default: true) */
+  useCostOptimization?: boolean;
 }
 
 /**
@@ -202,7 +268,7 @@ export interface HybridRouterConfig extends LLMProviderConfig {
  */
 export class HybridRouter implements ILLMProvider {
   private readonly logger: Logger;
-  private config: Omit<Required<HybridRouterConfig>, 'claude' | 'ruvllm' | 'ruvector'> & Pick<HybridRouterConfig, 'claude' | 'ruvllm' | 'ruvector'>;
+  private config: Omit<Required<HybridRouterConfig>, 'claude' | 'ruvllm' | 'ruvector' | 'complexityClassifier' | 'costOptimization'> & Pick<HybridRouterConfig, 'claude' | 'ruvllm' | 'ruvector' | 'complexityClassifier' | 'costOptimization'>;
   private localProvider?: RuvllmProvider;
   private cloudProvider?: ClaudeProvider;
   private ruVectorClient?: RuVectorClient;
@@ -215,6 +281,15 @@ export class HybridRouter implements ILLMProvider {
   private cloudRequestCount: number;
   private cacheHitCount: number;
   private cacheMissCount: number;
+  private costHistory: CostHistoryEntry[];
+  private budgetConfig?: BudgetConfig;
+  private trackingStartDate: Date;
+  /** ML-based complexity classifier (Phase 2.1.2) */
+  private complexityClassifier?: ComplexityClassifier;
+  /** Cost optimization manager (Phase 2.3.2) */
+  private costOptimizationManager?: CostOptimizationManager;
+  /** Compression statistics for benchmarking */
+  private compressionStats: { totalSaved: number; totalOriginal: number; count: number };
 
   constructor(config: HybridRouterConfig = {}) {
     this.logger = Logger.getInstance();
@@ -241,7 +316,12 @@ export class HybridRouter implements ILLMProvider {
       },
       claude: config.claude,
       ruvllm: config.ruvllm,
-      ruvector: config.ruvector
+      ruvector: config.ruvector,
+      // Phase 2 integration config
+      complexityClassifier: config.complexityClassifier,
+      costOptimization: config.costOptimization,
+      useMLClassifier: config.useMLClassifier ?? true,
+      useCostOptimization: config.useCostOptimization ?? true
     };
 
     this.circuitBreakers = new Map();
@@ -253,6 +333,9 @@ export class HybridRouter implements ILLMProvider {
     this.cloudRequestCount = 0;
     this.cacheHitCount = 0;
     this.cacheMissCount = 0;
+    this.costHistory = [];
+    this.trackingStartDate = new Date();
+    this.compressionStats = { totalSaved: 0, totalOriginal: 0, count: 0 };
   }
 
   /**
@@ -335,11 +418,53 @@ export class HybridRouter implements ILLMProvider {
       );
     }
 
+    // Initialize ML-based complexity classifier (Phase 2.1.2)
+    if (this.config.useMLClassifier) {
+      try {
+        this.complexityClassifier = new ComplexityClassifier(
+          this.config.complexityClassifier ?? {
+            enableLearning: true,
+            learningRate: 0.05
+          }
+        );
+        this.logger.info('ML ComplexityClassifier initialized', {
+          enableLearning: this.config.complexityClassifier?.enableLearning ?? true
+        });
+      } catch (error) {
+        this.logger.warn('Failed to initialize ComplexityClassifier, using heuristics', {
+          error: (error as Error).message
+        });
+      }
+    }
+
+    // Initialize cost optimization manager (Phase 2.3.2)
+    if (this.config.useCostOptimization) {
+      try {
+        this.costOptimizationManager = new CostOptimizationManager(
+          this.config.costOptimization ?? {
+            enableCompression: true,
+            enableBatching: true,
+            enableSmartCaching: true
+          }
+        );
+        this.logger.info('CostOptimizationManager initialized', {
+          compression: this.config.costOptimization?.enableCompression ?? true,
+          batching: this.config.costOptimization?.enableBatching ?? true
+        });
+      } catch (error) {
+        this.logger.warn('Failed to initialize CostOptimizationManager', {
+          error: (error as Error).message
+        });
+      }
+    }
+
     this.isInitialized = true;
     this.logger.info('HybridRouter initialized', {
       hasLocal: !!this.localProvider,
       hasCloud: !!this.cloudProvider,
       hasRuVectorCache: !!this.ruVectorClient,
+      hasMLClassifier: !!this.complexityClassifier,
+      hasCostOptimization: !!this.costOptimizationManager,
       strategy: this.config.defaultStrategy
     });
   }
@@ -361,7 +486,59 @@ export class HybridRouter implements ILLMProvider {
     const startTime = Date.now();
     const priority = options.priority ?? RequestPriority.NORMAL;
     const strategy = options.routingStrategy ?? this.config.defaultStrategy;
-    const complexity = this.analyzeComplexity(options);
+
+    // Apply cost optimization: prompt compression (Phase 2.3.2)
+    let optimizedOptions = options;
+    let compressionResult: CompressionResult | undefined;
+
+    if (this.costOptimizationManager && this.config.useCostOptimization) {
+      try {
+        const originalContent = this.extractQueryFromOptions(options) || '';
+        const compressor = this.costOptimizationManager.getCompressor();
+        compressionResult = compressor.compress(originalContent);
+
+        if (compressionResult.tokensSaved > 0) {
+          // Track compression stats for benchmarking
+          // Estimate original tokens from ratio: ratio = tokensSaved / originalTokens
+          // So originalTokens ≈ tokensSaved / ratio (if ratio > 0)
+          const estimatedOriginalTokens = compressionResult.ratio > 0
+            ? Math.round(compressionResult.tokensSaved / compressionResult.ratio)
+            : compressionResult.original.split(/\s+/).length;
+
+          this.compressionStats.totalOriginal += estimatedOriginalTokens;
+          this.compressionStats.totalSaved += compressionResult.tokensSaved;
+          this.compressionStats.count++;
+
+          // Apply compressed content to options
+          optimizedOptions = this.applyCompressedContent(options, compressionResult.compressed);
+
+          if (this.config.debug) {
+            this.logger.debug('Prompt compressed', {
+              tokensSaved: compressionResult.tokensSaved,
+              ratio: compressionResult.ratio,
+              techniques: compressionResult.techniques
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.warn('Prompt compression failed, using original', {
+          error: (error as Error).message
+        });
+      }
+    }
+
+    const complexity = this.analyzeComplexity(optimizedOptions);
+
+    // Check budget before proceeding
+    const estimatedCost = strategy === RoutingStrategy.COST_OPTIMIZED ? 0 : 0.01;
+    if (!this.checkBudget(estimatedCost)) {
+      throw new LLMProviderError(
+        'Request rejected: budget limit exceeded',
+        'hybrid-router',
+        'BUDGET_EXCEEDED',
+        false
+      );
+    }
 
     // Phase 0.5: Try RuVector cache first (sub-ms pattern matching)
     if (this.ruVectorClient && this.shouldUseCache(options, complexity)) {
@@ -646,6 +823,15 @@ export class HybridRouter implements ILLMProvider {
       const actualCost = this.calculateCost(response, decision.provider);
       this.totalCost += actualCost;
 
+      // Track detailed cost information
+      this.trackCostByProvider(
+        decision.providerName,
+        actualCost,
+        response.model,
+        decision.complexity,
+        response.usage.input_tokens + response.usage.output_tokens
+      );
+
       // Record outcome for learning
       if (this.config.enableLearning) {
         this.recordOutcome({
@@ -923,20 +1109,68 @@ export class HybridRouter implements ILLMProvider {
   /**
    * Get cost savings report including RuVector cache savings
    */
-  getCostSavingsReport(): CostSavingsReport & {
-    cacheHits: number;
-    cacheSavings: number;
-  } {
-    // Estimate what cloud cost would have been for all requests
+  getCostSavingsReport(): CostSavingsReport {
+    return this.getDetailedCostReport();
+  }
+
+  /**
+   * Get detailed cost report with optional date filtering
+   */
+  getDetailedCostReport(startDate?: Date, endDate?: Date): CostSavingsReport {
+    const start = startDate || this.trackingStartDate;
+    const end = endDate || new Date();
+
+    // Filter cost history by date range
+    const filteredHistory = this.costHistory.filter(
+      entry => entry.timestamp >= start && entry.timestamp <= end
+    );
+
+    // Calculate cost by provider
+    const costByProvider: Record<string, number> = {};
+    const costByTaskType: Record<string, number> = {};
+    const costByModel: Record<string, number> = {};
+    const taskTypeCounts: Record<string, { cost: number; count: number }> = {};
+
+    for (const entry of filteredHistory) {
+      // By provider
+      costByProvider[entry.provider] = (costByProvider[entry.provider] || 0) + entry.cost;
+
+      // By task type
+      costByTaskType[entry.taskType] = (costByTaskType[entry.taskType] || 0) + entry.cost;
+
+      // By model
+      costByModel[entry.model] = (costByModel[entry.model] || 0) + entry.cost;
+
+      // Task type counts for top costly tasks
+      if (!taskTypeCounts[entry.taskType]) {
+        taskTypeCounts[entry.taskType] = { cost: 0, count: 0 };
+      }
+      taskTypeCounts[entry.taskType].cost += entry.cost;
+      taskTypeCounts[entry.taskType].count++;
+    }
+
+    // Calculate top costly tasks
+    const topCostlyTasks = Object.entries(taskTypeCounts)
+      .map(([taskType, data]) => ({
+        taskType,
+        cost: data.cost,
+        count: data.count
+      }))
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 10);
+
+    // Calculate totals and estimates
     const cloudCostPerRequest = 0.01; // Rough estimate
     const estimatedCloudCost = this.requestCount * cloudCostPerRequest;
     const savings = estimatedCloudCost - this.totalCost;
     const savingsPercentage = estimatedCloudCost > 0
       ? (savings / estimatedCloudCost) * 100
       : 0;
-
-    // Cache hits are essentially free
     const cacheSavings = this.cacheHitCount * cloudCostPerRequest;
+    const averageCostPerRequest = this.requestCount > 0 ? this.totalCost / this.requestCount : 0;
+
+    // Project monthly cost based on current usage rate
+    const monthlyCostProjection = this.projectMonthlyCost();
 
     return {
       totalRequests: this.requestCount,
@@ -947,8 +1181,222 @@ export class HybridRouter implements ILLMProvider {
       savings,
       savingsPercentage,
       cacheHits: this.cacheHitCount,
-      cacheSavings
+      cacheSavings,
+      costByProvider,
+      costByTaskType,
+      costByModel,
+      averageCostPerRequest,
+      topCostlyTasks,
+      monthlyCostProjection,
+      periodStart: start,
+      periodEnd: end
     };
+  }
+
+  /**
+   * Get top costly operations
+   */
+  getTopCostlyOperations(limit: number = 10): Array<{ taskType: string; cost: number }> {
+    const taskTypeCosts: Record<string, number> = {};
+
+    for (const entry of this.costHistory) {
+      taskTypeCosts[entry.taskType] = (taskTypeCosts[entry.taskType] || 0) + entry.cost;
+    }
+
+    return Object.entries(taskTypeCosts)
+      .map(([taskType, cost]) => ({ taskType, cost }))
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, limit);
+  }
+
+  /**
+   * Project monthly cost based on current usage rate
+   */
+  projectMonthlyCost(): number {
+    if (this.costHistory.length === 0) {
+      return 0;
+    }
+
+    const now = new Date();
+    const timeElapsed = now.getTime() - this.trackingStartDate.getTime();
+    const daysElapsed = timeElapsed / (1000 * 60 * 60 * 24);
+
+    if (daysElapsed < 0.1) {
+      // Less than 2.4 hours, not enough data
+      return this.totalCost * 30; // Rough estimate
+    }
+
+    // Calculate daily average and project to 30 days
+    const dailyAverage = this.totalCost / daysElapsed;
+    return dailyAverage * 30;
+  }
+
+  /**
+   * Set budget configuration
+   */
+  setBudget(config: BudgetConfig): void {
+    this.budgetConfig = config;
+    this.logger.info('Budget configuration updated', {
+      monthlyBudget: config.monthlyBudget,
+      dailyBudget: config.dailyBudget,
+      alertThreshold: config.alertThreshold,
+      enforceLimit: config.enforceLimit
+    });
+  }
+
+  /**
+   * Get current budget status
+   */
+  getBudgetStatus(): BudgetStatus {
+    if (!this.budgetConfig) {
+      return {
+        dailySpent: this.totalCost,
+        dailyRemaining: Infinity,
+        monthlySpent: this.totalCost,
+        monthlyRemaining: Infinity,
+        utilizationPercentage: 0,
+        isOverBudget: false,
+        alertTriggered: false
+      };
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Calculate daily spending
+    const dailyHistory = this.costHistory.filter(
+      entry => entry.timestamp >= today
+    );
+    const dailySpent = dailyHistory.reduce((sum, entry) => sum + entry.cost, 0);
+
+    // Calculate monthly spending
+    const monthlyHistory = this.costHistory.filter(
+      entry => entry.timestamp >= monthStart
+    );
+    const monthlySpent = monthlyHistory.reduce((sum, entry) => sum + entry.cost, 0);
+
+    const dailyBudget = this.budgetConfig.dailyBudget ?? Infinity;
+    const monthlyBudget = this.budgetConfig.monthlyBudget ?? Infinity;
+
+    const dailyRemaining = Math.max(0, dailyBudget - dailySpent);
+    const monthlyRemaining = Math.max(0, monthlyBudget - monthlySpent);
+
+    // Calculate utilization based on the most restrictive budget
+    let utilizationPercentage = 0;
+    if (monthlyBudget !== Infinity) {
+      utilizationPercentage = (monthlySpent / monthlyBudget) * 100;
+    } else if (dailyBudget !== Infinity) {
+      utilizationPercentage = (dailySpent / dailyBudget) * 100;
+    }
+
+    const isOverBudget = dailySpent > dailyBudget || monthlySpent > monthlyBudget;
+    const alertTriggered = utilizationPercentage >= (this.budgetConfig.alertThreshold * 100);
+
+    if (alertTriggered && !isOverBudget) {
+      this.logger.warn('Budget alert threshold reached', {
+        utilizationPercentage,
+        threshold: this.budgetConfig.alertThreshold * 100,
+        dailySpent,
+        monthlySpent
+      });
+    }
+
+    if (isOverBudget) {
+      this.logger.error('Budget limit exceeded', {
+        dailySpent,
+        dailyBudget,
+        monthlySpent,
+        monthlyBudget
+      });
+    }
+
+    return {
+      dailySpent,
+      dailyRemaining,
+      monthlySpent,
+      monthlyRemaining,
+      utilizationPercentage,
+      isOverBudget,
+      alertTriggered
+    };
+  }
+
+  /**
+   * Check if budget allows this request
+   */
+  private checkBudget(estimatedCost: number): boolean {
+    if (!this.budgetConfig || !this.budgetConfig.enforceLimit) {
+      return true;
+    }
+
+    const status = this.getBudgetStatus();
+
+    if (status.isOverBudget) {
+      this.logger.error('Request rejected: budget exceeded', {
+        estimatedCost,
+        dailySpent: status.dailySpent,
+        monthlySpent: status.monthlySpent
+      });
+      return false;
+    }
+
+    // Check if this request would exceed budget
+    if (this.budgetConfig.dailyBudget !== undefined) {
+      if (status.dailySpent + estimatedCost > this.budgetConfig.dailyBudget) {
+        this.logger.error('Request rejected: would exceed daily budget', {
+          estimatedCost,
+          dailySpent: status.dailySpent,
+          dailyBudget: this.budgetConfig.dailyBudget
+        });
+        return false;
+      }
+    }
+
+    if (this.budgetConfig.monthlyBudget !== undefined) {
+      if (status.monthlySpent + estimatedCost > this.budgetConfig.monthlyBudget) {
+        this.logger.error('Request rejected: would exceed monthly budget', {
+          estimatedCost,
+          monthlySpent: status.monthlySpent,
+          monthlyBudget: this.budgetConfig.monthlyBudget
+        });
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Track cost by provider
+   */
+  private trackCostByProvider(provider: string, cost: number, model: string, taskType: string, tokens: number): void {
+    const entry: CostHistoryEntry = {
+      timestamp: new Date(),
+      provider,
+      model,
+      taskType,
+      cost,
+      tokens
+    };
+
+    this.costHistory.push(entry);
+
+    // Keep only last 10,000 entries to prevent unbounded growth
+    if (this.costHistory.length > 10000) {
+      this.costHistory.shift();
+    }
+
+    if (this.config.debug) {
+      this.logger.debug('Cost tracked', {
+        provider,
+        model,
+        taskType,
+        cost,
+        tokens,
+        historySize: this.costHistory.length
+      });
+    }
   }
 
   /**
@@ -1209,9 +1657,39 @@ export class HybridRouter implements ILLMProvider {
   }
 
   /**
-   * Analyze task complexity
+   * Analyze task complexity using ML classifier or heuristics fallback
    */
   private analyzeComplexity(options: LLMCompletionOptions): TaskComplexity {
+    // Use ML-based classifier if available (Phase 2.1.2)
+    if (this.complexityClassifier && this.config.useMLClassifier) {
+      try {
+        const mlComplexity = this.complexityClassifier.classifyTask(options);
+        const confidence = this.complexityClassifier.getClassificationConfidence();
+
+        if (this.config.debug) {
+          this.logger.debug('ML complexity classification', {
+            complexity: mlComplexity,
+            confidence: confidence.toFixed(3)
+          });
+        }
+
+        // Map ComplexityClassifier output to TaskComplexity enum
+        return mlComplexity;
+      } catch (error) {
+        this.logger.warn('ML classifier failed, using heuristics', {
+          error: (error as Error).message
+        });
+      }
+    }
+
+    // Fallback to heuristics
+    return this.analyzeComplexityHeuristics(options);
+  }
+
+  /**
+   * Heuristic-based complexity analysis (fallback)
+   */
+  private analyzeComplexityHeuristics(options: LLMCompletionOptions): TaskComplexity {
     const maxTokens = options.maxTokens || 0;
     const messageCount = options.messages.length;
     const totalContent = options.messages
@@ -1245,6 +1723,34 @@ export class HybridRouter implements ILLMProvider {
     if (score >= 4) return TaskComplexity.COMPLEX;
     if (score >= 2) return TaskComplexity.MODERATE;
     return TaskComplexity.SIMPLE;
+  }
+
+  /**
+   * Apply compressed content to options
+   */
+  private applyCompressedContent(
+    options: HybridCompletionOptions,
+    compressed: string
+  ): HybridCompletionOptions {
+    if (!options.messages || options.messages.length === 0) {
+      return options;
+    }
+
+    // Clone options to avoid mutation
+    const newOptions = { ...options, messages: [...options.messages] };
+
+    // Find and replace last user message with compressed version
+    for (let i = newOptions.messages.length - 1; i >= 0; i--) {
+      if (newOptions.messages[i].role === 'user') {
+        newOptions.messages[i] = {
+          ...newOptions.messages[i],
+          content: compressed
+        };
+        break;
+      }
+    }
+
+    return newOptions;
   }
 
   /**
@@ -1455,5 +1961,134 @@ export class HybridRouter implements ILLMProvider {
         false
       );
     }
+  }
+
+  // ============================================================
+  // Phase 2 Integration: Public Methods for Benchmarking & Stats
+  // ============================================================
+
+  /**
+   * Get compression statistics for benchmarking (Phase 2.3.2)
+   *
+   * Returns actual measured compression savings, not estimated values.
+   */
+  getCompressionStats(): {
+    totalRequests: number;
+    totalOriginalTokens: number;
+    totalSavedTokens: number;
+    averageSavingsPercent: number;
+    compressionEnabled: boolean;
+  } {
+    const avgSavings = this.compressionStats.totalOriginal > 0
+      ? (this.compressionStats.totalSaved / this.compressionStats.totalOriginal) * 100
+      : 0;
+
+    return {
+      totalRequests: this.compressionStats.count,
+      totalOriginalTokens: this.compressionStats.totalOriginal,
+      totalSavedTokens: this.compressionStats.totalSaved,
+      averageSavingsPercent: avgSavings,
+      compressionEnabled: !!this.costOptimizationManager && !!this.config.useCostOptimization
+    };
+  }
+
+  /**
+   * Get ML classifier statistics (Phase 2.1.2)
+   *
+   * Returns classifier performance metrics if ML classifier is enabled.
+   */
+  getMLClassifierStats(): {
+    enabled: boolean;
+    totalClassifications: number;
+    averageConfidence: number;
+    successRate: number;
+    complexityDistribution: Record<TaskComplexity, number>;
+  } | null {
+    if (!this.complexityClassifier) {
+      return null;
+    }
+
+    try {
+      const stats = this.complexityClassifier.getStatistics();
+      return {
+        enabled: true,
+        totalClassifications: stats.totalClassifications,
+        averageConfidence: stats.averageConfidence,
+        successRate: stats.successRate,
+        complexityDistribution: stats.complexityDistribution
+      };
+    } catch {
+      return {
+        enabled: true,
+        totalClassifications: 0,
+        averageConfidence: 0,
+        successRate: 0,
+        complexityDistribution: {
+          [TaskComplexity.SIMPLE]: 0,
+          [TaskComplexity.MODERATE]: 0,
+          [TaskComplexity.COMPLEX]: 0,
+          [TaskComplexity.VERY_COMPLEX]: 0
+        }
+      };
+    }
+  }
+
+  /**
+   * Train classifier from routing outcome (Phase 2.1.2)
+   *
+   * Allows manual training feedback for the complexity classifier.
+   */
+  trainClassifierFromOutcome(entry: RoutingHistoryEntry): void {
+    if (!this.complexityClassifier) {
+      this.logger.warn('Cannot train: ML classifier not enabled');
+      return;
+    }
+
+    this.complexityClassifier.recordOutcome(entry);
+
+    if (this.config.debug) {
+      this.logger.debug('Classifier trained from outcome', {
+        complexity: entry.selectedComplexity,
+        success: entry.actualOutcome.success
+      });
+    }
+  }
+
+  /**
+   * Get feature weights from the ML classifier (Phase 2.1.2)
+   */
+  getClassifierWeights(): Record<string, number> | null {
+    if (!this.complexityClassifier) {
+      return null;
+    }
+    const weights = this.complexityClassifier.getWeights();
+    // Convert typed object to generic Record
+    return { ...weights };
+  }
+
+  /**
+   * Get complexity thresholds from the ML classifier (Phase 2.1.2)
+   */
+  getComplexityThresholds(): Record<string, number> | null {
+    if (!this.complexityClassifier) {
+      return null;
+    }
+    const thresholds = this.complexityClassifier.getThresholds();
+    // Convert typed object to generic Record
+    return { ...thresholds };
+  }
+
+  /**
+   * Check if ML classifier is enabled and active
+   */
+  isMLClassifierEnabled(): boolean {
+    return !!this.complexityClassifier && !!this.config.useMLClassifier;
+  }
+
+  /**
+   * Check if cost optimization is enabled and active
+   */
+  isCostOptimizationEnabled(): boolean {
+    return !!this.costOptimizationManager && !!this.config.useCostOptimization;
   }
 }

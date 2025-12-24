@@ -49,8 +49,41 @@ export {
   TaskComplexity,
   RoutingStrategy,
   RoutingDecision,
-  CostSavingsReport
+  CostSavingsReport,
+  BudgetConfig,
+  BudgetStatus
 } from './HybridRouter';
+
+// Phase 2.x.2: ML Complexity Classification Integration
+export {
+  HybridRouterWithComplexity,
+  HybridRouterWithComplexityConfig,
+  ClassifierStatistics
+} from './HybridRouterComplexityIntegration';
+
+// Phase 2.x.2: Intelligent Model Selection
+export {
+  HybridRouterModelSelection,
+  ModelSelectionResult,
+  createModelSelection
+} from './HybridRouterModelSelection';
+
+// Phase 2.x.2: Cost Optimization Strategies
+export {
+  PromptCompressor,
+  RequestBatcher,
+  SmartCacheStrategy,
+  ModelRightSizer,
+  CostOptimizationManager
+} from './CostOptimizationStrategies';
+export type {
+  CompressionResult,
+  RequestGroup,
+  BatchExecutionResult,
+  CacheStrategy,
+  ModelRightSizingResult,
+  CostOptimizationConfig
+} from './CostOptimizationStrategies';
 
 // RuVector client for self-learning cache (Phase 0.5)
 export {

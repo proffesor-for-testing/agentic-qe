@@ -11,7 +11,7 @@
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.6.1** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.6.2** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
@@ -56,18 +56,24 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ```
 
 **What gets initialized:**
-- ✅ Real-time dashboards, interactive graphs (v1.9.0)
-- ✅ OpenTelemetry, Event Store, Constitution System
-- ✅ Multi-Model Router (70-81% cost savings - opt-in)
-- ✅ Learning System (20% improvement target)
-- ✅ Pattern Bank (cross-project reuse)
-- ✅ ML Flaky Detection (90%+ accuracy with root cause analysis)
-- ✅ 21 Specialized QE agent definitions (including qe-code-intelligence for 80% token reduction)
-- ✅ 15 n8n workflow testing agents (workflow execution, chaos, compliance, security, performance by [@fndlalit](https://github.com/fndlalit))
-- ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
-- ✅ 46 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, n8n testing, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
-- ✅ 8 AQE slash commands
-- ✅ Modular init system with comprehensive project setup
+- ✅ **Real-time Visualization**: Dashboards, interactive graphs, WebSocket streaming
+- ✅ **Observability Stack**: OpenTelemetry, Event Store, Constitution System
+- ✅ **HybridRouter**: Intelligent LLM routing with 70-81% cost savings
+- ✅ **Self-Learning System**: Agents improve with every task (20% target)
+- ✅ **Pattern Bank**: Cross-project pattern reuse (85%+ matching)
+- ✅ **ML Flaky Detection**: 90%+ accuracy with root cause analysis
+- ✅ **21 QE Agents**: Including Code Intelligence (80% token reduction)
+- ✅ **15 n8n Agents**: Workflow testing by [@fndlalit](https://github.com/fndlalit)
+- ✅ **11 TDD Subagents**: RED/GREEN/REFACTOR phases
+- ✅ **46 QE Skills**: Including **testability-scoring** by [@fndlalit](https://github.com/fndlalit)
+- ✅ **8 Slash Commands**: Quick access to common workflows
+
+**Optional Configuration** (`.env`):
+```bash
+# Enable advanced features (see .env.example)
+LLM_MODE=hybrid              # Cost-optimized routing
+AQE_RUVECTOR_ENABLED=true    # Self-learning with PostgreSQL
+```
 
 ---
 
