@@ -93,176 +93,141 @@ AQE_RUVECTOR_ENABLED=true    # Self-learning with PostgreSQL
 
 ## ✨ Features
 
-### Real-Time Visualization (since v1.9.0)
+### 🧠 Self-Learning Agents That Get Smarter
 
-**Observability Dashboards**
+Unlike traditional testing tools that start from scratch every run, **AQE agents build institutional knowledge** for your codebase:
 
-#### 📊 Interactive React Frontend
-- **MindMap Component**: Cytoscape.js-powered graph visualization with 6 layout algorithms
-  - Support for 1000+ nodes with <500ms render time
-  - Expand/collapse, zoom/pan, search/filter
-  - Real-time WebSocket updates
-  - Export to PNG/JSON
+| What Gets Learned | Benefit |
+|-------------------|---------|
+| **Test patterns** that work for your framework | 85%+ pattern reuse across projects |
+| **Optimal strategies** for your codebase structure | Faster, more relevant test generation |
+| **Failure patterns** and how to prevent them | Proactive defect prevention |
+| **Cost-effective routing** decisions | Automatic budget optimization |
 
-- **QualityMetrics Panel**: Recharts-based quality visualization
-  - 7-dimension radar chart (coverage, security, performance, etc.)
-  - Trend analysis with historical data
-  - Token usage and cost tracking
-  - Auto-refresh every 30 seconds
+**4 Reinforcement Learning Algorithms**: Q-Learning (default), SARSA, Actor-Critic (A2C), PPO
 
-- **Timeline View**: Virtual scrolling for event history
-  - Handle 1000+ events with react-window
-  - Color-coded event types
-  - Advanced filtering (agent, type, session, time range)
-  - Drill-down detail panels
-
-#### 🔌 Backend API Services
-- **REST API**: 6 endpoints for historical data queries
-  - Event history with pagination
-  - Aggregated metrics
-  - Graph visualization data
-  - Agent activity history
-
-- **WebSocket Server**: Real-time streaming with backpressure
-  - Event streaming with client subscriptions
-  - Heartbeat mechanism
-  - Connection management
-  - <50ms latency
-
-#### 📈 Grafana Dashboards
-- **Executive Dashboard**: Quality trends and cost analysis
-- **Developer Dashboard**: Trace explorer and debugging tools
-- **QA Dashboard**: Test metrics and coverage visualization
-
-**Performance:**
-- ✅ 185 events/sec write throughput (186% of target)
-- ✅ <1ms query latency (99% better than target)
-- ✅ <100ms render time for 100 nodes
-- ✅ <500ms render time for 1000 nodes
-
-**Quick Start:**
 ```bash
-# Start visualization services
-node scripts/start-visualization-services.ts
-
-# Start frontend dev server
-cd frontend && npm run dev
-
-# Open in browser
-open http://localhost:3000
+# Check what your agents have learned
+aqe learn status --agent qe-test-generator
+aqe patterns list --framework jest
 ```
-
-**Documentation**: See `docs/PHASE3-COMPLETE.md` for full details
 
 ---
 
-### 🤖 Autonomous Agent Fleet
-- **20 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis, QX analysis, accessibility)
-- **11 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation + analysis)
-- **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
-- **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
-- **Scalable**: From single developer projects to enterprise-scale testing infrastructure
+### 💰 70-81% Cost Savings with Intelligent Routing
 
-### 🧠 Intelligence & Learning
-- **QE Agent Learning System**: Q-Learning integrated with AgentDB's 9 RL algorithms, 20% improvement target with automatic strategy optimization
-- **Pattern Bank**: 85%+ matching accuracy across 6 test frameworks (Jest, Mocha, Cypress, Vitest, Jasmine, AVA)
-- **ML Flaky Detection**: 90%+ accuracy with root cause analysis and automated fix recommendations
-- **Continuous Improvement**: A/B testing framework with 95%+ statistical confidence
-- **Experience Replay**: Learn from 10,000+ past executions
+**HybridRouter** automatically matches task complexity to the right model:
 
-### 🧠 Self-Learning System (from v2.2.0)
+| Task Type | Model Selected | Cost |
+|-----------|----------------|------|
+| Simple (formatting, syntax) | Claude Haiku / GPT-3.5 | $0.25/M |
+| Moderate (unit tests, refactoring) | Claude Sonnet / GPT-4 Turbo | $3/M |
+| Complex (architecture, security) | Claude Opus 4.5 / GPT-5 | $15/M |
+| Reasoning-heavy | DeepSeek R1 / o1-preview | Varies |
 
-AQE agents learn from every interaction and improve over time. Unlike traditional tools that start from scratch each run, the Self-Learning System builds institutional knowledge for your codebase.
+**25+ December 2025 models** including Claude Opus 4.5, DeepSeek R1 (671B), GPT-5, Gemini 2.5 Pro
 
-**How It Works:**
+---
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Self-Learning Pipeline                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│   │  Agent   │───▶│ Execute  │───▶│ Evaluate │───▶│  Learn   │  │
-│   │  Action  │    │   Task   │    │  Result  │    │ & Store  │  │
-│   └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│        │                                               │         │
-│        │         ┌─────────────────────────────┐       │         │
-│        └────────▶│     Pattern Bank (AgentDB)  │◀──────┘         │
-│                  │  • Successful strategies    │                 │
-│                  │  • Framework patterns       │                 │
-│                  │  • Q-values per action      │                 │
-│                  └─────────────────────────────┘                 │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 🤖 48 Specialized QE Agents
 
-**Reinforcement Learning Algorithms:**
-- **Q-Learning**: Default algorithm - learns optimal action-value functions
-- **SARSA**: On-policy learning for safer exploration
-- **Actor-Critic (A2C)**: Combines value and policy learning
-- **PPO**: Advanced policy optimization for complex scenarios
+| Category | Agents | Highlights |
+|----------|--------|------------|
+| **Core QE** | 21 agents | Test generation, coverage, security, performance, accessibility |
+| **TDD Workflow** | 11 subagents | RED/GREEN/REFACTOR phases with coordination |
+| **n8n Workflow Testing** | 15 agents | Chaos, compliance, security, BDD scenarios |
+| **Base** | 1 template | Create custom agents |
 
-**What Gets Learned:**
-- Which test patterns work best for your framework (Jest, Cypress, etc.)
-- Optimal strategies for your codebase structure
-- Common failure patterns and how to prevent them
-- Cost-effective model routing decisions
+**Zero external dependencies** - Native hooks system runs 100-500x faster than external coordination
 
-**CLI Commands:**
+---
+
+### 🎯 ML-Powered Flaky Test Detection
+
+**90%+ accuracy** with automated root cause analysis:
+
+- Statistical pattern detection across test runs
+- Timing analysis and race condition identification
+- **Auto-fix recommendations** with code suggestions
+- Integration with CI/CD for continuous monitoring
+
 ```bash
-# Check learning status for an agent
-aqe learn status --agent qe-test-generator
-
-# List learned patterns for a framework
-aqe patterns list --framework jest
-
-# View algorithm performance
-aqe learn metrics --algorithm q-learning
-
-# Switch learning algorithm
-aqe learn set-algorithm --agent qe-test-generator --algorithm sarsa
+claude "Use qe-flaky-test-hunter to analyze the last 100 test runs"
 ```
 
-**Persistence:** All learning is stored in AgentDB (SQLite-based) and persists across sessions. Your agents get smarter with every run.
+---
 
-### 💰 Cost Optimization
-- **Multi-Model Router**: 70-81% cost savings through intelligent model selection (opt-in feature)
-- **4+ AI Models**: GPT-3.5, GPT-4, Claude Haiku, Claude Sonnet 4.5
-- **Smart Routing**: Automatic complexity analysis and optimal model selection
-- **Real-Time Tracking**: Live cost monitoring with budget alerts and forecasting
-- **ROI Dashboard**: Track savings vs single-model baseline
+### 🔍 Code Intelligence (80% Token Reduction)
 
-### 📊 Comprehensive Testing
-- **Multi-Framework Support**: Jest, Mocha, Cypress, Playwright, Vitest, Jasmine, AVA
-- **Parallel Execution**: 10,000+ concurrent tests with intelligent orchestration
-- **Real-Time Coverage**: O(log n) algorithms for instant gap detection
-- **Performance Testing**: k6, JMeter, Gatling integration
-- **Real-Time Streaming**: Live progress updates for all operations
+Stop wasting tokens on irrelevant code. **Semantic search + knowledge graphs** deliver only what matters:
 
-### 🎓 41 QE Skills Library
-**95%+ coverage of modern QE practices**
+- **Tree-sitter parsing** for TypeScript, Python, Go, Rust, JavaScript
+- **Hybrid search**: BM25 + vector similarity with <10ms latency
+- **RAG context building** for LLM queries
+- **Mermaid visualization** of code relationships
+
+```bash
+aqe kg index src/          # Index your codebase
+aqe kg search "auth flow"  # Semantic search
+```
+
+---
+
+### 📊 Real-Time Visualization
+
+**See your agents work** with live dashboards:
+
+- **MindMap**: 1000+ nodes, <500ms render, WebSocket updates
+- **Quality Radar**: 7-dimension chart (coverage, security, performance)
+- **Timeline**: Virtual scrolling for 1000+ events
+- **Grafana**: Executive, Developer, and QA dashboards
+
+**Performance**: 185 events/sec throughput, <1ms query latency
+
+---
+
+### 🎓 46 World-Class QE Skills
+
+**95%+ coverage of modern QE practices** - agents automatically apply relevant skills:
 
 <details>
-<summary><b>View All Skills</b></summary>
+<summary><b>View All 46 Skills</b></summary>
 
-**Phase 1: Original Quality Engineering Skills (18 skills)**
-- **Core Testing**: agentic-quality-engineering, holistic-testing-pact, context-driven-testing, exploratory-testing-advanced
-- **Methodologies**: tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy
-- **Techniques**: api-testing-patterns, performance-testing, security-testing
-- **Code Quality**: code-review-quality, refactoring-patterns, quality-metrics
-- **Communication**: bug-reporting-excellence, technical-writing, consultancy-practices
+**Core Testing & Methodologies**
+- agentic-quality-engineering, holistic-testing-pact, context-driven-testing
+- tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy
 
-**Phase 2: Expanded QE Skills Library (16 skills)**
-- **Testing Methodologies (7)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management, verification-quality
-- **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
-- **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
+**Specialized Testing**
+- accessibility-testing, mobile-testing, database-testing, contract-testing
+- chaos-engineering-resilience, visual-testing-advanced, compliance-testing
 
-**Phase 3: Advanced Quality Engineering Skills (4 skills)**
-- **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
+**Strategic & Communication**
+- six-thinking-hats, brutal-honesty-review, sherlock-review
+- cicd-pipeline-qe-orchestrator, bug-reporting-excellence
 
-**Total: 41 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
+**n8n Workflow Testing** (contributed by [@fndlalit](https://github.com/fndlalit))
+- n8n-workflow-testing, n8n-expression-testing, n8n-security-testing
+
+**Unique Skills**
+- **testability-scoring** - Score code testability before writing tests
+- **qx-partner** - QA + UX collaboration for quality experience
 
 </details>
+
+---
+
+### 📦 Multi-Framework Support
+
+Works with your existing tools:
+
+| Category | Supported |
+|----------|-----------|
+| **Unit Testing** | Jest, Mocha, Vitest, Jasmine, AVA |
+| **E2E Testing** | Cypress, Playwright |
+| **Performance** | k6, JMeter, Gatling |
+| **Code Quality** | ESLint, SonarQube, Lighthouse |
+
+**Parallel execution**: 10,000+ concurrent tests with intelligent orchestration
 
 ---
 
