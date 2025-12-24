@@ -6,6 +6,20 @@
  */
 
 import { GraphNode, GraphEdge, EdgeType, NodeType } from '../graph/types.js';
+import { C4ContextDiagramBuilder } from './C4ContextDiagramBuilder.js';
+import { C4ContainerDiagramBuilder } from './C4ContainerDiagramBuilder.js';
+import { C4ComponentDiagramBuilder } from './C4ComponentDiagramBuilder.js';
+import { ProjectMetadataAnalyzer } from '../inference/ProjectMetadataAnalyzer.js';
+import { ExternalSystemDetector } from '../inference/ExternalSystemDetector.js';
+import { ComponentBoundaryAnalyzer } from '../inference/ComponentBoundaryAnalyzer.js';
+import type {
+  ProjectMetadata,
+  Container,
+  ExternalSystem,
+  Component,
+  ComponentRelationship,
+  ComponentAnalysisResult,
+} from '../inference/types.js';
 
 export interface MermaidOptions {
   /** Maximum nodes to include (prevents overwhelming large graphs) */
@@ -457,5 +471,159 @@ export class MermaidGenerator {
     }
 
     return [...lines, ...styleLines].join('\n');
+  }
+
+  /**
+   * Generate C4 Context diagram from project analysis.
+   *
+   * Context diagrams show the system in its environment with users and external systems.
+   * This is the highest level of abstraction in C4 modeling.
+   *
+   * @param rootDir - Root directory of the project to analyze
+   * @returns Mermaid C4Context diagram as string
+   * @throws Error if project analysis fails
+   *
+   * @example
+   * ```typescript
+   * const diagram = await MermaidGenerator.generateC4Context('/path/to/project');
+   * console.log(diagram);
+   * ```
+   */
+  static async generateC4Context(rootDir: string): Promise<string> {
+    try {
+      // Analyze project metadata
+      const metadataAnalyzer = new ProjectMetadataAnalyzer(rootDir);
+      const metadata = await metadataAnalyzer.analyze();
+
+      // Detect external systems
+      const externalDetector = new ExternalSystemDetector(rootDir);
+      const externalSystems = await externalDetector.detect();
+
+      // Build C4 Context diagram
+      const builder = new C4ContextDiagramBuilder();
+      return builder.build(metadata, externalSystems);
+    } catch (error) {
+      throw new Error(
+        `Failed to generate C4 Context diagram: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Generate C4 Container diagram from project analysis.
+   *
+   * Container diagrams show the high-level technology choices and how containers
+   * communicate with each other. Containers represent applications or data stores.
+   *
+   * @param rootDir - Root directory of the project to analyze
+   * @returns Mermaid C4Container diagram as string
+   * @throws Error if project analysis fails
+   *
+   * @example
+   * ```typescript
+   * const diagram = await MermaidGenerator.generateC4Container('/path/to/project');
+   * console.log(diagram);
+   * ```
+   */
+  static async generateC4Container(rootDir: string): Promise<string> {
+    try {
+      // Analyze project metadata
+      const metadataAnalyzer = new ProjectMetadataAnalyzer(rootDir);
+      const metadata = await metadataAnalyzer.analyze();
+
+      // Detect external systems
+      const externalDetector = new ExternalSystemDetector(rootDir);
+      const externalSystems = await externalDetector.detect();
+
+      // Build C4 Container diagram
+      const builder = new C4ContainerDiagramBuilder();
+      return builder.build(metadata, externalSystems);
+    } catch (error) {
+      throw new Error(
+        `Failed to generate C4 Container diagram: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Generate C4 Component diagram from project analysis.
+   *
+   * Component diagrams show the internal structure of a container, breaking it down
+   * into components and showing their relationships. Components are typically classes,
+   * modules, or services within a container.
+   *
+   * @param rootDir - Root directory of the project to analyze
+   * @param containerName - Optional name of the container to detail (defaults to project name)
+   * @returns Mermaid C4Component diagram as string
+   * @throws Error if project analysis fails
+   *
+   * @example
+   * ```typescript
+   * const diagram = await MermaidGenerator.generateC4Component('/path/to/project');
+   * console.log(diagram);
+   * ```
+   */
+  static async generateC4Component(rootDir: string, containerName?: string): Promise<string> {
+    try {
+      // Analyze component boundaries
+      const boundaryAnalyzer = new ComponentBoundaryAnalyzer(rootDir);
+      const analysisResult = await boundaryAnalyzer.analyze();
+
+      // Get container name from metadata if not provided
+      let finalContainerName = containerName;
+      if (!finalContainerName) {
+        const metadataAnalyzer = new ProjectMetadataAnalyzer(rootDir);
+        const metadata = await metadataAnalyzer.analyze();
+        finalContainerName = metadata.name;
+      }
+
+      // Build C4 Component diagram
+      const builder = new C4ComponentDiagramBuilder();
+      return builder.build(finalContainerName, analysisResult.components, analysisResult.relationships);
+    } catch (error) {
+      throw new Error(
+        `Failed to generate C4 Component diagram: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Generate C4 diagram of specified type.
+   *
+   * Unified method to generate any C4 diagram type with optional configuration.
+   *
+   * @param type - Type of C4 diagram to generate ('context' | 'container' | 'component')
+   * @param rootDir - Root directory of the project to analyze
+   * @param options - Optional configuration for diagram generation
+   * @param options.containerName - Container name for component diagrams
+   * @returns Mermaid C4 diagram as string
+   * @throws Error if diagram type is invalid or generation fails
+   *
+   * @example
+   * ```typescript
+   * // Generate context diagram
+   * const context = await MermaidGenerator.generateC4Diagram('context', '/path/to/project');
+   *
+   * // Generate component diagram for specific container
+   * const component = await MermaidGenerator.generateC4Diagram('component', '/path/to/project', {
+   *   containerName: 'API Application'
+   * });
+   * ```
+   */
+  static async generateC4Diagram(
+    type: 'context' | 'container' | 'component',
+    rootDir: string,
+    options?: { containerName?: string }
+  ): Promise<string> {
+    switch (type) {
+      case 'context':
+        return this.generateC4Context(rootDir);
+      case 'container':
+        return this.generateC4Container(rootDir);
+      case 'component':
+        return this.generateC4Component(rootDir, options?.containerName);
+      default:
+        throw new Error(`Unsupported C4 diagram type: ${type}`);
+    }
   }
 }

@@ -424,20 +424,53 @@ export class ConfigLoader {
 
   /**
    * Set nested property using dot notation
+   * Includes comprehensive prototype pollution protection
    */
   private setNestedProperty(obj: any, path: string, value: any): void {
     const parts = path.split('.');
     let current = obj;
 
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      if (!(part in current)) {
-        current[part] = {};
+    // Prototype pollution protection - reject dangerous property names
+    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
+    for (const part of parts) {
+      if (dangerousKeys.has(part)) {
+        this.logger.warn(`Rejected potentially dangerous property path: ${path}`);
+        return;
       }
-      current = current[part];
     }
 
-    current[parts[parts.length - 1]] = value;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      // Skip if part is a dangerous key (defense in depth)
+      if (dangerousKeys.has(part)) {
+        return;
+      }
+      if (!Object.prototype.hasOwnProperty.call(current, part)) {
+        // Create plain object without prototype chain risks
+        current[part] = Object.create(null);
+        Object.setPrototypeOf(current[part], Object.prototype);
+      }
+      current = current[part];
+      // Ensure we haven't traversed to a built-in prototype
+      if (current === Object.prototype || current === Array.prototype || current === Function.prototype) {
+        this.logger.warn(`Rejected path that would modify built-in prototype: ${path}`);
+        return;
+      }
+    }
+
+    const finalKey = parts[parts.length - 1];
+    // Final safety check: ensure finalKey is safe and current is a valid target
+    if (
+      !dangerousKeys.has(finalKey) &&
+      current !== null &&
+      current !== undefined &&
+      current !== Object.prototype &&
+      current !== Array.prototype &&
+      current !== Function.prototype &&
+      typeof current === 'object'
+    ) {
+      current[finalKey] = value;
+    }
   }
 
   /**

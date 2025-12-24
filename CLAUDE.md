@@ -62,6 +62,15 @@ gh release create vX.X.X            # 9. GitHub release
 monitor gh workflow triggered on release publish and verify npm published succesfully
 ```
 
+**Post-Release: Code Intelligence Indexing**:
+```bash
+# After npm publish succeeds, index code changes for semantic search
+# Requires: Ollama running + PostgreSQL (agentic-qe-ruvector-dev container)
+docker start agentic-qe-ruvector-dev 2>/dev/null || echo "Start PostgreSQL first"
+aqe kg index --git-since vPREVIOUS_VERSION  # Index changes since last release
+aqe kg stats                                  # Verify indexing succeeded
+```
+
 ---
 
 ## 🤖 Agentic QE Fleet Quick Reference

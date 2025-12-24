@@ -37,6 +37,7 @@ import { InitCommand } from './commands/init';
 import { createQuantizationCommand } from './commands/quantization';
 import { createConstitutionCommand } from './commands/constitution';
 import { createRuVectorCommand } from './commands/ruvector';
+import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
 import * as telemetryCommands from './commands/telemetry';
 import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
 import * as fs from 'fs-extra';
@@ -1432,6 +1433,158 @@ program.addCommand(createConstitutionCommand());
  * RuVector Self-Learning commands (Phase 0.5)
  */
 program.addCommand(createRuVectorCommand());
+
+/**
+ * Knowledge Graph / Code Intelligence commands
+ * Natural language code search, indexing, and visualization
+ */
+const kgCommand = program
+  .command('kg')
+  .description('Code Intelligence knowledge graph for semantic code search');
+
+kgCommand
+  .command('index')
+  .description('Index codebase for semantic search')
+  .option('-w, --watch', 'Watch for changes and update index')
+  .option('-i, --incremental', 'Only index changed files')
+  .option('--git-since <ref>', 'Index changes since git ref (e.g., v2.6.0, HEAD~10)')
+  .option('-v, --verbose', 'Show detailed output')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await KnowledgeGraphCommand.index({
+        watch: options.watch || false,
+        incremental: options.incremental || !!options.gitSince,
+        gitSince: options.gitSince,
+        verbose: options.verbose || false,
+        json: options.json || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Indexing failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('query <query>')
+  .description('Search code using natural language')
+  .option('--hybrid', 'Use hybrid search (vector + keyword)', true)
+  .option('-k, --k <number>', 'Number of results', parseInt, 10)
+  .option('-l, --lang <language>', 'Filter by programming language')
+  .option('--graph-depth <depth>', 'Include graph context depth', parseInt, 1)
+  .option('-v, --verbose', 'Show detailed output')
+  .option('--json', 'Output as JSON')
+  .action(async (query, options) => {
+    try {
+      await KnowledgeGraphCommand.query(query, {
+        hybrid: options.hybrid !== false,
+        k: options.k || 10,
+        lang: options.lang,
+        graphDepth: options.graphDepth || 1,
+        verbose: options.verbose || false,
+        json: options.json || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Query failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('graph <file>')
+  .description('Generate code relationship diagram')
+  .option('-t, --type <type>', 'Diagram type (class, dependency)', 'class')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('-f, --format <format>', 'Output format (mermaid, dot)', 'mermaid')
+  .option('--json', 'Output as JSON')
+  .action(async (file, options) => {
+    try {
+      await KnowledgeGraphCommand.graph(file, {
+        type: options.type as 'class' | 'dependency',
+        output: options.output,
+        format: options.format as 'mermaid' | 'dot',
+        json: options.json || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Graph generation failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('stats')
+  .description('Show knowledge graph statistics')
+  .option('-v, --verbose', 'Show detailed statistics')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await KnowledgeGraphCommand.stats({
+        verbose: options.verbose || false,
+        json: options.json || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Stats failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('c4-context')
+  .description('Generate C4 system context diagram')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('--json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await KnowledgeGraphCommand.c4Context({
+        output: options.output,
+        json: options.json || false,
+        verbose: options.verbose || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ C4 Context diagram failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('c4-container')
+  .description('Generate C4 container diagram')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('--json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await KnowledgeGraphCommand.c4Container({
+        output: options.output,
+        json: options.json || false,
+        verbose: options.verbose || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ C4 Container diagram failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('c4-component [container]')
+  .description('Generate C4 component diagram for a container')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('--json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed output')
+  .action(async (container, options) => {
+    try {
+      await KnowledgeGraphCommand.c4Component(container, {
+        output: options.output,
+        json: options.json || false,
+        verbose: options.verbose || false,
+        container: container
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ C4 Component diagram failed:'), error);
+      process.exit(1);
+    }
+  });
 
 // Parse command line arguments
 program.parse();
