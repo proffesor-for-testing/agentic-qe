@@ -34,6 +34,7 @@ const VectorDbRuntime = ruvectorCore.VectorDb;
 
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 
 /**
@@ -138,6 +139,28 @@ export class HNSWPatternStore implements IPatternStore {
 
     // storagePath should be a file path, not a directory
     const vectorDbPath = storagePath ? path.join(storagePath, 'vectors.db') : undefined;
+
+    // Ensure storage directory exists before VectorDB initialization
+    if (storagePath) {
+      try {
+        // Check if path exists
+        if (fsSync.existsSync(storagePath)) {
+          const stat = fsSync.statSync(storagePath);
+          if (stat.isFile()) {
+            // Legacy: storagePath is a file, migrate to directory structure
+            const backupPath = `${storagePath}.legacy-${Date.now()}`;
+            fsSync.renameSync(storagePath, backupPath);
+            console.log(`[HNSWPatternStore] Migrated legacy file to: ${backupPath}`);
+          }
+        }
+        fsSync.mkdirSync(storagePath, { recursive: true });
+      } catch (err: any) {
+        // Ignore EEXIST (directory already exists), rethrow others
+        if (err.code !== 'EEXIST') {
+          console.warn(`[HNSWPatternStore] Failed to create storage directory: ${err.message}`);
+        }
+      }
+    }
 
     const dbOptions: DbOptions = {
       dimensions: dimension,

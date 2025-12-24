@@ -640,6 +640,98 @@ The test generator automatically delegates to subagents for a complete RED-GREEN
 
 ---
 
+## 🤖 LLM Provider Configuration
+
+### Multi-Provider Support (v2.6+)
+
+AQE supports multiple LLM providers for maximum flexibility and cost optimization:
+
+| Provider | Type | Cost | Setup Time | Best For |
+|----------|------|------|------------|----------|
+| **Ollama** | Local | FREE | 10 min | Privacy, offline, no budget |
+| **OpenRouter** | Cloud | Paid/Free | 2 min | 300+ models, flexibility |
+| **Groq** | Cloud | FREE | 1 min | High-speed, 14,400 req/day |
+| **Claude API** | Cloud | Paid | 2 min | Highest quality |
+| **Google AI** | Cloud | FREE | 2 min | Gemini models, 1,500 req/day |
+
+### Quick Setup
+
+#### Free Cloud (No Hardware Required)
+
+```bash
+# 1. Get free API key from https://console.groq.com/
+export GROQ_API_KEY="gsk_..."
+
+# 2. Install AQE
+npm install -g agentic-qe
+aqe init
+
+# 3. Start using
+claude "Use qe-test-generator to create tests for UserService"
+```
+
+#### Local Ollama (Private, Offline)
+
+```bash
+# 1. Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Download model
+ollama pull qwen3-coder:30b
+
+# 3. Start server
+ollama serve
+
+# 4. Install AQE
+npm install -g agentic-qe
+aqe init
+```
+
+#### Multi-Provider (Recommended)
+
+```typescript
+import { LLMProviderFactory } from 'agentic-qe';
+
+const factory = new LLMProviderFactory({
+  defaultProvider: 'auto',  // Auto-detect best provider
+  enableFallback: true,      // Automatic failover
+
+  // Free tier cloud (primary)
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    defaultModel: 'mistralai/devstral-2512:free'  // FREE 123B model
+  },
+
+  // Local backup (unlimited)
+  ruvllm: {
+    defaultModel: 'qwen3-coder:30b'
+  }
+});
+
+await factory.initialize();
+```
+
+### Model Recommendations
+
+**FREE Tier**:
+- **Best Quality**: `mistralai/devstral-2512:free` (123B, OpenRouter)
+- **High Speed**: `llama-3.3-70b-versatile` (Groq, 14,400 req/day)
+- **Local Privacy**: `qwen3-coder:30b` (Ollama, unlimited)
+
+**Paid Tier** (Cost-Effective):
+- **Cheapest**: `mistralai/devstral-small-2505` ($0.06/$0.12 per M)
+- **Balanced**: `qwen/qwen-2.5-coder-32b-instruct` ($0.18/$0.18 per M)
+- **Premium**: `claude-sonnet-4` ($3/$15 per M)
+
+### Documentation
+
+- **[LLM Providers Guide](docs/guides/llm-providers-guide.md)** - Complete provider overview
+- **[Ollama Setup Guide](docs/guides/ollama-setup.md)** - Local inference setup
+- **[Free Tier Guide](docs/guides/free-tier-guide.md)** - Zero-cost deployment
+- **[Config Schema](docs/reference/provider-config-schema.md)** - Full configuration reference
+
+---
+
 ## 📖 Documentation
 
 ### Getting Started

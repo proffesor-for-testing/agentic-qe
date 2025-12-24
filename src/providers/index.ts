@@ -32,6 +32,7 @@ export {
 // Provider implementations
 export { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 export { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
+export { OllamaProvider, OllamaProviderConfig } from './OllamaProvider';
 export {
   OpenRouterProvider,
   OpenRouterConfig,

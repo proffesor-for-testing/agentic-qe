@@ -16,13 +16,14 @@ import { ILLMProvider, LLMProviderMetadata, LLMHealthStatus, LLMCompletionOption
 import { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 import { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
 import { OpenRouterProvider, OpenRouterConfig, OpenRouterModel } from './OpenRouterProvider';
+import { OllamaProvider, OllamaProviderConfig } from './OllamaProvider';
 import { Logger } from '../utils/Logger';
 import { isRuvLLMAvailable } from '../utils/ruvllm-loader';
 
 /**
  * Provider type enumeration
  */
-export type ProviderType = 'claude' | 'ruvllm' | 'openrouter' | 'auto';
+export type ProviderType = 'claude' | 'ruvllm' | 'openrouter' | 'ollama' | 'auto';
 
 /**
  * Environment signals for smart provider detection
@@ -36,6 +37,8 @@ export interface EnvironmentSignals {
   isClaudeCode: boolean;
   /** ruvLLM library is available */
   hasRuvllm: boolean;
+  /** Ollama running on localhost:11434 */
+  hasOllamaRunning: boolean;
   /** Explicit LLM_PROVIDER override */
   explicitProvider?: ProviderType;
 }
@@ -77,6 +80,8 @@ export interface LLMProviderFactoryConfig {
   ruvllm?: RuvllmProviderConfig;
   /** OpenRouter provider configuration */
   openrouter?: OpenRouterConfig;
+  /** Ollama provider configuration */
+  ollama?: OllamaProviderConfig;
   /** Default provider to use */
   defaultProvider?: ProviderType;
   /** Enable automatic fallback */
@@ -144,6 +149,9 @@ export class LLMProviderFactory {
 
     const initPromises: Promise<void>[] = [];
 
+    // Check for Ollama availability (async check before environment detection)
+    await this.checkOllamaAvailability();
+
     // Detect environment for smart provider selection
     const signals = this.detectEnvironment();
     this.logger.debug('Environment signals detected:', signals);
@@ -164,6 +172,11 @@ export class LLMProviderFactory {
     // Initialize ruvllm provider if applicable
     if (providersToInit.includes('ruvllm')) {
       initPromises.push(this.initializeProvider('ruvllm', this.config.ruvllm));
+    }
+
+    // Initialize Ollama provider if applicable
+    if (providersToInit.includes('ollama')) {
+      initPromises.push(this.initializeProvider('ollama', this.config.ollama));
     }
 
     await Promise.allSettled(initPromises);
@@ -418,6 +431,9 @@ export class LLMProviderFactory {
         case 'openrouter':
           provider = new OpenRouterProvider(config);
           break;
+        case 'ollama':
+          provider = new OllamaProvider(config);
+          break;
         default:
           throw new Error(`Unknown provider type: ${type}`);
       }
@@ -523,8 +539,35 @@ export class LLMProviderFactory {
       hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
       isClaudeCode: this.detectClaudeCodeEnvironment(),
       hasRuvllm: isRuvLLMAvailable(),
+      hasOllamaRunning: this.cachedOllamaCheck ?? false,
       explicitProvider: this.getExplicitProvider(),
     };
+  }
+
+  /**
+   * Cached Ollama check result (set during async initialization)
+   */
+  private cachedOllamaCheck: boolean = false;
+
+  /**
+   * Check if Ollama is running on localhost:11434
+   */
+  private async checkOllamaAvailability(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      const response = await fetch('http://localhost:11434/api/tags', {
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      this.cachedOllamaCheck = response.ok;
+      return response.ok;
+    } catch {
+      this.cachedOllamaCheck = false;
+      return false;
+    }
   }
 
   /**
@@ -548,7 +591,7 @@ export class LLMProviderFactory {
    */
   private getExplicitProvider(): ProviderType | undefined {
     const explicit = process.env.LLM_PROVIDER;
-    if (explicit && ['claude', 'ruvllm', 'openrouter'].includes(explicit)) {
+    if (explicit && ['claude', 'ruvllm', 'openrouter', 'ollama'].includes(explicit)) {
       return explicit as ProviderType;
     }
     return undefined;
@@ -566,7 +609,7 @@ export class LLMProviderFactory {
       return providers;
     }
 
-    // Initialize based on available credentials
+    // Initialize based on available credentials/services
     if (signals.hasAnthropicKey) {
       providers.push('claude');
     }
@@ -579,6 +622,11 @@ export class LLMProviderFactory {
       providers.push('ruvllm');
     }
 
+    // Include Ollama if running or explicitly configured
+    if (signals.hasOllamaRunning || this.config.ollama) {
+      providers.push('ollama');
+    }
+
     return providers;
   }
 
@@ -586,14 +634,15 @@ export class LLMProviderFactory {
    * Select default provider based on environment signals
    *
    * Provider Selection Matrix:
-   * | Environment   | ANTHROPIC_KEY | OPENROUTER_KEY | Selected Provider |
-   * |---------------|---------------|----------------|-------------------|
-   * | Claude Code   | ✓             | -              | Claude            |
-   * | Claude Code   | -             | ✓              | OpenRouter        |
-   * | External      | ✓             | ✓              | OpenRouter        |
-   * | External      | ✓             | -              | Claude            |
-   * | External      | -             | ✓              | OpenRouter        |
-   * | Any           | -             | -              | ruvllm (local)    |
+   * | Environment   | ANTHROPIC_KEY | OPENROUTER_KEY | OLLAMA | Selected Provider |
+   * |---------------|---------------|----------------|--------|-------------------|
+   * | Claude Code   | ✓             | -              | -      | Claude            |
+   * | Claude Code   | -             | ✓              | -      | OpenRouter        |
+   * | External      | ✓             | ✓              | -      | OpenRouter        |
+   * | External      | ✓             | -              | -      | Claude            |
+   * | External      | -             | ✓              | -      | OpenRouter        |
+   * | Any           | -             | -              | ✓      | Ollama (local)    |
+   * | Any           | -             | -              | -      | ruvllm (local)    |
    */
   private selectDefaultProvider(signals: EnvironmentSignals): ProviderType {
     // Priority 1: Explicit override
@@ -616,7 +665,12 @@ export class LLMProviderFactory {
       return 'claude';
     }
 
-    // Priority 5: Local inference
+    // Priority 5: Ollama for local inference (preferred for cost-free local)
+    if (signals.hasOllamaRunning) {
+      return 'ollama';
+    }
+
+    // Priority 6: ruvLLM local inference
     if (signals.hasRuvllm) {
       return 'ruvllm';
     }

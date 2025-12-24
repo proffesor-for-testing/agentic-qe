@@ -28,3 +28,10 @@ export {
   CoordinatorAdapter,
   createCoordinationAdapter,
 } from './CoordinatorAdapter';
+
+// LLM Adapter (Phase 1.2.2 - LLM Independence)
+export {
+  AgentLLMAdapter,
+  createAgentLLM,
+  type AgentLLMAdapterConfig,
+} from './AgentLLMAdapter';
