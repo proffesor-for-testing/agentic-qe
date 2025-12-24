@@ -883,10 +883,11 @@ export class TestGeneratorAgent extends BaseAgent {
       ?.filter((s: any) => s.priority === 'high')
       .map((s: any) => s.name);
 
-    // Use LLM for test generation when available (Phase 0 - RuvLLM Integration)
-    const useLLM = this.hasLLM();
+    // Use LLM for test generation when available (Phase 1.2.3 - IAgentLLM)
+    const llm = this.getAgentLLM();
+    const useLLM = !!llm;
     if (useLLM) {
-      this.logger.info('[TestGeneratorAgent] Using LLM for enhanced test generation');
+      this.logger.info(`[TestGeneratorAgent] Using LLM for enhanced test generation (model: ${llm.getCurrentModel()})`);
     }
 
     for (const func of functions) {
@@ -949,8 +950,8 @@ export class TestGeneratorAgent extends BaseAgent {
   }
 
   /**
-   * Generate test code using LLM (Phase 0 - RuvLLM Integration)
-   * Uses session management for 50% faster multi-turn conversations
+   * Generate test code using LLM (Phase 1.2.3 - IAgentLLM Migration)
+   * Uses simplified getAgentLLM() API for provider independence
    */
   private async generateTestCodeWithLLM(
     func: any,
@@ -970,7 +971,17 @@ Expected result: ${JSON.stringify(expectedResult)}
 
 Generate ONLY the test code (no explanations), using Jest describe/it blocks with expect assertions.`;
 
-    const testCode = await this.llmChat(prompt);
+    // Phase 1.2.3: Use IAgentLLM for provider-independent LLM calls
+    const llm = this.getAgentLLM();
+    if (!llm) {
+      throw new Error('LLM not available for test generation');
+    }
+
+    const testCode = await llm.complete(prompt, {
+      complexity: 'moderate',
+      maxTokens: 2048,
+      temperature: 0.2, // Lower temperature for more deterministic test code
+    });
 
     // Extract code block from response if present
     const codeMatch = testCode.match(/```(?:typescript|javascript)?\n([\s\S]*?)```/);

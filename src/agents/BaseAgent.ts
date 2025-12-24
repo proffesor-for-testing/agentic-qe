@@ -58,6 +58,9 @@ import {
   RoutingStrategy,
   TaskComplexity,
 } from '../providers/HybridRouter';
+// Agent LLM Interface (Phase 1.2.2 - LLM Independence)
+import type { IAgentLLM, AgentCompletionOptions } from './interfaces/IAgentLLM';
+import { createAgentLLM } from './adapters/AgentLLMAdapter';
 
 // Strategy interfaces
 import type {
@@ -207,6 +210,8 @@ export abstract class BaseAgent extends EventEmitter {
   private llmSessionId?: string;
   // HybridRouter with RuVector cache (Phase 0.5 - GNN Self-Learning)
   protected hybridRouter?: HybridRouter;
+  // Agent LLM Interface (Phase 1.2.2 - LLM Independence)
+  protected agentLLM?: IAgentLLM;
 
   // Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
   protected federatedManager?: FederatedManager;
@@ -768,6 +773,13 @@ export abstract class BaseAgent extends EventEmitter {
       if (this.llmConfig.provider) {
         this.llmProvider = this.llmConfig.provider;
         console.log(`[${this.agentId.id}] Using injected LLM provider`);
+
+        // Phase 1.2.2: Create agentLLM wrapper for simplified API
+        this.agentLLM = createAgentLLM(this.llmProvider, {
+          agentId: this.agentId.id,
+          defaultModel: this.llmConfig.ruvllm?.defaultModel,
+        });
+
         return;
       }
 
@@ -802,6 +814,13 @@ export abstract class BaseAgent extends EventEmitter {
         this.llmProvider = this.hybridRouter;
 
         console.log(`[${this.agentId.id}] HybridRouter initialized with RuVector GNN cache`);
+
+        // Phase 1.2.2: Create agentLLM wrapper for simplified API
+        this.agentLLM = createAgentLLM(this.llmProvider, {
+          agentId: this.agentId.id,
+          defaultModel: this.llmConfig.ruvllm?.defaultModel,
+        });
+
         return;
       }
 
@@ -828,6 +847,13 @@ export abstract class BaseAgent extends EventEmitter {
         }
 
         console.log(`[${this.agentId.id}] RuvLLM provider initialized`);
+
+        // Phase 1.2.2: Create agentLLM wrapper for simplified API
+        this.agentLLM = createAgentLLM(this.llmProvider, {
+          agentId: this.agentId.id,
+          defaultModel: this.llmConfig.ruvllm?.defaultModel,
+        });
+
         return;
       }
 
@@ -843,6 +869,12 @@ export abstract class BaseAgent extends EventEmitter {
 
       if (this.llmProvider) {
         console.log(`[${this.agentId.id}] LLM provider initialized: ${this.llmConfig.preferredProvider}`);
+
+        // Phase 1.2.2: Create agentLLM wrapper for simplified API
+        this.agentLLM = createAgentLLM(this.llmProvider, {
+          agentId: this.agentId.id,
+          defaultModel: this.llmConfig.ruvllm?.defaultModel,
+        });
       } else {
         console.warn(`[${this.agentId.id}] No LLM provider available`);
       }
@@ -957,7 +989,7 @@ export abstract class BaseAgent extends EventEmitter {
    * Check if LLM is available for this agent
    */
   public hasLLM(): boolean {
-    return this.llmProvider !== undefined;
+    return this.llmProvider !== undefined || this.agentLLM !== undefined;
   }
 
   /**
@@ -968,8 +1000,28 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
+   * Get Agent LLM interface (recommended for agent usage)
+   * Phase 1.2.2: Provides simplified, provider-independent LLM access
+   *
+   * @returns IAgentLLM instance if available, undefined otherwise
+   * @example
+   * ```typescript
+   * const llm = this.getAgentLLM();
+   * if (llm) {
+   *   const result = await llm.complete("Generate tests", { complexity: "moderate" });
+   * }
+   * ```
+   */
+  public getAgentLLM(): IAgentLLM | undefined {
+    return this.agentLLM;
+  }
+
+  /**
    * Make an LLM completion call
    * Uses RuvLLM's session management for 50% latency reduction on multi-turn
+   *
+   * NOTE: Phase 1.2.2 - Consider using this.agentLLM.complete() for a simpler API
+   * that doesn't require manual message construction.
    *
    * @param prompt - The prompt to send to the LLM
    * @param options - Additional completion options

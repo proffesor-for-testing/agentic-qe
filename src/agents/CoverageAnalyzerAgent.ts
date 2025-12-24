@@ -1069,7 +1069,41 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     return [];
   }
 
-  private async generateTestSuggestions(_prediction: any): Promise<string[]> {
+  /**
+   * Generate test suggestions for a coverage gap prediction
+   * Phase 1.2.3: Enhanced with optional LLM-powered suggestions
+   */
+  private async generateTestSuggestions(prediction: any): Promise<string[]> {
+    // Try LLM-enhanced suggestions if available
+    const llm = this.getAgentLLM();
+    if (llm && prediction?.gap) {
+      try {
+        const prompt = `Suggest 3 specific test cases to cover this gap:
+Gap: ${prediction.gap}
+Context: ${prediction.context || 'Coverage analysis'}
+
+Return a JSON array of test names only, e.g., ["test-case-1", "test-case-2", "test-case-3"]`;
+
+        const response = await llm.complete(prompt, {
+          complexity: 'simple',
+          maxTokens: 256,
+          temperature: 0.3,
+        });
+
+        // Try to parse JSON array from response
+        const match = response.match(/\[[\s\S]*\]/);
+        if (match) {
+          const suggestions = JSON.parse(match[0]);
+          if (Array.isArray(suggestions) && suggestions.length > 0) {
+            return suggestions.slice(0, 5); // Limit to 5
+          }
+        }
+      } catch {
+        // Fall through to default
+      }
+    }
+
+    // Default algorithmic suggestions
     return ['suggested-test-1', 'suggested-test-2'];
   }
 
@@ -1077,7 +1111,41 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     return SecureRandom.randomFloat();
   }
 
+  /**
+   * Generate function-specific test suggestions
+   * Phase 1.2.3: Enhanced with optional LLM-powered analysis
+   */
   private async generateFunctionTestSuggestions(func: any): Promise<string[]> {
+    // Try LLM-enhanced suggestions if available
+    const llm = this.getAgentLLM();
+    if (llm && func?.name) {
+      try {
+        const prompt = `For the function "${func.name}", suggest 3 test cases covering:
+1. Boundary/edge cases
+2. Error conditions
+3. Typical usage
+
+Return a JSON array of descriptive test names only.`;
+
+        const response = await llm.complete(prompt, {
+          complexity: 'simple',
+          maxTokens: 256,
+          temperature: 0.3,
+        });
+
+        const match = response.match(/\[[\s\S]*\]/);
+        if (match) {
+          const suggestions = JSON.parse(match[0]);
+          if (Array.isArray(suggestions) && suggestions.length > 0) {
+            return suggestions.slice(0, 5);
+          }
+        }
+      } catch {
+        // Fall through to default
+      }
+    }
+
+    // Default algorithmic suggestions
     return [`test-${func.name}-boundary-values`, `test-${func.name}-error-conditions`];
   }
 

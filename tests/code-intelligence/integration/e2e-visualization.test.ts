@@ -259,8 +259,9 @@ describe('E2E: Code Intelligence Visualization', () => {
       expect(diagram).toMatch(/file.user.service/i);
       expect(diagram).toMatch(/file.base.service/i);
 
-      // Verify edges exist (uses thick arrows for imports)
-      expect(diagram).toMatch(/==>|-->/);
+      // Verify edges exist (uses Mermaid arrows for imports)
+      const hasMermaidArrows = diagram.includes('==>') || diagram.includes('-->');
+      expect(hasMermaidArrows).toBe(true);
     });
 
     it('should detect circular dependencies', () => {
@@ -368,8 +369,9 @@ describe('E2E: Code Intelligence Visualization', () => {
       expect(diagram).toContain('graph');
       expect(diagram).toContain('UserService.ts');
       expect(diagram).toContain('BaseService.ts');
-      // Uses thick arrows (==>) for import relationships
-      expect(diagram).toMatch(/==>|-->/);
+      // Uses Mermaid arrows (==>) for import relationships
+      const hasMermaidArrows = diagram.includes('==>') || diagram.includes('-->');
+      expect(hasMermaidArrows).toBe(true);
     });
 
     it('should support different directions', () => {

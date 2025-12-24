@@ -152,6 +152,18 @@ export class RuVectorPatternStore implements IPatternStore {
   }
 
   /**
+   * Initialize the pattern store
+   * HNSW store is ready after construction, legacy store may need async init
+   */
+  async initialize(): Promise<void> {
+    // HNSW is ready from constructor
+    // Legacy store initialization (if needed) happens here
+    if (this.legacyStore && typeof this.legacyStore.initialize === 'function') {
+      await this.legacyStore.initialize();
+    }
+  }
+
+  /**
    * Check if we're in dual-write or dual-read mode
    */
   private isDualMode(): boolean {

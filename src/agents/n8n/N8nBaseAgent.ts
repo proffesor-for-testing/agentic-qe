@@ -538,6 +538,98 @@ export abstract class N8nBaseAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // LLM-Powered Analysis (Phase 1.2.3)
+  // ============================================================================
+
+  /**
+   * Phase 1.2.3: Analyze workflow with LLM for insights
+   * Uses IAgentLLM for provider-independent LLM calls
+   * Child agents can call this for AI-powered workflow analysis
+   *
+   * @param workflow - The workflow to analyze
+   * @param analysisType - Type of analysis to perform
+   * @returns AI-generated insights or undefined if LLM unavailable
+   */
+  protected async analyzeWorkflowWithLLM(
+    workflow: N8nWorkflow,
+    analysisType: 'complexity' | 'optimization' | 'security' | 'general' = 'general'
+  ): Promise<string | undefined> {
+    const llm = this.getAgentLLM();
+    if (!llm) {
+      return undefined;
+    }
+
+    try {
+      const nodeTypes = this.getNodeTypes(workflow);
+      const triggers = this.getTriggerNodes(workflow);
+      const expressions = this.extractExpressions(workflow);
+
+      const workflowSummary = `
+Workflow: ${workflow.name || workflow.id}
+Nodes: ${workflow.nodes.length} (types: ${nodeTypes.slice(0, 5).join(', ')})
+Triggers: ${triggers.map(t => t.type).join(', ') || 'none'}
+Expressions: ${expressions.length}
+Active: ${workflow.active}`;
+
+      const prompts: Record<string, string> = {
+        complexity: `Assess the complexity of this n8n workflow and identify potential issues in 2-3 sentences:\n${workflowSummary}`,
+        optimization: `Suggest 2-3 optimizations for this n8n workflow:\n${workflowSummary}`,
+        security: `Identify potential security concerns in this n8n workflow (2-3 points):\n${workflowSummary}`,
+        general: `Summarize this n8n workflow's purpose and structure in 2-3 sentences:\n${workflowSummary}`,
+      };
+
+      const response = await llm.complete(prompts[analysisType], {
+        complexity: 'simple',
+        maxTokens: 200,
+        temperature: 0.3,
+      });
+
+      return response.trim();
+    } catch (error) {
+      // Silently fail - LLM analysis is optional enhancement
+      return undefined;
+    }
+  }
+
+  /**
+   * Phase 1.2.3: Generate test suggestions for workflow nodes
+   * Uses IAgentLLM for provider-independent LLM calls
+   *
+   * @param node - The node to generate test suggestions for
+   * @returns Array of test suggestions or empty array if LLM unavailable
+   */
+  protected async generateNodeTestSuggestions(node: N8nNode): Promise<string[]> {
+    const llm = this.getAgentLLM();
+    if (!llm) {
+      return [];
+    }
+
+    try {
+      const prompt = `Suggest 3 specific test cases for this n8n node (JSON array of strings):
+Node type: ${node.type}
+Node name: ${node.name}
+Parameters: ${JSON.stringify(Object.keys(node.parameters || {})).slice(0, 200)}
+
+Test suggestions:`;
+
+      const response = await llm.complete(prompt, {
+        complexity: 'simple',
+        maxTokens: 150,
+        temperature: 0.3,
+      });
+
+      // Try to parse JSON array
+      const match = response.match(/\[[\s\S]*?\]/);
+      if (match) {
+        return JSON.parse(match[0]);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  // ============================================================================
   // Helper Methods
   // ============================================================================
 

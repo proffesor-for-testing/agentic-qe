@@ -32,6 +32,7 @@ import * as transferCommands from './commands/transfer/index.js';
 import * as patternsCommands from './commands/patterns/index.js';
 import * as improveCommands from './commands/improve/index.js';
 import * as skillsCommands from './commands/skills/index.js';
+import * as providersCommands from './commands/providers';
 import { InitCommand } from './commands/init';
 import { createQuantizationCommand } from './commands/quantization';
 import { createConstitutionCommand } from './commands/constitution';
@@ -1290,6 +1291,68 @@ improveCommand
       await improveCommands.improveCommand('report', [], options);
     } catch (error) {
       console.error(chalk.red('❌ Report generation failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Providers commands
+ */
+const providersCommand = program
+  .command('providers')
+  .description('Manage LLM providers');
+
+providersCommand
+  .command('list')
+  .description('List all configured providers and their status')
+  .option('-f, --format <format>', 'Output format (json, table)', 'table')
+  .option('-v, --verbose', 'Show detailed information')
+  .action(async (options) => {
+    try {
+      await providersCommands.providersList(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Providers list failed:'), error);
+      process.exit(1);
+    }
+  });
+
+providersCommand
+  .command('status')
+  .description('Show current provider status and health')
+  .option('-f, --format <format>', 'Output format (json, table)', 'table')
+  .option('-v, --verbose', 'Show usage statistics')
+  .action(async (options) => {
+    try {
+      await providersCommands.providersStatus(options);
+    } catch (error) {
+      console.error(chalk.red('❌ Providers status failed:'), error);
+      process.exit(1);
+    }
+  });
+
+providersCommand
+  .command('switch')
+  .description('Switch the default provider')
+  .argument('<provider>', 'Provider name (ollama, claude, openrouter, ruvllm)')
+  .action(async (provider, options) => {
+    try {
+      await providersCommands.providersSwitch(provider, options);
+    } catch (error) {
+      console.error(chalk.red('❌ Providers switch failed:'), error);
+      process.exit(1);
+    }
+  });
+
+providersCommand
+  .command('test')
+  .description('Test a specific provider\'s connectivity')
+  .argument('[provider]', 'Provider name to test')
+  .option('-v, --verbose', 'Show detailed error information')
+  .action(async (provider, options) => {
+    try {
+      await providersCommands.providersTest(provider, { ...options, provider });
+    } catch (error) {
+      console.error(chalk.red('❌ Provider test failed:'), error);
       process.exit(1);
     }
   });

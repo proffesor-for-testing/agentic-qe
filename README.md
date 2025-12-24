@@ -11,7 +11,7 @@
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.6.1** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.6.2** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
@@ -56,18 +56,24 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 ```
 
 **What gets initialized:**
-- ✅ Real-time dashboards, interactive graphs (v1.9.0)
-- ✅ OpenTelemetry, Event Store, Constitution System
-- ✅ Multi-Model Router (70-81% cost savings - opt-in)
-- ✅ Learning System (20% improvement target)
-- ✅ Pattern Bank (cross-project reuse)
-- ✅ ML Flaky Detection (90%+ accuracy with root cause analysis)
-- ✅ 21 Specialized QE agent definitions (including qe-code-intelligence for 80% token reduction)
-- ✅ 15 n8n workflow testing agents (workflow execution, chaos, compliance, security, performance by [@fndlalit](https://github.com/fndlalit))
-- ✅ 11 TDD subagent definitions (RED/GREEN/REFACTOR phases + specialized)
-- ✅ 46 World-class QE skills library (accessibility, shift-left/right, verification, visual testing, XP practices, n8n testing, **testability-scoring** by [@fndlalit](https://github.com/fndlalit))
-- ✅ 8 AQE slash commands
-- ✅ Modular init system with comprehensive project setup
+- ✅ **Real-time Visualization**: Dashboards, interactive graphs, WebSocket streaming
+- ✅ **Observability Stack**: OpenTelemetry, Event Store, Constitution System
+- ✅ **HybridRouter**: Intelligent LLM routing with 70-81% cost savings
+- ✅ **Self-Learning System**: Agents improve with every task (20% target)
+- ✅ **Pattern Bank**: Cross-project pattern reuse (85%+ matching)
+- ✅ **ML Flaky Detection**: 90%+ accuracy with root cause analysis
+- ✅ **21 QE Agents**: Including Code Intelligence (80% token reduction)
+- ✅ **15 n8n Agents**: Workflow testing by [@fndlalit](https://github.com/fndlalit)
+- ✅ **11 TDD Subagents**: RED/GREEN/REFACTOR phases
+- ✅ **46 QE Skills**: Including **testability-scoring** by [@fndlalit](https://github.com/fndlalit)
+- ✅ **8 Slash Commands**: Quick access to common workflows
+
+**Optional Configuration** (`.env`):
+```bash
+# Enable advanced features (see .env.example)
+LLM_MODE=hybrid              # Cost-optimized routing
+AQE_RUVECTOR_ENABLED=true    # Self-learning with PostgreSQL
+```
 
 ---
 
@@ -87,176 +93,141 @@ claude "Use qe-flaky-test-hunter to analyze the last 100 test runs and identify 
 
 ## ✨ Features
 
-### Real-Time Visualization (since v1.9.0)
+### 🧠 Self-Learning Agents That Get Smarter
 
-**Observability Dashboards**
+Unlike traditional testing tools that start from scratch every run, **AQE agents build institutional knowledge** for your codebase:
 
-#### 📊 Interactive React Frontend
-- **MindMap Component**: Cytoscape.js-powered graph visualization with 6 layout algorithms
-  - Support for 1000+ nodes with <500ms render time
-  - Expand/collapse, zoom/pan, search/filter
-  - Real-time WebSocket updates
-  - Export to PNG/JSON
+| What Gets Learned | Benefit |
+|-------------------|---------|
+| **Test patterns** that work for your framework | 85%+ pattern reuse across projects |
+| **Optimal strategies** for your codebase structure | Faster, more relevant test generation |
+| **Failure patterns** and how to prevent them | Proactive defect prevention |
+| **Cost-effective routing** decisions | Automatic budget optimization |
 
-- **QualityMetrics Panel**: Recharts-based quality visualization
-  - 7-dimension radar chart (coverage, security, performance, etc.)
-  - Trend analysis with historical data
-  - Token usage and cost tracking
-  - Auto-refresh every 30 seconds
+**4 Reinforcement Learning Algorithms**: Q-Learning (default), SARSA, Actor-Critic (A2C), PPO
 
-- **Timeline View**: Virtual scrolling for event history
-  - Handle 1000+ events with react-window
-  - Color-coded event types
-  - Advanced filtering (agent, type, session, time range)
-  - Drill-down detail panels
-
-#### 🔌 Backend API Services
-- **REST API**: 6 endpoints for historical data queries
-  - Event history with pagination
-  - Aggregated metrics
-  - Graph visualization data
-  - Agent activity history
-
-- **WebSocket Server**: Real-time streaming with backpressure
-  - Event streaming with client subscriptions
-  - Heartbeat mechanism
-  - Connection management
-  - <50ms latency
-
-#### 📈 Grafana Dashboards
-- **Executive Dashboard**: Quality trends and cost analysis
-- **Developer Dashboard**: Trace explorer and debugging tools
-- **QA Dashboard**: Test metrics and coverage visualization
-
-**Performance:**
-- ✅ 185 events/sec write throughput (186% of target)
-- ✅ <1ms query latency (99% better than target)
-- ✅ <100ms render time for 100 nodes
-- ✅ <500ms render time for 1000 nodes
-
-**Quick Start:**
 ```bash
-# Start visualization services
-node scripts/start-visualization-services.ts
-
-# Start frontend dev server
-cd frontend && npm run dev
-
-# Open in browser
-open http://localhost:3000
+# Check what your agents have learned
+aqe learn status --agent qe-test-generator
+aqe patterns list --framework jest
 ```
-
-**Documentation**: See `docs/PHASE3-COMPLETE.md` for full details
 
 ---
 
-### 🤖 Autonomous Agent Fleet
-- **20 Specialized Agents**: Expert agents for every QE domain (test generation, coverage analysis, security scanning, performance testing, code complexity analysis, QX analysis, accessibility)
-- **11 TDD Subagents**: Specialized subagents for Test-Driven Development workflow (RED/GREEN/REFACTOR phases + quality validation + analysis)
-- **AI-Powered Coordination**: Event-driven architecture with intelligent task distribution
-- **Zero External Dependencies**: Native AQE hooks system (100-500x faster than external coordination)
-- **Scalable**: From single developer projects to enterprise-scale testing infrastructure
+### 💰 70-81% Cost Savings with Intelligent Routing
 
-### 🧠 Intelligence & Learning
-- **QE Agent Learning System**: Q-Learning integrated with AgentDB's 9 RL algorithms, 20% improvement target with automatic strategy optimization
-- **Pattern Bank**: 85%+ matching accuracy across 6 test frameworks (Jest, Mocha, Cypress, Vitest, Jasmine, AVA)
-- **ML Flaky Detection**: 90%+ accuracy with root cause analysis and automated fix recommendations
-- **Continuous Improvement**: A/B testing framework with 95%+ statistical confidence
-- **Experience Replay**: Learn from 10,000+ past executions
+**HybridRouter** automatically matches task complexity to the right model:
 
-### 🧠 Self-Learning System (from v2.2.0)
+| Task Type | Model Selected | Cost |
+|-----------|----------------|------|
+| Simple (formatting, syntax) | Claude Haiku / GPT-3.5 | $0.25/M |
+| Moderate (unit tests, refactoring) | Claude Sonnet / GPT-4 Turbo | $3/M |
+| Complex (architecture, security) | Claude Opus 4.5 / GPT-5 | $15/M |
+| Reasoning-heavy | DeepSeek R1 / o1-preview | Varies |
 
-AQE agents learn from every interaction and improve over time. Unlike traditional tools that start from scratch each run, the Self-Learning System builds institutional knowledge for your codebase.
+**25+ December 2025 models** including Claude Opus 4.5, DeepSeek R1 (671B), GPT-5, Gemini 2.5 Pro
 
-**How It Works:**
+---
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Self-Learning Pipeline                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│   │  Agent   │───▶│ Execute  │───▶│ Evaluate │───▶│  Learn   │  │
-│   │  Action  │    │   Task   │    │  Result  │    │ & Store  │  │
-│   └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│        │                                               │         │
-│        │         ┌─────────────────────────────┐       │         │
-│        └────────▶│     Pattern Bank (AgentDB)  │◀──────┘         │
-│                  │  • Successful strategies    │                 │
-│                  │  • Framework patterns       │                 │
-│                  │  • Q-values per action      │                 │
-│                  └─────────────────────────────┘                 │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 🤖 48 Specialized QE Agents
 
-**Reinforcement Learning Algorithms:**
-- **Q-Learning**: Default algorithm - learns optimal action-value functions
-- **SARSA**: On-policy learning for safer exploration
-- **Actor-Critic (A2C)**: Combines value and policy learning
-- **PPO**: Advanced policy optimization for complex scenarios
+| Category | Agents | Highlights |
+|----------|--------|------------|
+| **Core QE** | 21 agents | Test generation, coverage, security, performance, accessibility |
+| **TDD Workflow** | 11 subagents | RED/GREEN/REFACTOR phases with coordination |
+| **n8n Workflow Testing** | 15 agents | Chaos, compliance, security, BDD scenarios |
+| **Base** | 1 template | Create custom agents |
 
-**What Gets Learned:**
-- Which test patterns work best for your framework (Jest, Cypress, etc.)
-- Optimal strategies for your codebase structure
-- Common failure patterns and how to prevent them
-- Cost-effective model routing decisions
+**Zero external dependencies** - Native hooks system runs 100-500x faster than external coordination
 
-**CLI Commands:**
+---
+
+### 🎯 ML-Powered Flaky Test Detection
+
+**90%+ accuracy** with automated root cause analysis:
+
+- Statistical pattern detection across test runs
+- Timing analysis and race condition identification
+- **Auto-fix recommendations** with code suggestions
+- Integration with CI/CD for continuous monitoring
+
 ```bash
-# Check learning status for an agent
-aqe learn status --agent qe-test-generator
-
-# List learned patterns for a framework
-aqe patterns list --framework jest
-
-# View algorithm performance
-aqe learn metrics --algorithm q-learning
-
-# Switch learning algorithm
-aqe learn set-algorithm --agent qe-test-generator --algorithm sarsa
+claude "Use qe-flaky-test-hunter to analyze the last 100 test runs"
 ```
 
-**Persistence:** All learning is stored in AgentDB (SQLite-based) and persists across sessions. Your agents get smarter with every run.
+---
 
-### 💰 Cost Optimization
-- **Multi-Model Router**: 70-81% cost savings through intelligent model selection (opt-in feature)
-- **4+ AI Models**: GPT-3.5, GPT-4, Claude Haiku, Claude Sonnet 4.5
-- **Smart Routing**: Automatic complexity analysis and optimal model selection
-- **Real-Time Tracking**: Live cost monitoring with budget alerts and forecasting
-- **ROI Dashboard**: Track savings vs single-model baseline
+### 🔍 Code Intelligence (80% Token Reduction)
 
-### 📊 Comprehensive Testing
-- **Multi-Framework Support**: Jest, Mocha, Cypress, Playwright, Vitest, Jasmine, AVA
-- **Parallel Execution**: 10,000+ concurrent tests with intelligent orchestration
-- **Real-Time Coverage**: O(log n) algorithms for instant gap detection
-- **Performance Testing**: k6, JMeter, Gatling integration
-- **Real-Time Streaming**: Live progress updates for all operations
+Stop wasting tokens on irrelevant code. **Semantic search + knowledge graphs** deliver only what matters:
 
-### 🎓 41 QE Skills Library
-**95%+ coverage of modern QE practices**
+- **Tree-sitter parsing** for TypeScript, Python, Go, Rust, JavaScript
+- **Hybrid search**: BM25 + vector similarity with <10ms latency
+- **RAG context building** for LLM queries
+- **Mermaid visualization** of code relationships
+
+```bash
+aqe kg index src/          # Index your codebase
+aqe kg search "auth flow"  # Semantic search
+```
+
+---
+
+### 📊 Real-Time Visualization
+
+**See your agents work** with live dashboards:
+
+- **MindMap**: 1000+ nodes, <500ms render, WebSocket updates
+- **Quality Radar**: 7-dimension chart (coverage, security, performance)
+- **Timeline**: Virtual scrolling for 1000+ events
+- **Grafana**: Executive, Developer, and QA dashboards
+
+**Performance**: 185 events/sec throughput, <1ms query latency
+
+---
+
+### 🎓 46 World-Class QE Skills
+
+**95%+ coverage of modern QE practices** - agents automatically apply relevant skills:
 
 <details>
-<summary><b>View All Skills</b></summary>
+<summary><b>View All 46 Skills</b></summary>
 
-**Phase 1: Original Quality Engineering Skills (18 skills)**
-- **Core Testing**: agentic-quality-engineering, holistic-testing-pact, context-driven-testing, exploratory-testing-advanced
-- **Methodologies**: tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy
-- **Techniques**: api-testing-patterns, performance-testing, security-testing
-- **Code Quality**: code-review-quality, refactoring-patterns, quality-metrics
-- **Communication**: bug-reporting-excellence, technical-writing, consultancy-practices
+**Core Testing & Methodologies**
+- agentic-quality-engineering, holistic-testing-pact, context-driven-testing
+- tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy
 
-**Phase 2: Expanded QE Skills Library (16 skills)**
-- **Testing Methodologies (7)**: regression-testing, shift-left-testing, shift-right-testing, test-design-techniques, mutation-testing, test-data-management, verification-quality
-- **Specialized Testing (9)**: accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, compatibility-testing, localization-testing, compliance-testing, visual-testing-advanced
-- **Testing Infrastructure (2)**: test-environment-management, test-reporting-analytics
+**Specialized Testing**
+- accessibility-testing, mobile-testing, database-testing, contract-testing
+- chaos-engineering-resilience, visual-testing-advanced, compliance-testing
 
-**Phase 3: Advanced Quality Engineering Skills (4 skills)**
-- **Strategic Testing Methodologies (4)**: six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator
+**Strategic & Communication**
+- six-thinking-hats, brutal-honesty-review, sherlock-review
+- cicd-pipeline-qe-orchestrator, bug-reporting-excellence
 
-**Total: 41 QE Skills** - Includes accessibility testing, shift-left/right testing, verification & quality assurance, visual testing advanced, XP practices, and technical writing
+**n8n Workflow Testing** (contributed by [@fndlalit](https://github.com/fndlalit))
+- n8n-workflow-testing, n8n-expression-testing, n8n-security-testing
+
+**Unique Skills**
+- **testability-scoring** - Score code testability before writing tests
+- **qx-partner** - QA + UX collaboration for quality experience
 
 </details>
+
+---
+
+### 📦 Multi-Framework Support
+
+Works with your existing tools:
+
+| Category | Supported |
+|----------|-----------|
+| **Unit Testing** | Jest, Mocha, Vitest, Jasmine, AVA |
+| **E2E Testing** | Cypress, Playwright |
+| **Performance** | k6, JMeter, Gatling |
+| **Code Quality** | ESLint, SonarQube, Lighthouse |
+
+**Parallel execution**: 10,000+ concurrent tests with intelligent orchestration
 
 ---
 
@@ -637,6 +608,98 @@ claude "Use qe-test-generator to run the complete TDD workflow for src/services/
 The test generator automatically delegates to subagents for a complete RED-GREEN-REFACTOR-REVIEW cycle.
 
 </details>
+
+---
+
+## 🤖 LLM Provider Configuration
+
+### Multi-Provider Support (v2.6+)
+
+AQE supports multiple LLM providers for maximum flexibility and cost optimization:
+
+| Provider | Type | Cost | Setup Time | Best For |
+|----------|------|------|------------|----------|
+| **Ollama** | Local | FREE | 10 min | Privacy, offline, no budget |
+| **OpenRouter** | Cloud | Paid/Free | 2 min | 300+ models, flexibility |
+| **Groq** | Cloud | FREE | 1 min | High-speed, 14,400 req/day |
+| **Claude API** | Cloud | Paid | 2 min | Highest quality |
+| **Google AI** | Cloud | FREE | 2 min | Gemini models, 1,500 req/day |
+
+### Quick Setup
+
+#### Free Cloud (No Hardware Required)
+
+```bash
+# 1. Get free API key from https://console.groq.com/
+export GROQ_API_KEY="gsk_..."
+
+# 2. Install AQE
+npm install -g agentic-qe
+aqe init
+
+# 3. Start using
+claude "Use qe-test-generator to create tests for UserService"
+```
+
+#### Local Ollama (Private, Offline)
+
+```bash
+# 1. Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Download model
+ollama pull qwen3-coder:30b
+
+# 3. Start server
+ollama serve
+
+# 4. Install AQE
+npm install -g agentic-qe
+aqe init
+```
+
+#### Multi-Provider (Recommended)
+
+```typescript
+import { LLMProviderFactory } from 'agentic-qe';
+
+const factory = new LLMProviderFactory({
+  defaultProvider: 'auto',  // Auto-detect best provider
+  enableFallback: true,      // Automatic failover
+
+  // Free tier cloud (primary)
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    defaultModel: 'mistralai/devstral-2512:free'  // FREE 123B model
+  },
+
+  // Local backup (unlimited)
+  ruvllm: {
+    defaultModel: 'qwen3-coder:30b'
+  }
+});
+
+await factory.initialize();
+```
+
+### Model Recommendations
+
+**FREE Tier**:
+- **Best Quality**: `mistralai/devstral-2512:free` (123B, OpenRouter)
+- **High Speed**: `llama-3.3-70b-versatile` (Groq, 14,400 req/day)
+- **Local Privacy**: `qwen3-coder:30b` (Ollama, unlimited)
+
+**Paid Tier** (Cost-Effective):
+- **Cheapest**: `mistralai/devstral-small-2505` ($0.06/$0.12 per M)
+- **Balanced**: `qwen/qwen-2.5-coder-32b-instruct` ($0.18/$0.18 per M)
+- **Premium**: `claude-sonnet-4` ($3/$15 per M)
+
+### Documentation
+
+- **[LLM Providers Guide](docs/guides/llm-providers-guide.md)** - Complete provider overview
+- **[Ollama Setup Guide](docs/guides/ollama-setup.md)** - Local inference setup
+- **[Free Tier Guide](docs/guides/free-tier-guide.md)** - Zero-cost deployment
+- **[Config Schema](docs/reference/provider-config-schema.md)** - Full configuration reference
 
 ---
 

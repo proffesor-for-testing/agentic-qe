@@ -93,8 +93,12 @@ export interface CodeIntelligenceResult {
   };
   /** For search: search results */
   searchResults?: QueryResult;
+  /** For search: AI-generated summary of results (Phase 1.2.3) */
+  searchSummary?: string;
   /** For context: formatted context string */
   context?: string;
+  /** For context: AI-generated explanation (Phase 1.2.3) */
+  contextExplanation?: string;
   /** For context: token estimate */
   tokenEstimate?: number;
   /** For context: token reduction percentage */
@@ -284,10 +288,14 @@ export class CodeIntelligenceAgent extends BaseAgent {
 
     const result = await this.orchestrator.query(queryContext);
 
+    // Phase 1.2.3: Generate AI summary of search results if LLM available
+    const searchSummary = await this.generateSearchSummary(payload.query, result);
+
     return {
       success: true,
       taskType: 'search',
       searchResults: result,
+      searchSummary,
     };
   }
 
@@ -336,10 +344,14 @@ export class CodeIntelligenceAgent extends BaseAgent {
       throw new Error('Failed to build context');
     }
 
+    // Phase 1.2.3: Generate AI explanation of context if LLM available
+    const contextExplanation = await this.generateContextExplanation(enrichedContext.formatted.content);
+
     return {
       success: true,
       taskType: 'context',
       context: enrichedContext.formatted.content,
+      contextExplanation,
       tokenEstimate: enrichedContext.metadata.tokenEstimate,
       tokenReduction: enrichedContext.metadata.tokenReduction || 80,
     };
@@ -454,6 +466,74 @@ export class CodeIntelligenceAgent extends BaseAgent {
   // ============================================================================
   // Helper Methods
   // ============================================================================
+
+  /**
+   * Phase 1.2.3: Generate AI summary of search results
+   * Uses IAgentLLM for provider-independent LLM calls
+   */
+  private async generateSearchSummary(query: string, result: QueryResult): Promise<string | undefined> {
+    const llm = this.getAgentLLM();
+    if (!llm || result.results.length === 0) {
+      return undefined;
+    }
+
+    try {
+      const topResults = result.results.slice(0, 5);
+      const resultsContext = topResults
+        .map((r, i) => `${i + 1}. ${r.entityName || r.filePath}:${r.startLine}-${r.endLine} (${r.entityType || 'chunk'})`)
+        .join('\n');
+
+      const prompt = `Summarize these code search results for query "${query}" in 2-3 sentences:
+${resultsContext}
+
+Summary:`;
+
+      const response = await llm.complete(prompt, {
+        complexity: 'simple',
+        maxTokens: 150,
+        temperature: 0.3,
+      });
+
+      return response.trim();
+    } catch (error) {
+      this.logger.debug(`LLM search summary failed: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Phase 1.2.3: Generate AI explanation of code context
+   * Uses IAgentLLM for provider-independent LLM calls
+   */
+  private async generateContextExplanation(context: string): Promise<string | undefined> {
+    const llm = this.getAgentLLM();
+    if (!llm || context.length < 100) {
+      return undefined;
+    }
+
+    try {
+      // Take first 2000 chars to avoid token limits
+      const truncatedContext = context.slice(0, 2000);
+
+      const prompt = `Explain what this code does in 2-3 sentences (focus on purpose and key functionality):
+\`\`\`
+${truncatedContext}
+\`\`\`
+
+Explanation:`;
+
+      const response = await llm.complete(prompt, {
+        complexity: 'simple',
+        maxTokens: 200,
+        temperature: 0.3,
+      });
+
+      return response.trim();
+    } catch (error) {
+      this.logger.debug(`LLM context explanation failed: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
 
   private inferTaskType(task: QETask): CodeIntelligenceTaskType {
     const description = (task.description || task.type || '').toLowerCase();

@@ -287,21 +287,22 @@ export class FileWatcher extends EventEmitter {
         return normalizedPath.endsWith(ext);
       }
       // Check if path ends with the pattern
-      const suffixRegex = new RegExp(
-        suffix
-          .replace(/\./g, '\\.')
-          .replace(/\*\*/g, '.*')
-          .replace(/\*/g, '[^/]*') + '$'
-      );
+      // Escape all special regex characters except glob wildcards
+      const escapedSuffix = suffix
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special regex chars
+        .replace(/\\\*\\\*/g, '.*')              // ** -> match any path
+        .replace(/\\\*/g, '[^/]*');              // * -> match within segment
+      const suffixRegex = new RegExp(escapedSuffix + '$');
       return suffixRegex.test(normalizedPath);
     }
 
     // Convert full glob to regex
+    // Escape all special regex characters except glob wildcards
     const regexPattern = normalizedPattern
-      .replace(/\./g, '\\.')
-      .replace(/\*\*/g, '{{GLOBSTAR}}')
-      .replace(/\*/g, '[^/]*')
-      .replace(/{{GLOBSTAR}}/g, '.*');
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special regex chars
+      .replace(/\\\*\\\*/g, '{{GLOBSTAR}}')   // Preserve ** temporarily
+      .replace(/\\\*/g, '[^/]*')              // * -> match within segment
+      .replace(/{{GLOBSTAR}}/g, '.*');        // ** -> match any path
 
     const regex = new RegExp(`^${regexPattern}$`);
     return regex.test(normalizedPath);
