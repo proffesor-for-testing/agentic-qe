@@ -1528,5 +1528,63 @@ kgCommand
     }
   });
 
+kgCommand
+  .command('c4-context')
+  .description('Generate C4 system context diagram')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('--json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await KnowledgeGraphCommand.c4Context({
+        output: options.output,
+        json: options.json || false,
+        verbose: options.verbose || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ C4 Context diagram failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('c4-container')
+  .description('Generate C4 container diagram')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('--json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed output')
+  .action(async (options) => {
+    try {
+      await KnowledgeGraphCommand.c4Container({
+        output: options.output,
+        json: options.json || false,
+        verbose: options.verbose || false
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ C4 Container diagram failed:'), error);
+      process.exit(1);
+    }
+  });
+
+kgCommand
+  .command('c4-component [container]')
+  .description('Generate C4 component diagram for a container')
+  .option('-o, --output <file>', 'Save diagram to file')
+  .option('--json', 'Output as JSON')
+  .option('-v, --verbose', 'Show detailed output')
+  .action(async (container, options) => {
+    try {
+      await KnowledgeGraphCommand.c4Component(container, {
+        output: options.output,
+        json: options.json || false,
+        verbose: options.verbose || false,
+        container: container
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ C4 Component diagram failed:'), error);
+      process.exit(1);
+    }
+  });
+
 // Parse command line arguments
 program.parse();

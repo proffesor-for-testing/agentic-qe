@@ -18,6 +18,12 @@ import { KGOutputFormatter } from '../formatters/KGOutputFormatter.js';
 import { MermaidGenerator } from '../../code-intelligence/visualization/MermaidGenerator.js';
 import { ClassDiagramBuilder } from '../../code-intelligence/visualization/ClassDiagramBuilder.js';
 import { DependencyGraphBuilder } from '../../code-intelligence/visualization/DependencyGraphBuilder.js';
+import { C4ContextDiagramBuilder } from '../../code-intelligence/visualization/C4ContextDiagramBuilder.js';
+import { C4ContainerDiagramBuilder } from '../../code-intelligence/visualization/C4ContainerDiagramBuilder.js';
+import { C4ComponentDiagramBuilder } from '../../code-intelligence/visualization/C4ComponentDiagramBuilder.js';
+import { ProjectMetadataAnalyzer } from '../../code-intelligence/inference/ProjectMetadataAnalyzer.js';
+import { ExternalSystemDetector } from '../../code-intelligence/inference/ExternalSystemDetector.js';
+import { ComponentBoundaryAnalyzer } from '../../code-intelligence/inference/ComponentBoundaryAnalyzer.js';
 import type { IndexingProgress, QueryContext, QueryResult } from '../../code-intelligence/orchestrator/types.js';
 
 export interface KGIndexOptions {
@@ -47,6 +53,13 @@ export interface KGGraphOptions {
 export interface KGStatsOptions {
   json: boolean;
   verbose: boolean;
+}
+
+export interface KGC4Options {
+  output?: string;
+  json: boolean;
+  verbose: boolean;
+  container?: string;
 }
 
 export class KnowledgeGraphCommand {
@@ -87,6 +100,30 @@ export class KnowledgeGraphCommand {
   static async stats(options: KGStatsOptions): Promise<void> {
     const cmd = new KnowledgeGraphCommand();
     await cmd.executeStats(options);
+  }
+
+  /**
+   * C4 Context command: Generate C4 system context diagram
+   */
+  static async c4Context(options: KGC4Options): Promise<void> {
+    const cmd = new KnowledgeGraphCommand();
+    await cmd.executeC4Context(options);
+  }
+
+  /**
+   * C4 Container command: Generate C4 container diagram
+   */
+  static async c4Container(options: KGC4Options): Promise<void> {
+    const cmd = new KnowledgeGraphCommand();
+    await cmd.executeC4Container(options);
+  }
+
+  /**
+   * C4 Component command: Generate C4 component diagram
+   */
+  static async c4Component(containerName: string | undefined, options: KGC4Options): Promise<void> {
+    const cmd = new KnowledgeGraphCommand();
+    await cmd.executeC4Component(containerName, options);
   }
 
   /**
@@ -498,6 +535,201 @@ export class KnowledgeGraphCommand {
 
     lines.push('}');
     return lines.join('\n');
+  }
+
+  /**
+   * Execute C4 Context diagram generation
+   */
+  private async executeC4Context(options: KGC4Options): Promise<void> {
+    if (!options.json) {
+      console.log(chalk.blue.bold('\n📊 C4 System Context Diagram\n'));
+    }
+
+    try {
+      const rootDir = process.cwd();
+      const spinner = ora('Analyzing project metadata...').start();
+
+      // Analyze project metadata
+      const metadataAnalyzer = new ProjectMetadataAnalyzer(rootDir);
+      const metadata = await metadataAnalyzer.analyze();
+      spinner.text = 'Detecting external systems...';
+
+      // Detect external systems
+      const externalDetector = new ExternalSystemDetector(rootDir);
+      const externalSystems = await externalDetector.detect();
+      spinner.succeed('Analysis complete');
+
+      // Generate C4 Context diagram
+      const builder = new C4ContextDiagramBuilder();
+      const diagram = builder.build(metadata, externalSystems);
+
+      // Output diagram
+      if (options.output) {
+        await fs.writeFile(options.output, diagram);
+        console.log(chalk.green(`\n✅ Diagram saved to: ${options.output}`));
+      } else if (options.json) {
+        console.log(JSON.stringify({ diagram, type: 'c4-context', metadata }, null, 2));
+      } else {
+        console.log(chalk.yellow('\n📊 C4 Context Diagram:\n'));
+        console.log(diagram);
+
+        if (options.verbose) {
+          console.log(chalk.gray('\n📝 Metadata:'));
+          console.log(chalk.gray(`  System: ${metadata.name}`));
+          console.log(chalk.gray(`  Type: ${metadata.systemType}`));
+          console.log(chalk.gray(`  Technology: ${metadata.technology}`));
+          console.log(chalk.gray(`  External Systems: ${externalSystems.length}`));
+        }
+      }
+
+    } catch (error: any) {
+      console.error(chalk.red('❌ C4 Context diagram generation failed:'), error.message);
+      if (options.verbose) {
+        console.error(chalk.gray(error.stack));
+      }
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Execute C4 Container diagram generation
+   */
+  private async executeC4Container(options: KGC4Options): Promise<void> {
+    if (!options.json) {
+      console.log(chalk.blue.bold('\n📊 C4 Container Diagram\n'));
+    }
+
+    try {
+      const rootDir = process.cwd();
+      const spinner = ora('Analyzing project metadata...').start();
+
+      // Analyze project metadata
+      const metadataAnalyzer = new ProjectMetadataAnalyzer(rootDir);
+      const metadata = await metadataAnalyzer.analyze();
+      spinner.text = 'Detecting external systems...';
+
+      // Detect external systems
+      const externalDetector = new ExternalSystemDetector(rootDir);
+      const externalSystems = await externalDetector.detect();
+      spinner.succeed('Analysis complete');
+
+      // Generate C4 Container diagram
+      const builder = new C4ContainerDiagramBuilder();
+      const diagram = builder.build(metadata, externalSystems);
+
+      // Output diagram
+      if (options.output) {
+        await fs.writeFile(options.output, diagram);
+        console.log(chalk.green(`\n✅ Diagram saved to: ${options.output}`));
+      } else if (options.json) {
+        console.log(JSON.stringify({ diagram, type: 'c4-container', metadata, containers: metadata.containers }, null, 2));
+      } else {
+        console.log(chalk.yellow('\n📊 C4 Container Diagram:\n'));
+        console.log(diagram);
+
+        if (options.verbose) {
+          console.log(chalk.gray('\n📝 Containers:'));
+          for (const container of metadata.containers) {
+            console.log(chalk.gray(`  - ${container.name} (${container.type}): ${container.technology}`));
+          }
+          console.log(chalk.gray(`\n📝 External Systems: ${externalSystems.length}`));
+        }
+      }
+
+    } catch (error: any) {
+      console.error(chalk.red('❌ C4 Container diagram generation failed:'), error.message);
+      if (options.verbose) {
+        console.error(chalk.gray(error.stack));
+      }
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Execute C4 Component diagram generation
+   */
+  private async executeC4Component(containerName: string | undefined, options: KGC4Options): Promise<void> {
+    if (!options.json) {
+      console.log(chalk.blue.bold('\n📊 C4 Component Diagram\n'));
+    }
+
+    try {
+      const rootDir = process.cwd();
+      let targetContainer = containerName;
+
+      // If no container specified, try to infer from project name or use 'Application'
+      if (!targetContainer) {
+        const metadataAnalyzer = new ProjectMetadataAnalyzer(rootDir);
+        const metadata = await metadataAnalyzer.analyze();
+
+        // Use first container if available, otherwise use project name
+        if (metadata.containers.length > 0) {
+          targetContainer = metadata.containers[0].name;
+          if (!options.json) {
+            console.log(chalk.yellow(`Using container: ${targetContainer}\n`));
+          }
+        } else {
+          targetContainer = metadata.name || 'Application';
+          if (!options.json) {
+            console.log(chalk.yellow(`Using default container: ${targetContainer}\n`));
+          }
+        }
+      }
+
+      const spinner = ora('Analyzing component boundaries...').start();
+
+      // Analyze component boundaries
+      const componentAnalyzer = new ComponentBoundaryAnalyzer(
+        path.join(rootDir, 'src'),
+        {
+          minFilesPerComponent: 2,
+          analyzeImports: true,
+          excludePatterns: ['**/*.test.ts', '**/*.spec.ts', '**/node_modules/**'],
+          maxDepth: 5,
+        }
+      );
+
+      const analysisResult = await componentAnalyzer.analyze();
+      spinner.succeed('Analysis complete');
+
+      // Generate C4 Component diagram
+      const builder = new C4ComponentDiagramBuilder();
+      const diagram = builder.build(targetContainer, analysisResult.components, analysisResult.relationships);
+
+      // Output diagram
+      if (options.output) {
+        await fs.writeFile(options.output, diagram);
+        console.log(chalk.green(`\n✅ Diagram saved to: ${options.output}`));
+      } else if (options.json) {
+        console.log(JSON.stringify({
+          diagram,
+          type: 'c4-component',
+          container: targetContainer,
+          components: analysisResult.components,
+          relationships: analysisResult.relationships
+        }, null, 2));
+      } else {
+        console.log(chalk.yellow(`\n📊 C4 Component Diagram for ${targetContainer}:\n`));
+        console.log(diagram);
+
+        if (options.verbose) {
+          console.log(chalk.gray('\n📝 Components:'));
+          for (const component of analysisResult.components) {
+            const boundary = component.boundary ? ` [${component.boundary}]` : '';
+            console.log(chalk.gray(`  - ${component.name}${boundary}`));
+          }
+          console.log(chalk.gray(`\n📝 Total Components: ${analysisResult.components.length}`));
+          console.log(chalk.gray(`📝 Total Relationships: ${analysisResult.relationships.length}`));
+        }
+      }
+
+    } catch (error: any) {
+      console.error(chalk.red('❌ C4 Component diagram generation failed:'), error.message);
+      if (options.verbose) {
+        console.error(chalk.gray(error.stack));
+      }
+      ProcessExit.exitIfNotTest(1);
+    }
   }
 
   /**

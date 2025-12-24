@@ -74,7 +74,9 @@ export interface CodeIntelligenceTaskPayload {
   /** For search: filter by language */
   language?: string;
   /** For graph: diagram type */
-  diagramType?: 'class' | 'dependency';
+  diagramType?: 'class' | 'dependency' | 'c4-context' | 'c4-container' | 'c4-component';
+  /** For C4 component: container name to diagram */
+  containerName?: string;
   /** For incremental: git commit to compare against */
   gitSince?: string;
 }
@@ -136,6 +138,7 @@ export class CodeIntelligenceAgent extends BaseAgent {
         { name: 'semantic-search', version: '1.0.0', description: 'Search code by meaning using embeddings' },
         { name: 'context-building', version: '1.0.0', description: 'Build focused context with 80% token reduction' },
         { name: 'graph-visualization', version: '1.0.0', description: 'Generate Mermaid diagrams for code structure' },
+        { name: 'c4-diagrams', version: '1.0.0', description: 'Generate C4 architecture diagrams (context, container, component)' },
         { name: 'incremental-updates', version: '1.0.0', description: 'Track git changes and update index' },
       ],
     });
@@ -362,8 +365,13 @@ export class CodeIntelligenceAgent extends BaseAgent {
       throw new Error('Orchestrator not initialized');
     }
 
+    // Handle C4 diagram types
+    if (payload.diagramType?.startsWith('c4-')) {
+      return await this.performC4DiagramTask(payload);
+    }
+
     if (!payload.filePath) {
-      throw new Error('filePath is required for graph task');
+      throw new Error('filePath is required for class/dependency graph task');
     }
 
     const graphBuilder = this.orchestrator.getGraphBuilder();
@@ -389,6 +397,38 @@ export class CodeIntelligenceAgent extends BaseAgent {
       diagram = DependencyGraphBuilder.build(nodes, edges, { direction: 'TB' });
     } else {
       diagram = ClassDiagramBuilder.build(nodes, edges, { includeMethods: true });
+    }
+
+    return {
+      success: true,
+      taskType: 'graph',
+      diagram,
+    };
+  }
+
+  private async performC4DiagramTask(payload: CodeIntelligenceTaskPayload): Promise<CodeIntelligenceResult> {
+    // Import C4 infrastructure (static methods handle analyzer instantiation)
+    const { MermaidGenerator } = await import('../code-intelligence/visualization/MermaidGenerator');
+
+    const rootDir = this.agentConfig.rootDir || process.cwd();
+
+    let diagram: string;
+
+    switch (payload.diagramType) {
+      case 'c4-context':
+        diagram = await MermaidGenerator.generateC4Context(rootDir);
+        break;
+
+      case 'c4-container':
+        diagram = await MermaidGenerator.generateC4Container(rootDir);
+        break;
+
+      case 'c4-component':
+        diagram = await MermaidGenerator.generateC4Component(rootDir, payload.containerName);
+        break;
+
+      default:
+        throw new Error(`Unknown C4 diagram type: ${payload.diagramType}`);
     }
 
     return {

@@ -19,6 +19,10 @@ Mission: Index, search, and analyze codebases using Tree-sitter AST parsing, Oll
 - Knowledge graph with entity relationships (imports, extends, calls)
 - KnowledgeGraphContextBuilder for agent context enrichment
 - Mermaid diagram generation (class diagrams, dependency graphs)
+- C4 Model architecture diagrams (Context, Container, Component levels)
+- Project metadata inference (system type, containers, components)
+- External system detection (databases, APIs, caches, queues)
+- Component boundary analysis with relationship mapping
 - Incremental indexing with git change detection
 - Watch mode for live updates
 
@@ -52,6 +56,12 @@ Store entities, relationships, and chunks in batch transactions.
 - **Context Building**: Generate focused, relevant context for agent tasks with 80% token reduction
 - **Graph Navigation**: Traverse relationships (imports, inheritance, calls) to find related code
 - **Visualization**: Generate Mermaid class diagrams and dependency graphs
+- **C4 Model Diagrams**: Generate C4 architecture diagrams at three levels:
+  - Context: System boundaries with external actors and systems
+  - Container: Internal containers (services, databases, APIs)
+  - Component: Component-level structure within containers
+- **Architecture Inference**: Auto-detect project metadata, system type (monolith/microservice), containers, and components
+- **External System Detection**: Identify database, API, cache, queue, and service dependencies
 - **Incremental Updates**: Track git changes and update only modified files
 - **Multi-Language**: Support TypeScript, Python, Go, Rust, JavaScript with language-specific entity extraction
 </capabilities>
@@ -233,6 +243,76 @@ classDiagram
     BaseAgent --> AgentCoordinator
 ```
 ```
+
+Example 5: Generate C4 Context diagram
+```
+Input: Generate C4 context diagram for the project
+
+Output: C4 Context diagram generated:
+```mermaid
+C4Context
+    title System Context diagram for agentic-qe-fleet
+
+    Person(user, "User", "A user of the system")
+    Person(developer, "Developer", "A developer maintaining the system")
+
+    System(agentic_qe_fleet, "agentic-qe-fleet", "AI-powered quality engineering fleet")
+
+    System_Ext(postgresql, "PostgreSQL", "Primary database")
+    System_Ext(anthropic, "Anthropic API", "AI service provider")
+    System_Ext(ollama, "Ollama", "Local LLM embeddings")
+
+    Rel(user, agentic_qe_fleet, "Uses")
+    Rel(developer, agentic_qe_fleet, "Develops and maintains")
+    Rel(agentic_qe_fleet, postgresql, "Stores data in")
+    Rel(agentic_qe_fleet, anthropic, "Uses for AI")
+    Rel(agentic_qe_fleet, ollama, "Uses for embeddings")
+```
+```
+
+Example 6: Generate C4 Container diagram
+```
+Input: Generate C4 container diagram for the project
+
+Output: C4 Container diagram generated:
+```mermaid
+C4Container
+    title Container diagram for agentic-qe-fleet
+
+    Container(cli, "CLI Interface", "Node.js", "Command-line interface")
+    Container(mcp_server, "MCP Server", "TypeScript", "Model Context Protocol server")
+    Container(agent_fleet, "Agent Fleet", "TypeScript", "QE agent orchestration")
+    ContainerDb(vector_store, "Vector Store", "PostgreSQL", "Embeddings and chunks")
+
+    Rel(cli, agent_fleet, "Invokes")
+    Rel(mcp_server, agent_fleet, "Coordinates")
+    Rel(agent_fleet, vector_store, "Reads/Writes")
+```
+```
+
+Example 7: Generate C4 Component diagram
+```
+Input: Generate C4 component diagram for the code-intelligence container
+
+Output: C4 Component diagram generated:
+```mermaid
+C4Component
+    title Component diagram for Code Intelligence
+
+    Container_Boundary(code_intel, "Code Intelligence") {
+        Component(parser, "TreeSitterParser", "TypeScript", "AST parsing")
+        Component(chunker, "SemanticChunker", "TypeScript", "Code chunking")
+        Component(embedder, "OllamaEmbedder", "TypeScript", "Vector embeddings")
+        Component(store, "RuVectorStore", "TypeScript", "Storage layer")
+        Component(graph, "KnowledgeGraph", "TypeScript", "Relationship graph")
+    }
+
+    Rel(parser, chunker, "Provides AST to")
+    Rel(chunker, embedder, "Sends chunks to")
+    Rel(embedder, store, "Stores embeddings in")
+    Rel(store, graph, "Provides data to")
+```
+```
 </examples>
 
 <skills_available>
@@ -349,8 +429,15 @@ aqe kg index --watch
 # Search code
 aqe kg query "user authentication" --k 10 --hybrid
 
-# Generate diagram
+# Generate class/dependency diagrams
 aqe kg graph src/agents/BaseAgent.ts --type class --format mermaid
+aqe kg graph src/agents/ --type dependency --format mermaid
+
+# Generate C4 architecture diagrams
+aqe kg c4-context                    # System context with external systems
+aqe kg c4-container                  # Container-level architecture
+aqe kg c4-component                  # Component-level for specific container
+aqe kg c4-component --container api  # Component diagram for API container
 
 # Show statistics
 aqe kg stats --verbose

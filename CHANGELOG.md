@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.3] - 2025-12-24
+
+### Added
+
+#### C4 Model Architecture Diagrams
+
+Complete C4 model integration for automated architecture visualization at three abstraction levels.
+
+**C4 Diagram Builders** (`src/code-intelligence/visualization/`)
+- `C4ContextDiagramBuilder`: System context diagrams with actors and external systems
+- `C4ContainerDiagramBuilder`: Container-level architecture (services, databases, APIs)
+- `C4ComponentDiagramBuilder`: Component-level structure with boundaries and relationships
+- Mermaid C4 syntax output for GitHub-compatible rendering
+
+**Architecture Inference** (`src/code-intelligence/inference/`)
+- `ProjectMetadataAnalyzer`: Infers system metadata from package.json, docker-compose.yml
+  - Detects system type (monolith, microservice, serverless, library)
+  - Identifies containers from Docker configurations
+  - Analyzes directory structure for architecture patterns
+- `ExternalSystemDetector`: Identifies external dependencies
+  - Database detection (PostgreSQL, MySQL, MongoDB, Redis)
+  - API detection (Anthropic, OpenAI, Stripe, AWS)
+  - Cache and queue detection (Redis, RabbitMQ, Kafka)
+- `ComponentBoundaryAnalyzer`: Maps component relationships
+  - Layer detection (controllers, services, repositories)
+  - Relationship extraction with `sourceId`/`targetId` standardization
+  - Configurable boundary detection strategies
+
+**CLI Commands** (`src/cli/commands/knowledge-graph.ts`)
+- `aqe kg c4-context`: Generate system context diagram
+- `aqe kg c4-container`: Generate container diagram
+- `aqe kg c4-component [--container name]`: Generate component diagram
+
+**CodeIntelligenceAgent Updates** (`src/agents/CodeIntelligenceAgent.ts`)
+- New `c4-diagrams` capability
+- Extended `diagramType` to include `c4-context`, `c4-container`, `c4-component`
+- `performC4DiagramTask()` method using MermaidGenerator static methods
+
+**Agent Definition Updates** (`.claude/agents/qe-code-intelligence.md`)
+- Added C4 diagram capabilities to implementation status
+- New examples for C4 context, container, and component diagrams
+- Updated CLI command reference with C4 commands
+
+### Changed
+
+**MermaidGenerator** (`src/code-intelligence/visualization/MermaidGenerator.ts`)
+- Added static methods: `generateC4Context()`, `generateC4Container()`, `generateC4Component()`
+- New `generateC4Diagram()` dispatcher for diagram type selection
+- Integrated with inference analyzers for automatic metadata extraction
+
+**Type Consolidation** (`src/code-intelligence/inference/types.ts`)
+- Consolidated all C4-related interfaces into single source of truth
+- Standardized `ComponentRelationship` to use `sourceId`/`targetId` (was `from`/`to`)
+- Exported: `ProjectMetadata`, `Container`, `ExternalSystem`, `Component`, `ComponentRelationship`
+
+### New Test Files
+
+- `tests/unit/code-intelligence/visualization/C4DiagramBuilders.test.ts` - 22 unit tests
+  - C4ContextDiagramBuilder tests (6 tests)
+  - C4ContainerDiagramBuilder tests (5 tests)
+  - C4ComponentDiagramBuilder tests (10 tests)
+  - C4 Diagram Integration tests (1 test)
+
 ## [2.6.2] - 2025-12-24
 
 ### Added
