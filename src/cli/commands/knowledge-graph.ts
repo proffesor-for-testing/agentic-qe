@@ -267,7 +267,7 @@ export class KnowledgeGraphCommand {
       return await fs.readJson(configPath);
     }
 
-    // Return default config
+    // Return default config (matching agentic-qe-ruvector-dev container defaults)
     return {
       rootDir: process.cwd(),
       ollamaUrl: 'http://localhost:11434',
@@ -275,9 +275,9 @@ export class KnowledgeGraphCommand {
         enabled: true,
         host: process.env.PGHOST || 'localhost',
         port: parseInt(process.env.PGPORT || '5432'),
-        database: process.env.PGDATABASE || 'ruvector',
-        user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || 'postgres',
+        database: process.env.PGDATABASE || 'ruvector_db',
+        user: process.env.PGUSER || 'ruvector',
+        password: process.env.PGPASSWORD || 'ruvector',
       },
     };
   }

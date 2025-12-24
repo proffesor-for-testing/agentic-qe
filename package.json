@@ -67,6 +67,7 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm run typecheck && npm run build",
     "verify:release": "bash scripts/verify-release.sh",
+    "postrelease:index": "bash scripts/post-release-index.sh",
     "mcp:start": "node dist/mcp/start.js",
     "mcp:validate": "node scripts/validate-mcp-tools.js",
     "mcp:report": "node scripts/generate-mcp-report.js",

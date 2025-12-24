@@ -424,20 +424,33 @@ export class ConfigLoader {
 
   /**
    * Set nested property using dot notation
+   * Includes prototype pollution protection
    */
   private setNestedProperty(obj: any, path: string, value: any): void {
     const parts = path.split('.');
     let current = obj;
 
+    // Prototype pollution protection - reject dangerous property names
+    const dangerousKeys = ['__proto__', 'constructor', 'prototype'];
+    for (const part of parts) {
+      if (dangerousKeys.includes(part)) {
+        this.logger.warn(`Rejected potentially dangerous property path: ${path}`);
+        return;
+      }
+    }
+
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (!(part in current)) {
+      if (!Object.prototype.hasOwnProperty.call(current, part)) {
         current[part] = {};
       }
       current = current[part];
     }
 
-    current[parts[parts.length - 1]] = value;
+    const finalKey = parts[parts.length - 1];
+    if (Object.prototype.hasOwnProperty.call(current, finalKey) || !(finalKey in Object.prototype)) {
+      current[finalKey] = value;
+    }
   }
 
   /**
