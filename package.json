@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "2.6.3",
+  "version": "2.6.4",
   "description": "Agentic Quality Engineering Fleet System - AI-driven quality management platform with 46 QE skills, n8n workflow testing agents, learning, pattern reuse, ML-based flaky detection, Multi-Model Router (70-81% cost savings), streaming progress updates, 91 MCP tools with lazy loading (87% context reduction), and native TypeScript hooks",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
@@ -152,6 +152,7 @@
     "commander": "^14.0.1",
     "cors": "^2.8.5",
     "express": "^5.2.1",
+    "fast-glob": "^3.3.3",
     "fs-extra": "^11.1.1",
     "gpt-tokenizer": "^2.1.2",
     "graphql": "^16.11.0",

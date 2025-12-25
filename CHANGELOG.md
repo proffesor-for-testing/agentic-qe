@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.4] - 2025-12-25
+
+### Fixed
+
+- **Missing `fast-glob` dependency** - Added `fast-glob` as explicit dependency to fix "Cannot find module 'fast-glob'" error when installing globally via `npm install -g agentic-qe`. The module was used in `ComponentBoundaryAnalyzer` but only available as a transitive dependency.
+
 ## [2.6.3] - 2025-12-24
 
 ### Added
