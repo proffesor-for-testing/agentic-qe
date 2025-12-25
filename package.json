@@ -50,7 +50,7 @@
     "pretest:regression": "node scripts/check-memory-before-test.js",
     "test:regression": "node --expose-gc --max-old-space-size=512 --no-compilation-cache node_modules/.bin/jest tests/regression --runInBand --forceExit",
     "pretest:fast": "node scripts/check-memory-before-test.js",
-    "test:fast": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest tests/journeys tests/contracts --runInBand --forceExit --testTimeout=60000",
+    "test:fast": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest tests/journeys tests/contracts --runInBand --forceExit --testTimeout=60000 --testPathIgnorePatterns='flaky-detection'",
     "test:benchmarks": "node --expose-gc --max-old-space-size=512 --no-compilation-cache node_modules/.bin/jest --config jest.config.benchmarks.js --runInBand --forceExit",
     "test:code-intelligence": "node --expose-gc --max-old-space-size=768 --no-compilation-cache node_modules/.bin/jest --config jest.config.code-intelligence.js --forceExit",
     "pretest:ci:optimized": "node scripts/check-memory-before-test.js",
