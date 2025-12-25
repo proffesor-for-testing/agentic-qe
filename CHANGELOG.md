@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.5] - 2025-12-25
+
+### Added
+
+#### LLM Independence Phase 3-4 Complete
+
+**New LLM Providers**
+- `GroqProvider`: Free tier support with 14,400 requests/day, streaming, rate limiting
+- `GitHubModelsProvider`: Automatic Codespaces detection, GITHUB_TOKEN authentication
+
+**Provider Health Monitoring** (`src/monitoring/`)
+- `ProviderHealthMonitor`: Health checks with circuit breaker pattern (closed → half-open → open)
+- `QuotaManager`: Per-provider quota tracking with daily/minute limits and auto-reset
+- Health-aware routing with automatic fallback chains
+
+**CLI Provider Management**
+- `aqe providers status`: Health dashboard with real-time provider status
+- `aqe providers list`: List all configured providers
+- `aqe providers test [provider]`: Test provider connectivity
+- `aqe providers switch <provider>`: Switch default provider
+- `aqe providers quota`: Show quota usage for all providers
+
+**Health-Aware Routing** (`src/providers/HybridRouterHealthIntegration.ts`)
+- Integrates ProviderHealthMonitor with HybridRouter
+- Automatic fallback to healthy providers when primary fails
+- Provider ranking based on health score, latency, and availability
+
+### Changed
+
+- **CLI Command Pattern**: Refactored `src/cli/commands/providers/` to use `createProvidersCommand()` pattern consistent with other commands
+- **Provider Exports**: Extended `src/providers/index.ts` with new Phase 3-4 components
+
+### Tests
+
+- 144 new tests for Phase 3-4 components:
+  - `GroqProvider.test.ts` (22 tests)
+  - `GitHubModelsProvider.test.ts` (25 tests)
+  - `HybridRouterHealthIntegration.test.ts` (30 tests)
+  - `ProviderHealthMonitor.test.ts` (20 tests)
+  - `QuotaManager.test.ts` (20 tests)
+  - `providers.test.ts` (20 tests)
+  - `phase3-4-integration.test.ts` (7 tests)
+
 ## [2.6.4] - 2025-12-25
 
 ### Fixed

@@ -4,7 +4,10 @@
  * This module provides a unified interface for multiple LLM providers:
  * - ClaudeProvider: Anthropic Claude API
  * - RuvllmProvider: Local LLM inference via ruvllm
+ * - OllamaProvider: Local LLM inference via Ollama
+ * - GroqProvider: Ultra-fast cloud inference via Groq LPU (FREE tier: 14,400 req/day)
  * - OpenRouterProvider: 300+ models with auto-routing and hot-swap
+ * - GitHubModelsProvider: GitHub Models API (FREE in Codespaces)
  * - LLMProviderFactory: Factory for provider creation and hybrid routing
  *
  * @module providers
@@ -33,12 +36,14 @@ export {
 export { ClaudeProvider, ClaudeProviderConfig } from './ClaudeProvider';
 export { RuvllmProvider, RuvllmProviderConfig } from './RuvllmProvider';
 export { OllamaProvider, OllamaProviderConfig } from './OllamaProvider';
+export { GroqProvider, GroqProviderConfig } from './GroqProvider';
 export {
   OpenRouterProvider,
   OpenRouterConfig,
   OpenRouterModel,
   createOpenRouterProvider
 } from './OpenRouterProvider';
+export { GitHubModelsProvider, GitHubModelsProviderConfig } from './GitHubModelsProvider';
 
 // Hybrid router with RuVector cache integration (Phase 0.5)
 export {
@@ -67,6 +72,15 @@ export {
   ModelSelectionResult,
   createModelSelection
 } from './HybridRouterModelSelection';
+
+// Phase 3.2.2: Health-Aware Routing Integration
+export {
+  HybridRouterHealthIntegration,
+  FallbackConfig,
+  RankedProvider,
+  FallbackResult,
+  createHealthAwareRouter
+} from './HybridRouterHealthIntegration';
 
 // Phase 2.x.2: Cost Optimization Strategies
 export {

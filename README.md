@@ -11,7 +11,7 @@
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.6.4** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.6.5** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
@@ -622,6 +622,7 @@ AQE supports multiple LLM providers for maximum flexibility and cost optimizatio
 | **Ollama** | Local | FREE | 10 min | Privacy, offline, no budget |
 | **OpenRouter** | Cloud | Paid/Free | 2 min | 300+ models, flexibility |
 | **Groq** | Cloud | FREE | 1 min | High-speed, 14,400 req/day |
+| **GitHub Models** | Cloud | FREE | 0 min | Codespaces, auto-detected |
 | **Claude API** | Cloud | Paid | 2 min | Highest quality |
 | **Google AI** | Cloud | FREE | 2 min | Gemini models, 1,500 req/day |
 
@@ -693,6 +694,30 @@ await factory.initialize();
 - **Cheapest**: `mistralai/devstral-small-2505` ($0.06/$0.12 per M)
 - **Balanced**: `qwen/qwen-2.5-coder-32b-instruct` ($0.18/$0.18 per M)
 - **Premium**: `claude-sonnet-4` ($3/$15 per M)
+
+### Provider Health Monitoring (v2.6.5+)
+
+Monitor and manage LLM providers with built-in health checks and automatic failover:
+
+```bash
+# View provider health dashboard
+aqe providers status
+
+# Detailed metrics with circuit breaker states
+aqe providers status --detailed
+
+# Test specific provider connectivity
+aqe providers test groq
+
+# Check quota usage
+aqe providers quota
+```
+
+**Features:**
+- **Circuit Breaker Pattern**: Automatic detection of unhealthy providers (closed → half-open → open)
+- **Health-Aware Routing**: Requests automatically route to healthy providers
+- **Quota Management**: Per-provider rate limit tracking with alerts
+- **Fallback Chains**: Graceful degradation when primary provider fails
 
 ### Documentation
 
