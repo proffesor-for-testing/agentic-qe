@@ -3,7 +3,7 @@
  * Splits code into 256-512 token chunks while preserving function/class boundaries
  */
 
-import { TreeSitterParser } from '../parser/TreeSitterParser.js';
+import { WebTreeSitterParser } from '../parser/WebTreeSitterParser.js';
 import { CodeEntity } from '../parser/types.js';
 import { ChunkSplitter } from './ChunkSplitter.js';
 import {
@@ -30,13 +30,13 @@ export class SimpleTokenCounter implements TokenCounter {
 }
 
 export class ASTChunker {
-  private parser: TreeSitterParser;
+  private parser: WebTreeSitterParser;
   private tokenCounter: TokenCounter;
   private config: ChunkingConfig;
   private splitter: ChunkSplitter;
 
   constructor(config?: Partial<ChunkingConfig>, tokenCounter?: TokenCounter) {
-    this.parser = new TreeSitterParser();
+    this.parser = new WebTreeSitterParser();
     this.tokenCounter = tokenCounter || new SimpleTokenCounter();
 
     // Default configuration
@@ -62,9 +62,9 @@ export class ASTChunker {
   /**
    * Chunk a file using AST-aware semantic boundaries
    */
-  chunkFile(filePath: string, content: string, language?: string): ChunkingResult {
+  async chunkFile(filePath: string, content: string, language?: string): Promise<ChunkingResult> {
     // Parse file to extract entities
-    const parseResult = this.parser.parseFile(filePath, content, language);
+    const parseResult = await this.parser.parseFile(filePath, content, language);
 
     if (parseResult.errors.length > 0) {
       // Fallback to line-based chunking if parsing fails

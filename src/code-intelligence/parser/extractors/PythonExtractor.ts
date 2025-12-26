@@ -1,8 +1,10 @@
-import Parser from 'tree-sitter';
-import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor';
+import type Parser from 'web-tree-sitter';
+
+type SyntaxNode = Parser.SyntaxNode;
+import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor.js';
 
 export class PythonExtractor extends BaseExtractor {
-  extractFunctions(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractFunctions(node: SyntaxNode): ExtractedSymbol[] {
     const functions: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -17,7 +19,7 @@ export class PythonExtractor extends BaseExtractor {
     return functions;
   }
 
-  extractClasses(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractClasses(node: SyntaxNode): ExtractedSymbol[] {
     const classes: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -32,7 +34,7 @@ export class PythonExtractor extends BaseExtractor {
     return classes;
   }
 
-  extractMethods(classNode: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractMethods(classNode: SyntaxNode): ExtractedSymbol[] {
     const methods: ExtractedSymbol[] = [];
     const classBody = this.findChildByType(classNode, 'block');
 
@@ -54,7 +56,7 @@ export class PythonExtractor extends BaseExtractor {
     return methods;
   }
 
-  private extractFunction(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractFunction(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -81,7 +83,7 @@ export class PythonExtractor extends BaseExtractor {
     };
   }
 
-  private extractClass(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractClass(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -102,7 +104,7 @@ export class PythonExtractor extends BaseExtractor {
     };
   }
 
-  private extractMethod(node: Parser.SyntaxNode, className?: string): ExtractedSymbol | null {
+  private extractMethod(node: SyntaxNode, className?: string): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -132,7 +134,7 @@ export class PythonExtractor extends BaseExtractor {
     };
   }
 
-  private extractParameters(node: Parser.SyntaxNode): ParameterInfo[] {
+  private extractParameters(node: SyntaxNode): ParameterInfo[] {
     const parameters: ParameterInfo[] = [];
     const paramsNode = this.findChildByType(node, 'parameters');
 
@@ -153,7 +155,7 @@ export class PythonExtractor extends BaseExtractor {
     return parameters;
   }
 
-  private extractParameter(node: Parser.SyntaxNode): ParameterInfo | null {
+  private extractParameter(node: SyntaxNode): ParameterInfo | null {
     let name: string;
     let type: string | undefined;
     let defaultValue: string | undefined;
@@ -191,7 +193,7 @@ export class PythonExtractor extends BaseExtractor {
     };
   }
 
-  private extractReturnType(node: Parser.SyntaxNode): string | undefined {
+  private extractReturnType(node: SyntaxNode): string | undefined {
     const typeNode = this.findChildByType(node, 'type');
     if (!typeNode) {
       return undefined;
@@ -200,7 +202,7 @@ export class PythonExtractor extends BaseExtractor {
     return this.getNodeText(typeNode);
   }
 
-  private extractClassName(node: Parser.SyntaxNode): string | undefined {
+  private extractClassName(node: SyntaxNode): string | undefined {
     const nameNode = this.findChildByType(node, 'identifier');
     return nameNode ? this.getNodeText(nameNode) : undefined;
   }
@@ -215,7 +217,7 @@ export class PythonExtractor extends BaseExtractor {
     return 'public';
   }
 
-  private extractDecorators(node: Parser.SyntaxNode): string[] {
+  private extractDecorators(node: SyntaxNode): string[] {
     const decorators: string[] = [];
     let current = node.previousSibling;
 
@@ -227,7 +229,7 @@ export class PythonExtractor extends BaseExtractor {
     return decorators;
   }
 
-  private extractDocstring(node: Parser.SyntaxNode): string | undefined {
+  private extractDocstring(node: SyntaxNode): string | undefined {
     const blockNode = this.findChildByType(node, 'block');
     if (!blockNode || blockNode.children.length === 0) {
       return undefined;
@@ -244,7 +246,7 @@ export class PythonExtractor extends BaseExtractor {
     return undefined;
   }
 
-  private isAsyncFunction(node: Parser.SyntaxNode): boolean {
+  private isAsyncFunction(node: SyntaxNode): boolean {
     const text = this.getNodeText(node);
     return text.trimStart().startsWith('async def ');
   }

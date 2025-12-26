@@ -1,8 +1,10 @@
-import Parser from 'tree-sitter';
-import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor';
+import type Parser from 'web-tree-sitter';
+
+type SyntaxNode = Parser.SyntaxNode;
+import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor.js';
 
 export class GoExtractor extends BaseExtractor {
-  extractFunctions(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractFunctions(node: SyntaxNode): ExtractedSymbol[] {
     const functions: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -17,7 +19,7 @@ export class GoExtractor extends BaseExtractor {
     return functions;
   }
 
-  extractClasses(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractClasses(node: SyntaxNode): ExtractedSymbol[] {
     const types: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -32,7 +34,7 @@ export class GoExtractor extends BaseExtractor {
     return types;
   }
 
-  extractMethods(classNode: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractMethods(classNode: SyntaxNode): ExtractedSymbol[] {
     const methods: ExtractedSymbol[] = [];
     const root = classNode.parent?.parent || classNode;
     const typeName = this.extractTypeName(classNode);
@@ -52,7 +54,7 @@ export class GoExtractor extends BaseExtractor {
     return methods;
   }
 
-  private extractFunction(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractFunction(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -77,7 +79,7 @@ export class GoExtractor extends BaseExtractor {
     };
   }
 
-  private extractType(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractType(node: SyntaxNode): ExtractedSymbol | null {
     const specNode = this.findChildByType(node, 'type_spec');
     if (!specNode) {
       return null;
@@ -111,7 +113,7 @@ export class GoExtractor extends BaseExtractor {
     };
   }
 
-  private extractMethod(node: Parser.SyntaxNode, receiverType?: string): ExtractedSymbol | null {
+  private extractMethod(node: SyntaxNode, receiverType?: string): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'field_identifier');
     if (!nameNode) {
       return null;
@@ -138,7 +140,7 @@ export class GoExtractor extends BaseExtractor {
     };
   }
 
-  private extractParameters(node: Parser.SyntaxNode): ParameterInfo[] {
+  private extractParameters(node: SyntaxNode): ParameterInfo[] {
     const parameters: ParameterInfo[] = [];
     const paramsNode = this.findChildByType(node, 'parameter_list');
 
@@ -156,7 +158,7 @@ export class GoExtractor extends BaseExtractor {
     return parameters;
   }
 
-  private extractParameter(node: Parser.SyntaxNode): ParameterInfo[] {
+  private extractParameter(node: SyntaxNode): ParameterInfo[] {
     const parameters: ParameterInfo[] = [];
     const identifiers: string[] = [];
     let type: string | undefined;
@@ -180,7 +182,7 @@ export class GoExtractor extends BaseExtractor {
     return parameters;
   }
 
-  private extractReturnType(node: Parser.SyntaxNode): string | undefined {
+  private extractReturnType(node: SyntaxNode): string | undefined {
     const resultNode = this.findChildByType(node, 'parameter_list');
     if (!resultNode) {
       return undefined;
@@ -204,7 +206,7 @@ export class GoExtractor extends BaseExtractor {
     return undefined;
   }
 
-  private extractReturnTypes(node: Parser.SyntaxNode): string[] {
+  private extractReturnTypes(node: SyntaxNode): string[] {
     const types: string[] = [];
 
     node.children.forEach((child) => {
@@ -219,7 +221,7 @@ export class GoExtractor extends BaseExtractor {
     return types;
   }
 
-  private extractReceiver(node: Parser.SyntaxNode): string | undefined {
+  private extractReceiver(node: SyntaxNode): string | undefined {
     const receiverNode = this.findChildByType(node, 'parameter_list');
     if (!receiverNode) {
       return undefined;
@@ -228,7 +230,7 @@ export class GoExtractor extends BaseExtractor {
     return this.getNodeText(receiverNode);
   }
 
-  private extractReceiverType(node: Parser.SyntaxNode): string | undefined {
+  private extractReceiverType(node: SyntaxNode): string | undefined {
     const receiverNode = this.findChildByType(node, 'parameter_list');
     if (!receiverNode) {
       return undefined;
@@ -246,7 +248,7 @@ export class GoExtractor extends BaseExtractor {
     return text.replace(/^\*/, '');
   }
 
-  private extractTypeName(node: Parser.SyntaxNode): string | undefined {
+  private extractTypeName(node: SyntaxNode): string | undefined {
     const specNode = this.findChildByType(node, 'type_spec');
     if (!specNode) {
       return undefined;

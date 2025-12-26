@@ -282,7 +282,7 @@ export async function generateMcpJson(_fleetConfig: FleetConfig): Promise<void> 
   }
   console.log(chalk.gray('    • Server: agentic-qe'));
   console.log(chalk.gray('    • Command: npx aqe-mcp'));
-  console.log(chalk.gray('    • Tools: 102 MCP tools for learning, memory, analysis'));
+  console.log(chalk.gray('    • Tools: 105 MCP tools for learning, memory, analysis'));
 }
 
 /**
@@ -330,7 +330,7 @@ export async function setupMCPServer(): Promise<void> {
 
     console.log(chalk.green('\n  ✓ MCP server added successfully'));
     console.log(chalk.gray('    • Server: agentic-qe'));
-    console.log(chalk.gray('    • Tools: 102 MCP tools available'));
+    console.log(chalk.gray('    • Tools: 105 MCP tools available'));
     console.log(chalk.gray('    • Memory: Shared memory coordination enabled'));
 
   } catch (error: any) {

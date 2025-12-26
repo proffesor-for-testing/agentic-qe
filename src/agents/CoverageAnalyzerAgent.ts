@@ -26,6 +26,13 @@ import { QEReasoningBank, TestPattern } from '../reasoning/QEReasoningBank';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { Logger } from '../utils/Logger';
 import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
+import {
+  CriticalPathDetector,
+  CriticalPathInput,
+  CoverageNode,
+  CoverageEdge,
+  PrioritizedCoverageGap,
+} from '../coverage/CriticalPathDetector.js';
 
 // ============================================================================
 // Enhanced Configuration with Learning Support
@@ -33,6 +40,7 @@ import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/Expe
 
 export interface CoverageAnalyzerConfig extends BaseAgentConfig {
   enablePatterns?: boolean;       // Default: true
+  enableCriticalPathAnalysis?: boolean; // Default: true - uses MinCut for gap prioritization
   targetImprovement?: number;     // Default: 0.20 (20%)
   improvementPeriodDays?: number; // Default: 30
 }
@@ -117,9 +125,13 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   // AgentDB integration for vector search
   private agentDB?: any;
 
+  // MinCut-based critical path analysis
+  private criticalPathDetector?: CriticalPathDetector;
+
   // Coverage-specific configuration
   private coverageConfig: {
     enablePatterns: boolean;
+    enableCriticalPathAnalysis: boolean;
     targetImprovement: number;
     improvementPeriodDays: number;
   };
@@ -134,6 +146,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
 
     this.coverageConfig = {
       enablePatterns: config.enablePatterns !== false,
+      enableCriticalPathAnalysis: config.enableCriticalPathAnalysis !== false,
       targetImprovement: config.targetImprovement || 0.20,
       improvementPeriodDays: config.improvementPeriodDays || 30,
     };
@@ -142,6 +155,17 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     this.sublinearCore = new SublinearOptimizer();
     this.coverageEngine = new CoverageEngine();
     this.gapDetector = new GapDetector();
+
+    // Initialize MinCut-based critical path detector
+    if (this.coverageConfig.enableCriticalPathAnalysis) {
+      this.criticalPathDetector = new CriticalPathDetector({
+        criticalityThreshold: 0.2,
+        maxCriticalPaths: 10,
+        coverageGapThreshold: 80,
+        timeout: 10000,
+      });
+      this.coverageLogger?.info('[CoverageAnalyzer] MinCut critical path analysis enabled');
+    }
 
     // Initialize reasoning bank if patterns enabled
     if (this.coverageConfig.enablePatterns) {
@@ -437,6 +461,29 @@ export class CoverageAnalyzerAgent extends BaseAgent {
             likelihood
           });
         }
+      }
+    }
+
+    // Enhance gaps with MinCut critical path analysis
+    if (this.criticalPathDetector && gaps.length > 0) {
+      try {
+        const criticalPathGaps = await this.enhanceGapsWithCriticalPaths(gaps, codeBase);
+        if (criticalPathGaps.length > 0) {
+          // Merge criticality scores into existing gaps
+          const criticalityMap = new Map(
+            criticalPathGaps.map(g => [g.nodeId, g.criticality])
+          );
+          for (const gap of gaps) {
+            const criticality = criticalityMap.get(gap.location) || 0;
+            // Boost likelihood based on criticality
+            gap.likelihood = Math.min(1, gap.likelihood + (criticality * 0.3));
+          }
+          this.coverageLogger?.debug(
+            `[CoverageAnalyzer] MinCut enhanced ${gaps.length} gaps with critical path data`
+          );
+        }
+      } catch (error) {
+        this.coverageLogger?.warn('[CoverageAnalyzer] Critical path analysis failed, using fallback', error);
       }
     }
 
@@ -1318,6 +1365,161 @@ Return a JSON array of descriptive test names only.`;
       experienceCapture: captureStats,
       cachedPatterns: this.cachedPatterns.length,
       confidenceBoost: this.getConfidenceBoostFromPatterns('coverage-optimization')
+    };
+  }
+
+  // ============================================================================
+  // MinCut Critical Path Integration
+  // ============================================================================
+
+  /**
+   * Enhance coverage gaps with MinCut critical path analysis
+   * Uses graph-theoretic analysis to identify bottleneck code paths
+   */
+  private async enhanceGapsWithCriticalPaths(
+    gaps: CoverageOptimizationResult['gaps'],
+    codeBase: any
+  ): Promise<PrioritizedCoverageGap[]> {
+    if (!this.criticalPathDetector) {
+      return [];
+    }
+
+    // Build coverage graph from codebase
+    const coverageGraph = this.buildCoverageGraph(codeBase, gaps);
+
+    if (coverageGraph.nodes.length === 0) {
+      return [];
+    }
+
+    // Run critical path detection
+    const result = await this.criticalPathDetector.detectCriticalPaths(coverageGraph);
+
+    this.coverageLogger?.debug(
+      `[CoverageAnalyzer] Critical path analysis: ${result.criticalPaths.length} paths, ` +
+      `${result.bottlenecks.length} bottlenecks, ${result.computationTimeMs}ms`
+    );
+
+    return result.prioritizedGaps;
+  }
+
+  /**
+   * Build coverage graph from codebase for MinCut analysis
+   */
+  private buildCoverageGraph(codeBase: any, gaps: CoverageOptimizationResult['gaps']): CriticalPathInput {
+    const nodes: CoverageNode[] = [];
+    const edges: CoverageEdge[] = [];
+    const gapLocations = new Set(gaps.map(g => g.location));
+
+    // Build nodes from files and functions
+    for (const file of codeBase.files || []) {
+      // Add file as a node
+      const fileCoverage = this.estimateFileCoverage(file);
+      nodes.push({
+        id: file.path,
+        label: file.path.split('/').pop() || file.path,
+        type: 'file',
+        coverage: fileCoverage,
+        lines: file.content?.split('\n').length || 100,
+        complexity: this.estimateFileComplexity(file),
+      });
+
+      // Add functions as nodes
+      for (const func of file.functions || []) {
+        const funcId = `${file.path}:${func.name}`;
+        const isGap = gapLocations.has(funcId);
+
+        nodes.push({
+          id: funcId,
+          label: func.name,
+          type: func.name === 'constructor' ? 'method' : 'function',
+          coverage: isGap ? (gaps.find(g => g.location === funcId)?.likelihood || 0.5) * 100 : 85,
+          lines: func.endLine - func.startLine + 1,
+          complexity: func.complexity || 5,
+        });
+
+        // Add edge from file to function
+        edges.push({
+          source: file.path,
+          target: funcId,
+          weight: func.complexity || 1,
+          type: 'calls',
+        });
+      }
+    }
+
+    // Add inter-function dependencies based on coverage points
+    for (const point of codeBase.coveragePoints || []) {
+      const sourceFunc = this.findFunctionForLine(codeBase, point.file, point.line);
+      if (sourceFunc) {
+        const sourceId = `${point.file}:${sourceFunc}`;
+        const targetNode = nodes.find(n => n.id === point.file);
+        if (targetNode && nodes.some(n => n.id === sourceId)) {
+          edges.push({
+            source: sourceId,
+            target: point.file,
+            weight: 1,
+            type: 'uses',
+          });
+        }
+      }
+    }
+
+    return { nodes, edges };
+  }
+
+  /**
+   * Estimate file coverage based on function coverages
+   */
+  private estimateFileCoverage(file: any): number {
+    if (!file.functions || file.functions.length === 0) {
+      return 50; // Default
+    }
+    // Average complexity-weighted coverage
+    let totalWeight = 0;
+    let weightedCoverage = 0;
+    for (const func of file.functions) {
+      const weight = func.complexity || 1;
+      totalWeight += weight;
+      weightedCoverage += weight * (func.coverage || 50);
+    }
+    return totalWeight > 0 ? weightedCoverage / totalWeight : 50;
+  }
+
+  /**
+   * Estimate file complexity based on functions
+   */
+  private estimateFileComplexity(file: any): number {
+    if (!file.functions || file.functions.length === 0) {
+      return 5;
+    }
+    return Math.max(...file.functions.map((f: any) => f.complexity || 5));
+  }
+
+  /**
+   * Find which function contains a given line
+   */
+  private findFunctionForLine(codeBase: any, filePath: string, line: number): string | null {
+    const file = codeBase.files?.find((f: any) => f.path === filePath);
+    if (!file) return null;
+
+    for (const func of file.functions || []) {
+      if (line >= func.startLine && line <= func.endLine) {
+        return func.name;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get critical path analysis summary for status reporting
+   */
+  getCriticalPathStatus(): {
+    enabled: boolean;
+    lastAnalysisNodes?: number;
+    lastAnalysisPaths?: number;
+  } {
+    return {
+      enabled: !!this.criticalPathDetector,
     };
   }
 }

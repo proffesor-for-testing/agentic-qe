@@ -21,7 +21,7 @@ import * as path from 'path';
 // Import all modules
 import { IncrementalIndexer } from '../indexing/IncrementalIndexer.js';
 import { FileWatcher } from '../indexing/FileWatcher.js';
-import { TreeSitterParser } from '../parser/TreeSitterParser.js';
+import { WebTreeSitterParser } from '../parser/WebTreeSitterParser.js';
 import { ASTChunker } from '../chunking/ASTChunker.js';
 import { NomicEmbedder } from '../embeddings/NomicEmbedder.js';
 import { GraphBuilder } from '../graph/GraphBuilder.js';
@@ -57,7 +57,7 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
   // Core components
   private indexer: IncrementalIndexer;
   private fileWatcher: FileWatcher;
-  private parser: TreeSitterParser;
+  private parser: WebTreeSitterParser;
   private chunker: ASTChunker;
   private embedder: NomicEmbedder;
   private graphBuilder: GraphBuilder;
@@ -85,7 +85,7 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
       rootDir: this.config.rootDir,
       ...this.config.watcher,
     });
-    this.parser = new TreeSitterParser();
+    this.parser = new WebTreeSitterParser();
     this.chunker = new ASTChunker(this.config.chunker);
     this.embedder = new NomicEmbedder(this.config.ollamaUrl);
     this.graphBuilder = new GraphBuilder(this.config.graph);
@@ -524,7 +524,7 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
 
     // Phase 2: Chunk file (ASTChunker parses internally, entities used for graph)
     progress.phase = 'chunking';
-    const chunkingResult = this.chunker.chunkFile(filePath, content, language);
+    const chunkingResult = await this.chunker.chunkFile(filePath, content, language);
     const chunks = chunkingResult.chunks;
     progress.chunksCreated += chunks.length;
 
