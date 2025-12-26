@@ -115,3 +115,6 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
+
+# Local agent configurations
+.wshobson-agents/
