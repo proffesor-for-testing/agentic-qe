@@ -3,11 +3,12 @@
  * Shared utilities for testing MCP tool handlers
  */
 
-import { AgenticQEMCPServer } from '@mcp/server.js';
-import { AgentRegistry } from '@mcp/services/AgentRegistry.js';
-import { HookExecutor } from '@mcp/services/HookExecutor.js';
-import { MemoryStore } from '@core/memory-store.js';
-import { EventBus } from '@core/event-bus.js';
+import { AgenticQEMCPServer } from '@mcp/server';
+import { AgentRegistry } from '@mcp/services/AgentRegistry';
+import { HookExecutor } from '@mcp/services/HookExecutor';
+import { EventBus } from '@core/EventBus';
+import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager } from '@core/memory/MemoryManagerFactory';
 import path from 'path';
 import fs from 'fs-extra';
 import { tmpdir } from 'os';
@@ -24,9 +25,10 @@ export class MCPTestHarness {
   private server!: AgenticQEMCPServer;
   private registry!: AgentRegistry;
   private hookExecutor!: HookExecutor;
-  private memoryStore!: MemoryStore;
+  private memoryManager!: SwarmMemoryManager;
   private eventBus!: EventBus;
   private testDir!: string;
+  private internalMemory: Map<string, any> = new Map();
 
   /**
    * Initialize the test harness
@@ -38,11 +40,11 @@ export class MCPTestHarness {
 
     // Initialize core services
     this.eventBus = new EventBus();
-    this.memoryStore = new MemoryStore();
-    this.hookExecutor = new HookExecutor(this.memoryStore, this.eventBus);
-    this.registry = new AgentRegistry(this.eventBus, this.memoryStore);
 
-    // Initialize MCP server
+    // Get shared memory manager (singleton pattern used in production)
+    this.memoryManager = await getSharedMemoryManager();
+
+    // Initialize MCP server (this creates its own AgentRegistry and HookExecutor internally)
     this.server = new AgenticQEMCPServer();
   }
 
@@ -54,10 +56,8 @@ export class MCPTestHarness {
       await fs.remove(this.testDir);
     }
 
-    // Clean up memory store
-    if (this.memoryStore) {
-      await this.memoryStore.clear();
-    }
+    // Clear internal memory
+    this.internalMemory.clear();
 
     // Close event bus connections
     if (this.eventBus) {
@@ -115,27 +115,6 @@ export class MCPTestHarness {
   }
 
   /**
-   * Get the agent registry
-   */
-  getRegistry(): AgentRegistry {
-    return this.registry;
-  }
-
-  /**
-   * Get the hook executor
-   */
-  getHookExecutor(): HookExecutor {
-    return this.hookExecutor;
-  }
-
-  /**
-   * Get the memory store
-   */
-  getMemoryStore(): MemoryStore {
-    return this.memoryStore;
-  }
-
-  /**
    * Get the event bus
    */
   getEventBus(): EventBus {
@@ -189,50 +168,40 @@ export class MCPTestHarness {
   }
 
   /**
-   * Spawn a test agent
-   */
-  async spawnTestAgent(type: string, config?: any): Promise<string> {
-    const result = await this.registry.spawnAgent(type, {
-      name: `test-${type}-${Date.now()}`,
-      description: `Test agent for integration testing`,
-      ...config
-    });
-    return result.id;
-  }
-
-  /**
-   * Execute a task on an agent
-   */
-  async executeAgentTask(agentId: string, task: any): Promise<any> {
-    return await this.registry.executeTask(agentId, task);
-  }
-
-  /**
-   * Store data in memory for testing
+   * Store data in internal test memory
    */
   async storeMemory(key: string, value: any, options?: any): Promise<void> {
-    await this.memoryStore.store(key, value, options);
+    this.internalMemory.set(key, { value, options, timestamp: Date.now() });
   }
 
   /**
-   * Retrieve data from memory
+   * Retrieve data from internal test memory
    */
   async retrieveMemory(key: string, options?: any): Promise<any> {
-    return await this.memoryStore.retrieve(key, options);
+    const entry = this.internalMemory.get(key);
+    return entry?.value;
   }
 
   /**
-   * Query memory store
+   * Query internal test memory store
    */
   async queryMemory(pattern: string, options?: any): Promise<any[]> {
-    return await this.memoryStore.query(pattern, options);
+    const results: any[] = [];
+    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+
+    for (const [key, entry] of this.internalMemory) {
+      if (regex.test(key)) {
+        results.push({ key, ...entry });
+      }
+    }
+    return results;
   }
 
   /**
-   * Clear all memory
+   * Clear internal test memory
    */
   async clearMemory(): Promise<void> {
-    await this.memoryStore.clear();
+    this.internalMemory.clear();
   }
 
   /**

@@ -401,9 +401,8 @@ describe('TreeSitterParser', () => {
     it('should handle invalid syntax gracefully', async () => {
       const invalidContent = 'function invalid( { return }';
 
-      expect(() => {
-        await parser.parseFile('invalid.js', invalidContent, 'javascript');
-      }).not.toThrow();
+      // Async function should not throw - just resolve
+      await expect(parser.parseFile('invalid.js', invalidContent, 'javascript')).resolves.toBeDefined();
 
       const result = await parser.parseFile('invalid.js', invalidContent, 'javascript');
       expect(Array.isArray(result.entities)).toBe(true);
@@ -428,9 +427,8 @@ describe('TreeSitterParser', () => {
     it('should handle very large files', async () => {
       const largeContent = 'function test() {}\n'.repeat(1000);
 
-      expect(() => {
-        await parser.parseFile('large.js', largeContent, 'javascript');
-      }).not.toThrow();
+      // Async function should not throw - just resolve
+      await expect(parser.parseFile('large.js', largeContent, 'javascript')).resolves.toBeDefined();
 
       const result = await parser.parseFile('large.js', largeContent, 'javascript');
       expect(result.entities.length).toBeGreaterThan(0);
