@@ -15,7 +15,7 @@ describe('ASTChunker', () => {
   });
 
   describe('Configuration', () => {
-    it('should use default configuration', () => {
+    it('should use default configuration', async () => {
       const config = chunker.getConfig();
       expect(config.minTokens).toBe(256);
       expect(config.maxTokens).toBe(512);
@@ -24,7 +24,7 @@ describe('ASTChunker', () => {
       expect(config.splitLargeEntities).toBe(true);
     });
 
-    it('should allow custom configuration', () => {
+    it('should allow custom configuration', async () => {
       const customChunker = new ASTChunker({
         minTokens: 128,
         maxTokens: 256,
@@ -37,7 +37,7 @@ describe('ASTChunker', () => {
       expect(config.overlapPercent).toBe(20);
     });
 
-    it('should calculate overlap tokens from percentage', () => {
+    it('should calculate overlap tokens from percentage', async () => {
       const customChunker = new ASTChunker({
         maxTokens: 500,
         overlapPercent: 10,
@@ -47,7 +47,7 @@ describe('ASTChunker', () => {
       expect(config.overlapTokens).toBe(50); // 10% of 500
     });
 
-    it('should allow updating configuration', () => {
+    it('should allow updating configuration', async () => {
       chunker.setConfig({ maxTokens: 1024 });
       const config = chunker.getConfig();
       expect(config.maxTokens).toBe(1024);
@@ -55,7 +55,7 @@ describe('ASTChunker', () => {
   });
 
   describe('Simple Token Counter', () => {
-    it('should count tokens approximately', () => {
+    it('should count tokens approximately', async () => {
       const counter = new SimpleTokenCounter();
       const text = 'function test() { return 42; }'; // 30 chars
       const tokens = counter.count(text);
@@ -65,7 +65,7 @@ describe('ASTChunker', () => {
   });
 
   describe('Basic Chunking', () => {
-    it('should chunk a simple TypeScript file', () => {
+    it('should chunk a simple TypeScript file', async () => {
       const code = `
 function add(a: number, b: number): number {
   return a + b;
@@ -86,7 +86,7 @@ export class Calculator {
 }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.stats.totalChunks).toBe(result.chunks.length);
@@ -106,7 +106,7 @@ export class Calculator {
       });
     });
 
-    it('should preserve semantic boundaries', () => {
+    it('should preserve semantic boundaries', async () => {
       const code = `
 function complete() {
   const x = 1;
@@ -115,7 +115,7 @@ function complete() {
 }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       // Should have at least one chunk
       expect(result.chunks.length).toBeGreaterThan(0);
@@ -132,17 +132,17 @@ function complete() {
       }
     });
 
-    it('should handle empty files', () => {
-      const result = chunker.chunkFile('empty.ts', '', 'typescript');
+    it('should handle empty files', async () => {
+      const result = await chunker.chunkFile('empty.ts', '', 'typescript');
 
       expect(result.chunks.length).toBe(0);
       expect(result.stats.totalChunks).toBe(0);
     });
 
-    it('should handle single-line functions', () => {
+    it('should handle single-line functions', async () => {
       const code = 'const add = (a: number, b: number) => a + b;';
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       expect(result.chunks.length).toBeGreaterThan(0);
       const chunk = result.chunks[0];
@@ -151,7 +151,7 @@ function complete() {
   });
 
   describe('Large Entity Splitting', () => {
-    it('should split very large functions', () => {
+    it('should split very large functions', async () => {
       // Create a large function with many lines
       const lines: string[] = ['function largeFunction() {'];
       for (let i = 0; i < 200; i++) {
@@ -161,7 +161,7 @@ function complete() {
       lines.push('}');
 
       const code = lines.join('\n');
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       // Should create multiple chunks for the large function
       expect(result.chunks.length).toBeGreaterThan(1);
@@ -176,7 +176,7 @@ function complete() {
       }
     });
 
-    it('should respect max token limit', () => {
+    it('should respect max token limit', async () => {
       const lines: string[] = ['function test() {'];
       for (let i = 0; i < 300; i++) {
         lines.push(`  console.log('Line ${i}');`);
@@ -184,7 +184,7 @@ function complete() {
       lines.push('}');
 
       const code = lines.join('\n');
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       // All chunks should respect max token limit (with some tolerance for overlap)
       result.chunks.forEach((chunk) => {
@@ -194,7 +194,7 @@ function complete() {
   });
 
   describe('Multiple Languages', () => {
-    it('should chunk Python files', () => {
+    it('should chunk Python files', async () => {
       const code = `
 def add(a, b):
     return a + b
@@ -204,13 +204,13 @@ class Calculator:
         return a * b
 `;
 
-      const result = chunker.chunkFile('test.py', code, 'python');
+      const result = await chunker.chunkFile('test.py', code, 'python');
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.chunks[0].language).toBe('python');
     });
 
-    it('should chunk JavaScript files', () => {
+    it('should chunk JavaScript files', async () => {
       const code = `
 function greet(name) {
   return 'Hello ' + name;
@@ -219,7 +219,7 @@ function greet(name) {
 export default greet;
 `;
 
-      const result = chunker.chunkFile('test.js', code, 'javascript');
+      const result = await chunker.chunkFile('test.js', code, 'javascript');
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.chunks[0].language).toBe('javascript');
@@ -227,14 +227,14 @@ export default greet;
   });
 
   describe('Metadata Completeness', () => {
-    it('should include all required metadata fields', () => {
+    it('should include all required metadata fields', async () => {
       const code = `
 export function testFunction(param1: string, param2: number): boolean {
   return param1.length > param2;
 }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       const chunk = result.chunks.find((c) => c.entityType === 'function');
       expect(chunk).toBeDefined();
@@ -249,7 +249,7 @@ export function testFunction(param1: string, param2: number): boolean {
       }
     });
 
-    it('should include parent entity for methods', () => {
+    it('should include parent entity for methods', async () => {
       const code = `
 class TestClass {
   testMethod() {
@@ -258,7 +258,7 @@ class TestClass {
 }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       const methodChunk = result.chunks.find((c) => c.entityType === 'method');
 
@@ -270,14 +270,14 @@ class TestClass {
   });
 
   describe('Statistics', () => {
-    it('should calculate correct statistics', () => {
+    it('should calculate correct statistics', async () => {
       const code = `
 function test1() { return 1; }
 function test2() { return 2; }
 function test3() { return 3; }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       expect(result.stats.totalChunks).toBe(result.chunks.length);
       expect(result.stats.avgTokens).toBeGreaterThan(0);
@@ -292,14 +292,14 @@ function test3() { return 3; }
       expect(totalWithOverlap).toBeGreaterThanOrEqual(result.stats.totalTokens);
     });
 
-    it('should calculate high semantic preservation for simple code', () => {
+    it('should calculate high semantic preservation for simple code', async () => {
       const code = `
 function simple() {
   return 42;
 }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       // Simple functions should have high semantic preservation
       expect(result.stats.semanticPreservation).toBeGreaterThan(50);
@@ -307,32 +307,32 @@ function simple() {
   });
 
   describe('Edge Cases', () => {
-    it('should handle files with only imports', () => {
+    it('should handle files with only imports', async () => {
       const code = `
 import { test } from '@jest/globals';
 import { expect } from 'chai';
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.chunks[0].entityType).toBe('module');
     });
 
-    it('should handle files with only comments', () => {
+    it('should handle files with only comments', async () => {
       const code = `
 // This is a comment
 /* Multi-line
    comment */
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       // Should create at least one chunk for module-level content
       expect(result.chunks.length).toBeGreaterThan(0);
     });
 
-    it('should handle nested classes', () => {
+    it('should handle nested classes', async () => {
       const code = `
 class Outer {
   class Inner {
@@ -343,21 +343,21 @@ class Outer {
 }
 `;
 
-      const result = chunker.chunkFile('test.ts', code, 'typescript');
+      const result = await chunker.chunkFile('test.ts', code, 'typescript');
 
       expect(result.chunks.length).toBeGreaterThan(0);
     });
   });
 
   describe('Fallback Chunking', () => {
-    it('should use fallback for unsupported languages', () => {
+    it('should use fallback for unsupported languages', async () => {
       const code = `
 Some random text
 that is not valid code
 but should still be chunked
 `;
 
-      const result = chunker.chunkFile('test.txt', code, 'unknown');
+      const result = await chunker.chunkFile('test.txt', code, 'unknown');
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.chunks[0].metadata.isFallback).toBe(true);
