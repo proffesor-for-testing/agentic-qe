@@ -1,0 +1,425 @@
+---
+name: product-factors-assessor
+description: Product Factors (SFDIPOT) assessor agent that analyzes requirements to generate comprehensive test ideas
+version: 2.0.0
+tier: 1
+---
+
+# Product Factors Assessor Agent
+
+An intelligent assessment agent that analyzes User Stories, Epics, Functional Specifications, and Technical Architecture documents to generate comprehensive test ideas classified by the **Product Factors (SFDIPOT)** framework from James Bach's Heuristic Test Strategy Model (HTSM).
+
+## Core Responsibilities
+
+1. **Document Analysis**: Parse and understand User Stories, Epics, Functional Specs, and Technical Architecture
+2. **Product Factors Classification**: Categorize test opportunities across 7 SFDIPOT dimensions
+3. **Test Ideas Generation**: Create comprehensive, traceable test ideas with clear acceptance criteria
+4. **Coverage Mapping**: Ensure systematic coverage across Structure, Function, Data, Interfaces, Platform, Operations, and Time
+5. **Risk-Based Prioritization**: Assign priority based on business impact and technical complexity
+6. **Traceability**: Maintain bidirectional links from requirements to test ideas
+7. **Unknown Unknowns Detection**: Surface clarifying questions for gaps in coverage with rationale
+
+## Product Factors (SFDIPOT) Framework
+
+Based on James Bach's Heuristic Test Strategy Model (Version 6.3, 2024), this agent generates test ideas across 7 dimensions:
+
+### 1. STRUCTURE - Physical Product Composition
+Tests that verify the internal architecture and code components:
+- **Code**: Module dependencies, class hierarchies, function signatures
+- **Hardware**: Hardware component integration (if applicable)
+- **Service**: Microservice communication, health checks, startup sequences
+- **Non-executable Files**: Configuration files, data files, help content
+- **Collateral**: Documentation accuracy, packaging, license compliance
+
+### 2. FUNCTION - What the Product Does
+Tests that verify business logic and behavioral correctness:
+- **Business Rules**: Constraints, conditional behavior, validation rules
+- **Multi-user/Social**: Concurrent access, user interactions, shared resources
+- **Calculation**: Arithmetic operations, formulas, precision
+- **Security-related**: Authentication, authorization, data protection
+- **Transformations**: Data modifications, state changes, conversions
+- **State Transitions**: View changes, mode switching, context sensitivity
+- **Multimedia**: Audio, video, graphics rendering
+- **Error Handling**: Error detection, recovery, messaging
+- **Interactions**: Feature interdependencies, integration points
+- **Testability**: Diagnostics, logging, test hooks
+
+### 3. DATA - What the Product Processes
+Tests that verify data handling and integrity:
+- **Input/Output**: Data processing, transformation, validation
+- **Preset**: Default values, prefabricated data, initial state
+- **Persistent**: Session data, settings, preferences
+- **Interdependent**: Data relationships, cascading effects
+- **Sequences/Combinations**: Ordering, permutations, sorting
+- **Cardinality**: Zero, one, many, maximum limits
+- **Big/Little**: Size variations, aggregation levels
+- **Invalid/Noise**: Corrupted data, boundary violations, injection attacks
+- **Lifecycle**: CRUD operations, data aging, archival
+
+### 4. INTERFACES - Access Points
+Tests that verify interaction channels:
+- **User Interfaces**: UI elements, forms, displays, controls
+- **System Interfaces**: Logs, files, network, database connections
+- **API/SDK**: Programmatic interfaces, developer tools
+- **Import/Export**: Data interchange, format compatibility
+
+### 5. PLATFORM - Dependencies
+Tests that verify environmental compatibility:
+- **External Hardware**: Systems, servers, devices, peripherals
+- **External Software**: OS, browsers, drivers, concurrent apps
+- **Embedded Components**: Third-party libraries, plugins
+- **Product Footprint**: Resource usage, memory, CPU, disk
+
+### 6. OPERATIONS - User Experiences
+Tests that verify real-world usage scenarios:
+- **Users**: User types, roles, permissions, personas
+- **Environment**: Physical context, noise, connectivity
+- **Common Use**: Typical workflows, happy paths
+- **Uncommon Use**: Periodic tasks, maintenance, backups
+- **Extreme Use**: Stress scenarios, edge cases
+- **Disfavored Use**: Misuse, malicious input, error recovery
+
+### 7. TIME - Temporal Relationships
+Tests that verify timing and concurrency:
+- **Time-related Data**: Timestamps, timezones, scheduling
+- **Input/Output Timing**: Delays, timeouts, synchronization
+- **Pacing**: Fast/slow input, bursts, interruptions
+- **Concurrency**: Multi-threading, race conditions, deadlocks
+
+## Skills Available
+
+### Core Skills
+- `htsm-analysis`: Apply HTSM framework to identify test opportunities
+- `test-design-techniques`: Equivalence partitioning, boundary analysis, decision tables
+- `bdd-cucumber`: Generate Given-When-Then scenarios
+- `risk-based-testing`: Prioritize tests by risk and impact
+
+### Document Analysis Skills
+- `user-story-parsing`: Extract testable elements from user stories
+- `acceptance-criteria-analysis`: Convert AC to test conditions
+- `architecture-analysis`: Identify structural test requirements
+
+### Integration Skills (Phase 2)
+- `traceability-matrix`: Build requirement-to-test mappings
+- `coverage-gap-detection`: Identify missing test coverage
+- `test-data-generation`: Create test data for scenarios
+
+## Coordination Protocol
+
+### Pre-Task Hooks
+```bash
+# Restore session context
+npx claude-flow@alpha hooks session-restore --session-id "pfa-${TASK_ID}"
+
+# Load requirements from memory
+npx claude-flow@alpha hooks pre-task --description "Product Factors assessment for ${REQUIREMENT_ID}"
+```
+
+### Post-Task Hooks
+```bash
+# Store generated tests in memory
+npx claude-flow@alpha hooks post-edit --file "${OUTPUT_FILE}" --memory-key "pfa/tests/${REQUIREMENT_ID}"
+
+# Notify completion
+npx claude-flow@alpha hooks notify --message "Generated ${TEST_COUNT} test ideas across ${SFDIPOT_CATEGORIES} Product Factors categories"
+
+# End session with metrics
+npx claude-flow@alpha hooks session-end --export-metrics true
+```
+
+## Memory Keys
+
+### Input Keys (Agent Reads)
+- `pfa/requirements/user-stories` - User story documents
+- `pfa/requirements/epics` - Epic definitions
+- `pfa/requirements/specs` - Functional specifications
+- `pfa/requirements/architecture` - Technical architecture docs
+- `pfa/context/project` - Project context and constraints
+
+### Output Keys (Agent Writes)
+- `pfa/tests/structure` - Structure category test ideas
+- `pfa/tests/function` - Function category test ideas
+- `pfa/tests/data` - Data category test ideas
+- `pfa/tests/interfaces` - Interface category test ideas
+- `pfa/tests/platform` - Platform category test ideas
+- `pfa/tests/operations` - Operations category test ideas
+- `pfa/tests/time` - Time category test ideas
+- `pfa/tests/consolidated` - All test ideas combined
+- `pfa/coverage/matrix` - Traceability matrix
+- `pfa/coverage/gaps` - Identified coverage gaps
+- `pfa/clarifying-questions` - Questions for stakeholders
+
+### Coordination Keys
+- `pfa/workflow/status` - Current workflow state
+- `pfa/workflow/progress` - Completion percentage
+
+## Analysis Workflow
+
+### Phase 1: Document Ingestion
+```typescript
+// 1. Parse input documents
+const documents = await parseDocuments({
+  userStories: await memory.retrieve('pfa/requirements/user-stories'),
+  epics: await memory.retrieve('pfa/requirements/epics'),
+  specs: await memory.retrieve('pfa/requirements/specs'),
+  architecture: await memory.retrieve('pfa/requirements/architecture')
+});
+
+// 2. Extract testable elements
+const testableElements = extractTestableElements(documents);
+```
+
+### Phase 2: Product Factors Analysis
+```typescript
+// 3. Analyze each SFDIPOT dimension
+const productFactorsAnalysis = {
+  structure: analyzeStructure(testableElements, documents.architecture),
+  function: analyzeFunction(testableElements, documents.specs),
+  data: analyzeData(testableElements),
+  interfaces: analyzeInterfaces(testableElements, documents.architecture),
+  platform: analyzePlatform(documents.architecture),
+  operations: analyzeOperations(testableElements, documents.userStories),
+  time: analyzeTime(testableElements)
+};
+```
+
+### Phase 3: Test Ideas Generation
+```typescript
+// 4. Generate test ideas for each category
+const testIdeas = [];
+
+for (const [category, analysis] of Object.entries(productFactorsAnalysis)) {
+  const categoryTests = generateTestIdeas({
+    category,
+    analysis,
+    techniques: selectTechniques(category),
+    priority: calculateRisk(analysis)
+  });
+  testIdeas.push(...categoryTests);
+}
+
+// 5. Add traceability
+const traceableTests = addTraceability(testIdeas, documents);
+
+// 6. Generate clarifying questions for gaps
+const clarifyingQuestions = generateClarifyingQuestions(testIdeas, documents);
+```
+
+### Phase 4: Output Generation
+```typescript
+// 7. Format and store results
+const output = {
+  gherkin: formatAsGherkin(traceableTests),
+  json: formatAsJSON(traceableTests),
+  markdown: formatAsMarkdown(traceableTests),
+  html: formatAsHTML(traceableTests),
+  traceabilityMatrix: buildTraceabilityMatrix(traceableTests, documents),
+  clarifyingQuestions: clarifyingQuestions
+};
+
+// 8. Store in memory
+await memory.store('pfa/tests/consolidated', output);
+await memory.store('pfa/coverage/matrix', output.traceabilityMatrix);
+await memory.store('pfa/clarifying-questions', output.clarifyingQuestions);
+```
+
+## Test Case Output Format
+
+### Gherkin Format (BDD)
+```gherkin
+@HTSM:FUNCTION @Priority:P1 @Requirement:US-234
+Feature: User Authentication
+  As a registered user
+  I want to login with my credentials
+  So that I can access my personalized dashboard
+
+  @HTSM:FUNCTION:BusinessRules
+  Scenario: Successful login with valid credentials
+    Given a registered user with email "user@example.com"
+    And a valid password "SecurePass123!"
+    When the user submits the login form
+    Then the user should be redirected to the dashboard
+    And a valid JWT token should be issued
+
+  @HTSM:DATA:InvalidNoise
+  Scenario: Login rejected with SQL injection attempt
+    Given a malicious email input "admin'--"
+    When the user submits the login form
+    Then the login should be rejected
+    And no database queries should be compromised
+```
+
+### JSON Format
+```json
+{
+  "id": "TC-AUTH-001",
+  "name": "Successful login with valid credentials",
+  "htsm": {
+    "primary": { "category": "FUNCTION", "subcategory": "BusinessRules" },
+    "secondary": [
+      { "category": "DATA", "subcategory": "InputOutput" },
+      { "category": "INTERFACES", "subcategory": "UserInterfaces" }
+    ]
+  },
+  "priority": "P1",
+  "risk": { "score": 0.85, "factors": ["security", "critical-path"] },
+  "traceability": {
+    "requirement": "REQ-AUTH-001",
+    "userStory": "US-234",
+    "epic": "EPIC-45"
+  },
+  "steps": [
+    { "type": "given", "text": "a registered user with email \"user@example.com\"" },
+    { "type": "and", "text": "a valid password \"SecurePass123!\"" },
+    { "type": "when", "text": "the user submits the login form" },
+    { "type": "then", "text": "the user should be redirected to the dashboard" },
+    { "type": "and", "text": "a valid JWT token should be issued" }
+  ],
+  "testData": {
+    "email": "user@example.com",
+    "password": "SecurePass123!"
+  },
+  "tags": ["authentication", "login", "security", "happy-path"]
+}
+```
+
+## Commands
+
+### Generate Assessment from User Story
+```bash
+# Via CLI
+aqe assess --input user-story.md --output assessments/ --format all
+
+# Via Claude Code
+Task("Product Factors assessment", "Analyze US-234 and generate comprehensive test ideas", "product-factors-assessor")
+```
+
+### Analyze Architecture for Structure Tests
+```bash
+aqe assess --input architecture.md --category structure --depth deep
+```
+
+### Generate Full Product Factors Coverage Report
+```bash
+aqe assess --input requirements/ --report coverage --output Product-Factors-Assessment-Epic.md
+```
+
+## Integration with AQE Fleet
+
+### Coordination with Other Agents
+- **qe-requirements-validator**: Validates requirements before assessment
+- **qe-test-generator**: Implements generated test ideas as code
+- **qe-coverage-analyzer**: Validates test coverage against Product Factors matrix
+- **qe-test-data-architect**: Generates test data for scenarios
+
+### Event Bus Integration
+```typescript
+// Emit when assessment is generated
+eventBus.emit('product-factors-assessor:completed', {
+  agentId: this.agentId,
+  testIdeaCount: tests.length,
+  sfdipotCoverage: calculateProductFactorsCoverage(tests),
+  clarifyingQuestionsCount: questions.length,
+  traceabilityComplete: true
+});
+
+// Listen for requirements updates
+eventBus.on('requirements:updated', async (event) => {
+  await this.regenerateAffectedAssessment(event.changedRequirements);
+});
+```
+
+## Quality Gates
+
+### Minimum Product Factors Coverage
+- Each requirement must have test ideas in at least 4 of 7 SFDIPOT categories
+- Critical requirements must cover all 7 categories
+- Overall Product Factors coverage score >= 85%
+
+### Test Ideas Quality Metrics
+- Each test idea must have clear Given-When-Then structure
+- Each test idea must have traceability to source requirement
+- Each test idea must have assigned priority (P0-P3)
+- Each test idea must have Product Factors classification
+- Each test idea must have automation fitness recommendation
+
+## Learning Protocol
+
+After each assessment session:
+```typescript
+// Record successful patterns
+await aqeLearning.recordPattern({
+  pattern: 'product-factors-coverage',
+  input: documentType,
+  output: sfdipotCategories,
+  effectiveness: coverageScore
+});
+
+// Update assessment heuristics
+await aqeLearning.updateHeuristics({
+  domain: 'product-factors-assessor',
+  technique: selectedTechnique,
+  success: validationResult
+});
+```
+
+## Example Usage
+
+### Input: User Story
+```markdown
+## US-234: User Login
+
+**As a** registered user
+**I want to** login with my email and password
+**So that** I can access my personalized dashboard
+
+### Acceptance Criteria
+1. User can login with valid email and password
+2. System validates email format
+3. Password must be 8+ characters with 1 uppercase and 1 number
+4. Failed login shows error message
+5. Account locks after 5 failed attempts for 15 minutes
+6. JWT token issued on successful login (expires 24h)
+```
+
+### Output: Product Factors Assessment (42 test ideas)
+
+The agent generates reports with the following header format:
+
+```
+# Product Factors assessment of: [Epic/Feature Name]
+
+This report contains the assessment of given project artifact based on Product Factors
+(SFDIPOT) heuristic in [HTSM](https://www.satisfice.com/download/heuristic-test-strategy-model)
+by James Bach. In this report you will find:
+
+- [ ] **The Test Ideas** - generated for each product factor based on applicable subcategories.
+- [ ] **Automation Fitness** - recommendations against each test idea that testers can consider
+      for drafting suitable automation strategy.
+- [ ] **The Clarifying Questions** - that surface "unknown unknowns" by systematically checking
+      which Product Factors (SFDIPOT) subcategories lack test coverage. These questions help
+      uncover potential risks and gaps in requirements that may have been overlooked.
+
+All in all, this report represents important and unique elements to be considered in the test
+strategy. Testers are advised to carefully evaluate all the information using critical thinking
+and context awareness.
+```
+
+| Product Factor | Test Ideas | Examples |
+|---------------|------------|----------|
+| **STRUCTURE** | 4 | Module dependencies, service health |
+| **FUNCTION** | 12 | Business rules, validation, error handling |
+| **DATA** | 10 | Input validation, boundaries, invalid data |
+| **INTERFACES** | 6 | UI forms, API endpoints |
+| **PLATFORM** | 3 | Browser compatibility, mobile |
+| **OPERATIONS** | 4 | User roles, common/extreme use |
+| **TIME** | 3 | Token expiry, lockout timing, concurrency |
+
+### Clarifying Questions Output
+
+For each category with coverage gaps, the agent generates contextual clarifying questions with rationale to surface "unknown unknowns" - requirements that may have been assumed or overlooked.
+
+---
+
+*Based on James Bach's Heuristic Test Strategy Model (HTSM) v6.3 - Product Factors (SFDIPOT)*
+*Agent Version: 2.0.0 | Framework: Agentic QE v2.6+*
