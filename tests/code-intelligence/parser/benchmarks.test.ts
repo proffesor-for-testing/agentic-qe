@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from '@jest/globals';
-import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser.js';
+import { TreeSitterParser } from '../../../src/code-intelligence/parser/index.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -161,10 +161,10 @@ describe('Parser Performance Benchmarks', () => {
   });
 
   describe('Single File Parsing', () => {
-    it('should parse small TypeScript file (<50 lines) in <5ms average', () => {
+    it('should parse small TypeScript file (<50 lines) in <5ms average', async () => {
       const result = benchmark(
         'Parse small TypeScript file',
-        () => parser.parseFile('test.ts', sampleTypeScript, 'typescript'),
+        () => await parser.parseFile('test.ts', sampleTypeScript, 'typescript'),
         100
       );
 
@@ -172,10 +172,10 @@ describe('Parser Performance Benchmarks', () => {
       console.log(`   ✅ Small file avg: ${result.avgTimeMs}ms`);
     });
 
-    it('should parse large TypeScript file (~1000 lines) in <50ms average', () => {
+    it('should parse large TypeScript file (~1000 lines) in <50ms average', async () => {
       const result = benchmark(
         'Parse large TypeScript file (~1000 lines)',
-        () => parser.parseFile('large.ts', largeSampleTypeScript, 'typescript'),
+        () => await parser.parseFile('large.ts', largeSampleTypeScript, 'typescript'),
         50
       );
 
@@ -183,7 +183,7 @@ describe('Parser Performance Benchmarks', () => {
       console.log(`   ✅ Large file avg: ${result.avgTimeMs}ms`);
     });
 
-    it('should parse Python file efficiently', () => {
+    it('should parse Python file efficiently', async () => {
       const pythonCode = fs.readFileSync(
         path.join(fixturesDir, 'sample.py'),
         'utf-8'
@@ -191,7 +191,7 @@ describe('Parser Performance Benchmarks', () => {
 
       const result = benchmark(
         'Parse Python file',
-        () => parser.parseFile('test.py', pythonCode, 'python'),
+        () => await parser.parseFile('test.py', pythonCode, 'python'),
         100
       );
 
@@ -199,7 +199,7 @@ describe('Parser Performance Benchmarks', () => {
       console.log(`   ✅ Python file avg: ${result.avgTimeMs}ms`);
     });
 
-    it('should parse Go file efficiently', () => {
+    it('should parse Go file efficiently', async () => {
       const goCode = fs.readFileSync(
         path.join(fixturesDir, 'sample.go'),
         'utf-8'
@@ -207,7 +207,7 @@ describe('Parser Performance Benchmarks', () => {
 
       const result = benchmark(
         'Parse Go file',
-        () => parser.parseFile('test.go', goCode, 'go'),
+        () => await parser.parseFile('test.go', goCode, 'go'),
         100
       );
 
@@ -215,7 +215,7 @@ describe('Parser Performance Benchmarks', () => {
       console.log(`   ✅ Go file avg: ${result.avgTimeMs}ms`);
     });
 
-    it('should parse Rust file efficiently', () => {
+    it('should parse Rust file efficiently', async () => {
       const rustCode = fs.readFileSync(
         path.join(fixturesDir, 'sample.rs'),
         'utf-8'
@@ -223,7 +223,7 @@ describe('Parser Performance Benchmarks', () => {
 
       const result = benchmark(
         'Parse Rust file',
-        () => parser.parseFile('test.rs', rustCode, 'rust'),
+        () => await parser.parseFile('test.rs', rustCode, 'rust'),
         100
       );
 
@@ -233,7 +233,7 @@ describe('Parser Performance Benchmarks', () => {
   });
 
   describe('Batch Parsing (Target: 100 files < 10s)', () => {
-    it('should parse 100 TypeScript files in <10 seconds', () => {
+    it('should parse 100 TypeScript files in <10 seconds', async () => {
       const files: string[] = [];
 
       // Generate 100 unique files
@@ -255,7 +255,7 @@ describe('Parser Performance Benchmarks', () => {
       let totalEntities = 0;
 
       files.forEach((content, i) => {
-        const result = parser.parseFile(`file${i}.ts`, content, 'typescript');
+        const result = await parser.parseFile(`file${i}.ts`, content, 'typescript');
         totalEntities += result.entities.length;
       });
 
@@ -279,12 +279,12 @@ describe('Parser Performance Benchmarks', () => {
   });
 
   describe('Incremental Parsing (Target: 36x faster)', () => {
-    it('should demonstrate incremental parsing speedup', () => {
+    it('should demonstrate incremental parsing speedup', async () => {
       parser.clearCache();
 
       // Initial parse
       const initialStart = performance.now();
-      parser.parseFile('incremental.ts', sampleTypeScript, 'typescript');
+      await parser.parseFile('incremental.ts', sampleTypeScript, 'typescript');
       const initialParseTime = performance.now() - initialStart;
 
       // Collect multiple incremental parse times
@@ -298,7 +298,7 @@ describe('Parser Performance Benchmarks', () => {
         );
 
         const incrementalStart = performance.now();
-        parser.updateFile('incremental.ts', modifiedContent, 'typescript');
+        await parser.updateFile('incremental.ts', modifiedContent, 'typescript');
         incrementalTimes.push(performance.now() - incrementalStart);
       }
 
@@ -327,12 +327,12 @@ describe('Parser Performance Benchmarks', () => {
       expect(speedup).toBeGreaterThan(0.5);
     });
 
-    it('should demonstrate significant speedup on large files', () => {
+    it('should demonstrate significant speedup on large files', async () => {
       parser.clearCache();
 
       // Initial parse of large file
       const initialStart = performance.now();
-      parser.parseFile('large-incremental.ts', largeSampleTypeScript, 'typescript');
+      await parser.parseFile('large-incremental.ts', largeSampleTypeScript, 'typescript');
       const initialParseTime = performance.now() - initialStart;
 
       // Incremental parse with small change
@@ -342,7 +342,7 @@ describe('Parser Performance Benchmarks', () => {
       );
 
       const incrementalStart = performance.now();
-      parser.updateFile('large-incremental.ts', modifiedContent, 'typescript');
+      await parser.updateFile('large-incremental.ts', modifiedContent, 'typescript');
       const incrementalParseTime = performance.now() - incrementalStart;
 
       const speedup = initialParseTime / incrementalParseTime;
@@ -369,13 +369,13 @@ describe('Parser Performance Benchmarks', () => {
   });
 
   describe('Entity Extraction Throughput', () => {
-    it('should extract entities at >100 entities/second', () => {
+    it('should extract entities at >100 entities/second', async () => {
       const startTime = performance.now();
       let totalEntities = 0;
 
       // Parse multiple files and count entities
       for (let i = 0; i < 50; i++) {
-        const result = parser.parseFile(
+        const result = await parser.parseFile(
           `throughput${i}.ts`,
           sampleTypeScript,
           'typescript'
@@ -405,12 +405,12 @@ describe('Parser Performance Benchmarks', () => {
   });
 
   describe('Memory Efficiency', () => {
-    it('should manage cache size appropriately', () => {
+    it('should manage cache size appropriately', async () => {
       parser.clearCache();
 
       // Parse many files
       for (let i = 0; i < 50; i++) {
-        parser.parseFile(`memory${i}.ts`, sampleTypeScript, 'typescript');
+        await parser.parseFile(`memory${i}.ts`, sampleTypeScript, 'typescript');
       }
 
       const stats = parser.getCacheStats();
@@ -433,7 +433,7 @@ describe('Parser Performance Benchmarks', () => {
   });
 
   describe('Multi-Language Performance Comparison', () => {
-    it('should benchmark all supported languages', () => {
+    it('should benchmark all supported languages', async () => {
       const languages = [
         { name: 'TypeScript', ext: 'ts', content: sampleTypeScript },
         { name: 'JavaScript', ext: 'js', content: sampleTypeScript.replace(/: \w+/g, '') },
@@ -449,7 +449,7 @@ describe('Parser Performance Benchmarks', () => {
 
         for (let i = 0; i < 50; i++) {
           const start = performance.now();
-          parser.parseFile(`test.${lang.ext}`, lang.content, lang.ext as any);
+          await parser.parseFile(`test.${lang.ext}`, lang.content, lang.ext as any);
           times.push(performance.now() - start);
         }
 

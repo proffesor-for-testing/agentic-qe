@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser';
+import { TreeSitterParser } from '../../../src/code-intelligence/parser/index';
 
 /**
  * Tests for language-specific entity extraction
@@ -10,14 +10,14 @@ describe('Language-specific entity extraction', () => {
   const parser = new TreeSitterParser();
 
   describe('TypeScript entity extraction', () => {
-    it('should extract function declarations', () => {
+    it('should extract function declarations', async () => {
       const code = `
         function greet(name: string): string {
           return \`Hello, \${name}!\`;
         }
       `;
 
-      const result = parser.parseFile('test.ts', code, 'typescript');
+      const result = await parser.parseFile('test.ts', code, 'typescript');
       const func = result.entities.find(e => e.type === 'function' && e.name === 'greet');
 
       expect(func).toBeDefined();
@@ -29,14 +29,14 @@ describe('Language-specific entity extraction', () => {
       }
     });
 
-    it('should extract arrow functions', () => {
+    it('should extract arrow functions', async () => {
       const code = `
         const processData = async (data: Data[]): Promise<Result> => {
           return process(data);
         };
       `;
 
-      const result = parser.parseFile('test.ts', code, 'typescript');
+      const result = await parser.parseFile('test.ts', code, 'typescript');
 
       // Arrow functions might be extracted as functions or variables
       const entities = result.entities.filter(e =>
@@ -46,7 +46,7 @@ describe('Language-specific entity extraction', () => {
       expect(entities.length).toBeGreaterThanOrEqual(0);
     });
 
-    it('should extract class members with modifiers', () => {
+    it('should extract class members with modifiers', async () => {
       const code = `
         class UserService {
           private readonly users: Map<string, User>;
@@ -61,7 +61,7 @@ describe('Language-specific entity extraction', () => {
         }
       `;
 
-      const result = parser.parseFile('test.ts', code, 'typescript');
+      const result = await parser.parseFile('test.ts', code, 'typescript');
 
       const getUserMethod = result.entities.find(e => e.name === 'getUser');
       // Visibility may or may not be extracted
@@ -77,7 +77,7 @@ describe('Language-specific entity extraction', () => {
       expect(validateMethod?.metadata?.isStatic).toBe(true);
     });
 
-    it('should extract interfaces and type aliases', () => {
+    it('should extract interfaces and type aliases', async () => {
       const code = `
         interface User {
           id: string;
@@ -87,20 +87,20 @@ describe('Language-specific entity extraction', () => {
         type UserId = string;
       `;
 
-      const result = parser.parseFile('test.ts', code, 'typescript');
+      const result = await parser.parseFile('test.ts', code, 'typescript');
 
       expect(result.entities.find(e => e.type === 'interface' && e.name === 'User')).toBeDefined();
       expect(result.entities.find(e => e.type === 'type' && e.name === 'UserId')).toBeDefined();
     });
 
-    it('should extract exported entities', () => {
+    it('should extract exported entities', async () => {
       const code = `
         export function greet() {}
         export class Service {}
         export interface IService {}
       `;
 
-      const result = parser.parseFile('test.ts', code, 'typescript');
+      const result = await parser.parseFile('test.ts', code, 'typescript');
 
       const exportedEntities = result.entities.filter(e => e.metadata?.isExported);
       expect(exportedEntities.length).toBeGreaterThan(0);
@@ -108,20 +108,20 @@ describe('Language-specific entity extraction', () => {
   });
 
   describe('JavaScript entity extraction', () => {
-    it('should extract function expressions', () => {
+    it('should extract function expressions', async () => {
       const code = `
         const greet = function(name) {
           return \`Hello, \${name}!\`;
         };
       `;
 
-      const result = parser.parseFile('test.js', code, 'javascript');
+      const result = await parser.parseFile('test.js', code, 'javascript');
 
       // Should extract function in some form
       expect(result.entities.length).toBeGreaterThanOrEqual(0);
     });
 
-    it('should extract class methods', () => {
+    it('should extract class methods', async () => {
       const code = `
         class UserService {
           async getUser(id) {
@@ -134,7 +134,7 @@ describe('Language-specific entity extraction', () => {
         }
       `;
 
-      const result = parser.parseFile('test.js', code, 'javascript');
+      const result = await parser.parseFile('test.js', code, 'javascript');
 
       const getUserMethod = result.entities.find(e => e.name === 'getUser');
       expect(getUserMethod?.metadata?.isAsync).toBe(true);
@@ -143,7 +143,7 @@ describe('Language-specific entity extraction', () => {
       expect(createMethod?.metadata?.isStatic).toBe(true);
     });
 
-    it('should handle generator functions', () => {
+    it('should handle generator functions', async () => {
       const code = `
         function* generateIds() {
           let id = 0;
@@ -153,7 +153,7 @@ describe('Language-specific entity extraction', () => {
         }
       `;
 
-      const result = parser.parseFile('test.js', code, 'javascript');
+      const result = await parser.parseFile('test.js', code, 'javascript');
       const func = result.entities.find(e => e.name === 'generateIds');
 
       // Generator function extraction may vary
@@ -171,14 +171,14 @@ describe('Language-specific entity extraction', () => {
   });
 
   describe('Python entity extraction', () => {
-    it('should extract function definitions with type hints', () => {
+    it('should extract function definitions with type hints', async () => {
       const code = `
 def greet(name: str) -> str:
     """Greet a user by name."""
     return f"Hello, {name}!"
       `;
 
-      const result = parser.parseFile('test.py', code, 'python');
+      const result = await parser.parseFile('test.py', code, 'python');
       const func = result.entities.find(e => e.name === 'greet');
 
       expect(func).toBeDefined();
@@ -188,7 +188,7 @@ def greet(name: str) -> str:
       }
     });
 
-    it('should extract class methods with decorators', () => {
+    it('should extract class methods with decorators', async () => {
       const code = `
 class UserService:
     @property
@@ -204,7 +204,7 @@ class UserService:
         return cls()
       `;
 
-      const result = parser.parseFile('test.py', code, 'python');
+      const result = await parser.parseFile('test.py', code, 'python');
 
       // Check if methods are extracted
       const methods = result.entities.filter(e => e.type === 'method');
@@ -217,19 +217,19 @@ class UserService:
       }
     });
 
-    it('should handle async functions', () => {
+    it('should handle async functions', async () => {
       const code = `
 async def fetch_user(user_id: str):
     return await db.get_user(user_id)
       `;
 
-      const result = parser.parseFile('test.py', code, 'python');
+      const result = await parser.parseFile('test.py', code, 'python');
       const func = result.entities.find(e => e.name === 'fetch_user');
 
       expect(func?.metadata?.isAsync).toBe(true);
     });
 
-    it('should extract private methods by naming convention', () => {
+    it('should extract private methods by naming convention', async () => {
       const code = `
 class Service:
     def __init__(self):
@@ -242,7 +242,7 @@ class Service:
         pass
       `;
 
-      const result = parser.parseFile('test.py', code, 'python');
+      const result = await parser.parseFile('test.py', code, 'python');
 
       const internalMethod = result.entities.find(e => e.name === '_internal_method');
       // Visibility detection may vary
@@ -258,14 +258,14 @@ class Service:
   });
 
   describe('Go entity extraction', () => {
-    it('should extract function declarations', () => {
+    it('should extract function declarations', async () => {
       const code = `
 func Greet(name string) string {
     return "Hello, " + name + "!"
 }
       `;
 
-      const result = parser.parseFile('test.go', code, 'go');
+      const result = await parser.parseFile('test.go', code, 'go');
       const func = result.entities.find(e => e.name === 'Greet');
 
       expect(func).toBeDefined();
@@ -275,7 +275,7 @@ func Greet(name string) string {
       }
     });
 
-    it('should extract struct definitions', () => {
+    it('should extract struct definitions', async () => {
       const code = `
 type UserService struct {
     users map[string]User
@@ -283,7 +283,7 @@ type UserService struct {
 }
       `;
 
-      const result = parser.parseFile('test.go', code, 'go');
+      const result = await parser.parseFile('test.go', code, 'go');
 
       // Structs might be classified as 'struct' or 'class'
       const struct = result.entities.find(e => e.name === 'UserService');
@@ -296,7 +296,7 @@ type UserService struct {
       }
     });
 
-    it('should extract methods with receivers', () => {
+    it('should extract methods with receivers', async () => {
       const code = `
 func (s *UserService) GetUser(id string) (*User, error) {
     s.mu.Lock()
@@ -309,7 +309,7 @@ func (s *UserService) GetUser(id string) (*User, error) {
 }
       `;
 
-      const result = parser.parseFile('test.go', code, 'go');
+      const result = await parser.parseFile('test.go', code, 'go');
       const method = result.entities.find(e => e.name === 'GetUser');
 
       // Method extraction may vary
@@ -326,7 +326,7 @@ func (s *UserService) GetUser(id string) (*User, error) {
       }
     });
 
-    it('should detect visibility from naming convention', () => {
+    it('should detect visibility from naming convention', async () => {
       const code = `
 func PublicFunc() {}
 func privateFunc() {}
@@ -335,7 +335,7 @@ type PublicStruct struct {}
 type privateStruct struct {}
       `;
 
-      const result = parser.parseFile('test.go', code, 'go');
+      const result = await parser.parseFile('test.go', code, 'go');
 
       const publicFunc = result.entities.find(e => e.name === 'PublicFunc');
       // Visibility detection may vary
@@ -349,7 +349,7 @@ type privateStruct struct {}
       }
     });
 
-    it('should extract interface definitions', () => {
+    it('should extract interface definitions', async () => {
       const code = `
 type UserRepository interface {
     GetUser(id string) (*User, error)
@@ -357,7 +357,7 @@ type UserRepository interface {
 }
       `;
 
-      const result = parser.parseFile('test.go', code, 'go');
+      const result = await parser.parseFile('test.go', code, 'go');
 
       // Interface might be classified as 'interface' or other type
       const iface = result.entities.find(e => e.name === 'UserRepository');
@@ -372,7 +372,7 @@ type UserRepository interface {
   });
 
   describe('Rust entity extraction', () => {
-    it('should extract function definitions with visibility', () => {
+    it('should extract function definitions with visibility', async () => {
       const code = `
 pub fn greet(name: &str) -> String {
     format!("Hello, {}!", name)
@@ -381,7 +381,7 @@ pub fn greet(name: &str) -> String {
 fn private_helper() {}
       `;
 
-      const result = parser.parseFile('test.rs', code, 'rust');
+      const result = await parser.parseFile('test.rs', code, 'rust');
 
       const publicFunc = result.entities.find(e => e.name === 'greet');
       // Visibility detection might not be implemented yet
@@ -393,20 +393,20 @@ fn private_helper() {}
       expect(privateFunc).toBeDefined();
     });
 
-    it('should extract struct definitions', () => {
+    it('should extract struct definitions', async () => {
       const code = `
 pub struct UserService {
     users: HashMap<String, User>,
 }
       `;
 
-      const result = parser.parseFile('test.rs', code, 'rust');
+      const result = await parser.parseFile('test.rs', code, 'rust');
       const struct = result.entities.find(e => e.name === 'UserService');
 
       expect(struct).toBeDefined();
     });
 
-    it('should extract impl blocks and methods', () => {
+    it('should extract impl blocks and methods', async () => {
       const code = `
 impl UserService {
     pub fn new() -> Self {
@@ -419,7 +419,7 @@ impl UserService {
 }
       `;
 
-      const result = parser.parseFile('test.rs', code, 'rust');
+      const result = await parser.parseFile('test.rs', code, 'rust');
 
       const newMethod = result.entities.find(e => e.name === 'new');
       expect(newMethod).toBeDefined();
@@ -430,7 +430,7 @@ impl UserService {
       }
     });
 
-    it('should extract trait definitions', () => {
+    it('should extract trait definitions', async () => {
       const code = `
 pub trait Repository {
     fn get(&self, id: &str) -> Option<User>;
@@ -438,14 +438,14 @@ pub trait Repository {
 }
       `;
 
-      const result = parser.parseFile('test.rs', code, 'rust');
+      const result = await parser.parseFile('test.rs', code, 'rust');
 
       // Trait might be classified as 'interface' or 'trait'
       const trait = result.entities.find(e => e.name === 'Repository');
       expect(trait).toBeDefined();
     });
 
-    it('should handle generic types', () => {
+    it('should handle generic types', async () => {
       const code = `
 pub fn process<T: Clone>(value: T) -> T {
     value.clone()
@@ -456,7 +456,7 @@ pub struct Container<T> {
 }
       `;
 
-      const result = parser.parseFile('test.rs', code, 'rust');
+      const result = await parser.parseFile('test.rs', code, 'rust');
 
       const func = result.entities.find(e => e.name === 'process');
       expect(func).toBeDefined();
@@ -467,14 +467,14 @@ pub struct Container<T> {
   });
 
   describe('Common extraction utilities', () => {
-    it('should extract source locations accurately', () => {
+    it('should extract source locations accurately', async () => {
       const code = `
         function test() {
           return 1;
         }
       `;
 
-      const result = parser.parseFile('test.js', code, 'javascript');
+      const result = await parser.parseFile('test.js', code, 'javascript');
       const func = result.entities[0];
 
       if (func) {
@@ -483,7 +483,7 @@ pub struct Container<T> {
       }
     });
 
-    it('should handle nested structures', () => {
+    it('should handle nested structures', async () => {
       const code = `
         class Outer {
           method() {
@@ -492,13 +492,13 @@ pub struct Container<T> {
         }
       `;
 
-      const result = parser.parseFile('test.js', code, 'javascript');
+      const result = await parser.parseFile('test.js', code, 'javascript');
 
       // Should extract at least the outer class
       expect(result.entities.find(e => e.name === 'Outer')).toBeDefined();
     });
 
-    it('should extract entities from complex files', () => {
+    it('should extract entities from complex files', async () => {
       const code = `
         export interface IService {
           process(): void;
@@ -525,7 +525,7 @@ pub struct Container<T> {
         }
       `;
 
-      const result = parser.parseFile('test.ts', code, 'typescript');
+      const result = await parser.parseFile('test.ts', code, 'typescript');
 
       expect(result.entities.length).toBeGreaterThan(3);
       expect(result.entities.find(e => e.name === 'IService')).toBeDefined();

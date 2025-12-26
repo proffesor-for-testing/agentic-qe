@@ -9,7 +9,7 @@ export const SERVER_INSTRUCTIONS = `
 # Agentic QE Fleet - MCP Tool Guide
 
 ## Overview
-Agentic QE provides 96 specialized quality engineering tools organized into a hierarchical system for efficient context usage.
+Agentic QE provides 105 specialized quality engineering tools organized into a hierarchical system for efficient context usage.
 
 ## Quick Start
 1. **Discover available tools:** Use \`tools_discover\` to see all domains
@@ -117,7 +117,7 @@ Example: \`mcp__agentic_qe__test_generate_enhanced\`
 `;
 
 export const SERVER_NAME = 'agentic-qe';
-export const SERVER_VERSION = '2.6.5';
+export const SERVER_VERSION = '2.6.6';
 
 /**
  * Get formatted server info for MCP initialization

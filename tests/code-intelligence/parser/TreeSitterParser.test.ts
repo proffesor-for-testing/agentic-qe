@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from '@jest/globals';
-import { TreeSitterParser } from '../../../src/code-intelligence/parser/TreeSitterParser';
+import { TreeSitterParser } from '../../../src/code-intelligence/parser/index';
 import fs from 'fs';
 import path from 'path';
 
@@ -11,12 +11,12 @@ describe('TreeSitterParser', () => {
   });
 
   describe('TypeScript parsing', () => {
-    it('should extract functions from TypeScript', () => {
+    it('should extract functions from TypeScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.ts'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.ts', content, 'typescript');
+      const result = await parser.parseFile('sample.ts', content, 'typescript');
 
       expect(result.entities).toBeDefined();
       expect(result.errors).toEqual([]);
@@ -35,12 +35,12 @@ describe('TreeSitterParser', () => {
       }
     });
 
-    it('should extract classes from TypeScript', () => {
+    it('should extract classes from TypeScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.ts'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.ts', content, 'typescript');
+      const result = await parser.parseFile('sample.ts', content, 'typescript');
 
       const classes = result.entities.filter(e => e.type === 'class');
       expect(classes.length).toBeGreaterThan(0);
@@ -50,12 +50,12 @@ describe('TreeSitterParser', () => {
       expect(userServiceClass?.name).toBe('UserService');
     });
 
-    it('should extract methods with metadata from TypeScript', () => {
+    it('should extract methods with metadata from TypeScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.ts'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.ts', content, 'typescript');
+      const result = await parser.parseFile('sample.ts', content, 'typescript');
 
       const methods = result.entities.filter(e => e.type === 'method');
       expect(methods.length).toBeGreaterThan(0);
@@ -76,12 +76,12 @@ describe('TreeSitterParser', () => {
       }
     });
 
-    it('should extract interfaces from TypeScript', () => {
+    it('should extract interfaces from TypeScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.ts'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.ts', content, 'typescript');
+      const result = await parser.parseFile('sample.ts', content, 'typescript');
 
       const interfaces = result.entities.filter(e => e.type === 'interface');
       expect(interfaces.length).toBeGreaterThan(0);
@@ -90,12 +90,12 @@ describe('TreeSitterParser', () => {
       expect(userInterface).toBeDefined();
     });
 
-    it('should track source locations for TypeScript entities', () => {
+    it('should track source locations for TypeScript entities', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.ts'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.ts', content, 'typescript');
+      const result = await parser.parseFile('sample.ts', content, 'typescript');
 
       result.entities.forEach(entity => {
         expect(entity.lineStart).toBeGreaterThanOrEqual(1);
@@ -105,12 +105,12 @@ describe('TreeSitterParser', () => {
   });
 
   describe('JavaScript parsing', () => {
-    it('should extract functions from JavaScript', () => {
+    it('should extract functions from JavaScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.js'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.js', content, 'javascript');
+      const result = await parser.parseFile('sample.js', content, 'javascript');
 
       const functions = result.entities.filter(e => e.type === 'function');
       expect(functions.length).toBeGreaterThan(0);
@@ -119,12 +119,12 @@ describe('TreeSitterParser', () => {
       expect(greetFunc).toBeDefined();
     });
 
-    it('should extract classes from JavaScript', () => {
+    it('should extract classes from JavaScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.js'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.js', content, 'javascript');
+      const result = await parser.parseFile('sample.js', content, 'javascript');
 
       const classes = result.entities.filter(e => e.type === 'class');
       expect(classes.length).toBeGreaterThan(0);
@@ -133,12 +133,12 @@ describe('TreeSitterParser', () => {
       expect(userServiceClass).toBeDefined();
     });
 
-    it('should detect async methods in JavaScript', () => {
+    it('should detect async methods in JavaScript', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.js'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.js', content, 'javascript');
+      const result = await parser.parseFile('sample.js', content, 'javascript');
 
       const methods = result.entities.filter(e => e.type === 'method');
       const getUserMethod = methods.find(m => m.name === 'getUser');
@@ -147,12 +147,12 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Python parsing', () => {
-    it('should extract functions from Python', () => {
+    it('should extract functions from Python', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.py'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.py', content, 'python');
+      const result = await parser.parseFile('sample.py', content, 'python');
 
       const functions = result.entities.filter(e => e.type === 'function');
       expect(functions.length).toBeGreaterThan(0);
@@ -165,12 +165,12 @@ describe('TreeSitterParser', () => {
       }
     });
 
-    it('should extract classes from Python', () => {
+    it('should extract classes from Python', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.py'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.py', content, 'python');
+      const result = await parser.parseFile('sample.py', content, 'python');
 
       const classes = result.entities.filter(e => e.type === 'class');
       expect(classes.length).toBeGreaterThan(0);
@@ -179,24 +179,24 @@ describe('TreeSitterParser', () => {
       expect(userServiceClass).toBeDefined();
     });
 
-    it('should detect async methods in Python', () => {
+    it('should detect async methods in Python', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.py'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.py', content, 'python');
+      const result = await parser.parseFile('sample.py', content, 'python');
 
       const methods = result.entities.filter(e => e.type === 'method');
       const getUserMethod = methods.find(m => m.name === 'get_user');
       expect(getUserMethod?.metadata?.isAsync).toBe(true);
     });
 
-    it('should detect property decorators in Python', () => {
+    it('should detect property decorators in Python', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.py'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.py', content, 'python');
+      const result = await parser.parseFile('sample.py', content, 'python');
 
       const methods = result.entities.filter(e => e.type === 'method');
       const userCountMethod = methods.find(m => m.name === 'user_count');
@@ -208,12 +208,12 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Go parsing', () => {
-    it('should extract functions from Go', () => {
+    it('should extract functions from Go', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.go'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.go', content, 'go');
+      const result = await parser.parseFile('sample.go', content, 'go');
 
       const functions = result.entities.filter(e => e.type === 'function');
       expect(functions.length).toBeGreaterThan(0);
@@ -222,12 +222,12 @@ describe('TreeSitterParser', () => {
       expect(greetFunc).toBeDefined();
     });
 
-    it('should extract structs from Go', () => {
+    it('should extract structs from Go', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.go'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.go', content, 'go');
+      const result = await parser.parseFile('sample.go', content, 'go');
 
       // In tree-sitter Go, structs might be classified as 'class' or other types
       const userServiceStruct = result.entities.find(e => e.name === 'UserService');
@@ -241,12 +241,12 @@ describe('TreeSitterParser', () => {
       }
     });
 
-    it('should extract methods with receivers from Go', () => {
+    it('should extract methods with receivers from Go', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.go'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.go', content, 'go');
+      const result = await parser.parseFile('sample.go', content, 'go');
 
       const methods = result.entities.filter(e => e.type === 'method');
       const getUserMethod = methods.find(m => m.name === 'GetUser');
@@ -261,12 +261,12 @@ describe('TreeSitterParser', () => {
       }
     });
 
-    it('should detect visibility from capitalization in Go', () => {
+    it('should detect visibility from capitalization in Go', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.go'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.go', content, 'go');
+      const result = await parser.parseFile('sample.go', content, 'go');
 
       const greetFunc = result.entities.find(e => e.name === 'Greet');
       // Visibility detection from capitalization may vary
@@ -280,12 +280,12 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Rust parsing', () => {
-    it('should extract functions from Rust', () => {
+    it('should extract functions from Rust', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.rs'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.rs', content, 'rust');
+      const result = await parser.parseFile('sample.rs', content, 'rust');
 
       const functions = result.entities.filter(e => e.type === 'function');
       expect(functions.length).toBeGreaterThan(0);
@@ -294,12 +294,12 @@ describe('TreeSitterParser', () => {
       expect(greetFunc).toBeDefined();
     });
 
-    it('should extract structs from Rust', () => {
+    it('should extract structs from Rust', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.rs'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.rs', content, 'rust');
+      const result = await parser.parseFile('sample.rs', content, 'rust');
 
       const structs = result.entities.filter(e =>
         e.type === 'struct' || (e.type === 'class' && e.name === 'UserService')
@@ -310,12 +310,12 @@ describe('TreeSitterParser', () => {
       expect(userServiceStruct).toBeDefined();
     });
 
-    it('should extract impl methods from Rust', () => {
+    it('should extract impl methods from Rust', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.rs'),
         'utf-8'
       );
-      const result = parser.parseFile('sample.rs', content, 'rust');
+      const result = await parser.parseFile('sample.rs', content, 'rust');
 
       const methods = result.entities.filter(e => e.type === 'method');
 
@@ -328,21 +328,21 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Incremental parsing', () => {
-    it('should support incremental updates via updateFile', () => {
+    it('should support incremental updates via updateFile', async () => {
       const originalContent = 'function test() { return 1; }';
       const updatedContent = 'function test() { return 2; }';
 
       // Initial parse
-      const result1 = parser.parseFile('test.js', originalContent, 'javascript');
+      const result1 = await parser.parseFile('test.js', originalContent, 'javascript');
       expect(result1.entities.length).toBeGreaterThan(0);
 
       // Incremental update using updateFile method
-      const result2 = parser.updateFile('test.js', updatedContent, 'javascript');
+      const result2 = await parser.updateFile('test.js', updatedContent, 'javascript');
       expect(result2.entities.length).toBeGreaterThan(0);
       expect(result2.parseTimeMs).toBeGreaterThanOrEqual(0);
     });
 
-    it('should correctly update entity list on incremental parse', () => {
+    it('should correctly update entity list on incremental parse', async () => {
       const originalContent = `
         function oldFunc() { return 1; }
         function keepFunc() { return 2; }
@@ -352,8 +352,8 @@ describe('TreeSitterParser', () => {
         function keepFunc() { return 2; }
       `;
 
-      const result1 = parser.parseFile('test.js', originalContent, 'javascript');
-      const result2 = parser.updateFile('test.js', updatedContent, 'javascript');
+      const result1 = await parser.parseFile('test.js', originalContent, 'javascript');
+      const result2 = await parser.updateFile('test.js', updatedContent, 'javascript');
 
       expect(result1.entities.find(e => e.name === 'oldFunc')).toBeDefined();
       expect(result2.entities.find(e => e.name === 'newFunc')).toBeDefined();
@@ -363,99 +363,97 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Language detection', () => {
-    it('should detect TypeScript from file extension', () => {
+    it('should detect TypeScript from file extension', async () => {
       expect(parser.detectLanguage('file.ts')).toBe('typescript');
       expect(parser.detectLanguage('file.tsx')).toBe('typescript');
     });
 
-    it('should detect JavaScript from file extension', () => {
+    it('should detect JavaScript from file extension', async () => {
       expect(parser.detectLanguage('file.js')).toBe('javascript');
       expect(parser.detectLanguage('file.jsx')).toBe('javascript');
       expect(parser.detectLanguage('file.mjs')).toBe('javascript');
     });
 
-    it('should detect Python from file extension', () => {
+    it('should detect Python from file extension', async () => {
       expect(parser.detectLanguage('file.py')).toBe('python');
     });
 
-    it('should detect Go from file extension', () => {
+    it('should detect Go from file extension', async () => {
       expect(parser.detectLanguage('file.go')).toBe('go');
     });
 
-    it('should detect Rust from file extension', () => {
+    it('should detect Rust from file extension', async () => {
       expect(parser.detectLanguage('file.rs')).toBe('rust');
     });
 
-    it('should return null for unsupported file types', () => {
+    it('should return null for unsupported file types', async () => {
       expect(parser.detectLanguage('file.txt')).toBeNull();
       expect(parser.detectLanguage('file.unknown')).toBeNull();
     });
 
-    it('should handle files without extensions', () => {
+    it('should handle files without extensions', async () => {
       expect(parser.detectLanguage('Makefile')).toBeNull();
       expect(parser.detectLanguage('README')).toBeNull();
     });
   });
 
   describe('Error handling', () => {
-    it('should handle invalid syntax gracefully', () => {
+    it('should handle invalid syntax gracefully', async () => {
       const invalidContent = 'function invalid( { return }';
 
-      expect(() => {
-        parser.parseFile('invalid.js', invalidContent, 'javascript');
-      }).not.toThrow();
+      // Async function should not throw - just resolve
+      await expect(parser.parseFile('invalid.js', invalidContent, 'javascript')).resolves.toBeDefined();
 
-      const result = parser.parseFile('invalid.js', invalidContent, 'javascript');
+      const result = await parser.parseFile('invalid.js', invalidContent, 'javascript');
       expect(Array.isArray(result.entities)).toBe(true);
     });
 
-    it('should handle unsupported language', () => {
+    it('should handle unsupported language', async () => {
       const content = 'some content';
 
-      const result = parser.parseFile('file.unknown', content, 'unknown' as any);
+      const result = await parser.parseFile('file.unknown', content, 'unknown' as any);
 
       // Should return error in result
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.entities.length).toBe(0);
     });
 
-    it('should handle empty file content', () => {
-      const result = parser.parseFile('empty.js', '', 'javascript');
+    it('should handle empty file content', async () => {
+      const result = await parser.parseFile('empty.js', '', 'javascript');
       expect(Array.isArray(result.entities)).toBe(true);
       expect(result.entities.length).toBe(0);
     });
 
-    it('should handle very large files', () => {
+    it('should handle very large files', async () => {
       const largeContent = 'function test() {}\n'.repeat(1000);
 
-      expect(() => {
-        parser.parseFile('large.js', largeContent, 'javascript');
-      }).not.toThrow();
+      // Async function should not throw - just resolve
+      await expect(parser.parseFile('large.js', largeContent, 'javascript')).resolves.toBeDefined();
 
-      const result = parser.parseFile('large.js', largeContent, 'javascript');
+      const result = await parser.parseFile('large.js', largeContent, 'javascript');
       expect(result.entities.length).toBeGreaterThan(0);
     });
   });
 
   describe('Performance', () => {
-    it('should parse TypeScript files efficiently', () => {
+    it('should parse TypeScript files efficiently', async () => {
       const content = fs.readFileSync(
         path.join(__dirname, 'fixtures/sample.ts'),
         'utf-8'
       );
 
-      const result = parser.parseFile('sample.ts', content, 'typescript');
+      const result = await parser.parseFile('sample.ts', content, 'typescript');
 
       expect(result.entities.length).toBeGreaterThan(0);
       expect(result.parseTimeMs).toBeLessThan(1000); // Should parse in under 1 second
     });
 
-    it('should handle multiple sequential parses efficiently', () => {
+    it('should handle multiple sequential parses efficiently', async () => {
       const content = 'function test() { return 1; }';
 
       const startTime = Date.now();
       for (let i = 0; i < 100; i++) {
-        parser.parseFile(`test${i}.js`, content, 'javascript');
+        await parser.parseFile(`test${i}.js`, content, 'javascript');
       }
       const totalTime = Date.now() - startTime;
 
@@ -465,13 +463,13 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Cache management', () => {
-    it('should provide cache statistics', () => {
+    it('should provide cache statistics', async () => {
       const content = 'function test() {}';
 
       parser.clearCache(); // Clear cache first
 
-      parser.parseFile('test1.js', content, 'javascript');
-      parser.parseFile('test2.js', content, 'javascript');
+      await parser.parseFile('test1.js', content, 'javascript');
+      await parser.parseFile('test2.js', content, 'javascript');
 
       const stats = parser.getCacheStats();
       expect(stats.size).toBe(2);
@@ -479,11 +477,11 @@ describe('TreeSitterParser', () => {
       expect(stats.files).toContain('test2.js');
     });
 
-    it('should clear cache for specific file', () => {
+    it('should clear cache for specific file', async () => {
       const content = 'function test() {}';
 
-      parser.parseFile('test1.js', content, 'javascript');
-      parser.parseFile('test2.js', content, 'javascript');
+      await parser.parseFile('test1.js', content, 'javascript');
+      await parser.parseFile('test2.js', content, 'javascript');
 
       parser.clearCache('test1.js');
 
@@ -492,11 +490,11 @@ describe('TreeSitterParser', () => {
       expect(stats.files).toContain('test2.js');
     });
 
-    it('should clear all cache', () => {
+    it('should clear all cache', async () => {
       const content = 'function test() {}';
 
-      parser.parseFile('test1.js', content, 'javascript');
-      parser.parseFile('test2.js', content, 'javascript');
+      await parser.parseFile('test1.js', content, 'javascript');
+      await parser.parseFile('test2.js', content, 'javascript');
 
       parser.clearCache();
 
@@ -506,13 +504,13 @@ describe('TreeSitterParser', () => {
   });
 
   describe('Entity metadata extraction', () => {
-    it('should extract complete function metadata', () => {
+    it('should extract complete function metadata', async () => {
       const content = `
         async function processUser(id: string, options?: UserOptions): Promise<User> {
           // implementation
         }
       `;
-      const result = parser.parseFile('test.ts', content, 'typescript');
+      const result = await parser.parseFile('test.ts', content, 'typescript');
 
       const func = result.entities.find(e => e.name === 'processUser');
       expect(func?.metadata?.isAsync).toBe(true);
@@ -520,25 +518,25 @@ describe('TreeSitterParser', () => {
       expect(func?.metadata?.returnType).toContain('Promise');
     });
 
-    it('should extract class metadata with modifiers', () => {
+    it('should extract class metadata with modifiers', async () => {
       const content = `
         export class BaseService {
           protected config: any;
         }
       `;
-      const result = parser.parseFile('test.ts', content, 'typescript');
+      const result = await parser.parseFile('test.ts', content, 'typescript');
 
       const cls = result.entities.find(e => e.name === 'BaseService');
       expect(cls?.metadata?.isExported).toBe(true);
     });
 
-    it('should extract method modifiers', () => {
+    it('should extract method modifiers', async () => {
       const content = `
         class Test {
           private static async getData(): Promise<void> {}
         }
       `;
-      const result = parser.parseFile('test.ts', content, 'typescript');
+      const result = await parser.parseFile('test.ts', content, 'typescript');
 
       const method = result.entities.find(e => e.name === 'getData');
       expect(method?.metadata?.visibility).toBe('private');

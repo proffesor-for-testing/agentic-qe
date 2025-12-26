@@ -78,12 +78,14 @@ export class CodeIntelligenceService {
   private lastIndexTime?: Date;
 
   private constructor(config: CodeIntelligenceServiceConfig = {}) {
+    // Handle null/undefined config gracefully
+    const safeConfig = config ?? {};
     this.config = {
-      rootDir: config.rootDir || process.cwd(),
-      watchEnabled: config.watchEnabled ?? false,
-      gitEnabled: config.gitEnabled ?? true,
-      ollamaUrl: config.ollamaUrl || process.env.OLLAMA_URL || 'http://localhost:11434',
-      database: config.database ?? {
+      rootDir: safeConfig.rootDir || process.cwd(),
+      watchEnabled: safeConfig.watchEnabled ?? false,
+      gitEnabled: safeConfig.gitEnabled ?? true,
+      ollamaUrl: safeConfig.ollamaUrl || process.env.OLLAMA_URL || 'http://localhost:11434',
+      database: safeConfig.database ?? {
         enabled: true,
         host: process.env.RUVECTOR_HOST || 'localhost',
         port: parseInt(process.env.RUVECTOR_PORT || '5432'),

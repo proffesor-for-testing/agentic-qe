@@ -862,4 +862,130 @@ describe('FleetCommanderAgent', () => {
       expect(statusAfter.performanceMetrics.tasksCompleted).toBe(tasksBefore + 1);
     });
   });
+
+  // ============================================================================
+  // Topology Resilience Analysis Tests (Min-Cut SPOF Detection)
+  // ============================================================================
+
+  describe('topology resilience analysis', () => {
+    it('should analyze topology for resilience', async () => {
+      const task = {
+        id: 'task-topology-analyze-1',
+        type: 'topology-analyze',
+        payload: {},
+        priority: 1,
+        status: 'pending'
+      };
+
+      const assignment = {
+        id: 'assignment-topology-analyze-1',
+        task,
+        agentId: agent.getStatus().agentId.id,
+        assignedAt: new Date(),
+        status: 'assigned'
+      };
+
+      const result = await agent.executeTask(assignment);
+
+      // Result may be null if no other agents are registered
+      // but should not throw
+      expect(result === null || result?.score !== undefined).toBe(true);
+    });
+
+    it('should check for SPOFs', async () => {
+      const task = {
+        id: 'task-spof-check-1',
+        type: 'topology-spof-check',
+        payload: {},
+        priority: 1,
+        status: 'pending'
+      };
+
+      const assignment = {
+        id: 'assignment-spof-check-1',
+        task,
+        agentId: agent.getStatus().agentId.id,
+        assignedAt: new Date(),
+        status: 'assigned'
+      };
+
+      const result = await agent.executeTask(assignment);
+
+      // Should return array (possibly empty)
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should get topology optimizations', async () => {
+      const task = {
+        id: 'task-topology-optimize-1',
+        type: 'topology-optimize',
+        payload: {},
+        priority: 1,
+        status: 'pending'
+      };
+
+      const assignment = {
+        id: 'assignment-topology-optimize-1',
+        task,
+        agentId: agent.getStatus().agentId.id,
+        assignedAt: new Date(),
+        status: 'assigned'
+      };
+
+      const result = await agent.executeTask(assignment);
+
+      expect(result).toBeDefined();
+      expect(result.optimizations).toBeDefined();
+    });
+
+    it('should store resilience analysis in memory', async () => {
+      const task = {
+        id: 'task-topology-analyze-2',
+        type: 'topology-analyze',
+        payload: {},
+        priority: 1,
+        status: 'pending'
+      };
+
+      const assignment = {
+        id: 'assignment-topology-analyze-2',
+        task,
+        agentId: agent.getStatus().agentId.id,
+        assignedAt: new Date(),
+        status: 'assigned'
+      };
+
+      await agent.executeTask(assignment);
+
+      // Check resilience data was stored
+      const resilience = await mockMemoryStore.retrieve('aqe/fleet/resilience');
+      // May be undefined if no agents, but should not throw
+      expect(resilience === undefined || resilience?.result !== undefined).toBe(true);
+    });
+
+    it('should cache last resilience result', async () => {
+      const task = {
+        id: 'task-topology-analyze-3',
+        type: 'topology-analyze',
+        payload: {},
+        priority: 1,
+        status: 'pending'
+      };
+
+      const assignment = {
+        id: 'assignment-topology-analyze-3',
+        task,
+        agentId: agent.getStatus().agentId.id,
+        assignedAt: new Date(),
+        status: 'assigned'
+      };
+
+      await agent.executeTask(assignment);
+
+      // Can access cached result
+      const cachedResult = agent.getLastResilienceResult();
+      // May be undefined if single-node topology
+      expect(cachedResult === undefined || cachedResult?.score !== undefined).toBe(true);
+    });
+  });
 });

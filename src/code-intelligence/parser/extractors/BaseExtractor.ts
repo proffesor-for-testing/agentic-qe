@@ -1,4 +1,6 @@
-import Parser from 'tree-sitter';
+import type Parser from 'web-tree-sitter';
+
+type SyntaxNode = Parser.SyntaxNode;
 
 export interface ExtractedSymbol {
   name: string;
@@ -30,33 +32,37 @@ export abstract class BaseExtractor {
     this.source = source;
   }
 
-  abstract extractFunctions(node: Parser.SyntaxNode): ExtractedSymbol[];
-  abstract extractClasses(node: Parser.SyntaxNode): ExtractedSymbol[];
-  abstract extractMethods(classNode: Parser.SyntaxNode): ExtractedSymbol[];
+  abstract extractFunctions(node: SyntaxNode): ExtractedSymbol[];
+  abstract extractClasses(node: SyntaxNode): ExtractedSymbol[];
+  abstract extractMethods(classNode: SyntaxNode): ExtractedSymbol[];
 
-  protected getNodeText(node: Parser.SyntaxNode): string {
+  protected getNodeText(node: SyntaxNode): string {
     return this.source.slice(node.startIndex, node.endIndex);
   }
 
-  protected getNodeLine(node: Parser.SyntaxNode): number {
+  protected getNodeLine(node: SyntaxNode): number {
     return node.startPosition.row + 1;
   }
 
-  protected getNodeEndLine(node: Parser.SyntaxNode): number {
+  protected getNodeEndLine(node: SyntaxNode): number {
     return node.endPosition.row + 1;
   }
 
-  protected findChildByType(node: Parser.SyntaxNode, type: string): Parser.SyntaxNode | null {
-    return node.children.find(child => child.type === type) || null;
+  protected findChildByType(node: SyntaxNode, type: string): SyntaxNode | null {
+    // web-tree-sitter uses .children getter which returns array
+    const children = node.children;
+    return children.find(child => child.type === type) || null;
   }
 
-  protected findChildrenByType(node: Parser.SyntaxNode, type: string): Parser.SyntaxNode[] {
-    return node.children.filter(child => child.type === type);
+  protected findChildrenByType(node: SyntaxNode, type: string): SyntaxNode[] {
+    const children = node.children;
+    return children.filter(child => child.type === type);
   }
 
-  protected traverseTree(node: Parser.SyntaxNode, callback: (node: Parser.SyntaxNode) => void): void {
+  protected traverseTree(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
     callback(node);
-    for (const child of node.children) {
+    const children = node.children;
+    for (const child of children) {
       this.traverseTree(child, callback);
     }
   }

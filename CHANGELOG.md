@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.6] - 2025-12-26
+
+### Added
+
+#### Web-Tree-Sitter Migration (Phases 1-5)
+- **WebTreeSitterParser**: New WASM-based parser replacing native tree-sitter bindings
+  - Eliminates npm install warnings about native compilation
+  - No postinstall scripts or native dependencies required
+  - Same API compatibility with SyntaxNode interface
+- Updated all language extractors (TypeScript, JavaScript, Python, Go, Rust)
+- Parser now automatically initializes with language-specific WASM modules
+
+#### MinCut Analysis Integration (Phases 1-6)
+- **New `src/code-intelligence/analysis/mincut/` module**:
+  - `MinCutAnalyzer.ts`: Stoer-Wagner algorithm implementation for graph partitioning
+  - `GraphAdapter.ts`: Converts code graphs to MinCut format with edge weighting
+  - `CircularDependencyDetector.ts`: Identifies dependency cycles in codebase
+  - `ModuleCouplingAnalyzer.ts`: Analyzes module coupling and suggests boundaries
+  - `JsMinCut.ts`: Pure JavaScript MinCut implementation
+
+#### CriticalPathDetector for Coverage Analysis
+- **New `src/coverage/CriticalPathDetector.ts`**:
+  - Identifies structurally critical code paths using MinCut analysis
+  - Prioritizes coverage gaps by criticality score (0-1)
+  - Detects bottleneck nodes that affect many downstream modules
+  - Integrated with CoverageAnalyzerAgent via `enableCriticalPathAnalysis` config
+
+#### Fleet Topology Management
+- **New `src/fleet/topology/` module**:
+  - MinCut-based test file partitioning for parallel execution
+  - Intelligent load balancing using graph analysis
+  - Integrated with `test-execute-parallel` MCP handler
+
+#### CLI Enhancements
+- New `aqe kg mincut` command for MinCut analysis
+- New `aqe kg circular` command for circular dependency detection
+
+### Changed
+- **MCP Tool Count**: Corrected from 102 to 105 tools
+- **GraphBuilder**: Enhanced with MinCut analysis integration
+- **FleetCommanderAgent**: Added MinCut-based task partitioning
+- **CoverageAnalyzerAgent**: Added critical path analysis support
+
+### Documentation
+- New `docs/guides/mincut-analysis.md` - MinCut API reference
+- Updated `docs/guides/COVERAGE-ANALYSIS.md` - Critical Path Analysis section
+
+### Tests
+- 19 new tests for CriticalPathDetector
+- Updated GraphBuilder tests for MinCut integration
+- Updated FleetCommanderAgent tests for topology management
+
 ## [2.6.5] - 2025-12-25
 
 ### Added

@@ -140,8 +140,8 @@ describe('ComponentBoundaryAnalyzer', () => {
       const result = await analyzer.analyze();
 
       expect(result.relationships.length).toBeGreaterThan(0);
-      expect(result.relationships[0]).toHaveProperty('from');
-      expect(result.relationships[0]).toHaveProperty('to');
+      expect(result.relationships[0]).toHaveProperty('sourceId');
+      expect(result.relationships[0]).toHaveProperty('targetId');
       expect(result.relationships[0]).toHaveProperty('type');
       expect(result.relationships[0].type).toBe('uses');
     });
@@ -163,8 +163,8 @@ describe('ComponentBoundaryAnalyzer', () => {
 
       // Should only have internal relationships, not to 'express'
       result.relationships.forEach(rel => {
-        expect(rel.from).not.toContain('express');
-        expect(rel.to).not.toContain('express');
+        expect(rel.sourceId).not.toContain('express');
+        expect(rel.targetId).not.toContain('express');
       });
     });
 
@@ -203,7 +203,7 @@ describe('ComponentBoundaryAnalyzer', () => {
       const result = await analyzer.analyze();
 
       // Should have unique relationships only
-      const relationshipKeys = result.relationships.map(r => `${r.from}->${r.to}`);
+      const relationshipKeys = result.relationships.map(r => `${r.sourceId}->${r.targetId}`);
       const uniqueKeys = new Set(relationshipKeys);
       expect(relationshipKeys.length).toBe(uniqueKeys.size);
     });

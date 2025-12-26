@@ -15,6 +15,14 @@
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import { AgentType as _AgentType, QEAgentType, QETask, AgentStatus } from '../types';
+import {
+  TopologyMinCutAnalyzer,
+  FleetTopology,
+  TopologyNode,
+  TopologyEdge,
+  ResilienceResult,
+  SPOFResult,
+} from '../fleet/topology/index.js';
 
 export interface FleetCommanderConfig extends BaseAgentConfig {
   topology?: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive';
@@ -41,6 +49,14 @@ export interface FleetCommanderConfig extends BaseAgentConfig {
     heartbeatInterval: number;
     heartbeatTimeout: number;
     maxRetries: number;
+  };
+  /** Enable SPOF analysis using min-cut algorithms */
+  spofAnalysis?: {
+    enabled: boolean;
+    /** Minimum resilience score threshold (0-1) */
+    minResilienceScore?: number;
+    /** Auto-warn on topology changes with critical SPOFs */
+    autoWarn?: boolean;
   };
 }
 
@@ -115,6 +131,10 @@ export class FleetCommanderAgent extends BaseAgent {
   private workloadQueue: QETask[] = [];
   private heartbeatMonitorInterval?: NodeJS.Timeout;
   private autoScalingMonitorInterval?: NodeJS.Timeout;
+  /** Min-cut based topology analyzer for SPOF detection */
+  private topologyAnalyzer?: TopologyMinCutAnalyzer;
+  /** Last resilience analysis result */
+  private lastResilienceResult?: ResilienceResult;
   private fleetMetrics: FleetMetrics = {
     totalAgents: 0,
     activeAgents: 0,
@@ -208,6 +228,11 @@ export class FleetCommanderAgent extends BaseAgent {
         heartbeatTimeout: 15000,
         maxRetries: 3
       },
+      spofAnalysis: {
+        enabled: true,
+        minResilienceScore: 0.6,
+        autoWarn: true,
+      },
       ...config
     };
 
@@ -218,6 +243,14 @@ export class FleetCommanderAgent extends BaseAgent {
       efficiency: 1.0,
       lastChanged: new Date()
     };
+
+    // Initialize SPOF analyzer if enabled
+    if (this.config.spofAnalysis?.enabled) {
+      this.topologyAnalyzer = new TopologyMinCutAnalyzer({
+        minResilienceScore: this.config.spofAnalysis.minResilienceScore,
+        analyzeAllSpofs: true,
+      });
+    }
 
     this.initializeAgentPools();
   }
@@ -413,6 +446,15 @@ export class FleetCommanderAgent extends BaseAgent {
 
       case 'recover-agent':
         return await this.recoverAgent(task.payload);
+
+      case 'topology-analyze':
+        return await this.analyzeTopologyResilience();
+
+      case 'topology-spof-check':
+        return await this.getTopologySpofs();
+
+      case 'topology-optimize':
+        return await this.getTopologyOptimizations();
 
       default:
         throw new Error(`Unknown task type: ${task.type}`);
@@ -801,6 +843,241 @@ export class FleetCommanderAgent extends BaseAgent {
     }
 
     return this.topologyState.efficiency;
+  }
+
+  // ============================================================================
+  // Topology Resilience Analysis (Min-Cut SPOF Detection)
+  // ============================================================================
+
+  /**
+   * Analyze current topology for resilience and SPOFs
+   *
+   * Uses min-cut algorithm to detect single points of failure
+   * and calculate overall topology resilience score.
+   */
+  private async analyzeTopologyResilience(): Promise<ResilienceResult | null> {
+    if (!this.topologyAnalyzer) {
+      console.warn('[FleetCommander] SPOF analysis disabled');
+      return null;
+    }
+
+    console.log('[FleetCommander] Analyzing topology resilience...');
+
+    const fleetTopology = await this.buildFleetTopology();
+    const result = await this.topologyAnalyzer.analyzeResilience(fleetTopology);
+
+    // Store result for caching
+    this.lastResilienceResult = result;
+
+    // Store in memory for other agents
+    await this.memoryStore.store('aqe/fleet/resilience', {
+      result,
+      timestamp: new Date(),
+    });
+
+    // Auto-warn if enabled and critical SPOFs detected
+    if (this.config.spofAnalysis?.autoWarn && result.criticalSpofs.length > 0) {
+      this.emitEvent('fleet.spof-warning', {
+        criticalSpofs: result.criticalSpofs,
+        resilienceScore: result.score,
+        grade: result.grade,
+        recommendations: result.recommendations,
+      }, 'critical');
+
+      console.warn(
+        `[FleetCommander] WARNING: ${result.criticalSpofs.length} critical SPOF(s) detected. ` +
+        `Resilience score: ${(result.score * 100).toFixed(1)}% (Grade: ${result.grade})`
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Get detected SPOFs in current topology
+   */
+  private async getTopologySpofs(): Promise<SPOFResult[]> {
+    if (!this.topologyAnalyzer) {
+      return [];
+    }
+
+    const fleetTopology = await this.buildFleetTopology();
+    return await this.topologyAnalyzer.detectSpofs(fleetTopology);
+  }
+
+  /**
+   * Get topology optimization suggestions
+   */
+  private async getTopologyOptimizations(): Promise<any> {
+    if (!this.topologyAnalyzer) {
+      return { optimizations: [], message: 'SPOF analysis disabled' };
+    }
+
+    const fleetTopology = await this.buildFleetTopology();
+    const optimizations = await this.topologyAnalyzer.suggestOptimizations(
+      fleetTopology,
+      this.lastResilienceResult
+    );
+
+    return {
+      optimizations,
+      currentResilience: this.lastResilienceResult?.score,
+      currentGrade: this.lastResilienceResult?.grade,
+    };
+  }
+
+  /**
+   * Build FleetTopology from current agent state
+   */
+  private async buildFleetTopology(): Promise<FleetTopology> {
+    const nodes: TopologyNode[] = [];
+    const edges: TopologyEdge[] = [];
+
+    // Build nodes from agent pools and allocations
+    for (const [agentId, allocation] of this.resourceAllocations.entries()) {
+      const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`);
+      if (!agentData) continue;
+
+      // Determine role based on agent type
+      let role: TopologyNode['role'] = 'worker';
+      if (agentData.type === QEAgentType.FLEET_COMMANDER) {
+        role = 'coordinator';
+      }
+
+      nodes.push({
+        id: agentId,
+        type: agentData.type,
+        role,
+        status: agentData.status || 'active',
+        priority: allocation.priority as TopologyNode['priority'],
+      });
+    }
+
+    // Add self (FleetCommander) as coordinator if not already present
+    const selfId = this.agentId.id;
+    if (!nodes.find(n => n.id === selfId)) {
+      nodes.push({
+        id: selfId,
+        type: QEAgentType.FLEET_COMMANDER,
+        role: 'coordinator',
+        status: 'active',
+        priority: 'critical',
+      });
+    }
+
+    // Build edges based on topology mode
+    const nodeIds = nodes.map(n => n.id);
+    switch (this.topologyState.mode) {
+      case 'hierarchical':
+        // Star topology: commander connects to all workers
+        for (const nodeId of nodeIds) {
+          if (nodeId !== selfId) {
+            edges.push({
+              id: `${selfId}-${nodeId}`,
+              sourceId: selfId,
+              targetId: nodeId,
+              connectionType: 'command',
+              weight: 1.0,
+              bidirectional: true,
+            });
+          }
+        }
+        break;
+
+      case 'mesh':
+        // Full mesh: all nodes connected
+        for (let i = 0; i < nodeIds.length; i++) {
+          for (let j = i + 1; j < nodeIds.length; j++) {
+            edges.push({
+              id: `${nodeIds[i]}-${nodeIds[j]}`,
+              sourceId: nodeIds[i],
+              targetId: nodeIds[j],
+              connectionType: 'coordination',
+              weight: 1.0,
+              bidirectional: true,
+            });
+          }
+        }
+        break;
+
+      case 'hybrid':
+        // Hierarchical + some cross-connections
+        for (const nodeId of nodeIds) {
+          if (nodeId !== selfId) {
+            edges.push({
+              id: `${selfId}-${nodeId}`,
+              sourceId: selfId,
+              targetId: nodeId,
+              connectionType: 'command',
+              weight: 1.0,
+              bidirectional: true,
+            });
+          }
+        }
+        // Add some peer connections between workers
+        const workers = nodeIds.filter(id => id !== selfId);
+        for (let i = 0; i < workers.length - 1; i += 2) {
+          if (workers[i + 1]) {
+            edges.push({
+              id: `${workers[i]}-${workers[i + 1]}`,
+              sourceId: workers[i],
+              targetId: workers[i + 1],
+              connectionType: 'data',
+              weight: 0.5,
+              bidirectional: true,
+            });
+          }
+        }
+        break;
+
+      case 'adaptive':
+        // Dynamic based on utilization
+        const utilization = this.calculateFleetUtilization();
+        if (utilization < 0.5) {
+          // Low load: hierarchical
+          for (const nodeId of nodeIds) {
+            if (nodeId !== selfId) {
+              edges.push({
+                id: `${selfId}-${nodeId}`,
+                sourceId: selfId,
+                targetId: nodeId,
+                connectionType: 'command',
+                weight: 1.0,
+                bidirectional: true,
+              });
+            }
+          }
+        } else {
+          // High load: mesh for better distribution
+          for (let i = 0; i < nodeIds.length; i++) {
+            for (let j = i + 1; j < nodeIds.length; j++) {
+              edges.push({
+                id: `${nodeIds[i]}-${nodeIds[j]}`,
+                sourceId: nodeIds[i],
+                targetId: nodeIds[j],
+                connectionType: 'coordination',
+                weight: 1.0,
+                bidirectional: true,
+              });
+            }
+          }
+        }
+        break;
+    }
+
+    return {
+      nodes,
+      edges,
+      mode: this.topologyState.mode,
+      lastUpdated: new Date(),
+    };
+  }
+
+  /**
+   * Get last resilience analysis result (cached)
+   */
+  public getLastResilienceResult(): ResilienceResult | undefined {
+    return this.lastResilienceResult;
   }
 
   // ============================================================================

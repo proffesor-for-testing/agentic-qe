@@ -1,34 +1,19 @@
 /**
- * Tree-sitter based code parser with incremental parsing support
- * Extracts code entities (functions, classes, methods) from source files
+ * Web Tree-sitter based code parser with WASM support
+ *
+ * This parser uses web-tree-sitter (WASM) instead of native tree-sitter bindings
+ * to eliminate npm install warnings caused by native compilation requirements.
+ *
+ * Key differences from TreeSitterParser:
+ * - Async initialization required (Parser.init())
+ * - Async language loading (Parser.Language.load())
+ * - Slightly slower than native but works universally
  */
 
-import Parser from 'tree-sitter';
-import TypeScript from 'tree-sitter-typescript';
-import Python from 'tree-sitter-python';
-import Go from 'tree-sitter-go';
-import Rust from 'tree-sitter-rust';
-import JavaScript from 'tree-sitter-javascript';
+import Parser from 'web-tree-sitter';
 import { createHash } from 'crypto';
-
-/**
- * Type workaround for tree-sitter version mismatch.
- *
- * tree-sitter@0.22.4 is required for Node.js 24 (C++20 requirement),
- * but language bindings declare peer dependency on ^0.21.x.
- * The runtime API is compatible, only TypeScript declarations differ.
- *
- * Alternative solutions considered:
- * 1. web-tree-sitter (WASM) - adds complexity and different API
- * 2. Downgrade Node.js - not practical for production
- * 3. Wait for updated language bindings - external dependency
- *
- * This type assertion is safe because:
- * - tree-sitter 0.22 is backward compatible with 0.21 API
- * - Only the TypeScript type declarations differ
- * - Verified at runtime with language binding tests
- */
-type TreeSitterLanguage = Parameters<typeof Parser.prototype.setLanguage>[0];
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 import { CodeEntity, Language, ParseResult, ParseError } from './types.js';
 import { LanguageRegistry } from './LanguageRegistry.js';
@@ -39,48 +24,116 @@ interface CachedTree {
   language: Language;
 }
 
-export class TreeSitterParser {
-  private parsers: Map<Language, Parser> = new Map();
-  private treeCache: Map<string, CachedTree> = new Map();
+// Re-export SyntaxNode type for extractors (backwards compatibility)
+export type SyntaxNode = Parser.SyntaxNode;
 
-  constructor() {
-    this.initializeParsers();
+export class WebTreeSitterParser {
+  private static initialized = false;
+  private parsers: Map<Language, Parser> = new Map();
+  private languages: Map<Language, Parser.Language> = new Map();
+  private treeCache: Map<string, CachedTree> = new Map();
+  private initPromise: Promise<void> | null = null;
+
+  /**
+   * Initialize the WASM runtime - called automatically on first parse
+   */
+  static async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    await Parser.init();
+    this.initialized = true;
   }
 
   /**
-   * Initialize parsers for all supported languages
+   * Check if parser is initialized
    */
-  private initializeParsers(): void {
-    // See TreeSitterLanguage type comment above for why type assertions are needed
-    const tsParser = new Parser();
-    tsParser.setLanguage(TypeScript.typescript as TreeSitterLanguage);
-    this.parsers.set('typescript', tsParser);
+  static isInitialized(): boolean {
+    return this.initialized;
+  }
 
-    const jsParser = new Parser();
-    jsParser.setLanguage(JavaScript as TreeSitterLanguage);
-    this.parsers.set('javascript', jsParser);
+  /**
+   * Ensure parser is initialized (call before any parsing)
+   */
+  async ensureInitialized(): Promise<void> {
+    if (WebTreeSitterParser.initialized) return;
 
-    const pyParser = new Parser();
-    pyParser.setLanguage(Python as TreeSitterLanguage);
-    this.parsers.set('python', pyParser);
+    if (!this.initPromise) {
+      this.initPromise = WebTreeSitterParser.initialize();
+    }
+    await this.initPromise;
+  }
 
-    const goParser = new Parser();
-    goParser.setLanguage(Go as TreeSitterLanguage);
-    this.parsers.set('go', goParser);
+  /**
+   * Get WASM file path for a language
+   */
+  private getWasmPath(lang: Language): string {
+    // First try node_modules in the project
+    const projectPath = join(process.cwd(), 'node_modules', 'tree-sitter-wasms', 'out');
 
-    const rustParser = new Parser();
-    rustParser.setLanguage(Rust as TreeSitterLanguage);
-    this.parsers.set('rust', rustParser);
+    // Then try relative to this file (for installed package)
+    const packagePath = join(__dirname, '..', '..', '..', 'node_modules', 'tree-sitter-wasms', 'out');
+
+    // Language to WASM file mapping
+    const wasmFiles: Record<Language, string> = {
+      typescript: 'tree-sitter-typescript.wasm',
+      javascript: 'tree-sitter-javascript.wasm',
+      python: 'tree-sitter-python.wasm',
+      go: 'tree-sitter-go.wasm',
+      rust: 'tree-sitter-rust.wasm',
+    };
+
+    const fileName = wasmFiles[lang];
+
+    // Check project path first
+    const projectFilePath = join(projectPath, fileName);
+    if (existsSync(projectFilePath)) {
+      return projectFilePath;
+    }
+
+    // Fall back to package path
+    return join(packagePath, fileName);
+  }
+
+  /**
+   * Load a language grammar
+   */
+  async loadLanguage(lang: Language): Promise<void> {
+    if (this.languages.has(lang)) return;
+
+    await this.ensureInitialized();
+
+    const wasmPath = this.getWasmPath(lang);
+
+    try {
+      const language = await Parser.Language.load(wasmPath);
+      this.languages.set(lang, language);
+
+      const parser = new Parser();
+      parser.setLanguage(language);
+      this.parsers.set(lang, parser);
+    } catch (error) {
+      throw new Error(
+        `Failed to load language '${lang}' from ${wasmPath}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Preload all supported languages (optional, for better first-parse performance)
+   */
+  async preloadLanguages(): Promise<void> {
+    const languages: Language[] = ['typescript', 'javascript', 'python', 'go', 'rust'];
+    await Promise.all(languages.map(lang => this.loadLanguage(lang)));
   }
 
   /**
    * Parse a file and extract code entities
    */
-  parseFile(
+  async parseFile(
     filePath: string,
     content: string,
     language?: string
-  ): ParseResult {
+  ): Promise<ParseResult> {
     const startTime = Date.now();
     const errors: ParseError[] = [];
 
@@ -93,12 +146,19 @@ export class TreeSitterParser {
         throw new Error(`Cannot detect language for file: ${filePath}`);
       }
 
+      // Ensure language is loaded
+      await this.loadLanguage(detectedLanguage);
+
       const parser = this.parsers.get(detectedLanguage);
       if (!parser) {
         throw new Error(`No parser available for language: ${detectedLanguage}`);
       }
 
       const tree = parser.parse(content);
+
+      if (!tree) {
+        throw new Error(`Failed to parse file: ${filePath}`);
+      }
 
       // Cache the tree for incremental updates
       this.treeCache.set(filePath, {
@@ -134,13 +194,13 @@ export class TreeSitterParser {
   }
 
   /**
-   * Incremental parsing for file updates (36x faster than full reparse)
+   * Incremental parsing for file updates
    */
-  updateFile(
+  async updateFile(
     filePath: string,
     newContent: string,
     language?: string
-  ): ParseResult {
+  ): Promise<ParseResult> {
     const startTime = Date.now();
     const errors: ParseError[] = [];
 
@@ -170,6 +230,10 @@ export class TreeSitterParser {
 
       // Reparse incrementally
       const newTree = parser.parse(newContent, cached.tree);
+
+      if (!newTree) {
+        throw new Error(`Failed to reparse file: ${filePath}`);
+      }
 
       // Update cache
       this.treeCache.set(filePath, {
@@ -216,8 +280,8 @@ export class TreeSitterParser {
     const entities: CodeEntity[] = [];
     const config = LanguageRegistry.getConfig(language);
 
-    const walk = (n: Parser.SyntaxNode, parentClass?: string): void => {
-      // Guard against undefined nodes (can happen with corrupted tree-sitter state)
+    const walk = (n: SyntaxNode, parentClass?: string): void => {
+      // Guard against undefined nodes
       if (!n || !n.type) {
         return;
       }
@@ -236,8 +300,9 @@ export class TreeSitterParser {
         if (entity) {
           entities.push(entity);
           // Walk children to find methods
-          for (const child of n.children) {
-            walk(child, entity.name);
+          for (let i = 0; i < n.childCount; i++) {
+            const child = n.child(i);
+            if (child) walk(child, entity.name);
           }
           return; // Don't walk children again
         }
@@ -251,7 +316,7 @@ export class TreeSitterParser {
         }
       }
 
-      // Extract interfaces (TypeScript, Go, Rust)
+      // Extract interfaces
       if (config.interfaceTypes.includes(n.type)) {
         const entity = this.extractInterface(n, source, filePath, language);
         if (entity) {
@@ -259,7 +324,7 @@ export class TreeSitterParser {
         }
       }
 
-      // Extract type aliases (TypeScript, Go, Rust)
+      // Extract type aliases
       if (config.typeAliasTypes.includes(n.type)) {
         const entity = this.extractTypeAlias(n, source, filePath, language);
         if (entity) {
@@ -268,8 +333,9 @@ export class TreeSitterParser {
       }
 
       // Recursively walk children
-      for (const child of n.children) {
-        walk(child, parentClass);
+      for (let i = 0; i < n.childCount; i++) {
+        const child = n.child(i);
+        if (child) walk(child, parentClass);
       }
     };
 
@@ -446,7 +512,10 @@ export class TreeSitterParser {
    */
   private getNodeName(node: Parser.SyntaxNode): string | null {
     // Try to find name/identifier child
-    for (const child of node.children) {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i);
+      if (!child) continue;
+
       if (
         child.type === 'identifier' ||
         child.type === 'type_identifier' ||
@@ -462,7 +531,6 @@ export class TreeSitterParser {
    * Extract function/method signature
    */
   private extractSignature(node: Parser.SyntaxNode, source: string): string {
-    // Get first line of the node (usually contains signature)
     const firstLineEnd = source.indexOf('\n', node.startIndex);
     const signatureEnd =
       firstLineEnd > node.startIndex && firstLineEnd < node.endIndex
@@ -483,12 +551,13 @@ export class TreeSitterParser {
     const config = LanguageRegistry.getConfig(language);
     const parameters: string[] = [];
 
-    const walk = (n: Parser.SyntaxNode): void => {
+    const walk = (n: SyntaxNode): void => {
       if (config.parameterTypes.includes(n.type)) {
         parameters.push(n.text);
       }
-      for (const child of n.children) {
-        walk(child);
+      for (let i = 0; i < n.childCount; i++) {
+        const child = n.child(i);
+        if (child) walk(child);
       }
     };
 
@@ -506,8 +575,9 @@ export class TreeSitterParser {
   ): string | undefined {
     const config = LanguageRegistry.getConfig(language);
 
-    for (const child of node.children) {
-      if (config.returnTypeFields.includes(child.type)) {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i);
+      if (child && config.returnTypeFields.includes(child.type)) {
         return child.text;
       }
     }
@@ -526,7 +596,10 @@ export class TreeSitterParser {
     const config = LanguageRegistry.getConfig(language);
 
     // Check for explicit modifiers
-    for (const child of node.children) {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i);
+      if (!child) continue;
+
       const text = child.text.toLowerCase();
       if (config.visibilityModifiers.public.includes(text)) return 'public';
       if (config.visibilityModifiers.private.includes(text)) return 'private';
@@ -538,7 +611,6 @@ export class TreeSitterParser {
       if (name.startsWith('__')) return 'private';
       if (name.startsWith('_')) return 'protected';
     } else if (language === 'go') {
-      // Go: uppercase = public, lowercase = private
       return name[0] === name[0].toUpperCase() ? 'public' : 'private';
     }
 
@@ -572,10 +644,10 @@ export class TreeSitterParser {
     }
 
     // Check node and parent for modifier
-    const checkNode = (n: Parser.SyntaxNode): boolean => {
-      if (!n || !n.children) return false;
-      for (const child of n.children) {
-        // Guard against corrupted tree nodes
+    const checkNode = (n: SyntaxNode): boolean => {
+      if (!n) return false;
+      for (let i = 0; i < n.childCount; i++) {
+        const child = n.child(i);
         if (!child || !child.text) continue;
         if (keywords.includes(child.text.toLowerCase())) {
           return true;
@@ -607,7 +679,6 @@ export class TreeSitterParser {
    * Compute edit for incremental parsing
    */
   private computeEdit(oldContent: string, newContent: string): Parser.Edit {
-    // Simple implementation: find first difference
     let startIndex = 0;
     const minLength = Math.min(oldContent.length, newContent.length);
 
@@ -615,7 +686,6 @@ export class TreeSitterParser {
       startIndex++;
     }
 
-    // Compute position (row, column)
     let row = 0;
     let column = 0;
     for (let i = 0; i < startIndex; i++) {
@@ -675,5 +745,21 @@ export class TreeSitterParser {
       size: this.treeCache.size,
       files: Array.from(this.treeCache.keys()),
     };
+  }
+
+  /**
+   * Delete trees to free memory
+   */
+  dispose(): void {
+    for (const cached of this.treeCache.values()) {
+      cached.tree.delete();
+    }
+    this.treeCache.clear();
+
+    for (const parser of this.parsers.values()) {
+      parser.delete();
+    }
+    this.parsers.clear();
+    this.languages.clear();
   }
 }

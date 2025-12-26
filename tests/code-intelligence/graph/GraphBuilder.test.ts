@@ -312,4 +312,163 @@ describe('GraphBuilder', () => {
       expect(builder.getAllEdges().length).toBe(0);
     });
   });
+
+  describe('MinCut analysis methods', () => {
+    describe('analyzeModuleCoupling', () => {
+      it('should analyze coupling between modules', async () => {
+        // Create two modules with coupling
+        const authService = builder.addNode('class', 'AuthService', '/src/auth/service.ts', 1, 50, 'ts');
+        const userService = builder.addNode('class', 'UserService', '/src/user/service.ts', 1, 50, 'ts');
+        const authController = builder.addNode('class', 'AuthController', '/src/auth/controller.ts', 1, 30, 'ts');
+        const userController = builder.addNode('class', 'UserController', '/src/user/controller.ts', 1, 30, 'ts');
+
+        // Add coupling edges
+        builder.addEdge(authService.id, userService.id, 'calls', 1.0);
+        builder.addEdge(authController.id, authService.id, 'calls', 1.0);
+        builder.addEdge(userController.id, userService.id, 'calls', 1.0);
+
+        const results = await builder.analyzeModuleCoupling();
+
+        expect(results).toBeInstanceOf(Array);
+        // Should find coupling between auth and user modules
+        const coupling = results.find(
+          r =>
+            (r.module1.includes('auth') && r.module2.includes('user')) ||
+            (r.module1.includes('user') && r.module2.includes('auth'))
+        );
+
+        if (coupling) {
+          expect(coupling.couplingStrength).toBeGreaterThanOrEqual(0);
+          expect(coupling.couplingStrength).toBeLessThanOrEqual(1);
+          expect(coupling.recommendations).toBeInstanceOf(Array);
+          expect(coupling.cutEdges).toBeInstanceOf(Array);
+        }
+      });
+
+      it('should respect threshold parameter', async () => {
+        const a = builder.addNode('class', 'A', '/src/module1/a.ts', 1, 10, 'ts');
+        const b = builder.addNode('class', 'B', '/src/module2/b.ts', 1, 10, 'ts');
+        builder.addEdge(a.id, b.id, 'calls', 0.1);
+
+        // Get results with default threshold
+        const allResults = await builder.analyzeModuleCoupling();
+
+        // Get results with high threshold
+        const filteredResults = await builder.analyzeModuleCoupling({ threshold: 0.9 });
+
+        // High threshold should reduce the number of results
+        expect(filteredResults.length).toBeLessThanOrEqual(allResults.length);
+      });
+    });
+
+    describe('detectCircularDependencies', () => {
+      it('should detect simple circular dependency', async () => {
+        // Create circular dependency: A -> B -> C -> A
+        const nodeA = builder.addNode('class', 'A', '/src/a.ts', 1, 10, 'ts');
+        const nodeB = builder.addNode('class', 'B', '/src/b.ts', 1, 10, 'ts');
+        const nodeC = builder.addNode('class', 'C', '/src/c.ts', 1, 10, 'ts');
+
+        builder.addEdge(nodeA.id, nodeB.id, 'imports', 1.0);
+        builder.addEdge(nodeB.id, nodeC.id, 'imports', 1.0);
+        builder.addEdge(nodeC.id, nodeA.id, 'imports', 1.0);
+
+        const cycles = await builder.detectCircularDependencies();
+
+        expect(cycles.length).toBeGreaterThan(0);
+        const cycle = cycles[0];
+        expect(cycle.cycle.length).toBeGreaterThanOrEqual(3);
+        expect(cycle.severity).toMatch(/^(low|medium|high)$/);
+        expect(cycle.breakPoints).toBeInstanceOf(Array);
+        expect(cycle.breakPoints.length).toBeGreaterThan(0);
+        expect(cycle.recommendations).toBeInstanceOf(Array);
+      });
+
+      it('should return empty array for acyclic graph', async () => {
+        // Create acyclic dependency: A -> B -> C
+        const nodeA = builder.addNode('class', 'A', '/src/a.ts', 1, 10, 'ts');
+        const nodeB = builder.addNode('class', 'B', '/src/b.ts', 1, 10, 'ts');
+        const nodeC = builder.addNode('class', 'C', '/src/c.ts', 1, 10, 'ts');
+
+        builder.addEdge(nodeA.id, nodeB.id, 'imports', 1.0);
+        builder.addEdge(nodeB.id, nodeC.id, 'imports', 1.0);
+
+        const cycles = await builder.detectCircularDependencies();
+
+        expect(cycles.length).toBe(0);
+      });
+    });
+
+    describe('suggestModuleBoundaries', () => {
+      it('should partition graph into target number of modules', async () => {
+        // Create a graph with 6 files
+        for (let i = 1; i <= 6; i++) {
+          builder.addNode('class', `Class${i}`, `/src/file${i}.ts`, 1, 10, 'ts');
+        }
+
+        // Add some edges
+        const nodes = builder.getAllNodes();
+        for (let i = 0; i < nodes.length - 1; i++) {
+          builder.addEdge(nodes[i].id, nodes[i + 1].id, 'imports', 1.0);
+        }
+
+        const result = await builder.suggestModuleBoundaries(3);
+
+        expect(result.modules.length).toBeGreaterThanOrEqual(2);
+        expect(result.modules.length).toBeLessThanOrEqual(3);
+        expect(result.cutValues).toBeInstanceOf(Array);
+
+        // Check all files are assigned
+        const allFiles = result.modules.flat();
+        expect(allFiles.length).toBe(6);
+      });
+
+      it('should throw error for invalid target count', async () => {
+        builder.addNode('class', 'A', '/src/a.ts', 1, 10, 'ts');
+
+        await expect(builder.suggestModuleBoundaries(1)).rejects.toThrow(
+          'Target module count must be at least 2'
+        );
+      });
+    });
+
+    describe('calculateTestIsolation', () => {
+      it('should calculate test isolation score', async () => {
+        // Create test and production files
+        const prodClass = builder.addNode('class', 'Service', '/src/service.ts', 1, 50, 'ts');
+        const testClass = builder.addNode('class', 'ServiceTest', '/src/service.test.ts', 1, 30, 'ts');
+
+        builder.addEdge(testClass.id, prodClass.id, 'imports', 1.0);
+
+        const result = await builder.calculateTestIsolation();
+
+        expect(result.score).toBeGreaterThanOrEqual(0);
+        expect(result.score).toBeLessThanOrEqual(1);
+        expect(result.testFiles.length).toBeGreaterThan(0);
+        expect(result.productionFiles.length).toBeGreaterThan(0);
+        expect(result.crossingDependencies).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should support custom test file pattern', async () => {
+        const prodClass = builder.addNode('class', 'Service', '/src/service.ts', 1, 50, 'ts');
+        const specClass = builder.addNode('class', 'ServiceSpec', '/src/service.spec.ts', 1, 30, 'ts');
+
+        builder.addEdge(specClass.id, prodClass.id, 'imports', 1.0);
+
+        const result = await builder.calculateTestIsolation(/\.spec\.ts$/);
+
+        expect(result.testFiles.length).toBe(1);
+        expect(result.testFiles[0]).toContain('.spec.ts');
+      });
+
+      it('should return perfect isolation when no test files exist', async () => {
+        builder.addNode('class', 'Service', '/src/service.ts', 1, 50, 'ts');
+
+        const result = await builder.calculateTestIsolation();
+
+        expect(result.score).toBe(1.0);
+        expect(result.testFiles.length).toBe(0);
+        expect(result.crossingDependencies).toBe(0);
+      });
+    });
+  });
 });

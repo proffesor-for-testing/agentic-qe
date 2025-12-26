@@ -1,8 +1,10 @@
-import Parser from 'tree-sitter';
-import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor';
+import type Parser from 'web-tree-sitter';
+
+type SyntaxNode = Parser.SyntaxNode;
+import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor.js';
 
 export class TypeScriptExtractor extends BaseExtractor {
-  extractFunctions(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractFunctions(node: SyntaxNode): ExtractedSymbol[] {
     const functions: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -17,7 +19,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     return functions;
   }
 
-  extractClasses(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractClasses(node: SyntaxNode): ExtractedSymbol[] {
     const classes: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -32,7 +34,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     return classes;
   }
 
-  extractMethods(classNode: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractMethods(classNode: SyntaxNode): ExtractedSymbol[] {
     const methods: ExtractedSymbol[] = [];
     const classBody = this.findChildByType(classNode, 'class_body');
 
@@ -54,7 +56,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     return methods;
   }
 
-  private isFunctionNode(node: Parser.SyntaxNode): boolean {
+  private isFunctionNode(node: SyntaxNode): boolean {
     return [
       'function_declaration',
       'function_signature',
@@ -63,7 +65,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     ].includes(node.type);
   }
 
-  private isClassLikeNode(node: Parser.SyntaxNode): boolean {
+  private isClassLikeNode(node: SyntaxNode): boolean {
     return [
       'class_declaration',
       'interface_declaration',
@@ -71,7 +73,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     ].includes(node.type);
   }
 
-  private isMethodNode(node: Parser.SyntaxNode): boolean {
+  private isMethodNode(node: SyntaxNode): boolean {
     return [
       'method_definition',
       'method_signature',
@@ -79,7 +81,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     ].includes(node.type);
   }
 
-  private extractFunction(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractFunction(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -107,7 +109,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     };
   }
 
-  private extractClass(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractClass(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'type_identifier') ||
                      this.findChildByType(node, 'identifier');
 
@@ -137,7 +139,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     };
   }
 
-  private extractMethod(node: Parser.SyntaxNode, className?: string): ExtractedSymbol | null {
+  private extractMethod(node: SyntaxNode, className?: string): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'property_identifier') ||
                      this.findChildByType(node, 'identifier');
 
@@ -168,7 +170,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     };
   }
 
-  private extractParameters(node: Parser.SyntaxNode): ParameterInfo[] {
+  private extractParameters(node: SyntaxNode): ParameterInfo[] {
     const parameters: ParameterInfo[] = [];
     const paramsNode = this.findChildByType(node, 'formal_parameters');
 
@@ -188,7 +190,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     return parameters;
   }
 
-  private extractParameter(node: Parser.SyntaxNode): ParameterInfo | null {
+  private extractParameter(node: SyntaxNode): ParameterInfo | null {
     const identifierNode = this.findChildByType(node, 'identifier');
     if (!identifierNode) {
       return null;
@@ -213,7 +215,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     };
   }
 
-  private extractReturnType(node: Parser.SyntaxNode): string | undefined {
+  private extractReturnType(node: SyntaxNode): string | undefined {
     const typeNode = this.findChildByType(node, 'type_annotation');
     if (!typeNode) {
       return undefined;
@@ -222,13 +224,13 @@ export class TypeScriptExtractor extends BaseExtractor {
     return this.getNodeText(typeNode).replace(/^:\s*/, '');
   }
 
-  private extractClassName(node: Parser.SyntaxNode): string | undefined {
+  private extractClassName(node: SyntaxNode): string | undefined {
     const nameNode = this.findChildByType(node, 'type_identifier') ||
                      this.findChildByType(node, 'identifier');
     return nameNode ? this.getNodeText(nameNode) : undefined;
   }
 
-  private extractVisibility(node: Parser.SyntaxNode): 'public' | 'private' | 'protected' | undefined {
+  private extractVisibility(node: SyntaxNode): 'public' | 'private' | 'protected' | undefined {
     const text = this.getNodeText(node);
     if (text.includes('private ')) return 'private';
     if (text.includes('protected ')) return 'protected';
@@ -236,7 +238,7 @@ export class TypeScriptExtractor extends BaseExtractor {
     return undefined;
   }
 
-  private extractDecorators(node: Parser.SyntaxNode): string[] {
+  private extractDecorators(node: SyntaxNode): string[] {
     const decorators: string[] = [];
     let current = node.previousSibling;
 
@@ -248,12 +250,12 @@ export class TypeScriptExtractor extends BaseExtractor {
     return decorators;
   }
 
-  private isAsyncFunction(node: Parser.SyntaxNode): boolean {
+  private isAsyncFunction(node: SyntaxNode): boolean {
     return this.getNodeText(node).trimStart().startsWith('async ');
   }
 
-  private isExported(node: Parser.SyntaxNode): boolean {
-    let current: Parser.SyntaxNode | null = node;
+  private isExported(node: SyntaxNode): boolean {
+    let current: SyntaxNode | null = node;
     while (current) {
       if (current.type === 'export_statement' || current.type === 'export') {
         return true;

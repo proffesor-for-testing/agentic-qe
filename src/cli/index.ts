@@ -39,6 +39,7 @@ import { createConstitutionCommand } from './commands/constitution';
 import { createRuVectorCommand } from './commands/ruvector';
 import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
 import * as telemetryCommands from './commands/telemetry';
+import * as mincutCommands from './commands/kg/mincut.js';
 import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -1529,6 +1530,97 @@ kgCommand
       });
     } catch (error) {
       console.error(chalk.red('❌ C4 Component diagram failed:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * MinCut Analysis commands
+ * Module coupling analysis and circular dependency detection
+ */
+const mincutCommand = kgCommand
+  .command('mincut')
+  .description('Module coupling analysis using MinCut algorithms');
+
+mincutCommand
+  .command('coupling <module1> <module2>')
+  .description('Analyze coupling between two modules')
+  .option('--threshold <number>', 'Coupling threshold (0-1)', '0.3')
+  .option('--json', 'Output as JSON')
+  .action(async (module1, module2, options) => {
+    try {
+      await mincutCommands.analyzeCoupling(module1, module2, {
+        threshold: options.threshold,
+        json: options.json
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Coupling analysis failed:'), error);
+      process.exit(1);
+    }
+  });
+
+mincutCommand
+  .command('coupling-all')
+  .description('Find all highly coupled module pairs')
+  .option('--threshold <number>', 'Min coupling to report (0-1)', '0.5')
+  .option('--limit <number>', 'Max results to show', '10')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await mincutCommands.findHighlyCoupledModules({
+        threshold: options.threshold,
+        limit: options.limit,
+        json: options.json
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Coupling analysis failed:'), error);
+      process.exit(1);
+    }
+  });
+
+mincutCommand
+  .command('circular')
+  .description('Detect circular dependencies')
+  .option('--severity <level>', 'Min severity (low|medium|high)', 'low')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await mincutCommands.detectCircularDependencies({
+        severity: options.severity as 'low' | 'medium' | 'high',
+        json: options.json
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Circular dependency detection failed:'), error);
+      process.exit(1);
+    }
+  });
+
+mincutCommand
+  .command('boundaries <count>')
+  .description('Suggest optimal module boundaries')
+  .option('--json', 'Output as JSON')
+  .action(async (count, options) => {
+    try {
+      await mincutCommands.suggestModuleBoundaries(count, {
+        json: options.json
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Boundary suggestion failed:'), error);
+      process.exit(1);
+    }
+  });
+
+mincutCommand
+  .command('overview')
+  .description('Get coupling overview for entire codebase')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      await mincutCommands.getCouplingOverview({
+        json: options.json
+      });
+    } catch (error) {
+      console.error(chalk.red('❌ Coupling overview failed:'), error);
       process.exit(1);
     }
   });

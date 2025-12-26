@@ -1,8 +1,10 @@
-import Parser from 'tree-sitter';
-import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor';
+import type Parser from 'web-tree-sitter';
+
+type SyntaxNode = Parser.SyntaxNode;
+import { BaseExtractor, ExtractedSymbol, ParameterInfo } from './BaseExtractor.js';
 
 export class RustExtractor extends BaseExtractor {
-  extractFunctions(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractFunctions(node: SyntaxNode): ExtractedSymbol[] {
     const functions: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -17,7 +19,7 @@ export class RustExtractor extends BaseExtractor {
     return functions;
   }
 
-  extractClasses(node: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractClasses(node: SyntaxNode): ExtractedSymbol[] {
     const types: ExtractedSymbol[] = [];
 
     this.traverseTree(node, (currentNode) => {
@@ -32,7 +34,7 @@ export class RustExtractor extends BaseExtractor {
     return types;
   }
 
-  extractMethods(classNode: Parser.SyntaxNode): ExtractedSymbol[] {
+  extractMethods(classNode: SyntaxNode): ExtractedSymbol[] {
     const methods: ExtractedSymbol[] = [];
     const root = classNode.parent?.parent || classNode;
     const typeName = this.extractTypeName(classNode);
@@ -50,7 +52,7 @@ export class RustExtractor extends BaseExtractor {
     return methods;
   }
 
-  private extractFunction(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractFunction(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -79,7 +81,7 @@ export class RustExtractor extends BaseExtractor {
     };
   }
 
-  private extractType(node: Parser.SyntaxNode): ExtractedSymbol | null {
+  private extractType(node: SyntaxNode): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'type_identifier');
     if (!nameNode) {
       return null;
@@ -111,7 +113,7 @@ export class RustExtractor extends BaseExtractor {
     };
   }
 
-  private extractImplMethods(implNode: Parser.SyntaxNode, typeName?: string): ExtractedSymbol[] {
+  private extractImplMethods(implNode: SyntaxNode, typeName?: string): ExtractedSymbol[] {
     const methods: ExtractedSymbol[] = [];
     const bodyNode = this.findChildByType(implNode, 'declaration_list');
 
@@ -131,7 +133,7 @@ export class RustExtractor extends BaseExtractor {
     return methods;
   }
 
-  private extractMethod(node: Parser.SyntaxNode, typeName?: string): ExtractedSymbol | null {
+  private extractMethod(node: SyntaxNode, typeName?: string): ExtractedSymbol | null {
     const nameNode = this.findChildByType(node, 'identifier');
     if (!nameNode) {
       return null;
@@ -159,7 +161,7 @@ export class RustExtractor extends BaseExtractor {
     };
   }
 
-  private extractParameters(node: Parser.SyntaxNode): ParameterInfo[] {
+  private extractParameters(node: SyntaxNode): ParameterInfo[] {
     const parameters: ParameterInfo[] = [];
     const paramsNode = this.findChildByType(node, 'parameters');
 
@@ -179,7 +181,7 @@ export class RustExtractor extends BaseExtractor {
     return parameters;
   }
 
-  private extractParameter(node: Parser.SyntaxNode): ParameterInfo | null {
+  private extractParameter(node: SyntaxNode): ParameterInfo | null {
     if (node.type === 'self_parameter') {
       return { name: 'self', type: this.getNodeText(node) };
     }
@@ -200,7 +202,7 @@ export class RustExtractor extends BaseExtractor {
     return { name, type };
   }
 
-  private extractReturnType(node: Parser.SyntaxNode): string | undefined {
+  private extractReturnType(node: SyntaxNode): string | undefined {
     let returnNode = node.children.find(c => c.type === '->');
     if (!returnNode) {
       return undefined;
@@ -216,7 +218,7 @@ export class RustExtractor extends BaseExtractor {
     return this.getNodeText(typeNode);
   }
 
-  private extractGenerics(node: Parser.SyntaxNode): string | undefined {
+  private extractGenerics(node: SyntaxNode): string | undefined {
     const genericsNode = this.findChildByType(node, 'type_parameters');
     if (!genericsNode) {
       return undefined;
@@ -225,7 +227,7 @@ export class RustExtractor extends BaseExtractor {
     return this.getNodeText(genericsNode);
   }
 
-  private extractImplType(node: Parser.SyntaxNode): string | undefined {
+  private extractImplType(node: SyntaxNode): string | undefined {
     const typeNode = this.findChildByType(node, 'type_identifier');
     if (!typeNode) {
       return undefined;
@@ -234,12 +236,12 @@ export class RustExtractor extends BaseExtractor {
     return this.getNodeText(typeNode);
   }
 
-  private extractTypeName(node: Parser.SyntaxNode): string | undefined {
+  private extractTypeName(node: SyntaxNode): string | undefined {
     const nameNode = this.findChildByType(node, 'type_identifier');
     return nameNode ? this.getNodeText(nameNode) : undefined;
   }
 
-  private extractVisibility(node: Parser.SyntaxNode): 'public' | 'private' | 'protected' | undefined {
+  private extractVisibility(node: SyntaxNode): 'public' | 'private' | 'protected' | undefined {
     const visNode = this.findChildByType(node, 'visibility_modifier');
     if (!visNode) {
       return 'private';
@@ -251,7 +253,7 @@ export class RustExtractor extends BaseExtractor {
     return 'private';
   }
 
-  private isAsyncFunction(node: Parser.SyntaxNode): boolean {
+  private isAsyncFunction(node: SyntaxNode): boolean {
     return !!node.children.find(c => c.type === 'async');
   }
 
