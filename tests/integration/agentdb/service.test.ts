@@ -16,6 +16,7 @@ import Database from 'better-sqlite3';
 import { AgentDBManager, AgentDBConfig, MemoryPattern, RetrievalOptions } from '@core/memory/AgentDBManager';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('AgentDB Service Integration', () => {
   let agentDBManager: AgentDBManager;
@@ -203,7 +204,10 @@ describe('AgentDB Service Integration', () => {
     });
 
     it('should handle patterns with large embeddings', async () => {
-      const largeEmbedding = new Array(1536).fill(0).map(() => Math.random()); // OpenAI embedding size
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17008);
+
+      const largeEmbedding = new Array(1536).fill(0).map(() => rng.random()); // OpenAI embedding size
 
       const pattern: MemoryPattern = {
         id: 'large-embedding',
@@ -350,15 +354,18 @@ describe('AgentDB Service Integration', () => {
 
   describe('Batch Operations', () => {
     it('should store 100 patterns in under 10ms', async () => {
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17009);
+
       const patterns: MemoryPattern[] = Array.from({ length: 100 }, (_, i) => ({
         id: `batch-pattern-${i}`,
         type: 'test-pattern',
         domain: 'performance',
         pattern_data: JSON.stringify({
           text: `Batch pattern ${i}`,
-          embedding: new Array(384).fill(Math.random())
+          embedding: new Array(384).fill(rng.random())
         }),
-        confidence: 0.8 + Math.random() * 0.2,
+        confidence: 0.8 + rng.random() * 0.2,
         usage_count: 0,
         success_count: 0,
         created_at: Date.now(),

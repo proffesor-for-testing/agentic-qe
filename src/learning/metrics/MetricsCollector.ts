@@ -127,7 +127,7 @@ export class MetricsCollector {
       const discoveryRate = daysInPeriod > 0 ? patternsDiscovered / daysInPeriod : 0;
 
       // Count unique patterns (by pattern content hash)
-      const uniquePatterns = new Set(patterns.map((p: any) => p.pattern)).size;
+      const uniquePatterns = new Set(patterns.map((p: { pattern?: string }) => p.pattern)).size;
 
       return {
         patternsDiscovered,
@@ -162,13 +162,13 @@ export class MetricsCollector {
         };
       }
 
-      const avgAccuracy = patterns.reduce((sum: number, p: any) => sum + (p.confidence || 0), 0) / patterns.length;
+      const avgAccuracy = patterns.reduce((sum: number, p: { confidence?: number }) => sum + (p.confidence || 0), 0) / patterns.length;
 
       // Actionability based on confidence and usage
       const avgActionability = avgAccuracy; // Simplified: use confidence as proxy
 
       // High confidence patterns (>0.7)
-      const highConfidenceCount = patterns.filter((p: any) => (p.confidence || 0) > 0.7).length;
+      const highConfidenceCount = patterns.filter((p: { confidence?: number }) => (p.confidence || 0) > 0.7).length;
       const highConfidenceRate = highConfidenceCount / patterns.length;
 
       return {
@@ -200,7 +200,7 @@ export class MetricsCollector {
       );
 
       const transfersAttempted = transfers.length;
-      const transfersSucceeded = transfers.filter((t: any) => t.reward > 0.5).length;
+      const transfersSucceeded = transfers.filter((t: { reward?: number }) => (t.reward || 0) > 0.5).length;
       const successRate = transfersAttempted > 0 ? transfersSucceeded / transfersAttempted : 0;
 
       // Adoption rate: patterns actually used
@@ -244,10 +244,10 @@ export class MetricsCollector {
       }
 
       // Estimate improvements based on rewards
-      const avgReward = experiences.reduce((sum: number, e: any) => sum + e.reward, 0) / experiences.length;
+      const avgReward = experiences.reduce((sum: number, e: { reward?: number }) => sum + (e.reward || 0), 0) / experiences.length;
       const avgTimeReduction = avgReward * 30; // reward to % time reduction
       const avgCoverageImprovement = avgReward * 15; // reward to % coverage improvement
-      const tasksOptimized = experiences.filter((e: any) => e.reward > 0.7).length;
+      const tasksOptimized = experiences.filter((e: { reward?: number }) => (e.reward || 0) > 0.7).length;
 
       return {
         avgTimeReduction,
@@ -276,11 +276,11 @@ export class MetricsCollector {
       );
 
       const totalTasks = experiences.length;
-      const errorTasks = experiences.filter((e: any) => e.reward < 0).length;
+      const errorTasks = experiences.filter((e: { reward?: number }) => (e.reward || 0) < 0).length;
       const errorRate = totalTasks > 0 ? errorTasks / totalTasks : 0;
 
       // Cycle completion rate
-      const successTasks = experiences.filter((e: any) => e.reward >= 0).length;
+      const successTasks = experiences.filter((e: { reward?: number }) => (e.reward || 0) >= 0).length;
       const cycleCompletionRate = totalTasks > 0 ? successTasks / totalTasks : 0;
 
       // Average cycle duration (simplified)
@@ -331,8 +331,23 @@ export class MetricsCollector {
     );
 
     return entries
-      .map(e => e.value as MetricValue)
-      .filter(m => new Date(m.timestamp) >= cutoffDate)
+      .map(e => {
+        const rawValue = e.value as unknown;
+        // Type guard to validate MetricValue structure
+        if (
+          typeof rawValue === 'object' &&
+          rawValue !== null &&
+          'name' in rawValue &&
+          'value' in rawValue &&
+          'unit' in rawValue &&
+          'category' in rawValue &&
+          'timestamp' in rawValue
+        ) {
+          return rawValue as MetricValue;
+        }
+        return null;
+      })
+      .filter((m): m is MetricValue => m !== null && new Date(m.timestamp) >= cutoffDate)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }
 }

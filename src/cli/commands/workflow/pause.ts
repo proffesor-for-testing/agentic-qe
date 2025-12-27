@@ -37,10 +37,26 @@ export interface PauseWorkflowResult {
       completedSteps: string[];
       currentStep?: string;
       progress: number;
-      context: any;
+      context: Record<string, unknown>;
     };
   };
   notifiedAgents: string[];
+}
+
+/** Internal interface for workflow execution data retrieved from memory */
+interface WorkflowExecutionData {
+  workflowId: string;
+  executionId: string;
+  workflowName?: string;
+  status: string;
+  completedSteps?: string[];
+  failedSteps?: string[];
+  currentStep?: string;
+  context?: Record<string, unknown>;
+  checkpoints?: unknown[];
+  pausedAt?: string;
+  pauseReason?: string;
+  pauseMode?: string;
 }
 
 /**
@@ -81,7 +97,7 @@ export async function pauseWorkflow(options: PauseWorkflowOptions): Promise<Paus
     execution.pauseMode = pauseMode;
 
     // Store updated execution in memory
-    await memory.store(`workflow:execution:${execution.executionId}`, execution, {
+    await memory.store(`workflow:execution:${execution.executionId}`, execution as unknown as Record<string, unknown>, {
       partition: 'workflow_executions',
       ttl: 86400 // 24 hours
     });
@@ -156,22 +172,40 @@ export async function pauseWorkflow(options: PauseWorkflowOptions): Promise<Paus
   }
 }
 
+/** Type guard to check if value is a workflow execution record */
+function isWorkflowExecutionRecord(
+  value: unknown
+): value is WorkflowExecutionData {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.workflowId === 'string' &&
+    typeof record.executionId === 'string' &&
+    typeof record.status === 'string'
+  );
+}
+
 /**
  * Retrieve workflow execution from memory
  */
 async function retrieveWorkflowExecution(
   memory: SwarmMemoryManager,
   workflowId: string
-): Promise<any> {
+): Promise<WorkflowExecutionData> {
   // Try to find execution by workflow ID
   const pattern = 'workflow:execution:%';
   const entries = await memory.query(pattern, {
     partition: 'workflow_executions'
   });
 
-  const execution = entries.find(entry => entry.value.workflowId === workflowId);
+  const execution = entries.find(entry => {
+    const value = entry.value;
+    return isWorkflowExecutionRecord(value) && value.workflowId === workflowId;
+  });
 
-  if (!execution) {
+  if (!execution || !isWorkflowExecutionRecord(execution.value)) {
     throw new Error(`Workflow not found: ${workflowId}`);
   }
 
@@ -181,7 +215,7 @@ async function retrieveWorkflowExecution(
 /**
  * Validate workflow can be paused
  */
-function validateWorkflowForPause(execution: any): void {
+function validateWorkflowForPause(execution: WorkflowExecutionData): void {
   if (execution.status === 'paused') {
     throw new Error(`Workflow ${execution.workflowId} is already paused`);
   }
@@ -203,25 +237,40 @@ function validateWorkflowForPause(execution: any): void {
   }
 }
 
+/** Saved workflow state structure */
+interface SavedWorkflowState {
+  completedSteps: string[];
+  currentStep?: string;
+  failedSteps: string[];
+  progress: number;
+  context: Record<string, unknown>;
+  variables: Record<string, unknown>;
+  checkpoints: unknown[];
+}
+
 /**
  * Save workflow state for recovery
  */
 async function saveWorkflowState(
   memory: SwarmMemoryManager,
-  execution: any
-): Promise<any> {
-  const savedState = {
+  execution: WorkflowExecutionData
+): Promise<SavedWorkflowState> {
+  const context = execution.context || {};
+  const variables = (typeof context.variables === 'object' && context.variables !== null)
+    ? context.variables as Record<string, unknown>
+    : {};
+  const savedState: SavedWorkflowState = {
     completedSteps: execution.completedSteps || [],
     currentStep: execution.currentStep,
     failedSteps: execution.failedSteps || [],
     progress: calculateProgress(execution),
-    context: execution.context || {},
-    variables: execution.context?.variables || {},
+    context,
+    variables,
     checkpoints: execution.checkpoints || []
   };
 
   // Store state snapshot
-  await memory.store(`workflow:state:${execution.executionId}`, savedState, {
+  await memory.store(`workflow:state:${execution.executionId}`, savedState as unknown as Record<string, unknown>, {
     partition: 'workflow_states',
     ttl: 604800 // 7 days
   });
@@ -232,7 +281,7 @@ async function saveWorkflowState(
 /**
  * Calculate workflow progress
  */
-function calculateProgress(execution: any): number {
+function calculateProgress(execution: WorkflowExecutionData): number {
   const total = (execution.completedSteps?.length || 0) + (execution.failedSteps?.length || 0);
   const completed = execution.completedSteps?.length || 0;
   return total > 0 ? completed / total : 0;
@@ -243,7 +292,7 @@ function calculateProgress(execution: any): number {
  */
 async function notifyAgentsOfPause(
   memory: SwarmMemoryManager,
-  execution: any
+  execution: WorkflowExecutionData
 ): Promise<string[]> {
   const notifiedAgents: string[] = [];
 

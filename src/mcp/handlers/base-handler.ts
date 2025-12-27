@@ -18,7 +18,7 @@ import {
 
 export interface HandlerResponse {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
   metadata?: {
     executionTime: number;
@@ -38,7 +38,7 @@ export abstract class BaseHandler {
   /**
    * Abstract method that must be implemented by all handlers
    */
-  abstract handle(args: any): Promise<HandlerResponse>;
+  abstract handle(args: unknown): Promise<HandlerResponse>;
 
   /**
    * Wrapper that ensures all errors are caught and converted to HandlerResponse.
@@ -56,7 +56,7 @@ export abstract class BaseHandler {
    *
    * **Example usage:**
    * ```typescript
-   * async handle(args: any): Promise<HandlerResponse> {
+   * async handle(args: unknown): Promise<HandlerResponse> {
    *   return this.safeHandle(async () => {
    *     // Your handler logic here
    *     this.validateRequired(args, ['requiredField']);
@@ -97,7 +97,7 @@ export abstract class BaseHandler {
   /**
    * Create a successful response
    */
-  protected createSuccessResponse(data: any, requestId?: string): HandlerResponse {
+  protected createSuccessResponse(data: unknown, requestId?: string): HandlerResponse {
     return {
       success: true,
       data,
@@ -127,11 +127,12 @@ export abstract class BaseHandler {
   /**
    * Validate required parameters
    */
-  protected validateRequired(args: any, requiredFields: string[]): void {
-    if (args === null || args === undefined || typeof args !== 'object' || Array.isArray(args)) {
-      throw new Error(`Invalid arguments: expected object, got ${args === null ? 'null' : typeof args}`);
+  protected validateRequired(args: unknown, requiredFields: string[]): void {
+    const argsRecord = args as Record<string, unknown>;
+    if (argsRecord === null || argsRecord === undefined || typeof argsRecord !== 'object' || Array.isArray(argsRecord)) {
+      throw new Error(`Invalid arguments: expected object, got ${argsRecord === null ? 'null' : typeof argsRecord}`);
     }
-    const missing = requiredFields.filter(field => !(field in args) || args[field] === undefined || args[field] === null);
+    const missing = requiredFields.filter(field => !(field in argsRecord) || argsRecord[field] === undefined || argsRecord[field] === null);
     if (missing.length > 0) {
       throw new Error(`Missing required fields: ${missing.join(', ')}`);
     }
@@ -140,7 +141,7 @@ export abstract class BaseHandler {
   /**
    * Log handler activity
    */
-  protected log(level: 'info' | 'warn' | 'error', message: string, data?: any): void {
+  protected log(level: 'info' | 'warn' | 'error', message: string, data?: unknown): void {
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] [${level.toUpperCase()}] ${this.constructor.name}: ${message}`, data || '');
   }
@@ -178,7 +179,7 @@ export abstract class BaseHandler {
    * @param outputType - Type of output (test_results, coverage, agent_status, etc.)
    * @returns Formatted string (JSON in AI mode, human-readable otherwise)
    */
-  protected formatForAI(data: any, outputType: OutputType = 'agent_status'): string {
+  protected formatForAI(data: unknown, outputType: OutputType = 'agent_status'): string {
     return this.outputFormatter.format(data, outputType, OutputMode.AUTO);
   }
 
@@ -186,7 +187,7 @@ export abstract class BaseHandler {
    * Create a success response with AI-friendly formatting
    * Automatically includes action suggestions when in AI mode
    */
-  protected createAIFormattedResponse(data: any, requestId?: string): HandlerResponse {
+  protected createAIFormattedResponse(data: Record<string, unknown>, requestId?: string): HandlerResponse {
     const formattedData = this.isAIMode()
       ? {
           ...data,

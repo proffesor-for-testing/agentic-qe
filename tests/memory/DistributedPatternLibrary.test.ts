@@ -11,6 +11,7 @@ import {
   DistributedPatternConfig
 } from '../../src/memory/DistributedPatternLibrary';
 import { TestPattern } from '../../src/core/memory/IPatternStore';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('DistributedPatternLibrary', () => {
   let library: DistributedPatternLibrary;
@@ -53,6 +54,7 @@ describe('DistributedPatternLibrary', () => {
     });
 
     it('should handle 1000+ patterns efficiently', async () => {
+      const rng = createSeededRandom(12600);
       const startTime = Date.now();
       const patterns: TestPattern[] = [];
 
@@ -62,9 +64,9 @@ describe('DistributedPatternLibrary', () => {
           id: `pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 
@@ -146,25 +148,27 @@ describe('DistributedPatternLibrary', () => {
 
   describe('Pattern Lookup Performance', () => {
     beforeEach(async () => {
+      const rng = createSeededRandom(12700);
       // Seed with 100 patterns
       for (let i = 0; i < 100; i++) {
         await library.storePattern({
           id: `pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
     });
 
     it('should achieve <100ms p99 lookup latency', async () => {
+      const rng = createSeededRandom(12710);
       const latencies: number[] = [];
 
       // Perform 100 lookups
       for (let i = 0; i < 100; i++) {
-        const patternId = `pattern-${Math.floor(Math.random() * 100)}`;
+        const patternId = `pattern-${Math.floor(rng.random() * 100)}`;
         const startTime = Date.now();
         await library.getPattern(patternId);
         const latency = Date.now() - startTime;
@@ -349,15 +353,16 @@ describe('DistributedPatternLibrary', () => {
       });
       await remoteLibrary.initialize();
 
+      const rng = createSeededRandom(12800);
       // Create patterns on remote
       for (let i = 0; i < 10; i++) {
         await remoteLibrary.storePattern({
           id: `remote-pattern-${i}`,
           type: 'unit',
           domain: 'remote',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `remote pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 
@@ -374,6 +379,7 @@ describe('DistributedPatternLibrary', () => {
     });
 
     it('should handle 99.9% consistency after sync', async () => {
+      const rng = createSeededRandom(12900);
       // Create 3 libraries
       const lib1 = new DistributedPatternLibrary({ agentId: 'agent-1', dimension: 128 });
       const lib2 = new DistributedPatternLibrary({ agentId: 'agent-2', dimension: 128 });
@@ -389,9 +395,9 @@ describe('DistributedPatternLibrary', () => {
           id: `pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 

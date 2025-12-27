@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { QLearning } from '../../src/learning/QLearning';
 import { ExperienceReplayBuffer } from '../../src/learning/ExperienceReplayBuffer';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 import {
   TaskState,
   AgentAction,
@@ -168,31 +169,32 @@ describe('Learning System Performance Benchmarks', () => {
   describe('Experience Replay Sampling Speed', () => {
     beforeEach(() => {
       // Populate buffer with 1000 experiences
+      const rng = createSeededRandom(7000);
       for (let i = 0; i < 1000; i++) {
         const exp: TaskExperience = {
           taskId: `task-${i}`,
           taskType: 'test',
           state: {
-            taskComplexity: Math.random(),
+            taskComplexity: rng.random(),
             requiredCapabilities: ['testing'],
             contextFeatures: {},
             previousAttempts: 0,
-            availableResources: Math.random()
+            availableResources: rng.random()
           },
           action: {
             strategy: 'test',
             toolsUsed: ['jest'],
-            parallelization: Math.random(),
+            parallelization: rng.random(),
             retryPolicy: 'exponential',
-            resourceAllocation: Math.random()
+            resourceAllocation: rng.random()
           },
-          reward: Math.random() * 2 - 0.5,
+          reward: rng.random() * 2 - 0.5,
           nextState: {
-            taskComplexity: Math.random(),
+            taskComplexity: rng.random(),
             requiredCapabilities: ['testing'],
             contextFeatures: {},
             previousAttempts: 1,
-            availableResources: Math.random()
+            availableResources: rng.random()
           },
           timestamp: new Date(),
           agentId: 'test-agent'
@@ -311,31 +313,32 @@ describe('Learning System Performance Benchmarks', () => {
 
     it('should perform batch update (32 experiences) in <10ms', () => {
       // Populate Q-table and replay buffer
+      const rng = createSeededRandom(7100);
       for (let i = 0; i < 100; i++) {
         const exp: TaskExperience = {
           taskId: `task-${i}`,
           taskType: 'test',
           state: {
-            taskComplexity: Math.random(),
+            taskComplexity: rng.random(),
             requiredCapabilities: ['testing'],
             contextFeatures: {},
             previousAttempts: 0,
-            availableResources: Math.random()
+            availableResources: rng.random()
           },
           action: {
             strategy: 'test',
             toolsUsed: ['jest'],
-            parallelization: Math.random(),
+            parallelization: rng.random(),
             retryPolicy: 'exponential',
-            resourceAllocation: Math.random()
+            resourceAllocation: rng.random()
           },
-          reward: Math.random() * 2 - 0.5,
+          reward: rng.random() * 2 - 0.5,
           nextState: {
-            taskComplexity: Math.random(),
+            taskComplexity: rng.random(),
             requiredCapabilities: ['testing'],
             contextFeatures: {},
             previousAttempts: 1,
-            availableResources: Math.random()
+            availableResources: rng.random()
           },
           timestamp: new Date(),
           agentId: 'test-agent'
@@ -372,36 +375,39 @@ describe('Learning System Performance Benchmarks', () => {
       });
 
       // Add 10,000 experiences
+      const rng = createSeededRandom(7200);
+      const strategies = ['fast', 'balanced', 'thorough'];
+      const retryPolicies = ['none', 'linear', 'exponential'];
       for (let i = 0; i < 10000; i++) {
         const exp: TaskExperience = {
           taskId: `task-${i}`,
           taskType: 'test-generation',
           state: {
-            taskComplexity: Math.random(),
+            taskComplexity: rng.random(),
             requiredCapabilities: ['testing', 'analysis', 'optimization'],
             contextFeatures: {
               framework: 'jest',
               language: 'typescript',
-              complexity: Math.floor(Math.random() * 5)
+              complexity: rng.randomInt(0, 4)
             },
-            previousAttempts: Math.floor(Math.random() * 3),
-            availableResources: Math.random(),
-            timeConstraint: 30000 + Math.random() * 30000
+            previousAttempts: rng.randomInt(0, 2),
+            availableResources: rng.random(),
+            timeConstraint: 30000 + rng.random() * 30000
           },
           action: {
-            strategy: ['fast', 'balanced', 'thorough'][Math.floor(Math.random() * 3)],
+            strategy: rng.randomElement(strategies),
             toolsUsed: ['jest', 'vitest', 'mocha'],
-            parallelization: Math.random(),
-            retryPolicy: ['none', 'linear', 'exponential'][Math.floor(Math.random() * 3)],
-            resourceAllocation: Math.random()
+            parallelization: rng.random(),
+            retryPolicy: rng.randomElement(retryPolicies),
+            resourceAllocation: rng.random()
           },
-          reward: Math.random() * 2 - 0.5,
+          reward: rng.random() * 2 - 0.5,
           nextState: {
-            taskComplexity: Math.random(),
+            taskComplexity: rng.random(),
             requiredCapabilities: ['testing'],
             contextFeatures: {},
             previousAttempts: 1,
-            availableResources: Math.random()
+            availableResources: rng.random()
           },
           timestamp: new Date(),
           agentId: 'test-agent'
@@ -422,6 +428,7 @@ describe('Learning System Performance Benchmarks', () => {
 
     it('should efficiently store Q-table with 1000+ state-action pairs', () => {
       // Create diverse states and actions
+      const rng = createSeededRandom(7300);
       const states: TaskState[] = [];
       const actions: AgentAction[] = [
         {
@@ -466,7 +473,7 @@ describe('Learning System Performance Benchmarks', () => {
             taskType: 'test',
             state,
             action,
-            reward: Math.random() * 2 - 0.5,
+            reward: rng.random() * 2 - 0.5,
             nextState: state,
             timestamp: new Date(),
             agentId: 'test-agent'

@@ -6,9 +6,11 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { VectorSearch, VectorDocument } from '../../../src/code-intelligence/search/VectorSearch.js';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('VectorSearch', () => {
   let search: VectorSearch;
+  const rng = createSeededRandom(20000);
 
   // Helper to create test documents with embeddings
   function createDoc(
@@ -32,7 +34,7 @@ describe('VectorSearch', () => {
 
   // Helper to create random embedding
   function randomEmbedding(dims: number = 768): number[] {
-    return Array.from({ length: dims }, () => Math.random() - 0.5);
+    return Array.from({ length: dims }, () => rng.random() - 0.5);
   }
 
   // Helper to create normalized embedding
@@ -113,7 +115,7 @@ describe('VectorSearch', () => {
 
       // Create similar embedding (small perturbation)
       const similarEmbedding = normalizeEmbedding(
-        baseEmbedding.map((v) => v + (Math.random() - 0.5) * 0.1)
+        baseEmbedding.map((v) => v + (rng.random() - 0.5) * 0.1)
       );
 
       // Create dissimilar embedding

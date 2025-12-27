@@ -12,6 +12,7 @@ import {
 } from '../../src/memory/PatternReplicationService';
 import { DistributedPatternLibrary } from '../../src/memory/DistributedPatternLibrary';
 import { TestPattern } from '../../src/core/memory/IPatternStore';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('PatternReplicationService', () => {
   let service: PatternReplicationService;
@@ -127,6 +128,7 @@ describe('PatternReplicationService', () => {
     });
 
     it('should replicate 1000+ patterns efficiently', async () => {
+      const rng = createSeededRandom(13000);
       const startTime = Date.now();
 
       for (let i = 0; i < 1000; i++) {
@@ -134,9 +136,9 @@ describe('PatternReplicationService', () => {
           id: `pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         };
 
         await service.replicatePattern(pattern);
@@ -231,15 +233,16 @@ describe('PatternReplicationService', () => {
     });
 
     it('should sync patterns across nodes', async () => {
+      const rng = createSeededRandom(13100);
       // Add patterns to library1 only
       for (let i = 0; i < 10; i++) {
         await library1.storePattern({
           id: `sync-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 
@@ -299,15 +302,16 @@ describe('PatternReplicationService', () => {
     });
 
     it('should calculate consistency percentage', async () => {
+      const rng = createSeededRandom(13200);
       // Add same patterns to all nodes
       for (let i = 0; i < 10; i++) {
         const pattern: TestPattern = {
           id: `consistency-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         };
 
         await service.replicatePattern(pattern);

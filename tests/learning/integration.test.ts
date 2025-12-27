@@ -16,14 +16,17 @@ import {
   TaskExperience,
   LearningFeedback
 } from '../../src/learning/types';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Learning System Integration', () => {
   let qLearning: QLearning;
   let replayBuffer: ExperienceReplayBuffer;
   let learningEngine: LearningEngine;
   let memoryManager: SwarmMemoryManager;
+  let rng: SeededRandom;
 
   beforeEach(async () => {
+    rng = createSeededRandom(42);
     // Initialize components
     qLearning = new QLearning({
       learningRate: 0.1,
@@ -203,7 +206,7 @@ describe('Learning System Integration', () => {
           taskType: 'test-generation',
           state,
           action,
-          reward: Math.random() * 2 - 0.5,
+          reward: rng.random() * 2 - 0.5,
           nextState,
           timestamp: new Date(),
           agentId: 'test-agent'
@@ -379,7 +382,7 @@ describe('Learning System Integration', () => {
           taskType: 'test',
           state,
           action,
-          reward: 1.0 + Math.random() * 0.5,
+          reward: 1.0 + rng.random() * 0.5,
           nextState: state,
           timestamp: new Date(),
           agentId: 'test-agent'

@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { QEReasoningBank, TestPattern } from '../../src/reasoning/QEReasoningBank';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Pattern Versioning and Evolution', () => {
   let reasoningBank: QEReasoningBank;
@@ -385,6 +386,9 @@ describe('Pattern Versioning and Evolution', () => {
   });
 });
 
+// Seeded random instance for deterministic pattern creation
+const versioningRng = createSeededRandom(15300);
+
 /**
  * Helper to create versioned test pattern
  */
@@ -398,7 +402,7 @@ function createVersionedPattern(id: string, version: string, description: string
     language: 'typescript',
     template: `template-${id}`,
     examples: [`example-${id}`],
-    confidence: 0.8 + Math.random() * 0.2,
+    confidence: 0.8 + versioningRng.random() * 0.2,
     usageCount: 0,
     successRate: 0.8,
     metadata: {

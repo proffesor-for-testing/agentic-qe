@@ -18,6 +18,7 @@ import {
   LearnedPattern,
   FederatedConfig
 } from '../../../src/learning/FederatedManager';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('EphemeralAgent', () => {
   let agent: EphemeralAgent;
@@ -31,7 +32,8 @@ describe('EphemeralAgent', () => {
   });
 
   it('should process patterns and update gradients', () => {
-    const embedding = new Array(128).fill(0).map(() => Math.random());
+    const rng = createSeededRandom(22003);
+    const embedding = new Array(128).fill(0).map(() => rng.random());
 
     agent.processPattern(embedding, 0.8);
 

@@ -13,6 +13,287 @@ import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { AgentRegistry } from '../../services/AgentRegistry.js';
 import { HookExecutor } from '../../services/HookExecutor.js';
 
+// ============================================================================
+// Type Definitions for Phase 3 Domain Tools
+// ============================================================================
+
+/** Base args interface with tool name routing */
+export interface Phase3ToolArgs {
+  tool?: string;
+}
+
+/** Risk factors for coverage analysis */
+export interface RiskFactors {
+  complexity?: boolean;
+  changeFrequency?: boolean;
+  criticalPaths?: boolean;
+  historicalDefects?: boolean;
+}
+
+/** Coverage gap information */
+export interface CoverageGap {
+  file: string;
+  lines?: number[];
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  score?: number;
+  reason?: string;
+}
+
+/** Historical coverage data point */
+export interface HistoricalDataPoint {
+  timestamp: string;
+  coverage: number;
+}
+
+/** Test result for flaky detection */
+export interface TestResultEntry {
+  testId: string;
+  testName?: string;
+  passed: boolean;
+  duration?: number;
+}
+
+/** Performance threshold configuration */
+export interface PerformanceThresholds {
+  responseTime?: number;
+  errorRate?: number;
+  throughput?: number;
+}
+
+/** Region to ignore in visual comparison */
+export interface IgnoreRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// ============================================================================
+// Coverage Domain Tool Args
+// ============================================================================
+
+export interface CoverageAnalyzeWithRiskScoringArgs extends Phase3ToolArgs {
+  riskFactors?: RiskFactors;
+  sourcePath?: string;
+  coverageData?: Record<string, unknown>;
+}
+
+export interface CoverageDetectGapsMLArgs extends Phase3ToolArgs {
+  mlModel?: 'gradient-boosting' | 'random-forest' | 'neural-network';
+  coverageData?: Record<string, unknown>;
+  minConfidence?: number;
+}
+
+export interface CoverageRecommendTestsArgs extends Phase3ToolArgs {
+  gaps?: CoverageGap[];
+  testFramework?: string;
+  generateCode?: boolean;
+}
+
+export interface CoverageCalculateTrendsArgs extends Phase3ToolArgs {
+  historicalData?: HistoricalDataPoint[];
+  forecastDays?: number;
+  anomalyDetection?: boolean;
+}
+
+// ============================================================================
+// Flaky Detection Tool Args
+// ============================================================================
+
+export interface FlakyDetectStatisticalArgs extends Phase3ToolArgs {
+  testResults?: TestResultEntry[];
+  methods?: Array<'chi-square' | 'variance' | 'entropy'>;
+  confidenceLevel?: number;
+}
+
+export interface FlakyAnalyzePatternsArgs extends Phase3ToolArgs {
+  analyzeTiming?: boolean;
+  analyzeEnvironment?: boolean;
+  analyzeDependencies?: boolean;
+  clusterSimilar?: boolean;
+}
+
+export interface FlakyStabilizeAutoArgs extends Phase3ToolArgs {
+  flakyPattern?: string;
+  stabilizationStrategy?: 'retry' | 'timeout' | 'isolation' | 'hybrid';
+  dryRun?: boolean;
+  framework?: string;
+}
+
+// ============================================================================
+// Performance Tool Args
+// ============================================================================
+
+export interface PerformanceAnalyzeBottlenecksArgs extends Phase3ToolArgs {
+  target?: string;
+  threshold?: number;
+  analyzeMemory?: boolean;
+  analyzeCPU?: boolean;
+  analyzeIO?: boolean;
+}
+
+export interface PerformanceGenerateReportArgs extends Phase3ToolArgs {
+  format?: 'html' | 'json' | 'pdf' | 'markdown';
+  benchmarkResults?: Record<string, unknown>;
+  bottlenecks?: Record<string, unknown>[];
+  includeCharts?: boolean;
+  includeRecommendations?: boolean;
+  compareBaseline?: boolean;
+}
+
+export interface PerformanceRunBenchmarkArgs extends Phase3ToolArgs {
+  target: string;
+  iterations?: number;
+  warmupIterations?: number;
+  collectMetrics?: string[];
+  scenarios?: string[];
+}
+
+export interface PerformanceMonitorRealtimeArgs extends Phase3ToolArgs {
+  target: string;
+  duration?: number;
+  interval?: number;
+  alerts?: boolean;
+  thresholds?: PerformanceThresholds;
+}
+
+// ============================================================================
+// Security Tool Args
+// ============================================================================
+
+export interface SecurityValidateAuthArgs extends Phase3ToolArgs {
+  authType: 'jwt' | 'oauth' | 'api-key' | 'session';
+  endpoint?: string;
+  tests?: string[];
+  includeVulnerabilities?: boolean;
+}
+
+export interface SecurityCheckAuthzArgs extends Phase3ToolArgs {
+  authzType: 'rbac' | 'abac' | 'policy-based';
+  resources?: string[];
+  roles?: string[];
+  testPrivilegeEscalation?: boolean;
+  testHorizontalAccess?: boolean;
+}
+
+export interface SecurityScanDependenciesArgs extends Phase3ToolArgs {
+  manifestFile: string;
+  sources?: Array<'nvd' | 'snyk' | 'github-advisory'>;
+  severityThreshold?: 'critical' | 'high' | 'medium' | 'low';
+}
+
+export interface SecurityGenerateReportArgs extends Phase3ToolArgs {
+  format?: 'html' | 'json' | 'pdf' | 'markdown';
+  findings?: Record<string, unknown>[];
+  includeOWASP?: boolean;
+  includeCVSS?: boolean;
+  includeRemediation?: boolean;
+}
+
+export interface SecurityScanComprehensiveArgs extends Phase3ToolArgs {
+  scanType?: 'comprehensive' | 'sast' | 'dast' | 'dependencies';
+  target: string;
+  depth?: 'quick' | 'standard' | 'deep';
+}
+
+// ============================================================================
+// Visual Testing Tool Args
+// ============================================================================
+
+export interface VisualCompareScreenshotsArgs extends Phase3ToolArgs {
+  baselineImage: string;
+  currentImage: string;
+  algorithm?: 'pixel-diff' | 'structural-similarity' | 'perceptual-hash';
+  threshold?: number;
+  ignoreRegions?: IgnoreRegion[];
+}
+
+export interface VisualValidateAccessibilityArgs extends Phase3ToolArgs {
+  target: string;
+  wcagLevel?: 'A' | 'AA' | 'AAA';
+  checks?: string[];
+  generateReport?: boolean;
+}
+
+export interface VisualDetectRegressionArgs extends Phase3ToolArgs {
+  baseline: string;
+  current: string;
+  components?: string[];
+  threshold?: number;
+  parallelComparisons?: number;
+}
+
+// ============================================================================
+// QE Domain Tool Args (Security, Test-Generation, Quality-Gates)
+// ============================================================================
+
+export interface QeSecurityScanComprehensiveArgs extends Phase3ToolArgs {
+  scanType?: 'comprehensive' | 'sast' | 'dast';
+  target: string;
+  depth?: 'quick' | 'standard' | 'deep';
+}
+
+export interface QeSecurityDetectVulnerabilitiesArgs extends Phase3ToolArgs {
+  target?: string;
+  severityThreshold?: 'critical' | 'high' | 'medium' | 'low';
+}
+
+export interface QeSecurityValidateComplianceArgs extends Phase3ToolArgs {
+  standards?: string[];
+  generateRoadmap?: boolean;
+}
+
+export interface QeTestgenGenerateUnitArgs extends Phase3ToolArgs {
+  sourceCode?: string;
+  framework?: string;
+  coverageGoal?: number;
+  includeEdgeCases?: boolean;
+}
+
+export interface QeTestgenGenerateIntegrationArgs extends Phase3ToolArgs {
+  integrationPoints?: string[];
+  mockStrategy?: 'full' | 'partial' | 'none';
+  contractTesting?: boolean;
+}
+
+export interface QeTestgenOptimizeSuiteArgs extends Phase3ToolArgs {
+  tests?: string[];
+  algorithm?: 'johnson-lindenstrauss' | 'greedy' | 'genetic';
+  targetReduction?: number;
+  maintainCoverage?: number;
+}
+
+export interface QeTestgenAnalyzeQualityArgs extends Phase3ToolArgs {
+  tests?: string[];
+  generateRecommendations?: boolean;
+}
+
+export interface QeQualitygateEvaluateArgs extends Phase3ToolArgs {
+  projectId: string;
+  buildId: string;
+  environment?: string;
+  criteria?: Record<string, unknown>;
+}
+
+export interface QeQualitygateAssessRiskArgs extends Phase3ToolArgs {
+  changeSet?: string[];
+  environment?: string;
+}
+
+export interface QeQualitygateValidateMetricsArgs extends Phase3ToolArgs {
+  metrics?: Record<string, number>;
+  thresholds?: Record<string, number>;
+  detectAnomalies?: boolean;
+}
+
+export interface QeQualitygateGenerateReportArgs extends Phase3ToolArgs {
+  projectId: string;
+  buildId: string;
+  format?: 'html' | 'json' | 'pdf' | 'markdown';
+  includeTrends?: boolean;
+  includeRecommendations?: boolean;
+}
+
 /**
  * Phase 3 Domain Tools Handler
  * Provides implementations for all domain-specific tools
@@ -31,7 +312,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
    * Main handler method (required by BaseHandler)
    * Routes to specific domain tool handlers
    */
-  async handle(args: Record<string, any>): Promise<HandlerResponse> {
+  async handle(args: Phase3ToolArgs): Promise<HandlerResponse> {
     const toolName = args.tool || 'unknown';
 
     // Route to appropriate domain handler based on tool name
@@ -48,23 +329,23 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     return this.createErrorResponse(`Unknown tool: ${toolName}`, 'UNKNOWN_TOOL');
   }
 
-  private async handleCoverageTools(args: Record<string, any>): Promise<HandlerResponse> {
+  private async handleCoverageTools(args: Phase3ToolArgs): Promise<HandlerResponse> {
     const toolName = args.tool;
     if (toolName === 'coverage_analyze_with_risk_scoring') {
-      return this.handleCoverageAnalyzeWithRiskScoring(args);
+      return this.handleCoverageAnalyzeWithRiskScoring(args as CoverageAnalyzeWithRiskScoringArgs);
     }
     return this.createErrorResponse(`Unknown coverage tool: ${toolName}`, 'UNKNOWN_TOOL');
   }
 
-  private async handleFlakyTools(args: Record<string, any>): Promise<HandlerResponse> {
+  private async handleFlakyTools(_args: Phase3ToolArgs): Promise<HandlerResponse> {
     return this.createErrorResponse('Flaky tools not yet implemented', 'NOT_IMPLEMENTED');
   }
 
-  private async handlePerformanceTools(args: Record<string, any>): Promise<HandlerResponse> {
+  private async handlePerformanceTools(_args: Phase3ToolArgs): Promise<HandlerResponse> {
     return this.createErrorResponse('Performance tools not yet implemented', 'NOT_IMPLEMENTED');
   }
 
-  private async handleVisualTools(args: Record<string, any>): Promise<HandlerResponse> {
+  private async handleVisualTools(_args: Phase3ToolArgs): Promise<HandlerResponse> {
     return this.createErrorResponse('Visual tools not yet implemented', 'NOT_IMPLEMENTED');
   }
 
@@ -72,7 +353,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // Coverage Domain Tools (4 tools)
   // ============================================================================
 
-  async handleCoverageAnalyzeWithRiskScoring(args: any): Promise<HandlerResponse> {
+  async handleCoverageAnalyzeWithRiskScoring(args: CoverageAnalyzeWithRiskScoringArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Analyzing coverage with risk scoring', { requestId, args });
@@ -108,7 +389,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleCoverageDetectGapsML(args: any): Promise<HandlerResponse> {
+  async handleCoverageDetectGapsML(args: CoverageDetectGapsMLArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Detecting coverage gaps with ML', { requestId, model: args.mlModel });
@@ -144,7 +425,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleCoverageRecommendTests(args: any): Promise<HandlerResponse> {
+  async handleCoverageRecommendTests(args: CoverageRecommendTestsArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Recommending tests for coverage gaps', { requestId });
@@ -152,7 +433,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
       const framework = args.testFramework || 'jest';
       const result = {
         requestId,
-        recommendations: args.gaps?.map((gap: any, index: number) => ({
+        recommendations: args.gaps?.map((gap: CoverageGap, index: number) => ({
           gapId: index,
           file: gap.file,
           priority: gap.priority,
@@ -173,7 +454,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleCoverageCalculateTrends(args: any): Promise<HandlerResponse> {
+  async handleCoverageCalculateTrends(args: CoverageCalculateTrendsArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Calculating coverage trends', { requestId });
@@ -182,7 +463,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
         requestId,
         trends: {
           current: 0.75,
-          historical: args.historicalData?.map((d: any) => ({
+          historical: args.historicalData?.map((d: HistoricalDataPoint) => ({
             timestamp: d.timestamp,
             coverage: d.coverage
           })) || [],
@@ -212,7 +493,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // Flaky Detection Tools (3 tools)
   // ============================================================================
 
-  async handleFlakyDetectStatistical(args: any): Promise<HandlerResponse> {
+  async handleFlakyDetectStatistical(args: FlakyDetectStatisticalArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Detecting flaky tests statistically', { requestId, methods: args.methods });
@@ -246,7 +527,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleFlakyAnalyzePatterns(args: any): Promise<HandlerResponse> {
+  async handleFlakyAnalyzePatterns(args: FlakyAnalyzePatternsArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Analyzing flaky test patterns', { requestId });
@@ -282,7 +563,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleFlakyStabilizeAuto(args: any): Promise<HandlerResponse> {
+  async handleFlakyStabilizeAuto(args: FlakyStabilizeAutoArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Auto-stabilizing flaky test', { requestId, pattern: args.flakyPattern });
@@ -317,7 +598,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // Performance Tools (4 tools)
   // ============================================================================
 
-  async handlePerformanceAnalyzeBottlenecks(args: any): Promise<HandlerResponse> {
+  async handlePerformanceAnalyzeBottlenecks(args: PerformanceAnalyzeBottlenecksArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Analyzing performance bottlenecks', { requestId });
@@ -353,7 +634,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handlePerformanceGenerateReport(args: any): Promise<HandlerResponse> {
+  async handlePerformanceGenerateReport(args: PerformanceGenerateReportArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Generating performance report', { requestId, format: args.format });
@@ -384,7 +665,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handlePerformanceRunBenchmark(args: any): Promise<HandlerResponse> {
+  async handlePerformanceRunBenchmark(args: PerformanceRunBenchmarkArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Running performance benchmark', { requestId, target: args.target });
@@ -415,7 +696,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handlePerformanceMonitorRealtime(args: any): Promise<HandlerResponse> {
+  async handlePerformanceMonitorRealtime(args: PerformanceMonitorRealtimeArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Monitoring performance real-time', { requestId, target: args.target });
@@ -454,7 +735,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // Security Tools (5 tools)
   // ============================================================================
 
-  async handleSecurityValidateAuth(args: any): Promise<HandlerResponse> {
+  async handleSecurityValidateAuth(args: SecurityValidateAuthArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Validating authentication', { requestId, type: args.authType });
@@ -493,7 +774,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleSecurityCheckAuthz(args: any): Promise<HandlerResponse> {
+  async handleSecurityCheckAuthz(args: SecurityCheckAuthzArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Checking authorization', { requestId, type: args.authzType });
@@ -529,7 +810,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleSecurityScanDependencies(args: any): Promise<HandlerResponse> {
+  async handleSecurityScanDependencies(args: SecurityScanDependenciesArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Scanning dependencies', { requestId, file: args.manifestFile });
@@ -564,7 +845,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleSecurityGenerateReport(args: any): Promise<HandlerResponse> {
+  async handleSecurityGenerateReport(args: SecurityGenerateReportArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Generating security report', { requestId, format: args.format });
@@ -595,7 +876,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleSecurityScanComprehensive(args: any): Promise<HandlerResponse> {
+  async handleSecurityScanComprehensive(args: SecurityScanComprehensiveArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Running comprehensive security scan', { requestId, type: args.scanType });
@@ -625,7 +906,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // Visual Testing Tools (3 tools)
   // ============================================================================
 
-  async handleVisualCompareScreenshots(args: any): Promise<HandlerResponse> {
+  async handleVisualCompareScreenshots(args: VisualCompareScreenshotsArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Comparing screenshots', { requestId, algorithm: args.algorithm });
@@ -660,7 +941,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleVisualValidateAccessibility(args: any): Promise<HandlerResponse> {
+  async handleVisualValidateAccessibility(args: VisualValidateAccessibilityArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Validating accessibility', { requestId, target: args.target });
@@ -695,7 +976,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleVisualDetectRegression(args: any): Promise<HandlerResponse> {
+  async handleVisualDetectRegression(args: VisualDetectRegressionArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Detecting visual regression', { requestId });
@@ -735,7 +1016,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // ============================================================================
 
   // Security Domain (3 tools)
-  async handleQeSecurityScanComprehensive(args: any): Promise<HandlerResponse> {
+  async handleQeSecurityScanComprehensive(args: QeSecurityScanComprehensiveArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Comprehensive security scan', { requestId, target: args.target });
@@ -760,7 +1041,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeSecurityDetectVulnerabilities(args: any): Promise<HandlerResponse> {
+  async handleQeSecurityDetectVulnerabilities(args: QeSecurityDetectVulnerabilitiesArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Detecting vulnerabilities', { requestId });
@@ -781,7 +1062,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeSecurityValidateCompliance(args: any): Promise<HandlerResponse> {
+  async handleQeSecurityValidateCompliance(args: QeSecurityValidateComplianceArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Validating compliance', { requestId });
@@ -802,7 +1083,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   }
 
   // Test-Generation Domain (4 tools)
-  async handleQeTestgenGenerateUnit(args: any): Promise<HandlerResponse> {
+  async handleQeTestgenGenerateUnit(args: QeTestgenGenerateUnitArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Generating unit tests', { requestId });
@@ -822,7 +1103,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeTestgenGenerateIntegration(args: any): Promise<HandlerResponse> {
+  async handleQeTestgenGenerateIntegration(args: QeTestgenGenerateIntegrationArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Generating integration tests', { requestId });
@@ -842,7 +1123,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeTestgenOptimizeSuite(args: any): Promise<HandlerResponse> {
+  async handleQeTestgenOptimizeSuite(args: QeTestgenOptimizeSuiteArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Optimizing test suite', { requestId });
@@ -862,7 +1143,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeTestgenAnalyzeQuality(args: any): Promise<HandlerResponse> {
+  async handleQeTestgenAnalyzeQuality(args: QeTestgenAnalyzeQualityArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Analyzing test quality', { requestId });
@@ -883,7 +1164,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   }
 
   // Quality-Gates Domain (4 tools)
-  async handleQeQualitygateEvaluate(args: any): Promise<HandlerResponse> {
+  async handleQeQualitygateEvaluate(args: QeQualitygateEvaluateArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Evaluating quality gate', { requestId });
@@ -905,7 +1186,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeQualitygateAssessRisk(args: any): Promise<HandlerResponse> {
+  async handleQeQualitygateAssessRisk(args: QeQualitygateAssessRiskArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Assessing deployment risk', { requestId });
@@ -925,7 +1206,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeQualitygateValidateMetrics(args: any): Promise<HandlerResponse> {
+  async handleQeQualitygateValidateMetrics(args: QeQualitygateValidateMetricsArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Validating quality metrics', { requestId });
@@ -945,7 +1226,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  async handleQeQualitygateGenerateReport(args: any): Promise<HandlerResponse> {
+  async handleQeQualitygateGenerateReport(args: QeQualitygateGenerateReportArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
       this.log('info', 'Generating quality report', { requestId });
@@ -975,7 +1256,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
   // Utility Methods
   // ============================================================================
 
-  private generateTestCode(gap: any, framework: string): string {
+  private generateTestCode(gap: CoverageGap, framework: string): string {
     return `
 describe('${gap.file}', () => {
   it('should cover lines ${gap.lines?.join(', ')}', () => {

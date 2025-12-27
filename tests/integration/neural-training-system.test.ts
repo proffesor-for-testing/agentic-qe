@@ -20,6 +20,7 @@ import {
   NeuralTrainer,
   TrainingConfig
 } from '@learning/NeuralTrainer';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Neural Training System Integration', () => {
   let mockMemoryManager: any;
@@ -55,23 +56,24 @@ describe('Neural Training System Integration', () => {
   describe('End-to-End Training Workflow', () => {
     it('should complete full training workflow', async () => {
       // Arrange: Create realistic training data
+      const rng = createSeededRandom(9000);
       const mockPatterns = Array.from({ length: 100 }, (_, i) => ({
         pattern_id: `pattern-${i}`,
         pattern_type: i % 3 === 0 ? 'unit' : i % 3 === 1 ? 'integration' : 'e2e',
-        coverage: 0.7 + Math.random() * 0.3,
+        coverage: 0.7 + rng.random() * 0.3,
         created_at: Date.now() - i * 1000,
-        cyclomaticComplexity: Math.floor(Math.random() * 10) + 1,
-        linesOfCode: Math.floor(Math.random() * 500) + 50,
-        numberOfFunctions: Math.floor(Math.random() * 20) + 1,
-        numberOfBranches: Math.floor(Math.random() * 15) + 1
+        cyclomaticComplexity: Math.floor(rng.random() * 10) + 1,
+        linesOfCode: Math.floor(rng.random() * 500) + 50,
+        numberOfFunctions: Math.floor(rng.random() * 20) + 1,
+        numberOfBranches: Math.floor(rng.random() * 15) + 1
       }));
 
       const mockMetrics = mockPatterns.map(pattern => ({
         pattern_id: pattern.pattern_id,
-        success_rate: 0.8 + Math.random() * 0.2,
-        avg_execution_time: Math.floor(Math.random() * 1000) + 100,
-        flaky_score: Math.random() * 0.2,
-        failure_rate: Math.random() * 0.1
+        success_rate: 0.8 + rng.random() * 0.2,
+        avg_execution_time: Math.floor(rng.random() * 1000) + 100,
+        flaky_score: rng.random() * 0.2,
+        failure_rate: rng.random() * 0.1
       }));
 
       mockMemoryManager.retrievePatterns.mockResolvedValue(mockPatterns);
@@ -175,8 +177,9 @@ describe('Neural Training System Integration', () => {
       expect(initialResult.metrics.accuracy).toBeGreaterThan(0);
 
       // Incremental training with new data
+      const rng = createSeededRandom(9100);
       const newData = Array.from({ length: 20 }, (_, i) => ({
-        features: Array.from({ length: 12 }, () => Math.random()),
+        features: Array.from({ length: 12 }, () => rng.random()),
         labels: [0, 1],
         metadata: {
           testId: `new-test-${i}`,
@@ -379,18 +382,19 @@ describe('Neural Training System Integration', () => {
 
   describe('Hyperparameter Tuning', () => {
     it('should find optimal hyperparameters', async () => {
+      const rng = createSeededRandom(9200);
       const mockPatterns = Array.from({ length: 50 }, (_, i) => ({
         pattern_id: `pattern-${i}`,
         pattern_type: 'unit',
         coverage: 0.8,
         created_at: Date.now(),
-        cyclomaticComplexity: Math.floor(Math.random() * 10) + 1,
-        linesOfCode: Math.floor(Math.random() * 500) + 50
+        cyclomaticComplexity: Math.floor(rng.random() * 10) + 1,
+        linesOfCode: Math.floor(rng.random() * 500) + 50
       }));
 
       const mockMetrics = mockPatterns.map(p => ({
         pattern_id: p.pattern_id,
-        success_rate: 0.85 + Math.random() * 0.15,
+        success_rate: 0.85 + rng.random() * 0.15,
         avg_execution_time: 100
       }));
 

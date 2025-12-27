@@ -16,6 +16,7 @@ import { HookExecutor } from '../../services/HookExecutor';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
 import { getSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { LearningEngine } from '../../../learning/LearningEngine';
+import { LearningFeedback } from '../../../learning/types';
 import { ImprovementLoop } from '../../../learning/ImprovementLoop';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
 import { QEReasoningBank, TestPattern } from '../../../reasoning/QEReasoningBank';
@@ -51,7 +52,7 @@ export class Phase2ToolsHandler extends BaseHandler {
   /**
    * Main handle method - routes to specific tool handlers
    */
-  async handle(args: any): Promise<HandlerResponse> {
+  async handle(args: unknown): Promise<HandlerResponse> {
     throw new Error('Use specific tool methods instead of generic handle()');
   }
 
@@ -136,9 +137,9 @@ export class Phase2ToolsHandler extends BaseHandler {
    */
   async handleLearningTrain(args: {
     agentId: string;
-    task: any;
-    result: any;
-    feedback?: any;
+    task: Record<string, unknown>;
+    result: Record<string, unknown>;
+    feedback?: LearningFeedback;
   }): Promise<HandlerResponse> {
     const requestId = this.generateRequestId();
 
@@ -319,7 +320,7 @@ export class Phase2ToolsHandler extends BaseHandler {
         }
       } else {
         // Export all agents data
-        const allData: Record<string, any> = {};
+        const allData: Record<string, unknown> = {};
         for (const id of this.learningEngines.keys()) {
           const stateKey = `phase2/learning/${id}/state`;
           const state = await this.memoryStore.retrieve(stateKey, { partition: 'learning' });
@@ -550,7 +551,7 @@ export class Phase2ToolsHandler extends BaseHandler {
       const sharedWith = [];
       for (const projectId of projectIds) {
         const key = `phase2/patterns/shared/${projectId}/${patternId}`;
-        await this.memoryStore.store(key, pattern, { partition: 'patterns' });
+        await this.memoryStore.store(key, { ...pattern } as Record<string, unknown>, { partition: 'patterns' });
         sharedWith.push(projectId);
       }
 
@@ -588,7 +589,7 @@ export class Phase2ToolsHandler extends BaseHandler {
       const stats = await this.reasoningBank.getStatistics();
 
       // Filter by framework if specified
-      let resultStats: any = stats;
+      let resultStats: typeof stats & { filtered?: boolean; framework?: string } = stats;
       if (framework) {
         const frameworkCount = stats.byFramework[framework] || 0;
         resultStats = {
@@ -909,25 +910,27 @@ export class Phase2ToolsHandler extends BaseHandler {
   /**
    * Convert data to CSV format
    */
-  private convertToCSV(data: any): string {
+  private convertToCSV(data: unknown): string {
     if (Array.isArray(data)) {
       if (data.length === 0) return '';
 
       // Get headers from first object
-      const headers = Object.keys(data[0]);
+      const firstRow = data[0] as Record<string, unknown>;
+      const headers = Object.keys(firstRow);
       const csv = [headers.join(',')];
 
       // Add rows
       for (const row of data) {
-        const values = headers.map(h => JSON.stringify(row[h] || ''));
+        const rowObj = row as Record<string, unknown>;
+        const values = headers.map(h => JSON.stringify(rowObj[h] || ''));
         csv.push(values.join(','));
       }
 
       return csv.join('\n');
-    } else if (typeof data === 'object') {
+    } else if (data !== null && typeof data === 'object') {
       // Convert object to CSV
       const csv = ['key,value'];
-      for (const [key, value] of Object.entries(data)) {
+      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
         csv.push(`${key},${JSON.stringify(value)}`);
       }
       return csv.join('\n');

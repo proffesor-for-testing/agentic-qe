@@ -16,6 +16,7 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { OllamaProvider, OllamaProviderConfig } from '../../src/providers/OllamaProvider';
 import { LLMProviderError } from '../../src/providers/ILLMProvider';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Mock fetch for HTTP requests
 const mockFetch = jest.fn();
@@ -434,7 +435,8 @@ describe('OllamaProvider', () => {
      * Test embedding generation
      */
     it('should generate embeddings successfully', async () => {
-      const mockEmbedding = Array.from({ length: 384 }, () => Math.random());
+      const rng = createSeededRandom(19000);
+      const mockEmbedding = Array.from({ length: 384 }, () => rng.random());
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -457,7 +459,8 @@ describe('OllamaProvider', () => {
      * Test embedding dimensions parameter
      */
     it('should support custom dimensions', async () => {
-      const mockEmbedding = Array.from({ length: 768 }, () => Math.random());
+      const rng = createSeededRandom(19001);
+      const mockEmbedding = Array.from({ length: 768 }, () => rng.random());
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

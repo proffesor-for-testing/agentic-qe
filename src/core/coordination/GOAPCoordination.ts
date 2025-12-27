@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
 
 export interface WorldState {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Goal {
@@ -24,6 +24,37 @@ export interface Plan {
   actions: Action[];
   totalCost: number;
   state: 'pending' | 'executing' | 'completed' | 'failed';
+}
+
+/**
+ * Serializable version of Plan for memory storage
+ * Actions are stored by ID since execute functions cannot be serialized
+ */
+interface SerializablePlan {
+  goal: Goal;
+  actionIds: string[];
+  totalCost: number;
+  state: 'pending' | 'executing' | 'completed' | 'failed';
+}
+
+/**
+ * Type guard to check if a value is a SerializablePlan
+ */
+function isSerializablePlan(value: unknown): value is SerializablePlan {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    'goal' in obj &&
+    'actionIds' in obj &&
+    Array.isArray(obj.actionIds) &&
+    'totalCost' in obj &&
+    typeof obj.totalCost === 'number' &&
+    'state' in obj &&
+    typeof obj.state === 'string' &&
+    ['pending', 'executing', 'completed', 'failed'].includes(obj.state)
+  );
 }
 
 /**
@@ -91,10 +122,22 @@ export class GOAPCoordination extends EventEmitter {
       state: 'pending'
     };
 
-    await this.memory.store(`goap:plan:${goal.id}`, planObj, {
-      partition: 'goap_plans',
-      ttl: 3600 // 1 hour
-    });
+    // Store serializable version (actions by ID, not full objects with functions)
+    const serializablePlan: SerializablePlan = {
+      goal,
+      actionIds: plan.actions.map(a => a.id),
+      totalCost: plan.cost,
+      state: 'pending'
+    };
+
+    await this.memory.store(
+      `goap:plan:${goal.id}`,
+      serializablePlan as unknown as Record<string, unknown>,
+      {
+        partition: 'goap_plans',
+        ttl: 3600 // 1 hour
+      }
+    );
 
     this.emit('goap:plan-created', planObj);
 
@@ -105,18 +148,51 @@ export class GOAPCoordination extends EventEmitter {
    * Execute a plan
    */
   async executePlan(planId: string): Promise<boolean> {
-    const plan = await this.memory.retrieve(`goap:plan:${planId}`, {
+    const storedPlan = await this.memory.retrieve(`goap:plan:${planId}`, {
       partition: 'goap_plans'
     });
 
-    if (!plan) {
+    if (!storedPlan) {
       throw new Error(`Plan ${planId} not found`);
     }
 
-    plan.state = 'executing';
-    await this.memory.store(`goap:plan:${planId}`, plan, {
-      partition: 'goap_plans'
-    });
+    // Validate and narrow the type
+    if (!isSerializablePlan(storedPlan)) {
+      throw new Error(`Plan ${planId} has invalid format`);
+    }
+
+    // Reconstruct actions from IDs
+    const actions: Action[] = [];
+    for (const actionId of storedPlan.actionIds) {
+      const action = this.actions.get(actionId);
+      if (!action) {
+        throw new Error(`Action ${actionId} not found in registered actions`);
+      }
+      actions.push(action);
+    }
+
+    // Create the full Plan object for execution
+    const plan: Plan = {
+      goal: storedPlan.goal,
+      actions,
+      totalCost: storedPlan.totalCost,
+      state: 'executing'
+    };
+
+    // Update state in memory
+    const updatedSerializablePlan: SerializablePlan = {
+      goal: storedPlan.goal,
+      actionIds: storedPlan.actionIds,
+      totalCost: storedPlan.totalCost,
+      state: 'executing'
+    };
+    await this.memory.store(
+      `goap:plan:${planId}`,
+      updatedSerializablePlan as unknown as Record<string, unknown>,
+      {
+        partition: 'goap_plans'
+      }
+    );
 
     this.emit('goap:plan-executing', plan);
 
@@ -137,18 +213,38 @@ export class GOAPCoordination extends EventEmitter {
       }
 
       plan.state = 'completed';
-      await this.memory.store(`goap:plan:${planId}`, plan, {
-        partition: 'goap_plans'
-      });
+      const completedSerializablePlan: SerializablePlan = {
+        goal: storedPlan.goal,
+        actionIds: storedPlan.actionIds,
+        totalCost: storedPlan.totalCost,
+        state: 'completed'
+      };
+      await this.memory.store(
+        `goap:plan:${planId}`,
+        completedSerializablePlan as unknown as Record<string, unknown>,
+        {
+          partition: 'goap_plans'
+        }
+      );
 
       this.emit('goap:plan-completed', plan);
       return true;
 
     } catch (error) {
       plan.state = 'failed';
-      await this.memory.store(`goap:plan:${planId}`, plan, {
-        partition: 'goap_plans'
-      });
+      const failedSerializablePlan: SerializablePlan = {
+        goal: storedPlan.goal,
+        actionIds: storedPlan.actionIds,
+        totalCost: storedPlan.totalCost,
+        state: 'failed'
+      };
+      await this.memory.store(
+        `goap:plan:${planId}`,
+        failedSerializablePlan as unknown as Record<string, unknown>,
+        {
+          partition: 'goap_plans'
+        }
+      );
 
       this.emit('goap:plan-failed', { plan, error });
       return false;
@@ -200,7 +296,7 @@ export class GOAPCoordination extends EventEmitter {
       }
 
       // Explore neighbors (applicable actions)
-      for (const action of this.actions.values()) {
+      for (const action of Array.from(this.actions.values())) {
         if (this.checkConditions(current.state, action.preconditions)) {
           const newState = { ...current.state, ...action.effects };
           const newActions = [...current.actions, action];

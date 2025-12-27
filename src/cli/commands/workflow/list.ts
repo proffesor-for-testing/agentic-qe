@@ -37,6 +37,52 @@ export interface WorkflowInfo {
   executionId?: string;
 }
 
+/**
+ * Internal interface for workflow execution data from memory
+ */
+interface WorkflowExecutionData {
+  workflowId?: string;
+  executionId?: string;
+  workflowName?: string;
+  status: 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  startedAt: string;
+  completedAt?: string;
+  completedSteps?: unknown[];
+  failedSteps?: unknown[];
+}
+
+/**
+ * Type guard to check if a value is a record (object)
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Safely extract workflow execution data from memory entry value
+ */
+function toWorkflowExecution(value: unknown): WorkflowExecutionData | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  // Validate required fields
+  if (typeof value.status !== 'string' || typeof value.startedAt !== 'string') {
+    return null;
+  }
+
+  return {
+    workflowId: typeof value.workflowId === 'string' ? value.workflowId : undefined,
+    executionId: typeof value.executionId === 'string' ? value.executionId : undefined,
+    workflowName: typeof value.workflowName === 'string' ? value.workflowName : undefined,
+    status: value.status as WorkflowExecutionData['status'],
+    startedAt: value.startedAt,
+    completedAt: typeof value.completedAt === 'string' ? value.completedAt : undefined,
+    completedSteps: Array.isArray(value.completedSteps) ? value.completedSteps : undefined,
+    failedSteps: Array.isArray(value.failedSteps) ? value.failedSteps : undefined
+  };
+}
+
 export interface ListWorkflowsResult {
   workflows: WorkflowInfo[];
   total: number;
@@ -136,11 +182,18 @@ async function retrieveWorkflows(
   });
 
   for (const entry of entries) {
-    const execution = entry.value;
+    // Convert to typed execution data with type guard
+    const execution = toWorkflowExecution(entry.value);
 
+    // Skip entries that don't match expected schema
+    if (!execution) {
+      continue;
+    }
+
+    const workflowId = execution.workflowId || execution.executionId || 'unknown';
     const workflow: WorkflowInfo = {
-      id: execution.workflowId || execution.executionId,
-      name: execution.workflowName || `Workflow ${execution.workflowId}`,
+      id: workflowId,
+      name: execution.workflowName || `Workflow ${workflowId}`,
       status: execution.status,
       progress: calculateProgress(execution),
       startedAt: execution.startedAt,
@@ -149,9 +202,11 @@ async function retrieveWorkflows(
     };
 
     if (options.detailed) {
-      workflow.steps = (execution.completedSteps?.length || 0) + (execution.failedSteps?.length || 0);
-      workflow.completedSteps = execution.completedSteps?.length || 0;
-      workflow.failedSteps = execution.failedSteps?.length || 0;
+      const completedCount = execution.completedSteps?.length || 0;
+      const failedCount = execution.failedSteps?.length || 0;
+      workflow.steps = completedCount + failedCount;
+      workflow.completedSteps = completedCount;
+      workflow.failedSteps = failedCount;
     }
 
     workflows.push(workflow);
@@ -163,14 +218,15 @@ async function retrieveWorkflows(
 /**
  * Calculate workflow progress
  */
-function calculateProgress(execution: any): number {
+function calculateProgress(execution: WorkflowExecutionData): number {
   if (execution.status === 'completed') return 1.0;
   if (execution.status === 'failed' || execution.status === 'cancelled') return 0;
 
-  const total = (execution.completedSteps?.length || 0) + (execution.failedSteps?.length || 0);
-  const completed = execution.completedSteps?.length || 0;
+  const completedCount = execution.completedSteps?.length || 0;
+  const failedCount = execution.failedSteps?.length || 0;
+  const total = completedCount + failedCount;
 
-  return total > 0 ? completed / total : 0;
+  return total > 0 ? completedCount / total : 0;
 }
 
 /**
@@ -273,10 +329,15 @@ function formatAsTable(workflows: WorkflowInfo[], detailed: boolean): string {
 }
 
 /**
+ * Type for chalk color functions
+ */
+type ChalkColorFn = (text: string) => string;
+
+/**
  * Get colored status string
  */
 function getColoredStatus(status: string): string {
-  const colors: Record<string, any> = {
+  const colors: Record<string, ChalkColorFn> = {
     running: chalk.green,
     paused: chalk.yellow,
     completed: chalk.blue,

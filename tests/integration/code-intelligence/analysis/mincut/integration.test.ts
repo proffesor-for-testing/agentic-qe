@@ -18,6 +18,7 @@ import { GraphBuilder } from '@code-intelligence/graph/GraphBuilder';
 import { GraphAdapter } from '@code-intelligence/analysis/mincut/GraphAdapter';
 import { MinCutAnalyzer } from '@code-intelligence/analysis/mincut/MinCutAnalyzer';
 import type { MinCutGraphInput, MinCutResult } from '@code-intelligence/analysis/mincut/types';
+import { createSeededRandom } from '../../../../../src/utils/SeededRandom';
 
 describe('INTEGRATION: MinCut Analysis Workflow', () => {
   let graphBuilder: GraphBuilder;
@@ -252,6 +253,7 @@ describe('INTEGRATION: MinCut Analysis Workflow', () => {
 
   describe('Performance', () => {
     it('should complete analysis in reasonable time for large graph', async () => {
+      const rng = createSeededRandom(20003);
       const builder = new GraphBuilder();
 
       // Create a 500-node graph with random connections
@@ -273,7 +275,7 @@ describe('INTEGRATION: MinCut Analysis Workflow', () => {
         // Connect to next 3 nodes (circular)
         for (let j = 1; j <= 3; j++) {
           const targetIdx = (i + j) % nodes.length;
-          builder.addEdge(nodes[i].id, nodes[targetIdx].id, 'imports', Math.random() + 0.5);
+          builder.addEdge(nodes[i].id, nodes[targetIdx].id, 'imports', rng.random() + 0.5);
         }
       }
 

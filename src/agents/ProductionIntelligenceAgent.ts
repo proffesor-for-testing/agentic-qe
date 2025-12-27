@@ -17,7 +17,11 @@ import {
   TestSuite,
   Test,
   TestType,
-  QETestResult as _QETestResult
+  QETestResult as _QETestResult,
+  TaskAssignment,
+  PreTaskData,
+  PostTaskData,
+  TaskErrorData
 } from '../types';
 
 // ============================================================================
@@ -140,7 +144,7 @@ export interface JourneyStep {
   timestamp: string;
   action: string;
   duration: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean>;
 }
 
 export interface ErrorPattern {
@@ -161,6 +165,14 @@ export interface FeatureUsageMetrics {
   conversion?: number;
 }
 
+/** User behavior pattern metrics within load patterns */
+export interface UserBehaviorMetrics {
+  avgSessionDuration: number;
+  avgPagesPerSession: number;
+  bounceRate?: number;
+  conversionRate?: number;
+}
+
 export interface LoadPattern {
   dailyPattern: {
     hourly: Array<{ hour: number; rps: number }>;
@@ -170,7 +182,7 @@ export interface LoadPattern {
   weeklyPattern: Record<string, { rps: number; conversionRate: number }>;
   seasonalPattern?: Record<string, { rps: number; spike: number }>;
   endpointDistribution: Record<string, number>;
-  userBehaviorPatterns: Record<string, any>;
+  userBehaviorPatterns: Record<string, UserBehaviorMetrics>;
 }
 
 export interface AnomalyDetection {
@@ -190,13 +202,126 @@ export interface AnomalyDetection {
 }
 
 // ============================================================================
+// Production Metrics and Analysis Interfaces
+// ============================================================================
+
+/** Baseline metric statistics for anomaly detection */
+export interface BaselineMetric {
+  mean: number;
+  stdDev: number;
+  p95?: number;
+  p99?: number;
+  conversionRate?: number;
+}
+
+/** Current production metrics snapshot */
+export interface ProductionMetrics {
+  errorRate?: number;
+  activeUsers?: number;
+  latency?: {
+    p50?: number;
+    p95: number;
+    p99?: number;
+  };
+  conversionRate?: number;
+  endpoints?: string[];
+  throughput?: number;
+  timestamp?: string;
+}
+
+/** Performance insights for web vitals */
+export interface PerformanceInsight {
+  status: 'GOOD' | 'NEEDS_IMPROVEMENT' | 'POOR';
+  p95: number;
+  threshold: number;
+}
+
+/** Aggregated performance insights */
+export interface PerformanceInsights {
+  fcp: PerformanceInsight;
+  lcp: PerformanceInsight;
+  fid: PerformanceInsight;
+  cls: PerformanceInsight;
+}
+
+/** Feature usage analytics result */
+export interface FeatureAnalysis {
+  name: string;
+  usage: number;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'DEPRECATED';
+  testCoverage: number;
+  recommendation: string;
+}
+
+/** Unused feature identification */
+export interface UnusedFeature {
+  name: string;
+  lastUsed: string;
+  recommendation: string;
+}
+
+/** Feature usage data from analytics platform */
+export interface FeatureUsageData {
+  totalUsers: number;
+  features: Array<{
+    name: string;
+    activeUsers: number;
+    satisfaction?: number;
+    clickthrough?: number;
+    conversion?: number;
+    seasonal?: boolean;
+    lastUsed?: string;
+  }>;
+}
+
+/** Production event for event handlers */
+export interface ProductionEvent {
+  type: string;
+  data: ProductionIncident | ProductionMetrics;
+  timestamp: Date;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+/** Monitoring client wrapper */
+export interface MonitoringClient {
+  initialized: boolean;
+  platform?: string;
+}
+
+/** Task result metrics for extractTaskMetrics */
+export interface TaskResultMetrics {
+  incidents?: Array<{
+    severity: string;
+    testScenario?: unknown;
+  }>;
+  testScenarios?: Array<{
+    type: string;
+  }>;
+  rum?: {
+    sessionsAnalyzed?: number;
+    userJourneys?: number;
+    errorPatterns?: number;
+  };
+  comparison?: {
+    metricsCount?: number;
+    discrepancies?: number;
+    correlation?: number;
+  };
+  patterns?: Array<{
+    actionable?: boolean;
+  }>;
+  productionCoverage?: number;
+  confidence?: number;
+}
+
+// ============================================================================
 // Production Intelligence Agent Implementation
 // ============================================================================
 
 export class ProductionIntelligenceAgent extends BaseAgent {
   private readonly config: ProductionIntelligenceConfig;
-  private baselineMetrics: Map<string, any> = new Map();
-  private monitoringClients: Map<string, any> = new Map();
+  private baselineMetrics: Map<string, BaselineMetric> = new Map();
+  private monitoringClients: Map<string, MonitoringClient> = new Map();
 
   constructor(config: ProductionIntelligenceConfig) {
     super({
@@ -278,14 +403,14 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   /**
    * Pre-task hook - Load incident history
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     await super.onPreTask(data);
 
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
     );
 
-    if (history) {
+    if (history && Array.isArray(history)) {
       console.log(`Loaded ${history.length} historical production intelligence entries`);
     }
 
@@ -298,8 +423,10 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   /**
    * Post-task hook - Store production patterns and emit events
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
+
+    const result = data.result as TaskResultMetrics | undefined;
 
     await this.memoryStore.store(
       `aqe/${this.agentId.type}/results/${data.assignment.id}`,
@@ -307,9 +434,9 @@ export class ProductionIntelligenceAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        incidentsAnalyzed: data.result?.incidentsAnalyzed || 0,
-        testScenariosGenerated: data.result?.testScenarios?.length || 0
+        success: result?.confidence !== undefined ? result.confidence > 0 : true,
+        incidentsAnalyzed: result?.incidents?.length || 0,
+        testScenariosGenerated: result?.testScenarios?.length || 0
       },
       86400
     );
@@ -318,19 +445,19 @@ export class ProductionIntelligenceAgent extends BaseAgent {
       agentId: this.agentId,
       result: data.result,
       timestamp: new Date(),
-      testScenarios: data.result?.testScenarios || []
+      testScenarios: result?.testScenarios || []
     });
 
     console.log(`[${this.agentId.type}] Production intelligence analysis completed`, {
       taskId: data.assignment.id,
-      scenariosGenerated: data.result?.testScenarios?.length || 0
+      scenariosGenerated: result?.testScenarios?.length || 0
     });
   }
 
   /**
    * Task error hook - Log production intelligence failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     await super.onTaskError(data);
 
     await this.memoryStore.store(
@@ -551,7 +678,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   }): Promise<{
     userJourneys: UserJourney[];
     errorPatterns: ErrorPattern[];
-    performanceInsights: any;
+    performanceInsights: PerformanceInsights;
     generatedTests: Test[];
   }> {
     const { rumData, timeWindow = 'last_7_days' } = data;
@@ -611,7 +738,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
       .sort((a, b) => b.frequency - a.frequency);
   }
 
-  private generatePerformanceInsights(rumData: RUMData): any {
+  private generatePerformanceInsights(rumData: RUMData): PerformanceInsights {
     const { performanceMetrics } = rumData;
 
     return {
@@ -698,7 +825,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   // ============================================================================
 
   private async performAnomalyDetection(data: {
-    currentMetrics: any;
+    currentMetrics: ProductionMetrics;
     lookbackPeriod?: string;
   }): Promise<{
     anomalies: AnomalyDetection[];
@@ -752,9 +879,9 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     return { anomalies, recommendations };
   }
 
-  private detectErrorRateSpike(currentMetrics: any): AnomalyDetection | null {
-    const baseline = this.baselineMetrics.get('errorRate') || { mean: 0.005, stdDev: 0.002 };
-    const current = currentMetrics.errorRate || 0;
+  private detectErrorRateSpike(currentMetrics: ProductionMetrics): AnomalyDetection | null {
+    const baseline = this.baselineMetrics.get('errorRate') ?? { mean: 0.005, stdDev: 0.002 };
+    const current = currentMetrics.errorRate ?? 0;
 
     const zScore = (current - baseline.mean) / baseline.stdDev;
 
@@ -769,7 +896,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
           magnitude: (current - baseline.mean) / baseline.mean,
           confidence: this.calculateConfidence(zScore)
         },
-        affectedUsers: Math.floor(currentMetrics.activeUsers * current),
+        affectedUsers: Math.floor((currentMetrics.activeUsers ?? 0) * current),
         recommendation: 'Generate regression tests for recent changes'
       };
     }
@@ -777,11 +904,12 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     return null;
   }
 
-  private detectLatencyDegradation(currentMetrics: any): AnomalyDetection | null {
-    const baseline = this.baselineMetrics.get('latency') || { p95: 250, mean: 180 };
-    const current = currentMetrics.latency?.p95 || 0;
+  private detectLatencyDegradation(currentMetrics: ProductionMetrics): AnomalyDetection | null {
+    const baseline = this.baselineMetrics.get('latency') ?? { mean: 180, stdDev: 50, p95: 250 };
+    const baselineP95 = baseline.p95 ?? 250;
+    const current = currentMetrics.latency?.p95 ?? 0;
 
-    const degradation = (current - baseline.p95) / baseline.p95;
+    const degradation = (current - baselineP95) / baselineP95;
 
     if (degradation > this.config.thresholds!.latencyDegradation!) {
       return {
@@ -789,12 +917,12 @@ export class ProductionIntelligenceAgent extends BaseAgent {
         severity: degradation > 1.0 ? 'CRITICAL' : degradation > 0.5 ? 'HIGH' : 'MEDIUM',
         details: {
           current,
-          baseline: baseline.p95,
+          baseline: baselineP95,
           deviation: degradation,
           magnitude: degradation,
           confidence: 0.9
         },
-        affectedEndpoints: currentMetrics.endpoints || [],
+        affectedEndpoints: currentMetrics.endpoints ?? [],
         recommendation: 'Generate performance tests targeting affected endpoints'
       };
     }
@@ -802,11 +930,12 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     return null;
   }
 
-  private detectBehaviorAnomaly(currentMetrics: any): AnomalyDetection | null {
-    const baseline = this.baselineMetrics.get('userBehavior') || { conversionRate: 0.75 };
-    const current = currentMetrics.conversionRate || 0;
+  private detectBehaviorAnomaly(currentMetrics: ProductionMetrics): AnomalyDetection | null {
+    const baseline = this.baselineMetrics.get('userBehavior') ?? { mean: 0.75, stdDev: 0.1, conversionRate: 0.75 };
+    const baselineConversion = baseline.conversionRate ?? 0.75;
+    const current = currentMetrics.conversionRate ?? 0;
 
-    const drop = (baseline.conversionRate - current) / baseline.conversionRate;
+    const drop = (baselineConversion - current) / baselineConversion;
 
     if (drop > 0.2) { // 20% drop in conversion
       return {
@@ -814,7 +943,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
         severity: drop > 0.5 ? 'CRITICAL' : 'HIGH',
         details: {
           current,
-          baseline: baseline.conversionRate,
+          baseline: baselineConversion,
           deviation: drop,
           magnitude: drop,
           confidence: 0.85
@@ -982,18 +1111,8 @@ export default function() {
   private async performFeatureUsageAnalytics(data: {
     timeWindow?: string;
   }): Promise<{
-    features: Array<{
-      name: string;
-      usage: number;
-      priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'DEPRECATED';
-      testCoverage: number;
-      recommendation: string;
-    }>;
-    unusedFeatures: Array<{
-      name: string;
-      lastUsed: string;
-      recommendation: string;
-    }>;
+    features: FeatureAnalysis[];
+    unusedFeatures: UnusedFeature[];
   }> {
     const { timeWindow = '30d' } = data;
 
@@ -1019,7 +1138,7 @@ export default function() {
     return { features, unusedFeatures };
   }
 
-  private async fetchFeatureUsageData(_timeWindow: string): Promise<any> {
+  private async fetchFeatureUsageData(_timeWindow: string): Promise<FeatureUsageData> {
     // Simulate feature usage data
     // In real implementation, fetch from analytics platform
     return {
@@ -1034,8 +1153,8 @@ export default function() {
     };
   }
 
-  private analyzeFeaturePriority(usageData: any): Array<any> {
-    return usageData.features.map((feature: any) => {
+  private analyzeFeaturePriority(usageData: FeatureUsageData): FeatureAnalysis[] {
+    return usageData.features.map((feature) => {
       const usagePercent = feature.activeUsers / usageData.totalUsers;
       let priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'DEPRECATED';
       let recommendation: string;
@@ -1067,14 +1186,14 @@ export default function() {
     });
   }
 
-  private identifyUnusedFeatures(usageData: any): Array<any> {
+  private identifyUnusedFeatures(usageData: FeatureUsageData): UnusedFeature[] {
     const unusedThreshold = usageData.totalUsers * 0.001; // 0.1% usage
 
     return usageData.features
-      .filter((f: any) => f.activeUsers < unusedThreshold)
-      .map((f: any) => ({
+      .filter((f) => f.activeUsers < unusedThreshold)
+      .map((f) => ({
         name: f.name,
-        lastUsed: f.lastUsed || 'unknown',
+        lastUsed: f.lastUsed ?? 'unknown',
         recommendation: 'Dead code, safe to remove'
       }));
   }
@@ -1156,13 +1275,19 @@ export default function() {
       production: number;
       staging: number;
       delta: number;
-      severity: string;
+      severity: 'HIGH' | 'MEDIUM' | 'LOW';
     }>;
     recommendations: string[];
   }> {
     const { metrics } = data;
 
-    const differences: Array<any> = [];
+    const differences: Array<{
+      metric: string;
+      production: number;
+      staging: number;
+      delta: number;
+      severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    }> = [];
     const recommendations: string[] = [];
 
     // Compare production vs staging metrics
@@ -1217,13 +1342,14 @@ export default function() {
     // Load historical baselines from memory
     const storedBaselines = await this.retrieveMemory('baseline-metrics');
 
-    if (storedBaselines) {
-      this.baselineMetrics = new Map(Object.entries(storedBaselines));
+    if (storedBaselines && typeof storedBaselines === 'object') {
+      const entries = Object.entries(storedBaselines) as [string, BaselineMetric][];
+      this.baselineMetrics = new Map(entries);
     } else {
-      // Initialize with defaults
+      // Initialize with defaults - all metrics require mean and stdDev
       this.baselineMetrics.set('errorRate', { mean: 0.005, stdDev: 0.002 });
-      this.baselineMetrics.set('latency', { p95: 250, mean: 180 });
-      this.baselineMetrics.set('userBehavior', { conversionRate: 0.75 });
+      this.baselineMetrics.set('latency', { mean: 180, stdDev: 50, p95: 250 });
+      this.baselineMetrics.set('userBehavior', { mean: 0.75, stdDev: 0.1, conversionRate: 0.75 });
     }
   }
 
@@ -1231,16 +1357,18 @@ export default function() {
     // Listen for production incidents
     this.registerEventHandler({
       eventType: 'production.incident',
-      handler: async (event: any) => {
-        await this.performIncidentReplay({ incident: event.data });
+      handler: async (event) => {
+        const incident = event.data as ProductionIncident;
+        await this.performIncidentReplay({ incident });
       }
     });
 
     // Listen for anomaly alerts
     this.registerEventHandler({
       eventType: 'production.anomaly',
-      handler: async (event: any) => {
-        await this.performAnomalyDetection({ currentMetrics: event.data });
+      handler: async (event) => {
+        const currentMetrics = event.data as ProductionMetrics;
+        await this.performAnomalyDetection({ currentMetrics });
       }
     });
   }
@@ -1320,55 +1448,72 @@ export default function() {
   }
 
   /**
+   * Type guard for TaskResultMetrics
+   */
+  private isTaskResultMetrics(result: unknown): result is TaskResultMetrics {
+    return typeof result === 'object' && result !== null;
+  }
+
+  /**
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich production intelligence metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
     const metrics: Record<string, number> = {};
 
-    if (result && typeof result === 'object') {
-      // Incident analysis
-      if (result.incidents && Array.isArray(result.incidents)) {
-        metrics.incidents_analyzed = result.incidents.length;
-        metrics.critical_incidents = result.incidents.filter((i: any) => i.severity === 'critical').length;
-        metrics.incidents_with_scenarios = result.incidents.filter((i: any) => i.testScenario).length;
-      }
+    if (!this.isTaskResultMetrics(result)) {
+      return metrics;
+    }
 
-      // Test scenarios generated
-      if (result.testScenarios && Array.isArray(result.testScenarios)) {
-        metrics.scenarios_generated = result.testScenarios.length;
-        metrics.replay_scenarios = result.testScenarios.filter((s: any) => s.type === 'replay').length;
-      }
+    // Incident analysis
+    if (result.incidents && Array.isArray(result.incidents)) {
+      metrics.incidents_analyzed = result.incidents.length;
+      metrics.critical_incidents = result.incidents.filter(
+        (i) => i.severity === 'critical'
+      ).length;
+      metrics.incidents_with_scenarios = result.incidents.filter(
+        (i) => i.testScenario !== undefined
+      ).length;
+    }
 
-      // RUM (Real User Monitoring) metrics
-      if (result.rum) {
-        metrics.rum_sessions_analyzed = result.rum.sessionsAnalyzed || 0;
-        metrics.user_journeys_captured = result.rum.userJourneys || 0;
-        metrics.error_patterns_found = result.rum.errorPatterns || 0;
-      }
+    // Test scenarios generated
+    if (result.testScenarios && Array.isArray(result.testScenarios)) {
+      metrics.scenarios_generated = result.testScenarios.length;
+      metrics.replay_scenarios = result.testScenarios.filter(
+        (s) => s.type === 'replay'
+      ).length;
+    }
 
-      // Production vs Staging comparison
-      if (result.comparison) {
-        metrics.metrics_compared = result.comparison.metricsCount || 0;
-        metrics.discrepancies_found = result.comparison.discrepancies || 0;
-        metrics.correlation_score = result.comparison.correlation || 0;
-      }
+    // RUM (Real User Monitoring) metrics
+    if (result.rum) {
+      metrics.rum_sessions_analyzed = result.rum.sessionsAnalyzed ?? 0;
+      metrics.user_journeys_captured = result.rum.userJourneys ?? 0;
+      metrics.error_patterns_found = result.rum.errorPatterns ?? 0;
+    }
 
-      // Pattern detection
-      if (result.patterns && Array.isArray(result.patterns)) {
-        metrics.patterns_detected = result.patterns.length;
-        metrics.actionable_patterns = result.patterns.filter((p: any) => p.actionable).length;
-      }
+    // Production vs Staging comparison
+    if (result.comparison) {
+      metrics.metrics_compared = result.comparison.metricsCount ?? 0;
+      metrics.discrepancies_found = result.comparison.discrepancies ?? 0;
+      metrics.correlation_score = result.comparison.correlation ?? 0;
+    }
 
-      // Coverage metrics
-      if (typeof result.productionCoverage === 'number') {
-        metrics.production_coverage = result.productionCoverage;
-      }
+    // Pattern detection
+    if (result.patterns && Array.isArray(result.patterns)) {
+      metrics.patterns_detected = result.patterns.length;
+      metrics.actionable_patterns = result.patterns.filter(
+        (p) => p.actionable === true
+      ).length;
+    }
 
-      // Confidence
-      if (typeof result.confidence === 'number') {
-        metrics.confidence = result.confidence;
-      }
+    // Coverage metrics
+    if (typeof result.productionCoverage === 'number') {
+      metrics.production_coverage = result.productionCoverage;
+    }
+
+    // Confidence
+    if (typeof result.confidence === 'number') {
+      metrics.confidence = result.confidence;
     }
 
     return metrics;

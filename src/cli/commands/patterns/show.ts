@@ -8,6 +8,38 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { Database } from '../../../utils/Database';
 
+/**
+ * Pattern row from database
+ */
+interface PatternRow {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  framework: string;
+  language: string;
+  template: string;
+  examples: string;
+  confidence: number;
+  success_rate: number;
+  quality: number | null;
+  usage_count: number;
+  metadata: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Pattern usage stats row from database
+ */
+interface PatternUsageStatsRow {
+  total_uses: number;
+  successful: number;
+  failed: number;
+  avg_exec_time: number | null;
+  last_used: string | null;
+}
+
 export async function patternsShow(patternId: string): Promise<void> {
   if (!patternId) {
     console.error(chalk.red('❌ Pattern ID is required'));
@@ -23,7 +55,7 @@ export async function patternsShow(patternId: string): Promise<void> {
     const db = new Database(dbPath);
     await db.initialize();
 
-    const pattern = await db.get('SELECT * FROM patterns WHERE id = ?', [patternId]);
+    const pattern = await db.get<PatternRow>('SELECT * FROM patterns WHERE id = ?', [patternId]);
 
     await db.close();
 
@@ -37,8 +69,8 @@ export async function patternsShow(patternId: string): Promise<void> {
     spinner.succeed('Pattern loaded');
 
     // Parse JSON fields
-    const examples = JSON.parse(pattern.examples);
-    const metadata = JSON.parse(pattern.metadata);
+    const examples: string[] = JSON.parse(pattern.examples);
+    const metadata: { tags?: string[]; version?: string } = JSON.parse(pattern.metadata);
 
     // Display pattern details
     console.log(chalk.blue('\n📋 Pattern Details\n'));
@@ -79,7 +111,7 @@ export async function patternsShow(patternId: string): Promise<void> {
 
     if (metadata.tags && metadata.tags.length > 0) {
       console.log(chalk.blue('🏷️  Tags\n'));
-      console.log(`  ${metadata.tags.map((t: string) => chalk.cyan(t)).join(', ')}`);
+      console.log(`  ${metadata.tags.map((t) => chalk.cyan(t)).join(', ')}`);
       console.log();
     }
 
@@ -101,9 +133,10 @@ export async function patternsShow(patternId: string): Promise<void> {
       console.log();
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     spinner.fail('Failed to load pattern');
-    console.error(chalk.red('❌ Error:'), error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red('❌ Error:'), errorMessage);
     process.exit(1);
   }
 }
@@ -120,7 +153,7 @@ async function getUsageStats(patternId: string): Promise<{
     const db = new Database(dbPath);
     await db.initialize();
 
-    const stats = await db.get(`
+    const stats = await db.get<PatternUsageStatsRow>(`
       SELECT
         COUNT(*) as total_uses,
         SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful,
@@ -134,11 +167,11 @@ async function getUsageStats(patternId: string): Promise<{
     await db.close();
 
     return {
-      totalUses: stats?.total_uses || 0,
-      successful: stats?.successful || 0,
-      failed: stats?.failed || 0,
-      avgExecTime: stats?.avg_exec_time || 0,
-      lastUsed: stats?.last_used || new Date().toISOString()
+      totalUses: Number(stats?.total_uses) || 0,
+      successful: Number(stats?.successful) || 0,
+      failed: Number(stats?.failed) || 0,
+      avgExecTime: Number(stats?.avg_exec_time) || 0,
+      lastUsed: String(stats?.last_used ?? new Date().toISOString())
     };
   } catch (error) {
     return {

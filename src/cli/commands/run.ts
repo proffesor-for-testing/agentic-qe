@@ -4,7 +4,213 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { RunOptions } from '../../types';
+import { RunOptions, FleetConfig, QEAgentType } from '../../types';
+
+// ============================================================================
+// Type Definitions for Run Command
+// ============================================================================
+
+/**
+ * Valid test execution target types
+ */
+type ExecutionTarget = 'tests' | 'suite' | 'regression' | 'performance';
+
+/**
+ * Valid test type categories
+ */
+type TestTypeCategory = 'unit' | 'integration' | 'e2e' | 'performance' | 'security';
+
+/**
+ * Status of a task or test execution
+ */
+type TaskStatus = 'pending' | 'completed' | 'failed' | 'error';
+
+/**
+ * Agent configuration loaded from agents.json
+ */
+interface AgentConfigFile {
+  agents: Array<{
+    type: QEAgentType;
+    count: number;
+    config: Record<string, unknown>;
+  }>;
+  [key: string]: unknown;
+}
+
+/**
+ * Environment configuration for test execution
+ */
+interface EnvironmentConfig {
+  [envName: string]: {
+    variables?: Record<string, string>;
+    setup?: string[];
+    teardown?: string[];
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Execution settings parsed from RunOptions
+ */
+interface ExecutionSettings {
+  parallel: boolean | undefined;
+  timeout: number;
+  retryCount: number;
+  concurrency: number;
+  reporter: string;
+  coverage: boolean | undefined;
+  suite: string | undefined;
+}
+
+/**
+ * Complete execution configuration for a test run
+ */
+interface ExecutionConfig {
+  id: string;
+  target: ExecutionTarget;
+  fleet: FleetConfig;
+  agents: AgentConfigFile;
+  environment: EnvironmentConfig[string];
+  execution: ExecutionSettings;
+  timestamp: string;
+  directory: string;
+}
+
+/**
+ * Individual test task definition
+ */
+interface TestTask {
+  id: string;
+  type: TestTypeCategory;
+  agent: string;
+  priority: number;
+  timeout: number;
+  retries: number;
+}
+
+/**
+ * Coordination settings for orchestration
+ */
+interface CoordinationConfig {
+  parallel: boolean | undefined;
+  loadBalancing: boolean;
+  faultTolerance: boolean;
+}
+
+/**
+ * Orchestration plan for test execution
+ */
+interface OrchestrationPlan {
+  strategy: string | undefined;
+  agents: string[];
+  tasks: TestTask[];
+  coordination: CoordinationConfig;
+}
+
+/**
+ * Test counts summary
+ */
+interface TestCounts {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+}
+
+/**
+ * Coverage information
+ */
+interface CoverageInfo {
+  percentage: number;
+}
+
+/**
+ * Result of executing a single test task
+ */
+interface TaskExecutionResult {
+  id: string;
+  type: TestTypeCategory;
+  agent: string;
+  status: TaskStatus;
+  startTime: string;
+  endTime: string | null;
+  duration: number;
+  tests: TestCounts;
+  coverage: CoverageInfo | null;
+  errors: string[];
+}
+
+/**
+ * Result from running a test command
+ */
+interface TestCommandResult {
+  success: boolean;
+  results: TestCounts;
+  coverage: CoverageInfo | null;
+  errors: string[];
+}
+
+/**
+ * Parsed test results from stdout
+ */
+interface ParsedTestResults {
+  tests: TestCounts;
+  coverage: CoverageInfo | null;
+}
+
+/**
+ * Agent aggregation data
+ */
+interface AgentAggregation {
+  tasks: number;
+  tests: TestCounts;
+  duration: number;
+}
+
+/**
+ * Coverage aggregation details
+ */
+interface CoverageAggregation {
+  overall: number;
+  details: Record<string, unknown>;
+}
+
+/**
+ * Aggregated results from all test executions
+ */
+interface AggregatedResults {
+  summary: TestCounts & { duration: number };
+  coverage: CoverageAggregation;
+  agents: Record<string, AgentAggregation>;
+  errors: string[];
+  timestamp: string;
+}
+
+/**
+ * Type guard to check if an error has a message property
+ */
+function isErrorWithMessage(error: unknown): error is { message: string; stack?: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string'
+  );
+}
+
+/**
+ * Type guard to validate task has required properties
+ */
+function isValidTask(task: unknown): task is TestTask {
+  if (typeof task !== 'object' || task === null) return false;
+  const t = task as Record<string, unknown>;
+  return (
+    typeof t.id === 'string' &&
+    typeof t.type === 'string' &&
+    typeof t.agent === 'string' &&
+    typeof t.priority === 'number'
+  );
+}
 
 export class RunCommand {
   static async execute(target: string, options: RunOptions): Promise<void> {
@@ -44,10 +250,12 @@ export class RunCommand {
       // Store results and notify coordination
       await this.storeExecutionResults(aggregatedResults);
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Test execution failed:'), error.message);
-      if (options.verbose) {
-        console.error(chalk.gray(error.stack));
+    } catch (error: unknown) {
+      const errorMessage = isErrorWithMessage(error) ? error.message : String(error);
+      const errorStack = isErrorWithMessage(error) ? error.stack : undefined;
+      console.error(chalk.red('❌ Test execution failed:'), errorMessage);
+      if (options.verbose && errorStack) {
+        console.error(chalk.gray(errorStack));
       }
       ProcessExit.exitIfNotTest(1);
     }
@@ -87,19 +295,25 @@ export class RunCommand {
     }
   }
 
-  private static async prepareExecutionEnvironment(target: string, options: RunOptions): Promise<any> {
+  private static async prepareExecutionEnvironment(target: string, options: RunOptions): Promise<ExecutionConfig> {
     // Load fleet configuration
-    const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
-    const agentConfig = await fs.readJson('.agentic-qe/config/agents.json');
+    const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json') as FleetConfig;
+    const agentConfig = await fs.readJson('.agentic-qe/config/agents.json') as AgentConfigFile;
 
     // Load environment configuration
     const envConfigPath = `.agentic-qe/config/environments.json`;
-    const envConfig = await fs.pathExists(envConfigPath)
-      ? await fs.readJson(envConfigPath)
+    const envConfig: EnvironmentConfig = await fs.pathExists(envConfigPath)
+      ? await fs.readJson(envConfigPath) as EnvironmentConfig
       : {};
 
-    const executionConfig: any = {
-      target,
+    // Create execution directory
+    const executionId = `exec-${Date.now()}`;
+    const executionDir = `.agentic-qe/executions/${executionId}`;
+    await fs.ensureDir(executionDir);
+
+    const executionConfig: ExecutionConfig = {
+      id: executionId,
+      target: target as ExecutionTarget,
       fleet: fleetConfig,
       agents: agentConfig,
       environment: envConfig[options.env] || {},
@@ -112,16 +326,9 @@ export class RunCommand {
         coverage: options.coverage,
         suite: options.suite
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      directory: executionDir
     };
-
-    // Create execution directory
-    const executionId = `exec-${Date.now()}`;
-    const executionDir = `.agentic-qe/executions/${executionId}`;
-    await fs.ensureDir(executionDir);
-
-    executionConfig.id = executionId;
-    executionConfig.directory = executionDir;
 
     // Write execution configuration
     await fs.writeJson(`${executionDir}/config.json`, executionConfig, { spaces: 2 });
@@ -129,8 +336,8 @@ export class RunCommand {
     return executionConfig;
   }
 
-  private static async orchestrateTestAgents(config: any): Promise<void> {
-    const orchestrationPlan: any = {
+  private static async orchestrateTestAgents(config: ExecutionConfig): Promise<void> {
+    const orchestrationPlan: OrchestrationPlan = {
       strategy: config.fleet.topology,
       agents: [],
       tasks: [],
@@ -145,7 +352,7 @@ export class RunCommand {
     const testTypes = await this.discoverTestTypes();
 
     for (const testType of testTypes) {
-      const agentType = this.selectOptimalAgent(testType, config.agents);
+      const agentType = this.selectOptimalAgent(testType);
 
       orchestrationPlan.tasks.push({
         id: `task-${testType}-${Date.now()}`,
@@ -164,9 +371,9 @@ export class RunCommand {
     await this.generateCoordinationScripts(config, orchestrationPlan);
   }
 
-  private static async discoverTestTypes(): Promise<string[]> {
-    const testTypes = [];
-    const testDirs = [
+  private static async discoverTestTypes(): Promise<TestTypeCategory[]> {
+    const testTypes: TestTypeCategory[] = [];
+    const testDirs: Array<{ path: string; type: TestTypeCategory }> = [
       { path: 'tests/unit', type: 'unit' },
       { path: 'tests/integration', type: 'integration' },
       { path: 'tests/e2e', type: 'e2e' },
@@ -186,8 +393,8 @@ export class RunCommand {
     return testTypes;
   }
 
-  private static selectOptimalAgent(testType: string, agentConfig: any): string {
-    const agentMapping: Record<string, string> = {
+  private static selectOptimalAgent(testType: TestTypeCategory): string {
+    const agentMapping: Record<TestTypeCategory, string> = {
       'unit': 'test-generator',
       'integration': 'test-generator',
       'e2e': 'visual-tester',
@@ -198,8 +405,8 @@ export class RunCommand {
     return agentMapping[testType] || 'test-generator';
   }
 
-  private static getTaskPriority(testType: string, target: string): number {
-    const priorities: Record<string, Record<string, number>> = {
+  private static getTaskPriority(testType: TestTypeCategory, target: ExecutionTarget): number {
+    const priorities: Record<ExecutionTarget, Record<TestTypeCategory, number>> = {
       'tests': { unit: 1, integration: 2, e2e: 3, performance: 4, security: 5 },
       'regression': { unit: 1, integration: 1, e2e: 2, performance: 3, security: 4 },
       'performance': { performance: 1, unit: 2, integration: 3, e2e: 4, security: 5 },
@@ -209,7 +416,7 @@ export class RunCommand {
     return priorities[target]?.[testType] || 3;
   }
 
-  private static async generateCoordinationScripts(config: any, plan: any): Promise<void> {
+  private static async generateCoordinationScripts(config: ExecutionConfig, _plan: OrchestrationPlan): Promise<void> {
     const scriptsDir = `${config.directory}/scripts`;
     await fs.ensureDir(scriptsDir);
 
@@ -234,8 +441,8 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     await fs.chmod(`${scriptsDir}/post-execution.sh`, '755');
   }
 
-  private static async executeTests(config: any): Promise<any[]> {
-    const results = [];
+  private static async executeTests(config: ExecutionConfig): Promise<TaskExecutionResult[]> {
+    const results: TaskExecutionResult[] = [];
 
     if (config.execution.parallel) {
       // Parallel execution
@@ -248,9 +455,9 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     return results;
   }
 
-  private static async executeTestsParallel(config: any): Promise<any[]> {
-    const orchestration = await fs.readJson(`${config.directory}/orchestration.json`);
-    const results = [];
+  private static async executeTestsParallel(config: ExecutionConfig): Promise<TaskExecutionResult[]> {
+    const orchestration = await fs.readJson(`${config.directory}/orchestration.json`) as OrchestrationPlan;
+    const results: TaskExecutionResult[] = [];
 
     // Execute coordination hooks
     await this.runCoordinationScript(`${config.directory}/scripts/pre-execution.sh`);
@@ -259,7 +466,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     const taskGroups = this.groupTasksByAgent(orchestration.tasks);
 
     const promises = Object.entries(taskGroups).map(async ([agentType, tasks]) => {
-      return this.executeAgentTasks(agentType, tasks as any[], config);
+      return this.executeAgentTasks(agentType, tasks, config);
     });
 
     const agentResults = await Promise.all(promises);
@@ -271,12 +478,12 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     return results;
   }
 
-  private static async executeTestsSequential(config: any): Promise<any[]> {
-    const orchestration = await fs.readJson(`${config.directory}/orchestration.json`);
-    const results = [];
+  private static async executeTestsSequential(config: ExecutionConfig): Promise<TaskExecutionResult[]> {
+    const orchestration = await fs.readJson(`${config.directory}/orchestration.json`) as OrchestrationPlan;
+    const results: TaskExecutionResult[] = [];
 
     // Sort tasks by priority
-    const sortedTasks = orchestration.tasks.sort((a: any, b: any) => a.priority - b.priority);
+    const sortedTasks = [...orchestration.tasks].sort((a, b) => a.priority - b.priority);
 
     for (const task of sortedTasks) {
       const taskResult = await this.executeTask(task, config);
@@ -286,19 +493,19 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     return results;
   }
 
-  private static groupTasksByAgent(tasks: any[]): Record<string, any[]> {
-    return tasks.reduce((groups, task) => {
+  private static groupTasksByAgent(tasks: TestTask[]): Record<string, TestTask[]> {
+    return tasks.reduce<Record<string, TestTask[]>>((groups, task) => {
       const agent = task.agent;
       if (!groups[agent]) {
         groups[agent] = [];
       }
       groups[agent].push(task);
       return groups;
-    }, {} as Record<string, any[]>);
+    }, {});
   }
 
-  private static async executeAgentTasks(agentType: string, tasks: any[], config: any): Promise<any[]> {
-    const results = [];
+  private static async executeAgentTasks(_agentType: string, tasks: TestTask[], config: ExecutionConfig): Promise<TaskExecutionResult[]> {
+    const results: TaskExecutionResult[] = [];
 
     for (const task of tasks) {
       const result = await this.executeTask(task, config);
@@ -308,13 +515,14 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     return results;
   }
 
-  private static async executeTask(task: any, config: any): Promise<any> {
-    const taskResult = {
+  private static async executeTask(task: TestTask, config: ExecutionConfig): Promise<TaskExecutionResult> {
+    const startTime = new Date().toISOString();
+    const taskResult: TaskExecutionResult = {
       id: task.id,
       type: task.type,
       agent: task.agent,
       status: 'pending',
-      startTime: new Date().toISOString(),
+      startTime,
       endTime: null,
       duration: 0,
       tests: {
@@ -342,18 +550,20 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
         taskResult.errors = execution.errors;
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       taskResult.status = 'error';
-      (taskResult as any).errors = [error.message];
+      const errorMessage = isErrorWithMessage(error) ? error.message : String(error);
+      taskResult.errors = [errorMessage];
     }
 
-    (taskResult as any).endTime = new Date().toISOString();
-    (taskResult as any).duration = new Date((taskResult as any).endTime).getTime() - new Date(taskResult.startTime).getTime();
+    const endTime = new Date().toISOString();
+    taskResult.endTime = endTime;
+    taskResult.duration = new Date(endTime).getTime() - new Date(startTime).getTime();
 
     return taskResult;
   }
 
-  private static buildTestCommand(task: any, config: any): string {
+  private static buildTestCommand(task: TestTask, config: ExecutionConfig): string {
     const baseCommands: Record<string, string> = {
       'jest': 'npx jest',
       'mocha': 'npx mocha',
@@ -366,7 +576,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     let command = baseCommands[framework] || baseCommands['jest'];
 
     // Add test pattern based on type
-    const testPatterns: Record<string, string> = {
+    const testPatterns: Record<TestTypeCategory, string> = {
       'unit': 'tests/unit/**/*.test.*',
       'integration': 'tests/integration/**/*.test.*',
       'e2e': 'tests/e2e/**/*.test.*',
@@ -402,7 +612,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     return command;
   }
 
-  private static async runTestCommand(command: string, config: any): Promise<any> {
+  private static async runTestCommand(command: string, config: ExecutionConfig): Promise<TestCommandResult> {
     return new Promise((resolve) => {
       const [cmd, ...args] = command.split(' ');
       const child = spawn(cmd, args, {
@@ -413,16 +623,16 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
       let stdout = '';
       let stderr = '';
 
-      child.stdout.on('data', (data) => {
+      child.stdout.on('data', (data: Buffer) => {
         stdout += data.toString();
       });
 
-      child.stderr.on('data', (data) => {
+      child.stderr.on('data', (data: Buffer) => {
         stderr += data.toString();
       });
 
       child.on('close', (code) => {
-        const results = this.parseTestResults(stdout, stderr, config);
+        const results = this.parseTestResults(stdout, stderr);
         resolve({
           success: code === 0,
           results: results.tests,
@@ -444,9 +654,9 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     });
   }
 
-  private static parseTestResults(stdout: string, stderr: string, config: any): any {
+  private static parseTestResults(stdout: string, _stderr: string): ParsedTestResults {
     // Basic parsing - would be enhanced for specific frameworks
-    const results = {
+    const results: ParsedTestResults = {
       tests: {
         total: 0,
         passed: 0,
@@ -470,7 +680,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     // Parse coverage if available
     const coverageMatch = stdout.match(/All files[^\n]*\|\s*(\d+\.?\d*)/);
     if (coverageMatch) {
-      (results as any).coverage = {
+      results.coverage = {
         percentage: parseFloat(coverageMatch[1])
       };
     }
@@ -480,22 +690,23 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
 
   private static async runCoordinationScript(scriptPath: string): Promise<void> {
     if (await fs.pathExists(scriptPath)) {
-      const { execSecure } = require('../../../security/secure-command-executor');
-      return new Promise((resolve, reject) => {
+      const { execSecure } = require('../../../security/secure-command-executor') as {
+        execSecure: (command: string, callback: (error: Error | null) => void) => void;
+      };
+      return new Promise((resolve) => {
         // Validate the script path first
-        const path = require('path');
         const validatedPath = path.resolve(scriptPath);
 
         // Ensure the script is within allowed directories
         if (!validatedPath.includes('/coordination/') && !validatedPath.includes('/.claude/')) {
-          console.warn(chalk.yellow(`⚠️  Script path not in allowed directory: ${scriptPath}`));
+          console.warn(chalk.yellow(`  Script path not in allowed directory: ${scriptPath}`));
           resolve(undefined);
           return;
         }
 
-        execSecure(`bash ${validatedPath}`, (error: any) => {
+        execSecure(`bash ${validatedPath}`, (error: Error | null) => {
           if (error) {
-            console.warn(chalk.yellow(`⚠️  Coordination script warning: ${error.message}`));
+            console.warn(chalk.yellow(`  Coordination script warning: ${error.message}`));
           }
           resolve(undefined);
         });
@@ -503,8 +714,8 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     }
   }
 
-  private static async aggregateResults(results: any[], options: RunOptions): Promise<any> {
-    const aggregated: any = {
+  private static async aggregateResults(results: TaskExecutionResult[], _options: RunOptions): Promise<AggregatedResults> {
+    const aggregated: AggregatedResults = {
       summary: {
         total: 0,
         passed: 0,
@@ -541,7 +752,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
         };
       }
 
-      const agentData: any = aggregated.agents[result.agent];
+      const agentData = aggregated.agents[result.agent];
       agentData.tasks++;
       agentData.tests.total += result.tests.total;
       agentData.tests.passed += result.tests.passed;
@@ -551,7 +762,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     }
 
     // Calculate overall coverage
-    const coverageResults = results.filter(r => r.coverage);
+    const coverageResults = results.filter((r): r is TaskExecutionResult & { coverage: CoverageInfo } => r.coverage !== null);
     if (coverageResults.length > 0) {
       const totalCoverage = coverageResults.reduce((sum, r) => sum + r.coverage.percentage, 0);
       aggregated.coverage.overall = totalCoverage / coverageResults.length;
@@ -560,8 +771,8 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     return aggregated;
   }
 
-  private static displayExecutionSummary(results: any, options: RunOptions): void {
-    console.log(chalk.yellow('\n📊 Test Execution Summary:'));
+  private static displayExecutionSummary(results: AggregatedResults, _options: RunOptions): void {
+    console.log(chalk.yellow('\n Test Execution Summary:'));
 
     // Overall results
     const { summary } = results;
@@ -585,15 +796,15 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
 
     // Agent performance
     if (Object.keys(results.agents).length > 0) {
-      console.log(chalk.yellow('\n🤖 Agent Performance:'));
-      Object.entries(results.agents).forEach(([agent, data]: [string, any]) => {
+      console.log(chalk.yellow('\n Agent Performance:'));
+      Object.entries(results.agents).forEach(([agent, data]) => {
         console.log(chalk.gray(`  ${agent}: ${data.tasks} tasks, ${data.tests.total} tests`));
       });
     }
 
     // Errors
     if (results.errors.length > 0) {
-      console.log(chalk.red('\n❌ Errors:'));
+      console.log(chalk.red('\n Errors:'));
       results.errors.slice(0, 5).forEach((error: string) => {
         console.log(chalk.gray(`  ${error}`));
       });
@@ -603,7 +814,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     }
 
     // Next steps
-    console.log(chalk.yellow('\n💡 Next Steps:'));
+    console.log(chalk.yellow('\n Next Steps:'));
     if (summary.failed > 0) {
       console.log(chalk.gray('  1. Review failed tests and fix issues'));
       console.log(chalk.gray('  2. Re-run failed tests: agentic-qe run tests --suite failed'));
@@ -614,7 +825,7 @@ npx claude-flow@alpha hooks notify --message "Test execution completed: ${config
     console.log(chalk.gray('  4. Analyze quality: agentic-qe analyze quality --metrics'));
   }
 
-  private static async storeExecutionResults(results: any): Promise<void> {
+  private static async storeExecutionResults(results: AggregatedResults): Promise<void> {
     // Store results in reports directory
     const reportsDir = '.agentic-qe/reports';
     await fs.ensureDir(reportsDir);

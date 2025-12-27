@@ -10,6 +10,8 @@
  * @module tests/routing/cost-savings
  */
 
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
+
 // ===========================================================================
 // Model Cost Configurations
 // ===========================================================================
@@ -46,7 +48,7 @@ interface TaskProfile {
  * This distribution reflects typical test generation workloads where
  * the vast majority of tests are simple unit tests, with fewer complex scenarios.
  */
-function generateRealisticWorkload(taskCount: number): TaskProfile[] {
+function generateRealisticWorkload(taskCount: number, rng: SeededRandom): TaskProfile[] {
   const tasks: TaskProfile[] = [];
 
   const simpleCount = Math.floor(taskCount * 0.8);
@@ -58,9 +60,9 @@ function generateRealisticWorkload(taskCount: number): TaskProfile[] {
   for (let i = 0; i < simpleCount; i++) {
     tasks.push({
       complexity: 'simple',
-      linesOfCode: 5 + Math.floor(Math.random() * 10),
-      cyclomaticComplexity: 1 + Math.floor(Math.random() * 2),
-      estimatedTokens: 500 + Math.floor(Math.random() * 500)
+      linesOfCode: 5 + Math.floor(rng.random() * 10),
+      cyclomaticComplexity: 1 + Math.floor(rng.random() * 2),
+      estimatedTokens: 500 + Math.floor(rng.random() * 500)
     });
   }
 
@@ -68,9 +70,9 @@ function generateRealisticWorkload(taskCount: number): TaskProfile[] {
   for (let i = 0; i < moderateCount; i++) {
     tasks.push({
       complexity: 'moderate',
-      linesOfCode: 20 + Math.floor(Math.random() * 40),
-      cyclomaticComplexity: 4 + Math.floor(Math.random() * 5),
-      estimatedTokens: 1500 + Math.floor(Math.random() * 1500)
+      linesOfCode: 20 + Math.floor(rng.random() * 40),
+      cyclomaticComplexity: 4 + Math.floor(rng.random() * 5),
+      estimatedTokens: 1500 + Math.floor(rng.random() * 1500)
     });
   }
 
@@ -78,10 +80,10 @@ function generateRealisticWorkload(taskCount: number): TaskProfile[] {
   for (let i = 0; i < complexCount; i++) {
     tasks.push({
       complexity: 'complex',
-      linesOfCode: 80 + Math.floor(Math.random() * 80),
-      cyclomaticComplexity: 12 + Math.floor(Math.random() * 10),
-      estimatedTokens: 4000 + Math.floor(Math.random() * 3000),
-      requiresPropertyBased: Math.random() > 0.5
+      linesOfCode: 80 + Math.floor(rng.random() * 80),
+      cyclomaticComplexity: 12 + Math.floor(rng.random() * 10),
+      estimatedTokens: 4000 + Math.floor(rng.random() * 3000),
+      requiresPropertyBased: rng.random() > 0.5
     });
   }
 
@@ -89,10 +91,10 @@ function generateRealisticWorkload(taskCount: number): TaskProfile[] {
   for (let i = 0; i < criticalCount; i++) {
     tasks.push({
       complexity: 'critical',
-      linesOfCode: 100 + Math.floor(Math.random() * 100),
-      cyclomaticComplexity: 20 + Math.floor(Math.random() * 15),
-      estimatedTokens: 6000 + Math.floor(Math.random() * 4000),
-      requiresSecurity: Math.random() > 0.3
+      linesOfCode: 100 + Math.floor(rng.random() * 100),
+      cyclomaticComplexity: 20 + Math.floor(rng.random() * 15),
+      estimatedTokens: 6000 + Math.floor(rng.random() * 4000),
+      requiresSecurity: rng.random() > 0.3
     });
   }
 
@@ -214,7 +216,8 @@ describe('Cost Savings Validation', () => {
 
   describe('Small Workload (10 tasks)', () => {
     it('should demonstrate cost savings on small workload', () => {
-      const tasks = generateRealisticWorkload(10);
+      const rng = createSeededRandom(10000);
+      const tasks = generateRealisticWorkload(10, rng);
       const baseline = calculateBaselineCost(tasks);
       const router = calculateRouterCost(tasks);
       const savings = calculateSavings(baseline, router);
@@ -225,7 +228,8 @@ describe('Cost Savings Validation', () => {
     });
 
     it('should use cheaper models for simple tasks', () => {
-      const tasks = generateRealisticWorkload(10);
+      const rng = createSeededRandom(10100);
+      const tasks = generateRealisticWorkload(10, rng);
       const router = calculateRouterCost(tasks);
 
       // Should use gemini-pro for majority of simple tasks
@@ -239,7 +243,8 @@ describe('Cost Savings Validation', () => {
 
   describe('Medium Workload (100 tasks)', () => {
     it('should achieve 70-81% cost savings on medium workload', () => {
-      const tasks = generateRealisticWorkload(100);
+      const rng = createSeededRandom(10200);
+      const tasks = generateRealisticWorkload(100, rng);
       const baseline = calculateBaselineCost(tasks);
       const router = calculateRouterCost(tasks);
       const savings = calculateSavings(baseline, router);
@@ -256,7 +261,8 @@ describe('Cost Savings Validation', () => {
     });
 
     it('should distribute tasks across multiple models', () => {
-      const tasks = generateRealisticWorkload(100);
+      const rng = createSeededRandom(10300);
+      const tasks = generateRealisticWorkload(100, rng);
       const router = calculateRouterCost(tasks);
 
       // Should use multiple models based on complexity
@@ -264,7 +270,8 @@ describe('Cost Savings Validation', () => {
     });
 
     it('should reserve expensive models for complex tasks', () => {
-      const tasks = generateRealisticWorkload(100);
+      const rng = createSeededRandom(10400);
+      const tasks = generateRealisticWorkload(100, rng);
       const router = calculateRouterCost(tasks);
 
       // GPT-4 should be used, but not for majority of tasks
@@ -282,7 +289,8 @@ describe('Cost Savings Validation', () => {
 
   describe('Large Workload (500 tasks)', () => {
     it('should maintain cost savings at scale', () => {
-      const tasks = generateRealisticWorkload(500);
+      const rng = createSeededRandom(10500);
+      const tasks = generateRealisticWorkload(500, rng);
       const baseline = calculateBaselineCost(tasks);
       const router = calculateRouterCost(tasks);
       const savings = calculateSavings(baseline, router);
@@ -299,8 +307,10 @@ describe('Cost Savings Validation', () => {
     });
 
     it('should scale linearly with task count', () => {
-      const tasks100 = generateRealisticWorkload(100);
-      const tasks500 = generateRealisticWorkload(500);
+      const rng100 = createSeededRandom(10600);
+      const rng500 = createSeededRandom(10700);
+      const tasks100 = generateRealisticWorkload(100, rng100);
+      const tasks500 = generateRealisticWorkload(500, rng500);
 
       const baseline100 = calculateBaselineCost(tasks100);
       const baseline500 = calculateBaselineCost(tasks500);
@@ -392,8 +402,9 @@ describe('Cost Savings Validation', () => {
 
   describe('Real-World Scenarios', () => {
     it('should calculate monthly cost savings for typical project', () => {
+      const rng = createSeededRandom(10800);
       // Typical project: 1000 tasks/month
-      const monthlyTasks = generateRealisticWorkload(1000);
+      const monthlyTasks = generateRealisticWorkload(1000, rng);
       const baseline = calculateBaselineCost(monthlyTasks);
       const router = calculateRouterCost(monthlyTasks);
       const savings = calculateSavings(baseline, router);
@@ -409,8 +420,9 @@ describe('Cost Savings Validation', () => {
     });
 
     it('should calculate annual cost savings for enterprise', () => {
+      const rng = createSeededRandom(10900);
       // Enterprise: 10,000 tasks/month
-      const enterpriseTasks = generateRealisticWorkload(10000);
+      const enterpriseTasks = generateRealisticWorkload(10000, rng);
       const baseline = calculateBaselineCost(enterpriseTasks);
       const router = calculateRouterCost(enterpriseTasks);
       const savings = calculateSavings(baseline, router);
@@ -426,10 +438,11 @@ describe('Cost Savings Validation', () => {
     });
 
     it('should handle CI/CD pipeline costs', () => {
+      const rng = createSeededRandom(11000);
       // CI/CD: Run on every commit (assume 100 commits/day, 5 tasks each)
       const dailyCommits = 100;
       const tasksPerCommit = 5;
-      const dailyTasks = generateRealisticWorkload(dailyCommits * tasksPerCommit);
+      const dailyTasks = generateRealisticWorkload(dailyCommits * tasksPerCommit, rng);
 
       const baseline = calculateBaselineCost(dailyTasks);
       const router = calculateRouterCost(dailyTasks);
@@ -453,9 +466,10 @@ describe('Cost Savings Validation', () => {
     it('should achieve consistent savings across multiple runs', () => {
       const savingsResults: number[] = [];
 
-      // Run 10 times with different random workloads
+      // Run 10 times with different seeded random workloads
       for (let run = 0; run < 10; run++) {
-        const tasks = generateRealisticWorkload(100);
+        const rng = createSeededRandom(11100 + run * 100);
+        const tasks = generateRealisticWorkload(100, rng);
         const baseline = calculateBaselineCost(tasks);
         const router = calculateRouterCost(tasks);
         const savings = calculateSavings(baseline, router);
@@ -487,7 +501,8 @@ describe('Cost Savings Validation', () => {
 
       // Run 30 times for statistical significance
       for (let run = 0; run < 30; run++) {
-        const tasks = generateRealisticWorkload(100);
+        const rng = createSeededRandom(12100 + run * 100);
+        const tasks = generateRealisticWorkload(100, rng);
         const baseline = calculateBaselineCost(tasks);
         const router = calculateRouterCost(tasks);
         const savings = calculateSavings(baseline, router);

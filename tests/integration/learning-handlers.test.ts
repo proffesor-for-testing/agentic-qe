@@ -14,6 +14,7 @@ import { LearningStorePatternHandler } from '../../src/mcp/handlers/learning/lea
 import { LearningStoreExperienceHandler } from '../../src/mcp/handlers/learning/learning-store-experience';
 import { LearningStoreQValueHandler } from '../../src/mcp/handlers/learning/learning-store-qvalue';
 import type { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
+import { withFakeTimers, advanceAndFlush } from '../helpers/timerTestUtils';
 
 describe('Learning Handlers Integration Tests', () => {
   let db: Database.Database;
@@ -343,41 +344,43 @@ describe('Learning Handlers Integration Tests', () => {
     });
 
     it('should update existing Q-value with weighted average', async () => {
-      // Store initial Q-value
-      const firstResult = await handler.handle({
-        agentId: 'test-agent-qval-2',
-        stateKey: 'coverage-state',
-        actionKey: 'analyze-gaps',
-        qValue: 0.7,
-        updateCount: 10
+      await withFakeTimers(async (timers) => {
+        // Store initial Q-value
+        const firstResult = await handler.handle({
+          agentId: 'test-agent-qval-2',
+          stateKey: 'coverage-state',
+          actionKey: 'analyze-gaps',
+          qValue: 0.7,
+          updateCount: 10
+        });
+
+        expect(firstResult.success).toBe(true);
+
+        // Advance time to ensure timestamp difference using fake timers
+        await timers.advanceAsync(100);
+
+        // Update the same Q-value
+        const secondResult = await handler.handle({
+          agentId: 'test-agent-qval-2',
+          stateKey: 'coverage-state',
+          actionKey: 'analyze-gaps',
+          qValue: 0.9,
+          updateCount: 5
+        });
+
+        expect(secondResult.success).toBe(true);
+        expect(secondResult.data.message).toContain('updated successfully');
+
+        // Verify weighted average
+        const updated = db.prepare('SELECT * FROM q_values WHERE agent_id = ?').get('test-agent-qval-2');
+        expect(updated.update_count).toBe(15); // 10 + 5
+
+        // Weighted Q-value: (0.7 * 10 + 0.9 * 5) / 15 = 0.767
+        expect(updated.q_value).toBeCloseTo(0.767, 2);
+
+        // Verify last_updated changed
+        expect(updated.last_updated).toBeDefined();
       });
-
-      expect(firstResult.success).toBe(true);
-
-      // Wait a bit to ensure timestamp difference
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Update the same Q-value
-      const secondResult = await handler.handle({
-        agentId: 'test-agent-qval-2',
-        stateKey: 'coverage-state',
-        actionKey: 'analyze-gaps',
-        qValue: 0.9,
-        updateCount: 5
-      });
-
-      expect(secondResult.success).toBe(true);
-      expect(secondResult.data.message).toContain('updated successfully');
-
-      // Verify weighted average
-      const updated = db.prepare('SELECT * FROM q_values WHERE agent_id = ?').get('test-agent-qval-2');
-      expect(updated.update_count).toBe(15); // 10 + 5
-
-      // Weighted Q-value: (0.7 * 10 + 0.9 * 5) / 15 = 0.767
-      expect(updated.q_value).toBeCloseTo(0.767, 2);
-
-      // Verify last_updated changed
-      expect(updated.last_updated).toBeDefined();
     });
 
     it('should handle multiple state-action pairs for same agent', async () => {

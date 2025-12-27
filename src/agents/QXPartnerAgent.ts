@@ -18,6 +18,7 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
+import { FlexibleTaskResult } from '../types/hook.types';
 import { EventEmitter } from 'events';
 import { chromium, Browser, Page } from 'playwright';
 import * as fs from 'fs';
@@ -42,6 +43,20 @@ import {
 } from '../types/qx';
 
 const execAsync = promisify(exec);
+
+// Interfaces for extractTaskMetrics callback typing
+interface StakeholderFeedback {
+  stakeholder: string;
+  satisfaction: number;
+  feedback?: string;
+}
+
+interface ImmutableRequirement {
+  id: string;
+  description: string;
+  met: boolean;
+  evidence?: string;
+}
 
 // Simple logger interface
 interface Logger {
@@ -2377,7 +2392,7 @@ export class QXPartnerAgent extends BaseAgent {
     // Save learned oracle patterns
     const patterns = await this.retrieveMemory('oracle-patterns');
     if (patterns) {
-      await this.storeSharedMemory(QEAgentType.QX_PARTNER, 'oracle-patterns', patterns);
+      await this.storeSharedMemory('qx-partner/oracle-patterns', patterns);
     }
   }
 
@@ -2385,7 +2400,7 @@ export class QXPartnerAgent extends BaseAgent {
     // Save heuristics insights for other agents
     const insights = await this.retrieveMemory('heuristics-knowledge');
     if (insights) {
-      await this.storeSharedMemory(QEAgentType.QX_PARTNER, 'heuristics-insights', insights);
+      await this.storeSharedMemory('qx-partner/heuristics-insights', insights);
     }
   }
 
@@ -2393,7 +2408,7 @@ export class QXPartnerAgent extends BaseAgent {
     if (this.config.collaboration?.shareWithQualityAnalyzer) {
       const qxInsights = await this.retrieveMemory('qx-state');
       if (qxInsights) {
-        await this.storeSharedMemory(QEAgentType.QUALITY_ANALYZER, 'qx-insights', qxInsights);
+        await this.storeSharedMemory('quality-analyzer/qx-insights', qxInsights);
       }
     }
   }
@@ -3042,57 +3057,67 @@ class ImpactAnalyzer {
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich Quality Experience (QX) metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: FlexibleTaskResult): Record<string, number> {
     const metrics: Record<string, number> = {};
 
     if (result && typeof result === 'object') {
+      const r = result as Record<string, unknown>;
       // Overall QX scores
-      if (typeof result.overallImpactScore === 'number') {
-        metrics.overall_impact_score = result.overallImpactScore;
+      if (typeof r.overallImpactScore === 'number') {
+        metrics.overall_impact_score = r.overallImpactScore;
       }
 
       // Visible quality metrics
-      if (result.visible) {
-        metrics.visible_score = result.visible.score || 0;
-        if (result.visible.accessibility) {
-          metrics.accessibility_score = result.visible.accessibility.score || 0;
-          metrics.wcag_violations = result.visible.accessibility.violations?.length || 0;
+      const visible = r.visible as Record<string, unknown> | undefined;
+      if (visible) {
+        metrics.visible_score = (visible.score as number) || 0;
+        const accessibility = visible.accessibility as Record<string, unknown> | undefined;
+        if (accessibility) {
+          metrics.accessibility_score = (accessibility.score as number) || 0;
+          metrics.wcag_violations = (accessibility.violations as unknown[] | undefined)?.length || 0;
         }
-        if (result.visible.usability) {
-          metrics.usability_score = result.visible.usability.score || 0;
-          metrics.usability_issues = result.visible.usability.issues?.length || 0;
+        const usability = visible.usability as Record<string, unknown> | undefined;
+        if (usability) {
+          metrics.usability_score = (usability.score as number) || 0;
+          metrics.usability_issues = (usability.issues as unknown[] | undefined)?.length || 0;
         }
-        if (result.visible.userFeelings) {
-          metrics.user_satisfaction = result.visible.userFeelings.satisfaction || 0;
-          metrics.frustration_points = result.visible.userFeelings.frustrationPoints?.length || 0;
+        const userFeelings = visible.userFeelings as Record<string, unknown> | undefined;
+        if (userFeelings) {
+          metrics.user_satisfaction = (userFeelings.satisfaction as number) || 0;
+          metrics.frustration_points = (userFeelings.frustrationPoints as unknown[] | undefined)?.length || 0;
         }
       }
 
       // Invisible quality metrics
-      if (result.invisible) {
-        metrics.invisible_score = result.invisible.score || 0;
-        if (result.invisible.performance) {
-          metrics.performance_score = result.invisible.performance.score || 0;
-          metrics.load_time = result.invisible.performance.loadTime || 0;
+      const invisible = r.invisible as Record<string, unknown> | undefined;
+      if (invisible) {
+        metrics.invisible_score = (invisible.score as number) || 0;
+        const performance = invisible.performance as Record<string, unknown> | undefined;
+        if (performance) {
+          metrics.performance_score = (performance.score as number) || 0;
+          metrics.load_time = (performance.loadTime as number) || 0;
         }
-        if (result.invisible.security) {
-          metrics.security_score = result.invisible.security.score || 0;
-          metrics.security_risks = result.invisible.security.risks?.length || 0;
+        const security = invisible.security as Record<string, unknown> | undefined;
+        if (security) {
+          metrics.security_score = (security.score as number) || 0;
+          metrics.security_risks = (security.risks as unknown[] | undefined)?.length || 0;
         }
       }
 
       // Stakeholder analysis
-      if (result.stakeholders && Array.isArray(result.stakeholders)) {
-        metrics.stakeholders_analyzed = result.stakeholders.length;
-        metrics.stakeholder_satisfaction_avg = result.stakeholders.reduce(
-          (sum: number, s: any) => sum + (s.satisfaction || 0), 0
-        ) / Math.max(result.stakeholders.length, 1);
+      const stakeholders = r.stakeholders as StakeholderFeedback[] | undefined;
+      if (stakeholders && Array.isArray(stakeholders)) {
+        metrics.stakeholders_analyzed = stakeholders.length;
+        metrics.stakeholder_satisfaction_avg = stakeholders.reduce(
+          (sum: number, s: StakeholderFeedback) => sum + (s.satisfaction || 0), 0
+        ) / Math.max(stakeholders.length, 1);
       }
 
       // Immutable requirements
-      if (result.immutableRequirements && Array.isArray(result.immutableRequirements)) {
-        metrics.immutable_requirements = result.immutableRequirements.length;
-        metrics.requirements_met = result.immutableRequirements.filter((r: any) => r.met).length;
+      const immutableRequirements = r.immutableRequirements as ImmutableRequirement[] | undefined;
+      if (immutableRequirements && Array.isArray(immutableRequirements)) {
+        metrics.immutable_requirements = immutableRequirements.length;
+        metrics.requirements_met = immutableRequirements.filter((req: ImmutableRequirement) => req.met).length;
       }
     }
 

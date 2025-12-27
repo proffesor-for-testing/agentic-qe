@@ -82,14 +82,14 @@ export class Logger {
       console.error('FATAL: Failed to create Winston logger:', error);
       // Create a minimal fallback logger
       this.logger = {
-        error: (msg: string, meta?: any) => console.error(msg, meta),
-        warn: (msg: string, meta?: any) => console.warn(msg, meta),
-        info: (msg: string, meta?: any) => console.log(msg, meta),
-        debug: (msg: string, meta?: any) => console.debug(msg, meta),
-        log: (level: string, msg: string, meta?: any) => console.log(`[${level}]`, msg, meta),
+        error: (msg: string | object, ...args: unknown[]) => console.error(msg, ...args),
+        warn: (msg: string | object, ...args: unknown[]) => console.warn(msg, ...args),
+        info: (msg: string | object, ...args: unknown[]) => console.log(msg, ...args),
+        debug: (msg: string | object, ...args: unknown[]) => console.debug(msg, ...args),
+        log: (level: string, msg: string | object, ...args: unknown[]) => console.log(`[${level}]`, msg, ...args),
         level: 'info',
         child: () => this.logger
-      } as any;
+      } as unknown as winston.Logger;
     }
   }
 
@@ -106,7 +106,7 @@ export class Logger {
   /**
    * Log error message
    */
-  error(message: string, meta?: any): void {
+  error(message: string, meta?: unknown): void {
     if (!this.logger) {
       console.error('[LOGGER NOT INITIALIZED]', message, meta);
       return;
@@ -117,7 +117,7 @@ export class Logger {
   /**
    * Log warning message
    */
-  warn(message: string, meta?: any): void {
+  warn(message: string, meta?: unknown): void {
     if (!this.logger) {
       console.warn('[LOGGER NOT INITIALIZED]', message, meta);
       return;
@@ -128,7 +128,7 @@ export class Logger {
   /**
    * Log info message
    */
-  info(message: string, meta?: any): void {
+  info(message: string, meta?: unknown): void {
     if (!this.logger) {
       console.log('[LOGGER NOT INITIALIZED]', message, meta);
       return;
@@ -139,7 +139,7 @@ export class Logger {
   /**
    * Log debug message
    */
-  debug(message: string, meta?: any): void {
+  debug(message: string, meta?: unknown): void {
     if (!this.logger) {
       console.debug('[LOGGER NOT INITIALIZED]', message, meta);
       return;
@@ -150,14 +150,14 @@ export class Logger {
   /**
    * Log with specific level
    */
-  log(level: LogLevel, message: string, meta?: any): void {
+  log(level: LogLevel, message: string, meta?: unknown): void {
     this.logger.log(level, message, meta);
   }
 
   /**
    * Create child logger with additional context
    */
-  child(meta: any): Logger {
+  child(meta: Record<string, unknown>): Logger {
     const childLogger = new Logger();
     childLogger.logger = this.logger.child(meta);
     return childLogger;

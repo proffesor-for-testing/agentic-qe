@@ -8,6 +8,10 @@
 
 import { Span, Context, SpanContext, SpanKind, SpanStatus } from '@opentelemetry/api';
 import { VotingAgent, Vote, VotingTask } from '@/voting/types';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+
+// Seeded RNG for deterministic mock data generation
+const rng = createSeededRandom(29100);
 
 /**
  * Mock Span for testing without full OTEL setup
@@ -284,7 +288,7 @@ export const createMockAgentSpanBatch = (
       agentId: `agent-${i}`,
       agentType: agentType || 'qe-test-generator',
       taskId: `task-${i}`,
-      tokensUsed: Math.floor(Math.random() * 300) + 100,
+      tokensUsed: Math.floor(rng.random() * 300) + 100,
     })
   );
 };

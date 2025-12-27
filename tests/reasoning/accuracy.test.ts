@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { QEReasoningBank, TestPattern } from '../../src/reasoning/QEReasoningBank';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 interface GroundTruthPair {
   pattern1: TestPattern;
@@ -290,6 +291,9 @@ function createGroundTruthDataset(): GroundTruthPair[] {
   return dataset;
 }
 
+// Seeded random instance for deterministic pattern creation
+const accuracyRng = createSeededRandom(15200);
+
 /**
  * Helper to create test patterns
  */
@@ -308,9 +312,9 @@ function createTestPattern(
     language,
     template: `template-${id}`,
     examples: [`example-${id}`],
-    confidence: 0.8 + Math.random() * 0.2,
-    usageCount: Math.floor(Math.random() * 100),
-    successRate: 0.7 + Math.random() * 0.3,
+    confidence: 0.8 + accuracyRng.random() * 0.2,
+    usageCount: Math.floor(accuracyRng.random() * 100),
+    successRate: 0.7 + accuracyRng.random() * 0.3,
     metadata: {
       createdAt: new Date(),
       updatedAt: new Date(),

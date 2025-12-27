@@ -16,8 +16,10 @@ import {
   QETask,
   TestSuite as _TestSuite,
   Test as _Test,
-  TestType as _TestType
+  TestType as _TestType,
+  TaskAssignment
 } from '../types';
+import type { PreTaskData, PostTaskData, TaskErrorData } from '../types/hook.types';
 
 // ============================================================================
 // Configuration Interfaces
@@ -73,7 +75,16 @@ export interface EndpointDistribution {
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   percentage: number; // 0-100
-  payload?: any;
+  payload?: EndpointPayload;
+}
+
+/**
+ * Payload for endpoint requests in load testing
+ */
+export interface EndpointPayload {
+  body?: Record<string, unknown> | string;
+  headers?: Record<string, string>;
+  params?: Record<string, string | number | boolean>;
 }
 
 export interface PerformanceThresholds {
@@ -187,13 +198,233 @@ export interface PerformanceImprovement {
 }
 
 // ============================================================================
+// Load Testing Client Types
+// ============================================================================
+
+/**
+ * Configuration for load testing client
+ */
+export interface LoadTestingClient {
+  tool: 'k6' | 'jmeter' | 'gatling' | 'artillery';
+  initialized: boolean;
+  config?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Configuration for monitoring client
+ */
+export interface MonitoringClient {
+  platforms: string[];
+  initialized: boolean;
+  connections?: Record<string, boolean>;
+}
+
+/**
+ * Raw results from load test execution
+ */
+export interface RawLoadTestResults {
+  requests: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
+  latencies: number[];
+  throughput: number;
+  errors?: Array<{ code: number; message: string; count: number }>;
+}
+
+/**
+ * Raw monitoring data collected during test
+ */
+export interface RawMonitoringData {
+  cpu: ResourceSamples;
+  memory: ResourceSamples;
+  network: ResourceSamples;
+  disk?: ResourceSamples;
+}
+
+/**
+ * Resource samples collected during monitoring
+ */
+export interface ResourceSamples {
+  samples: number[];
+  average: number;
+  peak: number;
+}
+
+// ============================================================================
+// Task Metadata Types
+// ============================================================================
+
+/**
+ * Metadata for run-load-test task
+ */
+export interface RunLoadTestMetadata {
+  targetUrl?: string;
+  loadProfile?: LoadProfile;
+  thresholds?: PerformanceThresholds;
+  monitoring?: MonitoringConfig;
+}
+
+/**
+ * Metadata for detect-bottlenecks task
+ */
+export interface DetectBottlenecksMetadata {
+  metrics: PerformanceMetrics;
+  testId: string;
+}
+
+/**
+ * Metadata for validate-sla task
+ */
+export interface ValidateSLAMetadata {
+  metrics: PerformanceMetrics;
+  thresholds: PerformanceThresholds;
+}
+
+/**
+ * Metadata for detect-regressions task
+ */
+export interface DetectRegressionsMetadata {
+  currentMetrics: PerformanceMetrics;
+  baselineId: string;
+}
+
+/**
+ * Metadata for establish-baseline task
+ */
+export interface EstablishBaselineMetadata {
+  metrics: PerformanceMetrics;
+  version: string;
+  environment: string;
+}
+
+/**
+ * Metadata for generate-load-pattern task
+ */
+export interface GenerateLoadPatternMetadata {
+  pattern?: 'constant' | 'ramp-up' | 'spike' | 'stress' | 'soak';
+  virtualUsers?: number;
+  duration?: number;
+}
+
+/**
+ * Metadata for analyze-performance task
+ */
+export interface AnalyzePerformanceMetadata {
+  testId: string;
+}
+
+/**
+ * Performance analysis result
+ */
+export interface PerformanceAnalysisResult {
+  summary: {
+    passed: boolean;
+    duration: number;
+    totalRequests: number;
+    errorRate: number;
+    p95Latency: number;
+  };
+  bottlenecks: Bottleneck[];
+  violations: SLAViolation[];
+  recommendations: string[];
+}
+
+/**
+ * Test execution complete event data
+ */
+export interface TestExecutionCompleteEvent {
+  testId: string;
+  passed: boolean;
+  duration: number;
+  metrics?: PerformanceMetrics;
+}
+
+/**
+ * SLA validation result
+ */
+export interface SLAValidationResult {
+  passed: boolean;
+  violations: SLAViolation[];
+}
+
+/**
+ * Union type for all performance task results
+ */
+export type PerformanceTaskResult =
+  | LoadTestResult
+  | Bottleneck[]
+  | SLAValidationResult
+  | RegressionAnalysis
+  | LoadProfile
+  | PerformanceBaseline
+  | PerformanceAnalysisResult;
+
+/**
+ * Type guard for LoadTestResult
+ */
+export function isLoadTestResult(result: unknown): result is LoadTestResult {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'id' in result &&
+    'metrics' in result &&
+    'bottlenecks' in result &&
+    'slaViolations' in result
+  );
+}
+
+/**
+ * Type guard for PerformanceMetrics
+ */
+export function hasPerformanceMetrics(result: unknown): result is { metrics: PerformanceMetrics } {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'metrics' in result &&
+    typeof (result as { metrics: unknown }).metrics === 'object'
+  );
+}
+
+/**
+ * Post-task result with performance metrics for storage
+ */
+export interface PerformancePostTaskResult {
+  success?: boolean;
+  latencyP95?: number;
+  throughput?: number;
+  errorRate?: number;
+  regressions?: PerformanceRegression[];
+  metrics?: PerformanceMetrics;
+}
+
+/**
+ * Type guard for PerformancePostTaskResult
+ */
+export function isPerformancePostTaskResult(result: unknown): result is PerformancePostTaskResult {
+  if (typeof result !== 'object' || result === null) {
+    return false;
+  }
+  // Check for at least one performance-related property
+  return (
+    'success' in result ||
+    'latencyP95' in result ||
+    'throughput' in result ||
+    'errorRate' in result ||
+    'regressions' in result ||
+    'metrics' in result
+  );
+}
+
+// ============================================================================
 // Performance Tester Agent Implementation
 // ============================================================================
 
 export class PerformanceTesterAgent extends BaseAgent {
   private readonly config: PerformanceTesterConfig;
-  private loadTestingClient?: any;
-  private monitoringClient?: any;
+  private loadTestingClient?: LoadTestingClient;
+  private monitoringClient?: MonitoringClient;
   private activeTests: Map<string, LoadTestResult> = new Map();
   private baselines: Map<string, PerformanceBaseline> = new Map();
 
@@ -295,7 +526,7 @@ export class PerformanceTesterAgent extends BaseAgent {
   /**
    * Pre-task hook - Load performance baselines before task execution
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB loading)
     await super.onPreTask(data);
 
@@ -317,9 +548,14 @@ export class PerformanceTesterAgent extends BaseAgent {
   /**
    * Post-task hook - Store performance results and detect regressions
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB storage, learning)
     await super.onPostTask(data);
+
+    // Extract typed result using type guard
+    const taskResult: PerformancePostTaskResult | null = isPerformancePostTaskResult(data.result)
+      ? data.result
+      : null;
 
     // Store performance test results
     await this.memoryStore.store(
@@ -328,11 +564,11 @@ export class PerformanceTesterAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
+        success: taskResult?.success !== false,
         performanceMetrics: {
-          latencyP95: data.result?.latencyP95,
-          throughput: data.result?.throughput,
-          errorRate: data.result?.errorRate
+          latencyP95: taskResult?.latencyP95,
+          throughput: taskResult?.throughput,
+          errorRate: taskResult?.errorRate
         }
       },
       86400 // 24 hours
@@ -343,19 +579,19 @@ export class PerformanceTesterAgent extends BaseAgent {
       agentId: this.agentId,
       result: data.result,
       timestamp: new Date(),
-      regressions: data.result?.regressions || []
+      regressions: taskResult?.regressions || []
     });
 
     console.log(`[${this.agentId.type}] Performance testing completed`, {
       taskId: data.assignment.id,
-      performanceMet: data.result?.success
+      performanceMet: taskResult?.success
     });
   }
 
   /**
    * Task error hook - Log performance test failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     // Call parent implementation
     await super.onTaskError(data);
 
@@ -408,32 +644,32 @@ export class PerformanceTesterAgent extends BaseAgent {
     console.log(`PerformanceTesterAgent ${this.agentId.id} initialized successfully`);
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<PerformanceTaskResult> {
     const { type, payload } = task;
 
     console.log(`PerformanceTesterAgent executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'run-load-test':
-        return await this.runLoadTest(payload);
+        return await this.runLoadTest(payload as RunLoadTestMetadata);
 
       case 'detect-bottlenecks':
-        return await this.detectBottlenecks(payload);
+        return await this.detectBottlenecks(payload as DetectBottlenecksMetadata);
 
       case 'validate-sla':
-        return await this.validateSLA(payload);
+        return await this.validateSLA(payload as ValidateSLAMetadata);
 
       case 'detect-regressions':
-        return await this.detectRegressions(payload);
+        return await this.detectRegressions(payload as DetectRegressionsMetadata);
 
       case 'generate-load-pattern':
-        return await this.generateLoadPattern(payload);
+        return await this.generateLoadPattern(payload as GenerateLoadPatternMetadata);
 
       case 'establish-baseline':
-        return await this.establishBaseline(payload);
+        return await this.establishBaseline(payload as EstablishBaselineMetadata);
 
       case 'analyze-performance':
-        return await this.analyzePerformance(payload);
+        return await this.analyzePerformance(payload as AnalyzePerformanceMetadata);
 
       default:
         throw new Error(`Unsupported task type: ${type}`);
@@ -484,7 +720,7 @@ export class PerformanceTesterAgent extends BaseAgent {
   // Load Testing Orchestration
   // ============================================================================
 
-  private async runLoadTest(metadata: any): Promise<LoadTestResult> {
+  private async runLoadTest(metadata: RunLoadTestMetadata): Promise<LoadTestResult> {
     const testConfig: LoadTestConfig = this.parseTestConfig(metadata);
     const testId = `loadtest-${Date.now()}`;
 
@@ -744,7 +980,7 @@ class LoadTestSimulation extends Simulation {
     }, null, 2);
   }
 
-  private async executeLoadTest(script: string, config: LoadTestConfig): Promise<any> {
+  private async executeLoadTest(_script: string, config: LoadTestConfig): Promise<RawLoadTestResults> {
     // Simulate load test execution
     // In real implementation, execute the actual tool
     console.log(`Executing load test with ${config.loadProfile.virtualUsers} VUs for ${config.loadProfile.duration}s`);
@@ -764,7 +1000,7 @@ class LoadTestSimulation extends Simulation {
     };
   }
 
-  private async collectMonitoringData(_testId: string): Promise<any> {
+  private async collectMonitoringData(_testId: string): Promise<RawMonitoringData> {
     // Simulate monitoring data collection
     // In real implementation, query monitoring platform
     return {
@@ -786,7 +1022,7 @@ class LoadTestSimulation extends Simulation {
     };
   }
 
-  private analyzeLoadTestResults(rawResults: any, monitoringData: any): PerformanceMetrics {
+  private analyzeLoadTestResults(rawResults: RawLoadTestResults, monitoringData: RawMonitoringData): PerformanceMetrics {
     const latencies = rawResults.latencies.sort((a: number, b: number) => a - b);
 
     return {
@@ -835,7 +1071,7 @@ class LoadTestSimulation extends Simulation {
   // Bottleneck Detection
   // ============================================================================
 
-  private async detectBottlenecks(metadata: any): Promise<Bottleneck[]> {
+  private async detectBottlenecks(metadata: DetectBottlenecksMetadata): Promise<Bottleneck[]> {
     const { metrics, testId } = metadata;
 
     console.log(`Detecting bottlenecks for test ${testId}`);
@@ -955,7 +1191,7 @@ class LoadTestSimulation extends Simulation {
   // SLA Validation
   // ============================================================================
 
-  private async validateSLA(metadata: any): Promise<{ passed: boolean; violations: SLAViolation[] }> {
+  private async validateSLA(metadata: ValidateSLAMetadata): Promise<{ passed: boolean; violations: SLAViolation[] }> {
     const { metrics, thresholds } = metadata;
 
     console.log('Validating SLA thresholds');
@@ -1092,7 +1328,7 @@ class LoadTestSimulation extends Simulation {
   // Performance Regression Detection
   // ============================================================================
 
-  private async detectRegressions(metadata: any): Promise<RegressionAnalysis> {
+  private async detectRegressions(metadata: DetectRegressionsMetadata): Promise<RegressionAnalysis> {
     const { currentMetrics, baselineId } = metadata;
 
     console.log(`Detecting performance regressions against baseline ${baselineId}`);
@@ -1198,7 +1434,7 @@ class LoadTestSimulation extends Simulation {
   // Baseline Management
   // ============================================================================
 
-  private async establishBaseline(metadata: any): Promise<PerformanceBaseline> {
+  private async establishBaseline(metadata: EstablishBaselineMetadata): Promise<PerformanceBaseline> {
     const { metrics, version, environment } = metadata;
 
     const baseline: PerformanceBaseline = {
@@ -1239,7 +1475,7 @@ class LoadTestSimulation extends Simulation {
   // Load Pattern Generation
   // ============================================================================
 
-  private async generateLoadPattern(metadata: any): Promise<LoadProfile> {
+  private async generateLoadPattern(metadata: GenerateLoadPatternMetadata): Promise<LoadProfile> {
     const { pattern, virtualUsers, duration } = metadata;
 
     const loadProfile: LoadProfile = {
@@ -1276,14 +1512,19 @@ class LoadTestSimulation extends Simulation {
     // Listen for test execution requests from other agents
     this.registerEventHandler({
       eventType: 'test.execution.complete',
-      handler: async (_event: any) => {
+      handler: async (event) => {
+        // Extract test execution data from the event
+        const eventData = event.data as TestExecutionCompleteEvent | undefined;
         // Automatically run performance tests after functional tests
-        console.log('Functional tests completed, considering performance test run');
+        console.log('Functional tests completed, considering performance test run', {
+          testId: eventData?.testId,
+          passed: eventData?.passed
+        });
       }
     });
   }
 
-  private parseTestConfig(metadata: any): LoadTestConfig {
+  private parseTestConfig(metadata: RunLoadTestMetadata): LoadTestConfig {
     return {
       targetUrl: metadata.targetUrl || 'http://localhost:3000',
       loadProfile: metadata.loadProfile || this.config.loadProfile!,
@@ -1339,7 +1580,7 @@ class LoadTestSimulation extends Simulation {
     return Array.from(new Set(recommendations));
   }
 
-  private async analyzePerformance(metadata: any): Promise<any> {
+  private async analyzePerformance(metadata: AnalyzePerformanceMetadata): Promise<PerformanceAnalysisResult> {
     const { testId } = metadata;
 
     // Retrieve test results
@@ -1378,10 +1619,15 @@ class LoadTestSimulation extends Simulation {
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich performance testing metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: PerformanceTaskResult | null): Record<string, number> {
     const metrics: Record<string, number> = {};
 
-    if (result && typeof result === 'object') {
+    if (!result) {
+      return metrics;
+    }
+
+    // Use type guard to check for LoadTestResult
+    if (isLoadTestResult(result)) {
       // Request metrics
       if (result.metrics?.requests) {
         metrics.total_requests = result.metrics.requests.total || 0;
@@ -1420,6 +1666,17 @@ class LoadTestSimulation extends Simulation {
       // Duration
       if (typeof result.duration === 'number') {
         metrics.test_duration = result.duration;
+      }
+    } else if (hasPerformanceMetrics(result)) {
+      // Handle other result types that have metrics
+      const metricsData = result.metrics;
+      if (metricsData.requests) {
+        metrics.total_requests = metricsData.requests.total || 0;
+        metrics.error_rate = metricsData.requests.errorRate || 0;
+      }
+      if (metricsData.latency) {
+        metrics.latency_p95 = metricsData.latency.p95 || 0;
+        metrics.latency_p99 = metricsData.latency.p99 || 0;
       }
     }
 

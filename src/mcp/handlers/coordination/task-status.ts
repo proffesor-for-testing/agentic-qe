@@ -10,6 +10,61 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
 
+/**
+ * Internal interface representing a task stored in memory.
+ * Used for type-safe access to retrieved task data.
+ */
+interface StoredTaskData {
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  timeline?: TimelineEvent[];
+  type?: string;
+  priority?: string;
+  strategy?: string;
+  startedAt?: string;
+  completedAt?: string;
+  assignments?: AgentAssignment[];
+  workflow?: WorkflowStep[];
+  steps?: WorkflowStep[];
+  completedSteps?: string[];
+  results?: {
+    metrics?: {
+      resourceUtilization?: number;
+      parallelismEfficiency?: number;
+      coordinationOverhead?: number;
+    };
+  };
+}
+
+/**
+ * Internal interface for workflow steps stored in memory
+ */
+interface WorkflowStep {
+  id: string;
+  name: string;
+  status: string;
+  startedAt?: string;
+  completedAt?: string;
+  estimatedDuration?: number;
+}
+
+/**
+ * Type guard to check if a value is a valid stored task object
+ */
+function isStoredTaskData(value: unknown): value is StoredTaskData {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  // Check for at least one expected property to confirm it's a task object
+  const obj = value as Record<string, unknown>;
+  return (
+    'status' in obj ||
+    'type' in obj ||
+    'workflow' in obj ||
+    'steps' in obj ||
+    'startedAt' in obj
+  );
+}
+
 export interface TaskStatusArgs {
   taskId: string;
   includeDetails?: boolean;
@@ -96,41 +151,49 @@ export class TaskStatusHandler extends BaseHandler {
 
   private async getTaskStatus(args: TaskStatusArgs): Promise<TaskStatus> {
     // Try to retrieve as orchestration first
-    let task = await this.memory.retrieve(`orchestration:${args.taskId}`, {
+    let rawTask = await this.memory.retrieve(`orchestration:${args.taskId}`, {
       partition: 'orchestrations'
     });
 
     // Try as workflow execution
-    if (!task) {
-      task = await this.memory.retrieve(`workflow:execution:${args.taskId}`, {
+    if (!rawTask) {
+      rawTask = await this.memory.retrieve(`workflow:execution:${args.taskId}`, {
         partition: 'workflow_executions'
       });
     }
 
-    if (!task) {
+    if (!rawTask) {
       throw new Error(`Task not found: ${args.taskId}`);
     }
+
+    // Type guard validation: ensure we have a valid task object
+    if (!isStoredTaskData(rawTask)) {
+      throw new Error(`Invalid task data format for: ${args.taskId}`);
+    }
+
+    // Now TypeScript knows rawTask is StoredTaskData
+    const task: StoredTaskData = rawTask;
 
     // Build status response
     const status: TaskStatus = {
       taskId: args.taskId,
-      status: task.status || 'running',
+      status: task.status ?? 'running',
       progress: this.calculateProgress(task),
       // Always include timeline if available (it's useful for debugging/monitoring)
-      timeline: task.timeline || []
+      timeline: task.timeline ?? []
     };
 
     // Add details if requested
     if (args.includeDetails) {
       status.details = {
-        type: task.type,
-        priority: task.priority,
-        strategy: task.strategy,
+        type: task.type ?? 'unknown',
+        priority: task.priority ?? 'medium',
+        strategy: task.strategy ?? 'adaptive',
         startedAt: task.startedAt,
         completedAt: task.completedAt,
         duration: this.calculateDuration(task),
-        assignments: task.assignments || [],
-        workflow: this.mapWorkflowSteps(task.workflow || task.steps || [])
+        assignments: task.assignments ?? [],
+        workflow: this.mapWorkflowSteps(task.workflow ?? task.steps ?? [])
       };
 
       // Add metrics
@@ -140,13 +203,14 @@ export class TaskStatusHandler extends BaseHandler {
     return status;
   }
 
-  private calculateProgress(task: any): TaskStatus['progress'] {
-    const completedSteps = task.completedSteps?.length || 0;
-    const totalSteps = task.workflow?.length || task.steps?.length || 1;
+  private calculateProgress(task: StoredTaskData): TaskStatus['progress'] {
+    const completedSteps = task.completedSteps?.length ?? 0;
+    const totalSteps = task.workflow?.length ?? task.steps?.length ?? 1;
     const overall = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
     const byStep: Record<string, number> = {};
-    for (const step of task.workflow || task.steps || []) {
+    const steps = task.workflow ?? task.steps ?? [];
+    for (const step of steps) {
       byStep[step.id] = step.status === 'completed' ? 100 :
                          step.status === 'running' ? 50 : 0;
     }
@@ -160,7 +224,7 @@ export class TaskStatusHandler extends BaseHandler {
     };
   }
 
-  private calculateDuration(task: any): number | undefined {
+  private calculateDuration(task: StoredTaskData): number | undefined {
     if (!task.startedAt) return undefined;
 
     const endTime = task.completedAt ? new Date(task.completedAt) : new Date();
@@ -169,7 +233,7 @@ export class TaskStatusHandler extends BaseHandler {
     return endTime.getTime() - startTime.getTime();
   }
 
-  private estimateCompletion(task: any): string | undefined {
+  private estimateCompletion(task: StoredTaskData): string | undefined {
     if (task.status === 'completed' || task.status === 'failed') {
       return undefined;
     }
@@ -178,8 +242,8 @@ export class TaskStatusHandler extends BaseHandler {
       return undefined;
     }
 
-    const totalDuration = (task.workflow || []).reduce(
-      (sum: number, step: any) => sum + (step.estimatedDuration || 0),
+    const totalDuration = task.workflow.reduce(
+      (sum: number, step: WorkflowStep) => sum + (step.estimatedDuration ?? 0),
       0
     );
 
@@ -187,7 +251,7 @@ export class TaskStatusHandler extends BaseHandler {
     return completionTime.toISOString();
   }
 
-  private mapWorkflowSteps(steps: any[]): WorkflowStepStatus[] {
+  private mapWorkflowSteps(steps: WorkflowStep[]): WorkflowStepStatus[] {
     return steps.map(step => ({
       id: step.id,
       name: step.name,
@@ -199,11 +263,11 @@ export class TaskStatusHandler extends BaseHandler {
     }));
   }
 
-  private calculateMetrics(task: any): TaskStatus['metrics'] {
+  private calculateMetrics(task: StoredTaskData): TaskStatus['metrics'] {
     return {
-      resourceUtilization: task.results?.metrics?.resourceUtilization || 0,
-      parallelismEfficiency: task.results?.metrics?.parallelismEfficiency || 1.0,
-      coordinationOverhead: task.results?.metrics?.coordinationOverhead || 0
+      resourceUtilization: task.results?.metrics?.resourceUtilization ?? 0,
+      parallelismEfficiency: task.results?.metrics?.parallelismEfficiency ?? 1.0,
+      coordinationOverhead: task.results?.metrics?.coordinationOverhead ?? 0
     };
   }
 }

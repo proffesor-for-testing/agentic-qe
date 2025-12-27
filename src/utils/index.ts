@@ -11,6 +11,11 @@ export {
   shutdownChaosLatency,
   shutdownChaosFailure,
 } from './IntervalRegistry';
+export {
+  SeededRandom,
+  seededRandom,
+  createSeededRandom,
+} from './SeededRandom';
 export type { FleetConfig, AgentConfig, DatabaseConfig } from './Config';
 export type { DatabaseRow } from './Database';
 export type {

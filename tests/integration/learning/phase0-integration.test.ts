@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Learning components
 import { LearningEngine, ExtendedLearningConfig } from '../../../src/learning/LearningEngine';
@@ -40,11 +41,14 @@ async function createTestMemoryManager(): Promise<SwarmMemoryManager> {
   return manager;
 }
 
+// Seeded RNG for deterministic test data
+const rng = createSeededRandom(18400);
+
 /**
  * Create a test pattern with random embedding
  */
 function createTestQEPattern(overrides: Partial<QEPattern> = {}): QEPattern {
-  const embedding = Array.from({ length: 768 }, () => Math.random() * 2 - 1);
+  const embedding = Array.from({ length: 768 }, () => rng.random() * 2 - 1);
   // Normalize
   const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0));
   const normalizedEmbedding = embedding.map(v => v / magnitude);
@@ -163,7 +167,7 @@ describe('Phase 0 M0.3: HNSWPatternAdapter Integration', () => {
 
   beforeEach(async () => {
     // Use unique temp directory for each test to avoid state sharing
-    tempDir = path.join(os.tmpdir(), `hnsw-adapter-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    tempDir = path.join(os.tmpdir(), `hnsw-adapter-test-${Date.now()}-${rng.random().toString(36).slice(2)}`);
     await fs.mkdir(tempDir, { recursive: true });
 
     adapter = createHNSWPatternAdapter({

@@ -19,6 +19,7 @@ import { JsMinCut } from '../../src/code-intelligence/analysis/mincut/JsMinCut';
 import { TopologyMinCutAnalyzer } from '../../src/fleet/topology/TopologyMinCutAnalyzer';
 import { FleetTopology, TopologyNode, TopologyEdge } from '../../src/fleet/topology/types';
 import { MinCutGraphInput } from '../../src/code-intelligence/analysis/mincut/types';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Benchmark configuration
 const BENCHMARK_CONFIG = {
@@ -44,7 +45,8 @@ interface BenchmarkResult {
 const results: BenchmarkResult[] = [];
 
 // Helper: Generate a random connected graph
-function generateRandomGraph(nodeCount: number, edgeDensity: number = 0.3): MinCutGraphInput {
+function generateRandomGraph(nodeCount: number, edgeDensity: number = 0.3, seed: number = 400001): MinCutGraphInput {
+  const rng = createSeededRandom(seed);
   const nodes = Array.from({ length: nodeCount }, (_, i) => ({
     id: `node-${i}`,
     label: `Node ${i}`,
@@ -55,19 +57,19 @@ function generateRandomGraph(nodeCount: number, edgeDensity: number = 0.3): MinC
 
   // First, create a spanning tree to ensure connectivity
   for (let i = 1; i < nodeCount; i++) {
-    const parentIndex = Math.floor(Math.random() * i);
+    const parentIndex = Math.floor(rng.random() * i);
     edges.push({
       source: `node-${parentIndex}`,
       target: `node-${i}`,
-      weight: Math.random() * 10 + 1,
+      weight: rng.random() * 10 + 1,
     });
   }
 
   // Then add random edges based on density
   const maxAdditionalEdges = Math.floor((nodeCount * (nodeCount - 1) / 2) * edgeDensity);
   for (let i = 0; i < maxAdditionalEdges; i++) {
-    const source = Math.floor(Math.random() * nodeCount);
-    let target = Math.floor(Math.random() * nodeCount);
+    const source = Math.floor(rng.random() * nodeCount);
+    let target = Math.floor(rng.random() * nodeCount);
     if (source !== target) {
       const edgeKey = `node-${Math.min(source, target)}-node-${Math.max(source, target)}`;
       // Check if edge already exists (simple check)
@@ -79,7 +81,7 @@ function generateRandomGraph(nodeCount: number, edgeDensity: number = 0.3): MinC
         edges.push({
           source: `node-${source}`,
           target: `node-${target}`,
-          weight: Math.random() * 10 + 1,
+          weight: rng.random() * 10 + 1,
         });
       }
     }
@@ -89,7 +91,8 @@ function generateRandomGraph(nodeCount: number, edgeDensity: number = 0.3): MinC
 }
 
 // Helper: Generate fleet topology
-function generateFleetTopology(agentCount: number, mode: 'hierarchical' | 'mesh' = 'hierarchical'): FleetTopology {
+function generateFleetTopology(agentCount: number, mode: 'hierarchical' | 'mesh' = 'hierarchical', seed: number = 400002): FleetTopology {
+  const rng = createSeededRandom(seed);
   const coordinatorCount = Math.max(1, Math.floor(agentCount / 10));
 
   const nodes: TopologyNode[] = [];
@@ -147,7 +150,7 @@ function generateFleetTopology(agentCount: number, mode: 'hierarchical' | 'mesh'
     // Mesh: more connections
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
-        if (Math.random() < 0.3) { // 30% connectivity
+        if (rng.random() < 0.3) { // 30% connectivity
           edges.push({
             id: `edge-${i}-${j}`,
             sourceId: nodes[i].id,

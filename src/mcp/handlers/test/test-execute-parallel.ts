@@ -39,9 +39,49 @@ export interface TestFileMetadata {
   tags?: string[];
 }
 
+interface TestResult {
+  testFile: string;
+  passed: boolean;
+  duration?: number;
+  workerIndex?: number;
+  timeout: boolean;
+  assertions?: number;
+  attempts?: number;
+  error?: string;
+}
+
+interface ExecutionSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  passRate: number;
+  totalDuration: number;
+  avgDuration: number;
+}
+
+interface WorkerStats {
+  totalWorkers: number;
+  efficiency: number;
+  loadBalance: string;
+  partitioning?: {
+    algorithm: string;
+    crossPartitionDeps: number;
+    loadBalanceScore: number;
+    estimatedSpeedup: number;
+    computationTimeMs: number;
+    minCutValue?: number;
+  };
+}
+
+interface RetryInfo {
+  attempted: number;
+  successful: number;
+  maxAttempts: number;
+}
+
 export class TestExecuteParallelHandler extends BaseHandler {
-  private workerPool: any[] = [];
-  private executionQueue: any[] = [];
+  private workerPool: unknown[] = [];
+  private executionQueue: unknown[] = [];
   private partitioner: MinCutPartitioner | null = null;
   private lastPartitionResult: PartitionResult | null = null;
 
@@ -89,7 +129,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
           retries,
           executionStrategy: 'parallel',
           totalDuration: Date.now() - startTime,
-          timeouts: results.filter((r: any) => r.timeout).length
+          timeouts: results.filter((r) => r.timeout).length
         };
       });
 
@@ -103,9 +143,9 @@ export class TestExecuteParallelHandler extends BaseHandler {
     this.executionQueue = [];
   }
 
-  private async executeTestsParallel(args: TestExecuteParallelArgs): Promise<any[]> {
+  private async executeTestsParallel(args: TestExecuteParallelArgs): Promise<TestResult[]> {
     const parallelism = args.parallelism || 1;
-    const results: any[] = [];
+    const results: TestResult[] = [];
     const strategy = args.loadBalancing || 'round-robin';
 
     // Distribute tests across workers - use MinCut if requested
@@ -131,12 +171,12 @@ export class TestExecuteParallelHandler extends BaseHandler {
     return results;
   }
 
-  private async executeTestBatch(testFiles: string[], workerIndex: number, args: TestExecuteParallelArgs): Promise<any[]> {
-    const results = [];
+  private async executeTestBatch(testFiles: string[], workerIndex: number, args: TestExecuteParallelArgs): Promise<TestResult[]> {
+    const results: TestResult[] = [];
 
     for (const testFile of testFiles) {
       let attempts = 0;
-      let result: any = null;
+      let result: TestResult | null = null;
 
       while (attempts <= (args.maxRetries || 0)) {
         try {
@@ -166,17 +206,19 @@ export class TestExecuteParallelHandler extends BaseHandler {
         }
       }
 
-      results.push({
-        ...result,
-        attempts,
-        workerIndex
-      });
+      if (result) {
+        results.push({
+          ...result,
+          attempts,
+          workerIndex
+        });
+      }
     }
 
     return results;
   }
 
-  private async executeTest(testFile: string, workerIndex: number, timeout: number): Promise<any> {
+  private async executeTest(testFile: string, workerIndex: number, timeout: number): Promise<TestResult> {
     // Simulate test execution
     await new Promise(resolve => setTimeout(resolve, 50 + SecureRandom.randomFloat() * 100));
 
@@ -321,7 +363,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
     return tags;
   }
 
-  private aggregateResults(results: any[]): any {
+  private aggregateResults(results: TestResult[]): ExecutionSummary {
     const total = results.length;
     const passed = results.filter(r => r.passed).length;
     const failed = total - passed;
@@ -337,8 +379,8 @@ export class TestExecuteParallelHandler extends BaseHandler {
     };
   }
 
-  private getWorkerStats(parallelism: number): any {
-    const stats: any = {
+  private getWorkerStats(parallelism: number): WorkerStats {
+    const stats: WorkerStats = {
       totalWorkers: parallelism,
       efficiency: Math.round(75 + SecureRandom.randomFloat() * 20), // Simulate 75-95% efficiency
       loadBalance: 'balanced'
@@ -359,8 +401,8 @@ export class TestExecuteParallelHandler extends BaseHandler {
     return stats;
   }
 
-  private collectRetryInfo(results: any[]): any {
-    const retriedTests = results.filter(r => r.attempts > 1);
+  private collectRetryInfo(results: TestResult[]): RetryInfo {
+    const retriedTests = results.filter(r => (r.attempts || 1) > 1);
 
     return {
       attempted: retriedTests.length,

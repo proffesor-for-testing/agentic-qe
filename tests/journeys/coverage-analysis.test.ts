@@ -24,6 +24,7 @@ import { AgentStatus, TestSuite, Test, TestType, TaskAssignment, QETask } from '
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Journey: Coverage Analysis', () => {
   let memory: SwarmMemoryManager;
@@ -511,6 +512,7 @@ describe('Journey: Coverage Analysis', () => {
  * Create a test suite with specified number of tests
  */
 function createTestSuite(testCount: number): TestSuite {
+  const rng = createSeededRandom(14000);
   const tests: Test[] = [];
 
   for (let i = 0; i < testCount; i++) {
@@ -525,8 +527,8 @@ function createTestSuite(testCount: number): TestSuite {
       code: `test('test ${i}', () => { expect(true).toBe(true); })`,
       assertions: [`expect(result).toBeDefined()`],
       dependencies: [],
-      estimatedDuration: 100 + Math.random() * 900,
-      complexity: Math.floor(Math.random() * 5) + 1
+      estimatedDuration: 100 + rng.random() * 900,
+      complexity: Math.floor(rng.random() * 5) + 1
     });
   }
 
@@ -553,6 +555,7 @@ function createCodeBase(
     coveragePointDensity?: 'low' | 'medium' | 'high';
   }
 ) {
+  const rng = createSeededRandom(14100);
   const files = [];
   const coveragePoints = [];
 
@@ -568,8 +571,8 @@ function createCodeBase(
     const functionCount = Math.ceil(linesInFile / 20);
     for (let j = 0; j < functionCount; j++) {
       const complexity = options.withComplexFunctions
-        ? Math.floor(Math.random() * 15) + 1
-        : Math.floor(Math.random() * 5) + 1;
+        ? Math.floor(rng.random() * 15) + 1
+        : Math.floor(rng.random() * 5) + 1;
 
       functions.push({
         name: `function${i}_${j}`,
@@ -597,7 +600,7 @@ function createCodeBase(
       id: `point-${i}`,
       file: `src/file-${fileIndex}.ts`,
       line: (i % 100) + 1,
-      type: types[Math.floor(Math.random() * types.length)]
+      type: types[rng.randomInt(0, types.length - 1)]
     });
   }
 
@@ -616,6 +619,7 @@ function createCodeBaseWithRiskFactors(config: {
     changeFrequency: number;
   }>;
 }) {
+  const rng = createSeededRandom(14200);
   const files = [];
   const coveragePoints = [];
 
@@ -643,8 +647,8 @@ function createCodeBaseWithRiskFactors(config: {
         name: `normalFunc${i}_${j}`,
         startLine: (j + 1) * 30 + 1,
         endLine: (j + 1) * 30 + 25,
-        complexity: Math.floor(Math.random() * 5) + 1,
-        changeFrequency: Math.random() * 0.3
+        complexity: Math.floor(rng.random() * 5) + 1,
+        changeFrequency: rng.random() * 0.3
       });
     }
 
@@ -666,7 +670,7 @@ function createCodeBaseWithRiskFactors(config: {
       id: `point-${i}`,
       file: `src/module-${fileIndex}.ts`,
       line: (i % linesPerFile) + 1,
-      type: types[Math.floor(Math.random() * types.length)]
+      type: types[rng.randomInt(0, types.length - 1)]
     });
   }
 

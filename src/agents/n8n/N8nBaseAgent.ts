@@ -534,7 +534,8 @@ export abstract class N8nBaseAgent extends BaseAgent {
   protected async getTestResults(workflowId: string): Promise<unknown[]> {
     // This would retrieve from memory store
     const key = `test-results:${workflowId}`;
-    return (await this.retrieveMemory(key)) || [];
+    const result = await this.retrieveMemory(key);
+    return Array.isArray(result) ? result : [];
   }
 
   // ============================================================================

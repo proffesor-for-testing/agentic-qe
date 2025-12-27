@@ -6,6 +6,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
+const { createSeededRandom } = require('../../src/utils/SeededRandom');
 
 describe('Error Recovery Integration Tests', () => {
   const recoveryNamespace = 'aqe-recovery-test';
@@ -425,8 +426,10 @@ function calculateFailureImpact(agents, failedAgentId) {
   };
 }
 
+const rng = createSeededRandom(27000);
+
 async function simulateIndependentAgentExecution(agent) {
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 500 + 100));
+  await new Promise(resolve => setTimeout(resolve, rng.random() * 500 + 100));
 
   return {
     agentId: agent.id,

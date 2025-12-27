@@ -14,7 +14,7 @@ import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
 
 export interface EventEmitArgs {
   event: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   metadata?: {
     source?: string;
     priority?: 'low' | 'medium' | 'high' | 'critical';
@@ -25,7 +25,7 @@ export interface EmittedEvent {
   eventId: string;
   event: string;
   timestamp: number;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   metadata: {
     source: string;
     priority: string;
@@ -94,7 +94,7 @@ export class EventEmitHandler extends BaseHandler {
     };
 
     // Store event in memory for history
-    await this.memory.store(`event:emitted:${eventId}`, emitted, {
+    await this.memory.store(`event:emitted:${eventId}`, emitted as unknown as Record<string, unknown>, {
       partition: 'events',
       ttl: 86400 // 24 hours
     });

@@ -19,7 +19,7 @@ import {
   QETask
 } from '../types';
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
-import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
+import { ExperienceCapture, AgentExecutionEvent, CaptureStats } from '../learning/capture/ExperienceCapture';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { Logger } from '../utils/Logger';
 
@@ -58,7 +58,7 @@ export interface QualityGateDecision {
   confidence: number;
   metadata: {
     evaluationTime: Date;
-    context: any;
+    context: QualityGateContext;
     decisionTreeVersion: string;
   };
 }
@@ -77,6 +77,141 @@ export interface RiskFactor {
   probability: number;
   impact: string;
   mitigation: string[];
+}
+
+/**
+ * Represents a code change with file path, type, and complexity score
+ */
+export interface CodeChange {
+  file: string;
+  type: 'added' | 'modified' | 'deleted';
+  complexity: number;
+}
+
+/**
+ * Context for quality gate evaluation including deployment info and changes
+ */
+export interface QualityGateContext {
+  deploymentTarget?: 'development' | 'staging' | 'production';
+  criticality?: 'low' | 'medium' | 'high' | 'critical';
+  changes?: CodeChange[];
+  environment?: string;
+}
+
+/**
+ * Normalized quality metrics for threshold evaluation
+ */
+export interface NormalizedMetrics {
+  test_coverage: number;
+  test_success_rate: number;
+  security_vulnerabilities: number;
+  performance_regression: number;
+  code_quality_score: number;
+  [key: string]: number; // Allow additional metrics
+}
+
+/**
+ * Decision engine performance metrics
+ */
+export interface DecisionPerformanceMetrics {
+  decisionsEvaluated: number;
+  averageDecisionTime: number;
+  lastDecisionConfidence: number;
+}
+
+/**
+ * Complexity factors for quality state analysis
+ */
+export interface ComplexityFactors {
+  highFailureRate: boolean;
+  securityVulnerabilities: boolean;
+  performanceIssues: boolean;
+}
+
+/**
+ * Complexity indicators for determining if special reasoning is needed
+ */
+export interface ComplexityIndicators {
+  high: boolean;
+  score: number;
+  factors: ComplexityFactors;
+}
+
+/**
+ * Historical gate decision record for learning
+ */
+export interface HistoricalGateDecision {
+  decision: 'PASS' | 'FAIL' | 'ESCALATE';
+  score: number;
+  confidence: number;
+  context: QualityGateContext;
+  timestamp: Date;
+}
+
+/**
+ * Database pattern record with metadata
+ */
+export interface DBPatternRecord {
+  pattern: string;
+  confidence: number;
+  metadata?: {
+    agent_type?: string;
+    success_rate?: number;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Learning engine status information
+ */
+export interface LearningEngineStatus {
+  enabled: boolean;
+  totalExperiences: number;
+  explorationRate: number;
+  patterns: number;
+}
+
+// CaptureStats is imported from ExperienceCapture module
+
+/**
+ * Decision tree structure returned by consciousness engine
+ */
+export interface DecisionTree {
+  version: string;
+  structure: string;
+  adaptationLevel: number;
+}
+
+/**
+ * Parameters for building a decision tree
+ */
+export interface DecisionTreeParams {
+  context: QualityGateContext;
+  historicalDecisions: HistoricalGateDecision[];
+  adaptationLevel: number;
+}
+
+/**
+ * Reasoning result from psycho-symbolic reasoner
+ */
+export interface ReasoningResult {
+  reasoning: string;
+  confidence: number;
+  recommendations: string[];
+}
+
+/**
+ * Parameters for psycho-symbolic reasoning
+ */
+export interface ReasoningParams {
+  query: string;
+  context: {
+    testResults: QETestResult[];
+    metrics: NormalizedMetrics;
+    deploymentContext: QualityGateContext;
+    complexityFactors: ComplexityIndicators;
+  };
+  depth: number;
 }
 
 // ============================================================================
@@ -199,7 +334,7 @@ export class QualityGateAgent extends BaseAgent {
   getQualityGateStatus(): {
     agentId: string;
     capabilities: string[];
-    performance: any;
+    performance: DecisionPerformanceMetrics;
   } {
     return {
       agentId: this.getAgentIdStr(),
@@ -433,7 +568,7 @@ export class QualityGateAgent extends BaseAgent {
     }
   }
 
-  private async calculateDynamicThreshold(context: any, _metrics: any): Promise<number> {
+  private async calculateDynamicThreshold(context: QualityGateContext, _metrics: NormalizedMetrics): Promise<number> {
     let baseThreshold = 0.8; // Default threshold
 
     // Adjust based on deployment criticality (with safe access)
@@ -466,13 +601,13 @@ export class QualityGateAgent extends BaseAgent {
   // Risk Analysis
   // ============================================================================
 
-  private async analyzeRiskFactors(context: any, evaluations: CriterionEvaluation[]): Promise<RiskFactor[]> {
+  private async analyzeRiskFactors(context: QualityGateContext, evaluations: CriterionEvaluation[]): Promise<RiskFactor[]> {
     const riskFactors: RiskFactor[] = [];
 
     // Safe access to context fields
     const deploymentTarget = context?.deploymentTarget || 'development';
     const criticality = context?.criticality || 'medium';
-    const changes = context?.changes || [];
+    const changes: CodeChange[] = context?.changes || [];
 
     // Analyze deployment risk
     if (deploymentTarget === 'production' && criticality === 'critical') {
@@ -485,8 +620,8 @@ export class QualityGateAgent extends BaseAgent {
       });
     }
 
-    // Analyze change risk (using safe changes variable)
-    const highComplexityChanges = changes.filter((c: any) => c.complexity > 8);
+    // Analyze change risk (using typed changes variable)
+    const highComplexityChanges = changes.filter((c: CodeChange) => c.complexity > 8);
     if (highComplexityChanges.length > 0) {
       riskFactors.push({
         type: 'complexity-risk',
@@ -532,7 +667,7 @@ export class QualityGateAgent extends BaseAgent {
   // Metrics and Analysis
   // ============================================================================
 
-  private async normalizeQualityMetrics(metrics: QualityMetrics): Promise<any> {
+  private async normalizeQualityMetrics(metrics: QualityMetrics): Promise<NormalizedMetrics> {
     return {
       test_coverage: (metrics.coverage.line + metrics.coverage.branch + metrics.coverage.function) / 300, // Normalize to 0-1
       test_success_rate: metrics.testResults.passed / Math.max(1, metrics.testResults.total),
@@ -542,11 +677,11 @@ export class QualityGateAgent extends BaseAgent {
     };
   }
 
-  private async getMetricValue(normalizedMetrics: any, metricName: string): Promise<number> {
+  private async getMetricValue(normalizedMetrics: NormalizedMetrics, metricName: string): Promise<number> {
     return normalizedMetrics[metricName] || 0;
   }
 
-  private async detectComplexityIndicators(testResults: QETestResult[], metrics: QualityMetrics): Promise<any> {
+  private async detectComplexityIndicators(_testResults: QETestResult[], metrics: QualityMetrics): Promise<ComplexityIndicators> {
     // Detect if the quality state is complex enough to require special reasoning
     const failureRate = 1 - (metrics.testResults.passed / Math.max(1, metrics.testResults.total));
     const vulnerabilityCount = metrics.security.vulnerabilities;
@@ -594,7 +729,7 @@ export class QualityGateAgent extends BaseAgent {
 
   private async generateQualityRecommendations(
     evaluations: CriterionEvaluation[],
-    context: any
+    context: QualityGateContext
   ): Promise<string[]> {
     const recommendations: string[] = [];
 
@@ -708,7 +843,7 @@ export class QualityGateAgent extends BaseAgent {
     }
   }
 
-  private async getHistoricalGateDecisions(): Promise<any[]> {
+  private async getHistoricalGateDecisions(): Promise<HistoricalGateDecision[]> {
     return []; // Placeholder for historical data
   }
 
@@ -717,7 +852,7 @@ export class QualityGateAgent extends BaseAgent {
     return value >= criterion.threshold;
   }
 
-  private async calculateImpact(criterion: QualityCriterion, value: number, _context: any): Promise<string> {
+  private async calculateImpact(criterion: QualityCriterion, value: number, _context: QualityGateContext): Promise<string> {
     if (criterion.critical && value < criterion.threshold) {
       return 'High impact - critical criterion not met';
     } else if (value < criterion.threshold) {
@@ -731,7 +866,7 @@ export class QualityGateAgent extends BaseAgent {
     return 0.85; // Placeholder for historical performance data
   }
 
-  private async calculateChangeMagnitude(changes: any[]): Promise<number> {
+  private async calculateChangeMagnitude(changes: CodeChange[]): Promise<number> {
     return changes.reduce((sum, change) => sum + change.complexity, 0) / Math.max(1, changes.length * 10);
   }
 
@@ -760,8 +895,8 @@ export class QualityGateAgent extends BaseAgent {
       if (this.memoryStore) {
         const smm = this.memoryStore as unknown as SwarmMemoryManager;
         if (typeof smm.queryPatternsByConfidence === 'function') {
-          const dbPatterns = await smm.queryPatternsByConfidence(0.5); // High confidence only
-          const qualityPatterns = dbPatterns.filter((p: any) =>
+          const dbPatterns: DBPatternRecord[] = await smm.queryPatternsByConfidence(0.5); // High confidence only
+          const qualityPatterns = dbPatterns.filter((p: DBPatternRecord) =>
             p.pattern?.includes('quality-gate') || p.metadata?.agent_type === 'quality-gate'
           );
 
@@ -771,10 +906,11 @@ export class QualityGateAgent extends BaseAgent {
             // Merge with existing patterns
             for (const p of qualityPatterns) {
               if (!this.cachedPatterns.find(cp => cp.pattern === p.pattern)) {
+                const successRate = typeof p.metadata?.success_rate === 'number' ? p.metadata.success_rate : 0.5;
                 this.cachedPatterns.push({
                   pattern: p.pattern,
                   confidence: p.confidence,
-                  successRate: p.metadata?.success_rate || 0.5
+                  successRate
                 });
               }
             }
@@ -894,20 +1030,20 @@ export class QualityGateAgent extends BaseAgent {
    * Get learning status including Nightly-Learner integration
    */
   public async getEnhancedLearningStatus(): Promise<{
-    learningEngine: any;
-    experienceCapture: any;
+    learningEngine: LearningEngineStatus | null;
+    experienceCapture: CaptureStats | null;
     cachedPatterns: number;
     confidenceBoost: number;
     historicalAccuracy: number;
   }> {
-    const learningStatus = this.learningEngine ? {
+    const learningStatus: LearningEngineStatus | null = this.learningEngine ? {
       enabled: this.learningEngine.isEnabled(),
       totalExperiences: this.learningEngine.getTotalExperiences(),
       explorationRate: this.learningEngine.getExplorationRate(),
       patterns: (await this.learningEngine.getPatterns()).length
     } : null;
 
-    const captureStats = this.experienceCapture?.getStats() || null;
+    const captureStats: CaptureStats | null = this.experienceCapture?.getStats() || null;
 
     return {
       learningEngine: learningStatus,
@@ -948,7 +1084,7 @@ class DecisionEngine {
 class ConsciousnessEngine {
   async initialize(): Promise<void> {}
 
-  async buildDecisionTree(params: any): Promise<any> {
+  async buildDecisionTree(params: DecisionTreeParams): Promise<DecisionTree> {
     return {
       version: '1.0.0',
       structure: 'binary',
@@ -962,32 +1098,29 @@ class ConsciousnessEngine {
 class PsychoSymbolicReasoner {
   async initialize(): Promise<void> {}
 
-  async reason(params: any): Promise<any> {
+  async reason(params: ReasoningParams): Promise<ReasoningResult> {
     // Analyze the context to produce meaningful reasoning
     const context = params.context || {};
-    const complexityFactors = context.complexityFactors || {};
+    const complexityFactors = context.complexityFactors || { high: false, score: 0, factors: { highFailureRate: false, securityVulnerabilities: false, performanceIssues: false } };
 
     // Build reasoning based on actual quality state
     const issues: string[] = [];
 
-    if (context.metrics?.coverage) {
-      const coverage = context.metrics.coverage;
-      if (coverage.line < 80 || coverage.branch < 75) {
+    if (context.metrics?.test_coverage !== undefined) {
+      if (context.metrics.test_coverage < 0.80) {
         issues.push('insufficient test coverage');
       }
     }
 
-    if (context.metrics?.security) {
-      const security = context.metrics.security;
-      if (security.criticalVulnerabilities > 0) {
-        issues.push('critical security vulnerabilities detected');
+    if (context.metrics?.security_vulnerabilities !== undefined) {
+      if (context.metrics.security_vulnerabilities > 0) {
+        issues.push('security vulnerabilities detected');
       }
     }
 
-    if (context.metrics?.testResults) {
-      const results = context.metrics.testResults;
-      if (results.failed > 0) {
-        issues.push(`${results.failed} test failures`);
+    if (context.metrics?.test_success_rate !== undefined) {
+      if (context.metrics.test_success_rate < 1.0) {
+        issues.push('test failures detected');
       }
     }
 

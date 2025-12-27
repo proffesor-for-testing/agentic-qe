@@ -13,8 +13,147 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
-import { QEAgentType, QETask } from '../types';
+import { QEAgentType, QETask, TaskAssignment, PreTaskData, PostTaskData, TaskErrorData } from '../types';
 import { RealSecurityScanner } from '../utils/SecurityScanner';
+
+// ============================================================================
+// Security Scanner Type Definitions
+// ============================================================================
+
+/**
+ * Metadata for security scan operations
+ */
+export interface SecurityScanMetadata {
+  /** Target path or URL to scan */
+  path?: string;
+  target?: string;
+  /** Include mock findings for testing */
+  includeFindings?: boolean;
+  /** Docker/container image name */
+  image?: string;
+  /** Additional scan options */
+  options?: Record<string, unknown>;
+}
+
+/**
+ * Result of security gate evaluation
+ */
+export interface SecurityGateResult {
+  passed: boolean;
+  reason?: string;
+  blockers: VulnerabilityFinding[];
+}
+
+/**
+ * Security report generation result
+ */
+export interface SecurityReportResult {
+  generatedAt: Date;
+  period: {
+    from: Date | undefined;
+    to: Date | undefined;
+  };
+  summary: {
+    totalScans: number;
+    averageSecurityScore: number;
+    totalFindings: number;
+    criticalFindings: number;
+  };
+  latestScan: {
+    scanId: string;
+    timestamp: Date;
+    securityScore: number;
+    findings: SecurityScanResult['summary'];
+  } | null;
+  trends: {
+    securityScoreImprovement: number;
+  };
+  recommendations: string[];
+}
+
+/**
+ * Event data for test generation events
+ */
+interface TestGeneratedEventData {
+  testId?: string;
+  filePath?: string;
+  testType?: string;
+  code?: string;
+}
+
+/**
+ * Event data for deployment request events
+ */
+interface DeploymentRequestEventData {
+  deploymentId?: string;
+  environment?: string;
+  version?: string;
+  path?: string;
+  target?: string;
+}
+
+/**
+ * CVE event data structure
+ */
+interface CVEEventData {
+  cve?: CVERecord;
+  source?: string;
+  timestamp?: Date;
+}
+
+/**
+ * Result from extractTaskMetrics
+ */
+interface SecurityTaskResult {
+  summary?: {
+    critical?: number;
+    high?: number;
+    medium?: number;
+    low?: number;
+    total?: number;
+  };
+  securityScore?: number;
+  duration?: number;
+  passed?: boolean;
+  findings?: Array<VulnerabilityFinding & {
+    fix?: string;
+  }>;
+  compliance?: {
+    overallCompliance?: number;
+    passed?: boolean;
+  };
+  success?: boolean;
+  vulnerabilities?: VulnerabilityFinding[];
+}
+
+/**
+ * Detailed status returned by getDetailedStatus()
+ */
+export interface SecurityScannerDetailedStatus {
+  agentId: {
+    id: string;
+    type: QEAgentType;
+    created: Date;
+  };
+  status: string;
+  currentTask?: string;
+  capabilities: string[];
+  performanceMetrics: {
+    tasksCompleted: number;
+    averageExecutionTime: number;
+    errorCount: number;
+    lastActivity: Date;
+  };
+  scanHistory: SecurityScanResult[];
+  baselineFindings: number;
+  cveDatabase: number;
+  config: {
+    tools: SecurityScannerConfig['tools'];
+    thresholds: SecurityScannerConfig['thresholds'];
+    compliance: SecurityScannerConfig['compliance'];
+    scanScope: SecurityScannerConfig['scanScope'];
+  };
+}
 
 export interface SecurityScannerConfig extends BaseAgentConfig {
   tools?: {
@@ -192,14 +331,14 @@ export class SecurityScannerAgent extends BaseAgent {
   /**
    * Pre-task hook - Load security scan history
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     await super.onPreTask(data);
 
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as SecurityScanResult[] | null;
 
-    if (history) {
+    if (history && Array.isArray(history)) {
       console.log(`Loaded ${history.length} historical security scan entries`);
     }
 
@@ -212,8 +351,13 @@ export class SecurityScannerAgent extends BaseAgent {
   /**
    * Post-task hook - Store security scan results and emit events
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
+
+    // Type guard to extract vulnerabilities from result
+    const result = data.result as SecurityTaskResult | null;
+    const vulnerabilities = result?.vulnerabilities || [];
+    const findings = result?.findings || vulnerabilities;
 
     await this.memoryStore.store(
       `aqe/${this.agentId.type}/results/${data.assignment.id}`,
@@ -221,14 +365,13 @@ export class SecurityScannerAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        vulnerabilitiesFound: data.result?.vulnerabilities?.length || 0
+        success: result?.success !== false,
+        vulnerabilitiesFound: vulnerabilities.length
       },
       86400
     );
 
     // Phase 0.5: Store vulnerability patterns for self-learning
-    const findings = data.result?.findings || data.result?.vulnerabilities || [];
     if (this.patternStoreEnabled && findings.length > 0) {
       await this.storeSecurityPatterns(findings);
     }
@@ -237,19 +380,19 @@ export class SecurityScannerAgent extends BaseAgent {
       agentId: this.agentId,
       result: data.result,
       timestamp: new Date(),
-      vulnerabilities: data.result?.vulnerabilities || []
+      vulnerabilities
     });
 
     console.log(`[${this.agentId.type}] Security scan completed`, {
       taskId: data.assignment.id,
-      vulnerabilitiesFound: data.result?.vulnerabilities?.length || 0
+      vulnerabilitiesFound: vulnerabilities.length
     });
   }
 
   /**
    * Task error hook - Log security scan failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     await super.onTaskError(data);
 
     await this.memoryStore.store(
@@ -407,7 +550,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // Core Security Scanning Methods
   // ============================================================================
 
-  private async runSecurityScan(metadata: any): Promise<SecurityScanResult> {
+  private async runSecurityScan(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
     const startTime = Date.now();
     const scanId = `scan-${Date.now()}`;
 
@@ -479,7 +622,7 @@ export class SecurityScannerAgent extends BaseAgent {
     return result;
   }
 
-  private async runSASTScan(metadata: any): Promise<SecurityScanResult> {
+  private async runSASTScan(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Running SAST scan with ${this.config.tools?.sast}`);
 
     const startTime = Date.now();
@@ -526,7 +669,7 @@ export class SecurityScannerAgent extends BaseAgent {
     };
   }
 
-  private async runDASTScan(metadata: any): Promise<SecurityScanResult> {
+  private async runDASTScan(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Running DAST scan with ${this.config.tools?.dast}`);
 
     // Mock DAST scan implementation
@@ -560,7 +703,7 @@ export class SecurityScannerAgent extends BaseAgent {
     };
   }
 
-  private async scanDependencies(_metadata: any): Promise<SecurityScanResult> {
+  private async scanDependencies(_metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Scanning dependencies with ${this.config.tools?.dependencies}`);
 
     const startTime = Date.now();
@@ -602,7 +745,7 @@ export class SecurityScannerAgent extends BaseAgent {
     };
   }
 
-  private async scanContainers(metadata: any): Promise<SecurityScanResult> {
+  private async scanContainers(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
     console.log(`[SecurityScanner] Scanning containers with ${this.config.tools?.containers}`);
 
     const findings: VulnerabilityFinding[] = [];
@@ -638,7 +781,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // Compliance Checking
   // ============================================================================
 
-  private async checkCompliance(metadata: any): Promise<ComplianceReport[]> {
+  private async checkCompliance(metadata: SecurityScanMetadata): Promise<ComplianceReport[]> {
     console.log(`[SecurityScanner] Checking compliance for standards:`, this.config.compliance?.standards);
 
     const reports: ComplianceReport[] = [];
@@ -663,7 +806,7 @@ export class SecurityScannerAgent extends BaseAgent {
     return reports;
   }
 
-  private async checkStandardCompliance(standard: string, metadata: any): Promise<ComplianceReport> {
+  private async checkStandardCompliance(standard: string, metadata: SecurityScanMetadata): Promise<ComplianceReport> {
     console.log(`[SecurityScanner] Checking ${standard} compliance`);
 
     const requirements = this.getStandardRequirements(standard);
@@ -720,7 +863,7 @@ export class SecurityScannerAgent extends BaseAgent {
     return requirementsMap[standard] || [];
   }
 
-  private async checkRequirement(_req: { id: string; description: string }, _metadata: any): Promise<'compliant' | 'non-compliant' | 'not-applicable'> {
+  private async checkRequirement(_req: { id: string; description: string }, _metadata: SecurityScanMetadata): Promise<'compliant' | 'non-compliant' | 'not-applicable'> {
     // Mock requirement checking
     // In production, this would perform actual compliance checks
     return SecureRandom.randomFloat() > 0.1 ? 'compliant' : 'non-compliant';
@@ -730,7 +873,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // Security Gate Enforcement
   // ============================================================================
 
-  private async enforceSecurityGate(metadata: any): Promise<{ passed: boolean; reason?: string; blockers: VulnerabilityFinding[] }> {
+  private async enforceSecurityGate(metadata: SecurityScanMetadata): Promise<SecurityGateResult> {
     console.log(`[SecurityScanner] Enforcing security gate`);
 
     // Run security scan
@@ -775,7 +918,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // Reporting & Analysis
   // ============================================================================
 
-  private async generateSecurityReport(_metadata: any): Promise<any> {
+  private async generateSecurityReport(_metadata: SecurityScanMetadata): Promise<SecurityReportResult> {
     console.log(`[SecurityScanner] Generating security report`);
 
     const recentScans = this.scanHistory.slice(-10);
@@ -816,7 +959,7 @@ export class SecurityScannerAgent extends BaseAgent {
     return report;
   }
 
-  private async updateSecurityBaseline(_metadata: any): Promise<void> {
+  private async updateSecurityBaseline(_metadata: SecurityScanMetadata): Promise<void> {
     console.log(`[SecurityScanner] Updating security baseline`);
 
     const latestScan = this.scanHistory[this.scanHistory.length - 1];
@@ -941,14 +1084,18 @@ export class SecurityScannerAgent extends BaseAgent {
     // In production, this would set up connections to actual scanning tools
   }
 
-  private async handleTestGenerated(_data: any): Promise<void> {
+  private async handleTestGenerated(_data: TestGeneratedEventData): Promise<void> {
     console.log('[SecurityScanner] Auto-scanning newly generated tests');
     // Automatically scan new test code for security issues
   }
 
-  private async handleDeploymentRequest(data: any): Promise<void> {
+  private async handleDeploymentRequest(data: DeploymentRequestEventData): Promise<void> {
     console.log('[SecurityScanner] Enforcing security gate for deployment');
-    const gateResult = await this.enforceSecurityGate(data);
+    const metadata: SecurityScanMetadata = {
+      path: data.path,
+      target: data.target
+    };
+    const gateResult = await this.enforceSecurityGate(metadata);
 
     if (!gateResult.passed) {
       this.emitEvent('deployment.blocked', {
@@ -958,8 +1105,8 @@ export class SecurityScannerAgent extends BaseAgent {
     }
   }
 
-  private async handleNewCVE(data: any): Promise<void> {
-    console.log('[SecurityScanner] Processing new CVE:', data.cve);
+  private async handleNewCVE(data: CVEEventData): Promise<void> {
+    console.log('[SecurityScanner] Processing new CVE:', data.cve?.cve);
 
     if (data.cve) {
       this.cveDatabase.set(data.cve.id, data.cve);
@@ -983,7 +1130,7 @@ export class SecurityScannerAgent extends BaseAgent {
   /**
    * Get detailed security scanner status
    */
-  public async getDetailedStatus(): Promise<any> {
+  public async getDetailedStatus(): Promise<SecurityScannerDetailedStatus> {
     return {
       ...this.getStatus(),
       scanHistory: this.scanHistory.slice(-10),
@@ -1002,51 +1149,61 @@ export class SecurityScannerAgent extends BaseAgent {
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich security scanning metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
     const metrics: Record<string, number> = {};
 
-    if (result && typeof result === 'object') {
-      // Vulnerability summary metrics
-      if (result.summary) {
-        metrics.critical_vulnerabilities = result.summary.critical || 0;
-        metrics.high_vulnerabilities = result.summary.high || 0;
-        metrics.medium_vulnerabilities = result.summary.medium || 0;
-        metrics.low_vulnerabilities = result.summary.low || 0;
-        metrics.total_vulnerabilities = result.summary.total || 0;
-      }
+    // Type guard for SecurityTaskResult
+    if (!this.isSecurityTaskResult(result)) {
+      return metrics;
+    }
 
-      // Security score
-      if (typeof result.securityScore === 'number') {
-        metrics.security_score = result.securityScore;
-      }
+    // Vulnerability summary metrics
+    if (result.summary) {
+      metrics.critical_vulnerabilities = result.summary.critical || 0;
+      metrics.high_vulnerabilities = result.summary.high || 0;
+      metrics.medium_vulnerabilities = result.summary.medium || 0;
+      metrics.low_vulnerabilities = result.summary.low || 0;
+      metrics.total_vulnerabilities = result.summary.total || 0;
+    }
 
-      // Scan performance
-      if (typeof result.duration === 'number') {
-        metrics.scan_duration = result.duration;
-      }
+    // Security score
+    if (typeof result.securityScore === 'number') {
+      metrics.security_score = result.securityScore;
+    }
 
-      // Pass/fail status
-      metrics.scan_passed = result.passed ? 1 : 0;
+    // Scan performance
+    if (typeof result.duration === 'number') {
+      metrics.scan_duration = result.duration;
+    }
 
-      // Findings analysis
-      if (result.findings && Array.isArray(result.findings)) {
-        metrics.total_findings = result.findings.length;
-        metrics.unique_cve_count = new Set(
-          result.findings.filter((f: any) => f.cve).map((f: any) => f.cve)
-        ).size;
-        metrics.fixable_count = result.findings.filter(
-          (f: any) => f.remediation || f.fix
-        ).length;
-      }
+    // Pass/fail status
+    metrics.scan_passed = result.passed ? 1 : 0;
 
-      // Compliance metrics
-      if (result.compliance) {
-        metrics.compliance_score = result.compliance.overallCompliance || 0;
-        metrics.compliance_passed = result.compliance.passed ? 1 : 0;
-      }
+    // Findings analysis
+    if (result.findings && Array.isArray(result.findings)) {
+      metrics.total_findings = result.findings.length;
+      metrics.unique_cve_count = new Set(
+        result.findings.filter((f: VulnerabilityFinding) => f.cve).map((f: VulnerabilityFinding) => f.cve)
+      ).size;
+      metrics.fixable_count = result.findings.filter(
+        (f: VulnerabilityFinding & { fix?: string }) => f.remediation || f.fix
+      ).length;
+    }
+
+    // Compliance metrics
+    if (result.compliance) {
+      metrics.compliance_score = result.compliance.overallCompliance || 0;
+      metrics.compliance_passed = result.compliance.passed ? 1 : 0;
     }
 
     return metrics;
+  }
+
+  /**
+   * Type guard for SecurityTaskResult
+   */
+  private isSecurityTaskResult(result: unknown): result is SecurityTaskResult {
+    return result !== null && typeof result === 'object';
   }
 
   // ============================================================================

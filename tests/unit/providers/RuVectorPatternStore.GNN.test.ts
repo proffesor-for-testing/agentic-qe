@@ -13,6 +13,7 @@ import {
   createQEPatternStore
 } from '../../../src/core/memory/RuVectorPatternStore';
 import type { TestPattern } from '../../../src/core/memory/IPatternStore';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Mock the RuVectorClient module
 jest.mock('../../../src/providers/RuVectorClient', () => {
@@ -49,12 +50,13 @@ jest.mock('@ruvector/core', () => {
 
 describe('RuVectorPatternStore GNN Integration', () => {
   let store: RuVectorPatternStore;
+  const testRng = createSeededRandom(19003);
 
   // Create test pattern helper
   function createTestPattern(overrides: Partial<TestPattern> = {}): TestPattern {
     return {
-      id: `test-pattern-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      embedding: new Array(384).fill(0).map(() => Math.random()),
+      id: `test-pattern-${Date.now()}-${testRng.randomUUID().slice(0, 9)}`,
+      embedding: new Array(384).fill(0).map(() => testRng.random()),
       type: 'unit',
       domain: 'test',
       content: 'Test pattern content',

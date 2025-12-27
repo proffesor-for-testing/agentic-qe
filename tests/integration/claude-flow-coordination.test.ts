@@ -7,12 +7,14 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 const execAsync = promisify(spawn);
 
 describe('Claude Flow Coordination Integration', () => {
   const testNamespace = 'aqe-test';
   const timeout = 30000; // 30 seconds
+  const rng = createSeededRandom(28100);
 
   beforeAll(async () => {
     // Ensure Claude Flow is available
@@ -295,7 +297,7 @@ describe('Claude Flow Coordination Integration', () => {
           agentId: `agent-${index}`,
           status: index % 3 === 0 ? 'active' : index % 3 === 1 ? 'idle' : 'busy',
           task: `task-${index}`,
-          progress: Math.floor(Math.random() * 100)
+          progress: Math.floor(rng.random() * 100)
         };
 
         await execCommand(

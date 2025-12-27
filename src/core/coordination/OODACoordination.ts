@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
-import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
+import { SwarmMemoryManager, SerializableValue } from '../memory/SwarmMemoryManager';
 import { SecureRandom } from '../../utils/SecureRandom.js';
 
 export interface Observation {
   id: string;
-  data: any;
+  data: unknown;
   timestamp: number;
   source: string;
 }
@@ -12,16 +12,16 @@ export interface Observation {
 export interface Orientation {
   id: string;
   observations: string[];
-  analysis: any;
-  context: any;
+  analysis: unknown;
+  context: unknown;
   timestamp: number;
 }
 
 export interface Decision {
   id: string;
   orientationId: string;
-  options: any[];
-  selected: any;
+  options: unknown[];
+  selected: unknown;
   rationale: string;
   timestamp: number;
 }
@@ -30,9 +30,9 @@ export interface Action {
   id: string;
   decisionId: string;
   type: string;
-  parameters: any;
+  parameters: unknown;
   status: 'pending' | 'executing' | 'completed' | 'failed';
-  result?: any;
+  result?: unknown;
   timestamp: number;
 }
 
@@ -46,6 +46,49 @@ export interface OODALoop {
   startTime: number;
   endTime?: number;
   duration?: number;
+}
+
+/**
+ * Type guard to check if a value is a valid OODALoop
+ */
+function isOODALoop(value: unknown): value is OODALoop {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.cycleNumber === 'number' &&
+    Array.isArray(obj.observations) &&
+    typeof obj.startTime === 'number'
+  );
+}
+
+/**
+ * Convert OODALoop to a serializable value for memory storage
+ */
+function toSerializable(loop: OODALoop): Record<string, unknown> {
+  return {
+    id: loop.id,
+    cycleNumber: loop.cycleNumber,
+    observations: loop.observations,
+    orientation: loop.orientation,
+    decision: loop.decision,
+    action: loop.action,
+    startTime: loop.startTime,
+    endTime: loop.endTime,
+    duration: loop.duration
+  };
+}
+
+/**
+ * Convert a serializable value back to OODALoop
+ */
+function fromSerializable(value: SerializableValue): OODALoop | null {
+  if (!isOODALoop(value)) {
+    return null;
+  }
+  return value;
 }
 
 /**
@@ -84,7 +127,7 @@ export class OODACoordination extends EventEmitter {
       startTime: Date.now()
     };
 
-    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
       partition: 'ooda_cycles',
       ttl: 86400 // 24 hours
     });
@@ -110,7 +153,7 @@ export class OODACoordination extends EventEmitter {
 
     this.currentLoop.observations.push(obs);
 
-    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
       partition: 'ooda_cycles'
     });
 
@@ -122,7 +165,7 @@ export class OODACoordination extends EventEmitter {
   /**
    * Orient - Analyze observations and build situational awareness
    */
-  async orient(analysis: any, context: any = {}): Promise<Orientation> {
+  async orient(analysis: unknown, context: unknown = {}): Promise<Orientation> {
     if (!this.currentLoop) {
       throw new Error('No active OODA cycle. Call startCycle() first.');
     }
@@ -141,7 +184,7 @@ export class OODACoordination extends EventEmitter {
 
     this.currentLoop.orientation = orientation;
 
-    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
       partition: 'ooda_cycles'
     });
 
@@ -153,7 +196,7 @@ export class OODACoordination extends EventEmitter {
   /**
    * Decide - Make decision based on orientation
    */
-  async decide(options: any[], selected: any, rationale: string): Promise<Decision> {
+  async decide(options: unknown[], selected: unknown, rationale: string): Promise<Decision> {
     if (!this.currentLoop) {
       throw new Error('No active OODA cycle. Call startCycle() first.');
     }
@@ -173,7 +216,7 @@ export class OODACoordination extends EventEmitter {
 
     this.currentLoop.decision = decision;
 
-    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
       partition: 'ooda_cycles'
     });
 
@@ -185,7 +228,7 @@ export class OODACoordination extends EventEmitter {
   /**
    * Act - Execute the decided action
    */
-  async act(type: string, parameters: any, executor: () => Promise<any>): Promise<Action> {
+  async act(type: string, parameters: unknown, executor: () => Promise<unknown>): Promise<Action> {
     if (!this.currentLoop) {
       throw new Error('No active OODA cycle. Call startCycle() first.');
     }
@@ -205,7 +248,7 @@ export class OODACoordination extends EventEmitter {
 
     this.currentLoop.action = action;
 
-    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
       partition: 'ooda_cycles'
     });
 
@@ -218,7 +261,7 @@ export class OODACoordination extends EventEmitter {
       action.result = result;
 
       this.currentLoop.action = action;
-      await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+      await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
         partition: 'ooda_cycles'
       });
 
@@ -229,7 +272,7 @@ export class OODACoordination extends EventEmitter {
       action.result = { error: error instanceof Error ? error.message : String(error) };
 
       this.currentLoop.action = action;
-      await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+      await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
         partition: 'ooda_cycles'
       });
 
@@ -250,7 +293,7 @@ export class OODACoordination extends EventEmitter {
     this.currentLoop.endTime = Date.now();
     this.currentLoop.duration = this.currentLoop.endTime - this.currentLoop.startTime;
 
-    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, this.currentLoop, {
+    await this.memory.store(`ooda:cycle:${this.currentLoop.id}`, toSerializable(this.currentLoop), {
       partition: 'ooda_cycles'
     });
 
@@ -278,7 +321,8 @@ export class OODACoordination extends EventEmitter {
     });
 
     return cycles
-      .map(entry => entry.value)
+      .map(entry => fromSerializable(entry.value))
+      .filter((loop): loop is OODALoop => loop !== null)
       .sort((a, b) => b.startTime - a.startTime)
       .slice(0, limit);
   }

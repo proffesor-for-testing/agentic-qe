@@ -23,7 +23,7 @@ import {
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { ImprovementLoop } from '../learning/ImprovementLoop';
 import { QEReasoningBank, TestPattern } from '../reasoning/QEReasoningBank';
-import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+import { SwarmMemoryManager, Pattern } from '../core/memory/SwarmMemoryManager';
 import { Logger } from '../utils/Logger';
 import { ExperienceCapture, AgentExecutionEvent } from '../learning/capture/ExperienceCapture';
 import {
@@ -33,6 +33,51 @@ import {
   CoverageEdge,
   PrioritizedCoverageGap,
 } from '../coverage/CriticalPathDetector.js';
+import { MemoryPattern, AgentDBConfig } from '../core/memory/AgentDBManager.js';
+
+/**
+ * AgentDB search result memory item
+ */
+interface AgentDBMemoryItem {
+  id: string;
+  pattern_data: string;
+  confidence: number;
+  similarity: number;
+}
+
+/**
+ * AgentDB search result
+ */
+interface AgentDBSearchResult {
+  memories: AgentDBMemoryItem[];
+  metadata: {
+    cacheHit: boolean;
+    searchTime?: number;
+  };
+}
+
+/**
+ * AgentDB store pattern data
+ */
+interface AgentDBStoreData {
+  id: string;
+  type: string;
+  domain: string;
+  pattern_data: string;
+  confidence: number;
+  usage_count: number;
+  success_count: number;
+  created_at: number;
+  last_used: number;
+}
+
+/**
+ * Interface for AgentDB instance
+ */
+interface IAgentDB {
+  search(embedding: number[], domain: string, limit: number): Promise<AgentDBSearchResult>;
+  store(data: AgentDBStoreData): Promise<string>;
+}
 
 // ============================================================================
 // Enhanced Configuration with Learning Support
@@ -46,36 +91,189 @@ export interface CoverageAnalyzerConfig extends BaseAgentConfig {
 }
 
 // ============================================================================
+// Type Definitions for Coverage Analysis
+// ============================================================================
+
+/**
+ * Represents a function within a code file
+ */
+export interface CodeFunction {
+  name: string;
+  startLine: number;
+  endLine: number;
+  complexity: number;
+  coverage?: number;
+}
+
+/**
+ * Represents a source code file
+ */
+export interface CodeFile {
+  path: string;
+  content: string;
+  language: string;
+  functions: CodeFunction[];
+}
+
+/**
+ * Represents a coverage point in the codebase
+ */
+export interface CoveragePoint {
+  id: string;
+  file: string;
+  line: number;
+  type: 'statement' | 'branch' | 'function';
+}
+
+/**
+ * Represents the codebase being analyzed
+ */
+export interface CodeBase {
+  files: CodeFile[];
+  coveragePoints: CoveragePoint[];
+}
+
+/**
+ * Optimization goals for coverage analysis
+ */
+export interface OptimizationGoals {
+  minimizeTestCount: boolean;
+  maximizeCoverage: boolean;
+  balanceEfficiency: boolean;
+}
+
+/**
+ * Execution trace for realtime gap detection
+ */
+export interface ExecutionTrace {
+  traceId: string;
+  entries: Array<{
+    timestamp: number;
+    file: string;
+    line: number;
+    function?: string;
+  }>;
+}
+
+/**
+ * Execution graph built from trace
+ */
+export interface ExecutionGraph {
+  nodes: Array<{ id: string; type: string; file: string; line: number }>;
+  edges: Array<{ source: string; target: string; weight: number }>;
+}
+
+/**
+ * Gap type literals for coverage gaps
+ */
+export type CoverageGapType = 'line' | 'function' | 'branch';
+
+/**
+ * Gap prediction from analysis
+ */
+export interface GapPrediction {
+  location: string;
+  gapType: CoverageGapType;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  context?: string;
+  gap?: string;
+}
+
+/**
+ * Coverage map for gap detection
+ */
+export interface CoverageMap {
+  [fileId: string]: {
+    covered: number[];
+    uncovered: number[];
+    partial: number[];
+  };
+}
+
+/**
+ * Performance metrics for coverage status
+ */
+export interface CoveragePerformanceMetrics {
+  optimizationsCompleted: number;
+  averageOptimizationTime: number;
+  lastOptimizationRatio: number;
+}
+
+/**
+ * Learning metrics for coverage status
+ */
+export interface CoverageLearningMetrics {
+  enabled: boolean;
+  totalExperiences: number;
+  explorationRate: number;
+  snapshotCount: number;
+  hasBaseline: boolean;
+}
+
+/**
+ * RuVector cache status
+ */
+export interface RuVectorStatus {
+  enabled: boolean;
+  cacheHitRate: number;
+}
+
+/**
+ * Complete coverage status result
+ */
+export interface CoverageStatusResult {
+  performance: CoveragePerformanceMetrics;
+  learning?: CoverageLearningMetrics;
+  ruvector: RuVectorStatus;
+}
+
+/**
+ * Capture stats for experience capture
+ */
+export interface ExperienceCaptureStats {
+  totalCaptured: number;
+  totalFlushed: number;
+  bufferSize: number;
+  lastFlush: Date | null;
+  byAgentType: Record<string, number>;
+  byTaskType: Record<string, number>;
+  successRate: number;
+}
+
+/**
+ * Enhanced learning status result
+ */
+export interface EnhancedLearningStatusResult {
+  learningEngine: {
+    enabled: boolean;
+    totalExperiences: number;
+    explorationRate: number;
+    patterns: number;
+  } | null;
+  experienceCapture: ExperienceCaptureStats | null;
+  cachedPatterns: number;
+  confidenceBoost: number;
+}
+
+/**
+ * Parameters for sublinear optimization
+ */
+export interface SublinearOptimizationParams {
+  matrix: SublinearMatrix;
+  vector: number[];
+  jl_distortion: number;
+  sparsification_eps: number;
+}
+
+// ============================================================================
 // Request/Response Types
 // ============================================================================
 
 export interface CoverageAnalysisRequest {
   testSuite: TestSuite;
-  codeBase: {
-    files: Array<{
-      path: string;
-      content: string;
-      language: string;
-      functions: Array<{
-        name: string;
-        startLine: number;
-        endLine: number;
-        complexity: number;
-      }>;
-    }>;
-    coveragePoints: Array<{
-      id: string;
-      file: string;
-      line: number;
-      type: 'statement' | 'branch' | 'function';
-    }>;
-  };
+  codeBase: CodeBase;
   targetCoverage: number;
-  optimizationGoals: {
-    minimizeTestCount: boolean;
-    maximizeCoverage: boolean;
-    balanceEfficiency: boolean;
-  };
+  optimizationGoals: OptimizationGoals;
 }
 
 export interface CoverageOptimizationResult {
@@ -123,7 +321,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   private cachedPatterns: Array<{ pattern: string; confidence: number; successRate: number }> = [];
 
   // AgentDB integration for vector search
-  private agentDB?: any;
+  private agentDB?: IAgentDB;
 
   // MinCut-based critical path analysis
   private criticalPathDetector?: CriticalPathDetector;
@@ -204,7 +402,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     await this.loadAndCachePatternsForConfidence();
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<CoverageOptimizationResult> {
     const request = task.payload as CoverageAnalysisRequest;
     return await this.optimizeCoverageSublinear(request);
   }
@@ -238,15 +436,8 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   /**
    * Get coverage-specific status including optimization metrics
    */
-  getCoverageStatus(): {
-    performance: any;
-    learning?: any;
-    ruvector: {
-      enabled: boolean;
-      cacheHitRate: number;
-    };
-  } {
-    const status: any = {
+  getCoverageStatus(): CoverageStatusResult {
+    const status: CoverageStatusResult = {
       performance: {
         optimizationsCompleted: this.sublinearCore.getOptimizationCount(),
         averageOptimizationTime: this.sublinearCore.getAverageTime(),
@@ -440,7 +631,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
    */
   private async detectCoverageGapsWithLearning(
     coverageReport: CoverageReport,
-    codeBase: any
+    codeBase: CodeBase
   ): Promise<CoverageOptimizationResult['gaps']> {
     const gaps: CoverageOptimizationResult['gaps'] = [];
 
@@ -522,7 +713,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
 
         if (result.memories.length > 0) {
           // Calculate likelihood from historical gap patterns
-          const avgLikelihood = result.memories.reduce((sum: number, m: any) => sum + m.confidence, 0) / result.memories.length;
+          const avgLikelihood = result.memories.reduce((sum: number, m: AgentDBMemoryItem) => sum + m.confidence, 0) / result.memories.length;
 
           this.coverageLogger?.debug(
             `[CoverageAnalyzer] ✅ AgentDB HNSW search: ${(avgLikelihood * 100).toFixed(1)}% likelihood ` +
@@ -708,7 +899,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
         );
 
         // Report QUIC sync status
-        const agentDBConfig = (this as any).agentDBConfig;
+        const agentDBConfig = (this as unknown as { agentDBConfig?: AgentDBConfig }).agentDBConfig;
         if (agentDBConfig?.enableQUICSync) {
           this.coverageLogger?.info(
             `[CoverageAnalyzer] 🚀 Gap patterns synced via QUIC to ${agentDBConfig.syncPeers?.length || 0} peers (<1ms latency)`
@@ -727,9 +918,9 @@ export class CoverageAnalyzerAgent extends BaseAgent {
         id: `gap-${gap.location.replace(/[^a-zA-Z0-9]/g, '-')}`,
         name: `Coverage gap: ${gap.type}`,
         description: `Gap at ${gap.location} with ${gap.severity} severity`,
-        category: 'unit' as any,
-        framework: 'jest' as any,
-        language: 'typescript' as any,
+        category: 'unit',
+        framework: 'jest',
+        language: 'typescript',
         template: gap.suggestedTests.join('\n'),
         examples: gap.suggestedTests,
         confidence: gap.likelihood,
@@ -823,7 +1014,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   // Coverage Matrix Operations (Unchanged)
   // ============================================================================
 
-  private async buildCoverageMatrix(testSuite: TestSuite, codeBase: any): Promise<SublinearMatrix> {
+  private async buildCoverageMatrix(testSuite: TestSuite, codeBase: CodeBase): Promise<SublinearMatrix> {
     const rows = testSuite.tests.length;
     const cols = codeBase.coveragePoints.length;
 
@@ -900,8 +1091,8 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   // Real-time Coverage Gap Detection - SPARC Algorithm 3.2
   // ============================================================================
 
-  async detectCoverageGapsRealtime(executionTrace: any, coverageMap: any): Promise<any[]> {
-    const gaps: any[] = [];
+  async detectCoverageGapsRealtime(executionTrace: ExecutionTrace, coverageMap: CoverageMap): Promise<CoverageOptimizationResult['gaps']> {
+    const gaps: CoverageOptimizationResult['gaps'] = [];
 
     // Phase 1: Analyze Execution Patterns
     const executionGraph = await this.buildExecutionGraph(executionTrace);
@@ -933,7 +1124,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   // Coverage Analysis and Reporting (Unchanged)
   // ============================================================================
 
-  private async generateCoverageReport(testSuite: TestSuite, codeBase: any): Promise<CoverageReport> {
+  private async generateCoverageReport(testSuite: TestSuite, codeBase: CodeBase): Promise<CoverageReport> {
     // Pre-compute totals and build lookup map - O(n) once instead of O(n) per lookup
     let totalStatements = 0;
     let totalBranches = 0;
@@ -991,11 +1182,11 @@ export class CoverageAnalyzerAgent extends BaseAgent {
   // Helper Methods
   // ============================================================================
 
-  private async analyzTestCoverage(test: Test, codeBase: any): Promise<any[]> {
+  private async analyzTestCoverage(test: Test, codeBase: CodeBase): Promise<CoveragePoint[]> {
     // Simulate test coverage analysis
     // Use Set for O(1) duplicate detection instead of O(n) find
     const seenIds = new Set<string>();
-    const coveragePoints: any[] = [];
+    const coveragePoints: CoveragePoint[] = [];
 
     // Simple heuristic: each test covers 10-30% of coverage points
     const coverageRatio = 0.1 + SecureRandom.randomFloat() * 0.2;
@@ -1013,7 +1204,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     return coveragePoints;
   }
 
-  private async calculateCoverage(testIndices: number[], testSuite: TestSuite, codeBase: any): Promise<number> {
+  private async calculateCoverage(testIndices: number[], testSuite: TestSuite, codeBase: CodeBase): Promise<number> {
     const selectedTests = testIndices.map(i => testSuite.tests[i]);
     const allCoveredPoints = new Set<string>();
 
@@ -1050,7 +1241,7 @@ export class CoverageAnalyzerAgent extends BaseAgent {
         generatedAt: new Date(),
         coverageTarget: 85,
         framework: originalSuite.metadata.framework,
-        estimatedDuration: selectedTests.reduce((total, test) => total + (test as any).estimatedDuration || 1000, 0)
+        estimatedDuration: selectedTests.reduce((total, test) => total + (test.estimatedDuration ?? 1000), 0)
       }
     };
   }
@@ -1072,7 +1263,11 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     }
   }
 
-  private async storeOptimizationResults(request: any, optimization: any, duration: number): Promise<void> {
+  private async storeOptimizationResults(
+    request: CoverageAnalysisRequest,
+    optimization: CoverageOptimizationResult['optimization'],
+    duration: number
+  ): Promise<void> {
     if (this.memoryStore) {
       await this.memoryStore.set(`optimization-${Date.now()}`, {
         request: request,
@@ -1096,23 +1291,34 @@ export class CoverageAnalyzerAgent extends BaseAgent {
     );
   }
 
-  private async identifyMissingCoveragePoints(_actual: number, _target: number, _codeBase: any): Promise<any[]> {
+  private async identifyMissingCoveragePoints(
+    _actual: number,
+    _target: number,
+    _codeBase: CodeBase
+  ): Promise<CoveragePoint[]> {
     return [];
   }
 
-  private async greedySelectTestsForCoverage(_missingPoints: any[], _testSuite: TestSuite): Promise<number[]> {
+  private async greedySelectTestsForCoverage(
+    _missingPoints: CoveragePoint[],
+    _testSuite: TestSuite
+  ): Promise<number[]> {
     return [];
   }
 
-  private async buildExecutionGraph(_trace: any): Promise<any> {
+  private async buildExecutionGraph(_trace: ExecutionTrace): Promise<ExecutionGraph> {
     return { nodes: [], edges: [] };
   }
 
-  private async identifyCriticalPaths(_graph: any): Promise<any[]> {
+  private async identifyCriticalPaths(_graph: ExecutionGraph): Promise<string[]> {
     return [];
   }
 
-  private async predictGaps(_graph: any, _paths: any[], _coverageMap: any): Promise<any[]> {
+  private async predictGaps(
+    _graph: ExecutionGraph,
+    _paths: string[],
+    _coverageMap: CoverageMap
+  ): Promise<GapPrediction[]> {
     return [];
   }
 
@@ -1120,10 +1326,10 @@ export class CoverageAnalyzerAgent extends BaseAgent {
    * Generate test suggestions for a coverage gap prediction
    * Phase 1.2.3: Enhanced with optional LLM-powered suggestions
    */
-  private async generateTestSuggestions(prediction: any): Promise<string[]> {
+  private async generateTestSuggestions(prediction: GapPrediction): Promise<string[]> {
     // Try LLM-enhanced suggestions if available
     const llm = this.getAgentLLM();
-    if (llm && prediction?.gap) {
+    if (llm && prediction.gap) {
       try {
         const prompt = `Suggest 3 specific test cases to cover this gap:
 Gap: ${prediction.gap}
@@ -1154,7 +1360,7 @@ Return a JSON array of test names only, e.g., ["test-case-1", "test-case-2", "te
     return ['suggested-test-1', 'suggested-test-2'];
   }
 
-  private async calculateFunctionCoverage(_func: any, _codeBase: any): Promise<number> {
+  private async calculateFunctionCoverage(_func: CodeFunction, _codeBase: CodeBase): Promise<number> {
     return SecureRandom.randomFloat();
   }
 
@@ -1162,10 +1368,10 @@ Return a JSON array of test names only, e.g., ["test-case-1", "test-case-2", "te
    * Generate function-specific test suggestions
    * Phase 1.2.3: Enhanced with optional LLM-powered analysis
    */
-  private async generateFunctionTestSuggestions(func: any): Promise<string[]> {
+  private async generateFunctionTestSuggestions(func: CodeFunction): Promise<string[]> {
     // Try LLM-enhanced suggestions if available
     const llm = this.getAgentLLM();
-    if (llm && func?.name) {
+    if (llm && func.name) {
       try {
         const prompt = `For the function "${func.name}", suggest 3 test cases covering:
 1. Boundary/edge cases
@@ -1222,8 +1428,8 @@ Return a JSON array of descriptive test names only.`;
         const smm = this.memoryStore as unknown as SwarmMemoryManager;
         if (typeof smm.queryPatternsByConfidence === 'function') {
           const dbPatterns = await smm.queryPatternsByConfidence(0.5); // High confidence only
-          const coveragePatterns = dbPatterns.filter((p: any) =>
-            p.pattern?.includes('coverage') || p.metadata?.agent_type === 'coverage-analyzer'
+          const coveragePatterns = dbPatterns.filter((p: Pattern) =>
+            p.pattern?.includes('coverage') || (p.metadata as Record<string, unknown>)?.agent_type === 'coverage-analyzer'
           );
 
           if (coveragePatterns.length > 0) {
@@ -1231,10 +1437,12 @@ Return a JSON array of descriptive test names only.`;
             // Merge with existing patterns
             for (const p of coveragePatterns) {
               if (!this.cachedPatterns.find(cp => cp.pattern === p.pattern)) {
+                const metadata = p.metadata as Record<string, unknown> | undefined;
+                const successRate = typeof metadata?.success_rate === 'number' ? metadata.success_rate : 0.5;
                 this.cachedPatterns.push({
                   pattern: p.pattern,
                   confidence: p.confidence,
-                  successRate: p.metadata?.success_rate || 0.5
+                  successRate
                 });
               }
             }
@@ -1345,12 +1553,7 @@ Return a JSON array of descriptive test names only.`;
   /**
    * Get learning status including Nightly-Learner integration
    */
-  public async getEnhancedLearningStatus(): Promise<{
-    learningEngine: any;
-    experienceCapture: any;
-    cachedPatterns: number;
-    confidenceBoost: number;
-  }> {
+  public async getEnhancedLearningStatus(): Promise<EnhancedLearningStatusResult> {
     const learningStatus = this.learningEngine ? {
       enabled: this.learningEngine.isEnabled(),
       totalExperiences: this.learningEngine.getTotalExperiences(),
@@ -1378,7 +1581,7 @@ Return a JSON array of descriptive test names only.`;
    */
   private async enhanceGapsWithCriticalPaths(
     gaps: CoverageOptimizationResult['gaps'],
-    codeBase: any
+    codeBase: CodeBase
   ): Promise<PrioritizedCoverageGap[]> {
     if (!this.criticalPathDetector) {
       return [];
@@ -1405,7 +1608,7 @@ Return a JSON array of descriptive test names only.`;
   /**
    * Build coverage graph from codebase for MinCut analysis
    */
-  private buildCoverageGraph(codeBase: any, gaps: CoverageOptimizationResult['gaps']): CriticalPathInput {
+  private buildCoverageGraph(codeBase: CodeBase, gaps: CoverageOptimizationResult['gaps']): CriticalPathInput {
     const nodes: CoverageNode[] = [];
     const edges: CoverageEdge[] = [];
     const gapLocations = new Set(gaps.map(g => g.location));
@@ -1470,7 +1673,7 @@ Return a JSON array of descriptive test names only.`;
   /**
    * Estimate file coverage based on function coverages
    */
-  private estimateFileCoverage(file: any): number {
+  private estimateFileCoverage(file: CodeFile): number {
     if (!file.functions || file.functions.length === 0) {
       return 50; // Default
     }
@@ -1480,7 +1683,7 @@ Return a JSON array of descriptive test names only.`;
     for (const func of file.functions) {
       const weight = func.complexity || 1;
       totalWeight += weight;
-      weightedCoverage += weight * (func.coverage || 50);
+      weightedCoverage += weight * (func.coverage ?? 50);
     }
     return totalWeight > 0 ? weightedCoverage / totalWeight : 50;
   }
@@ -1488,18 +1691,18 @@ Return a JSON array of descriptive test names only.`;
   /**
    * Estimate file complexity based on functions
    */
-  private estimateFileComplexity(file: any): number {
+  private estimateFileComplexity(file: CodeFile): number {
     if (!file.functions || file.functions.length === 0) {
       return 5;
     }
-    return Math.max(...file.functions.map((f: any) => f.complexity || 5));
+    return Math.max(...file.functions.map((f: CodeFunction) => f.complexity || 5));
   }
 
   /**
    * Find which function contains a given line
    */
-  private findFunctionForLine(codeBase: any, filePath: string, line: number): string | null {
-    const file = codeBase.files?.find((f: any) => f.path === filePath);
+  private findFunctionForLine(codeBase: CodeBase, filePath: string, line: number): string | null {
+    const file = codeBase.files?.find((f: CodeFile) => f.path === filePath);
     if (!file) return null;
 
     for (const func of file.functions || []) {
@@ -1545,7 +1748,7 @@ class SublinearOptimizer {
     };
   }
 
-  async solveTrueSublinear(params: any): Promise<SublinearSolution> {
+  async solveTrueSublinear(params: SublinearOptimizationParams): Promise<SublinearSolution> {
     const startTime = Date.now();
 
     // Simulate sublinear solving
@@ -1562,7 +1765,7 @@ class SublinearOptimizer {
     };
   }
 
-  async calculateConfidence(_prediction: any): Promise<number> {
+  async calculateConfidence(_prediction: GapPrediction): Promise<number> {
     return SecureRandom.randomFloat() * 0.5 + 0.5; // 0.5-1.0 confidence
   }
 

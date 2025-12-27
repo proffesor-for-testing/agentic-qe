@@ -7,6 +7,7 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
+const { createSeededRandom } = require('../../src/utils/SeededRandom');
 
 describe('Concurrent Operations Integration Tests', () => {
   const concurrencyNamespace = 'aqe-concurrent-test';
@@ -320,11 +321,19 @@ async function execCommand(command) {
   });
 }
 
+// Seeded RNG instances for deterministic behavior
+const testGeneratorRng = createSeededRandom(24000);
+const qualityCheckDelayRng = createSeededRandom(24001);
+const qualityCheckPassRng = createSeededRandom(24002);
+const resourceRequesterRng = createSeededRandom(24003);
+const agentSpawnRng = createSeededRandom(24004);
+const memoryStressRng = createSeededRandom(24005);
+
 async function executeTestGenerator(generator) {
   const startTime = Date.now();
 
   // Simulate test generation work
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+  await new Promise(resolve => setTimeout(resolve, testGeneratorRng.random() * 2000 + 1000));
 
   const endTime = Date.now();
 
@@ -395,7 +404,7 @@ async function executeCoverageAnalyzer(analyzer, namespace) {
 
 async function executeQualityCheck(check) {
   // Simulate quality check work
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+  await new Promise(resolve => setTimeout(resolve, qualityCheckDelayRng.random() * 1000 + 500));
 
   // Simulate different pass rates based on check type
   const passRates = {
@@ -406,7 +415,7 @@ async function executeQualityCheck(check) {
     performance: 0.75
   };
 
-  const passed = Math.random() < (passRates[check.type] || 0.8);
+  const passed = qualityCheckPassRng.random() < (passRates[check.type] || 0.8);
 
   return {
     checkId: check.id,
@@ -511,7 +520,7 @@ async function executeResourceRequester(requesterId, poolKey, namespace) {
 
   if (resourceAcquired) {
     // Simulate work with resource
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 500 + 100));
+    await new Promise(resolve => setTimeout(resolve, resourceRequesterRng.random() * 500 + 100));
 
     // Release resource
     try {
@@ -549,7 +558,7 @@ async function executeAgentSpawn(agentIndex, agentType) {
   const startTime = Date.now();
 
   // Simulate agent spawning work
-  await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 200));
+  await new Promise(resolve => setTimeout(resolve, agentSpawnRng.random() * 1000 + 200));
 
   const endTime = Date.now();
 
@@ -581,8 +590,8 @@ async function executeMemoryStressWorker(workerId, operationCount, namespace) {
         operationsCompleted++;
       }
 
-      // Random delay
-      if (Math.random() < 0.1) {
+      // Random delay (deterministic with seeded RNG)
+      if (memoryStressRng.random() < 0.1) {
         await new Promise(resolve => setTimeout(resolve, 5));
       }
     } catch (error) {

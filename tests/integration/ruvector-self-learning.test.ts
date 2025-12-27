@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createDockerRuVectorAdapter, RuVectorPostgresAdapter } from '../../src/providers/RuVectorPostgresAdapter';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Skip if RuVector Docker is not available
 const RUVECTOR_ENABLED = process.env.AQE_RUVECTOR_ENABLED === 'true' ||
@@ -94,7 +95,7 @@ describe.skipIf(!RUVECTOR_ENABLED)('RuVector Self-Learning Validation', () => {
       await storeTestPatterns(adapter, testDomain, 10, baseEmbedding);
 
       // Search with similar embedding (small noise)
-      const similarQuery = baseEmbedding.map(val => val + (Math.random() - 0.5) * 0.05);
+      const similarQuery = baseEmbedding.map(val => val + (rng.random() - 0.5) * 0.05);
       const magnitude = Math.sqrt(similarQuery.reduce((sum, val) => sum + val * val, 0));
       const normalizedQuery = similarQuery.map(val => val / magnitude);
 
@@ -259,10 +260,13 @@ describe.skipIf(!RUVECTOR_ENABLED)('RuVector Self-Learning Validation', () => {
 
 // Helper functions
 
+// Seeded RNG for deterministic test data
+const rng = createSeededRandom(18100);
+
 function generateNormalizedEmbedding(dim: number): number[] {
   const embedding: number[] = [];
   for (let i = 0; i < dim; i++) {
-    embedding.push(Math.random() * 2 - 1);
+    embedding.push(rng.random() * 2 - 1);
   }
   const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
   return embedding.map(val => val / magnitude);
@@ -272,7 +276,7 @@ function generateSimilarQueries(base: number[], count: number): number[][] {
   const queries: number[][] = [];
   for (let i = 0; i < count; i++) {
     const noise = 0.1 + (i / count) * 0.2; // Increasing noise
-    const query = base.map(val => val + (Math.random() - 0.5) * noise);
+    const query = base.map(val => val + (rng.random() - 0.5) * noise);
     const magnitude = Math.sqrt(query.reduce((sum, val) => sum + val * val, 0));
     queries.push(query.map(val => val / magnitude));
   }
@@ -287,7 +291,7 @@ async function storeTestPatterns(
 ): Promise<string[]> {
   const ids: string[] = [];
   for (let i = 0; i < count; i++) {
-    const embedding = baseEmbedding.map(val => val + (Math.random() - 0.5) * 0.1);
+    const embedding = baseEmbedding.map(val => val + (rng.random() - 0.5) * 0.1);
     const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
     const normalized = embedding.map(val => val / magnitude);
 

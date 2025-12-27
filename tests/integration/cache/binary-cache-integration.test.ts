@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 import {
   BinaryCache,
   PatternEntry,
@@ -381,12 +382,13 @@ describe('Binary Cache Integration', () => {
 
   describe('Large Dataset Handling', () => {
     it('should handle 1000 patterns efficiently', () => {
+      const rng = createSeededRandom(21003);
       const patterns: TestPattern[] = Array.from({ length: 1000 }, (_, i) => ({
         id: `pattern-${i}`,
         type: 'unit-test',
         domain: `domain-${i % 10}`,
         framework: ['jest', 'vitest', 'mocha'][i % 3],
-        embedding: new Array(768).fill(Math.random()),
+        embedding: new Array(768).fill(rng.random()),
         content: `test ${i}`,
       }));
 

@@ -23,6 +23,33 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
+interface ContractInteraction {
+  description: string;
+  request: { method: string; path: string };
+  response: { status: number; body: Record<string, unknown> };
+}
+
+interface TestDefinition {
+  name: string;
+  method?: string;
+  endpoint?: string;
+  expectedStatus?: number;
+  description: string;
+}
+
+interface TestSuiteResult {
+  name: string;
+  type: 'api' | 'database' | 'contract' | 'auth';
+  tests: TestDefinition[];
+  code: string;
+}
+
+interface FixtureResult {
+  name: string;
+  type: 'user' | 'order' | 'product' | 'custom';
+  data: Record<string, unknown>;
+}
+
 export interface GenerateIntegrationTestsParams {
   /** API specification (OpenAPI, Swagger, or JSON schema) */
   apiSpec?: string;
@@ -31,7 +58,7 @@ export interface GenerateIntegrationTestsParams {
   endpoints?: string[];
 
   /** Database schema for database tests */
-  databaseSchema?: any;
+  databaseSchema?: Record<string, unknown>;
 
   /** Service dependencies to test */
   services?: string[];
@@ -74,14 +101,14 @@ export interface GenerateIntegrationTestsResult {
   fixtures?: Array<{
     name: string;
     type: 'user' | 'order' | 'product' | 'custom';
-    data: any;
+    data: Record<string, unknown>;
   }>;
 
   /** Contract definitions */
   contracts?: Array<{
     consumer: string;
     provider: string;
-    interactions: any[];
+    interactions: ContractInteraction[];
   }>;
 
   /** Test execution plan */
@@ -141,9 +168,9 @@ export async function generateIntegrationTests(
     generateFixtures = true
   } = params;
 
-  const testSuites: any[] = [];
-  const fixtures: any[] = [];
-  const contracts: any[] = [];
+  const testSuites: TestSuiteResult[] = [];
+  const fixtures: FixtureResult[] = [];
+  const contracts: Array<{ consumer: string; provider: string; interactions: ContractInteraction[] }> = [];
 
   // Parse API spec if provided
   const apiEndpoints = apiSpec ? parseAPISpec(apiSpec) : endpoints;
@@ -205,9 +232,9 @@ function parseAPISpec(spec: string): string[] {
   return ['/api/users', '/api/orders', '/api/products'];
 }
 
-function generateAPITestSuite(endpoints: string[], framework: string, includeAuth: boolean): any {
+function generateAPITestSuite(endpoints: string[], framework: string, includeAuth: boolean): TestSuiteResult {
   const tests = endpoints.flatMap(endpoint => {
-    const tests: any[] = [
+    const endpointTests: TestDefinition[] = [
       {
         name: `GET ${endpoint} - should return 200`,
         method: 'GET',
@@ -225,7 +252,7 @@ function generateAPITestSuite(endpoints: string[], framework: string, includeAut
     ];
 
     if (includeAuth) {
-      tests.push({
+      endpointTests.push({
         name: `${endpoint} - should require authentication`,
         method: 'GET',
         endpoint,
@@ -234,7 +261,7 @@ function generateAPITestSuite(endpoints: string[], framework: string, includeAut
       });
     }
 
-    return tests;
+    return endpointTests;
   });
 
   const code = framework === 'supertest'
@@ -249,11 +276,11 @@ function generateAPITestSuite(endpoints: string[], framework: string, includeAut
   };
 }
 
-function generateSupertestCode(tests: any[]): string {
+function generateSupertestCode(tests: TestDefinition[]): string {
   const testCode = tests.map(test => `
   test('${test.name}', async () => {
     const response = await request(app)
-      .${test.method.toLowerCase()}('${test.endpoint}')
+      .${(test.method ?? 'GET').toLowerCase()}('${test.endpoint}')
       ${test.method === 'POST' ? `.send({ data: 'test' })` : ''}
       .expect(${test.expectedStatus});
 
@@ -268,10 +295,10 @@ describe('API Integration Tests', () => {${testCode}
 });`;
 }
 
-function generateAxiosCode(tests: any[]): string {
+function generateAxiosCode(tests: TestDefinition[]): string {
   const testCode = tests.map(test => `
   test('${test.name}', async () => {
-    const response = await axios.${test.method.toLowerCase()}('${test.endpoint}');
+    const response = await axios.${(test.method ?? 'GET').toLowerCase()}('${test.endpoint}');
     expect(response.status).toBe(${test.expectedStatus});
   });`).join('\n');
 
@@ -282,7 +309,7 @@ describe('API Integration Tests', () => {${testCode}
 });`;
 }
 
-function generateDatabaseTestSuite(schema: any): any {
+function generateDatabaseTestSuite(schema: Record<string, unknown>): TestSuiteResult {
   const tests = [
     {
       name: 'should connect to database',
@@ -330,7 +357,7 @@ describe('Database Integration Tests', () => {
   };
 }
 
-function generateContractTestSuite(services: string[]): any {
+function generateContractTestSuite(services: string[]): TestSuiteResult {
   const tests = services.map(service => ({
     name: `${service} contract should be valid`,
     description: `Verify contract between consumer and ${service}`
@@ -358,7 +385,7 @@ describe('Contract Tests', () => {
   };
 }
 
-function generateContracts(services: string[]): any[] {
+function generateContracts(services: string[]): Array<{ consumer: string; provider: string; interactions: ContractInteraction[] }> {
   return services.map(service => ({
     consumer: 'TestConsumer',
     provider: service,
@@ -372,7 +399,7 @@ function generateContracts(services: string[]): any[] {
   }));
 }
 
-function generateTestFixtures(endpoints: string[], schema: any): any[] {
+function generateTestFixtures(endpoints: string[], schema: Record<string, unknown> | undefined): FixtureResult[] {
   return [
     {
       name: 'validUser',
@@ -396,7 +423,7 @@ function generateTestFixtures(endpoints: string[], schema: any): any[] {
   ];
 }
 
-function buildIntegrationTestCode(suites: any[], fixtures: any[], framework: string): string {
+function buildIntegrationTestCode(suites: TestSuiteResult[], fixtures: FixtureResult[], framework: string): string {
   const fixtureCode = fixtures.length > 0
     ? `\n// Test Fixtures\n${fixtures.map(f => `export const ${f.name} = ${JSON.stringify(f.data, null, 2)};`).join('\n')}\n`
     : '';

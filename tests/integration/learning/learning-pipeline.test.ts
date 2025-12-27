@@ -22,6 +22,7 @@ import { DreamEngine } from '../../../src/learning/dream/DreamEngine';
 import path from 'path';
 import fs from 'fs/promises';
 import Database from 'better-sqlite3';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('Learning Pipeline Integration', () => {
   const testDbPath = path.join(process.cwd(), '.test-data', 'learning-pipeline-test.db');
@@ -611,6 +612,9 @@ function generateTestEvents(count: number): AgentExecutionEvent[] {
   return events;
 }
 
+// Seeded RNG for deterministic test data
+const rng = createSeededRandom(18600);
+
 /**
  * Helper: Seed database with experiences for pattern synthesis
  */
@@ -703,7 +707,7 @@ async function seedExperiencesForPatternSynthesis(dbPath: string): Promise<void>
       JSON.stringify(exp.execution),
       JSON.stringify(exp.context),
       JSON.stringify(exp.outcome),
-      now - Math.random() * 86400000 // Random time in last 24 hours
+      now - rng.random() * 86400000 // Random time in last 24 hours
     );
   }
 

@@ -27,9 +27,257 @@ import {
   PatternExtractionConfig,
   ExtractionStatistics,
   ExtractionError,
-  ASTAnalysisOptions
+  ASTAnalysisOptions,
+  TestTemplate,
+  TemplateNode
 } from '../types/pattern.types';
 import { Logger } from '../utils/Logger';
+
+// ============================================================================
+// AST Node Types - Representing Babel AST structure
+// ============================================================================
+
+/**
+ * Base AST node interface representing common properties
+ */
+interface ASTNodeBase {
+  type: string;
+  loc?: SourceLocation;
+}
+
+/**
+ * Source location information for AST nodes
+ */
+interface SourceLocation {
+  start: Position;
+  end: Position;
+}
+
+/**
+ * Position within source code
+ */
+interface Position {
+  line: number;
+  column: number;
+}
+
+/**
+ * Identifier AST node
+ */
+interface IdentifierNode extends ASTNodeBase {
+  type: 'Identifier';
+  name: string;
+}
+
+/**
+ * String literal AST node
+ */
+interface StringLiteralNode extends ASTNodeBase {
+  type: 'StringLiteral';
+  value: string;
+}
+
+/**
+ * Member expression AST node (e.g., object.property)
+ */
+interface MemberExpressionNode extends ASTNodeBase {
+  type: 'MemberExpression';
+  object: ASTNode;
+  property: ASTNode;
+}
+
+/**
+ * Call expression callee - can be identifier or member expression
+ */
+type CalleeNode = IdentifierNode | MemberExpressionNode | ASTNode;
+
+/**
+ * Call expression AST node (function calls)
+ */
+interface CallExpressionNode extends ASTNodeBase {
+  type: 'CallExpression';
+  callee: CalleeNode;
+  arguments: ASTNode[];
+}
+
+/**
+ * Parsed file/program AST node
+ */
+interface ProgramNode extends ASTNodeBase {
+  type: 'File' | 'Program';
+  program?: ProgramNode;
+  body?: ASTNode[];
+}
+
+/**
+ * Represents a generic value that can appear in AST nodes
+ */
+type ASTNodeValue = string | number | boolean | null | undefined;
+
+/**
+ * Represents a generic AST node structure for traversal
+ * This is a simplified representation that works with Babel's AST
+ */
+interface GenericASTNode {
+  type: string;
+  loc?: SourceLocation;
+  [key: string]: GenericASTNode | GenericASTNode[] | ASTNodeValue | SourceLocation | undefined;
+}
+
+/**
+ * Union type for all AST node types
+ */
+type ASTNode =
+  | ASTNodeBase
+  | IdentifierNode
+  | StringLiteralNode
+  | MemberExpressionNode
+  | CallExpressionNode
+  | ProgramNode
+  | GenericASTNode;
+
+/**
+ * Type guard for CallExpressionNode
+ */
+function isCallExpression(node: ASTNode): node is CallExpressionNode {
+  return node.type === 'CallExpression';
+}
+
+/**
+ * Type guard for IdentifierNode
+ */
+function isIdentifier(node: ASTNode): node is IdentifierNode {
+  return node.type === 'Identifier';
+}
+
+/**
+ * Type guard for StringLiteralNode
+ */
+function isStringLiteral(node: ASTNode): node is StringLiteralNode {
+  return node.type === 'StringLiteral';
+}
+
+/**
+ * Type guard for MemberExpressionNode
+ */
+function isMemberExpression(node: ASTNode): node is MemberExpressionNode {
+  return node.type === 'MemberExpression';
+}
+
+// ============================================================================
+// Test Suite Input Types
+// ============================================================================
+
+/**
+ * Input test definition for extractFromTestSuite method
+ */
+export interface TestSuiteInput {
+  /** Unique test identifier */
+  id: string;
+  /** Test name/description */
+  name: string;
+  /** Test type (unit, integration, e2e, etc.) */
+  type: string;
+  /** Test code content */
+  code?: string;
+  /** Assertions in the test */
+  assertions?: string[];
+  /** Additional test metadata */
+  metadata?: TestInputMetadata;
+}
+
+/**
+ * Metadata for test input
+ */
+export interface TestInputMetadata {
+  /** Tags for categorization */
+  tags?: string[];
+  /** Priority level */
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  /** Test timeout in milliseconds */
+  timeout?: number;
+  /** Skip reason if test is skipped */
+  skipReason?: string;
+  /** Additional custom properties */
+  [key: string]: string | string[] | number | boolean | undefined;
+}
+
+// ============================================================================
+// Extracted Pattern Types (for extractFromTestSuite output)
+// ============================================================================
+
+/**
+ * Pattern category for extracted patterns from test suite
+ */
+export type ExtractedPatternCategory =
+  | 'unit'
+  | 'integration'
+  | 'e2e'
+  | 'performance'
+  | 'security';
+
+/**
+ * Framework type for extracted patterns
+ */
+export type ExtractedPatternFramework =
+  | 'jest'
+  | 'mocha'
+  | 'vitest'
+  | 'playwright'
+  | 'cypress'
+  | 'jasmine'
+  | 'ava';
+
+/**
+ * Metadata for extracted patterns from test suite
+ */
+export interface ExtractedPatternMetadata {
+  /** Creation timestamp */
+  createdAt: Date;
+  /** Last update timestamp */
+  updatedAt: Date;
+  /** Pattern version */
+  version: string;
+  /** Categorization tags */
+  tags: string[];
+  /** Origin source of the pattern */
+  source: string;
+  /** Type of test this pattern came from */
+  testType: string;
+  /** Assertions used in the pattern */
+  assertions: string[];
+}
+
+/**
+ * Pattern extracted from a test suite (compatible with QEReasoningBank.TestPattern)
+ */
+export interface ExtractedTestPattern {
+  /** Unique pattern identifier */
+  id: string;
+  /** Pattern name */
+  name: string;
+  /** Pattern description */
+  description: string;
+  /** Pattern category */
+  category: ExtractedPatternCategory;
+  /** Testing framework */
+  framework: ExtractedPatternFramework;
+  /** Programming language */
+  language: 'typescript' | 'javascript' | 'tsx' | 'jsx';
+  /** Normalized template code */
+  template: string;
+  /** Example code snippets */
+  examples: string[];
+  /** Pattern confidence score (0-1) */
+  confidence: number;
+  /** Number of times this pattern has been used */
+  usageCount: number;
+  /** Success rate of pattern application (0-1) */
+  successRate: number;
+  /** Pattern metadata */
+  metadata: ExtractedPatternMetadata;
+}
+
 
 /**
  * Main pattern extractor class
@@ -129,8 +377,8 @@ export class PatternExtractor {
    * This is used to learn from AI-generated tests
    * Returns patterns compatible with QEReasoningBank.TestPattern
    */
-  async extractFromTestSuite(tests: Array<{ id: string; name: string; type: string; code?: string; assertions?: string[]; metadata?: any }>, framework: string): Promise<Array<any>> {
-    const patterns: Array<any> = [];
+  async extractFromTestSuite(tests: TestSuiteInput[], framework: string): Promise<ExtractedTestPattern[]> {
+    const patterns: ExtractedTestPattern[] = [];
 
     for (const test of tests) {
       // Only extract from tests that have actual code
@@ -178,13 +426,13 @@ export class PatternExtractor {
         // Create pattern ID from test name
         const patternId = `pattern-${crypto.createHash('md5').update(test.name + testCode.slice(0, 100)).digest('hex').slice(0, 12)}`;
 
-        const pattern = {
+        const pattern: ExtractedTestPattern = {
           id: patternId,
           name: `${test.name} Pattern`,
           description: `Test pattern extracted from generated test: ${test.name}`,
-          category: patternType as any,
-          framework: this.normalizeFramework(framework) as any,
-          language: 'typescript' as const,
+          category: patternType as ExtractedPatternCategory,
+          framework: this.normalizeFramework(framework),
+          language: 'typescript',
           template,
           examples: [testCode],
           confidence,
@@ -255,9 +503,9 @@ export class PatternExtractor {
   }
 
   /**
-   * Normalize framework name to enum value
+   * Normalize framework name to ExtractedPatternFramework type
    */
-  private normalizeFramework(framework: string): 'jest' | 'mocha' | 'vitest' | 'playwright' | 'cypress' | 'jasmine' | 'ava' {
+  private normalizeFramework(framework: string): ExtractedPatternFramework {
     const lower = framework.toLowerCase();
     if (lower.includes('mocha')) return 'mocha';
     if (lower.includes('vitest')) return 'vitest';
@@ -271,7 +519,7 @@ export class PatternExtractor {
   /**
    * Parse source code to AST
    */
-  private parseCode(code: string, filePath: string): any {
+  private parseCode(code: string, filePath: string): ASTNode {
     try {
       return parse(code, {
         sourceType: 'module',
@@ -286,7 +534,7 @@ export class PatternExtractor {
           'nullishCoalescingOperator'
         ],
         sourceFilename: filePath
-      });
+      }) as ASTNode;
     } catch (error) {
       throw new Error(`Failed to parse ${filePath}: ${(error as Error).message}`);
     }
@@ -328,14 +576,14 @@ export class PatternExtractor {
   /**
    * Extract edge case patterns
    */
-  private extractEdgeCasePatterns(ast: any, framework: TestFramework, filePath: string): TestPattern[] {
+  private extractEdgeCasePatterns(ast: ASTNode, framework: TestFramework, filePath: string): TestPattern[] {
     const patterns: TestPattern[] = [];
     const edgeCaseIndicators = [
       'null', 'undefined', 'empty', 'zero', 'negative', 'max', 'min',
       'edge', 'boundary', 'limit', 'extreme'
     ];
 
-    this.traverseAST(ast, (node: any) => {
+    this.traverseAST(ast, (node: ASTNode) => {
       if (this.isTestBlock(node)) {
         const testName = this.getTestName(node);
         const hasEdgeCaseIndicator = edgeCaseIndicators.some(indicator =>
@@ -362,14 +610,14 @@ export class PatternExtractor {
   /**
    * Extract boundary condition patterns
    */
-  private extractBoundaryConditionPatterns(ast: any, framework: TestFramework, filePath: string): TestPattern[] {
+  private extractBoundaryConditionPatterns(ast: ASTNode, framework: TestFramework, filePath: string): TestPattern[] {
     const patterns: TestPattern[] = [];
     const boundaryIndicators = [
       'boundary', 'range', 'between', 'threshold', 'limit',
       '>=', '<=', '>', '<', 'minimum', 'maximum'
     ];
 
-    this.traverseAST(ast, (node: any) => {
+    this.traverseAST(ast, (node: ASTNode) => {
       if (this.isTestBlock(node)) {
         const code = this.getNodeCode(node);
         const hasBoundaryCheck = boundaryIndicators.some(indicator =>
@@ -397,10 +645,10 @@ export class PatternExtractor {
   /**
    * Extract error handling patterns
    */
-  private extractErrorHandlingPatterns(ast: any, framework: TestFramework, filePath: string): TestPattern[] {
+  private extractErrorHandlingPatterns(ast: ASTNode, framework: TestFramework, filePath: string): TestPattern[] {
     const patterns: TestPattern[] = [];
 
-    this.traverseAST(ast, (node: any) => {
+    this.traverseAST(ast, (node: ASTNode) => {
       if (this.isTestBlock(node)) {
         const code = this.getNodeCode(node);
         const hasErrorHandling =
@@ -431,11 +679,11 @@ export class PatternExtractor {
   /**
    * Extract mock patterns
    */
-  private extractMockPatterns(ast: any, framework: TestFramework, filePath: string): TestPattern[] {
+  private extractMockPatterns(ast: ASTNode, framework: TestFramework, filePath: string): TestPattern[] {
     const patterns: TestPattern[] = [];
     const mockIndicators = ['mock', 'stub', 'spy', 'jest.fn', 'sinon', 'jest.spyOn'];
 
-    this.traverseAST(ast, (node: any) => {
+    this.traverseAST(ast, (node: ASTNode) => {
       if (this.isTestBlock(node)) {
         const code = this.getNodeCode(node);
         const hasMocking = mockIndicators.some(indicator => code.includes(indicator));
@@ -461,10 +709,10 @@ export class PatternExtractor {
   /**
    * Extract assertion patterns
    */
-  private extractAssertionPatterns(ast: any, framework: TestFramework, filePath: string): TestPattern[] {
+  private extractAssertionPatterns(ast: ASTNode, framework: TestFramework, filePath: string): TestPattern[] {
     const patterns: TestPattern[] = [];
 
-    this.traverseAST(ast, (node: any) => {
+    this.traverseAST(ast, (node: ASTNode) => {
       if (this.isTestBlock(node)) {
         const assertionCount = this.countAssertions(node);
         if (assertionCount >= 3) {
@@ -488,10 +736,10 @@ export class PatternExtractor {
   /**
    * Extract async patterns
    */
-  private extractAsyncPatterns(ast: any, framework: TestFramework, filePath: string): TestPattern[] {
+  private extractAsyncPatterns(ast: ASTNode, framework: TestFramework, filePath: string): TestPattern[] {
     const patterns: TestPattern[] = [];
 
-    this.traverseAST(ast, (node: any) => {
+    this.traverseAST(ast, (node: ASTNode) => {
       if (this.isTestBlock(node)) {
         const code = this.getNodeCode(node);
         const isAsync =
@@ -522,7 +770,7 @@ export class PatternExtractor {
    * Create a test pattern from AST node
    */
   private createPattern(
-    node: any,
+    node: ASTNode,
     type: PatternType,
     framework: TestFramework,
     filePath: string,
@@ -555,18 +803,21 @@ export class PatternExtractor {
   /**
    * Traverse AST and apply visitor function
    */
-  private traverseAST(ast: any, visitor: (node: any) => void): void {
-    const traverse = (node: any, depth: number = 0) => {
+  private traverseAST(ast: ASTNode, visitor: (node: ASTNode) => void): void {
+    const traverse = (node: ASTNode, depth: number = 0): void => {
       if (!node || depth > (this.config.astOptions.maxDepth || 50)) return;
 
       visitor(node);
 
-      for (const key in node) {
-        if (node[key] && typeof node[key] === 'object') {
-          if (Array.isArray(node[key])) {
-            node[key].forEach((child: any) => traverse(child, depth + 1));
+      // Iterate through node properties to find child nodes
+      const nodeRecord = node as Record<string, ASTNode | ASTNode[] | string | number | boolean | null | undefined>;
+      for (const key in nodeRecord) {
+        const value = nodeRecord[key];
+        if (value && typeof value === 'object') {
+          if (Array.isArray(value)) {
+            value.forEach((child: ASTNode) => traverse(child, depth + 1));
           } else {
-            traverse(node[key], depth + 1);
+            traverse(value as ASTNode, depth + 1);
           }
         }
       }
@@ -578,22 +829,33 @@ export class PatternExtractor {
   /**
    * Check if node is a test block
    */
-  private isTestBlock(node: any): boolean {
-    if (node.type !== 'CallExpression') return false;
+  private isTestBlock(node: ASTNode): node is CallExpressionNode {
+    if (!isCallExpression(node)) return false;
     const callee = node.callee;
     if (!callee) return false;
 
     const testFunctions = ['it', 'test', 'describe', 'context', 'specify'];
-    return testFunctions.includes(callee.name || callee.property?.name);
+
+    // Check if callee is an Identifier with a test function name
+    if (isIdentifier(callee)) {
+      return testFunctions.includes(callee.name);
+    }
+
+    // Check if callee is a MemberExpression with a test function property
+    if (isMemberExpression(callee) && isIdentifier(callee.property)) {
+      return testFunctions.includes(callee.property.name);
+    }
+
+    return false;
   }
 
   /**
    * Get test name from node
    */
-  private getTestName(node: any): string {
-    if (node.arguments && node.arguments.length > 0) {
+  private getTestName(node: ASTNode): string {
+    if (isCallExpression(node) && node.arguments && node.arguments.length > 0) {
       const firstArg = node.arguments[0];
-      if (firstArg.type === 'StringLiteral') {
+      if (isStringLiteral(firstArg)) {
         return firstArg.value;
       }
     }
@@ -603,7 +865,7 @@ export class PatternExtractor {
   /**
    * Get code from node
    */
-  private getNodeCode(node: any): string {
+  private getNodeCode(node: ASTNode): string {
     // Simplified - in real implementation, use recast or similar
     return JSON.stringify(node, null, 2);
   }
@@ -611,12 +873,17 @@ export class PatternExtractor {
   /**
    * Count assertions in test block
    */
-  private countAssertions(node: any): number {
+  private countAssertions(node: ASTNode): number {
     let count = 0;
-    this.traverseAST(node, (n: any) => {
-      if (n.type === 'CallExpression') {
+    this.traverseAST(node, (n: ASTNode) => {
+      if (isCallExpression(n)) {
         const callee = n.callee;
-        if (callee?.name === 'expect' || callee?.property?.name === 'expect') {
+        // Check for direct 'expect' call
+        if (isIdentifier(callee) && callee.name === 'expect') {
+          count++;
+        }
+        // Check for member expression with 'expect' property
+        if (isMemberExpression(callee) && isIdentifier(callee.property) && callee.property.name === 'expect') {
           count++;
         }
       }
@@ -627,12 +894,12 @@ export class PatternExtractor {
   /**
    * Get node location
    */
-  private getLocation(node: any): CodeLocation {
+  private getLocation(node: ASTNode): CodeLocation {
     return {
-      startLine: node.loc?.start?.line || 0,
-      endLine: node.loc?.end?.line || 0,
-      startColumn: node.loc?.start?.column || 0,
-      endColumn: node.loc?.end?.column || 0
+      startLine: node.loc?.start?.line ?? 0,
+      endLine: node.loc?.end?.line ?? 0,
+      startColumn: node.loc?.start?.column ?? 0,
+      endColumn: node.loc?.end?.column ?? 0
     };
   }
 
@@ -689,15 +956,23 @@ export class PatternExtractor {
   /**
    * Create empty template (to be filled by TestTemplateCreator)
    */
-  private createEmptyTemplate(id: string, name: string): any {
+  private createEmptyTemplate(id: string, name: string): TestTemplate {
+    const emptyStructure: TemplateNode = {
+      type: 'root',
+      id: 'root',
+      children: [],
+      properties: {},
+      parameterRefs: []
+    };
+
     return {
       id: `template-${id}`,
       name: `Template: ${name}`,
       description: 'Auto-generated template',
-      structure: { type: 'root', id: 'root', children: [], properties: {}, parameterRefs: [] },
+      structure: emptyStructure,
       parameters: [],
       validationRules: [],
-      codeGenerators: {}
+      codeGenerators: {} as Record<TestFramework, string>
     };
   }
 
@@ -718,9 +993,23 @@ export class PatternExtractor {
     patterns: TestPattern[],
     processingTime: number
   ): ExtractionStatistics {
-    const patternTypeDistribution: Record<PatternType, number> = {} as any;
+    // Initialize pattern type distribution with all pattern types set to 0
+    const patternTypeDistribution: Record<PatternType, number> = {
+      [PatternType.EDGE_CASE]: 0,
+      [PatternType.BOUNDARY_CONDITION]: 0,
+      [PatternType.ERROR_HANDLING]: 0,
+      [PatternType.INTEGRATION]: 0,
+      [PatternType.ASYNC_PATTERN]: 0,
+      [PatternType.MOCK_PATTERN]: 0,
+      [PatternType.ASSERTION_PATTERN]: 0,
+      [PatternType.SETUP_TEARDOWN]: 0,
+      [PatternType.DATA_DRIVEN]: 0,
+      [PatternType.PARAMETERIZED]: 0
+    };
+
+    // Count occurrences of each pattern type
     patterns.forEach(p => {
-      patternTypeDistribution[p.type] = (patternTypeDistribution[p.type] || 0) + 1;
+      patternTypeDistribution[p.type] = patternTypeDistribution[p.type] + 1;
     });
 
     return {
@@ -734,23 +1023,50 @@ export class PatternExtractor {
   }
 
   /**
-   * Deduplicate patterns by normalizing names and merging similar patterns
+   * Deduplicate TestPattern patterns by normalizing names and merging similar patterns
    */
-  private deduplicatePatterns(patterns: TestPattern[]): TestPattern[] {
-    const seen = new Map<string, TestPattern>();
-    patterns.forEach(p => {
-      // Normalize pattern name to detect similarity
+  private deduplicatePatterns(patterns: TestPattern[]): TestPattern[];
+  /**
+   * Deduplicate ExtractedTestPattern patterns by normalizing names and merging similar patterns
+   */
+  private deduplicatePatterns(patterns: ExtractedTestPattern[]): ExtractedTestPattern[];
+  /**
+   * Implementation of pattern deduplication
+   */
+  private deduplicatePatterns(patterns: TestPattern[] | ExtractedTestPattern[]): TestPattern[] | ExtractedTestPattern[] {
+    // Handle TestPattern[]
+    if (patterns.length > 0 && 'type' in patterns[0]) {
+      const testPatterns = patterns as TestPattern[];
+      const seen = new Map<string, TestPattern>();
+      testPatterns.forEach(p => {
+        const normalizedName = this.normalizePatternName(p.name);
+        const key = `${p.type}-${normalizedName}`;
+
+        if (!seen.has(key)) {
+          seen.set(key, p);
+        } else {
+          const existing = seen.get(key)!;
+          existing.examples.push(...p.examples);
+          existing.frequency++;
+          existing.confidence = Math.min(existing.confidence + 0.02, 1.0);
+        }
+      });
+      return Array.from(seen.values());
+    }
+
+    // Handle ExtractedTestPattern[]
+    const extractedPatterns = patterns as ExtractedTestPattern[];
+    const seen = new Map<string, ExtractedTestPattern>();
+    extractedPatterns.forEach(p => {
       const normalizedName = this.normalizePatternName(p.name);
-      const key = `${p.type}-${normalizedName}`;
+      const key = `${p.category}-${normalizedName}`;
 
       if (!seen.has(key)) {
         seen.set(key, p);
       } else {
-        // Merge examples and update frequency
         const existing = seen.get(key)!;
         existing.examples.push(...p.examples);
-        existing.frequency++;
-        // Increase confidence slightly based on frequency
+        existing.usageCount++;
         existing.confidence = Math.min(existing.confidence + 0.02, 1.0);
       }
     });

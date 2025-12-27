@@ -9,9 +9,76 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import { QEReasoningBank, TestPattern } from '../../../reasoning/QEReasoningBank';
-import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { SwarmMemoryManager, SerializableValue } from '../../../core/memory/SwarmMemoryManager';
 import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { ProcessExit } from '../../../utils/ProcessExit';
+
+/**
+ * Type guard to check if a value is a valid TestPattern
+ */
+function isTestPattern(value: unknown): value is TestPattern {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.description === 'string' &&
+    typeof obj.category === 'string' &&
+    typeof obj.framework === 'string' &&
+    typeof obj.language === 'string' &&
+    typeof obj.template === 'string' &&
+    Array.isArray(obj.examples) &&
+    typeof obj.confidence === 'number' &&
+    typeof obj.usageCount === 'number' &&
+    typeof obj.successRate === 'number' &&
+    typeof obj.metadata === 'object' &&
+    obj.metadata !== null
+  );
+}
+
+/**
+ * Convert TestPattern to SerializableValue for storage
+ * Converts Date objects to ISO strings for JSON compatibility
+ */
+function patternToSerializable(pattern: TestPattern): SerializableValue {
+  return {
+    ...pattern,
+    metadata: {
+      ...pattern.metadata,
+      createdAt: pattern.metadata.createdAt instanceof Date
+        ? pattern.metadata.createdAt.toISOString()
+        : pattern.metadata.createdAt,
+      updatedAt: pattern.metadata.updatedAt instanceof Date
+        ? pattern.metadata.updatedAt.toISOString()
+        : pattern.metadata.updatedAt,
+    }
+  } as SerializableValue;
+}
+
+/**
+ * Convert serialized value back to TestPattern
+ * Converts ISO date strings back to Date objects
+ */
+function serializableToPattern(value: unknown): TestPattern | null {
+  if (!isTestPattern(value)) {
+    return null;
+  }
+  const metadata = value.metadata as Record<string, unknown>;
+  return {
+    ...value,
+    metadata: {
+      ...value.metadata,
+      createdAt: typeof metadata.createdAt === 'string'
+        ? new Date(metadata.createdAt)
+        : metadata.createdAt as Date,
+      updatedAt: typeof metadata.updatedAt === 'string'
+        ? new Date(metadata.updatedAt)
+        : metadata.updatedAt as Date,
+    }
+  };
+}
 
 export interface PatternsCommandOptions {
   framework?: 'jest' | 'mocha' | 'vitest' | 'playwright';
@@ -58,7 +125,10 @@ export class PatternsCommand {
         });
 
         for (const entry of patterns) {
-          await this.reasoningBank.storePattern(entry.value as TestPattern);
+          const pattern = serializableToPattern(entry.value);
+          if (pattern) {
+            await this.reasoningBank.storePattern(pattern);
+          }
         }
       } catch (error) {
         // Fresh start if no patterns exist
@@ -69,7 +139,7 @@ export class PatternsCommand {
   /**
    * Execute patterns command
    */
-  static async execute(subcommand: string, args: any[] = [], options: PatternsCommandOptions = {}): Promise<void> {
+  static async execute(subcommand: string, args: string[] = [], options: PatternsCommandOptions = {}): Promise<void> {
     await this.initBank();
 
     switch (subcommand) {
@@ -146,18 +216,18 @@ export class PatternsCommand {
       if (dbPatterns.length > 0) {
         const displayPatterns = dbPatterns.slice(0, limit);
 
-        displayPatterns.forEach((pattern: any, index: number) => {
+        displayPatterns.forEach((pattern: { id?: string; confidence?: number; usage_count?: number; agent_id?: string; created_at?: string; metadata?: string }, index: number) => {
           const prefix = index === displayPatterns.length - 1 && legacyPatterns.length === 0 ? '└─' : '├─';
           const patternName = pattern.id || 'unnamed';
 
           // Parse metadata if available
-          let metadata: any = {};
+          let metadata: { domain?: string } = {};
           try {
             metadata = pattern.metadata ? JSON.parse(pattern.metadata) : {};
           } catch { /* ignore parse errors */ }
 
           console.log(`${prefix} ${chalk.cyan(patternName)}`);
-          console.log(`   ├─ Confidence: ${this.formatConfidence(pattern.confidence)}`);
+          console.log(`   ├─ Confidence: ${this.formatConfidence(pattern.confidence ?? 0)}`);
           console.log(`   ├─ Usage Count: ${chalk.gray((pattern.usage_count || 0) + ' times')}`);
           if (metadata.domain) {
             console.log(`   ├─ Domain: ${metadata.domain}`);
@@ -173,7 +243,9 @@ export class PatternsCommand {
       // Display legacy patterns if any
       if (legacyPatterns.length > 0) {
         console.log(chalk.blue('\n📦 Legacy Patterns (memory_entries)\n'));
-        let filteredPatterns = legacyPatterns.map(p => p.value as TestPattern);
+        let filteredPatterns = legacyPatterns
+          .map(p => serializableToPattern(p.value))
+          .filter((p): p is TestPattern => p !== null);
 
         if (options.framework) {
           filteredPatterns = filteredPatterns.filter(p => p.framework === options.framework);
@@ -203,9 +275,10 @@ export class PatternsCommand {
         console.log(chalk.gray(`Use --limit <n> to see more\n`));
       }
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to list patterns');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -250,9 +323,10 @@ export class PatternsCommand {
         console.log();
       });
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Search failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -303,9 +377,10 @@ export class PatternsCommand {
 
       console.log();
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load pattern');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -357,7 +432,7 @@ export class PatternsCommand {
       const memoryManager = await this.getMemoryManager();
       await memoryManager.store(
         `phase2/patterns/${mockPattern.id}`,
-        mockPattern,
+        patternToSerializable(mockPattern),
         { partition: 'patterns' }
       );
 
@@ -367,9 +442,10 @@ export class PatternsCommand {
       console.log(`Pattern ID: ${chalk.cyan(mockPattern.id)}`);
       console.log(`Confidence: ${this.formatConfidence(mockPattern.confidence)}\n`);
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Extraction failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -406,9 +482,10 @@ export class PatternsCommand {
       console.log(`Pattern: ${chalk.cyan(pattern.name)}`);
       console.log(`Projects: ${projects.map(p => chalk.cyan(p)).join(', ')}\n`);
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Sharing failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -438,9 +515,10 @@ export class PatternsCommand {
       spinner.succeed('Pattern deleted');
       console.log(chalk.yellow('\n⚠️  Pattern has been permanently deleted\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Deletion failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -466,7 +544,12 @@ export class PatternsCommand {
       let filteredPatterns = patterns.map(p => p.value);
 
       if (options.framework) {
-        filteredPatterns = filteredPatterns.filter((p: any) => p.framework === options.framework);
+        filteredPatterns = filteredPatterns.filter((p) => {
+        if (typeof p === 'object' && p !== null && 'framework' in p) {
+          return (p as { framework?: string }).framework === options.framework;
+        }
+        return false;
+      });
       }
 
       await fs.writeJson(options.output!, filteredPatterns, { spaces: 2 });
@@ -474,9 +557,10 @@ export class PatternsCommand {
       spinner.succeed(`Exported ${filteredPatterns.length} patterns to: ${options.output}`);
       console.log(chalk.green('\n✅ Export completed\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Export failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -501,22 +585,28 @@ export class PatternsCommand {
       }
 
       const memoryManager = await this.getMemoryManager();
+      let importedCount = 0;
 
-      for (const pattern of patterns) {
-        await this.reasoningBank.storePattern(pattern);
-        await memoryManager.store(
-          `phase2/patterns/${pattern.id}`,
-          pattern,
-          { partition: 'patterns' }
-        );
+      for (const rawPattern of patterns) {
+        const pattern = serializableToPattern(rawPattern);
+        if (pattern) {
+          await this.reasoningBank.storePattern(pattern);
+          await memoryManager.store(
+            `phase2/patterns/${pattern.id}`,
+            patternToSerializable(pattern),
+            { partition: 'patterns' }
+          );
+          importedCount++;
+        }
       }
 
-      spinner.succeed(`Imported ${patterns.length} patterns`);
+      spinner.succeed(`Imported ${importedCount} patterns`);
       console.log(chalk.green('\n✅ Import completed\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Import failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -524,7 +614,7 @@ export class PatternsCommand {
   /**
    * Show pattern statistics
    */
-  private static async showStats(options: PatternsCommandOptions): Promise<void> {
+  private static async showStats(_options: PatternsCommandOptions): Promise<void> {
     const spinner = ora('Calculating statistics...').start();
 
     try {
@@ -553,9 +643,10 @@ export class PatternsCommand {
 
       console.log();
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to calculate statistics');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), message);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -603,6 +694,6 @@ export class PatternsCommand {
 }
 
 // Export command functions for CLI registration
-export async function patternsCommand(subcommand: string, args: any[], options: PatternsCommandOptions): Promise<void> {
+export async function patternsCommand(subcommand: string, args: string[], options: PatternsCommandOptions): Promise<void> {
   await PatternsCommand.execute(subcommand, args, options);
 }

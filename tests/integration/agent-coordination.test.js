@@ -6,6 +6,7 @@
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
+const { createSeededRandom } = require('../../src/utils/SeededRandom');
 
 describe('Agent Coordination Integration Tests', () => {
   let testWorkspace;
@@ -178,9 +179,11 @@ async function execCommand(command) {
   });
 }
 
+const rng = createSeededRandom(27100);
+
 async function simulateAgentExecution(agent, input = null) {
   // Simulate agent execution based on type
-  const delay = Math.random() * 1000 + 500; // 500-1500ms
+  const delay = rng.random() * 1000 + 500; // 500-1500ms
   await new Promise(resolve => setTimeout(resolve, delay));
 
   if (agent.shouldFail) {

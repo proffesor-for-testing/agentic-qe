@@ -16,6 +16,7 @@ import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { PerformanceTracker } from '@learning/PerformanceTracker';
 import { LearningEngine } from '@learning/LearningEngine';
 import { ImprovementLoop } from '@learning/ImprovementLoop';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Mock Logger before importing
 const mockLogger = {
@@ -165,6 +166,7 @@ describe('Learning System Performance Benchmarks', () => {
     it('should measure learning overhead per task', async () => {
       const ITERATIONS = 1000;
       let taskId = 0;
+      const rng = createSeededRandom(800001);
 
       const result = await runBenchmark(
         'Learning Engine - Full Learning Cycle',
@@ -177,8 +179,8 @@ describe('Learning System Performance Benchmarks', () => {
           };
 
           const taskResult = {
-            success: Math.random() > 0.2,
-            executionTime: 100 + Math.random() * 100,
+            success: rng.random() > 0.2,
+            executionTime: 100 + rng.random() * 100,
             strategy: 'default',
             toolsUsed: ['jest'],
             parallelization: 0.5,
@@ -265,11 +267,12 @@ describe('Learning System Performance Benchmarks', () => {
   describe('Benchmark 5: Strategy Recommendation', () => {
     it('should measure strategy recommendation overhead', async () => {
       // Pre-populate learning engine with experiences
+      const rng = createSeededRandom(800002);
       for (let i = 0; i < 100; i++) {
         await learningEngine.learnFromExecution(
           { id: `warmup-${i}`, type: 'test', previousAttempts: 0 },
           {
-            success: Math.random() > 0.3,
+            success: rng.random() > 0.3,
             executionTime: 100,
             strategy: i % 2 === 0 ? 'parallel' : 'sequential',
             toolsUsed: ['jest'],
@@ -355,11 +358,12 @@ describe('Learning System Performance Benchmarks', () => {
         resourceEfficiency: 0.6
       });
 
+      const rng = createSeededRandom(800003);
       for (let i = 0; i < 50; i++) {
         await learningEngine.learnFromExecution(
           { id: `cycle-${i}`, type: 'test', previousAttempts: 0 },
           {
-            success: Math.random() > 0.2,
+            success: rng.random() > 0.2,
             executionTime: 3000,
             strategy: 'adaptive',
             toolsUsed: ['jest'],

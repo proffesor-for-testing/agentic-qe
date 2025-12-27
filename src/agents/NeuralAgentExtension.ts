@@ -35,7 +35,53 @@ import {
   RLAlgorithm,
   PredictionResult
 } from '../core/neural/types';
-import { PostTaskData, TaskErrorData } from '../types';
+import { PostTaskData, TaskErrorData, QETask } from '../types';
+
+/**
+ * Task data structure for neural state snapshots
+ * Captures the task and optional result for state extraction
+ */
+export interface NeuralTaskData {
+  /** The task being executed */
+  task?: Partial<QETask>;
+  /** Optional result from task execution */
+  result?: NeuralTaskResult;
+}
+
+/**
+ * Result structure from task execution used for neural training
+ * Contains metrics and metadata for reward calculation and action extraction
+ */
+export interface NeuralTaskResult {
+  /** Whether the task succeeded */
+  success?: boolean;
+  /** Execution time in milliseconds */
+  executionTime?: number;
+  /** Code coverage percentage (0-1) */
+  coverage?: number;
+  /** Quality score (0-1) */
+  quality?: number;
+  /** Errors encountered during execution */
+  errors?: string[];
+  /** Resource usage percentage (0-1) */
+  resourceUsage?: number;
+  /** Strategy or action type used */
+  strategy?: string;
+  /** Action type identifier */
+  actionType?: string;
+  /** Tools used during execution */
+  toolsUsed?: string[];
+  /** Parallelization factor (0-1) */
+  parallelization?: number;
+  /** Retry policy used */
+  retryPolicy?: string;
+  /** Resource allocation factor (0-1) */
+  resourceAllocation?: number;
+  /** Additional action parameters */
+  actionParameters?: Record<string, unknown>;
+  /** Q-value from prediction */
+  qValue?: number;
+}
 
 /**
  * Default experience collection configuration
@@ -100,7 +146,7 @@ export class NeuralAgentExtension {
   /**
    * Snapshot current state before task execution (call from onPreTask)
    */
-  snapshotState(taskData: any): void {
+  snapshotState(taskData: NeuralTaskData): void {
     if (!this.collectionConfig.enabled) return;
 
     this.stateSnapshot = this.extractState(taskData);
@@ -120,8 +166,11 @@ export class NeuralAgentExtension {
     }
 
     try {
+      // Cast result to NeuralTaskResult for proper typing
+      const result = data.result as NeuralTaskResult;
+
       // Calculate reward from task result
-      const reward = this.calculateReward(data.result);
+      const reward = this.calculateReward(result);
 
       // Check minimum reward threshold
       if (this.collectionConfig.minReward !== undefined && reward < this.collectionConfig.minReward) {
@@ -129,12 +178,12 @@ export class NeuralAgentExtension {
       }
 
       // Extract action from result
-      const action = this.extractAction(data.result);
+      const action = this.extractAction(result);
 
       // Extract next state
       const nextState = this.extractState({
         task: data.assignment.task,
-        result: data.result
+        result
       });
 
       // Create experience
@@ -144,7 +193,7 @@ export class NeuralAgentExtension {
         action,
         reward,
         nextState,
-        done: data.result.success || false,
+        done: result.success || false,
         timestamp: new Date()
       };
 
@@ -161,8 +210,9 @@ export class NeuralAgentExtension {
       }
 
       this.logger.debug(`Collected experience: reward=${reward.toFixed(2)}, action=${action.type}`);
-    } catch (error: any) {
-      this.logger.error(`Failed to collect experience: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to collect experience: ${message}`);
     }
   }
 
@@ -193,8 +243,9 @@ export class NeuralAgentExtension {
       await this.neuralTrainer.train([experience]);
 
       this.logger.debug(`Collected error experience with penalty reward`);
-    } catch (error: any) {
-      this.logger.error(`Failed to collect error experience: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to collect error experience: ${message}`);
     }
   }
 
@@ -263,7 +314,7 @@ export class NeuralAgentExtension {
   /**
    * Extract state from task data
    */
-  private extractState(data: any): State {
+  private extractState(data: NeuralTaskData): State {
     const task = data.task || {};
     const result = data.result || {};
 
@@ -272,7 +323,7 @@ export class NeuralAgentExtension {
       capabilities: task.requirements?.capabilities || [],
       contextFeatures: task.context || {},
       resourceAvailability: result.resourceUsage ? (1 - result.resourceUsage) : 0.8,
-      previousAttempts: task.previousAttempts || 0,
+      previousAttempts: 0,
       // Add custom features
       taskType: task.type,
       timestamp: Date.now()
@@ -282,7 +333,7 @@ export class NeuralAgentExtension {
   /**
    * Extract action from result
    */
-  private extractAction(result: any): Action {
+  private extractAction(result: NeuralTaskResult): Action {
     return {
       type: result.strategy || result.actionType || 'default',
       parameters: {
@@ -299,7 +350,7 @@ export class NeuralAgentExtension {
   /**
    * Calculate reward from task result
    */
-  private calculateReward(result: any): number {
+  private calculateReward(result: NeuralTaskResult): number {
     let reward = 0;
 
     // Success/failure (primary component)
@@ -337,18 +388,15 @@ export class NeuralAgentExtension {
   /**
    * Estimate task complexity
    */
-  private estimateComplexity(task: any): number {
+  private estimateComplexity(task: Partial<QETask>): number {
     let complexity = 0.5; // Baseline
 
     if (task.requirements?.capabilities) {
       complexity += task.requirements.capabilities.length * 0.1;
     }
 
-    if (task.previousAttempts) {
-      complexity += task.previousAttempts * 0.1;
-    }
-
-    if (task.timeout && task.timeout < 10000) {
+    const taskSpec = task as { timeout?: number };
+    if (taskSpec.timeout && taskSpec.timeout < 10000) {
       complexity += 0.2; // Tight deadline
     }
 

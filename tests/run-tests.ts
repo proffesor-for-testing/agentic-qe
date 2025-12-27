@@ -8,6 +8,10 @@ import { execSync } from 'child_process';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { TestPrioritizer, TestCase } from './utils/testPrioritizer';
+import { createSeededRandom } from '../src/utils/SeededRandom';
+
+// Seeded RNG for deterministic test simulation
+const rng = createSeededRandom(25200);
 
 interface TestSuite {
   name: string;
@@ -224,7 +228,7 @@ class AQETestRunner {
 
   private simulateTestExecution(suite: TestSuite): any {
     // Simulate test results based on coverage and priority
-    const baseTests = Math.floor(Math.random() * 20) + 10; // 10-30 tests per suite
+    const baseTests = Math.floor(rng.random() * 20) + 10; // 10-30 tests per suite
     const failureRate = Math.max(0, (100 - suite.coverage) / 100 * 0.1); // Lower coverage = higher failure rate
 
     const total = baseTests;

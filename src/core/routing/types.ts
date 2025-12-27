@@ -10,9 +10,9 @@ export interface QETask {
   id: string;
   type: string;
   description?: string;
-  data: any;
+  data: unknown;
   priority: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -139,7 +139,7 @@ export interface ModelRouter {
   /**
    * Export cost dashboard data
    */
-  exportCostDashboard(): Promise<any>;
+  exportCostDashboard(): Promise<CostDashboardData>;
 
   /**
    * Analyze task complexity
@@ -150,7 +150,7 @@ export interface ModelRouter {
    * Route to local RuvLLM model if available
    * Returns null if local routing fails or is unavailable
    */
-  routeToLocal(task: QETask, analysis: any): Promise<ModelSelection | null>;
+  routeToLocal(task: QETask, analysis: ComplexityAnalysis): Promise<ModelSelection | null>;
 }
 
 /**
@@ -163,4 +163,45 @@ export interface TaskAnalysis {
   requiresSecurity: boolean;
   requiresPerformance: boolean;
   confidence: number;
+}
+
+/**
+ * Alias for TaskAnalysis used in complexity analysis
+ */
+export type ComplexityAnalysis = TaskAnalysis;
+
+/**
+ * Model cost detail for dashboard
+ */
+export interface ModelCostDetail {
+  model: AIModel;
+  requests: number;
+  tokensUsed: number;
+  cost: string;
+  avgTokensPerRequest: number;
+  costPerToken: number;
+  percentage: string;
+}
+
+/**
+ * Cost dashboard summary
+ */
+export interface CostDashboardSummary {
+  totalCost: string;
+  totalRequests: number;
+  costSavings: string;
+  savingsPercentage: string;
+  avgCostPerTask: string;
+  avgCostPerTest: string;
+  sessionDuration: string;
+}
+
+/**
+ * Cost dashboard data for export
+ */
+export interface CostDashboardData {
+  summary: CostDashboardSummary;
+  models: ModelCostDetail[];
+  distribution: Record<AIModel, number>;
+  timestamp: string;
 }

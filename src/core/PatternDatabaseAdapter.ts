@@ -219,7 +219,7 @@ export class PatternDatabaseAdapter {
 
     try {
       let sql = 'SELECT * FROM patterns WHERE 1=1';
-      const params: any[] = [];
+      const params: (string | number)[] = [];
 
       if (filter?.category) {
         sql += ' AND category = ?';
@@ -399,17 +399,17 @@ export class PatternDatabaseAdapter {
         return null;
       }
 
-      const totalUsage = row.total_usage || 0;
-      const successCount = row.success_count || 0;
+      const totalUsage = Number(row.total_usage) || 0;
+      const successCount = Number(row.success_count) || 0;
 
       return {
-        patternId: row.pattern_id,
+        patternId: String(row.pattern_id),
         totalUsage,
         successCount,
-        failureCount: row.failure_count || 0,
-        avgExecutionTime: row.avg_execution_time || 0,
+        failureCount: Number(row.failure_count) || 0,
+        avgExecutionTime: Number(row.avg_execution_time) || 0,
         successRate: totalUsage > 0 ? successCount / totalUsage : 0,
-        lastUsed: row.last_used ? new Date(row.last_used) : new Date()
+        lastUsed: row.last_used ? new Date(String(row.last_used)) : new Date()
       };
     } catch (error) {
       this.logger.error(`Failed to get usage stats for pattern ${patternId}:`, error);
@@ -470,8 +470,8 @@ export class PatternDatabaseAdapter {
       `);
 
       analytics.topPatterns = topPatternsRows.map(row => ({
-        patternId: row.id,
-        usageCount: row.usage_count
+        patternId: String(row.id),
+        usageCount: Number(row.usage_count) || 0
       }));
 
       return analytics;
@@ -533,7 +533,7 @@ export class PatternDatabaseAdapter {
     baselineValue?: number;
     improvementPercentage?: number;
     patternCount?: number;
-    context?: any;
+    context?: Record<string, unknown>;
   }): Promise<void> {
     await this.ensureInitialized();
 
@@ -566,21 +566,21 @@ export class PatternDatabaseAdapter {
   /**
    * Convert database row to TestPattern
    */
-  private rowToPattern(row: any): TestPattern {
+  private rowToPattern(row: Record<string, unknown>): TestPattern {
     return {
-      id: row.id,
-      name: row.name,
-      description: row.description || '',
-      category: row.category,
-      framework: row.framework,
-      language: row.language,
-      template: row.template,
-      examples: JSON.parse(row.examples),
-      confidence: row.confidence,
-      usageCount: row.usage_count,
-      successRate: row.success_rate,
-      quality: row.quality,
-      metadata: JSON.parse(row.metadata)
+      id: row.id as string,
+      name: row.name as string,
+      description: (row.description as string) || '',
+      category: row.category as TestPattern['category'],
+      framework: row.framework as TestPattern['framework'],
+      language: row.language as TestPattern['language'],
+      template: row.template as string,
+      examples: JSON.parse(row.examples as string) as string[],
+      confidence: row.confidence as number,
+      usageCount: row.usage_count as number,
+      successRate: row.success_rate as number,
+      quality: row.quality as number,
+      metadata: JSON.parse(row.metadata as string) as TestPattern['metadata']
     };
   }
 
@@ -611,10 +611,10 @@ export class PatternDatabaseAdapter {
       const metricsCount = await this.database.get('SELECT COUNT(*) as count FROM learning_metrics');
 
       return {
-        totalPatterns: patternCount?.count || 0,
-        totalUsageRecords: usageCount?.count || 0,
-        totalLearningHistory: historyCount?.count || 0,
-        totalMetrics: metricsCount?.count || 0
+        totalPatterns: Number(patternCount?.count) || 0,
+        totalUsageRecords: Number(usageCount?.count) || 0,
+        totalLearningHistory: Number(historyCount?.count) || 0,
+        totalMetrics: Number(metricsCount?.count) || 0
       };
     } catch (error) {
       this.logger.error('Failed to get database stats:', error);

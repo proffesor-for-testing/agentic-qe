@@ -9,7 +9,7 @@
  */
 
 import type { QEAgentType, MemoryStore } from '../../types';
-import type { SwarmMemoryManager, StoreOptions } from '../memory/SwarmMemoryManager';
+import type { SwarmMemoryManager, StoreOptions, SerializableValue } from '../memory/SwarmMemoryManager';
 import type {
   AgentMemoryStrategy,
   MemoryOptions,
@@ -17,6 +17,38 @@ import type {
   MemoryQueryOptions,
   MemoryStats,
 } from './AgentMemoryStrategy';
+
+/**
+ * Type guard to check if a value is a valid SerializableValue
+ * SerializableValue = JsonValue | Record<string, unknown>
+ * JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+ */
+function isSerializableValue(value: unknown): value is SerializableValue {
+  if (value === null) return true;
+  const type = typeof value;
+  if (type === 'string' || type === 'number' || type === 'boolean') return true;
+  if (Array.isArray(value)) {
+    return value.every(isSerializableValue);
+  }
+  if (type === 'object') {
+    const obj = value as Record<string, unknown>;
+    return Object.values(obj).every(isSerializableValue);
+  }
+  return false;
+}
+
+/**
+ * Converts an unknown value to SerializableValue
+ * Throws if the value cannot be safely serialized
+ */
+function toSerializableValue(value: unknown): SerializableValue {
+  if (isSerializableValue(value)) {
+    return value;
+  }
+  // For non-serializable values, convert to a safe string representation
+  // This handles functions, symbols, undefined, etc.
+  return String(value);
+}
 
 /**
  * DefaultMemoryStrategy - SQLite-backed storage via SwarmMemoryManager
@@ -69,7 +101,7 @@ export class DefaultMemoryStrategy implements AgentMemoryStrategy {
         ttl: options?.ttl ?? 0,
         metadata: options?.metadata,
       };
-      await this.memoryStore.store(prefixedKey, value, storeOpts);
+      await this.memoryStore.store(prefixedKey, toSerializableValue(value), storeOpts);
     } else {
       // Fallback for basic MemoryStore interface
       await this.memoryStore.store(prefixedKey, value, options?.ttl ?? 0);

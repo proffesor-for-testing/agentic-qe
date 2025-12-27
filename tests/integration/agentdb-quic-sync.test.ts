@@ -14,6 +14,7 @@
 
 import { AgentDBIntegration, QUICConfig, createDefaultQUICConfig } from '@core/memory/AgentDBIntegration';
 import { EventEmitter } from 'events';
+import { withFakeTimers, advanceAndFlush } from '../helpers/timerTestUtils';
 
 describe('AgentDB QUIC Synchronization', () => {
   let integration: AgentDBIntegration;

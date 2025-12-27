@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { QEReasoningBank, TestPattern } from '../../src/reasoning/QEReasoningBank';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 import * as fs from 'fs-extra';
 import * as path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -370,6 +371,9 @@ function createSamplePatterns(
   return patterns;
 }
 
+// Seeded random instance for deterministic pattern creation
+const crossProjectRng = createSeededRandom(15100);
+
 /**
  * Helper to create a test pattern
  */
@@ -388,9 +392,9 @@ function createTestPattern(
     language,
     template: `template-${id}`,
     examples: [`example-${id}`],
-    confidence: 0.8 + Math.random() * 0.2,
-    usageCount: Math.floor(Math.random() * 50),
-    successRate: 0.7 + Math.random() * 0.3,
+    confidence: 0.8 + crossProjectRng.random() * 0.2,
+    usageCount: Math.floor(crossProjectRng.random() * 50),
+    successRate: 0.7 + crossProjectRng.random() * 0.3,
     metadata: {
       createdAt: new Date(),
       updatedAt: new Date(),

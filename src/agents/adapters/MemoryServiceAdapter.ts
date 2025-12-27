@@ -71,15 +71,17 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
   // === Basic Operations ===
 
   async store(key: string, value: unknown, options?: MemoryOptions): Promise<void> {
+    // Cast value to SerializableValue - the caller is responsible for ensuring serializable data
+    const serializableValue = value as import('../../core/memory/SwarmMemoryManager').SerializableValue;
     if (this.memoryStore instanceof SwarmMemoryManager) {
-      await this.memoryStore.store(key, value, {
+      await this.memoryStore.store(key, serializableValue, {
         partition: options?.namespace || 'default',
         ttl: options?.ttl,
         metadata: options?.metadata,
       });
     } else {
       // Basic MemoryStore interface uses ttl as number
-      await this.memoryStore.store(key, value, options?.ttl);
+      await this.memoryStore.store(key, serializableValue, options?.ttl);
     }
     this.stats.totalEntries++;
   }
@@ -122,15 +124,16 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
     options?: MemoryOptions
   ): Promise<void> {
     const sharedKey = this.getSharedKey(agentType, key);
+    const serializableValue = value as import('../../core/memory/SwarmMemoryManager').SerializableValue;
     // Use raw store to avoid double-prefixing
     if (this.memoryStore instanceof SwarmMemoryManager) {
-      await this.memoryStore.store(sharedKey, value, {
+      await this.memoryStore.store(sharedKey, serializableValue, {
         partition: options?.namespace || 'shared',
         ttl: options?.ttl,
         metadata: options?.metadata,
       });
     } else {
-      await this.memoryStore.store(sharedKey, value, options?.ttl);
+      await this.memoryStore.store(sharedKey, serializableValue, options?.ttl);
     }
     this.stats.totalEntries++;
   }
@@ -167,13 +170,14 @@ export class MemoryServiceAdapter implements AgentMemoryStrategy {
    */
   async storeLocal(key: string, value: unknown, ttl?: number): Promise<void> {
     const localKey = this.getLocalKey(key);
+    const serializableValue = value as import('../../core/memory/SwarmMemoryManager').SerializableValue;
     if (this.memoryStore instanceof SwarmMemoryManager) {
-      await this.memoryStore.store(localKey, value, {
+      await this.memoryStore.store(localKey, serializableValue, {
         partition: this.agentId?.type || 'default',
         ttl,
       });
     } else {
-      await this.memoryStore.store(localKey, value, ttl);
+      await this.memoryStore.store(localKey, serializableValue, ttl);
     }
     this.stats.totalEntries++;
   }

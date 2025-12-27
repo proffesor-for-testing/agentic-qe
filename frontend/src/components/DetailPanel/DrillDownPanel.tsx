@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useWebSocket } from '../../contexts/WebSocketContext';
-import { DetailedEventData, LifecycleEvent } from '../../types';
+import { DetailedEventData } from '../../types';
 import { Download, ExternalLink, Code } from 'lucide-react';
 import ReactJson from 'react-json-view';
 import { format } from 'date-fns';

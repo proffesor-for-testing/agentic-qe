@@ -5,6 +5,7 @@
 
 import { FlakyTestDetector } from '../../src/learning/FlakyTestDetector';
 import type { TestResult } from '../../src/learning';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 
 interface BenchmarkResult {
   name: string;
@@ -21,8 +22,10 @@ interface BenchmarkResult {
 
 export class FlakyDetectionBenchmark {
   private detector: FlakyTestDetector;
+  private rng: SeededRandom;
 
-  constructor() {
+  constructor(seed: number = 12345) {
+    this.rng = createSeededRandom(seed);
     this.detector = new FlakyTestDetector({
       minRuns: 5,
       passRateThreshold: 0.8,
@@ -202,19 +205,19 @@ export class FlakyDetectionBenchmark {
 
     for (let i = 0; i < testsCount; i++) {
       const testName = `test${i}`;
-      const isFlaky = Math.random() < 0.3; // 30% flaky
+      const isFlaky = this.rng.random() < 0.3; // 30% flaky
 
       for (let j = 0; j < resultsPerTest; j++) {
         const passed = isFlaky
-          ? Math.random() < (0.4 + Math.random() * 0.3) // Flaky: 40-70% pass rate
-          : Math.random() < 0.98; // Stable: 98% pass rate
+          ? this.rng.random() < (0.4 + this.rng.random() * 0.3) // Flaky: 40-70% pass rate
+          : this.rng.random() < 0.98; // Stable: 98% pass rate
 
         results.push({
           name: testName,
           status: passed ? 'passed' : 'failed',
           duration: isFlaky
-            ? 100 + Math.random() * 500 // High variance
-            : 100 + Math.random() * 20,  // Low variance
+            ? 100 + this.rng.random() * 500 // High variance
+            : 100 + this.rng.random() * 20,  // Low variance
           timestamp: baseTime + (i * resultsPerTest + j) * 1000,
           error: passed ? undefined : 'Test failure'
         });
@@ -240,7 +243,7 @@ export class FlakyDetectionBenchmark {
       const testName = `train${i}`;
       const isFlaky = i < 40;
       const results = isFlaky
-        ? this.generateFlakyResults(testName, 20, 0.4 + Math.random() * 0.3)
+        ? this.generateFlakyResults(testName, 20, 0.4 + this.rng.random() * 0.3)
         : this.generateStableResults(testName, 20);
 
       trainingData.set(testName, results);
@@ -252,7 +255,7 @@ export class FlakyDetectionBenchmark {
       const testName = `test${i}`;
       const isFlaky = i < 10;
       const results = isFlaky
-        ? this.generateFlakyResults(testName, 20, 0.4 + Math.random() * 0.3)
+        ? this.generateFlakyResults(testName, 20, 0.4 + this.rng.random() * 0.3)
         : this.generateStableResults(testName, 20);
 
       testData.set(testName, results);
@@ -267,11 +270,11 @@ export class FlakyDetectionBenchmark {
     const baseTime = Date.now();
 
     for (let i = 0; i < count; i++) {
-      const passed = Math.random() < passRate;
+      const passed = this.rng.random() < passRate;
       results.push({
         name: testName,
         status: passed ? 'passed' : 'failed',
-        duration: 100 + Math.random() * 500,
+        duration: 100 + this.rng.random() * 500,
         timestamp: baseTime + i * 60000,
         error: passed ? undefined : 'Flaky failure'
       });
@@ -288,7 +291,7 @@ export class FlakyDetectionBenchmark {
       results.push({
         name: testName,
         status: 'passed',
-        duration: 100 + Math.random() * 10,
+        duration: 100 + this.rng.random() * 10,
         timestamp: baseTime + i * 60000
       });
     }

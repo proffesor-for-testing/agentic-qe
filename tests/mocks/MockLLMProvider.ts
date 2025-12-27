@@ -17,6 +17,7 @@ import {
   LLMProviderMetadata,
   LLMProviderError
 } from '../../src/providers/ILLMProvider';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 
 /**
  * Tracked method call for assertions
@@ -62,6 +63,7 @@ export class MockLLMProvider implements ILLMProvider {
   private tokenCounts: number[] = [];
   private initialized = false;
   private config: Required<MockLLMProviderConfig>;
+  private rng: SeededRandom = createSeededRandom(19005);
 
   constructor(config: MockLLMProviderConfig = {}) {
     this.config = {
@@ -300,7 +302,7 @@ export class MockLLMProvider implements ILLMProvider {
     await this.simulateDelay();
 
     const embedding = this.embeddingResponses.shift() ||
-      Array.from({ length: options.dimensions || 384 }, () => Math.random());
+      Array.from({ length: options.dimensions || 384 }, () => this.rng.random());
 
     return {
       embedding,

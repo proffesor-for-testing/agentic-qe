@@ -10,8 +10,18 @@ export { patternsShow } from './show';
 export { patternsExtract } from './extract';
 export { patternsStats } from './stats';
 
+export interface PatternsOptions {
+  framework?: string;
+  category?: string;
+  limit?: number;
+  minConfidence?: number;
+  format?: 'table' | 'json';
+  dryRun?: boolean;
+  detailed?: boolean;
+}
+
 // Main command router that uses database-backed implementations
-export async function patternsCommand(subcommand: string, args: any[], options: any): Promise<void> {
+export async function patternsCommand(subcommand: string, args: string[], options: PatternsOptions): Promise<void> {
   const { patternsList } = await import('./list');
   const { patternsSearch } = await import('./search');
   const { patternsShow } = await import('./show');

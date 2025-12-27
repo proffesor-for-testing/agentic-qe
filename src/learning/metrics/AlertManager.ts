@@ -263,7 +263,7 @@ export class AlertManager {
   private async storeAlert(alert: Alert): Promise<void> {
     await this.memoryManager.store(
       `phase3/alerts/${alert.id}`,
-      alert,
+      alert as unknown as Record<string, unknown>,
       { partition: 'learning' }
     );
   }
@@ -279,16 +279,29 @@ export class AlertManager {
       );
 
       entries.forEach(entry => {
-        const alert = entry.value as Alert;
-        // Convert date strings back to Date objects
-        alert.createdAt = new Date(alert.createdAt);
-        if (alert.acknowledgedAt) {
-          alert.acknowledgedAt = new Date(alert.acknowledgedAt);
+        const rawValue = entry.value as unknown;
+        // Type guard to validate Alert structure
+        if (
+          typeof rawValue === 'object' &&
+          rawValue !== null &&
+          'id' in rawValue &&
+          'severity' in rawValue &&
+          'metric' in rawValue &&
+          'message' in rawValue &&
+          'status' in rawValue &&
+          'createdAt' in rawValue
+        ) {
+          const alert = rawValue as Alert;
+          // Convert date strings back to Date objects
+          alert.createdAt = new Date(alert.createdAt);
+          if (alert.acknowledgedAt) {
+            alert.acknowledgedAt = new Date(alert.acknowledgedAt);
+          }
+          if (alert.resolvedAt) {
+            alert.resolvedAt = new Date(alert.resolvedAt);
+          }
+          this.alerts.set(alert.id, alert);
         }
-        if (alert.resolvedAt) {
-          alert.resolvedAt = new Date(alert.resolvedAt);
-        }
-        this.alerts.set(alert.id, alert);
       });
 
       this.logger.info(`Loaded ${this.alerts.size} alerts from memory`);

@@ -20,6 +20,10 @@ import {
   ILearningTrigger,
   LearningFeedback
 } from '../../../src/learning/PatternCurator';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
+
+// Seeded RNG for deterministic test pattern IDs
+const patternIdRng = createSeededRandom(22004);
 
 /**
  * In-memory pattern source for testing
@@ -107,7 +111,7 @@ class TestLearningTrigger implements ILearningTrigger {
 
 function createTestPattern(overrides: Partial<StoredPattern> = {}): StoredPattern {
   return {
-    id: `pattern-${Math.random().toString(36).slice(2, 8)}`,
+    id: `pattern-${patternIdRng.random().toString(36).slice(2, 8)}`,
     embedding: new Array(64).fill(0.1),
     content: 'Test pattern content',
     category: 'test-generation',

@@ -23,8 +23,12 @@ import {
   Test,
   QETestResult,
   SublinearMatrix,
-  SublinearSolution
+  SublinearSolution,
+  PreTaskData,
+  PostTaskData,
+  TaskErrorData
 } from '../types';
+import type { TestFrameworkExecutor as TestFrameworkExecutorType } from '../utils/TestFrameworkExecutor.js';
 
 export interface TestExecutorConfig extends BaseAgentConfig {
   frameworks: string[];
@@ -48,26 +52,167 @@ export interface TestExecutorConfig extends BaseAgentConfig {
 
 // Create a simple logger interface
 interface Logger {
-  info(message: string, ...args: any[]): void;
-  warn(message: string, ...args: any[]): void;
-  error(message: string, ...args: any[]): void;
-  debug(message: string, ...args: any[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+  debug(message: string, ...args: unknown[]): void;
 }
 
 // Simple console logger implementation
 class ConsoleLogger implements Logger {
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     console.log(`[INFO] ${message}`, ...args);
   }
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     console.warn(`[WARN] ${message}`, ...args);
   }
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     console.error(`[ERROR] ${message}`, ...args);
   }
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     console.debug(`[DEBUG] ${message}`, ...args);
   }
+}
+
+// ============================================================================
+// Type definitions for test execution
+// ============================================================================
+
+/** Configuration for integration test execution */
+interface IntegrationTestConfig {
+  testPath: string;
+  framework?: string;
+  environment?: string;
+}
+
+/** Configuration for E2E test execution */
+interface E2ETestConfig {
+  testPath: string;
+  framework?: string;
+  baseUrl?: string;
+  browser?: string;
+}
+
+/** Configuration for API test execution */
+interface ApiTestConfig {
+  testPath: string;
+  baseUrl: string;
+  framework?: string;
+}
+
+/** Configuration for regression test execution */
+interface RegressionTestConfig {
+  testSuite: string;
+  baseline: string;
+  framework?: string;
+}
+
+/** Configuration for test discovery */
+interface TestDiscoveryConfig {
+  searchPath?: string;
+  frameworks?: string[];
+}
+
+/** Result from test discovery */
+interface TestDiscoveryResult {
+  searchPath: string;
+  frameworks: string[];
+  discovered: {
+    unitTests: number;
+    integrationTests: number;
+    e2eTests: number;
+    apiTests: number;
+  };
+  total: number;
+  summary: string;
+  simulated?: boolean;
+}
+
+/** Configuration for test analysis */
+interface TestAnalysisConfig {
+  testPath: string;
+  _includeMetrics?: boolean;
+}
+
+/** Result from test analysis */
+interface TestAnalysisResult {
+  testPath: string;
+  analysis: {
+    coverage: number;
+    complexity: number;
+    maintainability: number;
+    duplicates: number;
+    outdated: number;
+  };
+  recommendations: string[];
+  score: number;
+  summary: string;
+}
+
+/** Configuration for single test execution */
+interface SingleTestConfig {
+  test: Test;
+}
+
+/** Configuration for retrying failed tests */
+interface RetryFailedTestsConfig {
+  failedTests: Test[];
+}
+
+/** Result from running a test framework */
+interface FrameworkRunResult {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  duration?: number;
+  tests?: Array<{ status: string; failureMessages?: string[] }>;
+  coverage?: {
+    lines: { pct: number };
+    branches: { pct: number };
+    functions: { pct: number };
+  };
+  exitCode?: number | null;
+  status?: string;
+}
+
+/** Options for running a test framework */
+interface FrameworkRunOptions {
+  testPath: string;
+  pattern: string;
+  type: string;
+  environment?: string;
+  baseUrl?: string;
+  browser?: string;
+  baseline?: string;
+  timeout?: number;
+  coverage?: boolean;
+  config?: string;
+}
+
+/** Error in test execution with type classification */
+interface TestError {
+  type: 'assertion' | 'timeout' | 'setup' | 'unknown';
+  message: string;
+}
+
+/** Execution pattern for storage */
+interface ExecutionPattern {
+  type: string;
+  framework: string;
+  passRate: number;
+  avgDuration: number;
+  timestamp: number;
+}
+
+/** Test execution result with standard properties */
+interface TestExecutionResult {
+  success?: boolean;
+  totalTests?: number;
+  passedTests?: number;
+  failedTests?: number;
+  testResults?: QETestResult[];
+  [key: string]: unknown;
 }
 
 export class TestExecutorAgent extends BaseAgent {
@@ -75,7 +220,7 @@ export class TestExecutorAgent extends BaseAgent {
   protected readonly logger: Logger = new ConsoleLogger();
   private activeExecutions: Map<string, Promise<QETestResult>> = new Map();
   private retryStrategies: Map<string, (error: Error) => boolean> = new Map();
-  private testFrameworkExecutor?: any; // TestFrameworkExecutor instance (lazy loaded)
+  private testFrameworkExecutor?: TestFrameworkExecutorType;
 
   constructor(config: TestExecutorConfig) {
     super({
@@ -142,7 +287,7 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Pre-task hook - Load test execution history before task execution
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB loading)
     await super.onPreTask(data);
 
@@ -164,46 +309,49 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Post-task hook - Store test results and emit events for FlakyTestHunter
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB storage, learning)
     await super.onPostTask(data);
+
+    // Cast result to TestExecutionResult for type-safe property access
+    const result = data.result as TestExecutionResult | null | undefined;
 
     // Store test execution results
     await this.memoryStore.store(
       `aqe/${this.agentId.type}/results/${data.assignment.id}`,
       {
-        result: data.result,
+        result: result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        testsExecuted: data.result?.totalTests || 0,
-        testsPassed: data.result?.passedTests || 0,
-        testsFailed: data.result?.failedTests || 0
+        success: result?.success !== false,
+        testsExecuted: result?.totalTests ?? 0,
+        testsPassed: result?.passedTests ?? 0,
+        testsFailed: result?.failedTests ?? 0
       },
       86400 // 24 hours
     );
 
     // NEW: Store successful execution patterns in AgentDB for learning
-    await this.storeExecutionPatternsInAgentDB(data.result);
+    await this.storeExecutionPatternsInAgentDB(result);
 
     // Emit test execution event for FlakyTestHunter and other agents
     this.eventBus.emit(`${this.agentId.type}:completed`, {
       agentId: this.agentId,
-      result: data.result,
+      result: result,
       timestamp: new Date(),
-      testResults: data.result?.testResults || []
+      testResults: result?.testResults ?? []
     });
 
     console.log(`[${this.agentId.type}] Test execution completed`, {
       taskId: data.assignment.id,
-      testsRun: data.result?.totalTests || 0
+      testsRun: result?.totalTests ?? 0
     });
   }
 
   /**
    * Task error hook - Log test execution failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     // Call parent implementation
     await super.onTaskError(data);
 
@@ -260,7 +408,7 @@ export class TestExecutorAgent extends BaseAgent {
     console.log(`TestExecutorAgent ${this.agentId.id} initialized successfully in ${mode} mode`);
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<QETestResult | QETestResult[] | TestDiscoveryResult | TestAnalysisResult | { results: QETestResult[]; totalTime: number; parallelEfficiency: number; optimizationApplied: boolean }> {
     const { type, payload } = task;
 
     console.log(`Executing ${type} task: ${task.id}`);
@@ -623,7 +771,15 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Execute integration tests
    */
-  private async executeIntegrationTests(data: any): Promise<any> {
+  private async executeIntegrationTests(data: IntegrationTestConfig): Promise<{
+    framework: string;
+    type: string;
+    results: FrameworkRunResult;
+    executionTime: number;
+    environment: string;
+    success: boolean;
+    summary: { total: number; passed: number; failed: number; skipped: number; passRate: number };
+  }> {
     const { testPath, framework = 'jest', environment = 'test' } = data;
 
     console.log(`Executing integration tests in ${environment} environment`);
@@ -665,7 +821,16 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Execute end-to-end tests
    */
-  private async executeE2ETests(data: any): Promise<any> {
+  private async executeE2ETests(data: E2ETestConfig): Promise<{
+    framework: string;
+    type: string;
+    results: FrameworkRunResult;
+    executionTime: number;
+    browser: string;
+    baseUrl?: string;
+    success: boolean;
+    summary: { total: number; passed: number; failed: number; skipped: number; passRate: number };
+  }> {
     const { testPath, framework = 'cypress', baseUrl, browser = 'chrome' } = data;
 
     console.log(`Executing E2E tests with ${framework} on ${browser}`);
@@ -709,7 +874,15 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Execute API tests
    */
-  private async executeApiTests(data: any): Promise<any> {
+  private async executeApiTests(data: ApiTestConfig): Promise<{
+    framework: string;
+    type: string;
+    results: FrameworkRunResult;
+    executionTime: number;
+    baseUrl: string;
+    success: boolean;
+    summary: { total: number; passed: number; failed: number; skipped: number; passRate: number };
+  }> {
     const { testPath, baseUrl, framework = 'jest' } = data;
 
     console.log(`Executing API tests against ${baseUrl}`);
@@ -751,7 +924,15 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Execute regression tests
    */
-  private async executeRegressionTests(data: any): Promise<any> {
+  private async executeRegressionTests(data: RegressionTestConfig): Promise<{
+    framework: string;
+    type: string;
+    results: FrameworkRunResult;
+    executionTime: number;
+    baseline: string;
+    success: boolean;
+    summary: { total: number; passed: number; failed: number; skipped: number; passRate: number };
+  }> {
     const { testSuite, baseline, framework = 'jest' } = data;
 
     console.log(`Executing regression tests against baseline: ${baseline}`);
@@ -793,7 +974,7 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Discover test files - REAL or SIMULATED
    */
-  private async discoverTests(data: any): Promise<any> {
+  private async discoverTests(data: TestDiscoveryConfig): Promise<TestDiscoveryResult> {
     const { searchPath = './tests', frameworks = this.config.frameworks } = data;
 
     console.log(`Discovering tests in ${searchPath}`);
@@ -882,7 +1063,7 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Analyze test files
    */
-  private async analyzeTests(data: any): Promise<any> {
+  private async analyzeTests(data: TestAnalysisConfig): Promise<TestAnalysisResult> {
     const { testPath, _includeMetrics = true } = data;
 
     console.log(`Analyzing tests in ${testPath}`);
@@ -1181,7 +1362,7 @@ export class TestExecutorAgent extends BaseAgent {
    * AgentDB Integration: Store successful execution patterns for cross-agent learning
    * Note: AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
    */
-  private async storeExecutionPatternsInAgentDB(_result: any): Promise<void> {
+  private async storeExecutionPatternsInAgentDB(_result: TestExecutionResult | QETestResult | QETestResult[] | null | undefined): Promise<void> {
     // AgentDB direct access deprecated in v2.4.0 - patterns now stored via memory strategies
     // Pattern storage is now handled through BaseAgent's memory strategy
   }
@@ -1189,17 +1370,17 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * AgentDB Helper: Create execution pattern embedding for storage
    */
-  private async createExecutionPatternEmbedding(pattern: any): Promise<number[]> {
+  private async createExecutionPatternEmbedding(pattern: ExecutionPattern): Promise<number[]> {
     const patternStr = JSON.stringify(pattern);
     return generateEmbedding(patternStr);
   }
 
-  private async executeSingleTest(data: any): Promise<QETestResult> {
+  private async executeSingleTest(data: SingleTestConfig): Promise<QETestResult> {
     const { test } = data;
     return await this.executeTestWithRetry(test);
   }
 
-  private async retryFailedTests(data: any): Promise<QETestResult[]> {
+  private async retryFailedTests(data: RetryFailedTestsConfig): Promise<QETestResult[]> {
     const { failedTests } = data;
     const results: QETestResult[] = [];
 
@@ -1214,7 +1395,7 @@ export class TestExecutorAgent extends BaseAgent {
   /**
    * Run tests using a specific framework - REAL IMPLEMENTATION
    */
-  private async runTestFramework(framework: string, options: any): Promise<any> {
+  private async runTestFramework(framework: string, options: FrameworkRunOptions): Promise<FrameworkRunResult> {
     console.log(`Running tests with ${framework}`, options);
 
     // Import TestFrameworkExecutor dynamically
@@ -1278,15 +1459,19 @@ export class TestExecutorAgent extends BaseAgent {
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich test execution metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: Record<string, unknown> | null | undefined): Record<string, number> {
     const metrics: Record<string, number> = {};
 
     if (result && typeof result === 'object') {
+      // Helper to safely extract number
+      const getNumber = (value: unknown): number =>
+        typeof value === 'number' ? value : 0;
+
       // Test results
-      metrics.total_tests = result.total || result.totalTests || 0;
-      metrics.tests_passed = result.passed || result.testsPassed || 0;
-      metrics.tests_failed = result.failed || result.testsFailed || 0;
-      metrics.tests_skipped = result.skipped || result.testsSkipped || 0;
+      metrics.total_tests = getNumber(result.total) || getNumber(result.totalTests);
+      metrics.tests_passed = getNumber(result.passed) || getNumber(result.testsPassed);
+      metrics.tests_failed = getNumber(result.failed) || getNumber(result.testsFailed);
+      metrics.tests_skipped = getNumber(result.skipped) || getNumber(result.testsSkipped);
 
       // Pass rate
       if (metrics.total_tests > 0) {
@@ -1302,15 +1487,17 @@ export class TestExecutorAgent extends BaseAgent {
       }
 
       // Parallel execution metrics
-      if (result.parallelism) {
-        metrics.parallel_workers = result.parallelism.workers || 0;
-        metrics.parallel_efficiency = result.parallelism.efficiency || 0;
+      const parallelism = result.parallelism as { workers?: number; efficiency?: number } | undefined;
+      if (parallelism && typeof parallelism === 'object') {
+        metrics.parallel_workers = getNumber(parallelism.workers);
+        metrics.parallel_efficiency = getNumber(parallelism.efficiency);
       }
 
       // Retry metrics
-      if (result.retries) {
-        metrics.total_retries = result.retries.total || 0;
-        metrics.successful_retries = result.retries.successful || 0;
+      const retries = result.retries as { total?: number; successful?: number } | undefined;
+      if (retries && typeof retries === 'object') {
+        metrics.total_retries = getNumber(retries.total);
+        metrics.successful_retries = getNumber(retries.successful);
       }
 
       // Coverage if available
@@ -1319,13 +1506,15 @@ export class TestExecutorAgent extends BaseAgent {
       }
 
       // Flaky test detection
-      metrics.flaky_tests_detected = result.flakyTests?.length || 0;
+      const flakyTests = result.flakyTests as unknown[] | undefined;
+      metrics.flaky_tests_detected = Array.isArray(flakyTests) ? flakyTests.length : 0;
 
       // Error categories
       if (result.errors && Array.isArray(result.errors)) {
-        metrics.assertion_failures = result.errors.filter((e: any) => e.type === 'assertion').length;
-        metrics.timeout_errors = result.errors.filter((e: any) => e.type === 'timeout').length;
-        metrics.setup_errors = result.errors.filter((e: any) => e.type === 'setup').length;
+        const errors = result.errors as TestError[];
+        metrics.assertion_failures = errors.filter(e => e.type === 'assertion').length;
+        metrics.timeout_errors = errors.filter(e => e.type === 'timeout').length;
+        metrics.setup_errors = errors.filter(e => e.type === 'setup').length;
       }
     }
 

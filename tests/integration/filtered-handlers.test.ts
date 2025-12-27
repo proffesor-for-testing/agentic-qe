@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 import {
   analyzeCoverageGapsFiltered,
   executeTestsFiltered,
@@ -27,14 +28,15 @@ import {
 describe('Filtered Handlers Integration', () => {
   describe('Coverage Analyzer', () => {
     it('should reduce coverage report tokens by 99%', async () => {
+      const rng = createSeededRandom(8000);
       // Simulate realistic coverage data: 1000 files
       const fullCoverage: CoverageFile[] = Array.from({ length: 1000 }, (_, i) => ({
         file: `src/module-${Math.floor(i / 10)}/file-${i}.ts`,
-        coverage: 30 + Math.random() * 60,
-        lines: 50 + Math.floor(Math.random() * 200),
-        functions: 5 + Math.floor(Math.random() * 20),
-        branches: 10 + Math.floor(Math.random() * 30),
-        uncoveredLines: Array.from({ length: Math.floor(Math.random() * 20) }, (_, j) => j + 1)
+        coverage: 30 + rng.random() * 60,
+        lines: 50 + Math.floor(rng.random() * 200),
+        functions: 5 + Math.floor(rng.random() * 20),
+        branches: 10 + Math.floor(rng.random() * 30),
+        uncoveredLines: Array.from({ length: Math.floor(rng.random() * 20) }, (_, j) => j + 1)
       }));
 
       const result = await analyzeCoverageGapsFiltered(
@@ -58,15 +60,16 @@ describe('Filtered Handlers Integration', () => {
 
   describe('Test Executor', () => {
     it('should reduce test results tokens by 97%', async () => {
+      const rng = createSeededRandom(8100);
       // Simulate realistic test results: 500 tests
       const fullResults: TestResult[] = Array.from({ length: 500 }, (_, i) => ({
         name: `test-${i}`,
         suite: `Suite ${Math.floor(i / 50)}`,
-        status: Math.random() > 0.1 ? 'passed' : (Math.random() > 0.5 ? 'failed' : 'skipped') as any,
-        duration: 100 + Math.random() * 5000,
-        error: Math.random() > 0.9 ? 'Test failed due to...' : undefined,
-        retryCount: Math.random() > 0.95 ? Math.floor(Math.random() * 3) : 0,
-        assertions: 5 + Math.floor(Math.random() * 10)
+        status: rng.random() > 0.1 ? 'passed' : (rng.random() > 0.5 ? 'failed' : 'skipped') as any,
+        duration: 100 + rng.random() * 5000,
+        error: rng.random() > 0.9 ? 'Test failed due to...' : undefined,
+        retryCount: rng.random() > 0.95 ? Math.floor(rng.random() * 3) : 0,
+        assertions: 5 + Math.floor(rng.random() * 10)
       }));
 
       const result = await executeTestsFiltered(
@@ -87,16 +90,17 @@ describe('Filtered Handlers Integration', () => {
 
   describe('Flaky Test Detector', () => {
     it('should reduce flaky test analysis tokens by 98%', async () => {
+      const rng = createSeededRandom(8200);
       // Simulate test execution history: 200 tests
       const fullFlaky: FlakyTest[] = Array.from({ length: 200 }, (_, i) => ({
         name: `test-${i}`,
         suite: `Suite ${Math.floor(i / 20)}`,
-        flakyRate: Math.random() * 100,
-        totalRuns: 100 + Math.floor(Math.random() * 400),
-        failures: Math.floor(Math.random() * 50),
-        passes: 100 + Math.floor(Math.random() * 400),
+        flakyRate: rng.random() * 100,
+        totalRuns: 100 + Math.floor(rng.random() * 400),
+        failures: Math.floor(rng.random() * 50),
+        passes: 100 + Math.floor(rng.random() * 400),
         lastFailure: new Date().toISOString(),
-        patterns: Math.random() > 0.5 ? ['timing', 'async'] : undefined
+        patterns: rng.random() > 0.5 ? ['timing', 'async'] : undefined
       }));
 
       const result = await analyzeFlakinessFiltered(
@@ -116,15 +120,16 @@ describe('Filtered Handlers Integration', () => {
 
   describe('Performance Benchmarker', () => {
     it('should reduce benchmark results tokens by 98%', async () => {
+      const rng = createSeededRandom(8300);
       // Simulate performance data: 300 endpoints
       const fullBenchmarks: PerformanceResult[] = Array.from({ length: 300 }, (_, i) => ({
         endpoint: `/api/v1/endpoint-${i}`,
         method: ['GET', 'POST', 'PUT', 'DELETE'][i % 4],
-        avgResponseTime: 50 + Math.random() * 500,
-        p95ResponseTime: 100 + Math.random() * 1000,
-        p99ResponseTime: 200 + Math.random() * 2000,
-        throughput: 100 + Math.random() * 1000,
-        errorRate: Math.random() * 5
+        avgResponseTime: 50 + rng.random() * 500,
+        p95ResponseTime: 100 + rng.random() * 1000,
+        p99ResponseTime: 200 + rng.random() * 2000,
+        throughput: 100 + rng.random() * 1000,
+        errorRate: rng.random() * 5
       }));
 
       const result = await runBenchmarksFiltered(
@@ -144,17 +149,18 @@ describe('Filtered Handlers Integration', () => {
 
   describe('Security Scanner', () => {
     it('should reduce vulnerability scan tokens by 97%', async () => {
+      const rng = createSeededRandom(8400);
       // Simulate security scan: 150 vulnerabilities
       const severities = ['critical', 'high', 'medium', 'low'] as const;
       const fullVulns: SecurityVulnerability[] = Array.from({ length: 150 }, (_, i) => ({
         id: `CVE-2024-${10000 + i}`,
         title: `Vulnerability ${i}`,
-        severity: severities[Math.floor(Math.random() * severities.length)],
-        cwe: `CWE-${100 + Math.floor(Math.random() * 900)}`,
-        cvss: 1 + Math.random() * 9,
+        severity: severities[Math.floor(rng.random() * severities.length)],
+        cwe: `CWE-${100 + Math.floor(rng.random() * 900)}`,
+        cvss: 1 + rng.random() * 9,
         package: `package-${Math.floor(i / 10)}`,
-        version: `1.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`,
-        fixedIn: Math.random() > 0.3 ? `1.${Math.floor(Math.random() * 10) + 1}.0` : undefined,
+        version: `1.${Math.floor(rng.random() * 10)}.${Math.floor(rng.random() * 10)}`,
+        fixedIn: rng.random() > 0.3 ? `1.${Math.floor(rng.random() * 10) + 1}.0` : undefined,
         description: `Security vulnerability affecting...`
       }));
 
@@ -176,16 +182,17 @@ describe('Filtered Handlers Integration', () => {
 
   describe('Quality Assessor', () => {
     it('should reduce quality assessment tokens by 97%', async () => {
+      const rng = createSeededRandom(8500);
       // Simulate quality issues: 250 issues
       const severities = ['critical', 'high', 'medium', 'low'] as const;
       const categories = ['complexity', 'duplication', 'maintainability', 'security'];
 
       const fullIssues: QualityIssue[] = Array.from({ length: 250 }, (_, i) => ({
         file: `src/file-${Math.floor(i / 5)}.ts`,
-        line: 10 + Math.floor(Math.random() * 200),
-        category: categories[Math.floor(Math.random() * categories.length)],
-        severity: severities[Math.floor(Math.random() * severities.length)],
-        score: 20 + Math.random() * 70,
+        line: 10 + Math.floor(rng.random() * 200),
+        category: categories[Math.floor(rng.random() * categories.length)],
+        severity: severities[Math.floor(rng.random() * severities.length)],
+        score: 20 + rng.random() * 70,
         description: `Quality issue detected...`,
         recommendation: `Fix by...`
       }));

@@ -15,6 +15,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
 import { Pool } from 'pg';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 import {
   CodeChunkStore,
   createDockerCodeChunkStore,
@@ -85,7 +86,8 @@ describeIntegration('RuVector Integration', () => {
   describe('CodeChunkStore', () => {
     it('should store and retrieve a code chunk', async () => {
       // Generate a mock embedding (768 dimensions)
-      const embedding = Array.from({ length: 768 }, () => Math.random() - 0.5);
+      const rng = createSeededRandom(13000);
+      const embedding = Array.from({ length: 768 }, () => rng.random() - 0.5);
 
       await chunkStore.storeChunk({
         id: 'test-chunk-1',
@@ -160,8 +162,9 @@ describeIntegration('RuVector Integration', () => {
 
     it('should filter by entity type', async () => {
       // Store a function and a class
-      const functionEmbedding = Array.from({ length: 768 }, () => Math.random());
-      const classEmbedding = Array.from({ length: 768 }, () => Math.random());
+      const rng = createSeededRandom(13100);
+      const functionEmbedding = Array.from({ length: 768 }, () => rng.random());
+      const classEmbedding = Array.from({ length: 768 }, () => rng.random());
 
       await chunkStore.storeChunk({
         id: 'func-1',
@@ -195,7 +198,8 @@ describeIntegration('RuVector Integration', () => {
     });
 
     it('should perform hybrid search (vector + keyword)', async () => {
-      const embedding = Array.from({ length: 768 }, () => Math.random() - 0.5);
+      const rng = createSeededRandom(13200);
+      const embedding = Array.from({ length: 768 }, () => rng.random() - 0.5);
 
       await chunkStore.storeChunk({
         id: 'test-1',
@@ -268,7 +272,8 @@ describeIntegration('RuVector Integration', () => {
     });
 
     it('should delete chunks by file path', async () => {
-      const embedding = Array.from({ length: 768 }, () => Math.random());
+      const rng = createSeededRandom(13300);
+      const embedding = Array.from({ length: 768 }, () => rng.random());
 
       await chunkStore.storeChunk({
         id: 'delete-1',
@@ -316,7 +321,8 @@ describeIntegration('RuVector Integration', () => {
       expect(vectorSearch.isUsingDatabase()).toBe(true);
 
       // Add a document
-      const embedding = Array.from({ length: 768 }, () => Math.random() - 0.5);
+      const rng = createSeededRandom(13400);
+      const embedding = Array.from({ length: 768 }, () => rng.random() - 0.5);
 
       await vectorSearch.addDocument({
         id: 'vs-test-1',
@@ -349,7 +355,8 @@ describeIntegration('RuVector Integration', () => {
 
       expect(vectorSearch.isUsingDatabase()).toBe(false);
 
-      const embedding = Array.from({ length: 768 }, () => Math.random() - 0.5);
+      const rng = createSeededRandom(13500);
+      const embedding = Array.from({ length: 768 }, () => rng.random() - 0.5);
 
       await vectorSearch.addDocument({
         id: 'mem-test-1',

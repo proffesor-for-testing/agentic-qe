@@ -10,6 +10,7 @@ import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { BaseAgent } from '@agents/BaseAgent';
 import * as path from 'path';
 import * as fs from 'fs';
+import { withFakeTimers, advanceAndFlush } from '../helpers/timerTestUtils';
 
 describe('INTEGRATION-SUITE-002: Database Integration', () => {
   let memoryStore: SwarmMemoryManager;
@@ -421,24 +422,26 @@ describe('INTEGRATION-SUITE-002: Database Integration', () => {
     }, 30000);
 
     it('should maintain performance with fragmentation', async () => {
-      // Create fragmented data
-      for (let i = 0; i < 50; i++) {
-        await memoryStore.store(`fragmentation/${i}`, {
-          data: `Entry ${i}`
-        }, { partition: 'coordination', ttl: i % 2 === 0 ? 1 : 3600 });
-      }
+      await withFakeTimers(async (timers) => {
+        // Create fragmented data
+        for (let i = 0; i < 50; i++) {
+          await memoryStore.store(`fragmentation/${i}`, {
+            data: `Entry ${i}`
+          }, { partition: 'coordination', ttl: i % 2 === 0 ? 1 : 3600 });
+        }
 
-      // Wait for some to expire
-      await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait for some to expire using fake timers
+        await timers.advanceAsync(2000);
 
-      // Test query performance
-      const startTime = Date.now();
-      await memoryStore.retrieve('fragmentation/49', {
-        partition: 'coordination'
+        // Test query performance
+        const startTime = timers.now();
+        await memoryStore.retrieve('fragmentation/49', {
+          partition: 'coordination'
+        });
+        const duration = timers.now() - startTime;
+
+        expect(duration).toBeLessThan(20);
       });
-      const duration = Date.now() - startTime;
-
-      expect(duration).toBeLessThan(20);
     }, 5000);
   });
 

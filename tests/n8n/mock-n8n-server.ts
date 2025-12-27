@@ -14,6 +14,10 @@
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+
+// Seeded RNG for deterministic execution timing
+const rng = createSeededRandom(25100);
 
 // Mock data
 const mockWorkflows = [
@@ -344,7 +348,7 @@ function createExecution(workflowId: string, inputData?: any): any {
   let currentTime = Date.now();
 
   for (const node of workflow.nodes) {
-    const execTime = Math.floor(Math.random() * 500) + 50; // 50-550ms
+    const execTime = Math.floor(rng.random() * 500) + 50; // 50-550ms
     runData[node.name] = [{
       startTime: currentTime,
       executionTime: execTime,

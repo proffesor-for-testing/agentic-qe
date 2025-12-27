@@ -21,6 +21,7 @@ import { SleepCycle, CycleSummary } from '../../../src/learning/scheduler/SleepC
 import { DreamEngine } from '../../../src/learning/dream/DreamEngine';
 import { BaselineCollector } from '../../../src/learning/baselines/BaselineCollector';
 import { QEAgentType } from '../../../src/types';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('Learning Improvement Proof', () => {
   const testDir = path.join(process.cwd(), '.test-data', 'learning-improvement');
@@ -65,6 +66,7 @@ describe('Learning Improvement Proof', () => {
       await experienceCapture.start();
 
       // Simulate 10 agent executions
+      const rng = createSeededRandom(18500);
       const executions: AgentExecutionEvent[] = [];
       for (let i = 0; i < 10; i++) {
         executions.push({
@@ -74,11 +76,11 @@ describe('Learning Improvement Proof', () => {
           taskType: i % 2 === 0 ? 'unit-test-generation' : 'coverage-analysis',
           input: { file: `src/module${i}.ts` },
           output: {
-            testsGenerated: Math.floor(Math.random() * 10) + 1,
-            coverage: Math.random() * 30 + 70,
+            testsGenerated: Math.floor(rng.random() * 10) + 1,
+            coverage: rng.random() * 30 + 70,
           },
-          duration: Math.floor(Math.random() * 2000) + 500,
-          success: Math.random() > 0.1, // 90% success rate
+          duration: Math.floor(rng.random() * 2000) + 500,
+          success: rng.random() > 0.1, // 90% success rate
           timestamp: new Date(),
         });
       }

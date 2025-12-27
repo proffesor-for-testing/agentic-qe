@@ -16,7 +16,7 @@ export interface WorkflowResumeArgs {
   checkpointId: string;
   context?: {
     skipFailedSteps?: boolean;
-    overrideVariables?: Record<string, any>;
+    overrideVariables?: Record<string, unknown>;
   };
 }
 
@@ -29,13 +29,43 @@ export interface ResumedExecution {
   restoredState: {
     completedSteps: string[];
     failedSteps: string[];
-    variables: Record<string, any>;
+    variables: Record<string, unknown>;
   };
   results?: {
     success: boolean;
     resumedStepsCompleted: number;
     totalDuration: number;
   };
+}
+
+/**
+ * Type guard for checkpoint data retrieved from memory
+ */
+interface CheckpointData {
+  executionId: string;
+  state: {
+    completedSteps: string[];
+    failedSteps: string[];
+    variables: Record<string, unknown>;
+  };
+}
+
+/**
+ * Type guard to check if a value is a valid CheckpointData
+ */
+function isCheckpointData(value: unknown): value is CheckpointData {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.executionId === 'string' &&
+    typeof obj.state === 'object' &&
+    obj.state !== null &&
+    'completedSteps' in obj.state &&
+    'failedSteps' in obj.state &&
+    'variables' in obj.state
+  );
 }
 
 export class WorkflowResumeHandler extends BaseHandler {
@@ -87,13 +117,20 @@ export class WorkflowResumeHandler extends BaseHandler {
 
   private async resumeWorkflow(args: WorkflowResumeArgs): Promise<ResumedExecution> {
     // Retrieve checkpoint
-    const checkpoint = await this.memory.retrieve(`workflow:checkpoint:${args.checkpointId}`, {
+    const checkpointRaw = await this.memory.retrieve(`workflow:checkpoint:${args.checkpointId}`, {
       partition: 'workflow_checkpoints'
     });
 
-    if (!checkpoint) {
+    if (!checkpointRaw) {
       throw new Error(`Checkpoint not found: ${args.checkpointId}`);
     }
+
+    // Validate checkpoint data structure
+    if (!isCheckpointData(checkpointRaw)) {
+      throw new Error(`Invalid checkpoint data structure: ${args.checkpointId}`);
+    }
+
+    const checkpoint = checkpointRaw;
 
     // Retrieve original execution
     const execution = await this.memory.retrieve(`workflow:execution:${checkpoint.executionId}`, {
@@ -131,8 +168,8 @@ export class WorkflowResumeHandler extends BaseHandler {
       }
     };
 
-    // Store resumed execution
-    await this.memory.store(`workflow:execution:${newExecutionId}`, resumed, {
+    // Store resumed execution - cast to Record<string, unknown> for SerializableValue compatibility
+    await this.memory.store(`workflow:execution:${newExecutionId}`, { ...resumed } as Record<string, unknown>, {
       partition: 'workflow_executions',
       ttl: 86400 // 24 hours
     });
@@ -158,8 +195,8 @@ export class WorkflowResumeHandler extends BaseHandler {
       totalDuration: 200
     };
 
-    // Update in memory
-    await this.memory.store(`workflow:execution:${resumed.executionId}`, resumed, {
+    // Update in memory - cast to Record<string, unknown> for SerializableValue compatibility
+    await this.memory.store(`workflow:execution:${resumed.executionId}`, { ...resumed } as Record<string, unknown>, {
       partition: 'workflow_executions'
     });
   }

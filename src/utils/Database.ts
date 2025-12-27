@@ -10,8 +10,234 @@ import { dirname } from 'path';
 import { promises as fs } from 'fs';
 import { Logger } from './Logger';
 
+// =============================================================================
+// SQL Parameter Types
+// =============================================================================
+
+/**
+ * Primitive types that SQLite supports natively
+ */
+export type SqlPrimitive = string | number | boolean | null | Buffer;
+
+/**
+ * Array of SQL parameters for prepared statements
+ */
+export type SqlParams = SqlPrimitive[];
+
+// =============================================================================
+// Configuration Types
+// =============================================================================
+
+/**
+ * Fleet configuration stored in the database
+ */
+export interface FleetConfigData {
+  topology?: 'hierarchical' | 'mesh' | 'ring' | 'adaptive';
+  maxAgents?: number;
+  environments?: string[];
+  frameworks?: string[];
+  testingFocus?: string[];
+  database?: {
+    type: 'sqlite' | 'memory';
+    path?: string;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * Agent configuration data
+ */
+export interface AgentConfigData {
+  capabilities?: string[];
+  resources?: {
+    cpu?: number;
+    memory?: number;
+  };
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  [key: string]: unknown;
+}
+
+/**
+ * Agent metrics data
+ */
+export interface AgentMetricsData {
+  tasksCompleted?: number;
+  successRate?: number;
+  averageExecutionTime?: number;
+  errorRate?: number;
+  lastActive?: string;
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// Task Types
+// =============================================================================
+
+/**
+ * Task data payload
+ */
+export interface TaskData {
+  sourceCode?: string;
+  testType?: string;
+  language?: string;
+  framework?: string;
+  coverageGoal?: number;
+  path?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Task requirements specification
+ */
+export interface TaskRequirements {
+  capabilities?: string[];
+  resources?: {
+    cpu?: number;
+    memory?: number;
+  };
+  timeout?: number;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  [key: string]: unknown;
+}
+
+/**
+ * Task execution result
+ */
+export interface TaskResult {
+  success?: boolean;
+  output?: string;
+  artifacts?: string[];
+  metrics?: Record<string, number>;
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// Event Types
+// =============================================================================
+
+/**
+ * Event data payload
+ */
+export interface EventData {
+  type?: string;
+  message?: string;
+  details?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// Metric Types
+// =============================================================================
+
+/**
+ * Metric tags for categorization
+ */
+export interface MetricTags {
+  environment?: string;
+  component?: string;
+  operation?: string;
+  [key: string]: string | undefined;
+}
+
+// =============================================================================
+// Learning System Types
+// =============================================================================
+
+/**
+ * Learning snapshot metrics
+ */
+export interface LearningSnapshotMetrics {
+  accuracy?: number;
+  loss?: number;
+  avgReward?: number;
+  episodeCount?: number;
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// Row Types - Define specific shapes for database query results
+// =============================================================================
+
+/**
+ * Base row interface with string-keyed primitive values
+ */
 export interface DatabaseRow {
-  [key: string]: any;
+  [key: string]: SqlPrimitive;
+}
+
+/**
+ * Row returned from count queries
+ */
+export interface CountRow {
+  count: number;
+}
+
+/**
+ * Row returned from average queries
+ */
+export interface AvgRow {
+  avg: number | null;
+}
+
+/**
+ * Q-value row from the q_values table
+ */
+export interface QValueRow {
+  state_key: string;
+  action_key: string;
+  q_value: number;
+  update_count: number;
+}
+
+/**
+ * Q-value for a specific action
+ */
+export interface ActionQValueRow {
+  action_key: string;
+  q_value: number;
+}
+
+/**
+ * Learning experience row
+ */
+export interface LearningExperienceRow {
+  id: number;
+  task_type: string;
+  state: string;
+  action: string;
+  reward: number;
+  next_state: string;
+  timestamp: string;
+  q_value?: number;
+}
+
+/**
+ * Reward row for statistics calculations
+ */
+export interface RewardRow {
+  reward: number;
+}
+
+// =============================================================================
+// Error Types and Type Guards
+// =============================================================================
+
+/**
+ * Database error with message property
+ */
+export interface DatabaseError extends Error {
+  message: string;
+  code?: string;
+}
+
+/**
+ * Type guard to check if an error is a DatabaseError with a message
+ */
+function isDatabaseError(error: unknown): error is DatabaseError {
+  return (
+    error instanceof Error &&
+    typeof (error as DatabaseError).message === 'string'
+  );
 }
 
 export class Database {
@@ -99,7 +325,7 @@ export class Database {
   /**
    * Run SQL query with parameters
    */
-  async run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
+  async run(sql: string, params: SqlParams = []): Promise<{ lastID: number; changes: number }> {
     if (!this.db) {
         this.logger.error('Database connection failed - not initialized');
         throw new Error('Database not initialized. Call initialize() first.');
@@ -118,16 +344,17 @@ export class Database {
   }
 
   /**
-   * Get single row from database
+   * Get single row from database with type safety
+   * @template T - The expected row type (defaults to DatabaseRow)
    */
-  async get(sql: string, params: any[] = []): Promise<DatabaseRow | undefined> {
+  async get<T = DatabaseRow>(sql: string, params: SqlParams = []): Promise<T | undefined> {
     if (!this.db) {
         this.logger.error('Database connection failed - not initialized');
         throw new Error('Database not initialized. Call initialize() first.');
       }
 
     try {
-      return this.db.prepare(sql).get(...params) as DatabaseRow | undefined;
+      return this.db.prepare(sql).get(...params) as T | undefined;
     } catch (error) {
       this.logger.error('SQL get error:', error);
       throw error;
@@ -135,16 +362,17 @@ export class Database {
   }
 
   /**
-   * Get all rows from database
+   * Get all rows from database with type safety
+   * @template T - The expected row type (defaults to DatabaseRow)
    */
-  async all(sql: string, params: any[] = []): Promise<DatabaseRow[]> {
+  async all<T = DatabaseRow>(sql: string, params: SqlParams = []): Promise<T[]> {
     if (!this.db) {
         this.logger.error('Database connection failed - not initialized');
         throw new Error('Database not initialized. Call initialize() first.');
       }
 
     try {
-      return this.db.prepare(sql).all(...params) as DatabaseRow[];
+      return this.db.prepare(sql).all(...params) as T[];
     } catch (error) {
       this.logger.error('SQL all error:', error);
       throw error;
@@ -398,9 +626,9 @@ export class Database {
     for (const index of indexes) {
       try {
         await this.exec(index);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Log warning but continue - index might reference tables from other schema managers
-        if (error.message && error.message.includes('no such column')) {
+        if (isDatabaseError(error) && error.message.includes('no such column')) {
           this.logger.warn(`Skipping index creation: ${error.message}`);
         } else {
           throw error;
@@ -417,7 +645,7 @@ export class Database {
   async upsertFleet(fleet: {
     id: string;
     name: string;
-    config: any;
+    config: FleetConfigData;
     status: string;
   }): Promise<void> {
     const sql = `
@@ -441,8 +669,8 @@ export class Database {
     fleetId: string;
     type: string;
     status: string;
-    config?: any;
-    metrics?: any;
+    config?: AgentConfigData;
+    metrics?: AgentMetricsData;
   }): Promise<void> {
     const sql = `
       INSERT OR REPLACE INTO agents (id, fleet_id, type, status, config, metrics, updated_at)
@@ -468,11 +696,11 @@ export class Database {
     agentId?: string;
     type: string;
     name: string;
-    data?: any;
-    requirements?: any;
+    data?: TaskData;
+    requirements?: TaskRequirements;
     status: string;
     priority?: number;
-    result?: any;
+    result?: TaskResult;
     error?: string;
     startedAt?: Date;
     completedAt?: Date;
@@ -513,7 +741,7 @@ export class Database {
     type: string;
     source: string;
     target?: string;
-    data: any;
+    data: EventData;
   }): Promise<void> {
     const sql = `
       INSERT INTO events (id, fleet_id, agent_id, task_id, type, source, target, data)
@@ -543,7 +771,7 @@ export class Database {
     metricName: string;
     metricValue: number;
     unit?: string;
-    tags?: any;
+    tags?: MetricTags;
   }): Promise<void> {
     const sql = `
       INSERT INTO metrics (fleet_id, agent_id, task_id, metric_type, metric_name, metric_value, unit, tags)
@@ -579,12 +807,12 @@ export class Database {
 
     try {
       // Get total agents
-      const totalResult = await this.get('SELECT COUNT(*) as count FROM agents');
-      const total = totalResult?.count || 0;
+      const totalResult = await this.get<CountRow>('SELECT COUNT(*) as count FROM agents');
+      const total = totalResult?.count ?? 0;
 
       // Get active agents
-      const activeResult = await this.get('SELECT COUNT(*) as count FROM agents WHERE status = ?', ['active']);
-      const active = activeResult?.count || 0;
+      const activeResult = await this.get<CountRow>('SELECT COUNT(*) as count FROM agents WHERE status = ?', ['active']);
+      const active = activeResult?.count ?? 0;
 
       return {
         total,
@@ -651,19 +879,14 @@ export class Database {
       WHERE agent_id = ? AND state_key = ? AND action_key = ?
     `;
 
-    const row = await this.get(sql, [agentId, stateKey, actionKey]);
+    const row = await this.get<{ q_value: number }>(sql, [agentId, stateKey, actionKey]);
     return row ? row.q_value : null;
   }
 
   /**
    * Get all Q-values for an agent
    */
-  async getAllQValues(agentId: string): Promise<Array<{
-    state_key: string;
-    action_key: string;
-    q_value: number;
-    update_count: number;
-  }>> {
+  async getAllQValues(agentId: string): Promise<QValueRow[]> {
     const sql = `
       SELECT state_key, action_key, q_value, update_count
       FROM q_values
@@ -671,21 +894,13 @@ export class Database {
       ORDER BY last_updated DESC
     `;
 
-    return await this.all(sql, [agentId]) as Array<{
-      state_key: string;
-      action_key: string;
-      q_value: number;
-      update_count: number;
-    }>;
+    return await this.all<QValueRow>(sql, [agentId]);
   }
 
   /**
    * Get Q-values for a specific state
    */
-  async getStateQValues(agentId: string, stateKey: string): Promise<Array<{
-    action_key: string;
-    q_value: number;
-  }>> {
+  async getStateQValues(agentId: string, stateKey: string): Promise<ActionQValueRow[]> {
     const sql = `
       SELECT action_key, q_value
       FROM q_values
@@ -693,10 +908,7 @@ export class Database {
       ORDER BY q_value DESC
     `;
 
-    return await this.all(sql, [agentId, stateKey]) as Array<{
-      action_key: string;
-      q_value: number;
-    }>;
+    return await this.all<ActionQValueRow>(sql, [agentId, stateKey]);
   }
 
   /**
@@ -737,15 +949,7 @@ export class Database {
     agentId: string,
     limit: number = 100,
     offset: number = 0
-  ): Promise<Array<{
-    id: number;
-    task_type: string;
-    state: string;
-    action: string;
-    reward: number;
-    next_state: string;
-    timestamp: string;
-  }>> {
+  ): Promise<LearningExperienceRow[]> {
     const sql = `
       SELECT id, task_type, state, action, reward, next_state, timestamp
       FROM learning_experiences
@@ -754,15 +958,7 @@ export class Database {
       LIMIT ? OFFSET ?
     `;
 
-    return await this.all(sql, [agentId, limit, offset]) as Array<{
-      id: number;
-      task_type: string;
-      state: string;
-      action: string;
-      reward: number;
-      next_state: string;
-      timestamp: string;
-    }>;
+    return await this.all<LearningExperienceRow>(sql, [agentId, limit, offset]);
   }
 
   /**
@@ -771,7 +967,7 @@ export class Database {
   async storeLearningSnapshot(snapshot: {
     agentId: string;
     snapshotType: 'performance' | 'q_table' | 'pattern';
-    metrics: any;
+    metrics: LearningSnapshotMetrics;
     improvementRate?: number;
     totalExperiences?: number;
     explorationRate?: number;
@@ -788,10 +984,10 @@ export class Database {
       snapshot.agentId,
       snapshot.snapshotType,
       JSON.stringify(snapshot.metrics),
-      snapshot.improvementRate || 0,
+      snapshot.improvementRate ?? 0,
       '', // next_state_representation (unused for snapshots)
-      snapshot.explorationRate || 0,
-      snapshot.totalExperiences || 0
+      snapshot.explorationRate ?? 0,
+      snapshot.totalExperiences ?? 0
     ]);
   }
 
@@ -805,36 +1001,36 @@ export class Database {
     recentImprovement: number;
   }> {
     const [experiencesRow, avgRewardRow, qTableRow] = await Promise.all([
-      this.get('SELECT COUNT(*) as count FROM learning_experiences WHERE agent_id = ?', [agentId]),
-      this.get("SELECT AVG(reward) as avg FROM learning_experiences WHERE agent_id = ? AND timestamp > datetime('now', '-7 days')", [agentId]),
-      this.get('SELECT COUNT(*) as count FROM q_values WHERE agent_id = ?', [agentId])
+      this.get<CountRow>('SELECT COUNT(*) as count FROM learning_experiences WHERE agent_id = ?', [agentId]),
+      this.get<AvgRow>("SELECT AVG(reward) as avg FROM learning_experiences WHERE agent_id = ? AND timestamp > datetime('now', '-7 days')", [agentId]),
+      this.get<CountRow>('SELECT COUNT(*) as count FROM q_values WHERE agent_id = ?', [agentId])
     ]);
 
     // Calculate recent improvement
-    const recentRewards = await this.all(
+    const recentRewards = await this.all<RewardRow>(
       'SELECT reward FROM learning_experiences WHERE agent_id = ? ORDER BY timestamp DESC LIMIT 20',
       [agentId]
     );
 
-    const oldRewards = await this.all(
+    const oldRewards = await this.all<RewardRow>(
       'SELECT reward FROM learning_experiences WHERE agent_id = ? ORDER BY timestamp ASC LIMIT 20',
       [agentId]
     );
 
     const recentAvg = recentRewards.length > 0
-      ? recentRewards.reduce((sum: number, r: any) => sum + r.reward, 0) / recentRewards.length
+      ? recentRewards.reduce((sum: number, r: RewardRow) => sum + r.reward, 0) / recentRewards.length
       : 0;
 
     const oldAvg = oldRewards.length > 0
-      ? oldRewards.reduce((sum: number, r: any) => sum + r.reward, 0) / oldRewards.length
+      ? oldRewards.reduce((sum: number, r: RewardRow) => sum + r.reward, 0) / oldRewards.length
       : 0;
 
     const improvement = oldAvg !== 0 ? ((recentAvg - oldAvg) / Math.abs(oldAvg)) * 100 : 0;
 
     return {
-      totalExperiences: (experiencesRow as any)?.count || 0,
-      avgReward: (avgRewardRow as any)?.avg || 0,
-      qTableSize: (qTableRow as any)?.count || 0,
+      totalExperiences: experiencesRow?.count ?? 0,
+      avgReward: avgRewardRow?.avg ?? 0,
+      qTableSize: qTableRow?.count ?? 0,
       recentImprovement: improvement
     };
   }
@@ -870,16 +1066,7 @@ export class Database {
       includePatterns?: boolean;
     } = {}
   ): Promise<{
-    experiences: Array<{
-      id: number;
-      task_type: string;
-      state: string;
-      action: string;
-      reward: number;
-      next_state: string;
-      timestamp: string;
-      q_value?: number;
-    }>;
+    experiences: LearningExperienceRow[];
     summary: {
       totalExperiences: number;
       avgReward: number;
@@ -889,8 +1076,8 @@ export class Database {
       patternsStored?: number;
     };
   }> {
-    const limit = options.limit || 50;
-    const offset = options.offset || 0;
+    const limit = options.limit ?? 50;
+    const offset = options.offset ?? 0;
 
     // Get experiences with optional Q-values
     const experiencesSql = options.includeQValues
@@ -927,7 +1114,7 @@ export class Database {
         LIMIT ? OFFSET ?
       `;
 
-    const experiences = await this.all(experiencesSql, [agentId, limit, offset]) as any[];
+    const experiences = await this.all<LearningExperienceRow>(experiencesSql, [agentId, limit, offset]);
 
     // Get summary statistics
     const stats = await this.getLearningStatistics(agentId);
@@ -935,11 +1122,11 @@ export class Database {
     // Get pattern count if requested
     let patternsStored: number | undefined;
     if (options.includePatterns) {
-      const patternResult = await this.get(
+      const patternResult = await this.get<CountRow>(
         'SELECT COUNT(*) as count FROM patterns WHERE metadata LIKE ?',
         [`%"agentId":"${agentId}"%`]
       );
-      patternsStored = (patternResult as any)?.count || 0;
+      patternsStored = patternResult?.count ?? 0;
     }
 
     // Calculate recent average reward (last 20 experiences)
@@ -952,8 +1139,8 @@ export class Database {
         LIMIT 20
       )
     `;
-    const recentResult = await this.get(recentSql, [agentId]);
-    const recentAvgReward = (recentResult as any)?.avg || 0;
+    const recentResult = await this.get<AvgRow>(recentSql, [agentId]);
+    const recentAvgReward = recentResult?.avg ?? 0;
 
     return {
       experiences,

@@ -54,6 +54,63 @@ export interface ArtifactRetrievalResult {
 }
 
 /**
+ * Memory query entry structure returned from SwarmMemoryManager.query()
+ */
+interface MemoryQueryEntry {
+  key: string;
+  value: unknown;
+  partition?: string;
+  createdAt?: number;
+  expiresAt?: number;
+}
+
+/**
+ * Type guard to check if value is an ArtifactManifest
+ */
+function isArtifactManifest(value: unknown): value is ArtifactManifest {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.kind === 'string' &&
+    typeof obj.path === 'string' &&
+    typeof obj.sha256 === 'string' &&
+    Array.isArray(obj.tags) &&
+    typeof obj.size === 'number' &&
+    typeof obj.createdAt === 'number'
+  );
+}
+
+/**
+ * Type guard to check if value is a MemoryQueryEntry
+ */
+function isMemoryQueryEntry(value: unknown): value is MemoryQueryEntry {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return typeof obj.key === 'string' && 'value' in obj;
+}
+
+/**
+ * Convert ArtifactManifest to Record<string, unknown> for storage
+ */
+function manifestToRecord(manifest: ArtifactManifest): Record<string, unknown> {
+  return {
+    id: manifest.id,
+    kind: manifest.kind,
+    path: manifest.path,
+    sha256: manifest.sha256,
+    tags: manifest.tags,
+    size: manifest.size,
+    createdAt: manifest.createdAt,
+    previousVersion: manifest.previousVersion
+  };
+}
+
+/**
  * ArtifactWorkflow - Artifact-Centric Design with Manifest Storage
  *
  * Implements Claude Flow's artifact-centric pattern:
@@ -142,7 +199,7 @@ export class ArtifactWorkflow {
     };
 
     // Store manifest in artifacts table (TTL 0 - never expires)
-    await this.memory.store(artifactId, manifest, {
+    await this.memory.store(artifactId, manifestToRecord(manifest), {
       partition: 'artifacts',
       ttl: 0
     });
@@ -163,11 +220,19 @@ export class ArtifactWorkflow {
     }
 
     // Retrieve manifest from memory
-    const manifestEntry = await this.memory.retrieve(artifactId, {
+    const manifestData = await this.memory.retrieve(artifactId, {
       partition: 'artifacts'
     });
 
-    const manifest = manifestEntry.value as ArtifactManifest;
+    if (manifestData === null) {
+      throw new Error(`Artifact not found: ${artifactId}`);
+    }
+
+    if (!isArtifactManifest(manifestData)) {
+      throw new Error(`Invalid artifact manifest for: ${artifactId}`);
+    }
+
+    const manifest: ArtifactManifest = manifestData;
 
     // Read artifact content from file
     const filePath = path.join(this.artifactsDir, manifest.path);
@@ -207,17 +272,22 @@ export class ArtifactWorkflow {
     });
 
     // Filter by tags (AND logic) and limit results
-    const results = allArtifacts
-      .filter((entry: any) => {
-        const manifest = entry.value as ArtifactManifest;
-        return tags.every(tag => manifest.tags.includes(tag));
-      })
-      .slice(0, 1000);
+    const results: ArtifactQueryResult[] = [];
 
-    return results.map((entry: any) => ({
-      id: entry.key,
-      manifest: entry.value as ArtifactManifest
-    }));
+    for (const entry of allArtifacts.slice(0, 1000)) {
+      if (!isMemoryQueryEntry(entry)) continue;
+      if (!isArtifactManifest(entry.value)) continue;
+
+      const manifest = entry.value;
+      if (tags.every(tag => manifest.tags.includes(tag))) {
+        results.push({
+          id: entry.key,
+          manifest
+        });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -231,17 +301,22 @@ export class ArtifactWorkflow {
       partition: 'artifacts'
     });
 
-    const results = allArtifacts
-      .filter((entry: any) => {
-        const manifest = entry.value as ArtifactManifest;
-        return manifest.kind === kind;
-      })
-      .slice(0, 1000);
+    const results: ArtifactQueryResult[] = [];
 
-    return results.map((entry: any) => ({
-      id: entry.key,
-      manifest: entry.value as ArtifactManifest
-    }));
+    for (const entry of allArtifacts.slice(0, 1000)) {
+      if (!isMemoryQueryEntry(entry)) continue;
+      if (!isArtifactManifest(entry.value)) continue;
+
+      const manifest = entry.value;
+      if (manifest.kind === kind) {
+        results.push({
+          id: entry.key,
+          manifest
+        });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -259,20 +334,22 @@ export class ArtifactWorkflow {
       partition: 'artifacts'
     });
 
-    const results = allArtifacts
-      .filter((entry: any) => {
-        const manifest = entry.value as ArtifactManifest;
-        return (
-          manifest.kind === kind &&
-          tags.every(tag => manifest.tags.includes(tag))
-        );
-      })
-      .slice(0, 1000);
+    const results: ArtifactQueryResult[] = [];
 
-    return results.map((entry: any) => ({
-      id: entry.key,
-      manifest: entry.value as ArtifactManifest
-    }));
+    for (const entry of allArtifacts.slice(0, 1000)) {
+      if (!isMemoryQueryEntry(entry)) continue;
+      if (!isArtifactManifest(entry.value)) continue;
+
+      const manifest = entry.value;
+      if (manifest.kind === kind && tags.every(tag => manifest.tags.includes(tag))) {
+        results.push({
+          id: entry.key,
+          manifest
+        });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -289,11 +366,19 @@ export class ArtifactWorkflow {
     options: ArtifactVersionOptions
   ): Promise<string> {
     // Retrieve previous version to inherit metadata
-    const previousEntry = await this.memory.retrieve(previousArtifactId, {
+    const previousData = await this.memory.retrieve(previousArtifactId, {
       partition: 'artifacts'
     });
 
-    const previousManifest = previousEntry.value as ArtifactManifest;
+    if (previousData === null) {
+      throw new Error(`Previous artifact not found: ${previousArtifactId}`);
+    }
+
+    if (!isArtifactManifest(previousData)) {
+      throw new Error(`Invalid previous artifact manifest: ${previousArtifactId}`);
+    }
+
+    const previousManifest: ArtifactManifest = previousData;
 
     // Generate unique artifact ID first
     const newArtifactId = `artifact:${uuidv4()}`;
@@ -338,7 +423,7 @@ export class ArtifactWorkflow {
     };
 
     // Store manifest in artifacts table
-    await this.memory.store(newArtifactId, newManifest, {
+    await this.memory.store(newArtifactId, manifestToRecord(newManifest), {
       partition: 'artifacts',
       ttl: 0
     });
@@ -380,12 +465,15 @@ export class ArtifactWorkflow {
     // Build version graph
     const versionMap = new Map<string, string>(); // previousId -> currentId
 
-    allArtifacts.slice(0, 1000).forEach((entry: any) => {
-      const manifest = entry.value as ArtifactManifest;
+    for (const entry of allArtifacts.slice(0, 1000)) {
+      if (!isMemoryQueryEntry(entry)) continue;
+      if (!isArtifactManifest(entry.value)) continue;
+
+      const manifest = entry.value;
       if (manifest.previousVersion) {
         versionMap.set(manifest.previousVersion, manifest.id);
       }
-    });
+    }
 
     // Follow chain to find latest
     let latestId = artifactId;
@@ -407,12 +495,21 @@ export class ArtifactWorkflow {
       partition: 'artifacts'
     });
 
-    const limitedResults = allArtifacts.slice(0, options?.limit || 1000);
+    const results: ArtifactQueryResult[] = [];
+    const limit = options?.limit || 1000;
 
-    return limitedResults.map((entry: any) => ({
-      id: entry.key,
-      manifest: entry.value as ArtifactManifest
-    }));
+    for (const entry of allArtifacts) {
+      if (results.length >= limit) break;
+      if (!isMemoryQueryEntry(entry)) continue;
+      if (!isArtifactManifest(entry.value)) continue;
+
+      results.push({
+        id: entry.key,
+        manifest: entry.value
+      });
+    }
+
+    return results;
   }
 
   /**
@@ -422,11 +519,19 @@ export class ArtifactWorkflow {
    */
   async deleteArtifact(artifactId: string): Promise<void> {
     // Retrieve manifest to get file path
-    const manifestEntry = await this.memory.retrieve(artifactId, {
+    const manifestData = await this.memory.retrieve(artifactId, {
       partition: 'artifacts'
     });
 
-    const manifest = manifestEntry.value as ArtifactManifest;
+    if (manifestData === null) {
+      throw new Error(`Artifact not found: ${artifactId}`);
+    }
+
+    if (!isArtifactManifest(manifestData)) {
+      throw new Error(`Invalid artifact manifest for: ${artifactId}`);
+    }
+
+    const manifest: ArtifactManifest = manifestData;
 
     // Delete file
     const filePath = path.join(this.artifactsDir, manifest.path);

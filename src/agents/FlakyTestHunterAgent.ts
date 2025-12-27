@@ -36,7 +36,10 @@ import {
   QETask,
   FlakyTestHunterConfig,
   QETestResult as _QETestResult,
-  AQE_MEMORY_NAMESPACES as _AQE_MEMORY_NAMESPACES
+  AQE_MEMORY_NAMESPACES as _AQE_MEMORY_NAMESPACES,
+  PreTaskData,
+  PostTaskData,
+  TaskErrorData
 } from '../types';
 import {
   FlakyTestDetector,
@@ -113,7 +116,56 @@ export interface TestHistory {
   error?: string;
   agent?: string;
   orderInSuite?: number;
-  environment?: Record<string, any>;
+  environment?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Aggregated statistics for a single test's execution history
+ */
+export interface TestAggregatedStats {
+  testName: string;
+  totalRuns: number;
+  passes: number;
+  failures: number;
+  skips: number;
+  history: TestHistory[];
+  lastFailure: Date | null;
+  durations: number[];
+}
+
+/**
+ * Result returned from extractTaskMetrics for learning analysis
+ */
+export interface FlakyDetectionResult {
+  flakyTests?: Array<{
+    testName: string;
+    severity?: 'low' | 'medium' | 'high' | 'critical';
+    flakinessProbability?: number;
+  }>;
+  totalTestsAnalyzed?: number;
+  flakinessRate?: number;
+  rootCauses?: Array<{
+    type: 'timing' | 'race_condition' | 'resource' | 'environment' | string;
+    testName?: string;
+    confidence?: number;
+  }>;
+  stabilization?: {
+    suggestions?: string[];
+    autoFixable?: number;
+    confidence?: number;
+  };
+  analysisTime?: number;
+  executionRuns?: number;
+}
+
+/**
+ * Result structure for post-task hook processing
+ * Extends detection result with task execution metadata
+ */
+export interface FlakyTaskResult {
+  success?: boolean;
+  flakyTests?: FlakyTestResult[];
+  totalTests?: number;
 }
 
 export interface FlakyTestReport {
@@ -142,11 +194,16 @@ export class FlakyTestHunterAgent extends BaseAgent {
    * Logger for diagnostic output
    * Initialized with console-based implementation for compatibility with BaseAgent lifecycle
    */
-  protected readonly logger = {
-    info: (message: string, ...args: any[]) => console.log(`[INFO] ${message}`, ...args),
-    warn: (message: string, ...args: any[]) => console.warn(`[WARN] ${message}`, ...args),
-    error: (message: string, ...args: any[]) => console.error(`[ERROR] ${message}`, ...args),
-    debug: (message: string, ...args: any[]) => console.debug(`[DEBUG] ${message}`, ...args)
+  protected readonly logger: {
+    info: (message: string, ...args: unknown[]) => void;
+    warn: (message: string, ...args: unknown[]) => void;
+    error: (message: string, ...args: unknown[]) => void;
+    debug: (message: string, ...args: unknown[]) => void;
+  } = {
+    info: (message: string, ...args: unknown[]) => console.log(`[INFO] ${message}`, ...args),
+    warn: (message: string, ...args: unknown[]) => console.warn(`[WARN] ${message}`, ...args),
+    error: (message: string, ...args: unknown[]) => console.error(`[ERROR] ${message}`, ...args),
+    debug: (message: string, ...args: unknown[]) => console.debug(`[DEBUG] ${message}`, ...args)
   };
 
   private config: FlakyTestHunterConfig;
@@ -214,13 +271,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     };
     this.mlDetector = new FlakyTestDetector(mlOptions);
 
-    // Initialize logger
-    this.logger = {
-      info: (msg: string, ...args: any[]) => console.info(msg, ...args),
-      warn: (msg: string, ...args: any[]) => console.warn(msg, ...args),
-      error: (msg: string, ...args: any[]) => console.error(msg, ...args),
-      debug: (msg: string, ...args: any[]) => console.debug(msg, ...args)
-    };
+    // Logger is already initialized in the class property declaration
   }
 
   // ============================================================================
@@ -230,7 +281,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
   /**
    * Pre-task hook - Load test execution history from TestExecutor events
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB loading)
     await super.onPreTask(data);
 
@@ -252,9 +303,12 @@ export class FlakyTestHunterAgent extends BaseAgent {
   /**
    * Post-task hook - Store flakiness analysis and update patterns
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB storage, learning)
     await super.onPostTask(data);
+
+    // Type assertion for flaky test result properties
+    const result = data.result as FlakyTaskResult | undefined;
 
     // Store flakiness analysis results
     await this.memoryStore.store(
@@ -263,16 +317,16 @@ export class FlakyTestHunterAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        flakyTestsDetected: data.result?.flakyTests?.length || 0,
-        testsAnalyzed: data.result?.totalTests || 0
+        success: result?.success !== false,
+        flakyTestsDetected: result?.flakyTests?.length || 0,
+        testsAnalyzed: result?.totalTests || 0
       },
       86400 // 24 hours
     );
 
     // Phase 0.5: Store flaky detection patterns for self-learning
-    if (this.patternStoreEnabled && data.result?.flakyTests?.length > 0) {
-      await this.storeFlakynessPatterns(data.result.flakyTests);
+    if (this.patternStoreEnabled && result?.flakyTests && result.flakyTests.length > 0) {
+      await this.storeFlakynessPatterns(result.flakyTests);
     }
 
     // Emit flaky test detection event for other agents
@@ -280,12 +334,12 @@ export class FlakyTestHunterAgent extends BaseAgent {
       agentId: this.agentId,
       result: data.result,
       timestamp: new Date(),
-      flakyTests: data.result?.flakyTests || []
+      flakyTests: result?.flakyTests || []
     });
 
     console.log(`[${this.agentId.type}] Flaky test detection completed`, {
       taskId: data.assignment.id,
-      flakyTestsFound: data.result?.flakyTests?.length || 0
+      flakyTestsFound: result?.flakyTests?.length || 0
     });
   }
 
@@ -389,7 +443,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
   /**
    * Task error hook - Log flakiness detection failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     // Call parent implementation
     await super.onTaskError(data);
 
@@ -439,7 +493,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       const history = await this.retrieveSharedMemory(
         QEAgentType.TEST_EXECUTOR,
         'test-results/history'
-      );
+      ) as TestHistory[] | undefined;
 
       if (!history || history.length === 0) {
         return [];
@@ -528,7 +582,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
             failureRate: stats.failures / stats.totalRuns,
             passRate: stats.passes / stats.totalRuns,
             pattern: this.detectPattern(stats.history),
-            lastFlake: stats.lastFailure,
+            lastFlake: stats.lastFailure ?? undefined,
             severity: this.calculateSeverity(flakinessScore, stats),
             status: 'ACTIVE'
           };
@@ -936,7 +990,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
    * Analyze root cause using ML features and confidence
    * Phase 2: Enhanced with ML-based pattern recognition
    */
-  private async analyzeRootCauseML(mlTest: MLFlakyTest, _stats: any): Promise<RootCauseAnalysis> {
+  private async analyzeRootCauseML(mlTest: MLFlakyTest, _stats: TestAggregatedStats): Promise<RootCauseAnalysis> {
     // Use ML recommendation as primary source
     const mlRecommendation = mlTest.recommendation;
 
@@ -1112,9 +1166,9 @@ export class FlakyTestHunterAgent extends BaseAgent {
   private aggregateTestStats(
     history: TestHistory[],
     timeWindow: number
-  ): Record<string, any> {
+  ): Record<string, TestAggregatedStats> {
     const cutoff = Date.now() - timeWindow * 24 * 60 * 60 * 1000;
-    const stats: Record<string, any> = {};
+    const stats: Record<string, TestAggregatedStats> = {};
 
     for (const entry of history) {
       // Handle timestamp that might be a string (from JSON deserialization)
@@ -1133,9 +1187,9 @@ export class FlakyTestHunterAgent extends BaseAgent {
           passes: 0,
           failures: 0,
           skips: 0,
-          history: [],
+          history: [] as TestHistory[],
           lastFailure: null,
-          durations: []
+          durations: [] as number[]
         };
       }
 
@@ -1158,7 +1212,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     return stats;
   }
 
-  private calculateFlakinessScore(stats: any): number {
+  private calculateFlakinessScore(stats: TestAggregatedStats): number {
     // 1. Inconsistency: How often results change
     const inconsistency = this.calculateInconsistency(stats.history);
 
@@ -1201,7 +1255,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     return failures / recent.length;
   }
 
-  private calculateEnvironmentalSensitivity(stats: any): number {
+  private calculateEnvironmentalSensitivity(stats: TestAggregatedStats): number {
     // Simplified implementation
     // In production, would analyze agent correlation, time correlation, etc.
     const agentVariance = this.calculateAgentVariance(stats.history);
@@ -1275,14 +1329,14 @@ export class FlakyTestHunterAgent extends BaseAgent {
     return patterns.random;
   }
 
-  private calculateSeverity(flakinessScore: number, _stats: any): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
+  private calculateSeverity(flakinessScore: number, _stats: TestAggregatedStats): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
     if (flakinessScore >= 0.7) return 'CRITICAL';
     if (flakinessScore >= 0.5) return 'HIGH';
     if (flakinessScore >= 0.3) return 'MEDIUM';
     return 'LOW';
   }
 
-  private async analyzeRootCause(testName: string, stats: any): Promise<RootCauseAnalysis> {
+  private async analyzeRootCause(testName: string, stats: TestAggregatedStats): Promise<RootCauseAnalysis> {
     // Analyze error messages
     const errors = stats.history
       .filter((h: TestHistory) => h.result === 'fail' && h.error)
@@ -1681,50 +1735,55 @@ export class FlakyTestHunterAgent extends BaseAgent {
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich flaky test detection metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
     const metrics: Record<string, number> = {};
 
-    if (result && typeof result === 'object') {
-      // Flaky test detection metrics
-      metrics.flaky_tests_found = result.flakyTests?.length || 0;
-      metrics.total_tests_analyzed = result.totalTestsAnalyzed || 0;
-      metrics.flakiness_rate = result.flakinessRate || 0;
+    // Type guard to check if result is a valid FlakyDetectionResult
+    if (!result || typeof result !== 'object') {
+      return metrics;
+    }
 
-      // Severity breakdown
-      if (result.flakyTests && Array.isArray(result.flakyTests)) {
-        metrics.high_severity_flaky = result.flakyTests.filter(
-          (t: any) => t.severity === 'high' || t.flakinessProbability > 0.7
-        ).length;
-        metrics.medium_severity_flaky = result.flakyTests.filter(
-          (t: any) => t.severity === 'medium' || (t.flakinessProbability > 0.3 && t.flakinessProbability <= 0.7)
-        ).length;
-        metrics.low_severity_flaky = result.flakyTests.filter(
-          (t: any) => t.severity === 'low' || t.flakinessProbability <= 0.3
-        ).length;
-      }
+    const typedResult = result as FlakyDetectionResult;
 
-      // Root cause analysis
-      if (result.rootCauses && Array.isArray(result.rootCauses)) {
-        metrics.root_causes_identified = result.rootCauses.length;
-        metrics.timing_issues = result.rootCauses.filter((r: any) => r.type === 'timing').length;
-        metrics.race_conditions = result.rootCauses.filter((r: any) => r.type === 'race_condition').length;
-        metrics.resource_issues = result.rootCauses.filter((r: any) => r.type === 'resource').length;
-      }
+    // Flaky test detection metrics
+    metrics.flaky_tests_found = typedResult.flakyTests?.length || 0;
+    metrics.total_tests_analyzed = typedResult.totalTestsAnalyzed || 0;
+    metrics.flakiness_rate = typedResult.flakinessRate || 0;
 
-      // Stabilization metrics
-      if (result.stabilization) {
-        metrics.fixes_suggested = result.stabilization.suggestions?.length || 0;
-        metrics.auto_fixable = result.stabilization.autoFixable || 0;
-        metrics.confidence_score = result.stabilization.confidence || 0;
-      }
+    // Severity breakdown
+    if (typedResult.flakyTests && Array.isArray(typedResult.flakyTests)) {
+      metrics.high_severity_flaky = typedResult.flakyTests.filter(
+        (t) => t.severity === 'high' || (t.flakinessProbability !== undefined && t.flakinessProbability > 0.7)
+      ).length;
+      metrics.medium_severity_flaky = typedResult.flakyTests.filter(
+        (t) => t.severity === 'medium' || (t.flakinessProbability !== undefined && t.flakinessProbability > 0.3 && t.flakinessProbability <= 0.7)
+      ).length;
+      metrics.low_severity_flaky = typedResult.flakyTests.filter(
+        (t) => t.severity === 'low' || (t.flakinessProbability !== undefined && t.flakinessProbability <= 0.3)
+      ).length;
+    }
 
-      // Analysis performance
-      if (typeof result.analysisTime === 'number') {
-        metrics.analysis_time = result.analysisTime;
-      }
-      if (typeof result.executionRuns === 'number') {
-        metrics.execution_runs = result.executionRuns;
-      }
+    // Root cause analysis
+    if (typedResult.rootCauses && Array.isArray(typedResult.rootCauses)) {
+      metrics.root_causes_identified = typedResult.rootCauses.length;
+      metrics.timing_issues = typedResult.rootCauses.filter((r) => r.type === 'timing').length;
+      metrics.race_conditions = typedResult.rootCauses.filter((r) => r.type === 'race_condition').length;
+      metrics.resource_issues = typedResult.rootCauses.filter((r) => r.type === 'resource').length;
+    }
+
+    // Stabilization metrics
+    if (typedResult.stabilization) {
+      metrics.fixes_suggested = typedResult.stabilization.suggestions?.length || 0;
+      metrics.auto_fixable = typedResult.stabilization.autoFixable || 0;
+      metrics.confidence_score = typedResult.stabilization.confidence || 0;
+    }
+
+    // Analysis performance
+    if (typeof typedResult.analysisTime === 'number') {
+      metrics.analysis_time = typedResult.analysisTime;
+    }
+    if (typeof typedResult.executionRuns === 'number') {
+      metrics.execution_runs = typedResult.executionRuns;
     }
 
     return metrics;

@@ -10,6 +10,106 @@ export interface FleetMetricsOptions {
   export?: string; // Export to file
 }
 
+interface AgentEntry {
+  status: string;
+  type?: string;
+}
+
+interface TaskEntry {
+  status: string;
+  duration?: number;
+}
+
+interface ExecutionEntry {
+  timestamp: string;
+  duration?: number;
+  summary?: {
+    total?: number;
+    passed?: number;
+    failed?: number;
+  };
+  tasks?: TaskEntry[];
+}
+
+interface AgentMetrics {
+  total: number;
+  active: number;
+  idle: number;
+  busy: number;
+  failed: number;
+  utilization: string | number;
+}
+
+interface TaskMetrics {
+  total: number;
+  running: number;
+  pending: number;
+  completed: number;
+  failed: number;
+  successRate: string | number;
+  avgDuration: number;
+}
+
+interface PerformanceMetrics {
+  totalExecutions: number;
+  avgExecutionTime: number;
+  taskThroughput: number;
+  errorRate: string | number;
+}
+
+interface ResourceMetrics {
+  cpu: number;
+  memory: number | string;
+  memoryMB: string;
+  uptime: number;
+}
+
+interface QualityMetrics {
+  testCoverage: number;
+  avgTestsPassed: number;
+  qualityScore: string;
+}
+
+interface AgentBreakdownEntry {
+  count: number;
+  active: number;
+  busy: number;
+  idle: number;
+}
+
+interface TaskTimelineEntry {
+  timestamp: string;
+  total: number;
+  passed: number;
+  failed: number;
+  duration: number;
+}
+
+interface PerformanceTrends {
+  trend: string;
+  change: string | number;
+}
+
+interface FleetMetrics {
+  timestamp: string;
+  fleet: {
+    id: string;
+    topology: string;
+    maxAgents: number;
+    status: string;
+  };
+  agents: AgentMetrics;
+  tasks: TaskMetrics;
+  performance: PerformanceMetrics;
+  resources: ResourceMetrics;
+  quality: QualityMetrics;
+  detailed?: {
+    agentBreakdown: Record<string, AgentBreakdownEntry>;
+    taskTimeline: TaskTimelineEntry[];
+    performanceTrends: PerformanceTrends;
+  };
+}
+
 export class FleetMetricsCommand {
   static async execute(options: FleetMetricsOptions): Promise<any> {
     // Check if fleet is initialized
@@ -47,11 +147,11 @@ export class FleetMetricsCommand {
     return metrics;
   }
 
-  private static async collectMetrics(options: FleetMetricsOptions): Promise<any> {
+  private static async collectMetrics(options: FleetMetricsOptions): Promise<FleetMetrics> {
     const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
 
     // Load registry for current stats
-    let registry = { agents: [], tasks: [], fleet: {} };
+    let registry: { agents: AgentEntry[]; tasks: TaskEntry[]; fleet: Record<string, unknown> } = { agents: [], tasks: [], fleet: {} };
     if (await fs.pathExists('.agentic-qe/data/registry.json')) {
       registry = await fs.readJson('.agentic-qe/data/registry.json');
     }
@@ -60,13 +160,13 @@ export class FleetMetricsCommand {
     const executions = await this.loadExecutionHistory(options.from, options.to);
 
     // Calculate core metrics
-    const metrics: any = {
+    const metrics: FleetMetrics = {
       timestamp: new Date().toISOString(),
       fleet: {
         id: fleetConfig.id,
         topology: fleetConfig.topology,
         maxAgents: fleetConfig.maxAgents,
-        status: (registry.fleet as any).status || 'unknown'
+        status: (registry.fleet as Record<string, unknown>).status as string || 'unknown'
       },
       agents: this.calculateAgentMetrics(registry.agents),
       tasks: this.calculateTaskMetrics(registry.tasks, executions),
@@ -87,7 +187,7 @@ export class FleetMetricsCommand {
     return metrics;
   }
 
-  private static calculateAgentMetrics(agents: any[]): any {
+  private static calculateAgentMetrics(agents: AgentEntry[]): AgentMetrics {
     return {
       total: agents.length,
       active: agents.filter(a => a.status === 'active').length,
@@ -100,8 +200,8 @@ export class FleetMetricsCommand {
     };
   }
 
-  private static calculateTaskMetrics(tasks: any[], executions: any[]): any {
-    const allTasks = [...tasks, ...executions.flatMap((e: any) => e.tasks || [])];
+  private static calculateTaskMetrics(tasks: TaskEntry[], executions: ExecutionEntry[]): TaskMetrics {
+    const allTasks = [...tasks, ...executions.flatMap((e: ExecutionEntry) => e.tasks || [])];
 
     return {
       total: allTasks.length,
@@ -116,7 +216,7 @@ export class FleetMetricsCommand {
     };
   }
 
-  private static calculatePerformanceMetrics(executions: any[]): any {
+  private static calculatePerformanceMetrics(executions: ExecutionEntry[]): PerformanceMetrics {
     if (executions.length === 0) {
       return {
         totalExecutions: 0,
@@ -150,12 +250,12 @@ export class FleetMetricsCommand {
     };
   }
 
-  private static calculateQualityMetrics(executions: any[]): any {
+  private static calculateQualityMetrics(executions: ExecutionEntry[]): QualityMetrics {
     if (executions.length === 0) {
       return {
         testCoverage: 0,
         avgTestsPassed: 0,
-        qualityScore: 0
+        qualityScore: '0'
       };
     }
 
@@ -172,7 +272,7 @@ export class FleetMetricsCommand {
     };
   }
 
-  private static calculateAvgTaskDuration(tasks: any[]): number {
+  private static calculateAvgTaskDuration(tasks: TaskEntry[]): number {
     const completedTasks = tasks.filter(t => t.status === 'completed' && t.duration);
     if (completedTasks.length === 0) return 0;
 
@@ -180,7 +280,7 @@ export class FleetMetricsCommand {
     return Math.floor(totalDuration / completedTasks.length);
   }
 
-  private static async loadExecutionHistory(from?: string, to?: string): Promise<any[]> {
+  private static async loadExecutionHistory(from?: string, to?: string): Promise<ExecutionEntry[]> {
     const reportsDir = '.agentic-qe/reports';
     if (!await fs.pathExists(reportsDir)) {
       return [];
@@ -210,8 +310,8 @@ export class FleetMetricsCommand {
     return executions;
   }
 
-  private static getAgentBreakdown(agents: any[]): any {
-    const breakdown: Record<string, any> = {};
+  private static getAgentBreakdown(agents: AgentEntry[]): Record<string, AgentBreakdownEntry> {
+    const breakdown: Record<string, AgentBreakdownEntry> = {};
 
     agents.forEach(agent => {
       const type = agent.type || 'unknown';
@@ -227,7 +327,7 @@ export class FleetMetricsCommand {
     return breakdown;
   }
 
-  private static getTaskTimeline(executions: any[]): any[] {
+  private static getTaskTimeline(executions: ExecutionEntry[]): TaskTimelineEntry[] {
     return executions.slice(0, 10).map(e => ({
       timestamp: e.timestamp,
       total: e.summary?.total || 0,
@@ -237,7 +337,7 @@ export class FleetMetricsCommand {
     }));
   }
 
-  private static getPerformanceTrends(executions: any[]): any {
+  private static getPerformanceTrends(executions: ExecutionEntry[]): PerformanceTrends {
     if (executions.length < 2) {
       return { trend: 'stable', change: 0 };
     }
@@ -258,7 +358,7 @@ export class FleetMetricsCommand {
     };
   }
 
-  private static displayTableMetrics(metrics: any, detailed?: boolean): void {
+  private static displayTableMetrics(metrics: FleetMetrics, detailed?: boolean): void {
     // Fleet overview
     console.log(chalk.blue('🚁 Fleet Overview:'));
     console.log(chalk.gray(`  ID: ${metrics.fleet.id}`));
@@ -303,7 +403,7 @@ export class FleetMetricsCommand {
     // Detailed metrics
     if (detailed && metrics.detailed) {
       console.log(chalk.blue('\n🔍 Agent Breakdown:'));
-      Object.entries(metrics.detailed.agentBreakdown).forEach(([type, data]: [string, any]) => {
+      Object.entries(metrics.detailed.agentBreakdown).forEach(([type, data]: [string, AgentBreakdownEntry]) => {
         console.log(chalk.gray(`  ${type}: ${data.count} total, ${data.active} active, ${data.busy} busy`));
       });
 
@@ -315,11 +415,11 @@ export class FleetMetricsCommand {
     }
   }
 
-  private static displayJsonMetrics(metrics: any): void {
+  private static displayJsonMetrics(metrics: FleetMetrics): void {
     console.log(JSON.stringify(metrics, null, 2));
   }
 
-  private static async displayPrometheusMetrics(metrics: any): Promise<void> {
+  private static async displayPrometheusMetrics(metrics: FleetMetrics): Promise<void> {
     const prom = `# HELP aqe_fleet_agents_total Total number of agents
 # TYPE aqe_fleet_agents_total gauge
 aqe_fleet_agents_total ${metrics.agents.total}
@@ -356,7 +456,7 @@ aqe_fleet_memory_usage ${metrics.resources.memory}
     console.log(chalk.gray('\nPrometheus metrics saved to: .agentic-qe/metrics.prom'));
   }
 
-  private static async exportMetrics(metrics: any, exportPath: string, format: string): Promise<void> {
+  private static async exportMetrics(metrics: FleetMetrics, exportPath: string, format: string): Promise<void> {
     const metricsDir = '.agentic-qe/metrics';
     await fs.ensureDir(metricsDir);
 

@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { PriorityQueue } from '../../../src/core/orchestration/PriorityQueue';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('PriorityQueue', () => {
   let queue: PriorityQueue<string>;
@@ -145,9 +146,10 @@ describe('PriorityQueue', () => {
     });
 
     it('should handle many items', () => {
+      const rng = createSeededRandom(22001);
       // Add 1000 items
       for (let i = 0; i < 1000; i++) {
-        queue.enqueue(`task${i}`, Math.random() * 100);
+        queue.enqueue(`task${i}`, rng.random() * 100);
       }
 
       expect(queue.size()).toBe(1000);
@@ -190,11 +192,12 @@ describe('PriorityQueue', () => {
 
   describe('Performance', () => {
     it('should maintain O(log n) performance for enqueue/dequeue', () => {
+      const rng = createSeededRandom(22002);
       const startTime = Date.now();
 
       // Enqueue 10000 items
       for (let i = 0; i < 10000; i++) {
-        queue.enqueue(`task${i}`, Math.random() * 1000);
+        queue.enqueue(`task${i}`, rng.random() * 1000);
       }
 
       const enqueueTime = Date.now() - startTime;

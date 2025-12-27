@@ -352,8 +352,11 @@ export class UserService {
    * Generate unique user ID
    */
   private generateUserId(): string {
-    return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Note: This is a fixture file - uses simple counter for deterministic IDs
+    return `user_${Date.now()}_${(++UserService.idCounter).toString(36).padStart(9, '0')}`;
   }
+
+  private static idCounter = 0;
 
   /**
    * Hash password (mock implementation)

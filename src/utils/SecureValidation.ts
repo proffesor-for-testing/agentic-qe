@@ -28,7 +28,7 @@ export interface ValidationConfig {
   /** Length checks for strings/arrays */
   lengthChecks?: Record<string, { min?: number; max?: number }>;
   /** Enum checks: param name -> allowed values */
-  enumChecks?: Record<string, any[]>;
+  enumChecks?: Record<string, unknown[]>;
   /** Custom validator ID (references predefined validators) */
   customValidatorId?: string;
 }
@@ -81,7 +81,7 @@ export class SecureValidation {
    * @param params Parameters to validate
    * @returns Validation result with errors
    */
-  static validate(config: ValidationConfig, params: Record<string, any>): ValidationResult {
+  static validate(config: ValidationConfig, params: Record<string, unknown>): ValidationResult {
     const errors: string[] = [];
 
     try {
@@ -190,7 +190,7 @@ export class SecureValidation {
    * @param expectedType Expected type
    * @returns True if type matches
    */
-  private static validateType(value: any, expectedType: ValidationType): boolean {
+  private static validateType(value: unknown, expectedType: ValidationType): boolean {
     if (expectedType === 'null') {
       return value === null;
     }
@@ -209,7 +209,7 @@ export class SecureValidation {
    * @param params Parameters to validate
    * @returns Array of error messages
    */
-  private static runCustomValidator(validatorId: string, params: Record<string, any>): string[] {
+  private static runCustomValidator(validatorId: string, params: Record<string, unknown>): string[] {
     const errors: string[] = [];
 
     // Whitelist of allowed custom validators
@@ -296,7 +296,7 @@ export class SecureValidation {
    * @param params Parameters to validate
    * @returns True if valid, false otherwise
    */
-  static isValid(config: ValidationConfig, params: Record<string, any>): boolean {
+  static isValid(config: ValidationConfig, params: Record<string, unknown>): boolean {
     const result = this.validate(config, params);
     return result.valid;
   }
@@ -308,7 +308,7 @@ export class SecureValidation {
    * @param params Parameters to validate
    * @throws ValidationError if validation fails
    */
-  static validateOrThrow(config: ValidationConfig, params: Record<string, any>): void {
+  static validateOrThrow(config: ValidationConfig, params: Record<string, unknown>): void {
     const result = this.validate(config, params);
     if (!result.valid) {
       throw new ValidationError('Validation failed', result.errors);

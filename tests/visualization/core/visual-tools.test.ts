@@ -5,6 +5,7 @@
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import path from 'path';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Mock types from visual tools
 interface CompareScreenshotsParams {
@@ -117,8 +118,9 @@ class VisualTestingTools {
 
     const startTime = Date.now();
 
-    // Simulate screenshot comparison
-    const pixelDifference = Math.random() * 0.1;
+    // Simulate screenshot comparison with deterministic random
+    const rng = createSeededRandom(30100);
+    const pixelDifference = rng.random() * 0.1;
     const structuralSimilarity = 1 - pixelDifference;
     const visualRegressionScore = pixelDifference / params.threshold;
 
@@ -141,7 +143,7 @@ class VisualTestingTools {
       confidence: 0.95
     }] : [];
 
-    const aiInferenceTime = params.useAI ? Math.random() * 200 : undefined;
+    const aiInferenceTime = params.useAI ? rng.random() * 200 : undefined;
 
     return {
       status,

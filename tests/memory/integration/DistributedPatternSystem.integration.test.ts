@@ -10,6 +10,7 @@ import { DistributedPatternLibrary } from '../../../src/memory/DistributedPatter
 import { PatternReplicationService } from '../../../src/memory/PatternReplicationService';
 import { PatternQualityScorer } from '../../../src/memory/PatternQualityScorer';
 import { TestPattern } from '../../../src/core/memory/IPatternStore';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('Distributed Pattern System Integration', () => {
   let library1: DistributedPatternLibrary;
@@ -180,6 +181,7 @@ describe('Distributed Pattern System Integration', () => {
 
   describe('Multi-Agent Replication with Quality Tracking', () => {
     it('should maintain 1000+ patterns across 3 agents with quality scoring', async () => {
+      const rng = createSeededRandom(12000);
       const startTime = Date.now();
 
       // Create and replicate 1000 patterns
@@ -188,9 +190,9 @@ describe('Distributed Pattern System Integration', () => {
           id: `pattern-${i}`,
           type: i % 2 === 0 ? 'unit' : 'integration',
           domain: i % 3 === 0 ? 'auth' : i % 3 === 1 ? 'api' : 'database',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: 0.5 + (Math.random() * 0.5) // 0.5-1.0
+          coverage: 0.5 + (rng.random() * 0.5) // 0.5-1.0
         };
 
         await replicationService.replicatePattern(pattern);
@@ -210,13 +212,13 @@ describe('Distributed Pattern System Integration', () => {
       // Track usage for sample patterns
       for (let i = 0; i < 100; i++) {
         const patternId = `pattern-${i}`;
-        const successRate = Math.random();
+        const successRate = rng.random();
 
         for (let j = 0; j < 10; j++) {
           await scorer1.recordUsage({
             patternId,
             timestamp: Date.now() + j,
-            success: Math.random() < successRate,
+            success: rng.random() < successRate,
             executionTime: 50
           });
         }
@@ -235,25 +237,27 @@ describe('Distributed Pattern System Integration', () => {
 
   describe('Pattern Lookup Performance', () => {
     beforeEach(async () => {
+      const rng = createSeededRandom(12100);
       // Seed with 100 patterns
       for (let i = 0; i < 100; i++) {
         await replicationService.replicatePattern({
           id: `perf-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `performance test ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
     });
 
     it('should achieve <100ms p99 lookup latency across replicas', async () => {
+      const rng = createSeededRandom(12110);
       const latencies: number[] = [];
 
       // Perform 300 lookups across all 3 libraries
       for (let i = 0; i < 100; i++) {
-        const patternId = `perf-pattern-${Math.floor(Math.random() * 100)}`;
+        const patternId = `perf-pattern-${Math.floor(rng.random() * 100)}`;
 
         // Test on library1
         const start1 = Date.now();
@@ -282,15 +286,16 @@ describe('Distributed Pattern System Integration', () => {
 
   describe('Consistency and Sync', () => {
     it('should achieve 99.9% consistency after sync', async () => {
+      const rng = createSeededRandom(12200);
       // Create patterns on library1 only
       for (let i = 0; i < 100; i++) {
         await library1.storePattern({
           id: `consistency-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 
@@ -386,6 +391,7 @@ describe('Distributed Pattern System Integration', () => {
 
   describe('Quality-Based Replication Decisions', () => {
     it('should use quality scores to prioritize pattern replication', async () => {
+      const rng = createSeededRandom(12300);
       // Create patterns with varying quality
       const patterns: TestPattern[] = [];
       for (let i = 0; i < 10; i++) {
@@ -393,7 +399,7 @@ describe('Distributed Pattern System Integration', () => {
           id: `quality-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
           coverage: 0.5 + (i * 0.05) // Increasing quality
         });
@@ -413,7 +419,7 @@ describe('Distributed Pattern System Integration', () => {
           await scorer1.recordUsage({
             patternId,
             timestamp: Date.now() + j,
-            success: Math.random() < successRate,
+            success: rng.random() < successRate,
             executionTime: 50
           });
         }
@@ -440,6 +446,7 @@ describe('Distributed Pattern System Integration', () => {
 
   describe('Health Monitoring with Quality Metrics', () => {
     it('should track both replication health and pattern quality', async () => {
+      const rng = createSeededRandom(12400);
       await replicationService.start();
 
       // Create and replicate patterns
@@ -448,9 +455,9 @@ describe('Distributed Pattern System Integration', () => {
           id: `health-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 
@@ -459,7 +466,7 @@ describe('Distributed Pattern System Integration', () => {
         await scorer1.recordUsage({
           patternId: `health-pattern-${i}`,
           timestamp: Date.now() + i,
-          success: Math.random() > 0.3,
+          success: rng.random() > 0.3,
           executionTime: 50
         });
       }
@@ -477,6 +484,7 @@ describe('Distributed Pattern System Integration', () => {
 
   describe('System Resilience', () => {
     it('should maintain quality tracking during node failures', async () => {
+      const rng = createSeededRandom(12500);
       await replicationService.start();
 
       // Replicate patterns
@@ -485,9 +493,9 @@ describe('Distributed Pattern System Integration', () => {
           id: `resilience-pattern-${i}`,
           type: 'unit',
           domain: 'test',
-          embedding: new Array(128).fill(Math.random()),
+          embedding: new Array(128).fill(rng.random()),
           content: `test pattern ${i}`,
-          coverage: Math.random()
+          coverage: rng.random()
         });
       }
 

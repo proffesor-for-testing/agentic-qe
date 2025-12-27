@@ -105,6 +105,42 @@ export interface AccessibilityScanTaskResult {
   reportPath?: string;
 }
 
+/**
+ * Represents an accessibility violation found during scanning
+ */
+interface AccessibilityViolation {
+  id: string;
+  impact?: 'minor' | 'moderate' | 'serious' | 'critical';
+  description?: string;
+  help?: string;
+  helpUrl?: string;
+  wcagCriterion?: string;
+  severity?: 'minor' | 'moderate' | 'serious' | 'critical';
+  elements?: Array<{
+    html?: string;
+    target?: string[];
+    failureSummary?: string;
+  }>;
+  nodes?: Array<{
+    html: string;
+    target: string[];
+    failureSummary?: string;
+  }>;
+}
+
+/**
+ * Represents an element requiring ARIA label generation
+ */
+interface AccessibilityElement {
+  tagName: string;
+  role?: string;
+  attributes?: Record<string, string>;
+  textContent?: string;
+  accessibleName?: string;
+  context?: string;
+  issues?: string[];
+}
+
 // Simple logger interface
 interface Logger {
   info(message: string, ...args: unknown[]): void;
@@ -397,7 +433,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
     this.logger.info(`Generating remediations for ${violations.length} violations`);
 
     // Generate remediations based on violation patterns
-    const remediations = violations.map((violation: any) => ({
+    const remediations = violations.map((violation: AccessibilityViolation) => ({
       violationId: violation.id,
       wcagCriterion: violation.wcagCriterion,
       recommendation: this.getRemediationRecommendation(violation),
@@ -415,7 +451,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
   /**
    * Get remediation recommendation for a violation
    */
-  private getRemediationRecommendation(violation: any): string {
+  private getRemediationRecommendation(violation: AccessibilityViolation): string {
     const recommendations: Record<string, string> = {
       'color-contrast': 'Increase the color contrast ratio to meet WCAG requirements',
       'label': 'Add a visible label or aria-label to the form control',
@@ -429,7 +465,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
   /**
    * Generate code example for fixing a violation
    */
-  private generateCodeExample(violation: any): string {
+  private generateCodeExample(violation: AccessibilityViolation): string {
     // Simple code example generation
     if (violation.elements && violation.elements[0]) {
       const element = violation.elements[0];
@@ -441,14 +477,14 @@ export class AccessibilityAllyAgent extends BaseAgent {
   /**
    * Estimate remediation effort
    */
-  private estimateRemediationEffort(violation: any): string {
+  private estimateRemediationEffort(violation: AccessibilityViolation): string {
     const effortMap: Record<string, string> = {
       critical: 'High - 2-4 hours',
       serious: 'Medium - 1-2 hours',
       moderate: 'Low - 30 minutes',
       minor: 'Trivial - 15 minutes'
     };
-    return effortMap[violation.severity] || 'Medium - 1 hour';
+    return effortMap[violation.severity || 'moderate'] || 'Medium - 1 hour';
   }
 
   /**
@@ -590,7 +626,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
       '../mcp/tools/qe/accessibility/accname-computation.js'
     );
 
-    const recommendations = elements.map((element: any) => {
+    const recommendations = elements.map((element: AccessibilityElement) => {
       // Create computation object from element data
       const computation = {
         accessibleName: element.accessibleName || '',
