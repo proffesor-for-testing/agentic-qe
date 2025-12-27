@@ -7,6 +7,29 @@ export interface FleetRestartOptions {
   rollback?: boolean; // Rollback to previous state if restart fails
 }
 
+interface FleetConfig {
+  maxAgents: number;
+  [key: string]: unknown;
+}
+
+interface AgentEntry {
+  status: string;
+  stoppedAt?: string;
+  forceStopped?: boolean;
+  restartedAt?: string;
+  restartCount?: number;
+}
+
+interface TaskEntry {
+  status: string;
+  interruptedAt?: string;
+}
+
+interface Registry {
+  agents?: AgentEntry[];
+  tasks?: TaskEntry[];
+}
+
 export class FleetRestartCommand {
   static async execute(options: FleetRestartOptions): Promise<void> {
     // Check if fleet is initialized
@@ -64,7 +87,7 @@ export class FleetRestartCommand {
     await this.storeRestartOperation(mode, restartSuccess);
   }
 
-  private static async createRestartBackup(fleetConfig: any): Promise<void> {
+  private static async createRestartBackup(_fleetConfig: FleetConfig): Promise<void> {
     console.log(chalk.blue('💾 Creating pre-restart backup...'));
 
     const backupDir = `.agentic-qe/backups/restart-${Date.now()}`;
@@ -108,7 +131,7 @@ export class FleetRestartCommand {
     // Load registry
     if (await fs.pathExists('.agentic-qe/data/registry.json')) {
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
-      const runningTasks = registry.tasks?.filter((t: any) => t.status === 'running') || [];
+      const runningTasks = registry.tasks?.filter((t: TaskEntry) => t.status === 'running') || [];
 
       if (runningTasks.length > 0) {
         console.log(chalk.yellow(`  Waiting for ${runningTasks.length} running tasks to complete...`));
@@ -120,7 +143,7 @@ export class FleetRestartCommand {
 
       // Update agent statuses
       if (registry.agents) {
-        registry.agents.forEach((agent: any) => {
+        registry.agents.forEach((agent: AgentEntry) => {
           agent.status = 'stopped';
           agent.stoppedAt = new Date().toISOString();
         });
@@ -139,7 +162,7 @@ export class FleetRestartCommand {
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
 
       if (registry.agents) {
-        registry.agents.forEach((agent: any) => {
+        registry.agents.forEach((agent: AgentEntry) => {
           agent.status = 'stopped';
           agent.forceStopped = true;
           agent.stoppedAt = new Date().toISOString();
@@ -147,7 +170,7 @@ export class FleetRestartCommand {
 
         // Mark running tasks as interrupted
         if (registry.tasks) {
-          registry.tasks.forEach((task: any) => {
+          registry.tasks.forEach((task: TaskEntry) => {
             if (task.status === 'running') {
               task.status = 'interrupted';
               task.interruptedAt = new Date().toISOString();
@@ -181,7 +204,7 @@ export class FleetRestartCommand {
     console.log(chalk.gray('  Runtime data cleared'));
   }
 
-  private static async restartAgents(fleetConfig: any): Promise<void> {
+  private static async restartAgents(fleetConfig: FleetConfig): Promise<void> {
     console.log(chalk.blue('🚀 Restarting agents...'));
 
     // Generate restart script
@@ -215,7 +238,7 @@ echo "Fleet restarted successfully!"
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
 
       if (registry.agents) {
-        registry.agents.forEach((agent: any) => {
+        registry.agents.forEach((agent: AgentEntry) => {
           agent.status = 'active';
           agent.restartedAt = new Date().toISOString();
           agent.restartCount = (agent.restartCount || 0) + 1;
@@ -240,7 +263,7 @@ echo "Fleet restarted successfully!"
     // Check if agents are active
     if (await fs.pathExists('.agentic-qe/data/registry.json')) {
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
-      const activeAgents = registry.agents?.filter((a: any) => a.status === 'active').length || 0;
+      const activeAgents = registry.agents?.filter((a: AgentEntry) => a.status === 'active').length || 0;
 
       if (activeAgents === 0) {
         console.log(chalk.red('  ❌ No active agents after restart'));

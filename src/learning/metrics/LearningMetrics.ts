@@ -123,6 +123,45 @@ export interface MetricsConfig {
 }
 
 /**
+ * Database row type for type-safe SQLite queries
+ * Uses a flexible interface that covers all possible column names
+ */
+interface DbRow {
+  count?: number;
+  avg?: number | null;
+  total?: number;
+  applied?: number;
+  low_confidence?: number;
+  successful?: number;
+  used?: number;
+  transferred?: number;
+  with_patterns?: number;
+  without_patterns?: number;
+  before?: number;
+  after?: number;
+  completed?: number;
+  failed?: number;
+  interrupted?: number;
+  avg_duration?: number;
+  min_duration?: number;
+  max_duration?: number;
+  high?: number;
+  medium?: number;
+  low?: number;
+  pending?: number;
+  rejected?: number;
+  avg_score?: number;
+  source_agent?: string;
+  target_agent?: string;
+  success?: number;
+  fail?: number;
+  time_with?: number;
+  time_without?: number;
+  errors?: number;
+  error_type?: string;
+}
+
+/**
  * LearningMetrics collects and analyzes learning system effectiveness
  *
  * @example
@@ -250,23 +289,23 @@ export class LearningMetrics {
       // Total patterns ever discovered
       const totalRow = this.db.prepare(`
         SELECT COUNT(*) as count FROM patterns
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       // Patterns discovered today (last 24 hours)
       const dayStart = periodEnd - 24 * 60 * 60 * 1000;
       const todayRow = this.db.prepare(`
         SELECT COUNT(*) as count FROM patterns
         WHERE created_at >= ?
-      `).get(dayStart) as any;
+      `).get(dayStart) as DbRow | undefined;
 
       // Patterns in period
       const periodRow = this.db.prepare(`
         SELECT COUNT(*) as count FROM patterns
         WHERE created_at >= ? AND created_at <= ?
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as DbRow | undefined;
 
       const periodHours = (periodEnd - periodStart) / (1000 * 60 * 60);
-      const rate = periodHours > 0 ? periodRow.count / periodHours : 0;
+      const rate = periodHours > 0 ? (periodRow?.count || 0) / periodHours : 0;
 
       return {
         total: totalRow?.count || 0,
@@ -294,7 +333,7 @@ export class LearningMetrics {
       const confidenceRow = this.db.prepare(`
         SELECT AVG(confidence) as avg FROM patterns
         WHERE confidence IS NOT NULL
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       // Insight actionability (insights applied / total insights)
       const insightsRow = this.db.prepare(`
@@ -302,10 +341,10 @@ export class LearningMetrics {
           COUNT(*) as total,
           SUM(CASE WHEN status = 'applied' THEN 1 ELSE 0 END) as applied
         FROM dream_insights
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
-      const actionability = insightsRow?.total > 0
-        ? (insightsRow.applied || 0) / insightsRow.total
+      const actionability = (insightsRow?.total ?? 0) > 0
+        ? ((insightsRow?.applied ?? 0)) / (insightsRow?.total ?? 1)
         : 0.5; // Default to neutral
 
       // False positive rate (low confidence patterns / total)
@@ -315,10 +354,10 @@ export class LearningMetrics {
           SUM(CASE WHEN confidence < 0.5 THEN 1 ELSE 0 END) as low_confidence
         FROM patterns
         WHERE confidence IS NOT NULL
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
-      const falsePositiveRate = falsePositiveRow?.total > 0
-        ? (falsePositiveRow.low_confidence || 0) / falsePositiveRow.total
+      const falsePositiveRate = (falsePositiveRow?.total ?? 0) > 0
+        ? ((falsePositiveRow?.low_confidence ?? 0)) / (falsePositiveRow?.total ?? 1)
         : 0;
 
       return {
@@ -349,10 +388,10 @@ export class LearningMetrics {
           COUNT(*) as total,
           SUM(CASE WHEN status = 'active' AND validation_passed = 1 THEN 1 ELSE 0 END) as successful
         FROM transfer_registry
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
-      const successRate = transferRow?.total > 0
-        ? (transferRow.successful || 0) / transferRow.total
+      const successRate = (transferRow?.total ?? 0) > 0
+        ? ((transferRow?.successful ?? 0)) / (transferRow?.total ?? 1)
         : 0;
 
       // Adoption rate (transferred patterns that were actually used)
@@ -365,10 +404,10 @@ export class LearningMetrics {
         LEFT JOIN captured_experiences ce ON
           JSON_EXTRACT(ce.context, '$.patterns_used') LIKE '%' || tr.pattern_id || '%'
         WHERE tr.status = 'active'
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
-      const adoptionRate = adoptionRow?.transferred > 0
-        ? (adoptionRow.used || 0) / adoptionRow.transferred
+      const adoptionRate = (adoptionRow?.transferred ?? 0) > 0
+        ? ((adoptionRow?.used ?? 0)) / (adoptionRow?.transferred ?? 1)
         : 0;
 
       // Negative transfers (patterns transferred but led to failures)
@@ -379,7 +418,7 @@ export class LearningMetrics {
           JSON_EXTRACT(ce.context, '$.patterns_used') LIKE '%' || tr.pattern_id || '%'
         WHERE tr.status = 'active'
           AND JSON_EXTRACT(ce.execution, '$.success') = 0
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       return {
         successRate,
@@ -413,7 +452,7 @@ export class LearningMetrics {
         FROM captured_experiences
         WHERE created_at >= ? AND created_at <= ?
           AND JSON_EXTRACT(execution, '$.success') = 1
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const timeReduction = (timeRow?.without_patterns && timeRow?.with_patterns)
         ? ((timeRow.without_patterns - timeRow.with_patterns) / timeRow.without_patterns) * 100
@@ -426,7 +465,7 @@ export class LearningMetrics {
           AVG(CASE WHEN created_at >= ? THEN JSON_EXTRACT(outcome, '$.coverage') END) as after
         FROM captured_experiences
         WHERE JSON_EXTRACT(outcome, '$.coverage') IS NOT NULL
-      `).get(periodStart, periodStart) as any;
+      `).get(periodStart, periodStart) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const coverageImprovement = (coverageRow?.before && coverageRow?.after)
         ? ((coverageRow.after - coverageRow.before) / coverageRow.before) * 100
@@ -439,7 +478,7 @@ export class LearningMetrics {
           SUM(CASE WHEN created_at >= ? THEN JSON_EXTRACT(outcome, '$.bugs_found') END) as after
         FROM captured_experiences
         WHERE JSON_EXTRACT(outcome, '$.bugs_found') IS NOT NULL
-      `).get(periodStart, periodStart) as any;
+      `).get(periodStart, periodStart) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const bugDetectionImprovement = (bugRow?.before && bugRow?.after && bugRow.before > 0)
         ? ((bugRow.after - bugRow.before) / bugRow.before) * 100
@@ -474,10 +513,10 @@ export class LearningMetrics {
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
         FROM dream_cycles
         WHERE start_time >= ? AND start_time <= ?
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
-      const completionRate = cycleRow?.total > 0
-        ? (cycleRow.completed || 0) / cycleRow.total
+      const completionRate = (cycleRow?.total ?? 0) > 0
+        ? ((cycleRow?.completed ?? 0)) / (cycleRow?.total ?? 1)
         : 0;
 
       // Average cycle duration
@@ -486,7 +525,7 @@ export class LearningMetrics {
         FROM dream_cycles
         WHERE status = 'completed'
           AND start_time >= ? AND start_time <= ?
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as DbRow | undefined;
 
       // Error rate (failed executions / total executions)
       const errorRow = this.db.prepare(`
@@ -495,10 +534,10 @@ export class LearningMetrics {
           SUM(CASE WHEN JSON_EXTRACT(execution, '$.success') = 0 THEN 1 ELSE 0 END) as errors
         FROM captured_experiences
         WHERE created_at >= ? AND created_at <= ?
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as DbRow | undefined;
 
-      const errorRate = errorRow?.total > 0
-        ? (errorRow.errors || 0) / errorRow.total
+      const errorRate = (errorRow?.total ?? 0) > 0
+        ? ((errorRow?.errors ?? 0)) / (errorRow?.total ?? 1)
         : 0;
 
       return {
@@ -524,10 +563,10 @@ export class LearningMetrics {
       const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
       const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
 
-      const totalRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns`).get() as any;
-      const todayRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE created_at >= ?`).get(dayAgo) as any;
-      const weekRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE created_at >= ?`).get(weekAgo) as any;
-      const monthRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE created_at >= ?`).get(monthAgo) as any;
+      const totalRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns`).get() as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
+      const todayRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE created_at >= ?`).get(dayAgo) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
+      const weekRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE created_at >= ?`).get(weekAgo) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
+      const monthRow = this.db.prepare(`SELECT COUNT(*) as count FROM patterns WHERE created_at >= ?`).get(monthAgo) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const avgPerDay = (monthRow?.count || 0) / 30;
 
@@ -536,7 +575,7 @@ export class LearningMetrics {
         SELECT AVG(insights_generated) as avg
         FROM dream_cycles
         WHERE status = 'completed'
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       return {
         totalPatterns: totalRow?.count || 0,
@@ -571,7 +610,7 @@ export class LearningMetrics {
           AVG(confidence) as avg
         FROM patterns
         WHERE confidence IS NOT NULL
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       const insightRow = this.db.prepare(`
         SELECT
@@ -579,7 +618,7 @@ export class LearningMetrics {
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
           SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
         FROM dream_insights
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       return {
         highConfidencePatterns: confidenceRow?.high || 0,
@@ -614,7 +653,7 @@ export class LearningMetrics {
           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as successful,
           AVG(compatibility_score) as avg_score
         FROM transfer_registry
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       const pairRows = this.db.prepare(`
         SELECT
@@ -624,7 +663,7 @@ export class LearningMetrics {
           SUM(CASE WHEN status != 'active' THEN 1 ELSE 0 END) as fail
         FROM transfer_registry
         GROUP BY source_agent, target_agent
-      `).all() as any[];
+      `).all() as Array<{ source_agent?: string; target_agent?: string; success?: number; fail?: number; error_type?: string; count?: number }>;
 
       const transfersByAgentPair = new Map<string, { success: number; fail: number }>();
       for (const row of pairRows) {
@@ -643,7 +682,7 @@ export class LearningMetrics {
           SELECT 1 FROM captured_experiences ce
           WHERE JSON_EXTRACT(ce.context, '$.patterns_used') LIKE '%' || tr.pattern_id || '%'
         )
-      `).get() as any;
+      `).get() as DbRow | undefined;
 
       return {
         totalTransfers: transferRow?.total || 0,
@@ -680,7 +719,7 @@ export class LearningMetrics {
             THEN JSON_EXTRACT(execution, '$.duration') END) as time_without
         FROM captured_experiences
         WHERE created_at >= ? AND created_at <= ?
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const coverageRow = this.db.prepare(`
         SELECT
@@ -688,7 +727,7 @@ export class LearningMetrics {
           AVG(CASE WHEN created_at >= ? THEN JSON_EXTRACT(outcome, '$.coverage') END) as after
         FROM captured_experiences
         WHERE JSON_EXTRACT(outcome, '$.coverage') IS NOT NULL
-      `).get(periodStart, periodStart) as any;
+      `).get(periodStart, periodStart) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const bugRow = this.db.prepare(`
         SELECT
@@ -696,7 +735,7 @@ export class LearningMetrics {
           SUM(CASE WHEN created_at >= ? THEN JSON_EXTRACT(outcome, '$.bugs_found') END) as after
         FROM captured_experiences
         WHERE JSON_EXTRACT(outcome, '$.bugs_found') IS NOT NULL
-      `).get(periodStart, periodStart) as any;
+      `).get(periodStart, periodStart) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const timeReductionMs = (taskRow?.time_without && taskRow?.time_with)
         ? taskRow.time_without - taskRow.time_with
@@ -744,14 +783,14 @@ export class LearningMetrics {
           MAX(duration) as max_duration
         FROM dream_cycles
         WHERE start_time >= ? AND start_time <= ?
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const errorRow = this.db.prepare(`
         SELECT COUNT(*) as count
         FROM captured_experiences
         WHERE created_at >= ? AND created_at <= ?
           AND JSON_EXTRACT(execution, '$.success') = 0
-      `).get(periodStart, periodEnd) as any;
+      `).get(periodStart, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       // Group errors by type
       const errorTypeRows = this.db.prepare(`
@@ -762,7 +801,7 @@ export class LearningMetrics {
         WHERE created_at >= ? AND created_at <= ?
           AND JSON_EXTRACT(execution, '$.success') = 0
         GROUP BY error_type
-      `).all(periodStart, periodEnd) as any[];
+      `).all(periodStart, periodEnd) as Array<{ source_agent?: string; target_agent?: string; success?: number; fail?: number; error_type?: string; count?: number }>;
 
       const errorsByType = new Map<string, number>();
       for (const row of errorTypeRows) {
@@ -814,30 +853,30 @@ export class LearningMetrics {
       const discoveryFirstHalf = this.db.prepare(`
         SELECT COUNT(*) as count FROM patterns
         WHERE created_at >= ? AND created_at < ?
-      `).get(periodStart, midpoint) as any;
+      `).get(periodStart, midpoint) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const discoverySecondHalf = this.db.prepare(`
         SELECT COUNT(*) as count FROM patterns
         WHERE created_at >= ? AND created_at <= ?
-      `).get(midpoint, periodEnd) as any;
+      `).get(midpoint, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
-      const discoveryTrend = (discoveryFirstHalf?.count || 0) > 0
-        ? ((discoverySecondHalf?.count || 0) - (discoveryFirstHalf?.count || 0)) / (discoveryFirstHalf.count || 1)
+      const discoveryTrend = (discoveryFirstHalf?.count ?? 0) > 0
+        ? ((discoverySecondHalf?.count ?? 0) - (discoveryFirstHalf?.count ?? 0)) / (discoveryFirstHalf?.count ?? 1)
         : 0;
 
       // Quality trend (compare average confidence)
       const qualityFirstHalf = this.db.prepare(`
         SELECT AVG(confidence) as avg FROM patterns
         WHERE created_at >= ? AND created_at < ?
-      `).get(periodStart, midpoint) as any;
+      `).get(periodStart, midpoint) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const qualitySecondHalf = this.db.prepare(`
         SELECT AVG(confidence) as avg FROM patterns
         WHERE created_at >= ? AND created_at <= ?
-      `).get(midpoint, periodEnd) as any;
+      `).get(midpoint, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
-      const qualityTrend = (qualityFirstHalf?.avg || 0) > 0
-        ? ((qualitySecondHalf?.avg || 0) - (qualityFirstHalf?.avg || 0)) / (qualityFirstHalf.avg || 1)
+      const qualityTrend = (qualityFirstHalf?.avg ?? 0) > 0
+        ? ((qualitySecondHalf?.avg ?? 0) - (qualityFirstHalf?.avg ?? 0)) / (qualityFirstHalf?.avg ?? 1)
         : 0;
 
       // Transfer trend (compare success rates)
@@ -847,7 +886,7 @@ export class LearningMetrics {
           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as successful
         FROM transfer_registry
         WHERE transferred_at >= ? AND transferred_at < ?
-      `).get(periodStart, midpoint) as any;
+      `).get(periodStart, midpoint) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const transferSecondHalf = this.db.prepare(`
         SELECT
@@ -855,14 +894,14 @@ export class LearningMetrics {
           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as successful
         FROM transfer_registry
         WHERE transferred_at >= ? AND transferred_at <= ?
-      `).get(midpoint, periodEnd) as any;
+      `).get(midpoint, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
-      const transferRateFirst = (transferFirstHalf?.total || 0) > 0
-        ? (transferFirstHalf.successful || 0) / transferFirstHalf.total
+      const transferRateFirst = (transferFirstHalf?.total ?? 0) > 0
+        ? ((transferFirstHalf?.successful ?? 0)) / (transferFirstHalf?.total ?? 1)
         : 0;
 
-      const transferRateSecond = (transferSecondHalf?.total || 0) > 0
-        ? (transferSecondHalf.successful || 0) / transferSecondHalf.total
+      const transferRateSecond = (transferSecondHalf?.total ?? 0) > 0
+        ? ((transferSecondHalf?.successful ?? 0)) / (transferSecondHalf?.total ?? 1)
         : 0;
 
       const transferTrend = transferRateFirst > 0
@@ -878,7 +917,7 @@ export class LearningMetrics {
             THEN JSON_EXTRACT(execution, '$.duration') END) as without_patterns
         FROM captured_experiences
         WHERE created_at >= ? AND created_at < ?
-      `).get(periodStart, midpoint) as any;
+      `).get(periodStart, midpoint) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const impactSecondHalf = this.db.prepare(`
         SELECT
@@ -888,7 +927,7 @@ export class LearningMetrics {
             THEN JSON_EXTRACT(execution, '$.duration') END) as without_patterns
         FROM captured_experiences
         WHERE created_at >= ? AND created_at <= ?
-      `).get(midpoint, periodEnd) as any;
+      `).get(midpoint, periodEnd) as { count?: number; total?: number; applied?: number; avg?: number; low_confidence?: number; successful?: number; high?: number; medium?: number; low?: number; pending?: number; rejected?: number; avg_score?: number; with_patterns?: number; without_patterns?: number; before?: number; after?: number; completed?: number; failed?: number; interrupted?: number; avg_duration?: number; min_duration?: number; max_duration?: number; errors?: number; time_with?: number; time_without?: number } | undefined;
 
       const reductionFirst = (impactFirstHalf?.without_patterns && impactFirstHalf?.with_patterns)
         ? (impactFirstHalf.without_patterns - impactFirstHalf.with_patterns) / impactFirstHalf.without_patterns

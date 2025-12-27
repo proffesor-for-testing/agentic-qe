@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2025-12-27
+
+### Added
+
+#### Test Determinism Foundation (GOAP Issue #149 Phase 1)
+- **SeededRandom Utility** (`src/utils/SeededRandom.ts`): Mulberry32 PRNG for deterministic test execution
+  - `createSeededRandom(seed)`: Factory function for creating seeded RNG instances
+  - `SeededRandom` class with `random()`, `range()`, `int()`, `choice()`, `shuffle()` methods
+  - Unique seed ranges (23000-30300) prevent cross-test interference
+  - Full test suite with 610 lines of coverage tests
+
+- **Timer Test Utilities** (`tests/helpers/timerTestUtils.ts`): Jest fake timer helpers
+  - `withFakeTimers()`: Wrapper for automatic setup/teardown
+  - `advanceAndFlush()`, `runAllTimersAsync()`: Async timer control
+  - `createDelayedMock()`, `createRetryMock()`: Timer-aware mock factories
+  - `assertTimeout()`, `waitForCondition()`: Timer assertion helpers
+
+#### Type Safety Improvements (GOAP Issue #149 Phase 2)
+- **50+ New Type Interfaces** across agents, core, MCP, and CLI modules
+- **Hook Type Definitions** (`src/types/hook.types.ts`):
+  - `PostTaskData`, `TaskErrorData`, `PreTaskData` for agent lifecycle hooks
+  - `FlexibleTaskResult` union type for task result handling
+  - Result interfaces for all agent types
+
+### Changed
+
+#### Code Quality Metrics
+- **`any` Type Reduction**: 1,800 → 656 occurrences (63.5% reduction)
+  - `src/agents/`: 105 → 0 (100% elimination)
+  - `src/mcp/`: 226 → 102 (55% reduction)
+  - `src/cli/`: 277 → 168 (39% reduction)
+  - `src/core/`: 199 → 175 (12% reduction)
+  - `src/learning/`: 81 → 55 (32% reduction)
+
+- **Math.random() Migration**: 258+ test occurrences migrated to SeededRandom
+  - 65+ test files updated with deterministic random generation
+  - Eliminates flaky tests caused by non-deterministic randomness
+
+- **Timer Determinism**: 13 test files updated with `jest.useFakeTimers()`
+  - CLI tests, core tests, integration tests now use controlled timers
+  - E2E and benchmark tests documented where real timers required
+
+#### TypeScript Improvements
+- **0 TypeScript Errors**: Full strict mode compliance
+- Replaced `Record<string, any>` with `Record<string, unknown>` throughout
+- Added type guards for safe property access on `unknown` types
+- Proper type assertions for shared memory retrieval
+
+### Documentation
+- `docs/plans/goap-issue-149-code-quality.md`: GOAP execution plan
+- `docs/reports/any-type-analysis.md`: Type safety analysis report
+- `docs/reports/math-random-inventory.md`: Math.random audit
+- `docs/reports/skipped-tests-audit.md`: Skipped tests review
+- `docs/guides/timer-testing-patterns.md`: Timer testing guide
+
+### Fixed
+- All pre-existing TypeScript errors in agent files
+- Type mismatches in hook method signatures
+- Empty object initializations with proper default values
+
 ## [2.6.6] - 2025-12-26
 
 ### Added

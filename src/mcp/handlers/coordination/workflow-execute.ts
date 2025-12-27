@@ -19,7 +19,7 @@ export interface WorkflowExecuteArgs {
   context?: {
     environment?: string;
     dryRun?: boolean;
-    variables?: Record<string, any>;
+    variables?: Record<string, unknown>;
   };
   oodaEnabled?: boolean;
   autoCheckpoint?: boolean;
@@ -36,11 +36,11 @@ export interface WorkflowExecution {
   failedSteps: string[];
   checkpoints: string[];
   oodaCycles: OODALoop[];
-  context: Record<string, any>;
+  context: Record<string, unknown>;
   results?: {
     success: boolean;
     totalDuration: number;
-    stepResults: Record<string, any>;
+    stepResults: Record<string, unknown>;
   };
 }
 
@@ -117,7 +117,7 @@ export class WorkflowExecuteHandler extends BaseHandler {
     this.executions.set(executionId, execution);
 
     // Store in memory for persistence
-    await this.memory.store(`workflow:execution:${executionId}`, execution, {
+    await this.memory.store(`workflow:execution:${executionId}`, { ...execution } as Record<string, unknown>, {
       partition: 'workflow_executions',
       ttl: 86400 // 24 hours
     });
@@ -211,7 +211,7 @@ export class WorkflowExecuteHandler extends BaseHandler {
     };
 
     // Update in memory
-    await this.memory.store(`workflow:execution:${execution.executionId}`, execution, {
+    await this.memory.store(`workflow:execution:${execution.executionId}`, { ...execution } as Record<string, unknown>, {
       partition: 'workflow_executions'
     });
   }

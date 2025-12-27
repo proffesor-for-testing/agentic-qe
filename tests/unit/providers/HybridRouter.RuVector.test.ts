@@ -28,6 +28,7 @@ import {
 import { RuVectorClient, QueryResult, HealthCheckResponse } from '../../../src/providers/RuVectorClient';
 import { RuvllmProvider } from '../../../src/providers/RuvllmProvider';
 import { ClaudeProvider } from '../../../src/providers/ClaudeProvider';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Mock providers
 jest.mock('../../../src/providers/RuVectorClient');
@@ -54,12 +55,15 @@ function createMockCompletionResponse(content: string, model = 'test-model'): LL
   };
 }
 
+// RNG instance for deterministic test data
+const testRng = createSeededRandom(19004);
+
 /**
  * Create mock embedding response
  */
 function createMockEmbeddingResponse(): LLMEmbeddingResponse {
   return {
-    embedding: new Array(768).fill(0).map(() => Math.random()),
+    embedding: new Array(768).fill(0).map(() => testRng.random()),
     model: 'embedding-model',
     tokens: 10
   };

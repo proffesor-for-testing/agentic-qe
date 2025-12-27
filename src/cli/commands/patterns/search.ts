@@ -16,6 +16,17 @@ export interface PatternSearchOptions {
   format?: 'table' | 'json';
 }
 
+interface PatternRow {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  framework: string;
+  confidence: number;
+  success_rate: number;
+  usage_count: number;
+}
+
 export async function patternsSearch(query: string, options: PatternSearchOptions = {}): Promise<void> {
   if (!query) {
     console.error(chalk.red('❌ Search query is required'));
@@ -44,7 +55,7 @@ export async function patternsSearch(query: string, options: PatternSearchOption
       WHERE (name LIKE ? OR description LIKE ? OR template LIKE ? OR examples LIKE ?)
     `;
 
-    const params: any[] = [
+    const params: (string | number)[] = [
       searchPattern, searchPattern, searchPattern,  // for CASE
       searchPattern, searchPattern, searchPattern, searchPattern  // for WHERE
     ];
@@ -66,7 +77,7 @@ export async function patternsSearch(query: string, options: PatternSearchOption
     sql += ' LIMIT ?';
     params.push(limit);
 
-    const patterns = await db.all(sql, params);
+    const patterns = await db.all<PatternRow>(sql, params);
 
     await db.close();
 
@@ -89,7 +100,7 @@ export async function patternsSearch(query: string, options: PatternSearchOption
     // Display search results
     console.log(chalk.blue(`\n🔍 Search Results for "${query}"\n`));
 
-    patterns.forEach((p: any, index: number) => {
+    patterns.forEach((p, index: number) => {
       const prefix = index === patterns.length - 1 ? '└─' : '├─';
 
       console.log(`${prefix} ${chalk.cyan(p.name)}`);
@@ -102,7 +113,7 @@ export async function patternsSearch(query: string, options: PatternSearchOption
     });
 
     // Show stats
-    const avgConfidence = patterns.reduce((sum: number, p: any) => sum + p.confidence, 0) / patterns.length;
+    const avgConfidence = patterns.reduce((sum: number, p) => sum + p.confidence, 0) / patterns.length;
     console.log(chalk.blue('📊 Results Summary:\n'));
     console.log(`  Matches: ${chalk.cyan(patterns.length)}`);
     console.log(`  Avg Confidence: ${formatConfidence(avgConfidence)}`);
@@ -113,9 +124,10 @@ export async function patternsSearch(query: string, options: PatternSearchOption
 
     console.log();
 
-  } catch (error: any) {
+  } catch (error) {
     spinner.fail('Search failed');
-    console.error(chalk.red('❌ Error:'), error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red('❌ Error:'), message);
     process.exit(1);
   }
 }

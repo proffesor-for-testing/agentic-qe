@@ -21,6 +21,7 @@ import {
   type BatchOptions,
   type BatchResult,
 } from '../../src/utils/batch-operations';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('BatchOperationManager', () => {
   let batchManager: BatchOperationManager;
@@ -43,10 +44,11 @@ describe('BatchOperationManager', () => {
     });
 
     it('should maintain operation order in results', async () => {
+      const rng = createSeededRandom(22000);
       const operations = ['a', 'b', 'c', 'd', 'e'];
       const handler = async (s: string) => {
         // Random delay to test ordering
-        await new Promise((resolve) => setTimeout(resolve, Math.random() * 10));
+        await new Promise((resolve) => setTimeout(resolve, rng.random() * 10));
         return s.toUpperCase();
       };
 

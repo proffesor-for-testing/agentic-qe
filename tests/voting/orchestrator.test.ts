@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 import {
   VotingOrchestrator,
   DefaultAgentPool,
@@ -69,6 +70,7 @@ describe('VotingOrchestrator', () => {
     const agents = createMockAgents();
     pool = new DefaultAgentPool(agents);
     strategy = new DefaultVotingStrategy();
+    const rng = createSeededRandom(21000);
 
     mockVoteExecutor = vi.fn().mockImplementation(
       async (agent: VotingAgent, task: VotingTask): Promise<Vote> => {
@@ -78,8 +80,8 @@ describe('VotingOrchestrator', () => {
         return {
           agentId: agent.id,
           taskId: task.id,
-          score: 0.8 + Math.random() * 0.2,
-          confidence: 0.85 + Math.random() * 0.15,
+          score: 0.8 + rng.random() * 0.2,
+          confidence: 0.85 + rng.random() * 0.15,
           reasoning: `Agent ${agent.id} evaluated task ${task.id}`,
           timestamp: new Date()
         };

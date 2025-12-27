@@ -20,6 +20,7 @@ import {
   testPatternToEntry,
 } from '@/core/cache/BinaryMetadataCache';
 import type { TestPattern } from '@/core/memory/IPatternStore';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Binary Cache Performance Benchmarks', () => {
   const PATTERN_COUNTS = [100, 500, 1000, 5000];
@@ -495,13 +496,15 @@ function buildIndexes(entries: PatternEntry[]): CacheIndexData {
 }
 
 function generateAccessPattern(requests: number, cacheSize: number): number[] {
+  // Seeded RNG for reproducible access patterns (seed: 16001)
+  const rng = createSeededRandom(16001);
   // Simulate 90% cache hits, 10% misses
   return Array.from({ length: requests }, () => {
-    const random = Math.random();
+    const random = rng.random();
     if (random < 0.9) {
-      return Math.floor(Math.random() * cacheSize); // Cache hit
+      return Math.floor(rng.random() * cacheSize); // Cache hit
     } else {
-      return cacheSize + Math.floor(Math.random() * 100); // Cache miss
+      return cacheSize + Math.floor(rng.random() * 100); // Cache miss
     }
   });
 }

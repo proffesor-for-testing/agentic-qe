@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { MinCutPartitioner, TestFile, PartitionResult } from '../../../../src/test/partition/index.js';
+import { createSeededRandom } from '../../../../src/utils/SeededRandom';
 
 interface BenchmarkResult {
   strategy: string;
@@ -25,7 +26,8 @@ interface BenchmarkResult {
 const results: BenchmarkResult[] = [];
 
 // Generate realistic test suite with dependencies
-function generateTestSuite(count: number, moduleCount: number): TestFile[] {
+function generateTestSuite(count: number, moduleCount: number, seed: number = 14200): TestFile[] {
+  const rng = createSeededRandom(seed);
   const tests: TestFile[] = [];
 
   for (let i = 0; i < count; i++) {
@@ -38,18 +40,18 @@ function generateTestSuite(count: number, moduleCount: number): TestFile[] {
 
     // 30% chance to depend on another test in same module
     for (let j = 0; j < count; j++) {
-      if (j !== i && j % moduleCount === module && Math.random() < 0.3) {
+      if (j !== i && j % moduleCount === module && rng.random() < 0.3) {
         deps.push(`tests/module${module}/test${j}.ts`);
       }
     }
 
     tests.push({
       path,
-      estimatedDuration: 50 + Math.random() * 200, // 50-250ms
+      estimatedDuration: 50 + rng.random() * 200, // 50-250ms
       dependencies: deps,
       dependents,
-      flakinessScore: Math.random() * 0.2, // 0-20% flakiness
-      priority: Math.random() < 0.1 ? 'critical' : Math.random() < 0.3 ? 'high' : 'medium',
+      flakinessScore: rng.random() * 0.2, // 0-20% flakiness
+      priority: rng.random() < 0.1 ? 'critical' : rng.random() < 0.3 ? 'high' : 'medium',
       tags: [`module${module}`],
     });
   }
@@ -102,12 +104,13 @@ function roundRobinPartition(tests: TestFile[], k: number): PartitionResult {
 }
 
 // Random partitioning (naive)
-function randomPartition(tests: TestFile[], k: number): PartitionResult {
+function randomPartition(tests: TestFile[], k: number, seed: number = 14201): PartitionResult {
+  const rng = createSeededRandom(seed);
   const start = performance.now();
   const partitions: TestFile[][] = Array.from({ length: k }, () => []);
 
   for (const test of tests) {
-    const idx = Math.floor(Math.random() * k);
+    const idx = Math.floor(rng.random() * k);
     partitions[idx].push(test);
   }
 

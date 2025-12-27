@@ -13,16 +13,19 @@ import { BaseAgent } from '@agents/BaseAgent';
 import { TaskAssignment } from '@typessrc/types/agent.types';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+import { withFakeTimers, advanceAndFlush } from '../helpers/timerTestUtils';
 
 describe('INTEGRATION-SUITE-001: Multi-Agent Workflows', () => {
   let memoryStore: SwarmMemoryManager;
   let eventBus: EventBus;
   let dbPath: string;
   const mockAgentIds: string[] = [];
+  const rng = createSeededRandom(28000);
 
   // Helper to simulate agent spawning
   const spawnAgent = async (config: { type: string; capabilities: string[] }): Promise<string> => {
-    const agentId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const agentId = `agent-${Date.now()}-${rng.random().toString(36).substr(2, 9)}`;
     mockAgentIds.push(agentId);
 
     // Store agent metadata in memory
@@ -639,33 +642,35 @@ describe('INTEGRATION-SUITE-001: Multi-Agent Workflows', () => {
     }, 30000);
 
     it('should implement memory TTL for temporary coordination data', async () => {
-      const agentId = await spawnAgent({
-        type: 'coder',
-        capabilities: ['coding']
+      await withFakeTimers(async (timers) => {
+        const agentId = await spawnAgent({
+          type: 'coder',
+          capabilities: ['coding']
+        });
+
+        // Store with short TTL (1 second)
+        await memoryStore.store('temp/short-lived', {
+          data: 'temporary data',
+          timestamp: timers.now()
+        }, { partition: 'coordination', ttl: 1 });
+
+        // Immediate retrieval should work
+        const immediate = await memoryStore.retrieve('temp/short-lived', {
+          partition: 'coordination'
+        });
+
+        expect(immediate).toBeDefined();
+
+        // Wait for TTL expiration using fake timers
+        await timers.advanceAsync(2000);
+
+        // Retrieval after TTL should return null
+        const expired = await memoryStore.retrieve('temp/short-lived', {
+          partition: 'coordination'
+        });
+
+        expect(expired).toBeNull();
       });
-
-      // Store with short TTL (1 second)
-      await memoryStore.store('temp/short-lived', {
-        data: 'temporary data',
-        timestamp: Date.now()
-      }, { partition: 'coordination', ttl: 1 });
-
-      // Immediate retrieval should work
-      const immediate = await memoryStore.retrieve('temp/short-lived', {
-        partition: 'coordination'
-      });
-
-      expect(immediate).toBeDefined();
-
-      // Wait for TTL expiration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Retrieval after TTL should return null
-      const expired = await memoryStore.retrieve('temp/short-lived', {
-        partition: 'coordination'
-      });
-
-      expect(expired).toBeNull();
     }, 5000);
 
     it('should partition memory by coordination namespace', async () => {
@@ -729,186 +734,196 @@ describe('INTEGRATION-SUITE-001: Multi-Agent Workflows', () => {
 
   describe('Event-Driven Coordination', () => {
     it('should propagate events to subscribed agents', async () => {
-      const agentIds = await Promise.all(
-        Array.from({ length: 3 }, () =>
-          spawnAgent({ type: 'coder', capabilities: ['coding'] })
-        )
-      );
+      await withFakeTimers(async (timers) => {
+        const agentIds = await Promise.all(
+          Array.from({ length: 3 }, () =>
+            spawnAgent({ type: 'coder', capabilities: ['coding'] })
+          )
+        );
 
-      const receivedEvents: any[] = [];
+        const receivedEvents: any[] = [];
 
-      // Subscribe all agents to event
-      agentIds.forEach(agentId => {
-        eventBus.on('test.coordination', (event) => {
-          receivedEvents.push({ agentId, event });
+        // Subscribe all agents to event
+        agentIds.forEach(agentId => {
+          eventBus.on('test.coordination', (event) => {
+            receivedEvents.push({ agentId, event });
+          });
         });
+
+        // Emit event
+        await eventBus.emit('test.coordination', {
+          message: 'coordination message',
+          timestamp: timers.now()
+        });
+
+        // Wait for async propagation using fake timers
+        await timers.advanceAsync(100);
+
+        expect(receivedEvents.length).toBeGreaterThanOrEqual(1);
       });
-
-      // Emit event
-      await eventBus.emit('test.coordination', {
-        message: 'coordination message',
-        timestamp: Date.now()
-      });
-
-      // Wait for async propagation
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      expect(receivedEvents.length).toBeGreaterThanOrEqual(1);
     }, 20000);
 
     it('should handle event-driven task assignment', async () => {
-      const coderId = await spawnAgent({
-        type: 'coder',
-        capabilities: ['coding']
+      await withFakeTimers(async (timers) => {
+        const coderId = await spawnAgent({
+          type: 'coder',
+          capabilities: ['coding']
+        });
+
+        let taskReceived = false;
+
+        eventBus.on('task.assigned', async (event) => {
+          if (event.agentId === coderId) {
+            taskReceived = true;
+            await memoryStore.store(`agents/${coderId}/task-received`, {
+              taskId: event.taskId,
+              received: true,
+              timestamp: timers.now()
+            }, { partition: 'coordination' });
+          }
+        });
+
+        // Emit task assignment
+        await eventBus.emit('task.assigned', {
+          agentId: coderId,
+          taskId: 'task-001',
+          type: 'coding',
+          timestamp: timers.now()
+        });
+
+        await timers.advanceAsync(100);
+
+        const taskData = await memoryStore.retrieve(`agents/${coderId}/task-received`, {
+          partition: 'coordination'
+        });
+
+        expect(taskData).toBeDefined();
+        expect(taskData.received).toBe(true);
       });
-
-      let taskReceived = false;
-
-      eventBus.on('task.assigned', async (event) => {
-        if (event.agentId === coderId) {
-          taskReceived = true;
-          await memoryStore.store(`agents/${coderId}/task-received`, {
-            taskId: event.taskId,
-            received: true,
-            timestamp: Date.now()
-          }, { partition: 'coordination' });
-        }
-      });
-
-      // Emit task assignment
-      await eventBus.emit('task.assigned', {
-        agentId: coderId,
-        taskId: 'task-001',
-        type: 'coding',
-        timestamp: Date.now()
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const taskData = await memoryStore.retrieve(`agents/${coderId}/task-received`, {
-        partition: 'coordination'
-      });
-
-      expect(taskData).toBeDefined();
-      expect(taskData.received).toBe(true);
     }, 20000);
 
     it('should coordinate workflow stages via events', async () => {
-      const stages = ['research', 'code', 'test'];
-      const agentIds = await Promise.all(
-        stages.map(stage =>
-          spawnAgent({ type: stage, capabilities: [stage] })
-        )
-      );
+      await withFakeTimers(async (timers) => {
+        const stages = ['research', 'code', 'test'];
+        const agentIds = await Promise.all(
+          stages.map(stage =>
+            spawnAgent({ type: stage, capabilities: [stage] })
+          )
+        );
 
-      let currentStage = 0;
+        let currentStage = 0;
 
-      // Set up stage completion handlers
-      stages.forEach((stage, index) => {
-        eventBus.on(`stage.${stage}.completed`, async (event) => {
-          await memoryStore.store(`workflow/stage-${index}`, {
-            stage,
-            completed: true,
-            timestamp: Date.now()
-          }, { partition: 'coordination' });
+        // Set up stage completion handlers
+        stages.forEach((stage, index) => {
+          eventBus.on(`stage.${stage}.completed`, async (event) => {
+            await memoryStore.store(`workflow/stage-${index}`, {
+              stage,
+              completed: true,
+              timestamp: timers.now()
+            }, { partition: 'coordination' });
 
-          if (index < stages.length - 1) {
-            await eventBus.emit(`stage.${stages[index + 1]}.start`, {
-              previousStage: stage,
-              timestamp: Date.now()
-            });
-          }
+            if (index < stages.length - 1) {
+              await eventBus.emit(`stage.${stages[index + 1]}.start`, {
+                previousStage: stage,
+                timestamp: timers.now()
+              });
+            }
+          });
         });
-      });
 
-      // Start workflow
-      await eventBus.emit('stage.research.start', {
-        timestamp: Date.now()
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Simulate stage completions
-      for (let i = 0; i < stages.length; i++) {
-        await eventBus.emit(`stage.${stages[i]}.completed`, {
-          stage: stages[i],
-          timestamp: Date.now()
+        // Start workflow
+        await eventBus.emit('stage.research.start', {
+          timestamp: timers.now()
         });
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
 
-      // Verify all stages completed
-      const stageResults = await Promise.all(
-        stages.map((_, i) =>
-          memoryStore.retrieve(`workflow/stage-${i}`, {
-            partition: 'coordination'
-          })
-        )
-      );
+        await timers.advanceAsync(100);
 
-      expect(stageResults.every(s => s && s.completed)).toBe(true);
+        // Simulate stage completions
+        for (let i = 0; i < stages.length; i++) {
+          await eventBus.emit(`stage.${stages[i]}.completed`, {
+            stage: stages[i],
+            timestamp: timers.now()
+          });
+          await timers.advanceAsync(50);
+        }
+
+        // Verify all stages completed
+        const stageResults = await Promise.all(
+          stages.map((_, i) =>
+            memoryStore.retrieve(`workflow/stage-${i}`, {
+              partition: 'coordination'
+            })
+          )
+        );
+
+        expect(stageResults.every(s => s && s.completed)).toBe(true);
+      });
     }, 30000);
 
     it('should broadcast status updates to fleet', async () => {
-      const agentIds = await Promise.all(
-        Array.from({ length: 5 }, () =>
-          spawnAgent({ type: 'coder', capabilities: ['coding'] })
-        )
-      );
+      await withFakeTimers(async (timers) => {
+        const agentIds = await Promise.all(
+          Array.from({ length: 5 }, () =>
+            spawnAgent({ type: 'coder', capabilities: ['coding'] })
+          )
+        );
 
-      const statusUpdates: any[] = [];
+        const statusUpdates: any[] = [];
 
-      eventBus.on('agent.status', (event) => {
-        statusUpdates.push(event);
-      });
-
-      // Each agent broadcasts status
-      await Promise.all(agentIds.map(async (agentId, index) => {
-        await eventBus.emit('agent.status', {
-          agentId,
-          status: index % 2 === 0 ? 'idle' : 'busy',
-          timestamp: Date.now()
+        eventBus.on('agent.status', (event) => {
+          statusUpdates.push(event);
         });
-      }));
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+        // Each agent broadcasts status
+        await Promise.all(agentIds.map(async (agentId, index) => {
+          await eventBus.emit('agent.status', {
+            agentId,
+            status: index % 2 === 0 ? 'idle' : 'busy',
+            timestamp: timers.now()
+          });
+        }));
 
-      expect(statusUpdates.length).toBeGreaterThanOrEqual(1);
+        await timers.advanceAsync(100);
+
+        expect(statusUpdates.length).toBeGreaterThanOrEqual(1);
+      });
     }, 20000);
 
     it('should handle error events with rollback', async () => {
-      const agentId = await spawnAgent({
-        type: 'coder',
-        capabilities: ['coding']
+      await withFakeTimers(async (timers) => {
+        const agentId = await spawnAgent({
+          type: 'coder',
+          capabilities: ['coding']
+        });
+
+        let errorHandled = false;
+
+        eventBus.on('agent.error', async (event) => {
+          errorHandled = true;
+          await memoryStore.store('coordination/error-log', {
+            agentId: event.agentId,
+            error: event.error,
+            rollback: true,
+            timestamp: timers.now()
+          }, { partition: 'coordination' });
+        });
+
+        // Emit error event
+        await eventBus.emit('agent.error', {
+          agentId,
+          error: 'Task execution failed',
+          timestamp: timers.now()
+        });
+
+        await timers.advanceAsync(100);
+
+        const errorLog = await memoryStore.retrieve('coordination/error-log', {
+          partition: 'coordination'
+        });
+
+        expect(errorLog).toBeDefined();
+        expect(errorLog.rollback).toBe(true);
       });
-
-      let errorHandled = false;
-
-      eventBus.on('agent.error', async (event) => {
-        errorHandled = true;
-        await memoryStore.store('coordination/error-log', {
-          agentId: event.agentId,
-          error: event.error,
-          rollback: true,
-          timestamp: Date.now()
-        }, { partition: 'coordination' });
-      });
-
-      // Emit error event
-      await eventBus.emit('agent.error', {
-        agentId,
-        error: 'Task execution failed',
-        timestamp: Date.now()
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const errorLog = await memoryStore.retrieve('coordination/error-log', {
-        partition: 'coordination'
-      });
-
-      expect(errorLog).toBeDefined();
-      expect(errorLog.rollback).toBe(true);
     }, 20000);
   });
 });

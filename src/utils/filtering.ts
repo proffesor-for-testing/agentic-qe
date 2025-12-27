@@ -90,7 +90,7 @@ export interface FilterResult<T> {
     /** Maximum value */
     max?: number;
     /** Additional custom metrics */
-    [key: string]: any;
+    [key: string]: number | undefined | Record<PriorityLevel, number>;
   };
 }
 

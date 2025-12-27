@@ -6,6 +6,26 @@ export interface FleetStatusOptions {
   format?: 'json' | 'table';
 }
 
+interface AgentEntry {
+  status: string;
+}
+
+interface TaskEntry {
+  status: string;
+}
+
+interface FleetStatus {
+  id: string;
+  topology: string;
+  maxAgents: number;
+  activeAgents: number;
+  totalAgents: number;
+  runningTasks: number;
+  completedTasks: number;
+  status: string;
+  uptime: number;
+}
+
 export class FleetStatusCommand {
   static async execute(options: FleetStatusOptions): Promise<any> {
     // Check if fleet is initialized
@@ -22,10 +42,10 @@ export class FleetStatusCommand {
       id: fleetConfig.id,
       topology: fleetConfig.topology,
       maxAgents: fleetConfig.maxAgents,
-      activeAgents: agentRegistry.agents.filter((a: any) => a.status === 'active').length,
+      activeAgents: agentRegistry.agents.filter((a: AgentEntry) => a.status === 'active').length,
       totalAgents: agentRegistry.agents.length,
-      runningTasks: agentRegistry.tasks.filter((t: any) => t.status === 'running').length,
-      completedTasks: agentRegistry.tasks.filter((t: any) => t.status === 'completed').length,
+      runningTasks: agentRegistry.tasks.filter((t: TaskEntry) => t.status === 'running').length,
+      completedTasks: agentRegistry.tasks.filter((t: TaskEntry) => t.status === 'completed').length,
       status: fleetConfig.status,
       uptime: Date.now() - new Date(fleetConfig.createdAt).getTime()
     };
@@ -39,7 +59,7 @@ export class FleetStatusCommand {
     return status;
   }
 
-  private static displayStatus(status: any, detailed?: boolean): void {
+  private static displayStatus(status: FleetStatus, _detailed?: boolean): void {
     console.log(chalk.blue('\n📊 Fleet Status Dashboard\n'));
     console.log(chalk.gray(`  Fleet ID: ${status.id}`));
     console.log(chalk.gray(`  Topology: ${status.topology}`));

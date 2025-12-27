@@ -218,8 +218,47 @@ function analyzeSourceCode(sourceCode: string, language: string): CodeAnalysis {
   };
 }
 
-function extractFunctions(code: string, language: string): any[] {
-  const functions: any[] = [];
+interface FunctionInfo {
+  name: string;
+  params: string[];
+  returnType: string;
+  complexity: number;
+}
+
+interface ClassInfo {
+  name: string;
+  methods: string[];
+  properties: string[];
+}
+
+interface TestCase {
+  name: string;
+  type: 'happy-path' | 'edge-case' | 'error' | 'boundary';
+  code: string;
+  description: string;
+}
+
+interface MockObject {
+  name: string;
+  type: string;
+  code: string;
+}
+
+interface CoverageResult {
+  lines: number;
+  branches: number;
+  functions: number;
+  achievable: boolean;
+}
+
+interface AIInsightsResult {
+  recommendations: string[];
+  potentialIssues: string[];
+  testingStrategy: string;
+}
+
+function extractFunctions(code: string, language: string): FunctionInfo[] {
+  const functions: FunctionInfo[] = [];
 
   if (language === 'typescript' || language === 'javascript') {
     const funcRegex = /(?:function|const|let)\s+(\w+)\s*(?:=\s*)?(?:\(([^)]*)\))?/g;
@@ -237,8 +276,8 @@ function extractFunctions(code: string, language: string): any[] {
   return functions;
 }
 
-function extractClasses(code: string, language: string): any[] {
-  const classes: any[] = [];
+function extractClasses(code: string, language: string): ClassInfo[] {
+  const classes: ClassInfo[] = [];
 
   if (language === 'typescript' || language === 'javascript') {
     const classRegex = /class\s+(\w+)/g;
@@ -287,13 +326,19 @@ function calculateComplexity(code: string): { score: number; level: 'low' | 'med
   };
 }
 
+interface TestGenerationOptions {
+  includeEdgeCases: boolean;
+  includeErrorHandling: boolean;
+  aiEnhanced: boolean;
+}
+
 async function generateTestCases(
   analysis: CodeAnalysis,
   language: string,
   framework: string,
-  options: any
-): Promise<any[]> {
-  const testCases: any[] = [];
+  options: TestGenerationOptions
+): Promise<TestCase[]> {
+  const testCases: TestCase[] = [];
 
   // Generate happy path tests
   for (const func of analysis.functions) {
@@ -332,7 +377,7 @@ async function generateTestCases(
   return testCases;
 }
 
-function generateHappyPathTest(func: any, framework: string): string {
+function generateHappyPathTest(func: FunctionInfo, framework: string): string {
   if (framework === 'jest') {
     return `test('${func.name} should work with valid inputs', () => {
   const result = ${func.name}(${func.params.map(() => 'validInput').join(', ')});
@@ -343,7 +388,7 @@ function generateHappyPathTest(func: any, framework: string): string {
   return `// Test for ${func.name}`;
 }
 
-function generateEdgeCaseTest(func: any, framework: string): string {
+function generateEdgeCaseTest(func: FunctionInfo, framework: string): string {
   if (framework === 'jest') {
     return `test('${func.name} should handle edge cases', () => {
   expect(${func.name}(null)).toBeDefined();
@@ -354,7 +399,7 @@ function generateEdgeCaseTest(func: any, framework: string): string {
   return `// Edge case test for ${func.name}`;
 }
 
-function generateErrorTest(func: any, framework: string): string {
+function generateErrorTest(func: FunctionInfo, framework: string): string {
   if (framework === 'jest') {
     return `test('${func.name} should handle errors', () => {
   expect(() => ${func.name}(invalidInput)).toThrow();
@@ -367,7 +412,7 @@ async function generateMockObjects(
   analysis: CodeAnalysis,
   language: string,
   framework: string
-): Promise<any[]> {
+): Promise<MockObject[]> {
   return analysis.dependencies.map(dep => ({
     name: `mock${dep.replace(/[^a-zA-Z0-9]/g, '')}`,
     type: dep,
@@ -376,8 +421,8 @@ async function generateMockObjects(
 }
 
 function buildTestSuiteCode(
-  testCases: any[],
-  mocks: any[],
+  testCases: TestCase[],
+  mocks: MockObject[],
   framework: string,
   language: string
 ): string {
@@ -396,9 +441,9 @@ function buildTestSuiteCode(
 
 function predictTestCoverage(
   analysis: CodeAnalysis,
-  testCases: any[],
+  testCases: TestCase[],
   goal: number
-): any {
+): CoverageResult {
   const lineCoverage = Math.min(
     70 + testCases.length * 2 + SecureRandom.randomFloat() * 10,
     100
@@ -414,7 +459,7 @@ function predictTestCoverage(
   };
 }
 
-function generateAIInsights(analysis: CodeAnalysis, testCases: any[], coverage: any): any {
+function generateAIInsights(analysis: CodeAnalysis, testCases: TestCase[], coverage: CoverageResult): AIInsightsResult {
   const recommendations: string[] = [];
   const potentialIssues: string[] = [];
 

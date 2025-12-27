@@ -15,6 +15,7 @@ import { EnhancedAgentDBService } from '@core/memory/EnhancedAgentDBService';
 import { QEPattern } from '@core/memory/AgentDBService';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('AgentDB Performance Benchmarks', () => {
   const testDbPath = path.join(__dirname, '../fixtures/bench-agentdb.db');
@@ -355,10 +356,13 @@ describe('AgentDB Performance Benchmarks', () => {
 
 // Helper Functions
 
+// Seeded RNG for deterministic test results
+const rng = createSeededRandom(17000);
+
 function generateRandomEmbedding(dimensions: number): number[] {
   const embedding: number[] = [];
   for (let i = 0; i < dimensions; i++) {
-    embedding.push(Math.random() * 2 - 1);
+    embedding.push(rng.random() * 2 - 1);
   }
 
   // Normalize to unit vector

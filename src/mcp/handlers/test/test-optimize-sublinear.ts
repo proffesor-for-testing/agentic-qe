@@ -14,9 +14,16 @@
 import { BaseHandler, HandlerResponse } from '../base-handler';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 
+interface TestItem {
+  id?: string;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  coverage?: string[];
+  [key: string]: unknown;
+}
+
 export interface TestOptimizeSublinearArgs {
   testSuite: {
-    tests: any[];
+    tests: TestItem[];
   };
   algorithm: 'johnson-lindenstrauss' | 'temporal-advantage' | 'redundancy-detection' | 'sublinear';
   targetReduction?: number;
@@ -26,9 +33,43 @@ export interface TestOptimizeSublinearArgs {
   preserveCritical?: boolean;
 }
 
+interface AlgorithmInfo {
+  complexity: string;
+  description: string;
+}
+
+interface JLTransform {
+  reduce: (tests: TestItem[], targetDimension: number) => TestItem[];
+  preserveDistances: boolean;
+}
+
+interface OptimizationResult {
+  optimized: {
+    tests: TestItem[];
+    count?: number;
+  };
+  original?: { count: number };
+  reduction?: number;
+  speedup?: number;
+  coverage?: { maintained: number };
+  algorithm: string;
+  predictions?: Array<{ testId: string; failureProbability: number; temporalLeadMs: number }>;
+  temporalAdvantage?: number;
+  redundant?: TestItem[];
+  redundancyRate?: number;
+  metrics?: ComplexityMetrics;
+}
+
+interface ComplexityMetrics {
+  timeComplexity: string;
+  spaceComplexity: string;
+  reductionFactor: number;
+  actualComplexity: number;
+}
+
 export class TestOptimizeSublinearHandler extends BaseHandler {
-  private algorithms: Map<string, any> = new Map();
-  private jlTransform: any;
+  private algorithms: Map<string, AlgorithmInfo> = new Map();
+  private jlTransform!: JLTransform;
 
   constructor() {
     super();
@@ -48,7 +89,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
       this.validateRequired(args, ['testSuite', 'algorithm']);
 
       const { result, executionTime } = await this.measureExecutionTime(async () => {
-        let optimized: any;
+        let optimized: OptimizationResult;
 
         switch (args.algorithm) {
           case 'johnson-lindenstrauss':
@@ -101,7 +142,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
 
   private initializeJLTransform(): void {
     this.jlTransform = {
-      reduce: (tests: any[], targetDimension: number) => {
+      reduce: (tests: TestItem[], targetDimension: number): TestItem[] => {
         // Simulate JL dimension reduction
         const reductionFactor = targetDimension / tests.length;
         const targetCount = Math.ceil(tests.length * reductionFactor);
@@ -111,17 +152,17 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     };
   }
 
-  private async optimizeWithJL(args: TestOptimizeSublinearArgs): Promise<any> {
+  private async optimizeWithJL(args: TestOptimizeSublinearArgs): Promise<OptimizationResult> {
     const originalCount = args.testSuite.tests.length;
     const targetReduction = args.targetReduction || 0.3;
     const targetCount = Math.ceil(originalCount * targetReduction);
 
     // Preserve critical tests
     const criticalTests = args.preserveCritical
-      ? args.testSuite.tests.filter((t: any) => t.priority === 'critical')
+      ? args.testSuite.tests.filter((t) => t.priority === 'critical')
       : [];
 
-    const nonCriticalTests = args.testSuite.tests.filter((t: any) => t.priority !== 'critical');
+    const nonCriticalTests = args.testSuite.tests.filter((t) => t.priority !== 'critical');
 
     // Apply JL reduction to non-critical tests
     const reducedTests = this.jlTransform.reduce(
@@ -151,11 +192,11 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     };
   }
 
-  private async optimizeWithTemporalAdvantage(args: TestOptimizeSublinearArgs): Promise<any> {
+  private async optimizeWithTemporalAdvantage(args: TestOptimizeSublinearArgs): Promise<OptimizationResult> {
     const tests = args.testSuite.tests;
 
     // Simulate temporal advantage prediction
-    const predictions = tests.map((test: any, index: number) => ({
+    const predictions = tests.map((test, index) => ({
       testId: test.id || `test-${index}`,
       failureProbability: SecureRandom.randomFloat(),
       temporalLeadMs: Math.round(SecureRandom.randomFloat() * 1000)
@@ -166,7 +207,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
 
     // Prioritize tests by failure probability if prediction enabled
     const optimizedTests = args.predictFailures
-      ? [...tests].sort((a: any, b: any) => {
+      ? [...tests].sort((a, b) => {
           const aProb = predictions.find(p => p.testId === a.id)?.failureProbability || 0;
           const bProb = predictions.find(p => p.testId === b.id)?.failureProbability || 0;
           return bProb - aProb; // Higher probability first
@@ -183,16 +224,16 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     };
   }
 
-  private async detectRedundancy(args: TestOptimizeSublinearArgs): Promise<any> {
+  private async detectRedundancy(args: TestOptimizeSublinearArgs): Promise<OptimizationResult> {
     const tests = args.testSuite.tests;
-    const redundant: any[] = [];
+    const redundant: TestItem[] = [];
 
     // Detect redundant tests based on coverage overlap
-    const coverageMap = new Map<string, any[]>();
+    const coverageMap = new Map<string, TestItem[]>();
 
-    tests.forEach((test: any) => {
+    tests.forEach((test) => {
       const coverage = test.coverage || [];
-      const key = JSON.stringify(coverage.sort());
+      const key = JSON.stringify([...coverage].sort());
 
       if (coverageMap.has(key)) {
         redundant.push(test);
@@ -201,7 +242,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
       }
     });
 
-    const optimizedTests = tests.filter((test: any) => !redundant.includes(test));
+    const optimizedTests = tests.filter((test) => !redundant.includes(test));
 
     return {
       optimized: {
@@ -213,7 +254,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     };
   }
 
-  private async optimizeSublinear(args: TestOptimizeSublinearArgs): Promise<any> {
+  private async optimizeSublinear(args: TestOptimizeSublinearArgs): Promise<OptimizationResult> {
     const tests = args.testSuite.tests;
     const originalCount = tests.length;
 
@@ -222,11 +263,11 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
 
     // Preserve critical tests
     const criticalTests = args.preserveCritical
-      ? tests.filter((t: any) => t.priority === 'critical')
+      ? tests.filter((t) => t.priority === 'critical')
       : [];
 
     // Sample remaining tests
-    const nonCriticalTests = tests.filter((t: any) => t.priority !== 'critical');
+    const nonCriticalTests = tests.filter((t) => t.priority !== 'critical');
     const sampledTests = this.sampleUniformly(nonCriticalTests, targetCount - criticalTests.length);
 
     const optimizedTests = [...criticalTests, ...sampledTests];
@@ -244,7 +285,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     };
   }
 
-  private sampleUniformly(tests: any[], targetCount: number): any[] {
+  private sampleUniformly(tests: TestItem[], targetCount: number): TestItem[] {
     if (tests.length <= targetCount) {
       return tests;
     }
@@ -260,7 +301,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     return sampled;
   }
 
-  private calculateCoverageMaintained(optimizedTests: any[], originalTests: any[]): number {
+  private calculateCoverageMaintained(optimizedTests: TestItem[], originalTests: TestItem[]): number {
     // Simulate coverage calculation
     const originalCoverage = originalTests.length * 0.85; // Assume 85% base coverage
     const optimizedCoverage = optimizedTests.length * 0.90; // Better quality tests
@@ -268,7 +309,7 @@ export class TestOptimizeSublinearHandler extends BaseHandler {
     return Math.min(95, Math.round((optimizedCoverage / originalCoverage) * 100));
   }
 
-  private calculateComplexityMetrics(originalCount: number, optimizedCount: number): any {
+  private calculateComplexityMetrics(originalCount: number, optimizedCount: number): ComplexityMetrics {
     return {
       timeComplexity: `O(√n) where n=${originalCount}`,
       spaceComplexity: `O(log n)`,

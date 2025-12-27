@@ -12,26 +12,204 @@ import { EventEmitter } from 'events';
 
 // Create a simple logger interface
 interface Logger {
-  info(message: string, ...args: any[]): void;
-  warn(message: string, ...args: any[]): void;
-  error(message: string, ...args: any[]): void;
-  debug(message: string, ...args: any[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+  debug(message: string, ...args: unknown[]): void;
 }
 
 // Simple console logger implementation
 class ConsoleLogger implements Logger {
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     console.log(`[INFO] ${message}`, ...args);
   }
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     console.warn(`[WARN] ${message}`, ...args);
   }
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     console.error(`[ERROR] ${message}`, ...args);
   }
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     console.debug(`[DEBUG] ${message}`, ...args);
   }
+}
+
+// Type definitions for quality analysis
+interface CodeAnalysisInput {
+  sourcePath: string;
+  language?: string;
+}
+
+interface CodeMetrics {
+  linesOfCode: number;
+  methods: number;
+  classes: number;
+  complexity: number;
+  maintainability: number;
+  coverage: number;
+}
+
+interface QualityIssue {
+  type: 'error' | 'warning';
+  category: string;
+  message: string;
+  line: number;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  rule?: string;
+}
+
+interface CodeAnalysisResult {
+  sourcePath: string;
+  language: string;
+  metrics: CodeMetrics;
+  issues: QualityIssue[];
+  score: number;
+  passed: boolean;
+}
+
+interface ComplexityInput {
+  sourcePath: string;
+}
+
+interface ComplexityMetrics {
+  cyclomatic: number;
+  cognitive: number;
+  halstead: {
+    difficulty: number;
+    effort: number;
+  };
+}
+
+interface ComplexityResult {
+  sourcePath: string;
+  complexity: ComplexityMetrics;
+  recommendations: string[];
+  passed: boolean;
+}
+
+interface StyleCheckInput {
+  sourcePath: string;
+  rules?: string;
+}
+
+interface StyleCheckResult {
+  sourcePath: string;
+  rules: string;
+  violations: number;
+  warnings: number;
+  issues: QualityIssue[];
+  passed: boolean;
+}
+
+interface SecurityScanInput {
+  sourcePath: string;
+  depth?: string;
+}
+
+interface VulnerabilityCount {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+interface SecurityScanResult {
+  sourcePath: string;
+  depth: string;
+  vulnerabilities: VulnerabilityCount;
+  total: number;
+  score: number;
+  passed: boolean;
+}
+
+interface MetricsCollectionInput {
+  sourcePath: string;
+  includeHistory?: boolean;
+}
+
+interface CollectedMetrics {
+  quality: {
+    maintainability: number;
+    reliability: number;
+    security: number;
+  };
+  coverage: {
+    line: number;
+    branch: number;
+    function: number;
+  };
+  complexity: {
+    average: number;
+    maximum: number;
+  };
+  size: {
+    files: number;
+    classes: number;
+    methods: number;
+    lines: number;
+  };
+}
+
+interface MetricsCollectionResult {
+  sourcePath: string;
+  metrics: CollectedMetrics;
+  timestamp: string;
+  includeHistory: boolean;
+}
+
+interface QualityReportInput {
+  sourcePath: string;
+  format?: 'json' | 'xml' | 'html';
+}
+
+interface QualityReportResult {
+  sourcePath: string;
+  format: string;
+  timestamp: string;
+  overallScore: number;
+  sections: {
+    codeAnalysis: CodeAnalysisResult;
+    complexity: ComplexityResult;
+    security: SecurityScanResult;
+    metrics: MetricsCollectionResult;
+  };
+  recommendations: string[];
+  summary: {
+    passed: boolean;
+    score: number;
+    grade: string;
+  };
+}
+
+// Union type for all task results
+type QualityTaskResult =
+  | CodeAnalysisResult
+  | ComplexityResult
+  | StyleCheckResult
+  | SecurityScanResult
+  | MetricsCollectionResult
+  | QualityReportResult;
+
+// Type for extractTaskMetrics input
+interface ExtractableTaskResult {
+  qualityScore?: number;
+  overallScore?: number;
+  issues?: Array<{ severity?: string }>;
+  dimensions?: {
+    maintainability?: number;
+    reliability?: number;
+    security?: number;
+    performance?: number;
+  };
+  trend?: {
+    direction?: 'improving' | 'degrading' | 'stable';
+    magnitude?: number;
+  };
+  technicalDebt?: {
+    hours?: number;
+    ratio?: number;
+  };
+  coverage?: number;
 }
 
 export interface QualityAnalyzerConfig {
@@ -153,23 +331,23 @@ export class QualityAnalyzerAgent extends BaseAgent {
     }
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<QualityTaskResult> {
     const taskType = task.type;
-    const taskData = task.payload;
+    const taskData = task.payload as unknown;
 
     switch (taskType) {
       case 'code-analysis':
-        return await this.analyzeCode(taskData);
+        return await this.analyzeCode(taskData as CodeAnalysisInput);
       case 'complexity-analysis':
-        return await this.analyzeComplexity(taskData);
+        return await this.analyzeComplexity(taskData as ComplexityInput);
       case 'style-check':
-        return await this.checkStyle(taskData);
+        return await this.checkStyle(taskData as StyleCheckInput);
       case 'security-scan':
-        return await this.scanSecurity(taskData);
+        return await this.scanSecurity(taskData as SecurityScanInput);
       case 'metrics-collection':
-        return await this.collectMetrics(taskData);
+        return await this.collectMetrics(taskData as MetricsCollectionInput);
       case 'quality-report':
-        return await this.generateQualityReport(taskData);
+        return await this.generateQualityReport(taskData as QualityReportInput);
       default:
         throw new Error(`Unsupported task type: ${taskType}`);
     }
@@ -203,7 +381,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
     this.logger.info(`QualityAnalyzerAgent stopping`);
   }
 
-  private async analyzeCode(data: any): Promise<any> {
+  private async analyzeCode(data: CodeAnalysisInput): Promise<CodeAnalysisResult> {
     const { sourcePath, language = 'javascript' } = data;
 
     this.logger.info(`Analyzing code in ${sourcePath} (${language})`);
@@ -211,7 +389,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
     // Simulate code analysis
     await this.delay(2000);
 
-    const metrics = {
+    const metrics: CodeMetrics = {
       linesOfCode: Math.floor(SecureRandom.randomFloat() * 5000) + 1000,
       methods: Math.floor(SecureRandom.randomFloat() * 200) + 50,
       classes: Math.floor(SecureRandom.randomFloat() * 50) + 10,
@@ -233,14 +411,14 @@ export class QualityAnalyzerAgent extends BaseAgent {
     };
   }
 
-  private async analyzeComplexity(data: any): Promise<any> {
+  private async analyzeComplexity(data: ComplexityInput): Promise<ComplexityResult> {
     const { sourcePath } = data;
 
     this.logger.info(`Analyzing complexity in ${sourcePath}`);
 
     await this.delay(1500);
 
-    const complexity = {
+    const complexity: ComplexityMetrics = {
       cyclomatic: Math.floor(SecureRandom.randomFloat() * 20) + 1,
       cognitive: Math.floor(SecureRandom.randomFloat() * 25) + 1,
       halstead: {
@@ -249,7 +427,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
       }
     };
 
-    const recommendations = [];
+    const recommendations: string[] = [];
 
     if (complexity.cyclomatic > 10) {
       recommendations.push('Reduce cyclomatic complexity by breaking down large functions');
@@ -267,7 +445,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
     };
   }
 
-  private async checkStyle(data: any): Promise<any> {
+  private async checkStyle(data: StyleCheckInput): Promise<StyleCheckResult> {
     const { sourcePath, rules = 'standard' } = data;
 
     this.logger.info(`Checking style in ${sourcePath} with ${rules} rules`);
@@ -277,14 +455,16 @@ export class QualityAnalyzerAgent extends BaseAgent {
     const violations = Math.floor(SecureRandom.randomFloat() * 20);
     const warnings = Math.floor(SecureRandom.randomFloat() * 10);
 
-    const issues = [];
+    const issues: QualityIssue[] = [];
 
     for (let i = 0; i < violations; i++) {
       issues.push({
         type: 'error',
         rule: this.getRandomRule(),
         line: Math.floor(SecureRandom.randomFloat() * 100) + 1,
-        message: 'Style violation detected'
+        message: 'Style violation detected',
+        category: 'style',
+        severity: 'medium'
       });
     }
 
@@ -293,7 +473,9 @@ export class QualityAnalyzerAgent extends BaseAgent {
         type: 'warning',
         rule: this.getRandomRule(),
         line: Math.floor(SecureRandom.randomFloat() * 100) + 1,
-        message: 'Style warning detected'
+        message: 'Style warning detected',
+        category: 'style',
+        severity: 'low'
       });
     }
 
@@ -307,14 +489,14 @@ export class QualityAnalyzerAgent extends BaseAgent {
     };
   }
 
-  private async scanSecurity(data: any): Promise<any> {
+  private async scanSecurity(data: SecurityScanInput): Promise<SecurityScanResult> {
     const { sourcePath, depth = 'standard' } = data;
 
     this.logger.info(`Scanning security vulnerabilities in ${sourcePath}`);
 
     await this.delay(3000);
 
-    const vulnerabilities = {
+    const vulnerabilities: VulnerabilityCount = {
       critical: Math.floor(SecureRandom.randomFloat() * 3),
       high: Math.floor(SecureRandom.randomFloat() * 5),
       medium: Math.floor(SecureRandom.randomFloat() * 8),
@@ -334,14 +516,14 @@ export class QualityAnalyzerAgent extends BaseAgent {
     };
   }
 
-  private async collectMetrics(data: any): Promise<any> {
+  private async collectMetrics(data: MetricsCollectionInput): Promise<MetricsCollectionResult> {
     const { sourcePath, includeHistory = false } = data;
 
     this.logger.info(`Collecting metrics for ${sourcePath}`);
 
     await this.delay(2000);
 
-    const metrics = {
+    const metrics: CollectedMetrics = {
       quality: {
         maintainability: Math.floor(SecureRandom.randomFloat() * 30) + 70,
         reliability: Math.floor(SecureRandom.randomFloat() * 25) + 75,
@@ -372,7 +554,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
     };
   }
 
-  private async generateQualityReport(data: any): Promise<any> {
+  private async generateQualityReport(data: QualityReportInput): Promise<QualityReportResult> {
     const { sourcePath, format = this.config.reportFormat } = data;
 
     this.logger.info(`Generating quality report for ${sourcePath} in ${format} format`);
@@ -386,10 +568,10 @@ export class QualityAnalyzerAgent extends BaseAgent {
     const metrics = await this.collectMetrics({ sourcePath });
 
     const overallScore = Math.floor(
-      (codeAnalysis.score + complexity.passed ? 100 : 0 + security.score + metrics.metrics.quality.maintainability) / 4
+      (codeAnalysis.score + (complexity.passed ? 100 : 0) + security.score + metrics.metrics.quality.maintainability) / 4
     );
 
-    const report = {
+    const report: QualityReportResult = {
       sourcePath,
       format,
       timestamp: new Date().toISOString(),
@@ -411,8 +593,8 @@ export class QualityAnalyzerAgent extends BaseAgent {
     return report;
   }
 
-  private generateIssues(_metrics: any): any[] {
-    const issues = [];
+  private generateIssues(_metrics: CodeMetrics): QualityIssue[] {
+    const issues: QualityIssue[] = [];
     const issueCount = Math.floor(SecureRandom.randomFloat() * 10);
 
     for (let i = 0; i < issueCount; i++) {
@@ -428,7 +610,7 @@ export class QualityAnalyzerAgent extends BaseAgent {
     return issues;
   }
 
-  private calculateQualityScore(metrics: any): number {
+  private calculateQualityScore(metrics: CodeMetrics): number {
     return Math.floor(
       (metrics.maintainability * 0.4 +
        (100 - metrics.complexity * 5) * 0.3 +
@@ -436,8 +618,8 @@ export class QualityAnalyzerAgent extends BaseAgent {
     );
   }
 
-  private generateRecommendations(codeAnalysis: any, complexity: any, security: any): string[] {
-    const recommendations = [];
+  private generateRecommendations(codeAnalysis: CodeAnalysisResult, complexity: ComplexityResult, security: SecurityScanResult): string[] {
+    const recommendations: string[] = [];
 
     if (codeAnalysis.score < 70) {
       recommendations.push('Improve code maintainability and reduce technical debt');
@@ -558,49 +740,51 @@ export class QualityAnalyzerAgent extends BaseAgent {
    * Extract domain-specific metrics for Nightly-Learner
    * Provides rich quality analysis metrics for pattern learning
    */
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
     const metrics: Record<string, number> = {};
 
     if (result && typeof result === 'object') {
+      const typedResult = result as ExtractableTaskResult;
+
       // Quality scores
-      if (typeof result.qualityScore === 'number') {
-        metrics.quality_score = result.qualityScore;
+      if (typeof typedResult.qualityScore === 'number') {
+        metrics.quality_score = typedResult.qualityScore;
       }
-      if (typeof result.overallScore === 'number') {
-        metrics.overall_score = result.overallScore;
+      if (typeof typedResult.overallScore === 'number') {
+        metrics.overall_score = typedResult.overallScore;
       }
 
       // Issue counts by severity
-      if (result.issues && Array.isArray(result.issues)) {
-        metrics.total_issues = result.issues.length;
-        metrics.critical_issues = result.issues.filter((i: any) => i.severity === 'critical').length;
-        metrics.major_issues = result.issues.filter((i: any) => i.severity === 'major').length;
-        metrics.minor_issues = result.issues.filter((i: any) => i.severity === 'minor').length;
+      if (typedResult.issues && Array.isArray(typedResult.issues)) {
+        metrics.total_issues = typedResult.issues.length;
+        metrics.critical_issues = typedResult.issues.filter((i) => i.severity === 'critical').length;
+        metrics.major_issues = typedResult.issues.filter((i) => i.severity === 'major').length;
+        metrics.minor_issues = typedResult.issues.filter((i) => i.severity === 'minor').length;
       }
 
       // Code quality dimensions
-      if (result.dimensions) {
-        metrics.maintainability = result.dimensions.maintainability || 0;
-        metrics.reliability = result.dimensions.reliability || 0;
-        metrics.security = result.dimensions.security || 0;
-        metrics.performance = result.dimensions.performance || 0;
+      if (typedResult.dimensions) {
+        metrics.maintainability = typedResult.dimensions.maintainability || 0;
+        metrics.reliability = typedResult.dimensions.reliability || 0;
+        metrics.security = typedResult.dimensions.security || 0;
+        metrics.performance = typedResult.dimensions.performance || 0;
       }
 
       // Trend analysis
-      if (result.trend) {
-        metrics.trend_direction = result.trend.direction === 'improving' ? 1 : result.trend.direction === 'degrading' ? -1 : 0;
-        metrics.trend_magnitude = result.trend.magnitude || 0;
+      if (typedResult.trend) {
+        metrics.trend_direction = typedResult.trend.direction === 'improving' ? 1 : typedResult.trend.direction === 'degrading' ? -1 : 0;
+        metrics.trend_magnitude = typedResult.trend.magnitude || 0;
       }
 
       // Technical debt
-      if (result.technicalDebt) {
-        metrics.debt_hours = result.technicalDebt.hours || 0;
-        metrics.debt_ratio = result.technicalDebt.ratio || 0;
+      if (typedResult.technicalDebt) {
+        metrics.debt_hours = typedResult.technicalDebt.hours || 0;
+        metrics.debt_ratio = typedResult.technicalDebt.ratio || 0;
       }
 
       // Test coverage
-      if (typeof result.coverage === 'number') {
-        metrics.coverage = result.coverage;
+      if (typeof typedResult.coverage === 'number') {
+        metrics.coverage = typedResult.coverage;
       }
     }
 

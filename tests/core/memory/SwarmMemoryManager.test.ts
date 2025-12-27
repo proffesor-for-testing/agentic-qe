@@ -14,6 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
 import { SwarmMemoryManager, AccessLevel, Permission } from '../../../src/core/memory/SwarmMemoryManager';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import BetterSqlite3 from 'better-sqlite3';
@@ -835,7 +836,8 @@ describe('SwarmMemoryManager Unit Tests with Q-Learning', () => {
     try {
       const db = new BetterSqlite3(learningDb);
 
-      const id = `qv-${qValue.timestamp}-${Math.random().toString(36).substr(2, 9)}`;
+      const rng = createSeededRandom(30300 + qValue.timestamp);
+      const id = `qv-${qValue.timestamp}-${rng.random().toString(36).substr(2, 9)}`;
 
       db.prepare(`
         INSERT INTO q_values (

@@ -40,8 +40,10 @@ import {
   LearningModelState,
   FailurePattern,
   StrategyRecommendation,
-  LearningEvent
+  LearningEvent,
+  PerformanceMetrics
 } from './types';
+import { QETask } from '../types';
 import { ExperienceSharingProtocol, SharedExperience } from './ExperienceSharingProtocol';
 import { HNSWPatternAdapter, HNSWPatternAdapterConfig, PatternSearchResult } from './HNSWPatternAdapter';
 
@@ -162,9 +164,13 @@ export class LearningEngine {
 
     // Store config in memory via reasoningBank's memoryStore
     if (this.memoryStore) {
+      // Serialize config to Record<string, unknown> for type safety
+      const serializableConfig: Record<string, unknown> = {
+        ...this.config
+      };
       await this.memoryStore.store(
         `phase2/learning/${this.agentId}/config`,
-        this.config,
+        serializableConfig,
         { partition: 'learning' }
       );
     }
@@ -185,7 +191,7 @@ export class LearningEngine {
    * Record experience from task execution (DEPRECATED)
    * Redirects to learnFromExecution() for consolidated implementation
    */
-  async recordExperience(task: any, result: TaskResult, feedback?: LearningFeedback): Promise<void> {
+  async recordExperience(task: unknown, result: TaskResult, feedback?: LearningFeedback): Promise<void> {
     this.logger.warn('[LearningEngine] recordExperience() is deprecated. Use learnFromExecution() instead. This method will be removed in v2.0.0');
 
     // Redirect to unified method
@@ -225,8 +231,8 @@ export class LearningEngine {
    * upsertQValue, storeLearningSnapshot) instead of LearningPersistence adapter.
    */
   async learnFromExecution(
-    task: any,
-    result: any,
+    task: unknown,
+    result: unknown,
     feedback?: LearningFeedback
   ): Promise<LearningOutcome> {
     if (!this.config.enabled) {
@@ -237,8 +243,10 @@ export class LearningEngine {
 
     try {
       // Extract experience from task execution
-      const experience = this.extractExperience(task, result, feedback);
-      const reward = this.calculateReward(result, feedback);
+      const taskObj = (typeof task === 'object' && task !== null ? task : {}) as Record<string, unknown>;
+      const resultObj = (typeof result === 'object' && result !== null ? result : {}) as Record<string, unknown>;
+      const experience = this.extractExperience(taskObj, resultObj, feedback);
+      const reward = this.calculateReward(resultObj, feedback);
       experience.reward = reward;
 
       // Store in memory (fast)
@@ -252,7 +260,7 @@ export class LearningEngine {
 
       // Persist to database via memoryStore (replaces persistence adapter)
       // Only if memoryStore is SwarmMemoryManager
-      if (this.memoryStore && typeof (this.memoryStore as any).storeLearningExperience === "function") {
+      if (this.memoryStore && typeof (this.memoryStore as SwarmMemoryManager & { storeLearningExperience?: unknown }).storeLearningExperience === "function") {
         try {
           // Store experience
           await this.memoryStore.storeLearningExperience({
@@ -287,7 +295,7 @@ export class LearningEngine {
       await this.updatePatterns(experience);
 
       // Detect failure patterns
-      if (!result.success) {
+      if (!resultObj.success) {
         await this.detectFailurePattern(experience);
       }
 
@@ -299,7 +307,7 @@ export class LearningEngine {
         await this.performBatchUpdate();
 
         // Store learning snapshot via memoryStore
-        if (this.memoryStore && typeof (this.memoryStore as any).storeLearningExperience === "function") {
+        if (this.memoryStore && typeof (this.memoryStore as SwarmMemoryManager & { storeLearningExperience?: unknown }).storeLearningExperience === "function") {
           const improvement = await this.calculateImprovement();
           await this.memoryStore.storeLearningSnapshot({
             agentId: this.agentId,
@@ -413,15 +421,15 @@ export class LearningEngine {
       // Use agent-specific query to avoid mixing patterns from different agents
       const dbPatterns = await this.memoryStore.queryPatternsByAgent(this.agentId, 0);
 
-      return dbPatterns.map((p: any) => ({
-        id: p.id, // Use existing ID, don't generate new ones
+      return dbPatterns.map((p: { id?: string; pattern: string; confidence: number; metadata?: Record<string, unknown>; usageCount?: number }) => ({
+        id: p.id || uuidv4(), // Use existing ID or generate new one
         pattern: p.pattern,
         confidence: p.confidence,
-        successRate: p.metadata?.success_rate || 0.5,
+        successRate: (p.metadata?.success_rate as number) ?? 0.5,
         usageCount: p.usageCount || 0,
-        contexts: p.metadata?.contexts || [],
-        createdAt: p.metadata?.created_at ? new Date(p.metadata.created_at) : new Date(),
-        lastUsedAt: p.metadata?.last_used_at ? new Date(p.metadata.last_used_at) : new Date()
+        contexts: (p.metadata?.contexts as string[]) ?? [],
+        createdAt: p.metadata?.created_at ? new Date(p.metadata.created_at as string | number) : new Date(),
+        lastUsedAt: p.metadata?.last_used_at ? new Date(p.metadata.last_used_at as string | number) : new Date()
       }));
     } catch (error) {
       this.logger.warn('Failed to query patterns:', error);
@@ -508,25 +516,26 @@ export class LearningEngine {
    * Extract experience from task execution
    */
   private extractExperience(
-    task: any,
-    result: any,
+    task: Record<string, unknown>,
+    result: Record<string, unknown>,
     feedback?: LearningFeedback
   ): TaskExperience {
+    const requirements = task.requirements as Record<string, unknown> | undefined;
     const state: TaskState = {
       taskComplexity: this.estimateComplexity(task),
-      requiredCapabilities: task.requirements?.capabilities || [],
-      contextFeatures: task.context || {},
-      previousAttempts: task.previousAttempts || 0,
-      availableResources: this.stateExtractor.extractState(task).availableResources,
-      timeConstraint: task.timeout
+      requiredCapabilities: (requirements?.capabilities as string[]) || [],
+      contextFeatures: (task.context as Record<string, unknown>) || {},
+      previousAttempts: (task.previousAttempts as number) || 0,
+      availableResources: this.stateExtractor.extractState(task as unknown as QETask).availableResources,
+      timeConstraint: task.timeout as number | undefined
     };
 
     const action: AgentAction = {
-      strategy: result.strategy || 'default',
-      toolsUsed: result.toolsUsed || [],
-      parallelization: result.parallelization || 0.5,
-      retryPolicy: result.retryPolicy || 'exponential',
-      resourceAllocation: result.resourceAllocation || 0.5
+      strategy: (result.strategy as string) || 'default',
+      toolsUsed: (result.toolsUsed as string[]) || [],
+      parallelization: (result.parallelization as number) || 0.5,
+      retryPolicy: (result.retryPolicy as string) || 'exponential',
+      resourceAllocation: (result.resourceAllocation as number) || 0.5
     };
 
     // Next state (after execution)
@@ -537,8 +546,8 @@ export class LearningEngine {
     };
 
     return {
-      taskId: task.id || uuidv4(),
-      taskType: task.type,
+      taskId: (task.id as string) || uuidv4(),
+      taskType: task.type as string,
       state,
       action,
       reward: 0, // will be calculated
@@ -551,21 +560,23 @@ export class LearningEngine {
   /**
    * Calculate reward from execution result and feedback
    */
-  private calculateReward(result: any, feedback?: LearningFeedback): number {
+  private calculateReward(result: Record<string, unknown>, feedback?: LearningFeedback): number {
     let reward = 0;
 
     // Success/failure (primary component)
     reward += result.success ? 1.0 : -1.0;
 
     // Execution time (faster is better)
-    if (result.executionTime) {
-      const timeFactor = Math.max(0, 1 - result.executionTime / 30000); // 30 sec baseline
+    const executionTime = result.executionTime as number | undefined;
+    if (executionTime) {
+      const timeFactor = Math.max(0, 1 - executionTime / 30000); // 30 sec baseline
       reward += timeFactor * 0.5;
     }
 
     // Error rate penalty
-    if (result.errors) {
-      reward -= result.errors.length * 0.1;
+    const errors = result.errors as unknown[] | undefined;
+    if (errors) {
+      reward -= errors.length * 0.1;
     }
 
     // User feedback
@@ -575,8 +586,9 @@ export class LearningEngine {
     }
 
     // Coverage/quality bonus (for test generation)
-    if (result.coverage) {
-      reward += (result.coverage - 0.8) * 2; // bonus above 80%
+    const coverage = result.coverage as number | undefined;
+    if (coverage) {
+      reward += (coverage - 0.8) * 2; // bonus above 80%
     }
 
     return Math.max(-2, Math.min(2, reward)); // clamp to [-2, 2]
@@ -645,7 +657,7 @@ export class LearningEngine {
 
       if (this.memoryStore && typeof this.memoryStore.queryPatternsByAgent === 'function') {
         const agentPatterns = await this.memoryStore.queryPatternsByAgent(this.agentId, 0);
-        const found = agentPatterns.find((p: any) => p.pattern === patternKey);
+        const found = agentPatterns.find((p: { pattern?: string }) => p.pattern === patternKey);
 
         if (found && found.metadata) {
           const metadata = typeof found.metadata === 'string'
@@ -831,15 +843,18 @@ export class LearningEngine {
   /**
    * Estimate task complexity
    */
-  private estimateComplexity(task: any): number {
+  private estimateComplexity(task: Record<string, unknown>): number {
     let complexity = 0.5; // baseline
 
-    if (task.requirements?.capabilities) {
-      complexity += task.requirements.capabilities.length * 0.1;
+    const requirements = task.requirements as Record<string, unknown> | undefined;
+    const capabilities = requirements?.capabilities as unknown[] | undefined;
+    if (capabilities) {
+      complexity += capabilities.length * 0.1;
     }
 
-    if (task.previousAttempts) {
-      complexity += task.previousAttempts * 0.1;
+    const previousAttempts = task.previousAttempts as number | undefined;
+    if (previousAttempts) {
+      complexity += previousAttempts * 0.1;
     }
 
     return Math.min(1.0, complexity);
@@ -888,9 +903,25 @@ export class LearningEngine {
       state.size = await this.calculateStateSize();
     }
 
+    // Serialize state to Record<string, unknown> for type safety
+    // Convert Date objects to ISO strings for JSON serialization
+    const serializableState: Record<string, unknown> = {
+      ...state,
+      lastUpdated: state.lastUpdated.toISOString(),
+      experiences: state.experiences.map(exp => ({
+        ...exp,
+        timestamp: exp.timestamp.toISOString()
+      })),
+      patterns: state.patterns.map(p => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        lastUsedAt: p.lastUsedAt.toISOString()
+      }))
+    };
+
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/state`,
-      state,
+      serializableState,
       { partition: 'learning' }
     );
 
@@ -945,8 +976,8 @@ export class LearningEngine {
   /**
    * Serialize Q-table for QLearning import (converts to QValue format)
    */
-  private serializeQTableForQLearning(): Record<string, Record<string, any>> {
-    const serialized: Record<string, Record<string, any>> = {};
+  private serializeQTableForQLearning(): Record<string, Record<string, { state: string; action: string; value: number; updateCount: number; lastUpdated: number }>> {
+    const serialized: Record<string, Record<string, { state: string; action: string; value: number; updateCount: number; lastUpdated: number }>> = {};
     for (const [state, actions] of this.qTable.entries()) {
       serialized[state] = {};
       for (const [action, value] of actions.entries()) {
@@ -965,7 +996,7 @@ export class LearningEngine {
   /**
    * Deserialize Q-table from QLearning export (extracts values from QValue format)
    */
-  private deserializeQTableFromQLearning(data: Record<string, Record<string, any>>): void {
+  private deserializeQTableFromQLearning(data: Record<string, Record<string, { value: number }>>): void {
     this.qTable.clear();
     for (const [state, actions] of Object.entries(data)) {
       const actionMap = new Map<string, number>();
@@ -991,38 +1022,54 @@ export class LearningEngine {
   /**
    * Get current performance metrics
    */
-  private async getCurrentPerformance(): Promise<any> {
+  private async getCurrentPerformance(): Promise<PerformanceMetrics> {
     const recentExperiences = this.experiences.slice(-100);
-    if (recentExperiences.length === 0) {
-      return {
-        avgReward: 0,
-        successRate: 0,
-        totalExperiences: 0
-      };
-    }
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - 24 * 60 * 60 * 1000); // last 24 hours
+
+    const avgReward = recentExperiences.length > 0
+      ? recentExperiences.reduce((sum, e) => sum + e.reward, 0) / recentExperiences.length
+      : 0;
+    const successRate = recentExperiences.length > 0
+      ? recentExperiences.filter(e => e.reward > 0).length / recentExperiences.length
+      : 0;
 
     return {
-      avgReward: recentExperiences.reduce((sum, e) => sum + e.reward, 0) / recentExperiences.length,
-      successRate: recentExperiences.filter(e => e.reward > 0).length / recentExperiences.length,
-      totalExperiences: this.experiences.length
+      agentId: this.agentId,
+      period: { start: periodStart, end: now },
+      metrics: {
+        tasksCompleted: recentExperiences.length,
+        successRate,
+        averageExecutionTime: 0, // Not tracked at this level
+        errorRate: 1 - successRate,
+        userSatisfaction: successRate, // Use success rate as proxy
+        resourceEfficiency: avgReward > 0 ? Math.min(1, avgReward) : 0
+      },
+      trends: []
     };
   }
 
   /**
    * Emit learning event
    */
-  private async emitLearningEvent(type: string, data: any): Promise<void> {
+  private async emitLearningEvent(type: string, data: unknown): Promise<void> {
     const event: LearningEvent = {
       id: uuidv4(),
-      type: type as any,
+      type: type as LearningEvent['type'],
       agentId: this.agentId,
       data,
       timestamp: new Date()
     };
 
+    // Serialize event to Record<string, unknown> for type safety
+    const serializableEvent: Record<string, unknown> = {
+      ...event,
+      timestamp: event.timestamp.toISOString()
+    };
+
     await this.memoryStore.storeEvent({
       type: `learning:${type}`,
-      payload: event,
+      payload: serializableEvent,
       source: this.agentId,
       timestamp: Date.now()
     });

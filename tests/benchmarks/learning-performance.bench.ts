@@ -14,6 +14,10 @@ import { describe, it, expect, beforeEach } from '@jest/globals';
 import { PerformanceOptimizer, VectorOps } from '../../src/learning/PerformanceOptimizer';
 import { TaskState, AgentAction, TaskExperience } from '../../src/learning/types';
 import { v4 as uuidv4 } from 'uuid';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+
+// Seeded random instance for reproducible benchmarks
+const rng = createSeededRandom(12345);
 
 /**
  * Helper to create test state
@@ -124,7 +128,7 @@ describe('Learning Performance Benchmarks', () => {
         const actionKey = `strategy-${i}:0.5:exponential`;
 
         const time = measureTime(() => {
-          optimizer.getQValue(stateKey, actionKey, () => Math.random());
+          optimizer.getQValue(stateKey, actionKey, () => rng.random());
         });
         totalTime += time;
       }
@@ -139,7 +143,7 @@ describe('Learning Performance Benchmarks', () => {
       const iterations = 10000;
       const states = Array.from({ length: 100 }, (_, i) => ({
         key: `0.${i},0.2,0.0,0.8,0.2,0.1`,
-        value: Math.random()
+        value: rng.random()
       }));
 
       const totalTime = measureTime(() => {
@@ -231,7 +235,7 @@ describe('Learning Performance Benchmarks', () => {
           `state-${i % 10}`,
           `action-${i % 5}`,
           0.5,
-          0.6 + Math.random() * 0.2
+          0.6 + rng.random() * 0.2
         );
       }
 
@@ -252,7 +256,7 @@ describe('Learning Performance Benchmarks', () => {
           `state-${i % 100}`,
           `action-${i % 20}`,
           0.5,
-          0.6 + Math.random() * 0.2
+          0.6 + rng.random() * 0.2
         );
       }
 
@@ -421,7 +425,7 @@ describe('Learning Performance Benchmarks', () => {
     it('should show cache statistics', () => {
       // Populate cache
       for (let i = 0; i < 100; i++) {
-        optimizer.getQValue(`state-${i}`, 'action-1', () => Math.random());
+        optimizer.getQValue(`state-${i}`, 'action-1', () => rng.random());
       }
 
       const stats = optimizer.getStatistics();

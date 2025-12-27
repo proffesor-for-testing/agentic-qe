@@ -8,6 +8,30 @@ export interface FleetShutdownOptions {
   preserve?: boolean; // Preserve state for later restart
 }
 
+interface FleetConfig {
+  id: string;
+  topology: string;
+  maxAgents: number;
+  [key: string]: unknown;
+}
+
+interface AgentEntry {
+  status: string;
+  stoppedAt?: string;
+  shutdownReason?: string;
+}
+
+interface TaskEntry {
+  status: string;
+  cancelledAt?: string;
+  reason?: string;
+}
+
+interface Registry {
+  agents: AgentEntry[];
+  tasks: TaskEntry[];
+}
+
 export class FleetShutdownCommand {
   static async execute(options: FleetShutdownOptions): Promise<void> {
     // Check if fleet is initialized
@@ -61,7 +85,7 @@ export class FleetShutdownCommand {
     await this.storeShutdownOperation(options);
   }
 
-  private static async archiveFleetData(fleetConfig: any): Promise<void> {
+  private static async archiveFleetData(fleetConfig: FleetConfig): Promise<void> {
     console.log(chalk.blue('📦 Archiving fleet data...'));
 
     const archiveDir = `.agentic-qe/archive/shutdown-${Date.now()}`;
@@ -124,7 +148,7 @@ export class FleetShutdownCommand {
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
 
       // Wait for running tasks
-      const runningTasks = registry.tasks?.filter((t: any) => t.status === 'running') || [];
+      const runningTasks = registry.tasks?.filter((t: TaskEntry) => t.status === 'running') || [];
       if (runningTasks.length > 0) {
         console.log(chalk.yellow(`  Waiting for ${runningTasks.length} tasks to complete...`));
 
@@ -132,7 +156,7 @@ export class FleetShutdownCommand {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         // Mark remaining tasks as cancelled
-        registry.tasks?.forEach((task: any) => {
+        registry.tasks?.forEach((task: TaskEntry) => {
           if (task.status === 'running') {
             task.status = 'cancelled';
             task.cancelledAt = new Date().toISOString();
@@ -142,7 +166,7 @@ export class FleetShutdownCommand {
       }
 
       // Stop all agents gracefully
-      registry.agents?.forEach((agent: any) => {
+      registry.agents?.forEach((agent: AgentEntry) => {
         agent.status = 'stopped';
         agent.stoppedAt = new Date().toISOString();
         agent.shutdownReason = 'graceful';
@@ -162,14 +186,14 @@ export class FleetShutdownCommand {
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
 
       // Immediately stop all agents
-      registry.agents?.forEach((agent: any) => {
+      registry.agents?.forEach((agent: AgentEntry) => {
         agent.status = 'stopped';
         agent.stoppedAt = new Date().toISOString();
         agent.shutdownReason = 'force';
       });
 
       // Cancel all tasks
-      registry.tasks?.forEach((task: any) => {
+      registry.tasks?.forEach((task: TaskEntry) => {
         if (task.status !== 'completed' && task.status !== 'failed') {
           task.status = 'cancelled';
           task.cancelledAt = new Date().toISOString();
@@ -191,14 +215,14 @@ export class FleetShutdownCommand {
       const registry = await fs.readJson('.agentic-qe/data/registry.json');
 
       // Give tasks brief time to complete
-      const runningTasks = registry.tasks?.filter((t: any) => t.status === 'running') || [];
+      const runningTasks = registry.tasks?.filter((t: TaskEntry) => t.status === 'running') || [];
       if (runningTasks.length > 0) {
         console.log(chalk.yellow(`  Allowing ${runningTasks.length} tasks brief time to complete...`));
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
 
       // Stop agents
-      registry.agents?.forEach((agent: any) => {
+      registry.agents?.forEach((agent: AgentEntry) => {
         agent.status = 'stopped';
         agent.stoppedAt = new Date().toISOString();
         agent.shutdownReason = 'standard';
@@ -210,7 +234,7 @@ export class FleetShutdownCommand {
     console.log(chalk.gray('  All agents stopped'));
   }
 
-  private static async preserveState(fleetConfig: any): Promise<void> {
+  private static async preserveState(fleetConfig: FleetConfig): Promise<void> {
     console.log(chalk.blue('💾 Preserving fleet state...'));
 
     const stateDir = '.agentic-qe/state';
@@ -264,7 +288,7 @@ export class FleetShutdownCommand {
 
       // Keep only historical data
       registry.agents = [];
-      registry.tasks = registry.tasks?.filter((t: any) => t.status === 'completed' || t.status === 'failed') || [];
+      registry.tasks = registry.tasks?.filter((t: TaskEntry) => t.status === 'completed' || t.status === 'failed') || [];
 
       await fs.writeJson('.agentic-qe/data/registry.json', registry, { spaces: 2 });
     }
@@ -272,12 +296,12 @@ export class FleetShutdownCommand {
     console.log(chalk.gray('  Runtime data cleaned'));
   }
 
-  private static async generateShutdownReport(fleetConfig: any, options: FleetShutdownOptions): Promise<void> {
+  private static async generateShutdownReport(fleetConfig: FleetConfig, options: FleetShutdownOptions): Promise<void> {
     const reportsDir = '.agentic-qe/reports';
     await fs.ensureDir(reportsDir);
 
     // Load registry for stats
-    let registry = { agents: [], tasks: [] };
+    let registry: Registry = { agents: [], tasks: [] };
     if (await fs.pathExists('.agentic-qe/data/registry.json')) {
       registry = await fs.readJson('.agentic-qe/data/registry.json');
     }
@@ -292,10 +316,10 @@ export class FleetShutdownCommand {
       statePreserved: options.preserve || false,
       statistics: {
         totalAgents: registry.agents.length,
-        stoppedAgents: registry.agents.filter((a: any) => a.status === 'stopped').length,
+        stoppedAgents: registry.agents.filter((a: AgentEntry) => a.status === 'stopped').length,
         totalTasks: registry.tasks.length,
-        completedTasks: registry.tasks.filter((t: any) => t.status === 'completed').length,
-        cancelledTasks: registry.tasks.filter((t: any) => t.status === 'cancelled').length
+        completedTasks: registry.tasks.filter((t: TaskEntry) => t.status === 'completed').length,
+        cancelledTasks: registry.tasks.filter((t: TaskEntry) => t.status === 'cancelled').length
       }
     };
 

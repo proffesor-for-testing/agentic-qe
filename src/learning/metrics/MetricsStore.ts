@@ -255,7 +255,7 @@ export class MetricsStore {
     const { startTime, endTime, limit = 100, orderBy = 'desc' } = query || {};
 
     let sql = 'SELECT * FROM metrics_snapshots WHERE 1=1';
-    const params: any[] = [];
+    const params: (string | number | Date)[] = [];
 
     if (startTime) {
       sql += ' AND snapshot_time >= ?';
@@ -270,7 +270,7 @@ export class MetricsStore {
     sql += ` ORDER BY snapshot_time ${orderBy.toUpperCase()} LIMIT ?`;
     params.push(limit);
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as Array<{ snapshot_time: number; value?: number } & Record<string, unknown>>;
 
     return rows.map(row => this.rowToSnapshot(row));
   }
@@ -283,7 +283,7 @@ export class MetricsStore {
       SELECT * FROM metrics_snapshots
       ORDER BY snapshot_time DESC
       LIMIT 1
-    `).get() as any;
+    `).get() as { count?: number; avg?: number; min?: number; max?: number; variance?: number } & Record<string, unknown> | undefined;
 
     return row ? this.rowToSnapshot(row) : null;
   }
@@ -302,7 +302,7 @@ export class MetricsStore {
       FROM metrics_snapshots
       WHERE snapshot_time >= ?
       ORDER BY snapshot_time ASC
-    `).all(now - windowMs) as any[];
+    `).all(now - windowMs) as Array<{ snapshot_time: number; value?: number } & Record<string, unknown>>;
 
     if (rows.length === 0) return [];
 
@@ -337,7 +337,7 @@ export class MetricsStore {
         FROM metrics_snapshots
         WHERE 1=1
       `;
-      const params: any[] = [];
+      const params: (string | number | Date)[] = [];
 
       if (startTime) {
         sql += ' AND snapshot_time >= ?';
@@ -349,18 +349,18 @@ export class MetricsStore {
         params.push(endTime.getTime());
       }
 
-      const row = this.db.prepare(sql).get(...params) as any;
+      const row = this.db.prepare(sql).get(...params) as { count?: number; avg?: number; min?: number; max?: number; variance?: number } & Record<string, unknown> | undefined;
 
       // Calculate standard deviation
       let stdDev = 0;
-      if (row.count > 1) {
+      if ((row?.count ?? 0) > 1) {
         let varianceSql = `
           SELECT
             SUM((${columnName} - ?) * (${columnName} - ?)) / (COUNT(*) - 1) as variance
           FROM metrics_snapshots
           WHERE 1=1
         `;
-        const varianceParams: any[] = [row.avg, row.avg];
+        const varianceParams: (string | number | Date | undefined)[] = [row?.avg, row?.avg];
 
         if (startTime) {
           varianceSql += ' AND snapshot_time >= ?';
@@ -372,7 +372,7 @@ export class MetricsStore {
           varianceParams.push(endTime.getTime());
         }
 
-        const varianceRow = this.db.prepare(varianceSql).get(...varianceParams) as any;
+        const varianceRow = this.db.prepare(varianceSql).get(...varianceParams) as { count?: number; avg?: number; min?: number; max?: number; variance?: number } & Record<string, unknown> | undefined;
         stdDev = Math.sqrt(varianceRow?.variance || 0);
       }
 
@@ -381,11 +381,11 @@ export class MetricsStore {
 
       result.set(metricName, {
         metric: metricName,
-        avg: row.avg || 0,
-        min: row.min || 0,
-        max: row.max || 0,
+        avg: row?.avg ?? 0,
+        min: row?.min ?? 0,
+        max: row?.max ?? 0,
         stdDev,
-        count: row.count || 0,
+        count: row?.count ?? 0,
         trend,
       });
     }
@@ -404,7 +404,7 @@ export class MetricsStore {
       FROM metrics_snapshots
       WHERE 1=1
     `;
-    const params: any[] = [];
+    const params: (string | number | Date)[] = [];
 
     if (startTime) {
       sql += ' AND snapshot_time >= ?';
@@ -418,7 +418,7 @@ export class MetricsStore {
 
     sql += ' ORDER BY snapshot_time ASC';
 
-    const rows = this.db.prepare(sql).all(...params) as any[];
+    const rows = this.db.prepare(sql).all(...params) as Array<{ snapshot_time: number; value?: number } & Record<string, unknown>>;
 
     if (rows.length < 2) return 0;
 
@@ -473,13 +473,13 @@ export class MetricsStore {
         SELECT AVG(${columnName}) as avg
         FROM metrics_snapshots
         WHERE snapshot_time >= ? AND snapshot_time <= ?
-      `).get(period1Start.getTime(), period1End.getTime()) as any;
+      `).get(period1Start.getTime(), period1End.getTime()) as { count?: number; avg?: number; min?: number; max?: number; variance?: number } & Record<string, unknown> | undefined;
 
       const period2Row = this.db.prepare(`
         SELECT AVG(${columnName}) as avg
         FROM metrics_snapshots
         WHERE snapshot_time >= ? AND snapshot_time <= ?
-      `).get(period2Start.getTime(), period2End.getTime()) as any;
+      `).get(period2Start.getTime(), period2End.getTime()) as { count?: number; avg?: number; min?: number; max?: number; variance?: number } & Record<string, unknown> | undefined;
 
       const period1Avg = period1Row?.avg || 0;
       const period2Avg = period2Row?.avg || 0;
@@ -529,7 +529,7 @@ export class MetricsStore {
     const { startTime, endTime } = query || {};
 
     let sql = 'SELECT COUNT(*) as count FROM metrics_snapshots WHERE 1=1';
-    const params: any[] = [];
+    const params: (string | number | Date)[] = [];
 
     if (startTime) {
       sql += ' AND snapshot_time >= ?';
@@ -541,7 +541,7 @@ export class MetricsStore {
       params.push(endTime.getTime());
     }
 
-    const row = this.db.prepare(sql).get(...params) as any;
+    const row = this.db.prepare(sql).get(...params) as { count?: number; avg?: number; min?: number; max?: number; variance?: number } & Record<string, unknown> | undefined;
     return row?.count || 0;
   }
 
@@ -555,33 +555,33 @@ export class MetricsStore {
   /**
    * Convert database row to MetricsSnapshot
    */
-  private rowToSnapshot(row: any): MetricsSnapshot {
+  private rowToSnapshot(row: Record<string, unknown>): MetricsSnapshot {
     const metrics: LearningMetricsData = {
-      patternsDiscoveredTotal: row.patterns_discovered_total,
-      patternsDiscoveredToday: row.patterns_discovered_today,
-      discoveryRate: row.discovery_rate,
-      patternAccuracy: row.pattern_accuracy,
-      insightActionability: row.insight_actionability,
-      falsePositiveRate: row.false_positive_rate,
-      transferSuccessRate: row.transfer_success_rate,
-      adoptionRate: row.adoption_rate,
-      negativeTransferCount: row.negative_transfer_count,
-      taskTimeReduction: row.task_time_reduction,
-      coverageImprovement: row.coverage_improvement,
-      bugDetectionImprovement: row.bug_detection_improvement,
-      sleepCycleCompletionRate: row.sleep_cycle_completion_rate,
-      avgCycleDuration: row.avg_cycle_duration,
-      errorRate: row.error_rate,
-      calculatedAt: new Date(row.calculated_at),
-      periodStart: new Date(row.period_start),
-      periodEnd: new Date(row.period_end),
+      patternsDiscoveredTotal: row.patterns_discovered_total as number,
+      patternsDiscoveredToday: row.patterns_discovered_today as number,
+      discoveryRate: row.discovery_rate as number,
+      patternAccuracy: row.pattern_accuracy as number,
+      insightActionability: row.insight_actionability as number,
+      falsePositiveRate: row.false_positive_rate as number,
+      transferSuccessRate: row.transfer_success_rate as number,
+      adoptionRate: row.adoption_rate as number,
+      negativeTransferCount: row.negative_transfer_count as number,
+      taskTimeReduction: row.task_time_reduction as number,
+      coverageImprovement: row.coverage_improvement as number,
+      bugDetectionImprovement: row.bug_detection_improvement as number,
+      sleepCycleCompletionRate: row.sleep_cycle_completion_rate as number,
+      avgCycleDuration: row.avg_cycle_duration as number,
+      errorRate: row.error_rate as number,
+      calculatedAt: new Date(row.calculated_at as number),
+      periodStart: new Date(row.period_start as number),
+      periodEnd: new Date(row.period_end as number),
     };
 
     return {
-      id: row.id,
+      id: row.id as string,
       metrics,
-      snapshotTime: new Date(row.snapshot_time),
-      periodHours: row.period_hours,
+      snapshotTime: new Date(row.snapshot_time as number),
+      periodHours: row.period_hours as number,
     };
   }
 

@@ -10,6 +10,7 @@
  * - Error handling
  */
 
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 import {
   DIContainer,
   DependencyConfig,
@@ -47,7 +48,8 @@ describe('DIContainer', () => {
     });
 
     it('should register a factory function', () => {
-      container.registerFactory('factoryDep', () => ({ id: Math.random() }));
+      const rng = createSeededRandom(30200);
+      container.registerFactory('factoryDep', () => ({ id: rng.random() }));
 
       expect(container.has('factoryDep')).toBe(true);
     });

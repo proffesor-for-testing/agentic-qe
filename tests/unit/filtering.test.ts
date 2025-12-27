@@ -26,6 +26,7 @@ import {
   FilterConfig,
   PriorityLevel
 } from '../../src/utils/filtering.js';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Test data types
 interface CoverageFile {
@@ -294,9 +295,10 @@ describe('filterLargeDataset', () => {
 
   describe('reduction percentage calculation', () => {
     it('should calculate realistic token reduction', () => {
+      const rng = createSeededRandom(14100);
       const data = Array.from({ length: 1000 }, (_, i) => ({
         file: `file-${i}.ts`,
-        coverage: 50 + Math.random() * 40,
+        coverage: 50 + rng.random() * 40,
         lines: 100
       }));
 
@@ -526,12 +528,13 @@ describe('createFilterSummary', () => {
 
 describe('performance characteristics', () => {
   it('should handle large datasets efficiently', () => {
+    const rng = createSeededRandom(14101);
     const startTime = Date.now();
 
     // 10,000 items
     const data = Array.from({ length: 10000 }, (_, i) => ({
       id: i,
-      value: Math.random() * 100
+      value: rng.random() * 100
     }));
 
     const result = filterLargeDataset(
@@ -550,13 +553,14 @@ describe('performance characteristics', () => {
   });
 
   it('should demonstrate token reduction on realistic coverage data', () => {
+    const rng = createSeededRandom(14102);
     // Simulate realistic coverage report with 1000 files
     const data = Array.from({ length: 1000 }, (_, i) => ({
       file: `src/module-${Math.floor(i / 10)}/file-${i}.ts`,
-      coverage: 30 + Math.random() * 60, // 30-90%
-      lines: 50 + Math.floor(Math.random() * 200),
-      functions: 5 + Math.floor(Math.random() * 20),
-      branches: 10 + Math.floor(Math.random() * 30)
+      coverage: 30 + rng.random() * 60, // 30-90%
+      lines: 50 + Math.floor(rng.random() * 200),
+      functions: 5 + Math.floor(rng.random() * 20),
+      branches: 10 + Math.floor(rng.random() * 30)
     }));
 
     const result = filterLargeDataset(

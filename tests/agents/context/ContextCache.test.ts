@@ -9,6 +9,7 @@ describe('ContextCache', () => {
   let cache: ContextCache<string>;
 
   beforeEach(() => {
+    jest.useFakeTimers();
     cache = new ContextCache<string>({
       maxSize: 10,
       defaultTTL: 1000, // 1 second for testing
@@ -18,6 +19,7 @@ describe('ContextCache', () => {
 
   afterEach(() => {
     cache.shutdown();
+    jest.useRealTimers();
   });
 
   describe('Basic Operations', () => {
@@ -82,17 +84,17 @@ describe('ContextCache', () => {
   });
 
   describe('TTL Expiration', () => {
-    it('should expire entries after TTL', async () => {
+    it('should expire entries after TTL', () => {
       cache.set('key1', 'value1', 100); // 100ms TTL
       expect(cache.get('key1')).toBe('value1');
 
-      await new Promise(resolve => setTimeout(resolve, 150));
+      jest.advanceTimersByTime(150);
 
       expect(cache.get('key1')).toBeNull();
       expect(cache.getStats().expirations).toBe(1);
     });
 
-    it('should use default TTL when not specified', async () => {
+    it('should use default TTL when not specified', () => {
       const shortCache = new ContextCache<string>({
         defaultTTL: 100,
         enableCleanup: false,
@@ -101,30 +103,30 @@ describe('ContextCache', () => {
       shortCache.set('key1', 'value1');
       expect(shortCache.get('key1')).toBe('value1');
 
-      await new Promise(resolve => setTimeout(resolve, 150));
+      jest.advanceTimersByTime(150);
 
       expect(shortCache.get('key1')).toBeNull();
       shortCache.shutdown();
     });
 
-    it('should handle custom TTL per entry', async () => {
+    it('should handle custom TTL per entry', () => {
       cache.set('short', 'value1', 100);
       cache.set('long', 'value2', 500);
 
-      await new Promise(resolve => setTimeout(resolve, 150));
+      jest.advanceTimersByTime(150);
 
       expect(cache.get('short')).toBeNull();
       expect(cache.get('long')).toBe('value2');
     });
 
-    it('should update expiration on set', async () => {
+    it('should update expiration on set', () => {
       cache.set('key1', 'value1', 100);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      jest.advanceTimersByTime(50);
 
       // Refresh with longer TTL
       cache.set('key1', 'updated', 200);
 
-      await new Promise(resolve => setTimeout(resolve, 120));
+      jest.advanceTimersByTime(120);
 
       expect(cache.get('key1')).toBe('updated');
     });
@@ -231,9 +233,9 @@ describe('ContextCache', () => {
       smallCache.shutdown();
     });
 
-    it('should track expirations', async () => {
+    it('should track expirations', () => {
       cache.set('key1', 'value1', 50);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
 
       cache.get('key1'); // Should trigger expiration
 
@@ -264,11 +266,11 @@ describe('ContextCache', () => {
   });
 
   describe('Cleanup', () => {
-    it('should manually cleanup expired entries', async () => {
+    it('should manually cleanup expired entries', () => {
       cache.set('key1', 'value1', 50);
       cache.set('key2', 'value2', 200);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
 
       const removed = cache.cleanup();
       expect(removed).toBe(1);
@@ -276,7 +278,7 @@ describe('ContextCache', () => {
       expect(cache.has('key2')).toBe(true);
     });
 
-    it('should automatically cleanup when enabled', async () => {
+    it('should automatically cleanup when enabled', () => {
       const autoCache = new ContextCache<string>({
         defaultTTL: 50,
         enableCleanup: true,
@@ -286,10 +288,11 @@ describe('ContextCache', () => {
       autoCache.set('key1', 'value1');
       autoCache.set('key2', 'value2');
 
-      await new Promise(resolve => setTimeout(resolve, 80));
+      // Advance past TTL (items expire)
+      jest.advanceTimersByTime(80);
 
-      // Wait for cleanup interval
-      await new Promise(resolve => setTimeout(resolve, 120));
+      // Advance past cleanup interval (cleanup runs)
+      jest.advanceTimersByTime(120);
 
       expect(autoCache.getStats().expirations).toBeGreaterThan(0);
       autoCache.shutdown();

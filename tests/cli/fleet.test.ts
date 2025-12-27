@@ -4,6 +4,7 @@
  */
 
 import * as fs from 'fs-extra';
+import { withFakeTimers } from '../helpers/timerTestUtils';
 import { FleetInitCommand } from '@cli/commands/fleet/init';
 import { FleetStatusCommand } from '@cli/commands/fleet/status';
 import { FleetScaleCommand } from '@cli/commands/fleet/scale';
@@ -130,21 +131,23 @@ describe('Fleet Management Commands', () => {
 
   describe('fleet monitor', () => {
     it('should start real-time monitoring', async () => {
-      mockedFs.readJson.mockResolvedValue({
-        id: 'fleet-123',
-        topology: 'hierarchical',
-        agents: [],
-        tasks: [],
-        fleet: { status: 'running' }
+      await withFakeTimers(async (timers) => {
+        mockedFs.readJson.mockResolvedValue({
+          id: 'fleet-123',
+          topology: 'hierarchical',
+          agents: [],
+          tasks: [],
+          fleet: { status: 'running' }
+        });
+
+        // Mock monitoring execution - it runs indefinitely, so we test setup only
+        const executePromise = FleetMonitorCommand.execute({ interval: 1000, continuous: false });
+
+        // Give it time to initialize with fake timers
+        await timers.advanceAsync(100);
+
+        expect(mockedFs.pathExists).toHaveBeenCalledWith('.agentic-qe/config/fleet.json');
       });
-
-      // Mock monitoring execution - it runs indefinitely, so we test setup only
-      const executePromise = FleetMonitorCommand.execute({ interval: 1000, continuous: false });
-
-      // Give it time to initialize
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      expect(mockedFs.pathExists).toHaveBeenCalledWith('.agentic-qe/config/fleet.json');
     });
 
     it('should validate interval', async () => {

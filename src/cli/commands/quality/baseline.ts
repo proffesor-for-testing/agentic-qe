@@ -28,6 +28,16 @@ interface Baseline {
   description?: string;
 }
 
+/**
+ * Database row for baseline queries
+ */
+interface BaselineRow {
+  name: string;
+  metrics: string;
+  timestamp: string;
+  description: string | null;
+}
+
 export async function baseline(options: BaselineOptions): Promise<BaselineResult> {
   const logger = Logger.getInstance();
   const action = options.action || 'set';
@@ -107,7 +117,7 @@ async function getBaseline(
     throw new Error('name is required for getting baseline');
   }
 
-  const row = await options.database.get(`
+  const row = await options.database.get<BaselineRow>(`
     SELECT name, metrics, timestamp, description
     FROM quality_baselines
     WHERE name = ?
@@ -121,7 +131,7 @@ async function getBaseline(
     name: row.name,
     metrics: JSON.parse(row.metrics),
     timestamp: row.timestamp,
-    description: row.description
+    description: row.description ?? undefined
   };
 
   logger.info(`Retrieved baseline "${options.name}"`);
@@ -136,7 +146,7 @@ async function listBaselines(
   options: BaselineOptions,
   logger: Logger
 ): Promise<BaselineResult> {
-  const rows = await options.database.all(`
+  const rows = await options.database.all<BaselineRow>(`
     SELECT name, metrics, timestamp, description
     FROM quality_baselines
     ORDER BY timestamp DESC
@@ -146,7 +156,7 @@ async function listBaselines(
     name: row.name,
     metrics: JSON.parse(row.metrics),
     timestamp: row.timestamp,
-    description: row.description
+    description: row.description ?? undefined
   }));
 
   logger.info(`Listed ${baselines.length} baselines`);

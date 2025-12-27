@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { LearningEngine } from '@learning/LearningEngine';
 import { Database } from '@utils/Database';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -54,12 +55,14 @@ describe('CLI Learning Commands', () => {
   describe('aqe learn status', () => {
     it('should show learning status for agent', async () => {
       // Record some learning experiences
+      const rng0 = createSeededRandom(23000);
+      const rng1 = createSeededRandom(23001);
       for (let i = 0; i < 10; i++) {
         await learningEngine.learnFromExecution(
           { id: `task-${i}`, type: 'test-generation', previousAttempts: 0 },
           {
-            success: Math.random() > 0.3,
-            executionTime: 1000 + Math.random() * 1000,
+            success: rng0.random() > 0.3,
+            executionTime: 1000 + rng1.random() * 1000,
             strategy: 'parallel',
             toolsUsed: ['jest'],
             parallelization: 0.8,
@@ -198,11 +201,12 @@ describe('CLI Learning Commands', () => {
 
   describe('aqe learn integration', () => {
     it('should show learning progress over time', async () => {
+      const rng = createSeededRandom(23002);
       const iterations = 50;
       let successCount = 0;
 
       for (let i = 0; i < iterations; i++) {
-        const success = Math.random() > 0.2; // 80% success rate
+        const success = rng.random() > 0.2; // 80% success rate
         if (success) successCount++;
 
         await learningEngine.learnFromExecution(

@@ -21,6 +21,7 @@ import {
   LearningMetrics,
   HealthCheckResponse
 } from '../../src/providers/RuVectorClient';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Mock configuration for when Docker is not available
 const MOCK_MODE = process.env.RUVECTOR_MOCK === 'true';
@@ -39,8 +40,11 @@ const TEST_CONFIG: RuVectorConfig = {
   debug: process.env.DEBUG === 'true'
 };
 
+// Seeded RNG for deterministic test data
+const rng = createSeededRandom(18200);
+
 // Helper to generate test embeddings (768-dim)
-function generateEmbedding(seed: number = Math.random()): number[] {
+function generateEmbedding(seed: number = rng.random()): number[] {
   const dim = 768;
   const embedding: number[] = [];
 
@@ -56,7 +60,7 @@ function generateEmbedding(seed: number = Math.random()): number[] {
 
 // Helper to generate similar embeddings
 function generateSimilarEmbedding(baseEmbedding: number[], variance: number = 0.1): number[] {
-  const similar = baseEmbedding.map(val => val + (Math.random() - 0.5) * variance);
+  const similar = baseEmbedding.map(val => val + (rng.random() - 0.5) * variance);
 
   // Normalize
   const magnitude = Math.sqrt(similar.reduce((sum, val) => sum + val * val, 0));

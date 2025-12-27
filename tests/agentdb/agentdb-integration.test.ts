@@ -13,6 +13,7 @@ import { EnhancedAgentDBService, LearningExperience, RLAlgorithm } from '@core/m
 import { QEPattern } from '@core/memory/AgentDBService';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('AgentDB Integration', () => {
   const testDbPath = path.join(__dirname, '../fixtures/test-agentdb.db');
@@ -349,12 +350,15 @@ describe('AgentDB Integration', () => {
 
 // Helper Functions
 
+// Seeded RNG for deterministic test results
+const rng = createSeededRandom(17001);
+
 function createTestPattern(id: string, type: string, domain: string): QEPattern {
   return {
     id,
     type,
     domain,
-    data: { test: 'data', value: Math.random() },
+    data: { test: 'data', value: rng.random() },
     confidence: 0.8,
     usageCount: 0,
     successCount: 0,
@@ -370,7 +374,7 @@ function createTestPattern(id: string, type: string, domain: string): QEPattern 
 function generateRandomEmbedding(dimensions: number): number[] {
   const embedding: number[] = [];
   for (let i = 0; i < dimensions; i++) {
-    embedding.push(Math.random() * 2 - 1); // Random values between -1 and 1
+    embedding.push(rng.random() * 2 - 1); // Random values between -1 and 1
   }
 
   // Normalize to unit vector

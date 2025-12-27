@@ -17,6 +17,8 @@ import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { Logger } from '../utils/Logger';
 import { CodeIntelligenceOrchestrator } from '../code-intelligence/orchestrator/CodeIntelligenceOrchestrator';
 import type { OrchestratorConfig, QueryContext, QueryResult, IndexingProgress } from '../code-intelligence/orchestrator/types';
+import type { GraphNode, GraphEdge } from '../code-intelligence/graph/types';
+import type { GraphBuilder } from '../code-intelligence/graph/GraphBuilder';
 
 // ============================================================================
 // Configuration
@@ -628,9 +630,9 @@ Explanation:`;
     return lines.join('\n');
   }
 
-  private getEdgesForNodes(graphBuilder: any, nodes: any[]): any[] {
+  private getEdgesForNodes(graphBuilder: GraphBuilder, nodes: GraphNode[]): GraphEdge[] {
     const nodeIds = new Set(nodes.map(n => n.id));
-    const edges: any[] = [];
+    const edges: GraphEdge[] = [];
     const seenEdges = new Set<string>();
 
     for (const node of nodes) {

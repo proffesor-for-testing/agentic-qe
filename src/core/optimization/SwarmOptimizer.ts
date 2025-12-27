@@ -21,6 +21,227 @@ import {
 } from './types';
 
 /**
+ * Serializable version of TopologyRecommendation for memory storage
+ */
+interface SerializableTopologyRecommendation {
+  topology: 'hierarchical' | 'mesh' | 'ring' | 'star';
+  reasoning: string;
+  expectedSpeedup: number;
+  agentAllocation: Record<string, number>;
+  confidence: number;
+}
+
+/**
+ * Serializable version of AgentAllocation for memory storage
+ */
+interface SerializableAgentAllocation {
+  allocations: Record<string, string[]>;
+  reasoning: string;
+  loadBalance: number;
+  expectedDuration: number;
+}
+
+/**
+ * Serializable version of OptimizationResult for memory storage
+ */
+interface SerializableOptimizationResult {
+  success: boolean;
+  improvements: Record<string, number>;
+  topology?: SerializableTopologyRecommendation;
+  allocation?: SerializableAgentAllocation;
+  timestamp: string;
+}
+
+/**
+ * Serializable bottleneck analysis result
+ */
+interface SerializableBottleneckAnalysis {
+  timestamp: string;
+  bottlenecks: Bottleneck[];
+}
+
+/**
+ * Type guard for checking if value is a record object
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Type guard for PerformanceMetrics
+ */
+function isPerformanceMetrics(value: unknown): value is PerformanceMetrics {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.taskThroughput === 'number' &&
+    typeof value.averageLatency === 'number' &&
+    typeof value.resourceUtilization === 'number' &&
+    Array.isArray(value.bottlenecks)
+  );
+}
+
+/**
+ * Type guard for Task
+ */
+function isTask(value: unknown): value is Task {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.type === 'string' &&
+    typeof value.complexity === 'number' &&
+    typeof value.estimatedDuration === 'number' &&
+    Array.isArray(value.dependencies)
+  );
+}
+
+/**
+ * Type guard for Agent
+ */
+function isAgent(value: unknown): value is Agent {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.type === 'string' &&
+    Array.isArray(value.capabilities) &&
+    typeof value.currentLoad === 'number' &&
+    typeof value.performanceScore === 'number' &&
+    typeof value.isAvailable === 'boolean'
+  );
+}
+
+/**
+ * Convert TopologyRecommendation to serializable format
+ */
+function toSerializableTopologyRecommendation(
+  rec: TopologyRecommendation
+): SerializableTopologyRecommendation {
+  return {
+    topology: rec.topology,
+    reasoning: rec.reasoning,
+    expectedSpeedup: rec.expectedSpeedup,
+    agentAllocation: Object.fromEntries(rec.agentAllocation),
+    confidence: rec.confidence
+  };
+}
+
+/**
+ * Convert AgentAllocation to serializable format
+ */
+function toSerializableAgentAllocation(
+  alloc: AgentAllocation
+): SerializableAgentAllocation {
+  return {
+    allocations: Object.fromEntries(alloc.allocations),
+    reasoning: alloc.reasoning,
+    loadBalance: alloc.loadBalance,
+    expectedDuration: alloc.expectedDuration
+  };
+}
+
+/**
+ * Convert OptimizationResult to serializable format
+ */
+function toSerializableOptimizationResult(
+  result: OptimizationResult
+): SerializableOptimizationResult {
+  return {
+    success: result.success,
+    improvements: Object.fromEntries(result.improvements),
+    topology: result.topology
+      ? toSerializableTopologyRecommendation(result.topology)
+      : undefined,
+    allocation: result.allocation
+      ? toSerializableAgentAllocation(result.allocation)
+      : undefined,
+    timestamp: result.timestamp.toISOString()
+  };
+}
+
+/**
+ * Convert serializable format back to OptimizationResult
+ */
+function fromSerializableOptimizationResult(
+  data: SerializableOptimizationResult
+): OptimizationResult {
+  return {
+    success: data.success,
+    improvements: new Map(Object.entries(data.improvements)),
+    topology: data.topology
+      ? {
+          ...data.topology,
+          agentAllocation: new Map(Object.entries(data.topology.agentAllocation))
+        }
+      : undefined,
+    allocation: data.allocation
+      ? {
+          ...data.allocation,
+          allocations: new Map(Object.entries(data.allocation.allocations))
+        }
+      : undefined,
+    timestamp: new Date(data.timestamp)
+  };
+}
+
+/**
+ * Type guard for SerializableOptimizationResult
+ */
+function isSerializableOptimizationResult(
+  value: unknown
+): value is SerializableOptimizationResult {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.success === 'boolean' &&
+    isRecord(value.improvements) &&
+    typeof value.timestamp === 'string'
+  );
+}
+
+/**
+ * Serializable version of WorkloadProfile for memory storage
+ */
+interface SerializableWorkloadProfile {
+  taskCount: number;
+  taskTypes: Record<string, number>;
+  averageComplexity: number;
+  parallelizability: number;
+  resourceIntensity: number;
+  interdependencies: number;
+}
+
+/**
+ * Type guard for SerializableWorkloadProfile
+ */
+function isSerializableWorkloadProfile(
+  value: unknown
+): value is SerializableWorkloadProfile {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.taskCount === 'number' &&
+    isRecord(value.taskTypes) &&
+    typeof value.averageComplexity === 'number' &&
+    typeof value.parallelizability === 'number' &&
+    typeof value.resourceIntensity === 'number' &&
+    typeof value.interdependencies === 'number'
+  );
+}
+
+/**
+ * Convert SerializableWorkloadProfile to WorkloadProfile
+ */
+function fromSerializableWorkloadProfile(
+  data: SerializableWorkloadProfile
+): WorkloadProfile {
+  return {
+    taskCount: data.taskCount,
+    taskTypes: new Map(Object.entries(data.taskTypes)),
+    averageComplexity: data.averageComplexity,
+    parallelizability: data.parallelizability,
+    resourceIntensity: data.resourceIntensity,
+    interdependencies: data.interdependencies
+  };
+}
+
+/**
  * Task definition for allocation
  */
 export interface Task {
@@ -137,7 +358,7 @@ export class SwarmOptimizer {
     let bestTopology = 'hierarchical';
     let bestScore = 0;
 
-    for (const [topology, score] of scores.entries()) {
+    for (const [topology, score] of Array.from(scores.entries())) {
       if (score > bestScore) {
         bestScore = score;
         bestTopology = topology;
@@ -172,10 +393,10 @@ export class SwarmOptimizer {
       confidence
     };
 
-    // Store recommendation
+    // Store recommendation (convert to serializable format)
     await this.memoryStore.store(
       'optimization/topology/latest',
-      recommendation,
+      toSerializableTopologyRecommendation(recommendation) as unknown as Record<string, unknown>,
       { partition: 'optimization' }
     );
 
@@ -273,10 +494,10 @@ export class SwarmOptimizer {
       expectedDuration
     };
 
-    // Store allocation
+    // Store allocation (convert to serializable format)
     await this.memoryStore.store(
       'optimization/allocation/latest',
-      allocation,
+      toSerializableAgentAllocation(allocation) as unknown as Record<string, unknown>,
       { partition: 'optimization' }
     );
 
@@ -358,10 +579,14 @@ export class SwarmOptimizer {
       }
     }
 
-    // Store bottleneck analysis
+    // Store bottleneck analysis (convert to serializable format)
+    const bottleneckAnalysis: SerializableBottleneckAnalysis = {
+      timestamp: new Date().toISOString(),
+      bottlenecks
+    };
     await this.memoryStore.store(
       'optimization/bottlenecks/latest',
-      { timestamp: new Date(), bottlenecks },
+      bottleneckAnalysis as unknown as Record<string, unknown>,
       { partition: 'optimization' }
     );
 
@@ -495,7 +720,7 @@ export class SwarmOptimizer {
     const allocation = new Map<string, number>();
 
     // Estimate agent types needed based on task types
-    for (const [taskType, count] of workload.taskTypes.entries()) {
+    for (const [taskType, count] of Array.from(workload.taskTypes.entries())) {
       const agentType = this.mapTaskTypeToAgentType(taskType);
       const currentCount = allocation.get(agentType) || 0;
       allocation.set(agentType, currentCount + count);
@@ -611,11 +836,11 @@ export class SwarmOptimizer {
   private calculateExpectedDuration(
     tasks: Task[],
     allocations: Map<string, string[]>,
-    agentLoads: Map<string, number>
+    _agentLoads: Map<string, number>
   ): number {
     let maxDuration = 0;
 
-    for (const [agentId, taskIds] of allocations.entries()) {
+    for (const [_agentId, taskIds] of Array.from(allocations.entries())) {
       let agentDuration = 0;
 
       for (const taskId of taskIds) {
@@ -690,7 +915,7 @@ export class SwarmOptimizer {
     const metrics: PerformanceMetrics[] = [];
 
     // Collect from registered performance trackers
-    for (const [agentId, tracker] of this.performanceTrackers.entries()) {
+    for (const [agentId, tracker] of Array.from(this.performanceTrackers.entries())) {
       try {
         const improvement = await tracker.calculateImprovement();
 
@@ -714,7 +939,12 @@ export class SwarmOptimizer {
       );
 
       if (stored && Array.isArray(stored)) {
-        metrics.push(...stored);
+        // Filter and validate each metric using type guard
+        for (const item of stored) {
+          if (isPerformanceMetrics(item)) {
+            metrics.push(item);
+          }
+        }
       }
     }
 
@@ -731,8 +961,8 @@ export class SwarmOptimizer {
       { partition: 'optimization' }
     );
 
-    if (stored) {
-      return stored as WorkloadProfile;
+    if (isSerializableWorkloadProfile(stored)) {
+      return fromSerializableWorkloadProfile(stored);
     }
 
     // Default workload profile
@@ -756,7 +986,14 @@ export class SwarmOptimizer {
     );
 
     if (stored && Array.isArray(stored)) {
-      return stored as Task[];
+      // Filter and validate each task using type guard
+      const tasks: Task[] = [];
+      for (const item of stored) {
+        if (isTask(item)) {
+          tasks.push(item);
+        }
+      }
+      return tasks;
     }
 
     return [];
@@ -772,7 +1009,14 @@ export class SwarmOptimizer {
     );
 
     if (stored && Array.isArray(stored)) {
-      return (stored as Agent[]).slice(0, maxAgents);
+      // Filter and validate each agent using type guard
+      const agents: Agent[] = [];
+      for (const item of stored) {
+        if (isAgent(item)) {
+          agents.push(item);
+        }
+      }
+      return agents.slice(0, maxAgents);
     }
 
     return [];
@@ -784,14 +1028,15 @@ export class SwarmOptimizer {
   private async applyBottleneckFix(bottleneck: Bottleneck): Promise<void> {
     this.logger.info(`Applying fix for ${bottleneck.type} bottleneck at ${bottleneck.location}`);
 
-    // Store fix action
+    // Store fix action (convert to serializable format)
+    const fixAction: Record<string, unknown> = {
+      bottleneck: bottleneck as unknown as Record<string, unknown>,
+      timestamp: new Date().toISOString(),
+      applied: true
+    };
     await this.memoryStore.store(
       `optimization/bottleneck-fixes/${Date.now()}`,
-      {
-        bottleneck,
-        timestamp: new Date(),
-        applied: true
-      },
+      fixAction,
       { partition: 'optimization', ttl: 86400 } // 24 hour TTL
     );
   }
@@ -802,7 +1047,7 @@ export class SwarmOptimizer {
   private async storeOptimizationResult(result: OptimizationResult): Promise<void> {
     await this.memoryStore.store(
       `optimization/results/${result.timestamp.getTime()}`,
-      result,
+      toSerializableOptimizationResult(result) as unknown as Record<string, unknown>,
       { partition: 'optimization', ttl: 2592000 } // 30 days
     );
   }
@@ -817,8 +1062,14 @@ export class SwarmOptimizer {
         { partition: 'optimization' }
       );
 
-      this.optimizationHistory = entries
-        .map(entry => entry.value as OptimizationResult)
+      const validResults: OptimizationResult[] = [];
+      for (const entry of entries) {
+        if (isSerializableOptimizationResult(entry.value)) {
+          validResults.push(fromSerializableOptimizationResult(entry.value));
+        }
+      }
+
+      this.optimizationHistory = validResults
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       this.logger.info(`Loaded ${this.optimizationHistory.length} optimization history entries`);
@@ -830,17 +1081,21 @@ export class SwarmOptimizer {
   /**
    * Handle agent completed event
    */
-  private async handleAgentCompleted(event: any): Promise<void> {
+  private async handleAgentCompleted(event: unknown): Promise<void> {
     // Update metrics based on completed agent work
-    this.logger.debug(`Agent ${event.agentId} completed in ${event.duration}ms`);
+    if (isRecord(event) && typeof event.agentId === 'string' && typeof event.duration === 'number') {
+      this.logger.debug(`Agent ${event.agentId} completed in ${event.duration}ms`);
+    }
   }
 
   /**
    * Handle test completed event
    */
-  private async handleTestCompleted(event: any): Promise<void> {
+  private async handleTestCompleted(event: unknown): Promise<void> {
     // Update test metrics
-    this.logger.debug(`Test suite completed: ${event.passed}/${event.passed + event.failed} passed`);
+    if (isRecord(event) && typeof event.passed === 'number' && typeof event.failed === 'number') {
+      this.logger.debug(`Test suite completed: ${event.passed}/${event.passed + event.failed} passed`);
+    }
   }
 
   /**

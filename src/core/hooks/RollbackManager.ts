@@ -15,13 +15,52 @@ export interface Snapshot {
     hash: string;
     content: string;
   }>;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Structure for rollback history entries stored in memory
+ */
+interface RollbackHistoryEntry {
+  snapshotId: string;
+  reason?: string;
+  timestamp: number;
+}
+
+/**
+ * Type guard to check if a value is a valid Snapshot object
+ */
+function isSnapshot(value: unknown): value is Snapshot {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.timestamp === 'number' &&
+    Array.isArray(obj.files)
+  );
+}
+
+/**
+ * Type guard to check if a value is a valid RollbackHistoryEntry
+ */
+function isRollbackHistoryEntry(value: unknown): value is RollbackHistoryEntry {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.snapshotId === 'string' &&
+    typeof obj.timestamp === 'number' &&
+    (obj.reason === undefined || typeof obj.reason === 'string')
+  );
 }
 
 export interface SnapshotOptions {
   id: string;
   files: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RollbackTriggerOptions {
@@ -105,10 +144,12 @@ export class RollbackManager {
    * Restore files from a snapshot
    */
   async restoreSnapshot(snapshotId: string): Promise<RollbackResult> {
-    const snapshot = this.snapshots.get(snapshotId) ||
+    const cachedSnapshot = this.snapshots.get(snapshotId);
+    const retrievedValue = cachedSnapshot ||
       await this.memory.retrieve(`snapshot:${snapshotId}`, { partition: 'snapshots' });
 
-    if (!snapshot) {
+    // Validate the snapshot using type guard
+    if (!isSnapshot(retrievedValue)) {
       return {
         success: false,
         snapshotId,
@@ -116,6 +157,8 @@ export class RollbackManager {
         errors: [`Snapshot not found: ${snapshotId}`]
       };
     }
+
+    const snapshot = retrievedValue;
 
     const errors: string[] = [];
     let filesRestored = 0;
@@ -218,6 +261,10 @@ export class RollbackManager {
     // Get from memory manager
     const stored = await this.memory.query('snapshot:%', { partition: 'snapshots' });
     for (const entry of stored) {
+      // Validate entry.value is a valid snapshot
+      if (!isSnapshot(entry.value)) {
+        continue;
+      }
       if (!this.snapshots.has(entry.value.id)) {
         snapshotList.push({
           id: entry.value.id,
@@ -267,8 +314,15 @@ export class RollbackManager {
   }>> {
     const history = await this.memory.query('rollback:%', { partition: 'rollback_history' });
 
-    return history
-      .map(entry => entry.value)
+    // Filter and validate entries using type guard
+    const validEntries: RollbackHistoryEntry[] = [];
+    for (const entry of history) {
+      if (isRollbackHistoryEntry(entry.value)) {
+        validEntries.push(entry.value);
+      }
+    }
+
+    return validEntries
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, limit);
   }

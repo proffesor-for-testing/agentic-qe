@@ -22,12 +22,13 @@ import {
   PostTaskData,
   TaskErrorData
 } from '../types';
+import { FlexibleTaskResult } from '../types/hook.types';
 import { VerificationHookManager } from '../core/hooks';
 import { MemoryStoreAdapter } from '../adapters/MemoryStoreAdapter';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { LearningEngine } from '../learning/LearningEngine';
-import { LearningConfig, StrategyRecommendation } from '../learning/types';
+import { LearningConfig, StrategyRecommendation, TaskState } from '../learning/types';
 import { AgentDBConfig } from '../core/memory/AgentDBManager';
 // Federated Learning (Phase 0 M0.5 - Team-wide pattern sharing)
 import {
@@ -157,6 +158,25 @@ export interface QEPatternStoreConfig {
   autoSync?: boolean;
 }
 
+/**
+ * Minimal interface for QE Pattern Store implementations
+ * Supports both RuVector PostgreSQL and local HNSW fallback
+ */
+interface IQEPatternStore {
+  initialize(): Promise<void>;
+  storePattern(pattern: Record<string, unknown>): Promise<void>;
+  storeWithSync?(pattern: Record<string, unknown>): Promise<{ stored: boolean; synced: boolean }>;
+  searchSimilar(embedding: number[], options: Record<string, unknown>): Promise<Array<{ pattern: Record<string, unknown>; score: number }>>;
+  getStats?(): { count: number; implementation: string } | undefined;
+  getPerformanceMetrics?(): { avgSearchTime: number; p50SearchTime: number; p99SearchTime: number; estimatedQPS: number } | undefined;
+  isGNNEnabled?(): boolean;
+  getGNNMetrics?(): { enabled: boolean; cacheHitRate: number; patternsLearned: number } | undefined;
+  syncToRemote?(options?: { force?: boolean }): Promise<{ synced: number; failed: number; duration: number }>;
+  forceGNNLearn?(options: { domain: string }): Promise<{ success: boolean; patternsConsolidated: number; duration: number }>;
+  shutdown?(): Promise<void>;
+  getImplementationInfo?(): { type: string } | undefined;
+}
+
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
@@ -219,7 +239,7 @@ export abstract class BaseAgent extends EventEmitter {
   private federatedInitialized: boolean = false;
 
   // QE Pattern Store (Phase 0.5 - RuVector Integration)
-  protected qePatternStore?: any; // RuVectorPatternStore
+  protected qePatternStore?: IQEPatternStore; // RuVectorPatternStore - lazy loaded
   protected readonly qePatternConfig: Required<QEPatternStoreConfig>;
   private patternStoreInitialized: boolean = false;
 
@@ -491,7 +511,7 @@ export abstract class BaseAgent extends EventEmitter {
 
   // === Learning Interface ===
 
-  public async recommendStrategy(taskState: any): Promise<StrategyRecommendation | null> {
+  public async recommendStrategy(taskState: TaskState): Promise<StrategyRecommendation | null> {
     if (!this.learningEngine?.isEnabled()) return null;
     try { return await this.learningEngine.recommendStrategy(taskState); }
     catch { return null; }
@@ -567,7 +587,7 @@ export abstract class BaseAgent extends EventEmitter {
     this.coordinator.registerEventHandler(handler);
   }
 
-  protected emitEvent(type: string, data: any, priority: 'low' | 'medium' | 'high' | 'critical' = 'medium'): void {
+  protected emitEvent(type: string, data: unknown, priority: 'low' | 'medium' | 'high' | 'critical' = 'medium'): void {
     const event: QEEvent = {
       id: generateEventId(), type, source: this.agentId, data,
       timestamp: new Date(), priority, scope: 'global'
@@ -580,7 +600,7 @@ export abstract class BaseAgent extends EventEmitter {
     this.coordinator.emitEvent('agent.status-changed', { agentId: this.agentId, status: newStatus, timestamp: Date.now() });
   }
 
-  protected async broadcastMessage(type: string, payload: any): Promise<void> {
+  protected async broadcastMessage(type: string, payload: unknown): Promise<void> {
     const message: AgentMessage = {
       id: generateMessageId(), from: this.agentId,
       to: { id: 'broadcast', type: 'all' as AgentType, created: new Date() },
@@ -591,7 +611,7 @@ export abstract class BaseAgent extends EventEmitter {
 
   // === Memory Operations (delegated to strategy) ===
 
-  protected async storeMemory(key: string, value: any, ttl?: number): Promise<void> {
+  protected async storeMemory(key: string, value: unknown, ttl?: number): Promise<void> {
     const strategy = this.strategies.memory;
     if (strategy instanceof MemoryServiceAdapter) {
       await strategy.storeLocal(key, value, ttl);
@@ -600,7 +620,7 @@ export abstract class BaseAgent extends EventEmitter {
     }
   }
 
-  protected async retrieveMemory(key: string): Promise<any> {
+  protected async retrieveMemory(key: string): Promise<unknown> {
     const strategy = this.strategies.memory;
     if (strategy instanceof MemoryServiceAdapter) {
       return await strategy.retrieveLocal(key);
@@ -608,7 +628,7 @@ export abstract class BaseAgent extends EventEmitter {
     return await strategy.retrieve(`aqe/${this.agentId.type}/${key}`);
   }
 
-  protected async storeSharedMemory(key: string, value: any, ttl?: number): Promise<void> {
+  protected async storeSharedMemory(key: string, value: unknown, ttl?: number): Promise<void> {
     const strategy = this.strategies.memory;
     if (strategy instanceof MemoryServiceAdapter) {
       await strategy.storeSharedLocal(key, value, ttl);
@@ -617,7 +637,7 @@ export abstract class BaseAgent extends EventEmitter {
     }
   }
 
-  protected async retrieveSharedMemory(agentType: AgentType, key: string): Promise<any> {
+  protected async retrieveSharedMemory(agentType: AgentType, key: string): Promise<unknown> {
     return await this.strategies.memory.retrieveShared(agentType, key);
   }
 
@@ -636,7 +656,8 @@ export abstract class BaseAgent extends EventEmitter {
 
   protected async onPostTask(data: PostTaskData): Promise<void> {
     const executionTime = this.taskStartTime ? Date.now() - this.taskStartTime : 0;
-    const result = await this.hookManager.executePostTaskValidation({ task: data.assignment.task.type, result: data.result });
+    const taskResult = (typeof data.result === 'object' && data.result !== null ? data.result : {}) as Record<string, unknown>;
+    const result = await this.hookManager.executePostTaskValidation({ task: data.assignment.task.type, result: taskResult });
 
     if (!result.valid) {
       console.warn(`Post-task validation warning: accuracy ${result.accuracy}`);
@@ -692,7 +713,7 @@ export abstract class BaseAgent extends EventEmitter {
 
   // === Private Helpers ===
 
-  private async executeHook(hookName: string, data?: any): Promise<void> {
+  private async executeHook(hookName: string, data?: unknown): Promise<void> {
     try {
       const method = `on${hookName.charAt(0).toUpperCase()}${hookName.slice(1).replace(/-/g, '')}`;
       if (typeof (this as any)[method] === 'function') await (this as any)[method](data);
@@ -740,11 +761,12 @@ export abstract class BaseAgent extends EventEmitter {
     this.performanceMetrics.lastActivity = new Date();
   }
 
-  protected extractTaskMetrics(result: any): Record<string, number> {
+  protected extractTaskMetrics(result: FlexibleTaskResult): Record<string, number> {
     const metrics: Record<string, number> = {};
     if (result && typeof result === 'object') {
+      const resultObj = result as Record<string, unknown>;
       ['coverage', 'testsGenerated', 'issuesFound', 'confidenceScore', 'qualityScore'].forEach(key => {
-        if (typeof result[key] === 'number') metrics[key] = result[key];
+        if (typeof resultObj[key] === 'number') metrics[key] = resultObj[key];
       });
     }
     return metrics;
@@ -1152,7 +1174,7 @@ export abstract class BaseAgent extends EventEmitter {
    * Get routing decision for observability
    * Shows which model was selected and why
    */
-  protected getLLMRoutingDecision(input: string): any {
+  protected getLLMRoutingDecision(input: string): unknown {
     if (!this.llmProvider) {
       return null;
     }
@@ -1409,7 +1431,7 @@ export abstract class BaseAgent extends EventEmitter {
             });
           }
 
-          await this.qePatternStore.initialize();
+          await this.qePatternStore!.initialize();
           this.patternStoreInitialized = true;
 
           console.log(`[${this.agentId.id}] QE Pattern Store initialized (RuVector PostgreSQL: enabled)`);
@@ -1424,7 +1446,20 @@ export abstract class BaseAgent extends EventEmitter {
       const { RuVectorPatternStore } = require('../memory/RuVectorPatternStore');
 
       // Configure pattern store with local HNSW
-      const storeConfig: any = {
+      interface HNSWStoreConfig {
+        dimension: number;
+        metric: 'cosine' | 'euclidean' | 'dotProduct';
+        storagePath: string;
+        autoPersist: boolean;
+        enableMetrics: boolean;
+        hnsw: {
+          m: number;
+          efConstruction: number;
+          efSearch: number;
+        };
+      }
+
+      const storeConfig: HNSWStoreConfig = {
         dimension: 384,
         metric: 'cosine',
         storagePath: this.qePatternConfig.storagePath,
@@ -1437,8 +1472,8 @@ export abstract class BaseAgent extends EventEmitter {
         },
       };
 
-      this.qePatternStore = new RuVectorPatternStore(storeConfig);
-      await this.qePatternStore.initialize();
+      this.qePatternStore = new RuVectorPatternStore(storeConfig) as IQEPatternStore;
+      await this.qePatternStore!.initialize();
       this.patternStoreInitialized = true;
 
       console.log(`[${this.agentId.id}] QE Pattern Store initialized (HNSW fallback)`);
@@ -1470,7 +1505,7 @@ export abstract class BaseAgent extends EventEmitter {
     embedding: number[];
     framework?: string;
     coverage?: number;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }): Promise<{ success: boolean; synced?: boolean }> {
     if (!this.hasPatternStore()) {
       return { success: false };
@@ -1496,12 +1531,12 @@ export abstract class BaseAgent extends EventEmitter {
       };
 
       // Use auto-sync variant if enabled
-      if (this.qePatternConfig.autoSync && this.qePatternStore.storeWithSync) {
-        const result = await this.qePatternStore.storeWithSync(testPattern);
+      if (this.qePatternConfig.autoSync && this.qePatternStore!.storeWithSync) {
+        const result = await this.qePatternStore!.storeWithSync(testPattern);
         return { success: result.stored, synced: result.synced };
       }
 
-      await this.qePatternStore.storePattern(testPattern);
+      await this.qePatternStore!.storePattern(testPattern);
       return { success: true };
     } catch (error) {
       console.warn(`[${this.agentId.id}] Failed to store QE pattern:`, (error as Error).message);
@@ -1529,7 +1564,7 @@ export abstract class BaseAgent extends EventEmitter {
       useMMR?: boolean;
     }
   ): Promise<Array<{
-    pattern: any;
+    pattern: Record<string, unknown>;
     score: number;
   }>> {
     if (!this.hasPatternStore()) {
@@ -1537,7 +1572,7 @@ export abstract class BaseAgent extends EventEmitter {
     }
 
     try {
-      const results = await this.qePatternStore.searchSimilar(embedding, {
+      const results = await this.qePatternStore!.searchSimilar(embedding, {
         k,
         domain: options?.domain,
         type: options?.type,
@@ -1578,13 +1613,28 @@ export abstract class BaseAgent extends EventEmitter {
     }
 
     try {
-      const stats = this.qePatternStore.getStats?.();
-      const perfMetrics = this.qePatternStore.getPerformanceMetrics?.();
+      const stats = this.qePatternStore!.getStats?.();
+      const perfMetrics = this.qePatternStore!.getPerformanceMetrics?.();
 
-      const metrics: any = {
+      const metrics: {
+        enabled: boolean;
+        patternCount: number;
+        implementation: 'ruvector' | 'fallback';
+        performance?: {
+          avgSearchTime: number;
+          p50SearchTime: number;
+          p99SearchTime: number;
+          estimatedQPS: number;
+        };
+        gnnLearning?: {
+          enabled: boolean;
+          cacheHitRate: number;
+          patternsLearned: number;
+        };
+      } = {
         enabled: true,
         patternCount: stats?.count ?? 0,
-        implementation: stats?.implementation ?? 'fallback',
+        implementation: (stats?.implementation as 'ruvector' | 'fallback') ?? 'fallback',
       };
 
       if (perfMetrics) {
@@ -1597,8 +1647,8 @@ export abstract class BaseAgent extends EventEmitter {
       }
 
       // GNN learning metrics if available
-      if (this.qePatternStore.isGNNEnabled?.()) {
-        const gnnMetrics = this.qePatternStore.getGNNMetrics?.();
+      if (this.qePatternStore!.isGNNEnabled?.()) {
+        const gnnMetrics = this.qePatternStore!.getGNNMetrics?.();
         if (gnnMetrics) {
           metrics.gnnLearning = {
             enabled: gnnMetrics.enabled,
@@ -1624,12 +1674,12 @@ export abstract class BaseAgent extends EventEmitter {
     failed: number;
     duration: number;
   }> {
-    if (!this.hasPatternStore() || !this.qePatternStore.syncToRemote) {
+    if (!this.hasPatternStore() || !this.qePatternStore!.syncToRemote) {
       return { synced: 0, failed: 0, duration: 0 };
     }
 
     try {
-      const result = await this.qePatternStore.syncToRemote(options);
+      const result = await this.qePatternStore!.syncToRemote(options);
       console.log(`[${this.agentId.id}] Synced ${result.synced} patterns to remote (${result.duration}ms)`);
       return result;
     } catch (error) {
@@ -1647,12 +1697,12 @@ export abstract class BaseAgent extends EventEmitter {
     patternsConsolidated: number;
     duration: number;
   }> {
-    if (!this.hasPatternStore() || !this.qePatternStore.forceGNNLearn) {
+    if (!this.hasPatternStore() || !this.qePatternStore!.forceGNNLearn) {
       return { success: false, patternsConsolidated: 0, duration: 0 };
     }
 
     try {
-      const result = await this.qePatternStore.forceGNNLearn({
+      const result = await this.qePatternStore!.forceGNNLearn({
         domain: this.agentId.type,
       });
       return {

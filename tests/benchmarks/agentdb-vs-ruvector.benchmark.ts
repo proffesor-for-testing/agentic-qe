@@ -20,8 +20,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { RuVectorPatternStore, TestPattern } from '../../src/core/memory/RuVectorPatternStore';
 import { AgentDBManager, AgentDBConfig, MemoryPattern } from '../../src/core/memory/AgentDBManager';
 import { AdapterType } from '../../src/core/memory/AdapterConfig';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Seeded random instance for reproducible benchmarks
+const rng = createSeededRandom(12345);
 
 // Test configuration
 const BENCHMARK_CONFIG = {
@@ -47,7 +51,7 @@ const results: BenchmarkResult[] = [];
 
 // Helper to generate random embeddings
 function generateRandomEmbedding(dimension: number = 384): number[] {
-  return Array.from({ length: dimension }, () => Math.random() * 2 - 1);
+  return Array.from({ length: dimension }, () => rng.random() * 2 - 1);
 }
 
 // Helper to generate test patterns
@@ -59,12 +63,12 @@ function generateTestPatterns(count: number): TestPattern[] {
     content: `Test pattern ${i} for benchmarking vector search performance`,
     embedding: generateRandomEmbedding(),
     framework: ['jest', 'vitest', 'mocha'][i % 3],
-    coverage: 0.7 + Math.random() * 0.3,
-    flakinessScore: Math.random() * 0.2,
+    coverage: 0.7 + rng.random() * 0.3,
+    flakinessScore: rng.random() * 0.2,
     verdict: ['success', 'failure', 'flaky'][i % 3] as 'success' | 'failure' | 'flaky',
     createdAt: Date.now(),
     lastUsed: Date.now(),
-    usageCount: Math.floor(Math.random() * 100),
+    usageCount: rng.randomInt(0, 99),
   }));
 }
 

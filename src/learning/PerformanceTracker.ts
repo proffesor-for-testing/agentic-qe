@@ -117,10 +117,27 @@ export class PerformanceTracker {
       targetAchieved
     };
 
-    // Store improvement data
+    // Store improvement data - serialize to Record<string, unknown> for type safety
+    const serializableImprovement: Record<string, unknown> = {
+      ...improvement,
+      baseline: {
+        ...improvement.baseline,
+        period: {
+          start: improvement.baseline.period.start.toISOString(),
+          end: improvement.baseline.period.end.toISOString()
+        }
+      },
+      current: {
+        ...improvement.current,
+        period: {
+          start: improvement.current.period.start.toISOString(),
+          end: improvement.current.period.end.toISOString()
+        }
+      }
+    };
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/improvement`,
-      improvement,
+      serializableImprovement,
       { partition: 'learning' }
     );
 
@@ -425,16 +442,35 @@ export class PerformanceTracker {
    */
   private async storeSnapshot(snapshot: PerformanceSnapshot): Promise<void> {
     const key = `phase2/learning/${this.agentId}/snapshots/${snapshot.timestamp.getTime()}`;
-    await this.memoryStore.store(key, snapshot, { partition: 'learning' });
+    // Serialize snapshot to Record<string, unknown> for type safety
+    const serializableSnapshot: Record<string, unknown> = {
+      timestamp: snapshot.timestamp.toISOString(),
+      metrics: {
+        ...snapshot.metrics,
+        period: {
+          start: snapshot.metrics.period.start.toISOString(),
+          end: snapshot.metrics.period.end.toISOString()
+        }
+      }
+    };
+    await this.memoryStore.store(key, serializableSnapshot, { partition: 'learning' });
   }
 
   /**
    * Store baseline metrics
    */
   private async storeBaseline(baseline: PerformanceMetrics): Promise<void> {
+    // Serialize baseline to Record<string, unknown> for type safety
+    const serializableBaseline: Record<string, unknown> = {
+      ...baseline,
+      period: {
+        start: baseline.period.start.toISOString(),
+        end: baseline.period.end.toISOString()
+      }
+    };
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/baseline`,
-      baseline,
+      serializableBaseline,
       { partition: 'learning' }
     );
   }

@@ -82,7 +82,19 @@ import { getSharedMemoryManager } from '../core/memory/MemoryManagerFactory.js';
 import { TestExecuteStreamHandler } from './streaming/TestExecuteStreamHandler.js';
 import { CoverageAnalyzeStreamHandler } from './streaming/CoverageAnalyzeStreamHandler.js';
 import { Phase2ToolsHandler } from './handlers/phase2/Phase2Tools.js';
-import { Phase3DomainToolsHandler } from './handlers/phase3/Phase3DomainTools.js';
+import { LearningFeedback } from '../learning/types.js';
+import { TestPattern } from '../reasoning/QEReasoningBank.js';
+import {
+  Phase3DomainToolsHandler,
+  PerformanceRunBenchmarkArgs,
+  PerformanceMonitorRealtimeArgs,
+  VisualCompareScreenshotsArgs,
+  VisualValidateAccessibilityArgs,
+  VisualDetectRegressionArgs,
+  QeSecurityScanComprehensiveArgs,
+  QeQualitygateEvaluateArgs,
+  QeQualitygateGenerateReportArgs
+} from './handlers/phase3/Phase3DomainTools.js';
 import { EventEmitter } from 'events';
 import { LearningStoreExperienceHandler } from './handlers/learning/learning-store-experience.js';
 import { LearningStoreQValueHandler } from './handlers/learning/learning-store-qvalue.js';
@@ -94,31 +106,46 @@ import { LearningEventListener, initLearningEventListener } from './services/Lea
 import {
   validateApiContract,
   detectBreakingChanges,
-  validateApiVersioning
+  validateApiVersioning,
+  ValidateApiContractParams,
+  DetectBreakingChangesParams,
+  ValidateApiVersioningParams
 } from './tools/qe/api-contract/index.js';
 import {
-  scanComprehensive
+  scanComprehensive,
+  ScanComprehensiveParams
 } from './tools/qe/accessibility/index.js';
 import {
   generateTestData,
   maskSensitiveData,
-  analyzeSchema
+  analyzeSchema,
+  GenerateTestDataParams,
+  MaskSensitiveDataParams,
+  AnalyzeSchemaParams
 } from './tools/qe/test-data/index.js';
 import {
   analyzeRegressionRisk,
-  selectRegressionTests
+  selectRegressionTests,
+  RegressionRiskAnalysisParams,
+  SmartTestSelectionParams
 } from './tools/qe/regression/index.js';
 import {
   validateRequirements,
-  generateBddScenarios
+  generateBddScenarios,
+  ValidateRequirementsParams,
+  GenerateBddScenariosParams
 } from './tools/qe/requirements/index.js';
 import {
   analyzeComplexity,
-  calculateQualityMetrics
+  calculateQualityMetrics,
+  ComplexityAnalysisParams,
+  QualityMetricsParams
 } from './tools/qe/code-quality/index.js';
 import {
   coordinateFleet,
-  getAgentStatus
+  getAgentStatus,
+  FleetCoordinationParams,
+  AgentStatusParams
 } from './tools/qe/fleet/index.js';
 
 /**
@@ -129,12 +156,16 @@ import {
  */
 export class AgenticQEMCPServer {
   private server: Server;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- handlers have varied signatures from MCP SDK
   private handlers: Map<string, any>;
   private registry: AgentRegistry;
   private hookExecutor: HookExecutor;
   private memory: SwarmMemoryManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- shared maps used by multiple handlers with different structures
   private memoryStore: Map<string, any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- blackboard messages have handler-specific structure
   private blackboard: Map<string, any[]>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- proposals have handler-specific structure
   private proposals: Map<string, any>;
   private eventBus: EventEmitter;
   private learningListener: LearningEventListener | null;
@@ -636,8 +667,8 @@ export class AgenticQEMCPServer {
           );
         }
 
-        // Get handler
-        const handler = this.handlers.get(name);
+        // Get handler - already validated above so we assert non-null
+        const handler = this.handlers.get(name)!;
 
         // Phase 6 learning tools have dedicated handlers - call them directly
         if (name === TOOL_NAMES.LEARNING_STORE_EXPERIENCE ||
@@ -649,25 +680,26 @@ export class AgenticQEMCPServer {
         }
 
         // Special handling for Phase 2 tools - route to specific methods
+        // Note: Args come from external MCP input, cast through unknown for type safety
         if (name.startsWith('mcp__agentic_qe__learning_')) {
           const phase2Handler = handler as Phase2ToolsHandler;
-          const safeArgs = args || {};
-          let result;
+          const safeArgs = (args || {}) as unknown;
+          let result: unknown;
           switch (name) {
             case TOOL_NAMES.LEARNING_STATUS:
-              result = await phase2Handler.handleLearningStatus(safeArgs as any);
+              result = await phase2Handler.handleLearningStatus(safeArgs as { agentId?: string; detailed?: boolean });
               break;
             case TOOL_NAMES.LEARNING_TRAIN:
-              result = await phase2Handler.handleLearningTrain(safeArgs as any);
+              result = await phase2Handler.handleLearningTrain(safeArgs as { agentId: string; task: Record<string, unknown>; result: Record<string, unknown>; feedback?: LearningFeedback });
               break;
             case TOOL_NAMES.LEARNING_HISTORY:
-              result = await phase2Handler.handleLearningHistory(safeArgs as any);
+              result = await phase2Handler.handleLearningHistory(safeArgs as { agentId: string; limit?: number });
               break;
             case TOOL_NAMES.LEARNING_RESET:
-              result = await phase2Handler.handleLearningReset(safeArgs as any);
+              result = await phase2Handler.handleLearningReset(safeArgs as { agentId: string; confirm: boolean });
               break;
             case TOOL_NAMES.LEARNING_EXPORT:
-              result = await phase2Handler.handleLearningExport(safeArgs as any);
+              result = await phase2Handler.handleLearningExport(safeArgs as { agentId?: string; format?: 'json' | 'csv' });
               break;
             default:
               throw new McpError(ErrorCode.MethodNotFound, `Unknown learning tool: ${name}`);
@@ -677,23 +709,23 @@ export class AgenticQEMCPServer {
 
         if (name.startsWith('mcp__agentic_qe__pattern_')) {
           const phase2Handler = handler as Phase2ToolsHandler;
-          const safeArgs = args || {};
-          let result;
+          const safeArgs = (args || {}) as unknown;
+          let result: unknown;
           switch (name) {
             case TOOL_NAMES.PATTERN_STORE:
-              result = await phase2Handler.handlePatternStore(safeArgs as any);
+              result = await phase2Handler.handlePatternStore(safeArgs as { pattern: TestPattern });
               break;
             case TOOL_NAMES.PATTERN_FIND:
-              result = await phase2Handler.handlePatternFind(safeArgs as any);
+              result = await phase2Handler.handlePatternFind(safeArgs as { query: { framework?: string; language?: string; keywords?: string[]; codeType?: string }; minConfidence?: number; limit?: number });
               break;
             case TOOL_NAMES.PATTERN_EXTRACT:
-              result = await phase2Handler.handlePatternExtract(safeArgs as any);
+              result = await phase2Handler.handlePatternExtract(safeArgs as { testFiles: string[]; projectId: string });
               break;
             case TOOL_NAMES.PATTERN_SHARE:
-              result = await phase2Handler.handlePatternShare(safeArgs as any);
+              result = await phase2Handler.handlePatternShare(safeArgs as { patternId: string; projectIds: string[] });
               break;
             case TOOL_NAMES.PATTERN_STATS:
-              result = await phase2Handler.handlePatternStats(safeArgs as any);
+              result = await phase2Handler.handlePatternStats(safeArgs as Record<string, unknown>);
               break;
             default:
               throw new McpError(ErrorCode.MethodNotFound, `Unknown pattern tool: ${name}`);
@@ -703,23 +735,23 @@ export class AgenticQEMCPServer {
 
         if (name.startsWith('mcp__agentic_qe__improvement_') || name === TOOL_NAMES.PERFORMANCE_TRACK) {
           const phase2Handler = handler as Phase2ToolsHandler;
-          const safeArgs = args || {};
-          let result;
+          const safeArgs = (args || {}) as unknown;
+          let result: unknown;
           switch (name) {
             case TOOL_NAMES.IMPROVEMENT_STATUS:
-              result = await phase2Handler.handleImprovementStatus(safeArgs as any);
+              result = await phase2Handler.handleImprovementStatus(safeArgs as { agentId?: string });
               break;
             case TOOL_NAMES.IMPROVEMENT_CYCLE:
-              result = await phase2Handler.handleImprovementCycle(safeArgs as any);
+              result = await phase2Handler.handleImprovementCycle(safeArgs as { agentId: string; force?: boolean });
               break;
             case TOOL_NAMES.IMPROVEMENT_AB_TEST:
-              result = await phase2Handler.handleImprovementABTest(safeArgs as any);
+              result = await phase2Handler.handleImprovementABTest(safeArgs as { strategyA: string; strategyB: string; iterations?: number });
               break;
             case TOOL_NAMES.IMPROVEMENT_FAILURES:
-              result = await phase2Handler.handleImprovementFailures(safeArgs as any);
+              result = await phase2Handler.handleImprovementFailures(safeArgs as { agentId?: string; limit?: number });
               break;
             case TOOL_NAMES.PERFORMANCE_TRACK:
-              result = await phase2Handler.handlePerformanceTrack(safeArgs as any);
+              result = await phase2Handler.handlePerformanceTrack(safeArgs as { agentId: string; metrics: { tasksCompleted: number; successRate: number; averageExecutionTime: number; errorRate: number; userSatisfaction: number; resourceEfficiency: number } });
               break;
             default:
               throw new McpError(ErrorCode.MethodNotFound, `Unknown improvement tool: ${name}`);
@@ -764,9 +796,9 @@ export class AgenticQEMCPServer {
           } else if (name === TOOL_NAMES.PERFORMANCE_GENERATE_REPORT) {
             result = await phase3Handler.handlePerformanceGenerateReport(safeArgs);
           } else if (name === TOOL_NAMES.PERFORMANCE_RUN_BENCHMARK) {
-            result = await phase3Handler.handlePerformanceRunBenchmark(safeArgs);
+            result = await phase3Handler.handlePerformanceRunBenchmark(safeArgs as unknown as PerformanceRunBenchmarkArgs);
           } else if (name === TOOL_NAMES.PERFORMANCE_MONITOR_REALTIME) {
-            result = await phase3Handler.handlePerformanceMonitorRealtime(safeArgs);
+            result = await phase3Handler.handlePerformanceMonitorRealtime(safeArgs as unknown as PerformanceMonitorRealtimeArgs);
           }
           // Security Tools (legacy tools deprecated - use qe_security_* instead)
           // else if (name === TOOL_NAMES.SECURITY_VALIDATE_AUTH) { // DEPRECATED
@@ -784,16 +816,16 @@ export class AgenticQEMCPServer {
           // }
           // Visual Testing Tools
           else if (name === TOOL_NAMES.VISUAL_COMPARE_SCREENSHOTS) {
-            result = await phase3Handler.handleVisualCompareScreenshots(safeArgs);
+            result = await phase3Handler.handleVisualCompareScreenshots(safeArgs as unknown as VisualCompareScreenshotsArgs);
           } else if (name === TOOL_NAMES.VISUAL_VALIDATE_ACCESSIBILITY) {
-            result = await phase3Handler.handleVisualValidateAccessibility(safeArgs);
+            result = await phase3Handler.handleVisualValidateAccessibility(safeArgs as unknown as VisualValidateAccessibilityArgs);
           } else if (name === TOOL_NAMES.VISUAL_DETECT_REGRESSION) {
-            result = await phase3Handler.handleVisualDetectRegression(safeArgs);
+            result = await phase3Handler.handleVisualDetectRegression(safeArgs as unknown as VisualDetectRegressionArgs);
           }
           // Phase 3: New Domain Tools Routing
           // Security Domain
           else if (name === TOOL_NAMES.QE_SECURITY_SCAN_COMPREHENSIVE) {
-            result = await phase3Handler.handleQeSecurityScanComprehensive(safeArgs);
+            result = await phase3Handler.handleQeSecurityScanComprehensive(safeArgs as unknown as QeSecurityScanComprehensiveArgs);
           } else if (name === TOOL_NAMES.QE_SECURITY_DETECT_VULNERABILITIES) {
             result = await phase3Handler.handleQeSecurityDetectVulnerabilities(safeArgs);
           } else if (name === TOOL_NAMES.QE_SECURITY_VALIDATE_COMPLIANCE) {
@@ -811,57 +843,57 @@ export class AgenticQEMCPServer {
           }
           // Quality-Gates Domain
           else if (name === TOOL_NAMES.QE_QUALITYGATE_EVALUATE) {
-            result = await phase3Handler.handleQeQualitygateEvaluate(safeArgs);
+            result = await phase3Handler.handleQeQualitygateEvaluate(safeArgs as unknown as QeQualitygateEvaluateArgs);
           } else if (name === TOOL_NAMES.QE_QUALITYGATE_ASSESS_RISK) {
             result = await phase3Handler.handleQeQualitygateAssessRisk(safeArgs);
           } else if (name === TOOL_NAMES.QE_QUALITYGATE_VALIDATE_METRICS) {
             result = await phase3Handler.handleQeQualitygateValidateMetrics(safeArgs);
           } else if (name === TOOL_NAMES.QE_QUALITYGATE_GENERATE_REPORT) {
-            result = await phase3Handler.handleQeQualitygateGenerateReport(safeArgs);
+            result = await phase3Handler.handleQeQualitygateGenerateReport(safeArgs as unknown as QeQualitygateGenerateReportArgs);
           }
           // Accessibility Domain (1 tool)
           else if (name === TOOL_NAMES.A11Y_SCAN_COMPREHENSIVE) {
-            result = await scanComprehensive(safeArgs as any);
+            result = await scanComprehensive(safeArgs as unknown as ScanComprehensiveParams);
           }
           // API-Contract Domain (3 tools)
           else if (name === TOOL_NAMES.QE_APICONTRACT_VALIDATE) {
-            result = await validateApiContract(safeArgs as any);
+            result = await validateApiContract(safeArgs as unknown as ValidateApiContractParams);
           } else if (name === TOOL_NAMES.QE_APICONTRACT_BREAKING_CHANGES) {
-            result = await detectBreakingChanges(safeArgs as any);
+            result = await detectBreakingChanges(safeArgs as unknown as DetectBreakingChangesParams);
           } else if (name === TOOL_NAMES.QE_APICONTRACT_VERSIONING) {
-            result = await validateApiVersioning(safeArgs as any);
+            result = await validateApiVersioning(safeArgs as unknown as ValidateApiVersioningParams);
           }
           // Test-Data Domain (3 tools)
           else if (name === TOOL_NAMES.QE_TESTDATA_GENERATE) {
-            result = await generateTestData(safeArgs as any);
+            result = await generateTestData(safeArgs as unknown as GenerateTestDataParams);
           } else if (name === TOOL_NAMES.QE_TESTDATA_MASK) {
-            result = await maskSensitiveData(safeArgs as any);
+            result = await maskSensitiveData(safeArgs as unknown as MaskSensitiveDataParams);
           } else if (name === TOOL_NAMES.QE_TESTDATA_SCHEMA) {
-            result = await analyzeSchema(safeArgs as any);
+            result = await analyzeSchema(safeArgs as unknown as AnalyzeSchemaParams);
           }
           // Regression Domain (2 tools)
           else if (name === TOOL_NAMES.QE_REGRESSION_ANALYZE_RISK) {
-            result = await analyzeRegressionRisk(safeArgs as any);
+            result = await analyzeRegressionRisk(safeArgs as unknown as RegressionRiskAnalysisParams);
           } else if (name === TOOL_NAMES.QE_REGRESSION_SELECT_TESTS) {
-            result = await selectRegressionTests(safeArgs as any);
+            result = await selectRegressionTests(safeArgs as unknown as SmartTestSelectionParams);
           }
           // Requirements Domain (2 tools)
           else if (name === TOOL_NAMES.QE_REQUIREMENTS_VALIDATE) {
-            result = await validateRequirements(safeArgs as any);
+            result = await validateRequirements(safeArgs as unknown as ValidateRequirementsParams);
           } else if (name === TOOL_NAMES.QE_REQUIREMENTS_BDD) {
-            result = await generateBddScenarios(safeArgs as any);
+            result = await generateBddScenarios(safeArgs as unknown as GenerateBddScenariosParams);
           }
           // Code-Quality Domain (2 tools)
           else if (name === TOOL_NAMES.QE_CODEQUALITY_COMPLEXITY) {
-            result = await analyzeComplexity(safeArgs as any);
+            result = await analyzeComplexity(safeArgs as unknown as ComplexityAnalysisParams);
           } else if (name === TOOL_NAMES.QE_CODEQUALITY_METRICS) {
-            result = await calculateQualityMetrics(safeArgs as any);
+            result = await calculateQualityMetrics(safeArgs as unknown as QualityMetricsParams);
           }
           // Fleet Management Domain (2 tools)
           else if (name === TOOL_NAMES.QE_FLEET_COORDINATE) {
-            result = await coordinateFleet(safeArgs as any);
+            result = await coordinateFleet(safeArgs as unknown as FleetCoordinationParams);
           } else if (name === TOOL_NAMES.QE_FLEET_STATUS) {
-            result = await getAgentStatus(safeArgs as any);
+            result = await getAgentStatus(safeArgs as unknown as AgentStatusParams);
           } else {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown Phase 3 tool: ${name}`);
           }
@@ -876,22 +908,28 @@ export class AgenticQEMCPServer {
 
         if (isStreamingHandler) {
           // Handle streaming execution
-          const results: any[] = [];
-          let finalResult: any = null;
+          interface StreamingEvent {
+            type: string;
+            data?: unknown;
+            [key: string]: unknown;
+          }
+          const results: StreamingEvent[] = [];
+          let finalResult: unknown = null;
 
           try {
             // Execute streaming handler and collect all events
-            for await (const event of handler.execute(args)) {
+            for await (const event of handler.execute!(args)) {
+              const streamEvent = event as StreamingEvent;
               // Store each event for progressive disclosure
-              results.push(event);
+              results.push(streamEvent);
 
               // Keep track of final result
-              if (event.type === 'result') {
-                finalResult = event.data;
+              if (streamEvent.type === 'result') {
+                finalResult = streamEvent.data;
               }
 
               // Emit progress events to notification channel (if supported)
-              if (event.type === 'progress') {
+              if (streamEvent.type === 'progress') {
                 this.server.notification({
                   method: 'notifications/message',
                   params: {
@@ -899,7 +937,7 @@ export class AgenticQEMCPServer {
                     logger: 'agentic-qe-streaming',
                     data: {
                       tool: name,
-                      progress: event
+                      progress: streamEvent
                     }
                   }
                 });

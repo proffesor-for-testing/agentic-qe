@@ -7,6 +7,11 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createServer, Server } from 'http';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+
+// Seeded RNG for deterministic latency simulation
+const rng = createSeededRandom(25000);
+
 import {
   customerOnboardingWorkflow,
   vulnerableWorkflow,
@@ -82,7 +87,7 @@ function handleRequest(req: any, res: any) {
   req.on('end', () => {
     try {
       // Simulate latency for performance testing
-      const latency = Math.random() * 100;
+      const latency = rng.random() * 100;
       mockStore.metrics.totalLatency += latency;
 
       routeRequest(path, method, body, res);

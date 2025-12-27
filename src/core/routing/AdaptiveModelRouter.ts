@@ -11,6 +11,8 @@ import {
   TaskComplexity,
   RouterStats,
   RouterConfig,
+  CostDashboardData,
+  ComplexityAnalysis,
 } from './types';
 import { MODEL_RULES, FALLBACK_CHAINS, DEFAULT_ROUTER_CONFIG } from './ModelRules';
 import { ComplexityAnalyzer } from './ComplexityAnalyzer';
@@ -172,7 +174,7 @@ export class AdaptiveModelRouter implements ModelRouter {
   /**
    * Export cost dashboard data
    */
-  async exportCostDashboard(): Promise<any> {
+  async exportCostDashboard(): Promise<CostDashboardData> {
     return await this.costTracker.exportCostDashboard();
   }
 
@@ -188,7 +190,7 @@ export class AdaptiveModelRouter implements ModelRouter {
    * Route to local RuvLLM model if available
    * Returns null if local routing fails or is unavailable
    */
-  async routeToLocal(task: QETask, analysis: any): Promise<ModelSelection | null> {
+  async routeToLocal(task: QETask, analysis: ComplexityAnalysis): Promise<ModelSelection | null> {
     try {
       // Check if RuvLLM is available
       const isAvailable = await this.checkLocalAvailability();
@@ -290,7 +292,7 @@ export class AdaptiveModelRouter implements ModelRouter {
   /**
    * Build reasoning string for local selection
    */
-  private buildLocalReasoning(analysis: any, cloudModel: AIModel, cloudCost: number): string {
+  private buildLocalReasoning(analysis: ComplexityAnalysis, cloudModel: AIModel, cloudCost: number): string {
     const reasons: string[] = [];
 
     reasons.push(`Local inference (zero cost vs $${cloudCost.toFixed(4)} for ${cloudModel})`);
@@ -332,7 +334,7 @@ export class AdaptiveModelRouter implements ModelRouter {
 
     // Try to extract from context
     if (task.data && typeof task.data === 'object' && 'agentType' in task.data) {
-      return (task.data as any).agentType;
+      return (task.data as Record<string, unknown>).agentType as string;
     }
 
     return 'default';
@@ -396,7 +398,7 @@ export class AdaptiveModelRouter implements ModelRouter {
   /**
    * Build reasoning string for selection
    */
-  private buildReasoning(agentType: string, analysis: any): string {
+  private buildReasoning(agentType: string, analysis: ComplexityAnalysis): string {
     const reasons: string[] = [];
 
     reasons.push(`Complexity: ${analysis.complexity}`);
@@ -420,7 +422,7 @@ export class AdaptiveModelRouter implements ModelRouter {
    */
   private async storeSelection(task: QETask, selection: ModelSelection): Promise<void> {
     const key = `routing/selection/${task.id}`;
-    await this.memoryStore.store(key, selection, {
+    await this.memoryStore.store(key, selection as unknown as Record<string, unknown>, {
       partition: 'coordination',
       ttl: 3600, // 1 hour
     });

@@ -33,7 +33,18 @@ export interface UserData {
   address: AddressData;
   company: CompanyData;
   account: AccountData;
-  metadata: Record<string, any>;
+  metadata: UserMetadata;
+}
+
+export interface UserMetadata {
+  registeredAt: Date;
+  lastLogin: Date;
+  isVerified: boolean;
+  preferences: {
+    newsletter: boolean;
+    notifications: boolean;
+    theme: 'light' | 'dark' | 'auto';
+  };
 }
 
 export interface AddressData {
@@ -135,7 +146,7 @@ export interface OrderItemData {
 // ============================================================================
 
 export class FakerDataGenerator {
-  private faker: any;
+  private faker: Faker;
   private options: DataGenerationOptions;
 
   constructor(options: DataGenerationOptions = {}) {
@@ -209,8 +220,8 @@ export class FakerDataGenerator {
       state: this.faker.location.state(),
       country: this.faker.location.country(),
       zipCode: this.faker.location.zipCode(),
-      latitude: parseFloat(this.faker.location.latitude()),
-      longitude: parseFloat(this.faker.location.longitude()),
+      latitude: this.faker.location.latitude(),
+      longitude: this.faker.location.longitude(),
       timezone: this.faker.location.timeZone(),
     };
   }
@@ -406,7 +417,7 @@ export class FakerDataGenerator {
   /**
    * Generate edge case values for testing
    */
-  generateEdgeCases(): Record<string, any[]> {
+  generateEdgeCases(): EdgeCaseCollection {
     return {
       strings: [
         '',
@@ -517,16 +528,30 @@ export class FakerDataGenerator {
   /**
    * Get current faker instance
    */
-  getFaker(): any {
+  getFaker(): Faker {
     return this.faker;
   }
 
   /**
    * Generate custom data using Faker API
    */
-  generateCustom<T>(generator: (faker: any) => T): T {
+  generateCustom<T>(generator: (faker: Faker) => T): T {
     return generator(this.faker);
   }
+}
+
+/**
+ * Edge case collection for testing
+ */
+export interface EdgeCaseCollection {
+  strings: string[];
+  numbers: number[];
+  dates: Date[];
+  booleans: boolean[];
+  nullish: (null | undefined)[];
+  emails: string[];
+  phones: string[];
+  urls: string[];
 }
 
 // ============================================================================

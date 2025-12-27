@@ -1,9 +1,9 @@
 import { EventEmitter } from 'events';
-import { SwarmMemoryManager, Hint } from '../memory/SwarmMemoryManager';
+import { SwarmMemoryManager, Hint, SerializableValue } from '../memory/SwarmMemoryManager';
 
 export interface BlackboardHint {
   key: string;
-  value: any;
+  value: SerializableValue;
   ttl?: number;
 }
 

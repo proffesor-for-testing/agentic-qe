@@ -16,10 +16,15 @@ import { IdleDetector, IdleDetectorConfig, IdleState } from '../../../src/learni
 describe('IdleDetector Integration', () => {
   let idleDetector: IdleDetector;
 
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
   afterEach(async () => {
     if (idleDetector) {
       await idleDetector.stop();
     }
+    jest.useRealTimers();
   });
 
   describe('Initialization', () => {
@@ -153,8 +158,8 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for a check cycle
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Advance time past check interval
+      jest.advanceTimersByTime(300);
 
       const state = idleDetector.getState();
       // Should not be idle because task is active
@@ -180,8 +185,8 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for at least one check cycle
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Advance time past check interval
+      jest.advanceTimersByTime(300);
 
       expect(stateUpdates.length).toBeGreaterThan(0);
       expect(stateUpdates[0].cpuUsage).toBeDefined();
@@ -209,8 +214,8 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for minimum idle duration + some buffer
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // Advance time past minimum idle duration + buffer
+      jest.advanceTimersByTime(400);
 
       expect(idleDetectedCount).toBeGreaterThan(0);
       expect(detectedState).not.toBeNull();
@@ -241,14 +246,14 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for idle state
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance time to establish idle state
+      jest.advanceTimersByTime(250);
 
       // Register task to break idle state
       idleDetector.registerTask('busy-task');
 
-      // Wait for state check
-      await new Promise(resolve => setTimeout(resolve, 150));
+      // Advance time for state check
+      jest.advanceTimersByTime(150);
 
       expect(idleEndedCount).toBeGreaterThan(0);
       expect(endedState).not.toBeNull();
@@ -266,8 +271,8 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for some checks
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance time for some checks
+      jest.advanceTimersByTime(250);
 
       // In normal operation, no errors should occur
       expect(errors.length).toBe(0);
@@ -282,8 +287,8 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for CPU measurement to stabilize
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // Advance time for CPU measurement to stabilize
+      jest.advanceTimersByTime(400);
 
       const state = idleDetector.getState();
 
@@ -307,7 +312,7 @@ describe('IdleDetector Integration', () => {
       await idleDetector.start();
 
       const state1 = idleDetector.getState();
-      await new Promise(resolve => setTimeout(resolve, 250));
+      jest.advanceTimersByTime(250);
       const state2 = idleDetector.getState();
 
       // States should be different checks
@@ -328,8 +333,8 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for idle state to establish
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance time for idle state to establish
+      jest.advanceTimersByTime(250);
 
       const state = idleDetector.getState();
       if (state.isIdle) {
@@ -351,13 +356,13 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait for idle
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance time for idle
+      jest.advanceTimersByTime(250);
 
       // Break idle state
       idleDetector.registerTask('task-1');
 
-      await new Promise(resolve => setTimeout(resolve, 150));
+      jest.advanceTimersByTime(150);
 
       const state = idleDetector.getState();
       expect(state.idleDuration).toBe(0);
@@ -385,7 +390,7 @@ describe('IdleDetector Integration', () => {
       });
 
       await idleDetector.start();
-      await new Promise(resolve => setTimeout(resolve, 250));
+      jest.advanceTimersByTime(250);
 
       // With high threshold, should detect idle
       const state = idleDetector.getState();
@@ -420,12 +425,12 @@ describe('IdleDetector Integration', () => {
 
       await idleDetector.start();
 
-      // Wait less than minIdleDuration
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Advance less than minIdleDuration
+      jest.advanceTimersByTime(300);
       expect(idleDetected).toBe(false);
 
-      // Wait for minIdleDuration
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Advance to exceed minIdleDuration
+      jest.advanceTimersByTime(300);
       expect(idleDetected).toBe(true);
 
       await idleDetector.stop();

@@ -21,7 +21,7 @@ export interface WorkflowCreateArgs {
     frequency?: 'manual' | 'after-each-step' | 'on-failure' | 'timed';
     interval?: number;
   };
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface WorkflowStepDefinition {
@@ -34,7 +34,7 @@ export interface WorkflowStepDefinition {
     maxRetries: number;
     backoff: 'linear' | 'exponential';
   };
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 export interface Workflow {
@@ -47,7 +47,7 @@ export interface Workflow {
     frequency: string;
     interval?: number;
   };
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: string;
   validationStatus: {
     isValid: boolean;

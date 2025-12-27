@@ -58,12 +58,17 @@ export class LearningQueryHandler extends BaseHandler {
         throw new Error('Database connection not available');
       }
 
-      const data: any = {};
+      const data: {
+        experiences?: Array<Record<string, unknown>>;
+        qValues?: Array<Record<string, unknown>>;
+        patterns?: Array<Record<string, unknown>>;
+        stats?: { totalExperiences: number; totalQValues: number; averageReward: number };
+      } = {};
 
       // Query experiences
       if (queryType === 'experiences' || queryType === 'all') {
         let experienceQuery = 'SELECT * FROM learning_experiences WHERE 1=1';
-        const experienceParams: any[] = [];
+        const experienceParams: unknown[] = [];
 
         if (agentId) {
           experienceQuery += ' AND agent_id = ?';
@@ -93,10 +98,10 @@ export class LearningQueryHandler extends BaseHandler {
         experienceQuery += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
         experienceParams.push(limit, offset);
 
-        const experiences = db.prepare(experienceQuery).all(...experienceParams);
+        const experiences = db.prepare(experienceQuery).all(...experienceParams) as Array<Record<string, unknown>>;
 
         // Parse JSON fields
-        data.experiences = experiences.map((exp: any) => ({
+        data.experiences = experiences.map((exp) => ({
           ...exp,
           state: this.safeJsonParse(exp.state),
           action: this.safeJsonParse(exp.action),
@@ -108,7 +113,7 @@ export class LearningQueryHandler extends BaseHandler {
       // Query Q-values
       if (queryType === 'qvalues' || queryType === 'all') {
         let qvalueQuery = 'SELECT * FROM q_values WHERE 1=1';
-        const qvalueParams: any[] = [];
+        const qvalueParams: unknown[] = [];
 
         if (agentId) {
           qvalueQuery += ' AND agent_id = ?';
@@ -118,9 +123,9 @@ export class LearningQueryHandler extends BaseHandler {
         qvalueQuery += ' ORDER BY last_updated DESC LIMIT ? OFFSET ?';
         qvalueParams.push(limit, offset);
 
-        const qValues = db.prepare(qvalueQuery).all(...qvalueParams);
+        const qValues = db.prepare(qvalueQuery).all(...qvalueParams) as Array<Record<string, unknown>>;
 
-        data.qValues = qValues.map((qv: any) => ({
+        data.qValues = qValues.map((qv) => ({
           ...qv,
           metadata: this.safeJsonParse(qv.metadata)
         }));
@@ -136,7 +141,7 @@ export class LearningQueryHandler extends BaseHandler {
           const hasAgentId = schema.some((col: { name: string }) => col.name === 'agent_id');
 
           let patternQuery = 'SELECT * FROM patterns WHERE 1=1';
-          const patternParams: any[] = [];
+          const patternParams: unknown[] = [];
 
           // Only filter by agent_id if the column exists AND agentId is provided
           if (hasAgentId && agentId) {
@@ -147,9 +152,9 @@ export class LearningQueryHandler extends BaseHandler {
           patternQuery += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
           patternParams.push(limit, offset);
 
-          const patterns = db.prepare(patternQuery).all(...patternParams);
+          const patterns = db.prepare(patternQuery).all(...patternParams) as Array<Record<string, unknown>>;
 
-          data.patterns = patterns.map((p: any) => ({
+          data.patterns = patterns.map((p) => ({
             ...p,
             metadata: this.safeJsonParse(p.metadata)
           }));
@@ -163,7 +168,7 @@ export class LearningQueryHandler extends BaseHandler {
       // Calculate stats
       if (queryType === 'all') {
         let statsQuery = 'SELECT COUNT(*) as count, AVG(reward) as avg_reward FROM learning_experiences WHERE 1=1';
-        const statsParams: any[] = [];
+        const statsParams: unknown[] = [];
 
         if (agentId) {
           statsQuery += ' AND agent_id = ?';
@@ -196,8 +201,8 @@ export class LearningQueryHandler extends BaseHandler {
     });
   }
 
-  private safeJsonParse(jsonString: string | null | undefined): any {
-    if (!jsonString) return null;
+  private safeJsonParse(jsonString: unknown): unknown {
+    if (!jsonString || typeof jsonString !== 'string') return null;
     try {
       return JSON.parse(jsonString);
     } catch {

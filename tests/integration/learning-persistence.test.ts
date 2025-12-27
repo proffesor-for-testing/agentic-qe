@@ -20,6 +20,7 @@ import { TaskResult } from '../../src/learning/RewardCalculator';
 import { LearningFeedback } from '../../src/learning/types';
 import fs from 'fs';
 import path from 'path';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Learning System Database Persistence', () => {
   // Use tests/.tmp directory for test databases (not project root)
@@ -320,6 +321,7 @@ describe('Learning System Database Persistence', () => {
 
     it('should handle high volume of experiences efficiently', async () => {
       const agentId = 'test-agent-volume';
+      const rng = createSeededRandom(18300);
       learningEngine = new LearningEngine(
         agentId,
         memoryManager,
@@ -344,10 +346,10 @@ describe('Learning System Database Persistence', () => {
         };
 
         const result: TaskResult = {
-          success: Math.random() > 0.3,
-          executionTime: 1000 + Math.random() * 2000,
+          success: rng.random() > 0.3,
+          executionTime: 1000 + rng.random() * 2000,
           errors: [],
-          coverage: 0.6 + Math.random() * 0.4,
+          coverage: 0.6 + rng.random() * 0.4,
           metadata: {
             strategy: i % 3 === 0 ? 'template' : i % 3 === 1 ? 'property' : 'mutation',
             toolsUsed: ['jest'],

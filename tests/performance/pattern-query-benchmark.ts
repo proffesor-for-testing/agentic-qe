@@ -12,6 +12,7 @@
 import { SwarmMemoryManager, Pattern } from '../../src/core/memory/SwarmMemoryManager';
 import * as path from 'path';
 import * as fs from 'fs-extra';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 interface BenchmarkResult {
   patternCount: number;
@@ -43,6 +44,9 @@ async function seedPatterns(
   console.log(`   Seeding ${count} patterns...`);
   const startTime = performance.now();
 
+  // Seeded RNG for reproducible pattern generation (seed: 16002)
+  const rng = createSeededRandom(16002);
+
   const patterns: Pattern[] = [];
   const patternsPerAgent = Math.floor(count / agentIds.length);
 
@@ -50,11 +54,11 @@ async function seedPatterns(
     for (let i = 0; i < patternsPerAgent; i++) {
       patterns.push({
         pattern: `${agentId}:task-${i}:strategy-${i % 5}`,
-        confidence: 0.5 + (Math.random() * 0.5),
-        usageCount: Math.floor(Math.random() * 100),
+        confidence: 0.5 + (rng.random() * 0.5),
+        usageCount: Math.floor(rng.random() * 100),
         metadata: {
           agent_id: agentId,
-          success_rate: Math.random(),
+          success_rate: rng.random(),
           contexts: [`task-${i}`],
           created_at: new Date().toISOString(),
           last_used_at: new Date().toISOString()

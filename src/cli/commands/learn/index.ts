@@ -16,6 +16,138 @@ import { ProcessExit } from '../../../utils/ProcessExit';
 import { MetricsCollector, TrendAnalyzer, AlertManager, TrendPeriod } from '../../../learning/metrics';
 import { MetricsDashboard } from '../../../learning/dashboard';
 
+// ============================================================================
+// Type Definitions for Learning CLI
+// ============================================================================
+
+/**
+ * Database row structure for learning experiences from learning_experiences table
+ */
+interface LearningExperienceRow {
+  id: number;
+  agent_id: string;
+  task_id?: string | null;
+  task_type: string;
+  state: string;
+  action: string;
+  reward: number;
+  next_state: string;
+  episode_id?: string | null;
+  created_at: string;
+}
+
+/**
+ * Database row structure for Q-values from q_values table
+ */
+interface QValueRow {
+  agent_id: string;
+  state_key: string;
+  action_key: string;
+  q_value: number;
+  update_count: number;
+  last_updated: string;
+}
+
+/**
+ * Database row structure for patterns from patterns table
+ */
+interface PatternRow {
+  id: string;
+  pattern: string;
+  confidence: number;
+  usage_count: number;
+  metadata: string | null;
+  ttl: number;
+  created_at: number;
+  agent_id: string | null;
+}
+
+/**
+ * Learning configuration stored in memory
+ * Includes index signature for SerializableValue compatibility
+ */
+interface LearningConfigEntry {
+  enabled: boolean;
+  learningRate?: number;
+  discountFactor?: number;
+  explorationRate?: number;
+  explorationDecay?: number;
+  minExplorationRate?: number;
+  maxMemorySize?: number;
+  batchSize?: number;
+  updateFrequency?: number;
+  [key: string]: boolean | number | undefined;
+}
+
+/**
+ * Learning state stored in memory for persistence
+ */
+interface LearningStateEntry {
+  experiences: LearningExperienceState[];
+  size?: number;
+}
+
+/**
+ * Experience entry in the learning state
+ */
+interface LearningExperienceState {
+  timestamp: string | Date;
+  taskType?: string;
+  reward: number;
+  action?: {
+    strategy?: string;
+  };
+}
+
+/**
+ * Memory entry wrapper returned from SwarmMemoryManager.query()
+ */
+interface MemoryQueryEntry<T> {
+  key: string;
+  value: T;
+  partition?: string;
+  createdAt?: number;
+  expiresAt?: number;
+}
+
+/**
+ * Task definition for manual training
+ */
+interface TrainingTask {
+  type?: string;
+  id?: string;
+  requirements?: {
+    capabilities?: string[];
+  };
+  context?: Record<string, unknown>;
+  timeout?: number;
+  previousAttempts?: number;
+}
+
+/**
+ * Type guard to check if a value is a LearningConfigEntry
+ */
+function isLearningConfigEntry(value: unknown): value is LearningConfigEntry {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'enabled' in value &&
+    typeof (value as LearningConfigEntry).enabled === 'boolean'
+  );
+}
+
+/**
+ * Type guard to check if a value is a LearningStateEntry
+ */
+function isLearningStateEntry(value: unknown): value is LearningStateEntry {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'experiences' in value &&
+    Array.isArray((value as LearningStateEntry).experiences)
+  );
+}
+
 export interface LearnCommandOptions {
   agent?: string;
   detailed?: boolean;
@@ -102,17 +234,17 @@ export class LearningCommand {
       const experiencesQuery = agentId
         ? 'SELECT * FROM learning_experiences WHERE agent_id = ? ORDER BY created_at DESC'
         : 'SELECT * FROM learning_experiences ORDER BY created_at DESC';
-      const experiences = memoryManager.queryRaw<any>(experiencesQuery, agentId ? [agentId] : []);
+      const experiences = memoryManager.queryRaw<LearningExperienceRow>(experiencesQuery, agentId ? [agentId] : []);
 
       const qValuesQuery = agentId
         ? 'SELECT * FROM q_values WHERE agent_id = ?'
         : 'SELECT * FROM q_values';
-      const qValues = memoryManager.queryRaw<any>(qValuesQuery, agentId ? [agentId] : []);
+      const qValues = memoryManager.queryRaw<QValueRow>(qValuesQuery, agentId ? [agentId] : []);
 
       const patternsQuery = agentId
         ? 'SELECT * FROM patterns WHERE agent_id = ? ORDER BY confidence DESC'
         : 'SELECT * FROM patterns ORDER BY confidence DESC';
-      const patterns = memoryManager.queryRaw<any>(patternsQuery, agentId ? [agentId] : []);
+      const patterns = memoryManager.queryRaw<PatternRow>(patternsQuery, agentId ? [agentId] : []);
 
       // Check if any learning data exists
       if (experiences.length === 0 && qValues.length === 0 && patterns.length === 0) {
@@ -136,13 +268,13 @@ export class LearningCommand {
       // Calculate aggregated stats from actual data
       const totalExperiences = experiences.length;
       const avgReward = totalExperiences > 0
-        ? experiences.reduce((sum: number, e: any) => sum + (e.reward || 0), 0) / totalExperiences
+        ? experiences.reduce((sum: number, e: LearningExperienceRow) => sum + (e.reward || 0), 0) / totalExperiences
         : 0;
-      const successCount = experiences.filter((e: any) => e.reward > 0.5).length;
+      const successCount = experiences.filter((e: LearningExperienceRow) => e.reward > 0.5).length;
       const successRate = totalExperiences > 0 ? successCount / totalExperiences : 0;
 
       // Get unique agents
-      const uniqueAgents = [...new Set(experiences.map((e: any) => e.agent_id))];
+      const uniqueAgents = [...new Set(experiences.map((e: LearningExperienceRow) => e.agent_id))];
 
       console.log(chalk.cyan(`Agents with learning data: ${uniqueAgents.length}`));
       if (agentId) {
@@ -159,7 +291,7 @@ export class LearningCommand {
         console.log(chalk.blue('\n👥 Top Agents by Experience:\n'));
         const agentCounts = uniqueAgents.map(agent => ({
           agent,
-          count: experiences.filter((e: any) => e.agent_id === agent).length
+          count: experiences.filter((e: LearningExperienceRow) => e.agent_id === agent).length
         })).sort((a, b) => b.count - a.count).slice(0, 5);
 
         agentCounts.forEach((item, index) => {
@@ -173,7 +305,7 @@ export class LearningCommand {
         console.log(chalk.blue('\n🎯 Top Patterns by Confidence:\n'));
         const topPatterns = patterns.slice(0, 5);
 
-        topPatterns.forEach((pattern: any, index: number) => {
+        topPatterns.forEach((pattern: PatternRow, index: number) => {
           const prefix = index === topPatterns.length - 1 ? '└─' : '├─';
           const patternName = pattern.id || pattern.pattern?.substring(0, 30) || 'unnamed';
           console.log(`${prefix} ${patternName} (confidence: ${chalk.cyan((pattern.confidence * 100).toFixed(1) + '%')})`);
@@ -192,9 +324,9 @@ export class LearningCommand {
 
       if (options.detailed && experiences.length > 0) {
         console.log(chalk.blue('\n📈 Detailed Task Types:\n'));
-        const taskTypes = [...new Set(experiences.map((e: any) => e.task_type))];
+        const taskTypes = [...new Set(experiences.map((e: LearningExperienceRow) => e.task_type))];
         taskTypes.slice(0, 5).forEach((taskType, index) => {
-          const count = experiences.filter((e: any) => e.task_type === taskType).length;
+          const count = experiences.filter((e: LearningExperienceRow) => e.task_type === taskType).length;
           const prefix = index === taskTypes.slice(0, 5).length - 1 ? '└─' : '├─';
           console.log(`${prefix} ${taskType}: ${chalk.cyan(count)} experiences`);
         });
@@ -202,9 +334,10 @@ export class LearningCommand {
 
       console.log();
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load learning status');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -222,12 +355,13 @@ export class LearningCommand {
         // Enable for all agents
         const allStates = await memoryManager.query('phase2/learning/%/config', {
           partition: 'learning'
-        });
+        }) as MemoryQueryEntry<unknown>[];
 
         for (const entry of allStates) {
-          const config = entry.value as any;
-          config.enabled = true;
-          await memoryManager.store(entry.key, config, { partition: 'learning' });
+          if (isLearningConfigEntry(entry.value)) {
+            entry.value.enabled = true;
+            await memoryManager.store(entry.key, entry.value, { partition: 'learning' });
+          }
         }
 
         spinner.succeed(`Learning enabled for ${allStates.length} agents`);
@@ -244,12 +378,14 @@ export class LearningCommand {
           return;
         }
 
-        (config as any).enabled = true;
-        await memoryManager.store(
-          `phase2/learning/${agentId}/config`,
-          config,
-          { partition: 'learning' }
-        );
+        if (isLearningConfigEntry(config)) {
+          config.enabled = true;
+          await memoryManager.store(
+            `phase2/learning/${agentId}/config`,
+            config,
+            { partition: 'learning' }
+          );
+        }
 
         spinner.succeed(`Learning enabled for agent: ${agentId}`);
       }
@@ -257,9 +393,10 @@ export class LearningCommand {
       console.log(chalk.green('\n✅ Agents will now learn from task executions'));
       console.log(chalk.gray('Use "aqe learn status" to monitor progress\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to enable learning');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -284,20 +421,23 @@ export class LearningCommand {
         return;
       }
 
-      (config as any).enabled = false;
-      await memoryManager.store(
-        `phase2/learning/${agentId}/config`,
-        config,
-        { partition: 'learning' }
-      );
+      if (isLearningConfigEntry(config)) {
+        config.enabled = false;
+        await memoryManager.store(
+          `phase2/learning/${agentId}/config`,
+          config,
+          { partition: 'learning' }
+        );
+      }
 
       spinner.succeed(`Learning disabled for agent: ${agentId}`);
       console.log(chalk.yellow('\n⚠️  Agent will no longer learn from new experiences'));
       console.log(chalk.gray('Existing learned patterns are preserved\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to disable learning');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -324,7 +464,12 @@ export class LearningCommand {
         return;
       }
 
-      const experiences = (learningState as any).experiences || [];
+      if (!isLearningStateEntry(learningState)) {
+        spinner.fail('Invalid learning state format');
+        return;
+      }
+
+      const experiences = learningState.experiences || [];
       const recentExperiences = experiences.slice(-limit);
 
       spinner.succeed('Learning history loaded');
@@ -332,7 +477,7 @@ export class LearningCommand {
       console.log(chalk.blue(`\n📜 Learning History (${agentId})\n`));
       console.log(`Showing ${recentExperiences.length} of ${experiences.length} total experiences\n`);
 
-      recentExperiences.forEach((exp: any, index: number) => {
+      recentExperiences.forEach((exp: LearningExperienceState, index: number) => {
         const reward = exp.reward || 0;
         const rewardColor = reward > 0 ? chalk.green : reward < 0 ? chalk.red : chalk.yellow;
         const timestamp = new Date(exp.timestamp).toLocaleString();
@@ -344,9 +489,10 @@ export class LearningCommand {
         console.log();
       });
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load history');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -369,8 +515,8 @@ export class LearningCommand {
       const learningEngine = new LearningEngine(options.agent || 'default', memoryManager);
       await learningEngine.initialize();
 
-      // Parse task JSON
-      const task = JSON.parse(options.task || '{}');
+      // Parse task JSON with type assertion
+      const task: TrainingTask = JSON.parse(options.task || '{}');
 
       // Mock result for training
       const result = {
@@ -389,9 +535,10 @@ export class LearningCommand {
       console.log(`Total Patterns: ${chalk.cyan(outcome.patterns.length)}`);
       console.log();
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Training failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -423,9 +570,10 @@ export class LearningCommand {
       console.log(chalk.yellow('\n⚠️  All learning data has been deleted'));
       console.log(chalk.gray('Agent will start learning from scratch\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Reset failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -460,11 +608,13 @@ export class LearningCommand {
 
       spinner.succeed(`Learning data exported to: ${options.output}`);
       console.log(chalk.green('\n✅ Export completed'));
-      console.log(`File size: ${chalk.cyan(this.formatBytes((learningState as any).size))}\n`);
+      const stateSize = isLearningStateEntry(learningState) ? (learningState.size ?? 0) : 0;
+      console.log(`File size: ${chalk.cyan(this.formatBytes(stateSize))}\n`);
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Export failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -493,9 +643,10 @@ export class LearningCommand {
         format: options.format
       });
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load metrics');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -533,9 +684,10 @@ export class LearningCommand {
         format: options.format
       });
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to analyze trends');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -577,9 +729,10 @@ export class LearningCommand {
         console.log(chalk.gray('Use --all to show all alerts (including acknowledged)\n'));
       }
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load alerts');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }

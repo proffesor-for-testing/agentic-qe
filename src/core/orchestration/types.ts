@@ -7,7 +7,7 @@ export interface WorkflowStep {
   name: string;
   agentType: string;
   action: string;
-  inputs: Record<string, any>;
+  inputs: Record<string, unknown>;
   dependencies: string[];
   timeout: number;
   retries: number;
@@ -22,7 +22,7 @@ export interface Workflow {
   strategy: 'parallel' | 'sequential' | 'adaptive';
   checkpointEnabled: boolean;
   timeout: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface WorkflowExecution {
@@ -35,7 +35,7 @@ export interface WorkflowExecution {
   completedSteps: string[];
   failedSteps: string[];
   checkpoint?: WorkflowCheckpoint;
-  results: Map<string, any>;
+  results: Map<string, StepResult>;
   metrics: ExecutionMetrics;
 }
 
@@ -43,8 +43,8 @@ export interface WorkflowCheckpoint {
   executionId: string;
   timestamp: Date;
   completedSteps: string[];
-  stepResults: Map<string, any>;
-  state: Record<string, any>;
+  stepResults: Map<string, StepResult>;
+  state: Record<string, unknown>;
 }
 
 export interface ExecutionMetrics {
@@ -57,7 +57,7 @@ export interface ExecutionMetrics {
 export interface ExecutionContext {
   executionId: string;
   workflowId: string;
-  inputs: Record<string, any>;
+  inputs: Record<string, unknown>;
   stepResults: Map<string, StepResult>;
   startTime: number;
 }
@@ -65,7 +65,7 @@ export interface ExecutionContext {
 export interface StepResult {
   stepId: string;
   status: 'success' | 'failed' | 'timeout';
-  output: any;
+  output: unknown;
   error?: Error;
   duration: number;
   retryCount: number;
@@ -103,6 +103,6 @@ export interface WorkloadProfile {
 
 export type ExecutionStrategy = 'parallel' | 'sequential' | 'hybrid';
 
-export interface EventHandler<T = any> {
+export interface EventHandler<T = unknown> {
   (data: T): void | Promise<void>;
 }

@@ -17,6 +17,15 @@ export interface PatternListOptions {
   minConfidence?: number;
 }
 
+interface PatternRow {
+  name: string;
+  category: string;
+  framework: string;
+  confidence: number;
+  success_rate: number;
+  usage_count: number;
+}
+
 export async function patternsList(options: PatternListOptions = {}): Promise<void> {
   const spinner = ora('Loading patterns from database...').start();
 
@@ -27,7 +36,7 @@ export async function patternsList(options: PatternListOptions = {}): Promise<vo
 
     // Build query with filters
     let sql = 'SELECT * FROM patterns WHERE 1=1';
-    const params: any[] = [];
+    const params: (string | number)[] = [];
 
     if (options.framework) {
       sql += ' AND framework = ?';
@@ -52,7 +61,7 @@ export async function patternsList(options: PatternListOptions = {}): Promise<vo
     sql += ' LIMIT ?';
     params.push(limit);
 
-    const patterns = await db.all(sql, params);
+    const patterns = await db.all<PatternRow>(sql, params);
 
     await db.close();
 
@@ -91,7 +100,7 @@ export async function patternsList(options: PatternListOptions = {}): Promise<vo
       }
     });
 
-    patterns.forEach((p: any) => {
+    patterns.forEach((p) => {
       const confidence = formatConfidence(p.confidence);
       const successRate = formatPercentage(p.success_rate);
       const usage = chalk.gray(p.usage_count.toString());
@@ -109,9 +118,9 @@ export async function patternsList(options: PatternListOptions = {}): Promise<vo
     console.log(table.toString());
 
     // Summary stats
-    const avgConfidence = patterns.reduce((sum: number, p: any) => sum + p.confidence, 0) / patterns.length;
-    const avgSuccess = patterns.reduce((sum: number, p: any) => sum + p.success_rate, 0) / patterns.length;
-    const totalUsage = patterns.reduce((sum: number, p: any) => sum + p.usage_count, 0);
+    const avgConfidence = patterns.reduce((sum: number, p) => sum + p.confidence, 0) / patterns.length;
+    const avgSuccess = patterns.reduce((sum: number, p) => sum + p.success_rate, 0) / patterns.length;
+    const totalUsage = patterns.reduce((sum: number, p) => sum + p.usage_count, 0);
 
     console.log(chalk.blue('\n📊 Summary:\n'));
     console.log(`  Avg Confidence: ${formatConfidence(avgConfidence)}`);
@@ -124,9 +133,10 @@ export async function patternsList(options: PatternListOptions = {}): Promise<vo
 
     console.log();
 
-  } catch (error: any) {
+  } catch (error) {
     spinner.fail('Failed to load patterns');
-    console.error(chalk.red('❌ Error:'), error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red('❌ Error:'), message);
     console.log(chalk.gray('\n💡 Make sure database exists: .agentic-qe/data/patterns.db'));
     process.exit(1);
   }

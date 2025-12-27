@@ -25,6 +25,18 @@ import type {
 } from '../../learning/types';
 
 /**
+ * Interface for patterns stored in the memory store
+ */
+interface StoredPattern {
+  id: string;
+  name?: string;
+  type?: string;
+  confidence: number;
+  data?: unknown;
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * Adapts LearningEngine to AgentLearningStrategy interface
  */
 export class LearningEngineAdapter implements AgentLearningStrategy {
@@ -96,7 +108,7 @@ export class LearningEngineAdapter implements AgentLearningStrategy {
     if (memoryStore && typeof memoryStore.queryPatternsByAgent === 'function') {
       const agentId = (this.engine as any).agentId;
       const patterns = await memoryStore.queryPatternsByAgent(agentId, 0);
-      const pattern = patterns.find((p: any) => p.id === patternId);
+      const pattern = patterns.find((p: StoredPattern) => p.id === patternId);
 
       if (pattern) {
         const newConfidence = success

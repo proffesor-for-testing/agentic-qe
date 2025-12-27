@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 export interface AgentConfig {
   type: string;
   count: number;
-  config: any;
+  config: Record<string, unknown>;
 }
 
 export interface DatabaseConfig {

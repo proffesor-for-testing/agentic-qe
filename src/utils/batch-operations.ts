@@ -88,7 +88,7 @@ export interface BatchResult<R> {
 /**
  * Error information for failed operations
  */
-export interface BatchError {
+export interface BatchError<T = unknown> {
   /**
    * Index of the failed operation
    */
@@ -97,7 +97,7 @@ export interface BatchError {
   /**
    * The operation that failed
    */
-  operation: any;
+  operation: T;
 
   /**
    * The error that occurred
@@ -108,6 +108,13 @@ export interface BatchError {
    * Number of retries attempted
    */
   retriesAttempted: number;
+}
+
+/**
+ * Extended error with retry metadata
+ */
+interface RetryError extends Error {
+  retriesAttempted?: number;
 }
 
 /**
@@ -342,7 +349,7 @@ export class BatchOperationManager {
 
     // All retries exhausted
     const error = lastError || new Error('Operation failed');
-    (error as any).retriesAttempted = maxRetries;
+    (error as RetryError).retriesAttempted = maxRetries;
     throw error;
   }
 

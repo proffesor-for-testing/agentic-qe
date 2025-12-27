@@ -24,6 +24,7 @@ import {
   HealthCheckResponse,
   RUVECTOR_CLIENT_VERSION
 } from '../../../src/providers/RuVectorClient';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Mock fetch globally
 const mockFetch = jest.fn();
@@ -52,11 +53,14 @@ function mockResponse<T>(data: T, ok = true, status = 200): Response {
   } as Response;
 }
 
+// RNG instance for deterministic test data
+const testRng = createSeededRandom(19002);
+
 /**
  * Helper to create test embedding
  */
 function createTestEmbedding(size = 768): number[] {
-  return new Array(size).fill(0).map(() => Math.random() - 0.5);
+  return new Array(size).fill(0).map(() => testRng.random() - 0.5);
 }
 
 /**
@@ -64,7 +68,7 @@ function createTestEmbedding(size = 768): number[] {
  */
 function createTestSearchResult(overrides: Partial<SearchResult> = {}): SearchResult {
   return {
-    id: `pattern-${Math.random().toString(36).slice(2, 8)}`,
+    id: `pattern-${testRng.randomUUID().slice(0, 6)}`,
     content: 'Test pattern content',
     embedding: createTestEmbedding(),
     confidence: 0.9,

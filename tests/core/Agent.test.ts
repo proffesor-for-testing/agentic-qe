@@ -6,6 +6,7 @@
 import { Agent } from '@core/Agent';
 import { Task } from '@core/Task';
 import { EventBus } from '@core/EventBus';
+import { withFakeTimers } from '../helpers/timerTestUtils';
 
 class TestAgent extends Agent {
   private timers: NodeJS.Timeout[] = [];
@@ -172,20 +173,28 @@ describe('Agent', () => {
     });
 
     it('should update status during task execution', async () => {
-      const task = new Task('test-task', 'test-type', { data: 'test' });
+      await withFakeTimers(async (timers) => {
+        const task = new Task('test-task', 'test-type', { data: 'test' });
 
-      let statusWasBusy = false;
-      const checkTimer = setInterval(() => {
-        if (agent.getStatus() === 'busy') {
-          statusWasBusy = true;
-          clearInterval(checkTimer);
-        }
-      }, 1);
+        let statusWasBusy = false;
+        const checkTimer = setInterval(() => {
+          if (agent.getStatus() === 'busy') {
+            statusWasBusy = true;
+            clearInterval(checkTimer);
+          }
+        }, 1);
 
-      await agent.executeTask(task);
-      clearInterval(checkTimer);
+        const executePromise = agent.executeTask(task);
 
-      expect(statusWasBusy).toBe(true); // Status was busy during execution
+        // Advance timers to allow the interval and setTimeout to fire
+        await timers.advanceAsync(1); // Check interval fires
+        await timers.advanceAsync(10); // Task completion setTimeout fires
+
+        await executePromise;
+        clearInterval(checkTimer);
+
+        expect(statusWasBusy).toBe(true); // Status was busy during execution
+      });
     });
 
     it('should handle task execution errors', async () => {

@@ -63,7 +63,7 @@ export interface TransferMapping {
   successRate: number; // success rate after transfer
   createdAt: Date;
   lastTransferAt?: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -214,6 +214,208 @@ const DOMAIN_FEATURES: Record<QEDomain, Omit<DomainFeatures, 'domain'>> = {
     deterministic: 0.8
   }
 };
+
+// ============================================================================
+// Serialization helpers for memory store compatibility
+// ============================================================================
+
+/**
+ * Serializable version of TransferMapping for storage
+ */
+interface SerializableTransferMapping {
+  id: string;
+  sourceDomain: QEDomain;
+  targetDomain: QEDomain;
+  similarity: number;
+  transferCoefficient: number;
+  experiencesTransferred: number;
+  successRate: number;
+  createdAt: string; // ISO date string
+  lastTransferAt?: string; // ISO date string
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Serializable version of TransferMetrics for storage
+ */
+interface SerializableTransferMetrics {
+  mappingId: string;
+  sourceDomain: QEDomain;
+  targetDomain: QEDomain;
+  totalTransfers: number;
+  successfulTransfers: number;
+  failedTransfers: number;
+  avgPerformanceGain: number;
+  transferEfficiency: number;
+  lastUpdated: string; // ISO date string
+}
+
+/**
+ * Serializable version of TaskExperience for storage
+ */
+interface SerializableTaskExperience {
+  taskId: string;
+  taskType: string;
+  state: {
+    taskComplexity: number;
+    requiredCapabilities: string[];
+    contextFeatures: Record<string, unknown>;
+    previousAttempts: number;
+    availableResources: number;
+    timeConstraint?: number;
+  };
+  action: {
+    strategy: string;
+    toolsUsed: string[];
+    parallelization: number;
+    retryPolicy: string;
+    resourceAllocation: number;
+  };
+  reward: number;
+  nextState: {
+    taskComplexity: number;
+    requiredCapabilities: string[];
+    contextFeatures: Record<string, unknown>;
+    previousAttempts: number;
+    availableResources: number;
+    timeConstraint?: number;
+  };
+  timestamp: string; // ISO date string
+  agentId: string;
+  done?: boolean;
+}
+
+/**
+ * Convert TransferMapping to serializable format
+ */
+function serializeMapping(mapping: TransferMapping): SerializableTransferMapping {
+  return {
+    id: mapping.id,
+    sourceDomain: mapping.sourceDomain,
+    targetDomain: mapping.targetDomain,
+    similarity: mapping.similarity,
+    transferCoefficient: mapping.transferCoefficient,
+    experiencesTransferred: mapping.experiencesTransferred,
+    successRate: mapping.successRate,
+    createdAt: mapping.createdAt.toISOString(),
+    lastTransferAt: mapping.lastTransferAt?.toISOString(),
+    metadata: mapping.metadata as Record<string, unknown> | undefined
+  };
+}
+
+/**
+ * Convert TransferMetrics to serializable format
+ */
+function serializeMetrics(metrics: TransferMetrics): SerializableTransferMetrics {
+  return {
+    mappingId: metrics.mappingId,
+    sourceDomain: metrics.sourceDomain,
+    targetDomain: metrics.targetDomain,
+    totalTransfers: metrics.totalTransfers,
+    successfulTransfers: metrics.successfulTransfers,
+    failedTransfers: metrics.failedTransfers,
+    avgPerformanceGain: metrics.avgPerformanceGain,
+    transferEfficiency: metrics.transferEfficiency,
+    lastUpdated: metrics.lastUpdated.toISOString()
+  };
+}
+
+/**
+ * Convert TaskExperience array to serializable format
+ */
+function serializeExperiences(experiences: TaskExperience[]): SerializableTaskExperience[] {
+  return experiences.map(exp => ({
+    taskId: exp.taskId,
+    taskType: exp.taskType,
+    state: {
+      taskComplexity: exp.state.taskComplexity,
+      requiredCapabilities: exp.state.requiredCapabilities,
+      contextFeatures: exp.state.contextFeatures as Record<string, unknown>,
+      previousAttempts: exp.state.previousAttempts,
+      availableResources: exp.state.availableResources,
+      timeConstraint: exp.state.timeConstraint
+    },
+    action: {
+      strategy: exp.action.strategy,
+      toolsUsed: exp.action.toolsUsed,
+      parallelization: exp.action.parallelization,
+      retryPolicy: exp.action.retryPolicy,
+      resourceAllocation: exp.action.resourceAllocation
+    },
+    reward: exp.reward,
+    nextState: {
+      taskComplexity: exp.nextState.taskComplexity,
+      requiredCapabilities: exp.nextState.requiredCapabilities,
+      contextFeatures: exp.nextState.contextFeatures as Record<string, unknown>,
+      previousAttempts: exp.nextState.previousAttempts,
+      availableResources: exp.nextState.availableResources,
+      timeConstraint: exp.nextState.timeConstraint
+    },
+    timestamp: exp.timestamp.toISOString(),
+    agentId: exp.agentId,
+    done: exp.done
+  }));
+}
+
+/**
+ * Type guard to check if value is a valid serializable experience array
+ */
+function isSerializableExperienceArray(value: unknown): value is SerializableTaskExperience[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  if (value.length === 0) {
+    return true;
+  }
+  const first = value[0];
+  return (
+    typeof first === 'object' &&
+    first !== null &&
+    'taskId' in first &&
+    'taskType' in first &&
+    'state' in first &&
+    'action' in first &&
+    'reward' in first &&
+    'timestamp' in first
+  );
+}
+
+/**
+ * Deserialize experiences from storage format
+ */
+function deserializeExperiences(data: SerializableTaskExperience[]): TaskExperience[] {
+  return data.map(exp => ({
+    taskId: exp.taskId,
+    taskType: exp.taskType,
+    state: {
+      taskComplexity: exp.state.taskComplexity,
+      requiredCapabilities: exp.state.requiredCapabilities,
+      contextFeatures: exp.state.contextFeatures,
+      previousAttempts: exp.state.previousAttempts,
+      availableResources: exp.state.availableResources,
+      timeConstraint: exp.state.timeConstraint
+    },
+    action: {
+      strategy: exp.action.strategy,
+      toolsUsed: exp.action.toolsUsed,
+      parallelization: exp.action.parallelization,
+      retryPolicy: exp.action.retryPolicy,
+      resourceAllocation: exp.action.resourceAllocation
+    },
+    reward: exp.reward,
+    nextState: {
+      taskComplexity: exp.nextState.taskComplexity,
+      requiredCapabilities: exp.nextState.requiredCapabilities,
+      contextFeatures: exp.nextState.contextFeatures,
+      previousAttempts: exp.nextState.previousAttempts,
+      availableResources: exp.nextState.availableResources,
+      timeConstraint: exp.nextState.timeConstraint
+    },
+    timestamp: new Date(exp.timestamp),
+    agentId: exp.agentId,
+    done: exp.done
+  }));
+}
 
 /**
  * TransferLearningManager - Manages knowledge transfer between QE domains
@@ -528,7 +730,8 @@ export class TransferLearningManager {
    * Get existing mapping between domains
    */
   private getMapping(sourceDomain: QEDomain, targetDomain: QEDomain): TransferMapping | undefined {
-    for (const mapping of this.mappings.values()) {
+    const mappingArray = Array.from(this.mappings.values());
+    for (const mapping of mappingArray) {
       if (mapping.sourceDomain === sourceDomain && mapping.targetDomain === targetDomain) {
         return mapping;
       }
@@ -558,10 +761,10 @@ export class TransferLearningManager {
 
     this.mappings.set(mapping.id, mapping);
 
-    // Persist to database
+    // Persist to database (serialize for storage)
     await this.memoryStore.store(
       `transfer-learning/mappings/${mapping.id}`,
-      mapping,
+      serializeMapping(mapping) as unknown as Record<string, unknown>,
       { partition: 'learning' }
     );
 
@@ -582,7 +785,7 @@ export class TransferLearningManager {
 
     await this.memoryStore.store(
       `transfer-learning/metrics/${mapping.id}`,
-      metrics,
+      serializeMetrics(metrics) as unknown as Record<string, unknown>,
       { partition: 'learning' }
     );
 
@@ -597,7 +800,7 @@ export class TransferLearningManager {
 
     await this.memoryStore.store(
       `transfer-learning/mappings/${mapping.id}`,
-      mapping,
+      serializeMapping(mapping) as unknown as Record<string, unknown>,
       { partition: 'learning' }
     );
   }
@@ -624,7 +827,7 @@ export class TransferLearningManager {
   ): Promise<void> {
     await this.memoryStore.store(
       `transfer-learning/experiences/${targetDomain}`,
-      experiences,
+      serializeExperiences(experiences) as unknown as Record<string, unknown>,
       { partition: 'learning' }
     );
   }
@@ -633,12 +836,22 @@ export class TransferLearningManager {
    * Get transferred experiences for target domain
    */
   private async getTransferredExperiences(targetDomain: QEDomain): Promise<TaskExperience[]> {
-    const experiences = await this.memoryStore.retrieve(
+    const retrieved = await this.memoryStore.retrieve(
       `transfer-learning/experiences/${targetDomain}`,
       { partition: 'learning' }
     );
 
-    return (experiences as TaskExperience[]) || [];
+    // Type guard and deserialization
+    if (!retrieved) {
+      return [];
+    }
+
+    if (isSerializableExperienceArray(retrieved)) {
+      return deserializeExperiences(retrieved);
+    }
+
+    // Fallback for empty or unexpected data
+    return [];
   }
 
   /**
@@ -700,7 +913,7 @@ export class TransferLearningManager {
 
     await this.memoryStore.store(
       `transfer-learning/metrics/${mappingId}`,
-      metrics,
+      serializeMetrics(metrics) as unknown as Record<string, unknown>,
       { partition: 'learning' }
     );
   }

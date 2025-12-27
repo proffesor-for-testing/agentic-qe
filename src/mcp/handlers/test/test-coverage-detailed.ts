@@ -32,9 +32,75 @@ export interface TestCoverageDetailedArgs {
   historicalData?: Array<{ date: string; coverage: number }>;
 }
 
+interface AnalyzerInfo {
+  name: string;
+  metrics: string[];
+}
+
+interface CoverageFile {
+  path: string;
+  lines?: { total: number; covered: number; uncovered?: number };
+  branches?: { total: number; covered: number; uncovered?: number };
+  functions?: { total: number; covered: number; uncovered?: number };
+  importance?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+interface CoverageGap {
+  file: string;
+  currentCoverage: number;
+  targetCoverage: number;
+  gap: number;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  importance: string;
+}
+
+interface UncoveredLine {
+  file: string;
+  line: number;
+}
+
+interface CoverageMetrics {
+  total: number;
+  covered: number;
+  uncovered: number;
+  percentage: number;
+}
+
+interface CoverageAnalysis {
+  lineCoverage?: CoverageMetrics;
+  branchCoverage?: CoverageMetrics;
+  functionCoverage?: CoverageMetrics;
+  overallCoverage?: number;
+  uncoveredLines?: UncoveredLine[];
+  files?: Array<{ path: string; coverage: number }>;
+  complexityScore?: string;
+  analysisType?: string;
+  gaps?: CoverageGap[];
+  suggestions?: string[];
+  trend?: TrendInfo;
+}
+
+interface TrendInfo {
+  direction: 'improving' | 'declining' | 'stable';
+  changePercentage: number;
+  current?: number;
+  previous?: number;
+  history?: Array<{ date: string; coverage: number }>;
+}
+
+interface GapDetector {
+  detectGaps: (coverage: Record<string, number>, files: CoverageFile[]) => Array<{
+    file: string;
+    type: string;
+    current: number;
+    target: number;
+    priority: 'low' | 'medium' | 'high' | 'critical';
+  }>;
+}
+
 export class TestCoverageDetailedHandler extends BaseHandler {
-  private analyzers: Map<string, any> = new Map();
-  private gapDetector: any;
+  private analyzers: Map<string, AnalyzerInfo> = new Map();
+  private gapDetector!: GapDetector;
 
   constructor() {
     super();
@@ -54,7 +120,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
       this.validateRequired(args, ['coverageData', 'analysisType']);
 
       const { result, executionTime } = await this.measureExecutionTime(async () => {
-        let analysis: any = {};
+        let analysis: CoverageAnalysis = {};
 
         // Perform analysis based on type
         switch (args.analysisType) {
@@ -117,8 +183,14 @@ export class TestCoverageDetailedHandler extends BaseHandler {
 
   private initializeGapDetector(): void {
     this.gapDetector = {
-      detectGaps: (coverage: any, files: any[]) => {
-        const gaps = [];
+      detectGaps: (coverage: Record<string, number>, files: CoverageFile[]) => {
+        const gaps: Array<{
+          file: string;
+          type: string;
+          current: number;
+          target: number;
+          priority: 'low' | 'medium' | 'high' | 'critical';
+        }> = [];
 
         for (const file of files) {
           if (coverage[file.path] < 80) {
@@ -137,11 +209,11 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     };
   }
 
-  private async analyzeLineCoverage(args: TestCoverageDetailedArgs): Promise<any> {
+  private async analyzeLineCoverage(args: TestCoverageDetailedArgs): Promise<CoverageAnalysis> {
     const files = args.coverageData.files;
     let totalLines = 0;
     let coveredLines = 0;
-    const uncoveredLines: any[] = [];
+    const uncoveredLines: UncoveredLine[] = [];
 
     for (const file of files) {
       if (file.lines) {
@@ -176,7 +248,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     };
   }
 
-  private async analyzeBranchCoverage(args: TestCoverageDetailedArgs): Promise<any> {
+  private async analyzeBranchCoverage(args: TestCoverageDetailedArgs): Promise<CoverageAnalysis> {
     const files = args.coverageData.files;
     let totalBranches = 0;
     let coveredBranches = 0;
@@ -201,7 +273,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     };
   }
 
-  private async analyzeFunctionCoverage(args: TestCoverageDetailedArgs): Promise<any> {
+  private async analyzeFunctionCoverage(args: TestCoverageDetailedArgs): Promise<CoverageAnalysis> {
     const files = args.coverageData.files;
     let totalFunctions = 0;
     let coveredFunctions = 0;
@@ -225,13 +297,13 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     };
   }
 
-  private async analyzeComprehensive(args: TestCoverageDetailedArgs): Promise<any> {
+  private async analyzeComprehensive(args: TestCoverageDetailedArgs): Promise<CoverageAnalysis> {
     const lineAnalysis = await this.analyzeLineCoverage(args);
     const branchAnalysis = await this.analyzeBranchCoverage(args);
     const functionAnalysis = await this.analyzeFunctionCoverage(args);
 
     // Calculate overall coverage, prioritizing line coverage for trend calculation
-    const overallCoverage = lineAnalysis.lineCoverage.percentage;
+    const overallCoverage = lineAnalysis.lineCoverage?.percentage ?? 0;
 
     return {
       ...lineAnalysis,
@@ -242,7 +314,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     };
   }
 
-  private async detectGaps(args: TestCoverageDetailedArgs, prioritize: boolean = false): Promise<any[]> {
+  private async detectGaps(args: TestCoverageDetailedArgs, prioritize: boolean = false): Promise<CoverageGap[]> {
     const gaps = [];
 
     for (const file of args.coverageData.files) {
@@ -271,7 +343,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     return gaps;
   }
 
-  private async generateSuggestions(args: TestCoverageDetailedArgs, analysis: any): Promise<string[]> {
+  private async generateSuggestions(args: TestCoverageDetailedArgs, analysis: CoverageAnalysis): Promise<string[]> {
     const suggestions = [];
 
     // Line coverage suggestions
@@ -294,13 +366,13 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     // Gap-based suggestions
     if (analysis.gaps && analysis.gaps.length > 0) {
       suggestions.push(`Address ${analysis.gaps.length} coverage gaps`);
-      suggestions.push(`Prioritize ${analysis.gaps.filter((g: any) => g.priority === 'critical').length} critical gaps`);
+      suggestions.push(`Prioritize ${analysis.gaps.filter((g) => g.priority === 'critical').length} critical gaps`);
     }
 
     return suggestions;
   }
 
-  private calculateTrend(currentAnalysis: any, historicalData: any[]): any {
+  private calculateTrend(currentAnalysis: CoverageAnalysis, historicalData: Array<{ date: string; coverage: number }>): TrendInfo {
     if (!historicalData || historicalData.length === 0) {
       return { direction: 'stable', changePercentage: 0 };
     }
@@ -330,7 +402,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     };
   }
 
-  private calculateFileCoverage(file: any): number {
+  private calculateFileCoverage(file: CoverageFile): number {
     let coverage = 0;
     let count = 0;
 
@@ -352,7 +424,7 @@ export class TestCoverageDetailedHandler extends BaseHandler {
     return count > 0 ? Math.round(coverage / count) : 0;
   }
 
-  private calculatePriority(file: any): 'low' | 'medium' | 'high' | 'critical' {
+  private calculatePriority(file: CoverageFile): 'low' | 'medium' | 'high' | 'critical' {
     if (file.importance === 'critical') return 'critical';
     if (file.importance === 'high') return 'high';
 

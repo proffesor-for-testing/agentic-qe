@@ -15,10 +15,12 @@ import {
   createDefaultPPOConfig
 } from '../../src/learning/algorithms/PPOLearner';
 import { TaskState, AgentAction, TaskExperience } from '../../src/learning/types';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 
 describe('PPOLearner', () => {
   let learner: PPOLearner;
   let defaultConfig: PPOConfig;
+  let rng: SeededRandom;
 
   const createState = (complexity: number = 0.5): TaskState => ({
     taskComplexity: complexity,
@@ -56,6 +58,7 @@ describe('PPOLearner', () => {
   beforeEach(() => {
     defaultConfig = createDefaultPPOConfig();
     learner = new PPOLearner(defaultConfig);
+    rng = createSeededRandom(42);
   });
 
   describe('initialization', () => {
@@ -138,7 +141,7 @@ describe('PPOLearner', () => {
         learner.collectStep(
           createState(0.5 + i * 0.01),
           createAction(),
-          Math.random(),
+          rng.random(),
           createState(0.6),
           i === 9
         );
@@ -168,7 +171,7 @@ describe('PPOLearner', () => {
 
       // Collect enough experiences to trigger training
       for (let i = 0; i < 15; i++) {
-        smallBufferLearner.update(createExperience(Math.random(), i === 9));
+        smallBufferLearner.update(createExperience(rng.random(), i === 9));
       }
 
       // After training, trajectory should be cleared
@@ -193,7 +196,7 @@ describe('PPOLearner', () => {
         learner.collectStep(
           createState(),
           createAction(),
-          Math.random(),
+          rng.random(),
           createState(0.6),
           i === 19
         );
@@ -329,7 +332,7 @@ describe('PPOLearner', () => {
         learner.collectStep(
           createState(),
           createAction(),
-          Math.random(),
+          rng.random(),
           createState(0.6),
           i === 19
         );
@@ -347,7 +350,7 @@ describe('PPOLearner', () => {
         learner.collectStep(
           createState(),
           createAction(),
-          Math.random(),
+          rng.random(),
           createState(0.6),
           false
         );
@@ -422,9 +425,9 @@ describe('PPOLearner', () => {
 
       for (let i = 0; i < 100; i++) {
         learner.collectStep(
-          createState(Math.random()),
+          createState(rng.random()),
           createAction(`strategy_${i % 5}`),
-          Math.random(),
+          rng.random(),
           createState(),
           i % 20 === 19
         );

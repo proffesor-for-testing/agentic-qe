@@ -13,6 +13,34 @@
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
 
+interface TestSuite {
+  name: string;
+  tests: number;
+  failures: number;
+  duration?: number;
+}
+
+interface HistoricalEntry {
+  date: string;
+  passed: number;
+  failed: number;
+}
+
+interface ChartData {
+  type: string;
+  data: {
+    labels: string[];
+    values: number[];
+  };
+}
+
+interface TrendData {
+  direction: 'improving' | 'declining' | 'stable';
+  changePercentage: number;
+  current?: number;
+  previous?: number;
+}
+
 export interface TestReportComprehensiveArgs {
   results: {
     total: number;
@@ -20,7 +48,7 @@ export interface TestReportComprehensiveArgs {
     failed: number;
     skipped?: number;
     duration?: number;
-    suites?: any[];
+    suites?: TestSuite[];
   };
   format: 'html' | 'json' | 'junit' | 'markdown' | 'pdf';
   includeCharts?: boolean;
@@ -28,12 +56,22 @@ export interface TestReportComprehensiveArgs {
   includeSummary?: boolean;
   includeDetails?: boolean;
   structured?: boolean;
-  historicalData?: any[];
+  historicalData?: HistoricalEntry[];
+}
+
+interface FormatInfo {
+  extension: string;
+  mimeType: string;
+}
+
+interface TemplateEngine {
+  renderHTML: (data: unknown) => string;
+  renderMarkdown: (data: unknown) => string;
 }
 
 export class TestReportComprehensiveHandler extends BaseHandler {
-  private formatters: Map<string, any> = new Map();
-  private templateEngine: any;
+  private formatters: Map<string, FormatInfo> = new Map();
+  private templateEngine!: TemplateEngine;
 
   constructor() {
     super();
@@ -51,8 +89,8 @@ export class TestReportComprehensiveHandler extends BaseHandler {
       const { result, executionTime } = await this.measureExecutionTime(async () => {
         // Generate report based on format
         let content: string;
-        let charts: any = undefined;
-        let trends: any = undefined;
+        let charts: { passFailChart: ChartData; trendChart?: ChartData | null } | undefined = undefined;
+        let trends: TrendData | undefined = undefined;
 
         switch (args.format) {
           case 'html':
@@ -110,12 +148,12 @@ export class TestReportComprehensiveHandler extends BaseHandler {
 
   private initializeTemplateEngine(): void {
     this.templateEngine = {
-      renderHTML: (data: any) => this.renderHTMLTemplate(data),
-      renderMarkdown: (data: any) => this.renderMarkdownTemplate(data)
+      renderHTML: (data: unknown) => this.renderHTMLTemplate(data),
+      renderMarkdown: (data: unknown) => this.renderMarkdownTemplate(data)
     };
   }
 
-  private async generateHTMLReport(args: TestReportComprehensiveArgs): Promise<any> {
+  private async generateHTMLReport(args: TestReportComprehensiveArgs): Promise<{ content: string; charts?: { passFailChart: ChartData; trendChart?: ChartData | null } }> {
     const { results } = args;
     const passRate = Math.round((results.passed / results.total) * 100);
 
@@ -231,15 +269,15 @@ export class TestReportComprehensiveHandler extends BaseHandler {
     return `PDF_CONTENT: Test report with ${args.results.total} tests`;
   }
 
-  private renderHTMLTemplate(data: any): string {
+  private renderHTMLTemplate(data: unknown): string {
     return `<div>${JSON.stringify(data)}</div>`;
   }
 
-  private renderMarkdownTemplate(data: any): string {
+  private renderMarkdownTemplate(data: unknown): string {
     return `## Data\n\n${JSON.stringify(data, null, 2)}`;
   }
 
-  private renderTestSuites(suites: any[]): string {
+  private renderTestSuites(suites: TestSuite[]): string {
     let html = `<h2>Test Suites</h2><table><tr><th>Suite</th><th>Tests</th><th>Failures</th></tr>`;
     for (const suite of suites) {
       html += `<tr><td>${suite.name}</td><td>${suite.tests}</td><td>${suite.failures}</td></tr>`;
@@ -248,7 +286,7 @@ export class TestReportComprehensiveHandler extends BaseHandler {
     return html;
   }
 
-  private generatePassFailChart(results: any): any {
+  private generatePassFailChart(results: { passed: number; failed: number }): ChartData {
     return {
       type: 'pie',
       data: {
@@ -258,7 +296,7 @@ export class TestReportComprehensiveHandler extends BaseHandler {
     };
   }
 
-  private generateTrendChart(historicalData: any[] | undefined): any {
+  private generateTrendChart(historicalData: HistoricalEntry[] | undefined): ChartData | null {
     if (!historicalData || historicalData.length === 0) {
       return null;
     }
@@ -272,7 +310,7 @@ export class TestReportComprehensiveHandler extends BaseHandler {
     };
   }
 
-  private calculateTrends(current: any, historical: any[]): any {
+  private calculateTrends(current: { passed: number; total: number }, historical: HistoricalEntry[]): TrendData {
     if (!historical || historical.length === 0) {
       return { direction: 'stable', changePercentage: 0 };
     }

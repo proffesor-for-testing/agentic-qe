@@ -32,6 +32,7 @@ import {
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Journey: Flaky Detection', () => {
   let memory: SwarmMemoryManager;
@@ -104,12 +105,13 @@ describe('Journey: Flaky Detection', () => {
   describe('statistical flaky test detection', () => {
     test('detects flaky tests with statistical accuracy using chi-square test', async () => {
       // GIVEN: Test execution history with intermittent failures
+      const rng = createSeededRandom(100);
       const testHistory: TestHistory[] = [];
       const testName = 'UserLogin.shouldAuthenticateValidUser';
 
       // Generate 30 runs with 35% failure rate (flaky pattern)
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.35;
+        const isFail = rng.random() < 0.35;
         testHistory.push({
           testName,
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -151,31 +153,32 @@ describe('Journey: Flaky Detection', () => {
       expect(detectedTest!.failureRate).toBeLessThan(0.6);
     });
 
-    // TODO: Flaky test - random data generation causes flakinessScore comparison to vary
-    // The broken test (95% fail rate) sometimes gets a higher score than flaky (40% fail rate)
-    // due to random variance in generated test data. Needs deterministic seeded random.
-    test.skip('distinguishes between truly flaky tests and consistently failing tests', async () => {
+    // Fixed: Using SeededRandom for deterministic test data generation
+    test('distinguishes between truly flaky tests and consistently failing tests', async () => {
       // GIVEN: History with both flaky and consistently failing tests
+      // Use seeded random for deterministic results
+      const rng = createSeededRandom(42);
+
       const flakyHistory: TestHistory[] = [];
       const failingHistory: TestHistory[] = [];
 
-      // Flaky test: 40% failure rate
+      // Flaky test: 40% failure rate (deterministic with seed 42)
       for (let i = 0; i < 30; i++) {
         flakyHistory.push({
           testName: 'FlakyTest.intermittent',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.4 ? 'fail' : 'pass',
+          result: rng.random() < 0.4 ? 'fail' : 'pass',
           duration: 2000,
           agent: `ci-agent-${i % 3}`
         });
       }
 
-      // Consistently failing test: 95% failure rate
+      // Consistently failing test: 95% failure rate (deterministic with same rng)
       for (let i = 0; i < 30; i++) {
         failingHistory.push({
           testName: 'BrokenTest.alwaysFails',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.95 ? 'fail' : 'pass',
+          result: rng.random() < 0.95 ? 'fail' : 'pass',
           duration: 1000,
           error: 'AssertionError: Expected true but got false',
           agent: `ci-agent-${i % 3}`
@@ -206,6 +209,7 @@ describe('Journey: Flaky Detection', () => {
 
     test('calculates accurate flakiness scores based on variance and inconsistency', async () => {
       // GIVEN: Multiple tests with different flakiness patterns
+      const rng = createSeededRandom(200);
       const tests = [
         { name: 'LowFlaky', failRate: 0.15 },
         { name: 'MediumFlaky', failRate: 0.35 },
@@ -218,7 +222,7 @@ describe('Journey: Flaky Detection', () => {
           allHistory.push({
             testName: test.name,
             timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-            result: Math.random() < test.failRate ? 'fail' : 'pass',
+            result: rng.random() < test.failRate ? 'fail' : 'pass',
             duration: 2000,
             agent: `ci-agent-${i % 3}`
           });
@@ -264,12 +268,13 @@ describe('Journey: Flaky Detection', () => {
 
     test('provides statistical confidence metrics for detections', async () => {
       // GIVEN: Test with clear flaky pattern
+      const rng = createSeededRandom(300);
       const history: TestHistory[] = [];
       for (let i = 0; i < 50; i++) {
         history.push({
           testName: 'StatisticalTest',
           timestamp: new Date(Date.now() - (50 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.3 ? 'fail' : 'pass',
+          result: rng.random() < 0.3 ? 'fail' : 'pass',
           duration: 2000,
           agent: `ci-agent-${i % 3}`
         });
@@ -295,9 +300,10 @@ describe('Journey: Flaky Detection', () => {
   describe('identifying root causes', () => {
     test('detects timing-related flakiness (race conditions)', async () => {
       // GIVEN: Test with race condition pattern (fails fast)
+      const rng = createSeededRandom(400);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.4;
+        const isFail = rng.random() < 0.4;
         history.push({
           testName: 'OrderProcessing.raceCondition',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -329,9 +335,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('detects timeout-related flakiness', async () => {
       // GIVEN: Test with timeout pattern (slow failures)
+      const rng = createSeededRandom(500);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.35;
+        const isFail = rng.random() < 0.35;
         history.push({
           testName: 'API.slowEndpoint',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -360,9 +367,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('detects network-related flakiness', async () => {
       // GIVEN: Test with network failure pattern
+      const rng = createSeededRandom(600);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.25;
+        const isFail = rng.random() < 0.25;
         history.push({
           testName: 'ExternalAPI.fetchData',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -391,9 +399,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('detects data dependency issues', async () => {
       // GIVEN: Test with data-dependent failures
+      const rng = createSeededRandom(700);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.3;
+        const isFail = rng.random() < 0.3;
         history.push({
           testName: 'Database.queryUser',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -421,9 +430,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('provides confidence scores for root cause identification', async () => {
       // GIVEN: Test with clear timeout pattern
+      const rng = createSeededRandom(800);
       const history: TestHistory[] = [];
       for (let i = 0; i < 40; i++) {
-        const isFail = Math.random() < 0.3;
+        const isFail = rng.random() < 0.3;
         history.push({
           testName: 'ClearTimeout',
           timestamp: new Date(Date.now() - (40 - i) * 60 * 60 * 1000),
@@ -451,9 +461,10 @@ describe('Journey: Flaky Detection', () => {
   describe('generating auto-fix recommendations', () => {
     test('generates fix recommendations for race conditions', async () => {
       // GIVEN: Detected race condition
+      const rng = createSeededRandom(900);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.35;
+        const isFail = rng.random() < 0.35;
         history.push({
           testName: 'AsyncOperation.race',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -490,9 +501,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('generates fix recommendations for timeout issues', async () => {
       // GIVEN: Timeout pattern
+      const rng = createSeededRandom(1000);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.3;
+        const isFail = rng.random() < 0.3;
         history.push({
           testName: 'SlowTest.timeout',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -523,9 +535,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('provides code examples for auto-applicable fixes', async () => {
       // GIVEN: Network flake detected
+      const rng = createSeededRandom(1100);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.25;
+        const isFail = rng.random() < 0.25;
         history.push({
           testName: 'NetworkTest.retry',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -556,12 +569,13 @@ describe('Journey: Flaky Detection', () => {
 
     test('estimates fix effectiveness for each recommendation', async () => {
       // GIVEN: Flaky test detected
+      const rng = createSeededRandom(1200);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
         history.push({
           testName: 'TestWithFixes',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.35 ? 'fail' : 'pass',
+          result: rng.random() < 0.35 ? 'fail' : 'pass',
           duration: 2000,
           error: 'TimeoutError',
           agent: `ci-agent-${i % 3}`
@@ -588,9 +602,10 @@ describe('Journey: Flaky Detection', () => {
   describe('applying stabilization strategies', () => {
     test('applies retry strategy for network flakes', async () => {
       // GIVEN: Network flaky test
+      const rng = createSeededRandom(1300);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.3;
+        const isFail = rng.random() < 0.3;
         history.push({
           testName: 'NetworkAPI.unstable',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -621,9 +636,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('applies wait/synchronization strategy for race conditions', async () => {
       // GIVEN: Race condition test
+      const rng = createSeededRandom(1400);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.4;
+        const isFail = rng.random() < 0.4;
         history.push({
           testName: 'RaceCondition.fix',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -650,9 +666,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('applies timeout increase strategy appropriately', async () => {
       // GIVEN: Timeout flaky test
+      const rng = createSeededRandom(1500);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.3;
+        const isFail = rng.random() < 0.3;
         history.push({
           testName: 'Timeout.increase',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -679,12 +696,13 @@ describe('Journey: Flaky Detection', () => {
 
     test('quarantines tests that cannot be auto-stabilized', async () => {
       // GIVEN: Complex flaky test
+      const rng = createSeededRandom(1600);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
         history.push({
           testName: 'Complex.unstable',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.5 ? 'fail' : 'pass',
+          result: rng.random() < 0.5 ? 'fail' : 'pass',
           duration: 2000,
           error: 'ComplexError: Unknown issue',
           agent: `ci-agent-${i % 3}`
@@ -710,9 +728,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('validates stabilization success before marking as fixed', async () => {
       // GIVEN: Test that was stabilized with timeout errors (triggers root cause detection)
+      const rng = createSeededRandom(1700);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.35;
+        const isFail = rng.random() < 0.35;
         history.push({
           testName: 'Validate.stabilization',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -750,9 +769,10 @@ describe('Journey: Flaky Detection', () => {
   describe('storing patterns in database for learning', () => {
     test('stores detected flaky patterns in database', async () => {
       // GIVEN: Flaky test detection
+      const rng = createSeededRandom(1800);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.35;
+        const isFail = rng.random() < 0.35;
         history.push({
           testName: 'PatternStore.test',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -780,9 +800,10 @@ describe('Journey: Flaky Detection', () => {
 
     test('stores root cause patterns for future reference', async () => {
       // GIVEN: Test with identified root cause
+      const rng = createSeededRandom(1900);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
-        const isFail = Math.random() < 0.3;
+        const isFail = rng.random() < 0.3;
         history.push({
           testName: 'RootCause.pattern',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -813,12 +834,13 @@ describe('Journey: Flaky Detection', () => {
 
     test('stores fix effectiveness data for pattern learning', async () => {
       // GIVEN: Stabilized test
+      const rng = createSeededRandom(2000);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
         history.push({
           testName: 'FixEffectiveness.test',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.35 ? 'fail' : 'pass',
+          result: rng.random() < 0.35 ? 'fail' : 'pass',
           duration: 2000,
           error: 'Error',
           agent: `ci-agent-${i % 3}`
@@ -844,12 +866,13 @@ describe('Journey: Flaky Detection', () => {
 
     test('enables pattern-based prediction for similar tests', async () => {
       // GIVEN: Multiple tests with similar patterns
+      const rng = createSeededRandom(2100);
       const tests = ['Similar1', 'Similar2', 'Similar3'];
       const allHistory: TestHistory[] = [];
 
       for (const testName of tests) {
         for (let i = 0; i < 30; i++) {
-          const isFail = Math.random() < 0.3;
+          const isFail = rng.random() < 0.3;
           allHistory.push({
             testName,
             timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
@@ -877,12 +900,13 @@ describe('Journey: Flaky Detection', () => {
 
     test('tracks ML detection metrics for continuous improvement', async () => {
       // GIVEN: Test execution history
+      const rng = createSeededRandom(2200);
       const history: TestHistory[] = [];
       for (let i = 0; i < 30; i++) {
         history.push({
           testName: 'ML.metrics',
           timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),
-          result: Math.random() < 0.35 ? 'fail' : 'pass',
+          result: rng.random() < 0.35 ? 'fail' : 'pass',
           duration: 2000,
           agent: `ci-agent-${i % 3}`
         });
@@ -904,6 +928,7 @@ describe('Journey: Flaky Detection', () => {
 
     test('complete workflow: detection to remediation with database persistence', async () => {
       // GIVEN: Multiple flaky tests with different patterns
+      const rng = createSeededRandom(2300);
       const testPatterns = [
         { name: 'Race.test', failRate: 0.4, error: 'Error: Element not found', duration: [500, 2000] },
         { name: 'Timeout.test', failRate: 0.3, error: 'TimeoutError: Exceeded', duration: [8000, 2000] },
@@ -913,7 +938,7 @@ describe('Journey: Flaky Detection', () => {
       const allHistory: TestHistory[] = [];
       for (const pattern of testPatterns) {
         for (let i = 0; i < 30; i++) {
-          const isFail = Math.random() < pattern.failRate;
+          const isFail = rng.random() < pattern.failRate;
           allHistory.push({
             testName: pattern.name,
             timestamp: new Date(Date.now() - (30 - i) * 60 * 60 * 1000),

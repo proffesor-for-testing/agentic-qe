@@ -47,8 +47,8 @@ export async function vacuum(options: VacuumOptions): Promise<VacuumResult> {
 
     // Get page count before
     try {
-      const result = await options.database.get('PRAGMA page_count');
-      pagesBefore = result?.page_count || 0;
+      const result = await options.database.get<{ page_count: number }>('PRAGMA page_count');
+      pagesBefore = result?.page_count ?? 0;
     } catch (error) {
       logger.warn('Could not get page count');
     }
@@ -66,11 +66,11 @@ export async function vacuum(options: VacuumOptions): Promise<VacuumResult> {
     await options.database.exec('REINDEX');
 
     // Count indexes rebuilt
-    const indexResult = await options.database.all(`
+    const indexResult = await options.database.all<{ count: number }>(`
       SELECT COUNT(*) as count FROM sqlite_master
       WHERE type = 'index' AND name NOT LIKE 'sqlite_%'
     `);
-    const indexesRebuilt = indexResult[0]?.count || 0;
+    const indexesRebuilt = indexResult[0]?.count ?? 0;
 
     // Analyze if requested
     let analyzed = false;
@@ -91,8 +91,8 @@ export async function vacuum(options: VacuumOptions): Promise<VacuumResult> {
     }
 
     try {
-      const result = await options.database.get('PRAGMA page_count');
-      pagesAfter = result?.page_count || 0;
+      const result = await options.database.get<{ page_count: number }>('PRAGMA page_count');
+      pagesAfter = result?.page_count ?? 0;
     } catch (error) {
       logger.warn('Could not get page count after vacuum');
     }

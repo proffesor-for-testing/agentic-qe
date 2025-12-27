@@ -10,7 +10,7 @@ import { Logger } from '../utils/Logger';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { LearningEngine } from './LearningEngine';
 import { PerformanceTracker } from './PerformanceTracker';
-import { ABTest, FailurePattern, StrategyRecommendation } from './types';
+import { ABTest, FailurePattern, StrategyRecommendation, ImprovementData } from './types';
 
 /**
  * Improvement strategy
@@ -19,11 +19,97 @@ interface ImprovementStrategy {
   id: string;
   name: string;
   description: string;
-  config: any;
+  config: Record<string, unknown>;
   successRate?: number;
   avgImprovement?: number;
   usageCount: number;
   createdAt: Date;
+}
+
+/**
+ * Type guard to check if a value is a valid ImprovementStrategy
+ */
+function isImprovementStrategy(value: unknown): value is ImprovementStrategy {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.description === 'string' &&
+    typeof obj.config === 'object' &&
+    obj.config !== null &&
+    typeof obj.usageCount === 'number'
+  );
+}
+
+/**
+ * Type guard to check if a value has an 'enabled' boolean property
+ */
+function hasEnabledProperty(value: unknown): value is { enabled: boolean } {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return typeof obj.enabled === 'boolean';
+}
+
+/**
+ * Converts an ABTest to a serializable record
+ */
+function toSerializableABTest(test: ABTest): Record<string, unknown> {
+  return {
+    id: test.id,
+    name: test.name,
+    strategies: test.strategies.map(s => ({
+      name: s.name,
+      config: s.config as Record<string, unknown>
+    })),
+    sampleSize: test.sampleSize,
+    results: test.results.map(r => ({
+      strategy: r.strategy,
+      successRate: r.successRate,
+      averageTime: r.averageTime,
+      sampleCount: r.sampleCount
+    })),
+    winner: test.winner,
+    status: test.status,
+    startedAt: test.startedAt instanceof Date ? test.startedAt.toISOString() : test.startedAt,
+    completedAt: test.completedAt instanceof Date ? test.completedAt.toISOString() : test.completedAt
+  };
+}
+
+/**
+ * Converts a FailurePattern to a serializable record
+ */
+function toSerializableFailurePattern(pattern: FailurePattern): Record<string, unknown> {
+  return {
+    id: pattern.id,
+    pattern: pattern.pattern,
+    frequency: pattern.frequency,
+    contexts: pattern.contexts,
+    rootCause: pattern.rootCause,
+    mitigation: pattern.mitigation,
+    confidence: pattern.confidence,
+    identifiedAt: pattern.identifiedAt instanceof Date ? pattern.identifiedAt.toISOString() : pattern.identifiedAt
+  };
+}
+
+/**
+ * Converts an ImprovementStrategy to a serializable record
+ */
+function toSerializableStrategy(strategy: ImprovementStrategy): Record<string, unknown> {
+  return {
+    id: strategy.id,
+    name: strategy.name,
+    description: strategy.description,
+    config: strategy.config,
+    successRate: strategy.successRate,
+    avgImprovement: strategy.avgImprovement,
+    usageCount: strategy.usageCount,
+    createdAt: strategy.createdAt instanceof Date ? strategy.createdAt.toISOString() : strategy.createdAt
+  };
 }
 
 /**
@@ -113,7 +199,7 @@ export class ImprovementLoop {
    * Run a single improvement cycle
    */
   async runImprovementCycle(): Promise<{
-    improvement: any;
+    improvement: ImprovementData;
     failurePatternsAnalyzed: number;
     opportunitiesFound: number;
     activeTests: number;
@@ -174,7 +260,7 @@ export class ImprovementLoop {
    */
   async createABTest(
     name: string,
-    strategies: { name: string; config: any }[],
+    strategies: { name: string; config: Record<string, unknown> }[],
     sampleSize: number = 100
   ): Promise<string> {
     const test: ABTest = {
@@ -196,7 +282,7 @@ export class ImprovementLoop {
 
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/abtests/${test.id}`,
-      test,
+      toSerializableABTest(test),
       { partition: 'learning' }
     );
 
@@ -237,7 +323,7 @@ export class ImprovementLoop {
       // Update test in memory
       await this.memoryStore.store(
         `phase2/learning/${this.agentId}/abtests/${testId}`,
-        test,
+        toSerializableABTest(test),
         { partition: 'learning' }
       );
     }
@@ -270,7 +356,7 @@ export class ImprovementLoop {
     // Store completed test
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/abtests/${testId}`,
-      test,
+      toSerializableABTest(test),
       { partition: 'learning' }
     );
 
@@ -302,7 +388,7 @@ export class ImprovementLoop {
         // Store updated pattern
         await this.memoryStore.store(
           `phase2/learning/${this.agentId}/failure-patterns/${pattern.id}`,
-          pattern,
+          toSerializableFailurePattern(pattern),
           { partition: 'learning' }
         );
 
@@ -368,7 +454,8 @@ export class ImprovementLoop {
    * Update active A/B tests
    */
   private async updateActiveTests(): Promise<void> {
-    for (const [testId, test] of this.activeTests.entries()) {
+    const entries = Array.from(this.activeTests.entries());
+    for (const [testId, test] of entries) {
       const totalSamples = test.results.reduce((sum, r) => sum + r.sampleCount, 0);
 
       if (totalSamples >= test.sampleSize) {
@@ -418,7 +505,11 @@ export class ImprovementLoop {
         `phase2/learning/${this.agentId}/auto-apply-config`,
         { partition: 'learning' }
       );
-      return config?.enabled === true;
+      // Use type guard to safely check for enabled property
+      if (hasEnabledProperty(config)) {
+        return config.enabled === true;
+      }
+      return false;
     } catch {
       // Default to disabled for safety
       return false;
@@ -495,7 +586,7 @@ export class ImprovementLoop {
       this.strategies.set(strategy.name, strategy);
       await this.memoryStore.store(
         `phase2/learning/${this.agentId}/strategies/${strategy.name}`,
-        strategy,
+        toSerializableStrategy(strategy),
         { partition: 'learning' }
       );
     }
@@ -514,8 +605,23 @@ export class ImprovementLoop {
       );
 
       for (const entry of entries) {
-        const strategy = entry.value as ImprovementStrategy;
-        this.strategies.set(strategy.name, strategy);
+        // Use type guard to safely validate and convert the stored value
+        if (isImprovementStrategy(entry.value)) {
+          // Reconstruct Date from serialized string if needed
+          const strategy: ImprovementStrategy = {
+            id: entry.value.id,
+            name: entry.value.name,
+            description: entry.value.description,
+            config: entry.value.config,
+            successRate: entry.value.successRate,
+            avgImprovement: entry.value.avgImprovement,
+            usageCount: entry.value.usageCount,
+            createdAt: entry.value.createdAt instanceof Date
+              ? entry.value.createdAt
+              : new Date(entry.value.createdAt as unknown as string)
+          };
+          this.strategies.set(strategy.name, strategy);
+        }
       }
 
       this.logger.info(`Loaded ${this.strategies.size} strategies`);
@@ -527,7 +633,7 @@ export class ImprovementLoop {
   /**
    * Store cycle results
    */
-  private async storeCycleResults(results: any): Promise<void> {
+  private async storeCycleResults(results: { timestamp: Date; improvement: unknown; failurePatterns: number; failurePatternsAnalyzed: number; opportunities: number; activeTests: number; strategiesApplied: number }): Promise<void> {
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/cycles/${results.timestamp.getTime()}`,
       results,

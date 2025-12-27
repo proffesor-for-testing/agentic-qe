@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { MinCutPartitioner, partitionTests } from '../../../../src/test/partition/MinCutPartitioner.js';
 import { TestFile, PartitionConfig, DEFAULT_PARTITION_CONFIG } from '../../../../src/test/partition/types.js';
+import { createSeededRandom } from '../../../../src/utils/SeededRandom';
 
 // Test fixtures
 function createTestFile(
@@ -216,9 +217,10 @@ describe('MinCutPartitioner', () => {
 
   describe('multi-partition (k > 2)', () => {
     it('should create multiple partitions via recursive bisection', async () => {
+      const rng = createSeededRandom(14300);
       const partitioner4 = new MinCutPartitioner({ partitionCount: 4 });
       const tests = Array.from({ length: 20 }, (_, i) =>
-        createTestFile(`test${i}.ts`, Math.random() * 100 + 50)
+        createTestFile(`test${i}.ts`, rng.random() * 100 + 50)
       );
 
       const result = await partitioner4.partition(tests);
@@ -352,9 +354,10 @@ describe('MinCutPartitioner', () => {
 
   describe('performance', () => {
     it('should partition 100 tests in under 500ms', async () => {
+      const rng = createSeededRandom(14301);
       const tests = Array.from({ length: 100 }, (_, i) => {
-        const deps = i > 0 ? [`test${Math.floor(Math.random() * i)}.ts`] : [];
-        return createTestFile(`test${i}.ts`, Math.random() * 100 + 10, deps);
+        const deps = i > 0 ? [`test${Math.floor(rng.random() * i)}.ts`] : [];
+        return createTestFile(`test${i}.ts`, rng.random() * 100 + 10, deps);
       });
 
       const partitioner4 = new MinCutPartitioner({ partitionCount: 4 });
@@ -367,11 +370,12 @@ describe('MinCutPartitioner', () => {
     });
 
     it('should partition 200 tests in under 2000ms', async () => {
+      const rng = createSeededRandom(14302);
       // 200 tests with sparse dependencies (10% chance) is a realistic workload
       // O(V³) algorithm: 200³ = 8M operations vs 500³ = 125M operations
       const tests = Array.from({ length: 200 }, (_, i) => {
-        const deps = i > 0 && Math.random() < 0.1 ? [`test${Math.floor(Math.random() * i)}.ts`] : [];
-        return createTestFile(`test${i}.ts`, Math.random() * 100 + 10, deps);
+        const deps = i > 0 && rng.random() < 0.1 ? [`test${Math.floor(rng.random() * i)}.ts`] : [];
+        return createTestFile(`test${i}.ts`, rng.random() * 100 + 10, deps);
       });
 
       const partitioner8 = new MinCutPartitioner({ partitionCount: 8, timeout: 10000 });

@@ -13,6 +13,7 @@ jest.mock('@utils/Logger', () => ({
 
 import { StatisticalAnalysis } from '../../../src/learning/StatisticalAnalysis';
 import { TestResult } from '../../../src/learning/types';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('StatisticalAnalysis', () => {
   describe('calculatePassRate', () => {
@@ -93,10 +94,11 @@ describe('StatisticalAnalysis', () => {
     });
 
     it('should return higher confidence for more samples with low variance', () => {
+      const rng = createSeededRandom(22005);
       const manyConsistentResults: TestResult[] = Array.from({ length: 100 }, (_, i) => ({
         name: `test${i}`,
         passed: true,
-        duration: 100 + Math.random() * 5, // Low variance
+        duration: 100 + rng.random() * 5, // Low variance
         timestamp: Date.now()
       }));
 

@@ -5,6 +5,266 @@ import * as path from 'path';
 import { AnalyzeOptions } from '../../types';
 import { ProcessExit } from '../../utils/ProcessExit';
 
+// ============================================================================
+// Type Definitions for Analysis Command
+// ============================================================================
+
+/** Valid analysis target types */
+type AnalysisTarget = 'coverage' | 'quality' | 'trends' | 'gaps';
+
+/** Valid report format types */
+type ReportFormat = 'json' | 'html' | 'csv' | 'all';
+
+/** Severity levels for issues and gaps */
+type Severity = 'low' | 'medium' | 'high';
+
+/** Priority levels for recommendations */
+type Priority = 'low' | 'medium' | 'high';
+
+/** Trend direction indicators */
+type TrendDirection = 'improving' | 'declining' | 'stable';
+
+/** Coverage details by file path */
+interface CoverageDetails {
+  [filePath: string]: number;
+}
+
+/** Test execution summary */
+interface ExecutionSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped?: number;
+  duration?: number;
+}
+
+/** Coverage data structure */
+interface CoverageData {
+  overall: number;
+  details?: CoverageDetails;
+}
+
+/** Individual test execution report loaded from JSON files */
+interface ExecutionReport {
+  timestamp: string;
+  summary?: ExecutionSummary;
+  coverage?: CoverageData;
+  errors?: string[];
+}
+
+/** Loaded test data from reports directory */
+interface TestData {
+  latest: ExecutionReport | null;
+  history: ExecutionReport[];
+  coverage: CoverageData[];
+  quality: QualityMetricsData[];
+}
+
+/** Quality metrics data structure */
+interface QualityMetricsData {
+  passRate: number;
+  testReliability: number;
+  flakyTests: number;
+  testMaintainability: number;
+  qualityScore: number;
+  coverage?: number;
+}
+
+/** Trend data point with timestamp and value */
+interface TrendDataPoint {
+  timestamp: string;
+  value: number;
+}
+
+/** Trends collection for different metrics */
+interface TrendsCollection {
+  coverage: TrendDataPoint[];
+  passRate: TrendDataPoint[];
+  testCount: TrendDataPoint[];
+  executionTime: TrendDataPoint[];
+}
+
+/** Trend calculation result */
+interface TrendResult {
+  direction: TrendDirection;
+  change: number;
+}
+
+/** Current coverage state */
+interface CurrentCoverage {
+  overall: number;
+  details: CoverageDetails;
+}
+
+/** Coverage trends information */
+interface CoverageTrends {
+  direction: TrendDirection;
+  change: number;
+  period: string;
+}
+
+/** Coverage analysis result */
+interface CoverageAnalysis {
+  type: 'coverage';
+  timestamp: string;
+  current: CurrentCoverage;
+  trends: CoverageTrends;
+  gaps: Gap[];
+  recommendations: Recommendation[];
+}
+
+/** Quality metrics for analysis */
+interface QualityMetrics {
+  testReliability: number;
+  passRate: number;
+  flakyTests: number;
+  testMaintainability: number;
+  qualityScore: number;
+}
+
+/** Quality trends information */
+interface QualityTrends {
+  direction: TrendDirection;
+  period: string;
+  changes: Record<string, number>;
+}
+
+/** Quality analysis result */
+interface QualityAnalysis {
+  type: 'quality';
+  timestamp: string;
+  metrics: QualityMetrics;
+  trends: QualityTrends;
+  issues: QualityIssue[];
+  recommendations: Recommendation[];
+}
+
+/** Trends analysis result */
+interface TrendsAnalysis {
+  type: 'trends';
+  timestamp: string;
+  period: string;
+  trends: TrendsCollection;
+  insights: Insight[];
+  predictions: Prediction[];
+}
+
+/** Gaps analysis result */
+interface GapsAnalysis {
+  type: 'gaps';
+  timestamp: string;
+  coverageGaps: Gap[];
+  testingGaps: Gap[];
+  qualityGaps: Gap[];
+  recommendations: Recommendation[];
+}
+
+/** Comprehensive analysis summary */
+interface ComprehensiveSummary {
+  overallScore: number;
+  criticalIssues: Array<QualityIssue | Gap>;
+  topRecommendations: Recommendation[];
+}
+
+/** Comprehensive analysis result (all analysis types combined) */
+interface ComprehensiveAnalysis {
+  type: 'comprehensive';
+  timestamp: string;
+  coverage: CoverageAnalysis;
+  quality: QualityAnalysis;
+  trends: TrendsAnalysis;
+  gaps: GapsAnalysis;
+  summary: ComprehensiveSummary;
+}
+
+/** Union type for all analysis results */
+type AnalysisResult = CoverageAnalysis | QualityAnalysis | TrendsAnalysis | GapsAnalysis | ComprehensiveAnalysis;
+
+/** Gap identified in coverage, testing, or quality */
+interface Gap {
+  type: string;
+  category?: string;
+  file?: string;
+  count?: number;
+  coverage?: number;
+  severity: Severity;
+  description: string;
+  suggestion: string;
+}
+
+/** Quality issue detected during analysis */
+interface QualityIssue {
+  type: string;
+  severity: Severity;
+  value: number;
+  description: string;
+  impact: string;
+}
+
+/** Recommendation for improvement */
+interface Recommendation {
+  type: string;
+  priority: Priority;
+  title?: string;
+  message?: string;
+  description?: string;
+  actions: string[];
+  estimatedImpact?: string;
+}
+
+/** Insight derived from trend analysis */
+interface Insight {
+  type: string;
+  direction: TrendDirection | 'increasing' | 'decreasing';
+  change: number;
+  description: string;
+}
+
+/** Prediction based on trend analysis */
+interface Prediction {
+  type: string;
+  timeframe: string;
+  predicted: number;
+  confidence: 'low' | 'medium' | 'high';
+  description: string;
+}
+
+/** Data for test reliability calculation */
+interface ReliabilityDataPoint {
+  total: number;
+  passed: number;
+  failed: number;
+}
+
+/** Report data structure for generation */
+interface ReportData {
+  analysis: AnalysisResult;
+  recommendations: Recommendation[];
+  metadata: {
+    generated: string;
+    format: string;
+    options: AnalyzeOptions;
+  };
+}
+
+/** Type guard for ExecutionReport */
+function isExecutionReport(data: unknown): data is ExecutionReport {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  return typeof obj.timestamp === 'string' || obj.timestamp === undefined;
+}
+
+/** Type guard for CoverageData */
+function isCoverageData(data: unknown): data is CoverageData {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  return typeof obj.overall === 'number' || obj.overall === undefined;
+}
+
 export class AnalyzeCommand {
   static async execute(target: string, options: AnalyzeOptions): Promise<void> {
     console.log(chalk.blue.bold('\n📊 Analyzing Test Results and Quality Metrics\n'));
@@ -59,10 +319,12 @@ export class AnalyzeCommand {
       // Store analysis results in coordination
       await this.storeAnalysisResults(analysisResults, recommendations);
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Analysis failed:'), error.message);
-      if (options.verbose) {
-        console.error(chalk.gray(error.stack));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error(chalk.red('❌ Analysis failed:'), errorMessage);
+      if (options.verbose && errorStack) {
+        console.error(chalk.gray(errorStack));
       }
       ProcessExit.exitIfNotTest(1);
     }
@@ -90,7 +352,7 @@ export class AnalyzeCommand {
     }
   }
 
-  private static async loadTestData(): Promise<any> {
+  private static async loadTestData(): Promise<TestData> {
     const reportsDir = '.agentic-qe/reports';
     const reportFiles = await fs.readdir(reportsDir);
 
@@ -103,7 +365,7 @@ export class AnalyzeCommand {
       throw new Error('No test execution reports found');
     }
 
-    const testData: any = {
+    const testData: TestData = {
       latest: null,
       history: [],
       coverage: [],
@@ -112,13 +374,18 @@ export class AnalyzeCommand {
 
     // Load latest execution
     const latestFile = path.join(reportsDir, executionFiles[0]);
-    testData.latest = await fs.readJson(latestFile);
+    const latestData: unknown = await fs.readJson(latestFile);
+    if (isExecutionReport(latestData)) {
+      testData.latest = latestData;
+    }
 
     // Load historical data (up to 30 most recent)
     for (const file of executionFiles.slice(0, 30)) {
       const filePath = path.join(reportsDir, file);
-      const data: any = await fs.readJson(filePath);
-      testData.history.push(data);
+      const data: unknown = await fs.readJson(filePath);
+      if (isExecutionReport(data)) {
+        testData.history.push(data);
+      }
     }
 
     // Load coverage data if available
@@ -126,16 +393,18 @@ export class AnalyzeCommand {
     for (const file of coverageFiles.slice(0, 10)) {
       const filePath = path.join(reportsDir, file);
       if (await fs.pathExists(filePath)) {
-        const coverage: any = await fs.readJson(filePath);
-        testData.coverage.push(coverage);
+        const coverage: unknown = await fs.readJson(filePath);
+        if (isCoverageData(coverage)) {
+          testData.coverage.push(coverage);
+        }
       }
     }
 
     return testData;
   }
 
-  private static async analyzeCoverage(testData: any, options: AnalyzeOptions): Promise<any> {
-    const analysis = {
+  private static async analyzeCoverage(testData: TestData, options: AnalyzeOptions): Promise<CoverageAnalysis> {
+    const analysis: CoverageAnalysis = {
       type: 'coverage',
       timestamp: new Date().toISOString(),
       current: {
@@ -153,9 +422,9 @@ export class AnalyzeCommand {
 
     // Calculate coverage trends
     if (testData.history.length > 1) {
-      const recentCoverage = testData.history.slice(0, 5).map((h: any) => h.coverage?.overall || 0);
+      const recentCoverage = testData.history.slice(0, 5).map((h: ExecutionReport) => h.coverage?.overall || 0);
       const avgRecent = recentCoverage.reduce((sum: number, c: number) => sum + c, 0) / recentCoverage.length;
-      const olderCoverage = testData.history.slice(5, 10).map((h: any) => h.coverage?.overall || 0);
+      const olderCoverage = testData.history.slice(5, 10).map((h: ExecutionReport) => h.coverage?.overall || 0);
       const avgOlder = olderCoverage.length > 0
         ? olderCoverage.reduce((sum: number, c: number) => sum + c, 0) / olderCoverage.length
         : avgRecent;
@@ -167,13 +436,13 @@ export class AnalyzeCommand {
 
     // Identify coverage gaps if requested
     if (options.gaps) {
-      (analysis as any).gaps = await this.identifyCoverageGaps(testData);
+      analysis.gaps = await this.identifyCoverageGaps(testData);
     }
 
     // Add threshold-based alerts
     const threshold = parseInt(options.threshold);
     if (analysis.current.overall < threshold) {
-      (analysis.recommendations as any[]).push({
+      analysis.recommendations.push({
         type: 'coverage_below_threshold',
         priority: 'high',
         message: `Coverage ${analysis.current.overall.toFixed(1)}% is below threshold ${threshold}%`,
@@ -184,8 +453,8 @@ export class AnalyzeCommand {
     return analysis;
   }
 
-  private static async analyzeQuality(testData: any, options: AnalyzeOptions): Promise<any> {
-    const analysis = {
+  private static async analyzeQuality(testData: TestData, options: AnalyzeOptions): Promise<QualityAnalysis> {
+    const analysis: QualityAnalysis = {
       type: 'quality',
       timestamp: new Date().toISOString(),
       metrics: {
@@ -212,7 +481,7 @@ export class AnalyzeCommand {
         : 0;
 
       // Analyze test reliability over time
-      const reliabilityData = testData.history.slice(0, 10).map((h: any) => ({
+      const reliabilityData: ReliabilityDataPoint[] = testData.history.slice(0, 10).map((h: ExecutionReport) => ({
         total: h.summary?.total || 0,
         passed: h.summary?.passed || 0,
         failed: h.summary?.failed || 0
@@ -226,24 +495,24 @@ export class AnalyzeCommand {
     analysis.metrics.qualityScore = this.calculateQualityScore(analysis.metrics);
 
     // Identify quality issues
-    (analysis as any).issues = await this.identifyQualityIssues(testData, analysis.metrics) as any[];
+    analysis.issues = await this.identifyQualityIssues(testData, analysis.metrics);
 
     return analysis;
   }
 
-  private static async analyzeTrends(testData: any, options: AnalyzeOptions): Promise<any> {
-    const analysis = {
+  private static async analyzeTrends(testData: TestData, options: AnalyzeOptions): Promise<TrendsAnalysis> {
+    const analysis: TrendsAnalysis = {
       type: 'trends',
       timestamp: new Date().toISOString(),
       period: options.period,
       trends: {
-        coverage: [] as any[],
-        passRate: [] as any[],
-        testCount: [] as any[],
-        executionTime: [] as any[]
+        coverage: [],
+        passRate: [],
+        testCount: [],
+        executionTime: []
       },
-      insights: [] as any[],
-      predictions: [] as any[]
+      insights: [],
+      predictions: []
     };
 
     // Analyze trends over time
@@ -259,7 +528,7 @@ export class AnalyzeCommand {
 
       analysis.trends.passRate.push({
         timestamp,
-        value: data.summary?.total > 0 ? (data.summary.passed / data.summary.total) * 100 : 0
+        value: data.summary?.total ? (data.summary.passed / data.summary.total) * 100 : 0
       });
 
       analysis.trends.testCount.push({
@@ -274,22 +543,22 @@ export class AnalyzeCommand {
     }
 
     // Generate insights
-    analysis.insights = this.generateTrendInsights(analysis.trends) as any[];
+    analysis.insights = this.generateTrendInsights(analysis.trends);
 
     // Simple predictions based on trends
-    analysis.predictions = this.generatePredictions(analysis.trends) as any[];
+    analysis.predictions = this.generatePredictions(analysis.trends);
 
     return analysis;
   }
 
-  private static async analyzeGaps(testData: any, options: AnalyzeOptions): Promise<any> {
-    const analysis = {
+  private static async analyzeGaps(testData: TestData, _options: AnalyzeOptions): Promise<GapsAnalysis> {
+    const analysis: GapsAnalysis = {
       type: 'gaps',
       timestamp: new Date().toISOString(),
-      coverageGaps: [] as any[],
-      testingGaps: [] as any[],
-      qualityGaps: [] as any[],
-      recommendations: [] as any[]
+      coverageGaps: [],
+      testingGaps: [],
+      qualityGaps: [],
+      recommendations: []
     };
 
     // Identify coverage gaps
@@ -304,11 +573,13 @@ export class AnalyzeCommand {
     return analysis;
   }
 
-  private static async analyzeAll(testData: any, options: AnalyzeOptions): Promise<any> {
+  private static async analyzeAll(testData: TestData, options: AnalyzeOptions): Promise<ComprehensiveAnalysis> {
     const coverage = await this.analyzeCoverage(testData, options);
     const quality = await this.analyzeQuality(testData, options);
     const trends = await this.analyzeTrends(testData, options);
     const gaps = await this.analyzeGaps(testData, options);
+
+    const analyses: AnalysisResult[] = [coverage, quality, trends, gaps];
 
     return {
       type: 'comprehensive',
@@ -318,15 +589,15 @@ export class AnalyzeCommand {
       trends,
       gaps,
       summary: {
-        overallScore: this.calculateOverallScore([coverage, quality, trends, gaps]),
-        criticalIssues: this.identifyCriticalIssues([coverage, quality, trends, gaps]) as any[],
-        topRecommendations: this.prioritizeRecommendations([coverage, quality, trends, gaps])
+        overallScore: this.calculateOverallScore(analyses),
+        criticalIssues: this.identifyCriticalIssues(analyses),
+        topRecommendations: this.prioritizeRecommendations(analyses)
       }
     };
   }
 
-  private static async identifyCoverageGaps(testData: any): Promise<any[]> {
-    const gaps: any[] = [];
+  private static async identifyCoverageGaps(testData: TestData): Promise<Gap[]> {
+    const gaps: Gap[] = [];
 
     // Check for missing test types
     const testTypes = ['unit', 'integration', 'e2e', 'performance', 'security'];
@@ -350,8 +621,8 @@ export class AnalyzeCommand {
     }
 
     // Check coverage by file (if coverage details available)
-    const coverageDetails = testData.latest?.coverage?.details || {};
-    Object.entries(coverageDetails).forEach(([file, coverage]: [string, any]) => {
+    const coverageDetails: CoverageDetails = testData.latest?.coverage?.details || {};
+    Object.entries(coverageDetails).forEach(([file, coverage]: [string, number]) => {
       if (coverage < 80) {
         gaps.push({
           type: 'low_file_coverage',
@@ -367,8 +638,8 @@ export class AnalyzeCommand {
     return gaps;
   }
 
-  private static async identifyTestingGaps(): Promise<any[]> {
-    const gaps = [];
+  private static async identifyTestingGaps(): Promise<Gap[]> {
+    const gaps: Gap[] = [];
 
     // Check for test configuration files
     const configFiles = [
@@ -393,14 +664,14 @@ export class AnalyzeCommand {
     return gaps;
   }
 
-  private static async identifyQualityGaps(testData: any): Promise<any[]> {
-    const gaps: any[] = [];
+  private static async identifyQualityGaps(testData: TestData): Promise<Gap[]> {
+    const gaps: Gap[] = [];
     const latest = testData.latest;
 
     if (!latest) return gaps;
 
     // Check for quality issues
-    if (latest.summary?.failed > 0) {
+    if (latest.summary?.failed && latest.summary.failed > 0) {
       gaps.push({
         type: 'failing_tests',
         count: latest.summary.failed,
@@ -410,7 +681,7 @@ export class AnalyzeCommand {
       });
     }
 
-    if (latest.errors?.length > 0) {
+    if (latest.errors && latest.errors.length > 0) {
       gaps.push({
         type: 'test_errors',
         count: latest.errors.length,
@@ -423,22 +694,22 @@ export class AnalyzeCommand {
     return gaps;
   }
 
-  private static calculateTestReliability(reliabilityData: any[]): number {
+  private static calculateTestReliability(reliabilityData: ReliabilityDataPoint[]): number {
     if (reliabilityData.length === 0) return 0;
 
     const consistentResults = reliabilityData.filter((data, index) => {
       if (index === 0) return true;
       const prev = reliabilityData[index - 1];
-      const passRateDiff = Math.abs(
-        (data.passed / data.total) - (prev.passed / prev.total)
-      );
+      const currentPassRate = data.total > 0 ? data.passed / data.total : 0;
+      const prevPassRate = prev.total > 0 ? prev.passed / prev.total : 0;
+      const passRateDiff = Math.abs(currentPassRate - prevPassRate);
       return passRateDiff < 0.1; // Less than 10% variation
     });
 
     return (consistentResults.length / reliabilityData.length) * 100;
   }
 
-  private static identifyFlakyTests(reliabilityData: any[]): number {
+  private static identifyFlakyTests(reliabilityData: ReliabilityDataPoint[]): number {
     // Simple heuristic: if pass rate varies significantly, there might be flaky tests
     const passRates = reliabilityData.map(d => d.total > 0 ? d.passed / d.total : 0);
     const variance = this.calculateVariance(passRates);
@@ -452,7 +723,7 @@ export class AnalyzeCommand {
     return squaredDiffs.reduce((sum, diff) => sum + diff, 0) / values.length;
   }
 
-  private static calculateQualityScore(metrics: any): number {
+  private static calculateQualityScore(metrics: QualityMetrics): number {
     const weights = {
       passRate: 0.4,
       testReliability: 0.3,
@@ -463,14 +734,14 @@ export class AnalyzeCommand {
     const score =
       metrics.passRate * weights.passRate +
       metrics.testReliability * weights.testReliability +
-      (metrics.coverage || 0) * weights.coverage +
+      0 * weights.coverage + // coverage is not part of QualityMetrics
       (100 - metrics.flakyTests) * weights.flakyTests;
 
     return Math.max(0, Math.min(100, score));
   }
 
-  private static async identifyQualityIssues(testData: any, metrics: any): Promise<any[]> {
-    const issues = [];
+  private static async identifyQualityIssues(_testData: TestData, metrics: QualityMetrics): Promise<QualityIssue[]> {
+    const issues: QualityIssue[] = [];
 
     if (metrics.passRate < 90) {
       issues.push({
@@ -505,8 +776,8 @@ export class AnalyzeCommand {
     return issues;
   }
 
-  private static generateTrendInsights(trends: any): any[] {
-    const insights = [];
+  private static generateTrendInsights(trends: TrendsCollection): Insight[] {
+    const insights: Insight[] = [];
 
     // Coverage trend
     const coverageTrend = this.calculateTrend(trends.coverage);
@@ -544,28 +815,30 @@ export class AnalyzeCommand {
     return insights;
   }
 
-  private static calculateTrend(dataPoints: any[]): any {
+  private static calculateTrend(dataPoints: TrendDataPoint[]): TrendResult {
     if (dataPoints.length < 3) {
       return { direction: 'stable', change: 0 };
     }
 
     const values = dataPoints.map(point => point.value);
-    const recentAvg = values.slice(0, Math.floor(values.length / 2)).reduce((sum, val) => sum + val, 0) / Math.floor(values.length / 2);
-    const olderAvg = values.slice(Math.floor(values.length / 2)).reduce((sum, val) => sum + val, 0) / (values.length - Math.floor(values.length / 2));
+    const halfLength = Math.floor(values.length / 2);
+    const recentAvg = values.slice(0, halfLength).reduce((sum, val) => sum + val, 0) / halfLength;
+    const olderAvg = values.slice(halfLength).reduce((sum, val) => sum + val, 0) / (values.length - halfLength);
 
     const change = recentAvg - olderAvg;
-    const direction = Math.abs(change) < 1 ? 'stable' : change > 0 ? 'improving' : 'declining';
+    const direction: TrendDirection = Math.abs(change) < 1 ? 'stable' : change > 0 ? 'improving' : 'declining';
 
     return { direction, change };
   }
 
-  private static generatePredictions(trends: any): any[] {
-    const predictions = [];
+  private static generatePredictions(trends: TrendsCollection): Prediction[] {
+    const predictions: Prediction[] = [];
 
     // Simple linear prediction for coverage
     const coverageTrend = this.calculateTrend(trends.coverage);
     if (coverageTrend.direction !== 'stable') {
-      const predicted = trends.coverage[0]?.value + (coverageTrend.change * 2);
+      const currentValue = trends.coverage[0]?.value ?? 0;
+      const predicted = currentValue + (coverageTrend.change * 2);
       predictions.push({
         type: 'coverage',
         timeframe: '2 cycles',
@@ -578,57 +851,106 @@ export class AnalyzeCommand {
     return predictions;
   }
 
-  private static calculateOverallScore(analyses: any[]): number {
-    const scores = analyses
-      .filter(a => a.metrics?.qualityScore)
-      .map(a => a.metrics.qualityScore);
+  private static calculateOverallScore(analyses: AnalysisResult[]): number {
+    const scores: number[] = [];
+
+    for (const analysis of analyses) {
+      if ('metrics' in analysis && analysis.metrics && 'qualityScore' in analysis.metrics) {
+        scores.push(analysis.metrics.qualityScore);
+      }
+    }
 
     return scores.length > 0
       ? scores.reduce((sum, score) => sum + score, 0) / scores.length
       : 0;
   }
 
-  private static identifyCriticalIssues(analyses: any[]): any[] {
-    const criticalIssues: any[] = [];
+  private static identifyCriticalIssues(analyses: AnalysisResult[]): Array<QualityIssue | Gap> {
+    const criticalIssues: Array<QualityIssue | Gap> = [];
 
-    analyses.forEach(analysis => {
-      if (analysis.issues) {
-        const critical = analysis.issues.filter((issue: any) => issue.severity === 'high');
+    for (const analysis of analyses) {
+      // Handle QualityAnalysis issues
+      if (analysis.type === 'quality' && analysis.issues) {
+        const critical = analysis.issues.filter((issue: QualityIssue) => issue.severity === 'high');
         criticalIssues.push(...critical);
       }
-      if (analysis.gaps) {
-        const critical = analysis.gaps.filter((gap: any) => gap.severity === 'high');
+
+      // Handle CoverageAnalysis gaps
+      if (analysis.type === 'coverage' && analysis.gaps) {
+        const critical = analysis.gaps.filter((gap: Gap) => gap.severity === 'high');
         criticalIssues.push(...critical);
       }
-    });
+
+      // Handle GapsAnalysis - all gap types
+      if (analysis.type === 'gaps') {
+        const coverageCritical = analysis.coverageGaps.filter((gap: Gap) => gap.severity === 'high');
+        const testingCritical = analysis.testingGaps.filter((gap: Gap) => gap.severity === 'high');
+        const qualityCritical = analysis.qualityGaps.filter((gap: Gap) => gap.severity === 'high');
+        criticalIssues.push(...coverageCritical, ...testingCritical, ...qualityCritical);
+      }
+
+      // Handle ComprehensiveAnalysis - nested issues and gaps
+      if (analysis.type === 'comprehensive') {
+        if (analysis.quality?.issues) {
+          const critical = analysis.quality.issues.filter((issue: QualityIssue) => issue.severity === 'high');
+          criticalIssues.push(...critical);
+        }
+        if (analysis.coverage?.gaps) {
+          const critical = analysis.coverage.gaps.filter((gap: Gap) => gap.severity === 'high');
+          criticalIssues.push(...critical);
+        }
+        if (analysis.gaps) {
+          const coverageCritical = analysis.gaps.coverageGaps.filter((gap: Gap) => gap.severity === 'high');
+          const qualityCritical = analysis.gaps.qualityGaps.filter((gap: Gap) => gap.severity === 'high');
+          criticalIssues.push(...coverageCritical, ...qualityCritical);
+        }
+      }
+    }
 
     return criticalIssues;
   }
 
-  private static prioritizeRecommendations(analyses: any[]): any[] {
-    const allRecommendations: any[] = [];
+  private static prioritizeRecommendations(analyses: AnalysisResult[]): Recommendation[] {
+    const allRecommendations: Recommendation[] = [];
 
-    analyses.forEach(analysis => {
-      if (analysis.recommendations) {
+    for (const analysis of analyses) {
+      if ('recommendations' in analysis && analysis.recommendations) {
         allRecommendations.push(...analysis.recommendations);
       }
-    });
+    }
 
     // Sort by priority
+    const priorityOrder: Record<Priority, number> = { 'high': 3, 'medium': 2, 'low': 1 };
     return allRecommendations
       .sort((a, b) => {
-        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-        return (priorityOrder[b.priority as keyof typeof priorityOrder] || 0) - (priorityOrder[a.priority as keyof typeof priorityOrder] || 0);
+        return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
       })
       .slice(0, 5); // Top 5 recommendations
   }
 
-  private static async generateRecommendations(analysis: any, options: AnalyzeOptions): Promise<any[]> {
-    const recommendations = [];
+  private static async generateRecommendations(analysis: AnalysisResult, _options: AnalyzeOptions): Promise<Recommendation[]> {
+    const recommendations: Recommendation[] = [];
 
     // Coverage-specific recommendations
-    if (analysis.type === 'coverage' || analysis.coverage) {
-      const coverageData = analysis.coverage || analysis.current;
+    if (analysis.type === 'coverage') {
+      const coverageData = analysis.current;
+
+      if (coverageData.overall < 80) {
+        recommendations.push({
+          type: 'improve_coverage',
+          priority: 'high',
+          title: 'Improve Test Coverage',
+          description: `Current coverage (${coverageData.overall.toFixed(1)}%) is below recommended 80%`,
+          actions: [
+            'Run: agentic-qe generate tests --coverage-target 85',
+            'Focus on uncovered code paths',
+            'Add integration tests for complex flows'
+          ],
+          estimatedImpact: 'High'
+        });
+      }
+    } else if (analysis.type === 'comprehensive' && analysis.coverage) {
+      const coverageData = analysis.coverage.current;
 
       if (coverageData.overall < 80) {
         recommendations.push({
@@ -647,15 +969,28 @@ export class AnalyzeCommand {
     }
 
     // Quality-specific recommendations
-    if (analysis.type === 'quality' || analysis.quality) {
-      const qualityData = analysis.quality || analysis;
-
-      if (qualityData.metrics?.flakyTests > 0) {
+    if (analysis.type === 'quality') {
+      if (analysis.metrics.flakyTests > 0) {
         recommendations.push({
           type: 'fix_flaky_tests',
           priority: 'medium',
           title: 'Address Flaky Tests',
-          description: `${qualityData.metrics.flakyTests} potentially flaky tests detected`,
+          description: `${analysis.metrics.flakyTests} potentially flaky tests detected`,
+          actions: [
+            'Review test execution logs',
+            'Add proper test isolation',
+            'Check for timing dependencies'
+          ],
+          estimatedImpact: 'Medium'
+        });
+      }
+    } else if (analysis.type === 'comprehensive' && analysis.quality) {
+      if (analysis.quality.metrics.flakyTests > 0) {
+        recommendations.push({
+          type: 'fix_flaky_tests',
+          priority: 'medium',
+          title: 'Address Flaky Tests',
+          description: `${analysis.quality.metrics.flakyTests} potentially flaky tests detected`,
           actions: [
             'Review test execution logs',
             'Add proper test isolation',
@@ -667,8 +1002,8 @@ export class AnalyzeCommand {
     }
 
     // Gap-specific recommendations
-    if (analysis.gaps) {
-      analysis.gaps.forEach((gap: any) => {
+    if (analysis.type === 'coverage' && analysis.gaps) {
+      for (const gap of analysis.gaps) {
         if (gap.severity === 'high') {
           recommendations.push({
             type: 'address_gap',
@@ -679,18 +1014,32 @@ export class AnalyzeCommand {
             estimatedImpact: 'High'
           });
         }
-      });
+      }
+    } else if (analysis.type === 'gaps') {
+      const allGaps = [...analysis.coverageGaps, ...analysis.testingGaps, ...analysis.qualityGaps];
+      for (const gap of allGaps) {
+        if (gap.severity === 'high') {
+          recommendations.push({
+            type: 'address_gap',
+            priority: 'high',
+            title: `Address ${gap.type}`,
+            description: gap.description,
+            actions: [gap.suggestion],
+            estimatedImpact: 'High'
+          });
+        }
+      }
     }
 
     return recommendations;
   }
 
-  private static async generateReports(analysis: any, recommendations: any[], options: AnalyzeOptions): Promise<void> {
+  private static async generateReports(analysis: AnalysisResult, recommendations: Recommendation[], options: AnalyzeOptions): Promise<void> {
     const reportsDir = '.agentic-qe/reports';
     await fs.ensureDir(reportsDir);
 
     const timestamp = new Date().toISOString().replace(/:/g, '-');
-    const reportData = {
+    const reportData: ReportData = {
       analysis,
       recommendations,
       metadata: {
@@ -714,15 +1063,34 @@ export class AnalyzeCommand {
     }
 
     // Generate CSV for trends
-    if (options.format === 'csv' && analysis.trends) {
-      const csvContent = this.generateCsvReport(analysis.trends);
-      const csvFile = `${reportsDir}/trends-${timestamp}.csv`;
-      await fs.writeFile(csvFile, csvContent);
+    if (options.format === 'csv' && 'trends' in analysis && analysis.trends) {
+      const trendsData = analysis.type === 'trends' ? analysis.trends : undefined;
+      if (trendsData) {
+        const csvContent = this.generateCsvReport(trendsData);
+        const csvFile = `${reportsDir}/trends-${timestamp}.csv`;
+        await fs.writeFile(csvFile, csvContent);
+      }
     }
   }
 
-  private static generateHtmlReport(reportData: any): string {
+  private static generateHtmlReport(reportData: ReportData): string {
     const { analysis, recommendations } = reportData;
+
+    // Extract current metrics if available
+    const hasCurrent = analysis.type === 'coverage' || (analysis.type === 'comprehensive' && analysis.coverage);
+    const currentOverall = analysis.type === 'coverage'
+      ? analysis.current.overall
+      : analysis.type === 'comprehensive' && analysis.coverage
+        ? analysis.coverage.current.overall
+        : 0;
+
+    // Extract metrics if available
+    const hasMetrics = analysis.type === 'quality' || (analysis.type === 'comprehensive' && analysis.quality);
+    const metricsData = analysis.type === 'quality'
+      ? analysis.metrics
+      : analysis.type === 'comprehensive' && analysis.quality
+        ? analysis.quality.metrics
+        : null;
 
     return `<!DOCTYPE html>
 <html>
@@ -746,13 +1114,13 @@ export class AnalyzeCommand {
         <p>Type: ${analysis.type}</p>
     </div>
 
-    ${analysis.current ? `
+    ${hasCurrent ? `
     <div class="section">
         <h2>Current Metrics</h2>
-        <div class="metric">Coverage: ${analysis.current.overall.toFixed(1)}%</div>
-        ${analysis.metrics ? `
-        <div class="metric">Pass Rate: ${analysis.metrics.passRate.toFixed(1)}%</div>
-        <div class="metric">Quality Score: ${analysis.metrics.qualityScore.toFixed(1)}</div>
+        <div class="metric">Coverage: ${currentOverall.toFixed(1)}%</div>
+        ${hasMetrics && metricsData ? `
+        <div class="metric">Pass Rate: ${metricsData.passRate.toFixed(1)}%</div>
+        <div class="metric">Quality Score: ${metricsData.qualityScore.toFixed(1)}</div>
         ` : ''}
     </div>
     ` : ''}
@@ -760,10 +1128,10 @@ export class AnalyzeCommand {
     ${recommendations.length > 0 ? `
     <div class="section">
         <h2>Recommendations</h2>
-        ${recommendations.map((rec: any) => `
+        ${recommendations.map((rec: Recommendation) => `
         <div class="recommendation">
-            <h3 class="${rec.priority}">${rec.title}</h3>
-            <p>${rec.description}</p>
+            <h3 class="${rec.priority}">${rec.title || rec.type}</h3>
+            <p>${rec.description || rec.message || ''}</p>
             <ul>
                 ${rec.actions.map((action: string) => `<li>${action}</li>`).join('')}
             </ul>
@@ -780,22 +1148,22 @@ export class AnalyzeCommand {
 </html>`;
   }
 
-  private static generateCsvReport(trends: any): string {
+  private static generateCsvReport(trends: TrendsCollection): string {
     let csv = 'Timestamp,Coverage,PassRate,TestCount,ExecutionTime\n';
 
     const maxLength = Math.max(
-      trends.coverage?.length || 0,
-      trends.passRate?.length || 0,
-      trends.testCount?.length || 0,
-      trends.executionTime?.length || 0
+      trends.coverage.length,
+      trends.passRate.length,
+      trends.testCount.length,
+      trends.executionTime.length
     );
 
     for (let i = 0; i < maxLength; i++) {
-      const timestamp = trends.coverage?.[i]?.timestamp || '';
-      const coverage = trends.coverage?.[i]?.value || '';
-      const passRate = trends.passRate?.[i]?.value || '';
-      const testCount = trends.testCount?.[i]?.value || '';
-      const executionTime = trends.executionTime?.[i]?.value || '';
+      const timestamp = trends.coverage[i]?.timestamp || '';
+      const coverage = trends.coverage[i]?.value ?? '';
+      const passRate = trends.passRate[i]?.value ?? '';
+      const testCount = trends.testCount[i]?.value ?? '';
+      const executionTime = trends.executionTime[i]?.value ?? '';
 
       csv += `${timestamp},${coverage},${passRate},${testCount},${executionTime}\n`;
     }
@@ -803,30 +1171,44 @@ export class AnalyzeCommand {
     return csv;
   }
 
-  private static displayAnalysisSummary(analysis: any, recommendations: any[], options: AnalyzeOptions): void {
+  private static displayAnalysisSummary(analysis: AnalysisResult, recommendations: Recommendation[], options: AnalyzeOptions): void {
     console.log(chalk.yellow('\n📊 Analysis Summary:'));
     console.log(chalk.gray(`  Type: ${analysis.type}`));
     console.log(chalk.gray(`  Timestamp: ${analysis.timestamp}`));
 
     // Display key metrics based on analysis type
-    if (analysis.current) {
+    if (analysis.type === 'coverage') {
       console.log(chalk.gray(`  Coverage: ${analysis.current.overall.toFixed(1)}%`));
-    }
-
-    if (analysis.metrics) {
+      if (analysis.trends.direction) {
+        console.log(chalk.gray(`  Trend: ${analysis.trends.direction}`));
+      }
+    } else if (analysis.type === 'quality') {
       console.log(chalk.gray(`  Pass Rate: ${analysis.metrics.passRate.toFixed(1)}%`));
       console.log(chalk.gray(`  Quality Score: ${analysis.metrics.qualityScore.toFixed(1)}`));
-    }
-
-    if (analysis.trends?.direction) {
-      console.log(chalk.gray(`  Trend: ${analysis.trends.direction}`));
+      if (analysis.trends.direction) {
+        console.log(chalk.gray(`  Trend: ${analysis.trends.direction}`));
+      }
+    } else if (analysis.type === 'comprehensive') {
+      if (analysis.coverage) {
+        console.log(chalk.gray(`  Coverage: ${analysis.coverage.current.overall.toFixed(1)}%`));
+      }
+      if (analysis.quality) {
+        console.log(chalk.gray(`  Pass Rate: ${analysis.quality.metrics.passRate.toFixed(1)}%`));
+        console.log(chalk.gray(`  Quality Score: ${analysis.quality.metrics.qualityScore.toFixed(1)}`));
+      }
     }
 
     // Display critical issues
-    const criticalIssues = analysis.issues?.filter((issue: any) => issue.severity === 'high') || [];
+    let criticalIssues: QualityIssue[] = [];
+    if (analysis.type === 'quality' && analysis.issues) {
+      criticalIssues = analysis.issues.filter((issue: QualityIssue) => issue.severity === 'high');
+    } else if (analysis.type === 'comprehensive' && analysis.quality?.issues) {
+      criticalIssues = analysis.quality.issues.filter((issue: QualityIssue) => issue.severity === 'high');
+    }
+
     if (criticalIssues.length > 0) {
       console.log(chalk.red('\n🚨 Critical Issues:'));
-      criticalIssues.forEach((issue: any) => {
+      criticalIssues.forEach((issue: QualityIssue) => {
         console.log(chalk.red(`  • ${issue.description}`));
       });
     }
@@ -835,8 +1217,8 @@ export class AnalyzeCommand {
     if (recommendations.length > 0) {
       console.log(chalk.yellow('\n💡 Top Recommendations:'));
       recommendations.slice(0, 3).forEach((rec, index) => {
-        console.log(chalk.gray(`  ${index + 1}. ${rec.title}`));
-        console.log(chalk.gray(`     ${rec.description}`));
+        console.log(chalk.gray(`  ${index + 1}. ${rec.title || rec.type}`));
+        console.log(chalk.gray(`     ${rec.description || rec.message || ''}`));
       });
     }
 
@@ -852,12 +1234,26 @@ export class AnalyzeCommand {
     console.log(chalk.gray('  3. Monitor trends over time for continuous improvement'));
   }
 
-  private static async storeAnalysisResults(analysis: any, recommendations: any[]): Promise<void> {
+  private static async storeAnalysisResults(analysis: AnalysisResult, recommendations: Recommendation[]): Promise<void> {
+    // Extract metrics or current values depending on analysis type
+    let metricsOrCurrent: CurrentCoverage | QualityMetrics | null = null;
+    let issuesCount = 0;
+
+    if (analysis.type === 'coverage') {
+      metricsOrCurrent = analysis.current;
+    } else if (analysis.type === 'quality') {
+      metricsOrCurrent = analysis.metrics;
+      issuesCount = analysis.issues.length;
+    } else if (analysis.type === 'comprehensive') {
+      metricsOrCurrent = analysis.quality?.metrics || analysis.coverage?.current || null;
+      issuesCount = analysis.quality?.issues?.length || 0;
+    }
+
     const summary = {
       type: analysis.type,
       timestamp: analysis.timestamp,
-      metrics: analysis.metrics || analysis.current,
-      issues: (analysis.issues || []).length,
+      metrics: metricsOrCurrent,
+      issues: issuesCount,
       recommendations: recommendations.length,
       status: 'completed'
     };
@@ -868,6 +1264,7 @@ npx claude-flow@alpha memory store --key "agentic-qe/analysis/latest" --value '$
 npx claude-flow@alpha hooks notify --message "Analysis completed: ${analysis.type} analysis with ${recommendations.length} recommendations"
 `;
 
+    await fs.ensureDir('.agentic-qe/scripts');
     await fs.writeFile('.agentic-qe/scripts/store-analysis-results.sh', coordinationScript);
     await fs.chmod('.agentic-qe/scripts/store-analysis-results.sh', '755');
   }

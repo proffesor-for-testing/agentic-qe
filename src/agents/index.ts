@@ -38,7 +38,7 @@ export { CodeIntelligenceAgent, CodeIntelligenceAgentConfig, createCodeIntellige
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
 import { MemoryManager } from '../core/MemoryManager';
-import { AgentType, QEAgentType, AgentContext } from '../types';
+import { AgentType, QEAgentType, AgentContext, AgentStatus, MemoryStore } from '../types';
 
 import { TestGeneratorAgent } from './TestGeneratorAgent';
 import { TestExecutorAgent, TestExecutorConfig } from './TestExecutorAgent';
@@ -74,9 +74,36 @@ import type {
 
 export interface QEAgentFactoryConfig {
   eventBus: EventBus;
-  memoryStore: MemoryManager;
+  memoryStore: MemoryStore;
   context: AgentContext;
 }
+
+/**
+ * Configuration options for creating agents via QEAgentFactory.createAgent()
+ *
+ * This is a flexible interface that allows any agent-specific configuration options.
+ * Each agent type may use different subsets of these options. The index signature
+ * allows additional properties beyond the explicitly typed ones.
+ *
+ * Common options include:
+ * - id: Custom agent identifier
+ * - name: Agent display name
+ * - timeout: Execution timeout in milliseconds
+ * - frameworks: Testing frameworks to use (e.g., ['jest', 'mocha'])
+ * - tools: Analysis tools configuration
+ * - thresholds: Quality/performance thresholds
+ * - enablePatterns: Enable pattern learning
+ * - enableLearning: Enable learning capabilities
+ * - retryAttempts: Number of retry attempts for operations
+ *
+ * Agent-specific options are documented in each agent's configuration interface.
+ *
+ * Note: Uses Record<string, any> to support the dynamic property access patterns
+ * used by the factory. Type safety for specific agents is enforced by the
+ * agent-specific configuration interfaces (e.g., TestExecutorConfig, CoverageAnalyzerConfig).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AgentCreationOptions = Record<string, any>;
 
 export class QEAgentFactory {
   private readonly config: QEAgentFactoryConfig;
@@ -95,7 +122,7 @@ export class QEAgentFactory {
   /**
    * Create an agent instance by type
    */
-  async createAgent(type: AgentType, agentConfig?: any): Promise<BaseAgent> {
+  async createAgent(type: AgentType, agentConfig?: AgentCreationOptions): Promise<BaseAgent> {
     const baseConfig: BaseAgentConfig = {
       type,
       capabilities: this.getCapabilitiesForType(type),
@@ -1002,12 +1029,20 @@ export class QEAgentFactory {
   }
 }
 
+/**
+ * Configuration options for the legacy createAgent function
+ */
+export interface LegacyAgentConfig extends AgentCreationOptions {
+  memoryStore: MemoryStore;
+  context?: AgentContext;
+}
+
 // Legacy compatibility function
-export async function createAgent(type: string, id: string, config: any, eventBus: EventBus): Promise<BaseAgent> {
+export async function createAgent(type: string, id: string, config: LegacyAgentConfig, eventBus: EventBus): Promise<BaseAgent> {
   const factory = new QEAgentFactory({
     eventBus,
     memoryStore: config.memoryStore,
-    context: config.context || { id, type, status: 'initializing' as any }
+    context: config.context || { id, type, status: AgentStatus.INITIALIZING }
   });
 
   return await factory.createAgent(type as AgentType, { id, ...config });

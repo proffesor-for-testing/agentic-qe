@@ -5,6 +5,9 @@
  */
 
 const { EventStore } = require('../../dist/persistence/event-store.js');
+const { createSeededRandom } = require('../../src/utils/SeededRandom');
+
+const rng = createSeededRandom(26100);
 
 async function performanceTest() {
   console.log('🚀 Phase 3 Performance Test - 1000+ Events\n');
@@ -47,9 +50,9 @@ async function performanceTest() {
         payload: {
           test_id: `test-${eventIndex}`,
           status: eventIndex % 10 === 0 ? 'failed' : 'passed',
-          duration_ms: Math.floor(Math.random() * 1000),
-          coverage: 70 + Math.floor(Math.random() * 30),
-          assertions: Math.floor(Math.random() * 50)
+          duration_ms: Math.floor(rng.random() * 1000),
+          coverage: 70 + Math.floor(rng.random() * 30),
+          assertions: Math.floor(rng.random() * 50)
         }
       });
       eventsCreated++;

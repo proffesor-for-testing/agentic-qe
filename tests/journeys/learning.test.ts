@@ -24,6 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as os from 'os';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Journey: Learning & Improvement', () => {
   let memory: SwarmMemoryManager;
@@ -272,6 +273,7 @@ describe('Journey: Learning & Improvement', () => {
     test('improves test generation quality (measured by coverage increase)', async () => {
       // GIVEN: Initial baseline with low coverage
       const baselineResults = [];
+      const rng = createSeededRandom(1000001);
 
       // Phase 1: Initial executions (poor coverage)
       for (let i = 0; i < 10; i++) {
@@ -284,9 +286,9 @@ describe('Journey: Learning & Improvement', () => {
 
         const result = {
           success: i % 3 !== 0, // 67% success rate
-          coverage: 0.60 + Math.random() * 0.15, // 60-75% coverage
+          coverage: 0.60 + rng.random() * 0.15, // 60-75% coverage
           strategy: i % 2 === 0 ? 'basic' : 'standard',
-          executionTime: 3000 + Math.random() * 1000,
+          executionTime: 3000 + rng.random() * 1000,
           toolsUsed: ['jest'],
           parallelization: 0.5,
           retryPolicy: 'linear',
@@ -325,9 +327,9 @@ describe('Journey: Learning & Improvement', () => {
 
         const result = {
           success: true, // Better success rate
-          coverage: 0.80 + Math.random() * 0.15, // 80-95% coverage (improved)
+          coverage: 0.80 + rng.random() * 0.15, // 80-95% coverage (improved)
           strategy: recommendation.strategy || 'optimized',
-          executionTime: 2000 + Math.random() * 500, // Faster
+          executionTime: 2000 + rng.random() * 500, // Faster
           toolsUsed: ['jest', 'coverage-analyzer'],
           parallelization: 0.7,
           retryPolicy: 'exponential',

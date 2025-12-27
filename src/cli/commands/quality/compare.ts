@@ -38,6 +38,15 @@ interface MetricDelta {
   status: 'improved' | 'regressed' | 'stable';
 }
 
+/**
+ * Database row for metric queries
+ */
+interface MetricRow {
+  metric_name: string;
+  metric_value: number;
+  avg_value?: number;
+}
+
 export async function compare(options: CompareOptions): Promise<CompareResult> {
   const logger = Logger.getInstance();
 
@@ -120,7 +129,7 @@ async function fetchMetricsForVersion(
 
   try {
     // Fetch metrics tagged with this version
-    const rows = await database.all(`
+    const rows = await database.all<MetricRow>(`
       SELECT metric_name, AVG(metric_value) as avg_value
       FROM metrics
       WHERE tags LIKE ?
@@ -128,12 +137,12 @@ async function fetchMetricsForVersion(
     `, [`%${version}%`]);
 
     for (const row of rows) {
-      metrics[row.metric_name] = row.avg_value;
+      metrics[row.metric_name] = row.avg_value ?? 0;
     }
 
     // If no tagged metrics found, use most recent
     if (Object.keys(metrics).length === 0) {
-      const recentRows = await database.all(`
+      const recentRows = await database.all<MetricRow>(`
         SELECT metric_name, metric_value
         FROM metrics
         WHERE timestamp > datetime('now', '-7 days')

@@ -73,7 +73,7 @@ export interface WorkflowStep {
   estimatedDuration: number;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   assignedAgent?: string;
-  results?: any;
+  results?: Record<string, unknown>;
 }
 
 export interface AgentTaskAssignment {
@@ -110,7 +110,7 @@ export interface StepResult {
   stepName: string;
   status: 'completed' | 'failed' | 'skipped';
   duration: number;
-  output: any;
+  output: unknown;
   errors?: string[];
 }
 
@@ -142,9 +142,9 @@ export class TaskOrchestrateHandler extends BaseHandler {
   private workflowTemplates: Map<string, WorkflowStep[]> = new Map();
   private registry: AgentRegistry;
   private hookExecutor: HookExecutor;
-  private memory: any; // SwarmMemoryManager
+  private memory: unknown; // SwarmMemoryManager
 
-  constructor(registry: AgentRegistry, hookExecutor: HookExecutor, memory?: any) {
+  constructor(registry: AgentRegistry, hookExecutor: HookExecutor, memory?: unknown) {
     super();
     this.registry = registry;
     this.hookExecutor = hookExecutor;
@@ -466,9 +466,10 @@ export class TaskOrchestrateHandler extends BaseHandler {
     this.activeOrchestrations.set(orchestrationId, orchestration);
 
     // Store in shared memory for cross-handler access (TaskStatusHandler needs this)
-    if (this.memory) {
+    if (this.memory && typeof this.memory === 'object' && 'store' in this.memory) {
       try {
-        await this.memory.store(`orchestration:${orchestrationId}`, orchestration, {
+        const memoryManager = this.memory as { store: (key: string, value: unknown, options: Record<string, unknown>) => Promise<void> };
+        await memoryManager.store(`orchestration:${orchestrationId}`, orchestration, {
           partition: 'orchestrations',
           ttl: 86400 // 24 hours
         });

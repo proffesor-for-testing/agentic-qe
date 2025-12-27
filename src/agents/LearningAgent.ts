@@ -10,7 +10,46 @@ import { LearningEngine } from '../learning/LearningEngine';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { ImprovementLoop } from '../learning/ImprovementLoop';
 import { QETask, PostTaskData } from '../types';
+import { LearningOutcome, ImprovementData, PerformanceMetrics, LearningFeedback } from '../learning/types';
 import type { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
+
+/**
+ * Strategy configuration for A/B testing
+ */
+export interface ABTestStrategyConfig {
+  name: string;
+  config: Record<string, unknown>;
+}
+
+/**
+ * Performance report returned by getPerformanceReport()
+ */
+export interface PerformanceReport {
+  summary: string;
+  improvement: ImprovementData;
+  trends: PerformanceMetrics['trends'];
+  recommendations: string[];
+}
+
+/**
+ * Task execution result for LearningAgent
+ */
+export interface TaskExecutionResult {
+  success: boolean;
+  result: string;
+  executionTime: number;
+}
+
+/**
+ * Learning task result with metrics used for performance tracking
+ * These properties are expected from task execution results for learning purposes
+ */
+interface LearningTaskResult {
+  success?: boolean;
+  executionTime?: number;
+  userRating?: number;
+  resourceEfficiency?: number;
+}
 
 /**
  * LearningAgent configuration
@@ -127,8 +166,10 @@ export class LearningAgent extends BaseAgent {
    * Record performance metrics
    */
   private async recordPerformance(data: PostTaskData): Promise<void> {
-    const executionTime = data.result.executionTime || 0;
-    const success = data.result.success !== false;
+    // Cast result to LearningTaskResult for type-safe property access
+    const result = data.result as LearningTaskResult;
+    const executionTime = result.executionTime ?? 0;
+    const success = result.success !== false;
 
     await this.localPerformanceTracker.recordSnapshot({
       metrics: {
@@ -136,8 +177,8 @@ export class LearningAgent extends BaseAgent {
         successRate: success ? 1.0 : 0.0,
         averageExecutionTime: executionTime,
         errorRate: success ? 0.0 : 1.0,
-        userSatisfaction: data.result.userRating || 0.8,
-        resourceEfficiency: data.result.resourceEfficiency || 0.7
+        userSatisfaction: result.userRating ?? 0.8,
+        resourceEfficiency: result.resourceEfficiency ?? 0.7
       },
       trends: []
     });
@@ -146,7 +187,7 @@ export class LearningAgent extends BaseAgent {
   /**
    * Apply learned improvements
    */
-  private async applyLearning(learning: any): Promise<void> {
+  private async applyLearning(learning: LearningOutcome): Promise<void> {
     // Store learned patterns in agent memory
     for (const pattern of learning.patterns) {
       await this.storeMemory(`learned-pattern:${pattern.id}`, pattern);
@@ -163,7 +204,7 @@ export class LearningAgent extends BaseAgent {
   /**
    * Get user feedback (stub - implement based on your system)
    */
-  private async getUserFeedback(_taskId: string): Promise<any> {
+  private async getUserFeedback(_taskId: string): Promise<LearningFeedback | undefined> {
     // In a real system, this would fetch actual user feedback
     // For now, return undefined to use only system-calculated rewards
     return undefined;
@@ -204,7 +245,7 @@ export class LearningAgent extends BaseAgent {
     enabled: boolean;
     totalExperiences: number;
     patterns: number;
-    improvement: any;
+    improvement: ImprovementData;
     activeTests: number;
   }> {
     const improvement = await this.localPerformanceTracker.calculateImprovement();
@@ -221,7 +262,7 @@ export class LearningAgent extends BaseAgent {
   /**
    * Get performance report
    */
-  public async getPerformanceReport(): Promise<any> {
+  public async getPerformanceReport(): Promise<PerformanceReport> {
     return await this.localPerformanceTracker.generateReport();
   }
 
@@ -238,7 +279,7 @@ export class LearningAgent extends BaseAgent {
    */
   public async createABTest(
     name: string,
-    strategies: { name: string; config: any }[],
+    strategies: ABTestStrategyConfig[],
     sampleSize: number = 100
   ): Promise<string> {
     return await this.improvementLoop.createABTest(name, strategies, sampleSize);
@@ -248,7 +289,7 @@ export class LearningAgent extends BaseAgent {
   // Abstract Methods Implementation
   // ============================================================================
 
-  protected async performTask(_task: QETask): Promise<any> {
+  protected async performTask(_task: QETask): Promise<TaskExecutionResult> {
     // Default implementation - override in subclasses
     return {
       success: true,

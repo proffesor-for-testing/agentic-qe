@@ -8,7 +8,7 @@ export interface QualityValidationOptions {
     maintainability?: number;
     duplicatedLines?: number;
     testCoverage?: number;
-    [key: string]: any;
+    [key: string]: number | undefined;
   };
   thresholds: {
     maxComplexity?: number;

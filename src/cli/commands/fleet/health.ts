@@ -1,5 +1,206 @@
 import chalk from 'chalk';
+import type { Chalk } from 'chalk';
 import * as fs from 'fs-extra';
+
+// ============================================================================
+// Health Status Types
+// ============================================================================
+
+/**
+ * Overall health status of a component or the fleet
+ */
+export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+
+/**
+ * Severity level for health issues
+ */
+export type IssueSeverity = 'critical' | 'warning' | 'info';
+
+/**
+ * A single health issue detected during checks
+ */
+export interface HealthIssue {
+  severity: IssueSeverity;
+  message: string;
+}
+
+/**
+ * Result of a configuration file check
+ */
+export interface ConfigFileCheck {
+  file: string;
+  status: 'ok' | 'missing' | 'invalid';
+}
+
+/**
+ * Statistics about agents in the fleet
+ */
+export interface AgentStats {
+  total: number;
+  active: number;
+  idle: number;
+  failed: number;
+}
+
+/**
+ * Statistics about tasks in the fleet
+ */
+export interface TaskStats {
+  total: number;
+  running: number;
+  completed: number;
+  failed: number;
+}
+
+/**
+ * Resource status information
+ */
+export interface ResourceStatus {
+  dataDir?: 'ok' | 'error';
+}
+
+/**
+ * Health check result for a component
+ */
+export interface ComponentHealth {
+  status: HealthStatus;
+  issues: HealthIssue[];
+  checks?: ConfigFileCheck[];
+  agentStats?: AgentStats;
+  taskStats?: TaskStats;
+  resources?: ResourceStatus;
+}
+
+/**
+ * Collection of all component health results
+ */
+export interface ComponentHealthMap {
+  configuration: ComponentHealth;
+  data: ComponentHealth;
+  agents: ComponentHealth;
+  tasks: ComponentHealth;
+  coordination: ComponentHealth;
+  resources: ComponentHealth;
+}
+
+/**
+ * Node.js memory usage structure
+ */
+export interface NodeMemoryUsage {
+  rss: number;
+  heapTotal: number;
+  heapUsed: number;
+  external: number;
+  arrayBuffers: number;
+}
+
+/**
+ * Detailed metrics collected during health check
+ */
+export interface DetailedMetrics {
+  timestamp: string;
+  uptime: number;
+  memoryUsage: NodeMemoryUsage;
+  nodeVersion: string;
+}
+
+/**
+ * Complete health report structure
+ */
+export interface FleetHealthReport {
+  timestamp: string;
+  status: HealthStatus;
+  components: ComponentHealthMap;
+  issues: HealthIssue[];
+  recommendations: string[];
+  metrics: DetailedMetrics | Record<string, never>;
+}
+
+/**
+ * Fleet configuration structure (partial, for validation)
+ */
+export interface FleetConfigValidation {
+  topology?: string;
+  maxAgents?: number;
+}
+
+/**
+ * Agent entry in the registry
+ */
+export interface RegistryAgent {
+  id: string;
+  type: string;
+  status: 'active' | 'idle' | 'failed' | 'stopped';
+}
+
+/**
+ * Task entry in the registry
+ */
+export interface RegistryTask {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+}
+
+/**
+ * Registry data structure
+ */
+export interface RegistryData {
+  agents?: RegistryAgent[];
+  tasks?: RegistryTask[];
+}
+
+// ============================================================================
+// Type Guards
+// ============================================================================
+
+/**
+ * Type guard to check if a value is a valid FleetConfigValidation
+ */
+function isFleetConfig(value: unknown): value is FleetConfigValidation {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    (obj.topology === undefined || typeof obj.topology === 'string') &&
+    (obj.maxAgents === undefined || typeof obj.maxAgents === 'number')
+  );
+}
+
+/**
+ * Type guard to check if a value is valid RegistryData
+ */
+function isRegistryData(value: unknown): value is RegistryData {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  if (obj.agents !== undefined && !Array.isArray(obj.agents)) {
+    return false;
+  }
+  if (obj.tasks !== undefined && !Array.isArray(obj.tasks)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Type guard to check if an agent has a valid status
+ */
+function isValidAgentStatus(status: unknown): status is RegistryAgent['status'] {
+  return status === 'active' || status === 'idle' || status === 'failed' || status === 'stopped';
+}
+
+/**
+ * Type guard to check if a task has a valid status
+ */
+function isValidTaskStatus(status: unknown): status is RegistryTask['status'] {
+  return status === 'pending' || status === 'running' || status === 'completed' || status === 'failed';
+}
+
+// ============================================================================
+// Command Options
+// ============================================================================
 
 export interface FleetHealthOptions {
   detailed?: boolean;
@@ -8,7 +209,7 @@ export interface FleetHealthOptions {
 }
 
 export class FleetHealthCommand {
-  static async execute(options: FleetHealthOptions): Promise<any> {
+  static async execute(options: FleetHealthOptions): Promise<FleetHealthReport> {
     // Check if fleet is initialized
     if (!await fs.pathExists('.agentic-qe/config/fleet.json')) {
       throw new Error('Fleet not initialized. Run: aqe fleet init');
@@ -39,71 +240,68 @@ export class FleetHealthCommand {
     return healthReport;
   }
 
-  private static async performHealthCheck(detailed?: boolean): Promise<any> {
-    const report: any = {
-      timestamp: new Date().toISOString(),
-      status: 'healthy',
-      components: {},
-      issues: [],
-      recommendations: [],
-      metrics: {}
+  private static async performHealthCheck(detailed?: boolean): Promise<FleetHealthReport> {
+    // Check all components
+    const configuration = await this.checkConfigurationHealth();
+    const data = await this.checkDataIntegrity();
+    const agents = await this.checkAgentHealth();
+    const tasks = await this.checkTaskHealth();
+    const coordination = await this.checkCoordinationHealth();
+    const resources = await this.checkSystemResources();
+
+    const components: ComponentHealthMap = {
+      configuration,
+      data,
+      agents,
+      tasks,
+      coordination,
+      resources
     };
 
-    // Check configuration health
-    report.components.configuration = await this.checkConfigurationHealth();
-
-    // Check data integrity
-    report.components.data = await this.checkDataIntegrity();
-
-    // Check agent health
-    report.components.agents = await this.checkAgentHealth();
-
-    // Check task execution health
-    report.components.tasks = await this.checkTaskHealth();
-
-    // Check coordination health
-    report.components.coordination = await this.checkCoordinationHealth();
-
-    // Check system resources
-    report.components.resources = await this.checkSystemResources();
-
     // Calculate overall status
-    const componentStatuses = Object.values(report.components).map((c: any) => c.status);
+    const componentStatuses = Object.values(components).map((c: ComponentHealth) => c.status);
     const healthyCount = componentStatuses.filter(s => s === 'healthy').length;
     const totalCount = componentStatuses.length;
 
+    let status: HealthStatus;
     if (healthyCount === totalCount) {
-      report.status = 'healthy';
+      status = 'healthy';
     } else if (healthyCount >= totalCount * 0.7) {
-      report.status = 'degraded';
+      status = 'degraded';
     } else {
-      report.status = 'unhealthy';
+      status = 'unhealthy';
     }
 
     // Collect issues from all components
-    Object.values(report.components).forEach((component: any) => {
+    const issues: HealthIssue[] = [];
+    Object.values(components).forEach((component: ComponentHealth) => {
       if (component.issues) {
-        report.issues.push(...component.issues);
+        issues.push(...component.issues);
       }
     });
 
     // Generate recommendations
-    report.recommendations = this.generateRecommendations(report.components);
+    const recommendations = this.generateRecommendations(components);
 
     // Collect detailed metrics if requested
-    if (detailed) {
-      report.metrics = await this.collectDetailedMetrics();
-    }
+    const metrics = detailed ? await this.collectDetailedMetrics() : {};
+
+    const report: FleetHealthReport = {
+      timestamp: new Date().toISOString(),
+      status,
+      components,
+      issues,
+      recommendations,
+      metrics
+    };
 
     return report;
   }
 
-  private static async checkConfigurationHealth(): Promise<any> {
-    const health: any = {
-      status: 'healthy',
-      issues: [],
-      checks: []
-    };
+  private static async checkConfigurationHealth(): Promise<ComponentHealth> {
+    let status: HealthStatus = 'healthy';
+    const issues: HealthIssue[] = [];
+    const checks: ConfigFileCheck[] = [];
 
     // Check required configuration files
     const requiredFiles = [
@@ -113,205 +311,225 @@ export class FleetHealthCommand {
 
     for (const file of requiredFiles) {
       if (await fs.pathExists(file)) {
-        health.checks.push({ file, status: 'ok' });
+        checks.push({ file, status: 'ok' });
       } else {
-        health.issues.push({ severity: 'critical', message: `Missing configuration: ${file}` });
-        health.status = 'unhealthy';
+        checks.push({ file, status: 'missing' });
+        issues.push({ severity: 'critical', message: `Missing configuration: ${file}` });
+        status = 'unhealthy';
       }
     }
 
     // Validate configuration content
     if (await fs.pathExists('.agentic-qe/config/fleet.json')) {
-      const config = await fs.readJson('.agentic-qe/config/fleet.json');
+      const rawConfig: unknown = await fs.readJson('.agentic-qe/config/fleet.json');
 
-      if (!config.topology) {
-        health.issues.push({ severity: 'warning', message: 'No topology specified' });
-        health.status = 'degraded';
-      }
+      if (isFleetConfig(rawConfig)) {
+        if (!rawConfig.topology) {
+          issues.push({ severity: 'warning', message: 'No topology specified' });
+          if (status === 'healthy') {
+            status = 'degraded';
+          }
+        }
 
-      if (!config.maxAgents || config.maxAgents < 1) {
-        health.issues.push({ severity: 'critical', message: 'Invalid maxAgents configuration' });
-        health.status = 'unhealthy';
+        if (!rawConfig.maxAgents || rawConfig.maxAgents < 1) {
+          issues.push({ severity: 'critical', message: 'Invalid maxAgents configuration' });
+          status = 'unhealthy';
+        }
+      } else {
+        issues.push({ severity: 'critical', message: 'Invalid fleet configuration format' });
+        status = 'unhealthy';
       }
     }
 
-    return health;
+    return { status, issues, checks };
   }
 
-  private static async checkDataIntegrity(): Promise<any> {
-    const health: any = {
-      status: 'healthy',
-      issues: []
-    };
+  private static async checkDataIntegrity(): Promise<ComponentHealth> {
+    let status: HealthStatus = 'healthy';
+    const issues: HealthIssue[] = [];
 
     // Check data directory
     if (!await fs.pathExists('.agentic-qe/data')) {
-      health.issues.push({ severity: 'warning', message: 'Data directory missing' });
-      health.status = 'degraded';
-      return health;
+      issues.push({ severity: 'warning', message: 'Data directory missing' });
+      return { status: 'degraded', issues };
     }
 
     // Check registry file
     if (await fs.pathExists('.agentic-qe/data/registry.json')) {
       try {
-        const registry = await fs.readJson('.agentic-qe/data/registry.json');
+        const rawRegistry: unknown = await fs.readJson('.agentic-qe/data/registry.json');
 
         // Validate registry structure
-        if (!registry.agents || !Array.isArray(registry.agents)) {
-          health.issues.push({ severity: 'critical', message: 'Invalid registry structure' });
-          health.status = 'unhealthy';
+        if (!isRegistryData(rawRegistry) || !rawRegistry.agents) {
+          issues.push({ severity: 'critical', message: 'Invalid registry structure' });
+          status = 'unhealthy';
         }
-      } catch (error) {
-        health.issues.push({ severity: 'critical', message: 'Corrupted registry file' });
-        health.status = 'unhealthy';
+      } catch {
+        issues.push({ severity: 'critical', message: 'Corrupted registry file' });
+        status = 'unhealthy';
       }
     }
 
-    return health;
+    return { status, issues };
   }
 
-  private static async checkAgentHealth(): Promise<any> {
-    const health: any = {
-      status: 'healthy',
-      issues: [],
-      agentStats: {}
-    };
+  private static async checkAgentHealth(): Promise<ComponentHealth> {
+    let status: HealthStatus = 'healthy';
+    const issues: HealthIssue[] = [];
 
     const registryPath = '.agentic-qe/data/registry.json';
     if (!await fs.pathExists(registryPath)) {
-      health.issues.push({ severity: 'warning', message: 'No agent registry found' });
-      health.status = 'degraded';
-      return health;
+      issues.push({ severity: 'warning', message: 'No agent registry found' });
+      return { status: 'degraded', issues };
     }
 
-    const registry = await fs.readJson(registryPath);
-    const agents = registry.agents || [];
+    const rawRegistry: unknown = await fs.readJson(registryPath);
+    if (!isRegistryData(rawRegistry)) {
+      issues.push({ severity: 'critical', message: 'Invalid registry format' });
+      return { status: 'unhealthy', issues };
+    }
 
-    health.agentStats = {
+    const agents = rawRegistry.agents || [];
+
+    // Count agents by status using type-safe filtering
+    const agentStats: AgentStats = {
       total: agents.length,
-      active: agents.filter((a: any) => a.status === 'active').length,
-      idle: agents.filter((a: any) => a.status === 'idle').length,
-      failed: agents.filter((a: any) => a.status === 'failed').length
+      active: agents.filter((a): a is RegistryAgent =>
+        typeof a === 'object' && a !== null && 'status' in a && isValidAgentStatus((a as { status: unknown }).status) && (a as RegistryAgent).status === 'active'
+      ).length,
+      idle: agents.filter((a): a is RegistryAgent =>
+        typeof a === 'object' && a !== null && 'status' in a && isValidAgentStatus((a as { status: unknown }).status) && (a as RegistryAgent).status === 'idle'
+      ).length,
+      failed: agents.filter((a): a is RegistryAgent =>
+        typeof a === 'object' && a !== null && 'status' in a && isValidAgentStatus((a as { status: unknown }).status) && (a as RegistryAgent).status === 'failed'
+      ).length
     };
 
     // Check for failed agents
-    if (health.agentStats.failed > 0) {
-      health.issues.push({
+    if (agentStats.failed > 0) {
+      issues.push({
         severity: 'warning',
-        message: `${health.agentStats.failed} failed agents detected`
+        message: `${agentStats.failed} failed agents detected`
       });
-      health.status = 'degraded';
+      status = 'degraded';
     }
 
     // Check for low active agent count
-    if (health.agentStats.active < health.agentStats.total * 0.5) {
-      health.issues.push({
+    if (agentStats.total > 0 && agentStats.active < agentStats.total * 0.5) {
+      issues.push({
         severity: 'warning',
         message: 'Less than 50% of agents are active'
       });
-      health.status = 'degraded';
+      status = 'degraded';
     }
 
-    return health;
+    return { status, issues, agentStats };
   }
 
-  private static async checkTaskHealth(): Promise<any> {
-    const health: any = {
-      status: 'healthy',
-      issues: [],
-      taskStats: {}
-    };
+  private static async checkTaskHealth(): Promise<ComponentHealth> {
+    let status: HealthStatus = 'healthy';
+    const issues: HealthIssue[] = [];
 
     const registryPath = '.agentic-qe/data/registry.json';
     if (!await fs.pathExists(registryPath)) {
-      return health;
+      return { status, issues };
     }
 
-    const registry = await fs.readJson(registryPath);
-    const tasks = registry.tasks || [];
+    const rawRegistry: unknown = await fs.readJson(registryPath);
+    if (!isRegistryData(rawRegistry)) {
+      return { status, issues };
+    }
 
-    health.taskStats = {
+    const tasks = rawRegistry.tasks || [];
+
+    // Count tasks by status using type-safe filtering
+    const taskStats: TaskStats = {
       total: tasks.length,
-      running: tasks.filter((t: any) => t.status === 'running').length,
-      completed: tasks.filter((t: any) => t.status === 'completed').length,
-      failed: tasks.filter((t: any) => t.status === 'failed').length
+      running: tasks.filter((t): t is RegistryTask =>
+        typeof t === 'object' && t !== null && 'status' in t && isValidTaskStatus((t as { status: unknown }).status) && (t as RegistryTask).status === 'running'
+      ).length,
+      completed: tasks.filter((t): t is RegistryTask =>
+        typeof t === 'object' && t !== null && 'status' in t && isValidTaskStatus((t as { status: unknown }).status) && (t as RegistryTask).status === 'completed'
+      ).length,
+      failed: tasks.filter((t): t is RegistryTask =>
+        typeof t === 'object' && t !== null && 'status' in t && isValidTaskStatus((t as { status: unknown }).status) && (t as RegistryTask).status === 'failed'
+      ).length
     };
 
     // Calculate failure rate
-    if (health.taskStats.total > 0) {
-      const failureRate = health.taskStats.failed / health.taskStats.total;
+    if (taskStats.total > 0) {
+      const failureRate = taskStats.failed / taskStats.total;
 
       if (failureRate > 0.3) {
-        health.issues.push({
+        issues.push({
           severity: 'critical',
           message: `High task failure rate: ${(failureRate * 100).toFixed(1)}%`
         });
-        health.status = 'unhealthy';
+        status = 'unhealthy';
       } else if (failureRate > 0.1) {
-        health.issues.push({
+        issues.push({
           severity: 'warning',
           message: `Elevated task failure rate: ${(failureRate * 100).toFixed(1)}%`
         });
-        health.status = 'degraded';
+        status = 'degraded';
       }
     }
 
-    return health;
+    return { status, issues, taskStats };
   }
 
-  private static async checkCoordinationHealth(): Promise<any> {
-    const health: any = {
-      status: 'healthy',
-      issues: []
-    };
+  private static async checkCoordinationHealth(): Promise<ComponentHealth> {
+    let status: HealthStatus = 'healthy';
+    const issues: HealthIssue[] = [];
 
     // Check coordination scripts
     const scriptsDir = '.agentic-qe/scripts';
     if (await fs.pathExists(scriptsDir)) {
       const scripts = await fs.readdir(scriptsDir);
       if (scripts.length === 0) {
-        health.issues.push({ severity: 'info', message: 'No coordination scripts found' });
+        issues.push({ severity: 'info', message: 'No coordination scripts found' });
       }
     }
 
     // Check if Claude Flow memory is accessible
     try {
-      const { execSync } = require('child_process');
+      const { execSync } = await import('child_process');
       execSync('npx claude-flow@alpha hooks notify --message "Health check"', {
         stdio: 'ignore',
         timeout: 5000
       });
-    } catch (error) {
-      health.issues.push({ severity: 'warning', message: 'Claude Flow coordination unavailable' });
-      health.status = 'degraded';
+    } catch {
+      issues.push({ severity: 'warning', message: 'Claude Flow coordination unavailable' });
+      status = 'degraded';
     }
 
-    return health;
+    return { status, issues };
   }
 
-  private static async checkSystemResources(): Promise<any> {
-    const health: any = {
-      status: 'healthy',
-      issues: [],
-      resources: {}
-    };
+  private static async checkSystemResources(): Promise<ComponentHealth> {
+    let status: HealthStatus = 'healthy';
+    const issues: HealthIssue[] = [];
+    const resources: ResourceStatus = {};
 
     // Check disk space
     try {
-      const stats = await fs.stat('.agentic-qe');
-      health.resources.dataDir = 'ok';
-    } catch (error) {
-      health.issues.push({ severity: 'critical', message: 'Cannot access data directory' });
-      health.status = 'unhealthy';
+      await fs.stat('.agentic-qe');
+      resources.dataDir = 'ok';
+    } catch {
+      issues.push({ severity: 'critical', message: 'Cannot access data directory' });
+      status = 'unhealthy';
+      resources.dataDir = 'error';
     }
 
-    return health;
+    return { status, issues, resources };
   }
 
-  private static generateRecommendations(components: any): string[] {
+  private static generateRecommendations(components: ComponentHealthMap): string[] {
     const recommendations: string[] = [];
 
-    Object.entries(components).forEach(([name, component]: [string, any]) => {
+    const componentNames = Object.keys(components) as (keyof ComponentHealthMap)[];
+    for (const name of componentNames) {
+      const component = components[name];
       if (component.status !== 'healthy') {
         switch (name) {
           case 'configuration':
@@ -329,9 +547,12 @@ export class FleetHealthCommand {
           case 'coordination':
             recommendations.push('Verify Claude Flow installation and configuration');
             break;
+          case 'resources':
+            recommendations.push('Check system resources and disk space');
+            break;
         }
       }
-    });
+    }
 
     if (recommendations.length === 0) {
       recommendations.push('Fleet is healthy - continue regular monitoring');
@@ -340,16 +561,23 @@ export class FleetHealthCommand {
     return recommendations;
   }
 
-  private static async collectDetailedMetrics(): Promise<any> {
+  private static async collectDetailedMetrics(): Promise<DetailedMetrics> {
+    const memUsage = process.memoryUsage();
     return {
       timestamp: new Date().toISOString(),
       uptime: process.uptime() * 1000,
-      memoryUsage: process.memoryUsage(),
+      memoryUsage: {
+        rss: memUsage.rss,
+        heapTotal: memUsage.heapTotal,
+        heapUsed: memUsage.heapUsed,
+        external: memUsage.external,
+        arrayBuffers: memUsage.arrayBuffers
+      },
       nodeVersion: process.version
     };
   }
 
-  private static displayHealthReport(report: any, detailed?: boolean): void {
+  private static displayHealthReport(report: FleetHealthReport, detailed?: boolean): void {
     // Overall status
     const statusColor = this.getHealthColor(report.status);
     console.log(chalk.blue('📊 Overall Health:'));
@@ -357,18 +585,20 @@ export class FleetHealthCommand {
 
     // Component health
     console.log(chalk.blue('\n🔧 Component Health:'));
-    Object.entries(report.components).forEach(([name, component]: [string, any]) => {
+    const componentNames = Object.keys(report.components) as (keyof ComponentHealthMap)[];
+    for (const name of componentNames) {
+      const component = report.components[name];
       const color = this.getHealthColor(component.status);
       console.log(`  ${name}: ${color(component.status)}`);
-    });
+    }
 
     // Issues
     if (report.issues.length > 0) {
       console.log(chalk.red('\n🚨 Issues Detected:'));
-      report.issues.forEach((issue: any) => {
+      for (const issue of report.issues) {
         const severityColor = this.getSeverityColor(issue.severity);
         console.log(severityColor(`  [${issue.severity.toUpperCase()}] ${issue.message}`));
-      });
+      }
     } else {
       console.log(chalk.green('\n✅ No issues detected'));
     }
@@ -376,40 +606,44 @@ export class FleetHealthCommand {
     // Recommendations
     if (report.recommendations.length > 0) {
       console.log(chalk.yellow('\n💡 Recommendations:'));
-      report.recommendations.forEach((rec: string) => {
-        console.log(chalk.gray(`  • ${rec}`));
-      });
+      for (const rec of report.recommendations) {
+        console.log(chalk.gray(`  - ${rec}`));
+      }
     }
 
     // Detailed metrics
-    if (detailed && report.metrics) {
+    if (detailed && 'uptime' in report.metrics) {
+      const metrics = report.metrics as DetailedMetrics;
       console.log(chalk.blue('\n📈 Detailed Metrics:'));
-      console.log(chalk.gray(`  Uptime: ${(report.metrics.uptime / 1000).toFixed(0)}s`));
-      console.log(chalk.gray(`  Memory RSS: ${(report.metrics.memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`));
-      console.log(chalk.gray(`  Node Version: ${report.metrics.nodeVersion}`));
+      console.log(chalk.gray(`  Uptime: ${(metrics.uptime / 1000).toFixed(0)}s`));
+      console.log(chalk.gray(`  Memory RSS: ${(metrics.memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`));
+      console.log(chalk.gray(`  Node Version: ${metrics.nodeVersion}`));
     }
   }
 
-  private static getHealthColor(status: string): any {
-    const colors: Record<string, any> = {
+  /**
+   * Chalk color function type for text styling
+   */
+  private static getHealthColor(status: HealthStatus | string): Chalk {
+    const colors: Record<HealthStatus, Chalk> = {
       'healthy': chalk.green,
       'degraded': chalk.yellow,
       'unhealthy': chalk.red,
       'unknown': chalk.gray
     };
-    return colors[status] || chalk.white;
+    return colors[status as HealthStatus] || chalk.white;
   }
 
-  private static getSeverityColor(severity: string): any {
-    const colors: Record<string, any> = {
+  private static getSeverityColor(severity: IssueSeverity | string): Chalk {
+    const colors: Record<IssueSeverity, Chalk> = {
       'critical': chalk.red,
       'warning': chalk.yellow,
       'info': chalk.blue
     };
-    return colors[severity] || chalk.gray;
+    return colors[severity as IssueSeverity] || chalk.gray;
   }
 
-  private static async exportHealthReport(report: any): Promise<void> {
+  private static async exportHealthReport(report: FleetHealthReport): Promise<void> {
     const reportsDir = '.agentic-qe/reports';
     await fs.ensureDir(reportsDir);
 
@@ -420,7 +654,7 @@ export class FleetHealthCommand {
     console.log(chalk.gray(`  Report saved: ${reportFile}`));
   }
 
-  private static async autoFixIssues(issues: any[]): Promise<void> {
+  private static async autoFixIssues(issues: HealthIssue[]): Promise<void> {
     console.log(chalk.blue('\n🔧 Auto-fixing detected issues...\n'));
 
     for (const issue of issues) {
@@ -432,13 +666,13 @@ export class FleetHealthCommand {
     }
   }
 
-  private static async storeHealthCheck(report: any): Promise<void> {
+  private static async storeHealthCheck(report: FleetHealthReport): Promise<void> {
     try {
-      const { execSync } = require('child_process');
+      const { execSync } = await import('child_process');
       const data = JSON.stringify({ status: report.status, timestamp: report.timestamp });
       const command = `npx claude-flow@alpha memory store --key "aqe/swarm/fleet-cli-commands/health" --value '${data}'`;
       execSync(command, { stdio: 'ignore', timeout: 5000 });
-    } catch (error) {
+    } catch {
       // Silently handle coordination errors
     }
   }

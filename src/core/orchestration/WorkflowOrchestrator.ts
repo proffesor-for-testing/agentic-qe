@@ -92,10 +92,30 @@ export class WorkflowOrchestrator {
 
     this.workflows.set(workflow.id, workflow);
 
-    // Persist to memory
+    // Persist to memory - serialize workflow to Record<string, unknown>
+    const serializableWorkflow: Record<string, unknown> = {
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description,
+      strategy: workflow.strategy,
+      checkpointEnabled: workflow.checkpointEnabled,
+      timeout: workflow.timeout,
+      steps: workflow.steps.map(step => ({
+        id: step.id,
+        name: step.name,
+        agentType: step.agentType,
+        action: step.action,
+        inputs: step.inputs,
+        dependencies: step.dependencies,
+        timeout: step.timeout,
+        retries: step.retries,
+        priority: step.priority,
+      })),
+      metadata: workflow.metadata,
+    };
     this.memoryStore.store(
       `workflows:registry:${workflow.id}`,
-      workflow,
+      serializableWorkflow,
       { partition: 'workflows', ttl: 2592000 } // 30 days
     ).catch(err => this.logger.error('Failed to persist workflow:', err));
 
@@ -123,7 +143,7 @@ export class WorkflowOrchestrator {
    */
   async executeWorkflow(
     workflowId: string,
-    inputs: Record<string, any> = {}
+    inputs: Record<string, unknown> = {}
   ): Promise<WorkflowExecution> {
     this.logger.info(`Executing workflow: ${workflowId}`);
 
@@ -658,9 +678,9 @@ export class WorkflowOrchestrator {
    */
   private async executeStepWithTimeout(
     step: WorkflowStep,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     context: ExecutionContext
-  ): Promise<any> {
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         reject(new Error(`Step ${step.id} timed out after ${step.timeout}ms`));
@@ -684,9 +704,9 @@ export class WorkflowOrchestrator {
    */
   private async executeStepAction(
     step: WorkflowStep,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     context: ExecutionContext
-  ): Promise<any> {
+  ): Promise<unknown> {
     // In real implementation, this would:
     // 1. Allocate agent using optimizer
     // 2. Invoke agent with step action and inputs
@@ -710,8 +730,8 @@ export class WorkflowOrchestrator {
   private resolveStepInputs(
     step: WorkflowStep,
     context: ExecutionContext
-  ): Record<string, any> {
-    const resolved: Record<string, any> = { ...step.inputs };
+  ): Record<string, unknown> {
+    const resolved: Record<string, unknown> = { ...step.inputs };
 
     // Replace references to previous step outputs
     for (const [key, value] of Object.entries(resolved)) {
@@ -721,9 +741,11 @@ export class WorkflowOrchestrator {
 
         const stepResult = context.stepResults.get(stepId);
         if (stepResult && stepResult.output) {
-          resolved[key] = outputKey
-            ? stepResult.output[outputKey]
-            : stepResult.output;
+          if (outputKey && typeof stepResult.output === 'object' && stepResult.output !== null) {
+            resolved[key] = (stepResult.output as Record<string, unknown>)[outputKey];
+          } else {
+            resolved[key] = stepResult.output;
+          }
         }
       }
     }
@@ -868,7 +890,7 @@ export class WorkflowOrchestrator {
     execution.completedSteps = [...checkpoint.completedSteps];
     execution.results = new Map(checkpoint.stepResults);
     execution.checkpoint = checkpoint;
-    execution.status = checkpoint.state.status as any;
+    execution.status = checkpoint.state.status as WorkflowExecution['status'];
 
     return execution;
   }
@@ -994,10 +1016,13 @@ export class WorkflowOrchestrator {
   /**
    * Serialize checkpoint for storage
    */
-  private serializeCheckpoint(checkpoint: WorkflowCheckpoint): any {
+  private serializeCheckpoint(checkpoint: WorkflowCheckpoint): Record<string, unknown> {
     return {
-      ...checkpoint,
-      stepResults: Array.from(checkpoint.stepResults.entries())
+      executionId: checkpoint.executionId,
+      timestamp: checkpoint.timestamp.toISOString(),
+      completedSteps: checkpoint.completedSteps,
+      stepResults: Array.from(checkpoint.stepResults.entries()),
+      state: checkpoint.state
     };
   }
 
@@ -1022,6 +1047,26 @@ export class WorkflowOrchestrator {
   }
 
   /**
+   * Type guard to check if value is a valid Workflow object
+   */
+  private isWorkflow(value: unknown): value is Workflow {
+    if (typeof value !== 'object' || value === null) {
+      return false;
+    }
+    const obj = value as Record<string, unknown>;
+    return (
+      typeof obj.id === 'string' &&
+      typeof obj.name === 'string' &&
+      typeof obj.description === 'string' &&
+      typeof obj.strategy === 'string' &&
+      typeof obj.checkpointEnabled === 'boolean' &&
+      typeof obj.timeout === 'number' &&
+      Array.isArray(obj.steps) &&
+      obj.steps.length > 0
+    );
+  }
+
+  /**
    * Load workflows from memory
    */
   private async loadWorkflowsFromMemory(): Promise<void> {
@@ -1031,8 +1076,9 @@ export class WorkflowOrchestrator {
       });
 
       for (const entry of entries) {
-        const workflow = entry.value as Workflow;
-        this.workflows.set(workflow.id, workflow);
+        if (this.isWorkflow(entry.value)) {
+          this.workflows.set(entry.value.id, entry.value);
+        }
       }
 
       this.logger.info(`Loaded ${this.workflows.size} workflows from memory`);
@@ -1051,15 +1097,17 @@ export class WorkflowOrchestrator {
   /**
    * Event handlers
    */
-  private async handleStepCompleted(data: any): Promise<void> {
-    this.logger.debug(`Step completed: ${data.stepId}`);
+  private async handleStepCompleted(data: unknown): Promise<void> {
+    const stepData = data as Record<string, unknown>;
+    this.logger.debug(`Step completed: ${stepData.stepId}`);
   }
 
-  private async handleStepFailed(data: any): Promise<void> {
-    this.logger.error(`Step failed: ${data.stepId} - ${data.error}`);
+  private async handleStepFailed(data: unknown): Promise<void> {
+    const stepData = data as Record<string, unknown>;
+    this.logger.error(`Step failed: ${stepData.stepId} - ${stepData.error}`);
   }
 
-  private async handleAgentAvailable(data: any): Promise<void> {
+  private async handleAgentAvailable(_data: unknown): Promise<void> {
     // Process queued tasks when agent becomes available
     if (!this.taskQueue.isEmpty()) {
       const task = this.dequeueTask();

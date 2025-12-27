@@ -31,7 +31,6 @@ import {
   Database,
   RefreshCw,
   Download,
-  Settings as SettingsIcon,
   XCircle,
   Info,
   ChevronRight,
