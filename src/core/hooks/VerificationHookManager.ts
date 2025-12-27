@@ -8,13 +8,13 @@ export interface PreToolUseBundle {
   summary: string;
   rules: string[];
   artifactIds: string[];
-  hints: any;
-  patterns: any[];
-  workflow: any;
+  hints: Record<string, unknown>;
+  patterns: unknown[];
+  workflow: unknown;
 }
 
 export interface PostToolUsePersistence {
-  events: Array<{ type: string; payload: any }>;
+  events: Array<{ type: string; payload: unknown }>;
   patterns: Array<{ pattern: string; confidence: number }>;
   checkpoints: Array<{ step: string; status: string }>;
   artifacts: Array<{ kind: string; path: string; sha256: string }>;
@@ -103,13 +103,17 @@ export class VerificationHookManager extends EventEmitter {
     const hintsMap = hints.reduce((acc, h) => {
       acc[h.key] = h.value;
       return acc;
-    }, {} as any);
+    }, {} as Record<string, unknown>);
 
     // 3. Get relevant patterns with confidence threshold >= 0.8 - using SQL LIKE pattern
     const allPatterns = await this.memory.query('patterns:%', {
       partition: 'patterns'
     });
-    const patterns = allPatterns.filter(p => p.value.confidence >= 0.8);
+    const patterns = allPatterns.filter(p => {
+      if (p.value === null || typeof p.value !== 'object') return false;
+      const value = p.value as Record<string, unknown>;
+      return typeof value.confidence === 'number' && value.confidence >= 0.8;
+    });
 
     // 4. Get current workflow state
     const workflow = await this.memory.retrieve('workflow:current', {
@@ -120,7 +124,12 @@ export class VerificationHookManager extends EventEmitter {
     return {
       summary: `Task: ${options.task}`,
       rules: this.RULES,
-      artifactIds: limitedArtifacts.map(a => a.value.id),
+      artifactIds: limitedArtifacts
+        .filter(a => a.value !== null && typeof a.value === 'object')
+        .map(a => {
+          const value = a.value as Record<string, unknown>;
+          return typeof value.id === 'string' ? value.id : String(value.id);
+        }),
       hints: hintsMap,
       patterns: patterns,
       workflow: workflow
@@ -179,7 +188,8 @@ export class VerificationHookManager extends EventEmitter {
    */
   async executePreTaskVerification(options: {
     task: string;
-    context?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    context?: Record<string, any>;
   }): Promise<VerificationResult> {
     const checks: string[] = [];
     let totalScore = 0;
@@ -255,7 +265,8 @@ export class VerificationHookManager extends EventEmitter {
    */
   async executePostTaskValidation(options: {
     task: string;
-    result: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    result: Record<string, any>;
   }): Promise<ValidationResult> {
     const validations: string[] = [];
     let totalScore = 0;
@@ -339,7 +350,7 @@ export class VerificationHookManager extends EventEmitter {
    */
   async executePreEditVerification(options: {
     file: string;
-    changes: any;
+    changes: unknown;
   }): Promise<EditVerificationResult> {
     const checks = [
       'file-lock-check',
@@ -363,7 +374,7 @@ export class VerificationHookManager extends EventEmitter {
    */
   async executePostEditUpdate(options: {
     file: string;
-    changes: any;
+    changes: unknown;
   }): Promise<EditUpdateResult> {
     const updates = [
       'artifact-tracking',

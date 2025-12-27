@@ -117,10 +117,27 @@ export class PerformanceTracker {
       targetAchieved
     };
 
-    // Store improvement data
+    // Store improvement data - serialize to Record<string, unknown> for type safety
+    const serializableImprovement: Record<string, unknown> = {
+      ...improvement,
+      baseline: {
+        ...improvement.baseline,
+        period: {
+          start: improvement.baseline.period.start.toISOString(),
+          end: improvement.baseline.period.end.toISOString()
+        }
+      },
+      current: {
+        ...improvement.current,
+        period: {
+          start: improvement.current.period.start.toISOString(),
+          end: improvement.current.period.end.toISOString()
+        }
+      }
+    };
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/improvement`,
-      improvement,
+      serializableImprovement,
       { partition: 'learning' }
     );
 
@@ -425,18 +442,63 @@ export class PerformanceTracker {
    */
   private async storeSnapshot(snapshot: PerformanceSnapshot): Promise<void> {
     const key = `phase2/learning/${this.agentId}/snapshots/${snapshot.timestamp.getTime()}`;
-    await this.memoryStore.store(key, snapshot, { partition: 'learning' });
+    // Serialize snapshot to Record<string, unknown> for type safety
+    const serializableSnapshot: Record<string, unknown> = {
+      timestamp: snapshot.timestamp.toISOString(),
+      metrics: {
+        ...snapshot.metrics,
+        period: {
+          start: snapshot.metrics.period.start.toISOString(),
+          end: snapshot.metrics.period.end.toISOString()
+        }
+      }
+    };
+    await this.memoryStore.store(key, serializableSnapshot, { partition: 'learning' });
   }
 
   /**
    * Store baseline metrics
    */
   private async storeBaseline(baseline: PerformanceMetrics): Promise<void> {
+    // Serialize baseline to Record<string, unknown> for type safety
+    const serializableBaseline: Record<string, unknown> = {
+      ...baseline,
+      period: {
+        start: baseline.period.start.toISOString(),
+        end: baseline.period.end.toISOString()
+      }
+    };
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/baseline`,
-      baseline,
+      serializableBaseline,
       { partition: 'learning' }
     );
+  }
+
+  /**
+   * Deserialize PerformanceMetrics from stored data
+   * JSON serialization converts Date objects to ISO strings, so we need to convert them back
+   */
+  private deserializeMetrics(data: unknown): PerformanceMetrics {
+    const metrics = data as PerformanceMetrics;
+    return {
+      ...metrics,
+      period: {
+        start: new Date(metrics.period.start),
+        end: new Date(metrics.period.end)
+      }
+    };
+  }
+
+  /**
+   * Deserialize PerformanceSnapshot from stored data
+   */
+  private deserializeSnapshot(data: unknown): PerformanceSnapshot {
+    const snapshot = data as PerformanceSnapshot;
+    return {
+      timestamp: new Date(snapshot.timestamp),
+      metrics: this.deserializeMetrics(snapshot.metrics)
+    };
   }
 
   /**
@@ -450,7 +512,7 @@ export class PerformanceTracker {
         { partition: 'learning' }
       );
       if (baseline) {
-        this.baselineMetrics = baseline as PerformanceMetrics;
+        this.baselineMetrics = this.deserializeMetrics(baseline);
       }
 
       // Load snapshots (query pattern)
@@ -460,7 +522,7 @@ export class PerformanceTracker {
       );
 
       this.snapshots = snapshotEntries
-        .map(entry => entry.value as PerformanceSnapshot)
+        .map(entry => this.deserializeSnapshot(entry.value))
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       this.logger.info(`Loaded ${this.snapshots.length} performance snapshots`);

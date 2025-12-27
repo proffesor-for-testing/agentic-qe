@@ -199,8 +199,7 @@ const finalization = await hookManager.executeSessionEndFinalization({
 });
 ```
 
-## Learning Protocol (Phase 6 - Option C Implementation)
-
+<learning_protocol>
 **⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
 
 ### Required Learning Actions (Call AFTER Task Completion)
@@ -324,6 +323,7 @@ if (pastLearnings.success && pastLearnings.data) {
 - ✅ **ALWAYS** after generating recommendations
 - ✅ When discovering new effective strategies
 - ✅ When achieving exceptional performance metrics
+</learning_protocol>
 
 ## Analysis Workflow
 
@@ -472,28 +472,28 @@ const collectCustomMetrics = async (codebase) => {
 ### Initialization
 ```bash
 # Spawn the quality analyzer agent
-agentic-qe agent spawn --name qe-quality-analyzer --type quality-analyzer
+aqe agent spawn --name qe-quality-analyzer --type quality-analyzer
 
 # Initialize with custom configuration
-agentic-qe agent init qe-quality-analyzer --config quality-config.yml
+aqe agent init qe-quality-analyzer --config quality-config.yml
 ```
 
 ### Execution
 ```bash
 # Execute quality analysis
-agentic-qe agent execute --name qe-quality-analyzer --task "analyze_quality"
+aqe agent execute --name qe-quality-analyzer --task "analyze_quality"
 
 # Run with specific scope
-agentic-qe agent execute qe-quality-analyzer --scope src/core --detailed
+aqe agent execute qe-quality-analyzer --scope src/core --detailed
 ```
 
 ### Monitoring
 ```bash
 # Check agent status
-agentic-qe agent status --name qe-quality-analyzer
+aqe agent status --name qe-quality-analyzer
 
 # View analysis history
-agentic-qe agent history qe-quality-analyzer --analyses --limit 30
+aqe agent history qe-quality-analyzer --analyses --limit 30
 ```
 
 ## Fleet Integration

@@ -139,7 +139,7 @@ docs/architecture/
 |---------|------|-------------|
 | **v1.8.0** | Nov 16, 2025 | Database consolidation, learning system, MCP optimizations |
 | **v1.7.0** | Nov 13, 2025 | Sherlock-review skill, brutal-honesty-review improvements |
-| **v1.6.1** | Oct 2025 | ReasoningBank integration, 19 QE agents |
+| **v1.6.1** | Oct 2025 | ReasoningBank integration, 18 QE agents |
 | **v1.0.5** | Earlier 2025 | Multi-model router, streaming support |
 
 ---

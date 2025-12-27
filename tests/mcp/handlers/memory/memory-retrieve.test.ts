@@ -11,17 +11,21 @@ import { MemoryRetrieveHandler } from '@mcp/handlers/memory/memory-retrieve';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('MemoryRetrieveHandler', () => {
   let handler: MemoryRetrieveHandler;
-  let registry: AgentRegistry;
-  let hookExecutor: HookExecutor;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
   let memoryStore: Map<string, any>;
 
   beforeEach(() => {
-    registry = new AgentRegistry();
-    hookExecutor = new HookExecutor();
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
     memoryStore = new Map();
-    handler = new MemoryRetrieveHandler(registry, hookExecutor, memoryStore);
+    handler = new MemoryRetrieveHandler(mockRegistry, mockHookExecutor, memoryStore);
   });
 
   describe('Happy Path', () => {
@@ -272,7 +276,7 @@ describe('MemoryRetrieveHandler', () => {
         get: jest.fn(() => { throw new Error('Read error'); })
       } as any;
 
-      const errorHandler = new MemoryRetrieveHandler(registry, hookExecutor, errorStore);
+      const errorHandler = new MemoryRetrieveHandler(mockRegistry, mockHookExecutor, errorStore);
 
       const response = await errorHandler.handle({
         key: 'test'

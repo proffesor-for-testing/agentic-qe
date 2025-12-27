@@ -11,6 +11,7 @@ import {
   OptimizationResult,
   createCoverageOptimizer
 } from '@utils/sublinear/coverageOptimizer';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('SublinearCoverageOptimizer', () => {
   let optimizer: SublinearCoverageOptimizer;
@@ -290,6 +291,7 @@ describe('SublinearCoverageOptimizer', () => {
     });
 
     it('should handle large problem instances efficiently', async () => {
+      const rng = createSeededRandom(20002);
       const largeSize = 1000;
       const tests = Array(largeSize).fill(0).map((_, i) => ({
         id: `test${i}`,
@@ -299,8 +301,8 @@ describe('SublinearCoverageOptimizer', () => {
       const coveragePoints: CoveragePoint[] = Array(50).fill(0).map((_, i) => ({
         id: `p${i}`,
         type: 'statement' as const,
-        weight: 1.0 + Math.random(),
-        difficulty: Math.random()
+        weight: 1.0 + rng.random(),
+        difficulty: rng.random()
       }));
 
       const matrix = SublinearCoverageOptimizer.createCoverageMatrix(tests, coveragePoints);

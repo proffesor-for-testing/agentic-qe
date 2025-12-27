@@ -9,9 +9,144 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
 import { ProcessExit } from '../../../utils/ProcessExit';
+import { MetricsCollector, TrendAnalyzer, AlertManager, TrendPeriod } from '../../../learning/metrics';
+import { MetricsDashboard } from '../../../learning/dashboard';
+
+// ============================================================================
+// Type Definitions for Learning CLI
+// ============================================================================
+
+/**
+ * Database row structure for learning experiences from learning_experiences table
+ */
+interface LearningExperienceRow {
+  id: number;
+  agent_id: string;
+  task_id?: string | null;
+  task_type: string;
+  state: string;
+  action: string;
+  reward: number;
+  next_state: string;
+  episode_id?: string | null;
+  created_at: string;
+}
+
+/**
+ * Database row structure for Q-values from q_values table
+ */
+interface QValueRow {
+  agent_id: string;
+  state_key: string;
+  action_key: string;
+  q_value: number;
+  update_count: number;
+  last_updated: string;
+}
+
+/**
+ * Database row structure for patterns from patterns table
+ */
+interface PatternRow {
+  id: string;
+  pattern: string;
+  confidence: number;
+  usage_count: number;
+  metadata: string | null;
+  ttl: number;
+  created_at: number;
+  agent_id: string | null;
+}
+
+/**
+ * Learning configuration stored in memory
+ * Includes index signature for SerializableValue compatibility
+ */
+interface LearningConfigEntry {
+  enabled: boolean;
+  learningRate?: number;
+  discountFactor?: number;
+  explorationRate?: number;
+  explorationDecay?: number;
+  minExplorationRate?: number;
+  maxMemorySize?: number;
+  batchSize?: number;
+  updateFrequency?: number;
+  [key: string]: boolean | number | undefined;
+}
+
+/**
+ * Learning state stored in memory for persistence
+ */
+interface LearningStateEntry {
+  experiences: LearningExperienceState[];
+  size?: number;
+}
+
+/**
+ * Experience entry in the learning state
+ */
+interface LearningExperienceState {
+  timestamp: string | Date;
+  taskType?: string;
+  reward: number;
+  action?: {
+    strategy?: string;
+  };
+}
+
+/**
+ * Memory entry wrapper returned from SwarmMemoryManager.query()
+ */
+interface MemoryQueryEntry<T> {
+  key: string;
+  value: T;
+  partition?: string;
+  createdAt?: number;
+  expiresAt?: number;
+}
+
+/**
+ * Task definition for manual training
+ */
+interface TrainingTask {
+  type?: string;
+  id?: string;
+  requirements?: {
+    capabilities?: string[];
+  };
+  context?: Record<string, unknown>;
+  timeout?: number;
+  previousAttempts?: number;
+}
+
+/**
+ * Type guard to check if a value is a LearningConfigEntry
+ */
+function isLearningConfigEntry(value: unknown): value is LearningConfigEntry {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'enabled' in value &&
+    typeof (value as LearningConfigEntry).enabled === 'boolean'
+  );
+}
+
+/**
+ * Type guard to check if a value is a LearningStateEntry
+ */
+function isLearningStateEntry(value: unknown): value is LearningStateEntry {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'experiences' in value &&
+    Array.isArray((value as LearningStateEntry).experiences)
+  );
+}
 
 export interface LearnCommandOptions {
   agent?: string;
@@ -21,13 +156,26 @@ export interface LearnCommandOptions {
   output?: string;
   task?: string;
   all?: boolean;
+  period?: string;
+  format?: 'table' | 'json';
+  metric?: string;
+  ack?: string;
 }
 
 /**
  * LearningCommand - CLI handler for learning operations
+ *
+ * Uses shared memory manager singleton to ensure all CLI, MCP, and agent
+ * operations use the same database (.agentic-qe/memory.db).
  */
 export class LearningCommand {
-  private static memoryPath = '.agentic-qe/data/swarm-memory.db';
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Execute learning command
@@ -55,6 +203,15 @@ export class LearningCommand {
       case 'export':
         await this.exportLearningData(options);
         break;
+      case 'metrics':
+        await this.showMetrics(options);
+        break;
+      case 'trends':
+        await this.showTrends(options);
+        break;
+      case 'alerts':
+        await this.showAlerts(options);
+        break;
       default:
         console.error(chalk.red(`❌ Unknown learn command: ${subcommand}`));
         this.showHelp();
@@ -69,79 +226,118 @@ export class LearningCommand {
     const spinner = ora('Loading learning status...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
+      const agentId = options.agent;
 
-      const agentId = options.agent || 'default';
+      // Query actual database tables for learning data
+      // ARCHITECTURE (v2.2.0): Data is stored in dedicated tables, not memory_entries
+      const experiencesQuery = agentId
+        ? 'SELECT * FROM learning_experiences WHERE agent_id = ? ORDER BY created_at DESC'
+        : 'SELECT * FROM learning_experiences ORDER BY created_at DESC';
+      const experiences = memoryManager.queryRaw<LearningExperienceRow>(experiencesQuery, agentId ? [agentId] : []);
 
-      // Load learning state
-      const learningState = await memoryManager.retrieve(
-        `phase2/learning/${agentId}/state`,
-        { partition: 'learning' }
-      );
+      const qValuesQuery = agentId
+        ? 'SELECT * FROM q_values WHERE agent_id = ?'
+        : 'SELECT * FROM q_values';
+      const qValues = memoryManager.queryRaw<QValueRow>(qValuesQuery, agentId ? [agentId] : []);
 
-      if (!learningState) {
-        spinner.fail('No learning data available');
-        console.log(chalk.yellow('\n💡 Run "aqe init" to initialize the fleet and enable learning'));
-        return;
+      const patternsQuery = agentId
+        ? 'SELECT * FROM patterns WHERE agent_id = ? ORDER BY confidence DESC'
+        : 'SELECT * FROM patterns ORDER BY confidence DESC';
+      const patterns = memoryManager.queryRaw<PatternRow>(patternsQuery, agentId ? [agentId] : []);
+
+      // Check if any learning data exists
+      if (experiences.length === 0 && qValues.length === 0 && patterns.length === 0) {
+        // Fall back to legacy state check
+        const learningState = await memoryManager.retrieve(
+          `phase2/learning/${agentId || 'default'}/state`,
+          { partition: 'learning' }
+        );
+
+        if (!learningState) {
+          spinner.fail('No learning data available');
+          console.log(chalk.yellow('\n💡 Run "aqe init" to initialize the fleet and enable learning'));
+          return;
+        }
       }
 
       spinner.succeed('Learning status loaded');
 
       console.log(chalk.blue('\n🧠 Learning Engine Status\n'));
 
-      // Agent info
-      console.log(chalk.cyan(`Agent: ${learningState.agentId}`));
-      console.log(`├─ Learning Rate: ${chalk.cyan(learningState.config.learningRate)}`);
-      console.log(`├─ Experiences: ${chalk.cyan(learningState.experiences.length.toLocaleString())}`);
-      console.log(`├─ Exploration Rate: ${chalk.cyan((learningState.config.explorationRate * 100).toFixed(1) + '%')}`);
+      // Calculate aggregated stats from actual data
+      const totalExperiences = experiences.length;
+      const avgReward = totalExperiences > 0
+        ? experiences.reduce((sum: number, e: LearningExperienceRow) => sum + (e.reward || 0), 0) / totalExperiences
+        : 0;
+      const successCount = experiences.filter((e: LearningExperienceRow) => e.reward > 0.5).length;
+      const successRate = totalExperiences > 0 ? successCount / totalExperiences : 0;
 
-      if (learningState.performance) {
-        const perf = learningState.performance;
-        console.log(`├─ Avg Reward: ${this.formatReward(perf.avgReward)}`);
-        console.log(`├─ Success Rate: ${chalk.green((perf.successRate * 100).toFixed(1) + '%')}`);
-        console.log(`└─ Total Tasks: ${chalk.cyan(perf.totalExperiences.toLocaleString())}`);
+      // Get unique agents
+      const uniqueAgents = [...new Set(experiences.map((e: LearningExperienceRow) => e.agent_id))];
+
+      console.log(chalk.cyan(`Agents with learning data: ${uniqueAgents.length}`));
+      if (agentId) {
+        console.log(chalk.gray(`  (filtered to: ${agentId})`));
       }
+      console.log(`├─ Total Experiences: ${chalk.cyan(totalExperiences.toLocaleString())}`);
+      console.log(`├─ Q-Value Entries: ${chalk.cyan(qValues.length.toLocaleString())}`);
+      console.log(`├─ Patterns Stored: ${chalk.cyan(patterns.length.toLocaleString())}`);
+      console.log(`├─ Avg Reward: ${this.formatReward(avgReward)}`);
+      console.log(`└─ Success Rate: ${chalk.green((successRate * 100).toFixed(1) + '%')}`);
 
-      // Load improvement data
-      const improvement = await memoryManager.retrieve(
-        `phase2/learning/${agentId}/improvement`,
-        { partition: 'learning' }
-      );
+      // Show top agents by experience count
+      if (uniqueAgents.length > 0 && !agentId) {
+        console.log(chalk.blue('\n👥 Top Agents by Experience:\n'));
+        const agentCounts = uniqueAgents.map(agent => ({
+          agent,
+          count: experiences.filter((e: LearningExperienceRow) => e.agent_id === agent).length
+        })).sort((a, b) => b.count - a.count).slice(0, 5);
 
-      if (improvement) {
-        console.log(chalk.blue('\n📊 Performance Trends:\n'));
-        console.log(`├─ Current Rate: ${this.formatImprovement(improvement.improvementRate)}`);
-        console.log(`├─ Days Elapsed: ${chalk.cyan(improvement.daysElapsed.toFixed(1))}`);
-        console.log(`└─ Target (20%): ${improvement.targetAchieved ? chalk.green('✅ REACHED') : chalk.yellow('⏳ In Progress')}`);
-      }
-
-      // Top patterns
-      if (learningState.patterns && learningState.patterns.length > 0) {
-        console.log(chalk.blue('\n🎯 Top Learned Patterns:\n'));
-        const topPatterns = learningState.patterns
-          .sort((a: any, b: any) => b.confidence - a.confidence)
-          .slice(0, 5);
-
-        topPatterns.forEach((pattern: any, index: number) => {
-          const prefix = index === topPatterns.length - 1 ? '└─' : '├─';
-          console.log(`${prefix} ${pattern.pattern} (confidence: ${chalk.cyan((pattern.confidence * 100).toFixed(1) + '%')})`);
+        agentCounts.forEach((item, index) => {
+          const prefix = index === agentCounts.length - 1 ? '└─' : '├─';
+          console.log(`${prefix} ${item.agent}: ${chalk.cyan(item.count)} experiences`);
         });
       }
 
-      if (options.detailed) {
-        console.log(chalk.blue('\n📈 Detailed Metrics:\n'));
-        console.log(`Model Version: ${chalk.cyan(learningState.version)}`);
-        console.log(`Last Updated: ${chalk.gray(new Date(learningState.lastUpdated).toLocaleString())}`);
-        console.log(`State Size: ${chalk.cyan(this.formatBytes(learningState.size))}`);
-        console.log(`Q-Table Entries: ${chalk.cyan(Object.keys(learningState.qTable).length.toLocaleString())}`);
+      // Top patterns by confidence
+      if (patterns.length > 0) {
+        console.log(chalk.blue('\n🎯 Top Patterns by Confidence:\n'));
+        const topPatterns = patterns.slice(0, 5);
+
+        topPatterns.forEach((pattern: PatternRow, index: number) => {
+          const prefix = index === topPatterns.length - 1 ? '└─' : '├─';
+          const patternName = pattern.id || pattern.pattern?.substring(0, 30) || 'unnamed';
+          console.log(`${prefix} ${patternName} (confidence: ${chalk.cyan((pattern.confidence * 100).toFixed(1) + '%')})`);
+        });
+      }
+
+      // Recent activity
+      if (experiences.length > 0) {
+        const latestExp = experiences[0];
+        const latestDate = latestExp.created_at
+          ? new Date(latestExp.created_at).toLocaleString()
+          : 'unknown';
+        console.log(chalk.blue('\n📅 Recent Activity:\n'));
+        console.log(`└─ Last experience: ${chalk.gray(latestDate)}`);
+      }
+
+      if (options.detailed && experiences.length > 0) {
+        console.log(chalk.blue('\n📈 Detailed Task Types:\n'));
+        const taskTypes = [...new Set(experiences.map((e: LearningExperienceRow) => e.task_type))];
+        taskTypes.slice(0, 5).forEach((taskType, index) => {
+          const count = experiences.filter((e: LearningExperienceRow) => e.task_type === taskType).length;
+          const prefix = index === taskTypes.slice(0, 5).length - 1 ? '└─' : '├─';
+          console.log(`${prefix} ${taskType}: ${chalk.cyan(count)} experiences`);
+        });
       }
 
       console.log();
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load learning status');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -153,19 +349,19 @@ export class LearningCommand {
     const spinner = ora('Enabling learning...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       if (options.all) {
         // Enable for all agents
         const allStates = await memoryManager.query('phase2/learning/%/config', {
           partition: 'learning'
-        });
+        }) as MemoryQueryEntry<unknown>[];
 
         for (const entry of allStates) {
-          const config = entry.value as any;
-          config.enabled = true;
-          await memoryManager.store(entry.key, config, { partition: 'learning' });
+          if (isLearningConfigEntry(entry.value)) {
+            entry.value.enabled = true;
+            await memoryManager.store(entry.key, entry.value, { partition: 'learning' });
+          }
         }
 
         spinner.succeed(`Learning enabled for ${allStates.length} agents`);
@@ -182,12 +378,14 @@ export class LearningCommand {
           return;
         }
 
-        (config as any).enabled = true;
-        await memoryManager.store(
-          `phase2/learning/${agentId}/config`,
-          config,
-          { partition: 'learning' }
-        );
+        if (isLearningConfigEntry(config)) {
+          config.enabled = true;
+          await memoryManager.store(
+            `phase2/learning/${agentId}/config`,
+            config,
+            { partition: 'learning' }
+          );
+        }
 
         spinner.succeed(`Learning enabled for agent: ${agentId}`);
       }
@@ -195,9 +393,10 @@ export class LearningCommand {
       console.log(chalk.green('\n✅ Agents will now learn from task executions'));
       console.log(chalk.gray('Use "aqe learn status" to monitor progress\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to enable learning');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -209,8 +408,7 @@ export class LearningCommand {
     const spinner = ora('Disabling learning...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
       const config = await memoryManager.retrieve(
@@ -223,20 +421,23 @@ export class LearningCommand {
         return;
       }
 
-      (config as any).enabled = false;
-      await memoryManager.store(
-        `phase2/learning/${agentId}/config`,
-        config,
-        { partition: 'learning' }
-      );
+      if (isLearningConfigEntry(config)) {
+        config.enabled = false;
+        await memoryManager.store(
+          `phase2/learning/${agentId}/config`,
+          config,
+          { partition: 'learning' }
+        );
+      }
 
       spinner.succeed(`Learning disabled for agent: ${agentId}`);
       console.log(chalk.yellow('\n⚠️  Agent will no longer learn from new experiences'));
       console.log(chalk.gray('Existing learned patterns are preserved\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to disable learning');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -248,8 +449,7 @@ export class LearningCommand {
     const spinner = ora('Loading learning history...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
       const limit = options.limit || 20;
@@ -264,7 +464,12 @@ export class LearningCommand {
         return;
       }
 
-      const experiences = (learningState as any).experiences || [];
+      if (!isLearningStateEntry(learningState)) {
+        spinner.fail('Invalid learning state format');
+        return;
+      }
+
+      const experiences = learningState.experiences || [];
       const recentExperiences = experiences.slice(-limit);
 
       spinner.succeed('Learning history loaded');
@@ -272,7 +477,7 @@ export class LearningCommand {
       console.log(chalk.blue(`\n📜 Learning History (${agentId})\n`));
       console.log(`Showing ${recentExperiences.length} of ${experiences.length} total experiences\n`);
 
-      recentExperiences.forEach((exp: any, index: number) => {
+      recentExperiences.forEach((exp: LearningExperienceState, index: number) => {
         const reward = exp.reward || 0;
         const rewardColor = reward > 0 ? chalk.green : reward < 0 ? chalk.red : chalk.yellow;
         const timestamp = new Date(exp.timestamp).toLocaleString();
@@ -284,9 +489,10 @@ export class LearningCommand {
         console.log();
       });
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Failed to load history');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -304,14 +510,13 @@ export class LearningCommand {
     const spinner = ora('Training agent...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const learningEngine = new LearningEngine(options.agent || 'default', memoryManager);
       await learningEngine.initialize();
 
-      // Parse task JSON
-      const task = JSON.parse(options.task || '{}');
+      // Parse task JSON with type assertion
+      const task: TrainingTask = JSON.parse(options.task || '{}');
 
       // Mock result for training
       const result = {
@@ -330,9 +535,10 @@ export class LearningCommand {
       console.log(`Total Patterns: ${chalk.cyan(outcome.patterns.length)}`);
       console.log();
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Training failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -350,8 +556,7 @@ export class LearningCommand {
     const spinner = ora('Resetting learning state...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -365,9 +570,10 @@ export class LearningCommand {
       console.log(chalk.yellow('\n⚠️  All learning data has been deleted'));
       console.log(chalk.gray('Agent will start learning from scratch\n'));
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Reset failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -384,8 +590,7 @@ export class LearningCommand {
     const spinner = ora('Exporting learning data...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -403,12 +608,188 @@ export class LearningCommand {
 
       spinner.succeed(`Learning data exported to: ${options.output}`);
       console.log(chalk.green('\n✅ Export completed'));
-      console.log(`File size: ${chalk.cyan(this.formatBytes((learningState as any).size))}\n`);
+      const stateSize = isLearningStateEntry(learningState) ? (learningState.size ?? 0) : 0;
+      console.log(`File size: ${chalk.cyan(this.formatBytes(stateSize))}\n`);
 
-    } catch (error: any) {
+    } catch (error) {
       spinner.fail('Export failed');
-      console.error(chalk.red('❌ Error:'), error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Show comprehensive learning metrics (Phase 3)
+   */
+  private static async showMetrics(options: LearnCommandOptions): Promise<void> {
+    const spinner = ora('Loading learning metrics...').start();
+
+    try {
+      const memoryManager = await this.getMemoryManager();
+      const metricsCollector = new MetricsCollector(memoryManager);
+
+      // Parse period option (e.g., "7d", "30d", "1m")
+      const periodDays = this.parsePeriod(options.period || '7d');
+
+      // Collect metrics
+      const metrics = await metricsCollector.collectMetrics(periodDays);
+
+      spinner.succeed('Learning metrics loaded');
+
+      // Display metrics
+      MetricsDashboard.displayMetrics(metrics, {
+        detailed: options.detailed,
+        format: options.format
+      });
+
+    } catch (error) {
+      spinner.fail('Failed to load metrics');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Show trend analysis (Phase 3)
+   */
+  private static async showTrends(options: LearnCommandOptions): Promise<void> {
+    const spinner = ora('Analyzing trends...').start();
+
+    try {
+      const memoryManager = await this.getMemoryManager();
+      const metricsCollector = new MetricsCollector(memoryManager);
+      const trendAnalyzer = new TrendAnalyzer(metricsCollector);
+
+      // Parse period
+      const period = this.parseTrendPeriod(options.period || 'weekly');
+
+      // Analyze trends
+      let trends;
+      if (options.metric) {
+        // Single metric
+        const trend = await trendAnalyzer.analyzeTrend(options.metric, this.periodToDays(period));
+        trends = [trend];
+      } else {
+        // All metrics
+        trends = await trendAnalyzer.analyzeAllTrends(period);
+      }
+
+      spinner.succeed('Trend analysis complete');
+
+      // Display trends
+      MetricsDashboard.displayTrends(trends, {
+        detailed: options.detailed,
+        format: options.format
+      });
+
+    } catch (error) {
+      spinner.fail('Failed to analyze trends');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Show and manage alerts (Phase 3)
+   */
+  private static async showAlerts(options: LearnCommandOptions): Promise<void> {
+    const spinner = ora('Loading alerts...').start();
+
+    try {
+      const memoryManager = await this.getMemoryManager();
+      const alertManager = new AlertManager(memoryManager);
+      await alertManager.initialize();
+
+      // Handle acknowledgment if provided
+      if (options.ack) {
+        spinner.text = `Acknowledging alert ${options.ack}...`;
+        await alertManager.acknowledgeAlert(options.ack);
+        spinner.succeed(`Alert ${options.ack} acknowledged`);
+        return;
+      }
+
+      // Get alerts
+      const alerts = options.all
+        ? alertManager.getAllAlerts()
+        : alertManager.getActiveAlerts();
+
+      spinner.succeed(`Found ${alerts.length} alerts`);
+
+      // Display alerts
+      MetricsDashboard.displayAlerts(alerts, {
+        format: options.format
+      });
+
+      // Show help for acknowledgment
+      if (alerts.length > 0 && !options.all) {
+        console.log(chalk.gray('Use --ack <id> to acknowledge an alert'));
+        console.log(chalk.gray('Use --all to show all alerts (including acknowledged)\n'));
+      }
+
+    } catch (error) {
+      spinner.fail('Failed to load alerts');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error:'), errorMessage);
+      ProcessExit.exitIfNotTest(1);
+    }
+  }
+
+  /**
+   * Parse period string to days
+   */
+  private static parsePeriod(period: string): number {
+    const match = period.match(/^(\d+)([dhwm])$/);
+    if (!match) {
+      return 7; // Default to 7 days
+    }
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+
+    switch (unit) {
+      case 'd': return value;
+      case 'h': return Math.max(1, Math.floor(value / 24));
+      case 'w': return value * 7;
+      case 'm': return value * 30;
+      default: return 7;
+    }
+  }
+
+  /**
+   * Parse trend period string
+   */
+  private static parseTrendPeriod(period: string): TrendPeriod {
+    switch (period.toLowerCase()) {
+      case 'daily':
+      case 'd':
+        return TrendPeriod.DAILY;
+      case 'weekly':
+      case 'w':
+        return TrendPeriod.WEEKLY;
+      case 'monthly':
+      case 'm':
+        return TrendPeriod.MONTHLY;
+      default:
+        return TrendPeriod.WEEKLY;
+    }
+  }
+
+  /**
+   * Convert trend period to days
+   */
+  private static periodToDays(period: TrendPeriod): number {
+    switch (period) {
+      case TrendPeriod.DAILY:
+        return 1;
+      case TrendPeriod.WEEKLY:
+        return 7;
+      case TrendPeriod.MONTHLY:
+        return 30;
+      default:
+        return 7;
     }
   }
 
@@ -424,18 +805,32 @@ export class LearningCommand {
     console.log(chalk.cyan('  aqe learn train') + chalk.gray('          - Trigger manual training'));
     console.log(chalk.cyan('  aqe learn reset') + chalk.gray('          - Reset learning state'));
     console.log(chalk.cyan('  aqe learn export') + chalk.gray('         - Export learning data'));
+    console.log(chalk.blue('\nPhase 3 - Metrics & Analytics:\n'));
+    console.log(chalk.cyan('  aqe learn metrics') + chalk.gray('        - Show learning metrics'));
+    console.log(chalk.cyan('  aqe learn trends') + chalk.gray('         - Show trend analysis'));
+    console.log(chalk.cyan('  aqe learn alerts') + chalk.gray('         - Show active alerts'));
     console.log(chalk.blue('\nOptions:\n'));
     console.log(chalk.gray('  --agent <id>       - Target specific agent'));
     console.log(chalk.gray('  --detailed         - Show detailed information'));
     console.log(chalk.gray('  --limit <number>   - Limit results'));
     console.log(chalk.gray('  --confirm          - Confirm destructive operation'));
     console.log(chalk.gray('  --output <file>    - Output file path'));
-    console.log(chalk.gray('  --all              - Apply to all agents'));
+    console.log(chalk.gray('  --all              - Apply to all agents / Show all alerts'));
+    console.log(chalk.gray('  --period <period>  - Time period (7d, 30d, 1m, weekly, monthly)'));
+    console.log(chalk.gray('  --format <format>  - Output format (table, json)'));
+    console.log(chalk.gray('  --metric <name>    - Specific metric to analyze'));
+    console.log(chalk.gray('  --ack <id>         - Acknowledge alert by ID'));
     console.log(chalk.blue('\nExamples:\n'));
     console.log(chalk.gray('  aqe learn status --agent test-gen --detailed'));
     console.log(chalk.gray('  aqe learn enable --all'));
     console.log(chalk.gray('  aqe learn history --limit 50'));
     console.log(chalk.gray('  aqe learn export --output learning.json'));
+    console.log(chalk.blue('\nPhase 3 Examples:\n'));
+    console.log(chalk.gray('  aqe learn metrics --period 30d --detailed'));
+    console.log(chalk.gray('  aqe learn metrics --format json'));
+    console.log(chalk.gray('  aqe learn trends --metric discoveryRate --period weekly'));
+    console.log(chalk.gray('  aqe learn alerts --all'));
+    console.log(chalk.gray('  aqe learn alerts --ack alert-12345'));
     console.log();
   }
 
@@ -491,72 +886,14 @@ export async function learnExport(options: LearnCommandOptions): Promise<void> {
   await LearningCommand.execute('export', options);
 }
 
-/**
- * Show learning improvement metrics from AgentDB
- */
-export async function learnMetrics(options: any): Promise<void> {
-  const spinner = ora('Loading learning metrics from AgentDB...').start();
+export async function learnMetrics(options: LearnCommandOptions): Promise<void> {
+  await LearningCommand.execute('metrics', options);
+}
 
-  try {
-    const { createAgentDBManager } = await import('../../../core/memory/AgentDBManager');
+export async function learnTrends(options: LearnCommandOptions): Promise<void> {
+  await LearningCommand.execute('trends', options);
+}
 
-    const agentDB = createAgentDBManager({
-      dbPath: '.agentic-qe/agentdb.db'
-    });
-
-    await agentDB.initialize();
-
-    // Query metrics from patterns table
-    // Note: The patterns table uses 'type' column, not 'agent_id'
-    const metrics = await agentDB.query(`
-      SELECT
-        type as agent,
-        AVG(confidence) as avg_confidence,
-        COUNT(*) as total_patterns,
-        SUM(CASE WHEN confidence > 0.7 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as high_confidence_rate
-      FROM patterns
-      ${options.agent ? `WHERE type LIKE ?` : ''}
-      GROUP BY type
-      ORDER BY avg_confidence DESC
-    `, options.agent ? [`%${options.agent}%`] : []);
-
-    await agentDB.close();
-
-    spinner.succeed('Learning metrics loaded');
-
-    if (!metrics || metrics.length === 0) {
-      console.log(chalk.yellow('\n⚠️  No learning metrics found'));
-      console.log(chalk.gray('Run some agent tasks to generate learning data\n'));
-      return;
-    }
-
-    const days = options.days || '7';
-    console.log(chalk.blue(`\n📊 Learning Metrics (Last ${days} Days)\n`));
-
-    // Format as table
-    console.log(chalk.cyan('Agent'.padEnd(30)) +
-                chalk.cyan('Avg Confidence'.padEnd(18)) +
-                chalk.cyan('Total Patterns'.padEnd(18)) +
-                chalk.cyan('High Confidence %'));
-    console.log('─'.repeat(84));
-
-    metrics.forEach((row: any) => {
-      const confidenceColor = row.avg_confidence > 0.7 ? chalk.green :
-                             row.avg_confidence > 0.5 ? chalk.yellow : chalk.red;
-
-      console.log(
-        row.agent.padEnd(30) +
-        confidenceColor((row.avg_confidence * 100).toFixed(1) + '%').padEnd(18) +
-        chalk.cyan(row.total_patterns.toString()).padEnd(18) +
-        chalk.cyan((row.high_confidence_rate || 0).toFixed(1) + '%')
-      );
-    });
-
-    console.log();
-
-  } catch (error: any) {
-    spinner.fail('Failed to load metrics');
-    console.error(chalk.red('❌ Error:'), error.message);
-    ProcessExit.exitIfNotTest(1);
-  }
+export async function learnAlerts(options: LearnCommandOptions): Promise<void> {
+  await LearningCommand.execute('alerts', options);
 }

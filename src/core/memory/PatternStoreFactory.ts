@@ -28,6 +28,14 @@ import {
   getRuVectorInfo,
 } from './RuVectorPatternStore';
 
+import {
+  BinaryCacheManager,
+} from '../cache/BinaryCacheManager';
+
+import type {
+  BinaryCacheConfig,
+} from '../cache/BinaryMetadataCache';
+
 /**
  * Factory configuration
  */
@@ -47,6 +55,16 @@ export interface PatternStoreFactoryConfig extends PatternStoreConfig {
     enableQUICSync?: boolean;
     syncPeers?: string[];
   };
+
+  /** Binary cache configuration for fast pattern loading (<5ms target) */
+  binaryCache?: {
+    /** Enable binary caching (default: true if cachePath provided) */
+    enabled?: boolean;
+    /** Path to binary cache file */
+    cachePath?: string;
+    /** Cache TTL in milliseconds (default: 24 hours) */
+    maxAge?: number;
+  };
 }
 
 /**
@@ -55,11 +73,16 @@ export interface PatternStoreFactoryConfig extends PatternStoreConfig {
 export interface PatternStoreFactoryResult {
   store: IPatternStore;
   backend: 'ruvector' | 'agentdb' | 'fallback';
+  /** Binary cache manager if enabled */
+  cacheManager?: BinaryCacheManager;
   info: {
     platform: string;
     arch: string;
     nativeAvailable: boolean;
     features: string[];
+    /** Binary cache status */
+    binaryCacheEnabled: boolean;
+    binaryCachePath?: string;
   };
 }
 
@@ -110,12 +133,65 @@ export class PatternStoreFactory {
     }
 
     // Handle forced backend
+    let result: PatternStoreFactoryResult;
     if (config.forceBackend) {
-      return this.createForcedBackend(config, features, verbose);
+      result = await this.createForcedBackend(config, features, verbose);
+    } else {
+      // Auto-select based on availability and preference
+      result = await this.autoSelectBackend(config, features, preferredBackend, verbose);
     }
 
-    // Auto-select based on availability and preference
-    return this.autoSelectBackend(config, features, preferredBackend, verbose);
+    // Wrap with binary cache if enabled
+    if (config.binaryCache?.enabled || config.binaryCache?.cachePath) {
+      result = await this.wrapWithBinaryCache(result, config, verbose);
+    }
+
+    return result;
+  }
+
+  /**
+   * Wrap a pattern store with BinaryCacheManager for fast pattern loading
+   * Target: <5ms load time vs 32ms SQLite baseline
+   */
+  private static async wrapWithBinaryCache(
+    result: PatternStoreFactoryResult,
+    config: PatternStoreFactoryConfig,
+    verbose: boolean
+  ): Promise<PatternStoreFactoryResult> {
+    const cacheConfig = config.binaryCache!;
+    const cachePath = cacheConfig.cachePath ?? './.agentic-qe/patterns.cache';
+
+    if (verbose) {
+      console.log('[PatternStoreFactory] Enabling binary cache:', { cachePath });
+    }
+
+    const binaryCacheConfig: BinaryCacheConfig = {
+      enabled: cacheConfig.enabled ?? true,
+      cachePath,
+      maxAge: cacheConfig.maxAge ?? 24 * 60 * 60 * 1000, // 24 hours default
+      checkInterval: 5 * 60 * 1000, // 5 minutes
+      backgroundRebuild: true,
+      fallbackToSQLite: true,
+      version: { major: 1, minor: 0, patch: 0 },
+      enableMetrics: true,
+    };
+
+    const cacheManager = new BinaryCacheManager(binaryCacheConfig, result.store);
+    const cacheInitialized = await cacheManager.initialize();
+
+    if (verbose) {
+      console.log('[PatternStoreFactory] Binary cache initialized:', cacheInitialized);
+    }
+
+    return {
+      ...result,
+      cacheManager,
+      info: {
+        ...result.info,
+        binaryCacheEnabled: cacheInitialized,
+        binaryCachePath: cachePath,
+      },
+    };
   }
 
   /**
@@ -236,6 +312,7 @@ export class PatternStoreFactory {
         arch: features.arch,
         nativeAvailable: true,
         features: info.features,
+        binaryCacheEnabled: false,
       },
     };
   }
@@ -270,6 +347,7 @@ export class PatternStoreFactory {
         arch: features.arch,
         nativeAvailable: features.agentdbNative,
         features: ['sql-storage', 'learning', 'quic-sync'],
+        binaryCacheEnabled: false,
       },
     };
   }
@@ -301,6 +379,7 @@ export class PatternStoreFactory {
         arch: features.arch,
         nativeAvailable: false,
         features: ['in-memory', 'cosine-similarity'],
+        binaryCacheEnabled: false,
       },
     };
   }
@@ -487,6 +566,26 @@ export async function createHighPerformanceStore(
     },
   });
   return result.store;
+}
+
+/**
+ * Convenience function to create a cached pattern store
+ * Uses binary cache for fast pattern loading (<5ms target)
+ *
+ * @param cachePath - Path to binary cache file (default: .agentic-qe/patterns.cache)
+ * @returns Pattern store with binary cache enabled
+ */
+export async function createCachedPatternStore(
+  cachePath?: string
+): Promise<PatternStoreFactoryResult> {
+  return PatternStoreFactory.create({
+    preferredBackend: 'ruvector',
+    binaryCache: {
+      enabled: true,
+      cachePath: cachePath ?? './.agentic-qe/patterns.cache',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  });
 }
 
 /**

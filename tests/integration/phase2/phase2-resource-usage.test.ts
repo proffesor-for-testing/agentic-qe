@@ -20,6 +20,7 @@ import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { EventBus } from '@core/EventBus';
 import { QEAgentType } from '@typessrc/types';
 import { createAgentConfig } from '../../helpers/agent-config-factory';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Helper to get memory usage in MB
 function getMemoryUsageMB(): number {
@@ -59,6 +60,7 @@ async function measureMemoryUsage<T>(operation: () => Promise<T>): Promise<{
 describe('Phase 2 Resource Usage Tests', () => {
   let memoryManager: SwarmMemoryManager;
   let eventBus: EventBus;
+  const rng = createSeededRandom(28200);
 
   beforeEach(async () => {
     memoryManager = new SwarmMemoryManager();
@@ -169,8 +171,8 @@ describe('Phase 2 Resource Usage Tests', () => {
         const testHistory = Array.from({ length: 1000 }, (_, i) => ({
           testName: `test-${i % 50}`,
           timestamp: new Date(),
-          result: Math.random() > 0.2 ? 'pass' as const : 'fail' as const,
-          duration: 100 + Math.random() * 50
+          result: rng.random() > 0.2 ? 'pass' as const : 'fail' as const,
+          duration: 100 + rng.random() * 50
         }));
 
         await memoryManager.store('aqe/test-results/history', testHistory, {

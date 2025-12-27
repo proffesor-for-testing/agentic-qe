@@ -28,6 +28,7 @@ import {
   TestResult,
   TestType
 } from '@typessrc/types';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Neural Agent Integration', () => {
   let memoryStore: SwarmMemoryManager;
@@ -719,15 +720,17 @@ describe('Neural Agent Integration', () => {
 // Helper Functions
 // ============================================================================
 
-function generateStableTestResults(count: number): TestResult[] {
+function generateStableTestResults(count: number, seed: number = 100001): TestResult[] {
+  const rng = createSeededRandom(seed);
   const results: TestResult[] = [];
 
   for (let i = 0; i < count; i++) {
+    const passRoll = rng.random();
     results.push({
       testName: 'stable-test',
-      passed: Math.random() > 0.02, // 98% pass rate
-      status: Math.random() > 0.02 ? 'passed' : 'failed',
-      duration: 100 + Math.random() * 20, // Low variance
+      passed: passRoll > 0.02, // 98% pass rate
+      status: passRoll > 0.02 ? 'passed' : 'failed',
+      duration: 100 + rng.random() * 20, // Low variance
       timestamp: Date.now() + i * 1000
     });
   }
@@ -735,18 +738,19 @@ function generateStableTestResults(count: number): TestResult[] {
   return results;
 }
 
-function generateFlakyTestResults(count: number): TestResult[] {
+function generateFlakyTestResults(count: number, seed: number = 200001): TestResult[] {
+  const rng = createSeededRandom(seed);
   const results: TestResult[] = [];
 
   for (let i = 0; i < count; i++) {
-    const passed = Math.random() > 0.4; // 60% pass rate
+    const passed = rng.random() > 0.4; // 60% pass rate
     results.push({
       testName: 'flaky-test',
       passed,
       status: passed ? 'passed' : 'failed',
-      duration: 50 + Math.random() * 300, // High variance
+      duration: 50 + rng.random() * 300, // High variance
       timestamp: Date.now() + i * 1000,
-      retryCount: passed ? 0 : Math.floor(Math.random() * 3)
+      retryCount: passed ? 0 : Math.floor(rng.random() * 3)
     });
   }
 

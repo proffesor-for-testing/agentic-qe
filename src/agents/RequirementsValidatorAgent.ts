@@ -19,9 +19,63 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
+import { PostTaskData, TaskErrorData, FlexibleTaskResult, PreTaskData } from '../types/hook.types';
 import { EventEmitter } from 'events';
 // Note: 'fs' import removed as unused
 // Note: 'AQE_MEMORY_NAMESPACES' and 'AgentType' removed as unused
+
+// ============================================================================
+// Local Type Definitions for Requirements Validation
+// ============================================================================
+
+/**
+ * Represents a BDD scenario with its name and steps
+ */
+interface BDDScenarioRef {
+  name: string;
+  steps?: string[];
+  given?: string;
+  when?: string;
+  then?: string;
+}
+
+/**
+ * Represents an ambiguity found in requirements
+ */
+interface Ambiguity {
+  text: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  suggestion?: string;
+}
+
+/**
+ * Result structure for requirements validation tasks
+ */
+interface RequirementsValidationResult {
+  success?: boolean;
+  requirementsValidated?: number;
+  issues?: Array<{ message: string; severity?: string }>;
+  testabilityScore?: {
+    overall?: number;
+    clarity?: number;
+    measurability?: number;
+    atomicity?: number;
+  };
+  riskAssessment?: {
+    overallRisk?: string;
+    factors?: Array<{ name: string; score: number }>;
+  };
+  bddScenarios?: {
+    scenarios?: Array<{ name: string }>;
+    coverage?: number;
+  };
+  ambiguities?: Ambiguity[];
+  missingCriteria?: string[];
+  isValid?: boolean;
+  valid?: boolean;
+  confidence?: number;
+  recommendations?: string[];
+}
 
 // ============================================================================
 // Type Definitions
@@ -48,7 +102,7 @@ export interface Requirement {
   priority?: 'low' | 'medium' | 'high' | 'critical';
   type?: 'functional' | 'non-functional' | 'technical' | 'business';
   dependencies?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TestabilityScore {
@@ -204,7 +258,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
   // Lifecycle Hooks for Requirements Validation
   // ============================================================================
 
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     await super.onPreTask(data);
 
     // Load historical validation patterns
@@ -222,8 +276,11 @@ export class RequirementsValidatorAgent extends BaseAgent {
     });
   }
 
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
+
+    // Type assertion for validation result
+    const result = data.result as RequirementsValidationResult | undefined;
 
     // Store validation results
     await this.memoryStore.store(
@@ -232,10 +289,10 @@ export class RequirementsValidatorAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        requirementsValidated: data.result?.requirementsValidated || 0,
-        issuesFound: data.result?.issues?.length || 0,
-        bddScenariosGenerated: data.result?.bddScenarios?.length || 0
+        success: result?.success !== false,
+        requirementsValidated: result?.requirementsValidated || 0,
+        issuesFound: result?.issues?.length || 0,
+        bddScenariosGenerated: result?.bddScenarios?.scenarios?.length || 0
       },
       86400
     );
@@ -249,11 +306,11 @@ export class RequirementsValidatorAgent extends BaseAgent {
 
     console.log(`[${this.agentId.type}] Requirements validation task completed`, {
       taskId: data.assignment.id,
-      issuesFound: data.result?.issues?.length || 0
+      issuesFound: result?.issues?.length || 0
     });
   }
 
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     await super.onTaskError(data);
 
     // Store error details
@@ -1154,7 +1211,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
     // Link to BDD scenarios
     const bddScenarios = await this.memoryStore.retrieve(`aqe/bdd-scenarios/generated/${requirement.id}`);
     if (bddScenarios) {
-      map.bddScenarios = bddScenarios.scenarios.map((s: any) => s.name);
+      map.bddScenarios = bddScenarios.scenarios.map((s: BDDScenarioRef) => s.name);
     }
 
     // Store traceability map
@@ -1166,7 +1223,8 @@ export class RequirementsValidatorAgent extends BaseAgent {
   private extractBusinessRequirement(req: Requirement): string | undefined {
     // Extract from metadata or parse from ID
     if (req.metadata?.businessRequirement) {
-      return req.metadata.businessRequirement;
+      const value = req.metadata.businessRequirement;
+      return typeof value === 'string' ? value : String(value);
     }
 
     const match = req.id.match(/^(BR|BIZ)-(\d+)/i);
@@ -1175,7 +1233,8 @@ export class RequirementsValidatorAgent extends BaseAgent {
 
   private extractEpic(req: Requirement): string | undefined {
     if (req.metadata?.epic) {
-      return req.metadata.epic;
+      const value = req.metadata.epic;
+      return typeof value === 'string' ? value : String(value);
     }
 
     const match = req.id.match(/^(EPIC|EP)-(\d+)/i);
@@ -1184,7 +1243,8 @@ export class RequirementsValidatorAgent extends BaseAgent {
 
   private extractUserStory(req: Requirement): string | undefined {
     if (req.metadata?.userStory) {
-      return req.metadata.userStory;
+      const value = req.metadata.userStory;
+      return typeof value === 'string' ? value : String(value);
     }
 
     const match = req.id.match(/^(US|STORY)-(\d+)/i);
@@ -1396,5 +1456,59 @@ ${report.edgeCases.map(ec => `- ${ec}`).join('\n')}
   <p><em>Generated: ${report.timestamp.toISOString()}</em></p>
 </body>
 </html>`;
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich requirements validation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: FlexibleTaskResult): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Type assertion for requirements validation result
+      const validationResult = result as RequirementsValidationResult;
+
+      // Testability scores
+      if (validationResult.testabilityScore) {
+        metrics.testability_overall = validationResult.testabilityScore.overall || 0;
+        metrics.testability_clarity = validationResult.testabilityScore.clarity || 0;
+        metrics.testability_measurability = validationResult.testabilityScore.measurability || 0;
+        metrics.testability_atomicity = validationResult.testabilityScore.atomicity || 0;
+      }
+
+      // Risk assessment
+      if (validationResult.riskAssessment) {
+        const riskMap: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+        metrics.risk_level = riskMap[validationResult.riskAssessment.overallRisk || ''] || 0;
+        metrics.risk_factors = validationResult.riskAssessment.factors?.length || 0;
+      }
+
+      // BDD scenarios
+      if (validationResult.bddScenarios) {
+        metrics.scenarios_generated = validationResult.bddScenarios.scenarios?.length || 0;
+        metrics.scenario_coverage = validationResult.bddScenarios.coverage || 0;
+      }
+
+      // Ambiguity detection
+      if (validationResult.ambiguities && Array.isArray(validationResult.ambiguities)) {
+        metrics.ambiguities_found = validationResult.ambiguities.length;
+        metrics.critical_ambiguities = validationResult.ambiguities.filter((a: Ambiguity) => a.severity === 'critical').length;
+      }
+
+      // Missing criteria
+      if (validationResult.missingCriteria && Array.isArray(validationResult.missingCriteria)) {
+        metrics.missing_criteria = validationResult.missingCriteria.length;
+      }
+
+      // Validation status
+      metrics.is_valid = validationResult.isValid || validationResult.valid ? 1 : 0;
+      metrics.validation_confidence = validationResult.confidence || 0;
+
+      // Recommendations
+      metrics.recommendations_count = validationResult.recommendations?.length || 0;
+    }
+
+    return metrics;
   }
 }

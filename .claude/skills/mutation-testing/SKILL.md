@@ -1,66 +1,100 @@
 ---
 name: mutation-testing
-description: Test quality validation through mutation testing, assessing test suite effectiveness by introducing code mutations and measuring kill rate. Use when evaluating test quality, identifying weak tests, or proving tests actually catch bugs.
+description: "Test quality validation through mutation testing, assessing test suite effectiveness by introducing code mutations and measuring kill rate. Use when evaluating test quality, identifying weak tests, or proving tests actually catch bugs."
+category: specialized-testing
+priority: high
+tokenEstimate: 900
+agents: [qe-test-generator, qe-coverage-analyzer, qe-quality-analyzer]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-02
+dependencies: []
+quick_reference_card: true
+tags: [mutation, stryker, test-quality, kill-rate, assertions, effectiveness]
 ---
 
 # Mutation Testing
 
-## Core Principle
+<default_to_action>
+When validating test quality or improving test effectiveness:
+1. MUTATE code (change + to -, >= to >, remove statements)
+2. RUN tests against each mutant
+3. VERIFY tests catch mutations (kill mutants)
+4. IDENTIFY surviving mutants (tests need improvement)
+5. STRENGTHEN tests to kill surviving mutants
 
-**Tests test code. But who tests the tests?**
+**Quick Mutation Metrics:**
+- Mutation Score = Killed / (Killed + Survived)
+- Target: > 80% mutation score
+- Surviving mutants = weak tests
 
-Mutation testing validates test quality by introducing small code changes (mutations) and verifying tests catch them. High mutation score = effective tests.
+**Critical Success Factors:**
+- High coverage ≠ good tests (100% coverage, 0% assertions)
+- Mutation testing proves tests actually catch bugs
+- Focus on critical code paths first
+</default_to_action>
 
-## What is Mutation Testing?
+## Quick Reference Card
 
-**Process:**
-1. Mutate code (change + to -, < to <=, remove if statements)
-2. Run tests against mutated code
-3. If tests fail → Mutation "killed" ✅ (good)
-4. If tests pass → Mutation "survived" ❌ (weak tests)
+### When to Use
+- Evaluating test suite quality
+- Finding gaps in test assertions
+- Proving tests catch bugs
+- Before critical releases
 
-**Mutation Score = Killed / (Killed + Survived)**
+### Mutation Score Interpretation
+| Score | Interpretation |
+|-------|----------------|
+| **90%+** | Excellent test quality |
+| **80-90%** | Good, minor improvements |
+| **60-80%** | Needs attention |
+| **< 60%** | Significant gaps |
 
-**Example:**
+### Common Mutation Operators
+| Category | Original | Mutant |
+|----------|----------|--------|
+| **Arithmetic** | `a + b` | `a - b` |
+| **Relational** | `x >= 18` | `x > 18` |
+| **Logical** | `a && b` | `a \|\| b` |
+| **Conditional** | `if (x)` | `if (true)` |
+| **Statement** | `return x` | *(removed)* |
+
+---
+
+## How Mutation Testing Works
+
 ```javascript
 // Original code
 function isAdult(age) {
-  return age >= 18; // ← Mutation: Change >= to >
+  return age >= 18; // ← Mutant: change >= to >
 }
 
-// Test
+// Strong test (catches mutation)
 test('18 is adult', () => {
-  expect(isAdult(18)).toBe(true); // Catches mutation!
+  expect(isAdult(18)).toBe(true); // Kills mutant!
 });
-```
 
-**If test was weak:**
-```javascript
+// Weak test (mutation survives)
 test('19 is adult', () => {
   expect(isAdult(19)).toBe(true); // Doesn't catch >= vs >
 });
-// Mutation survives → Test needs improvement
+// Surviving mutant → Test needs boundary value
 ```
 
-## Mutation Operators
-
-**Arithmetic:** `+ → -`, `* → /`
-**Relational:** `< → <=`, `== → !=`
-**Logical:** `&& → ||`, `! removed`
-**Conditional:** `if (x) → if (true)`, `if (x) → if (false)`
-**Statement:** Remove return, remove function call
+---
 
 ## Using Stryker
 
-**Install:**
 ```bash
+# Install
 npm install --save-dev @stryker-mutator/core @stryker-mutator/jest-runner
+
+# Initialize
 npx stryker init
 ```
 
 **Configuration:**
-```javascript
-// stryker.conf.json
+```json
 {
   "packageManager": "npm",
   "reporters": ["html", "clear-text", "progress"],
@@ -92,14 +126,45 @@ No Coverage: 3
 Timeout: 1
 ```
 
-## With Agents
+---
+
+## Fixing Surviving Mutants
+
+```javascript
+// Surviving mutant: >= changed to >
+function calculateDiscount(quantity) {
+  if (quantity >= 10) { // Mutant survives!
+    return 0.1;
+  }
+  return 0;
+}
+
+// Original weak test
+test('large order gets discount', () => {
+  expect(calculateDiscount(15)).toBe(0.1); // Doesn't test boundary
+});
+
+// Fixed: Add boundary test
+test('exactly 10 gets discount', () => {
+  expect(calculateDiscount(10)).toBe(0.1); // Kills mutant!
+});
+
+test('9 does not get discount', () => {
+  expect(calculateDiscount(9)).toBe(0); // Tests below boundary
+});
+```
+
+---
+
+## Agent-Driven Mutation Testing
 
 ```typescript
-// qe-test-generator uses mutation testing
-const mutationAnalysis = await agent.analyzeMutations({
+// Analyze mutation score and generate fixes
+await Task("Mutation Analysis", {
   targetFile: 'src/payment.ts',
-  generateMissingTests: true
-});
+  generateMissingTests: true,
+  minScore: 80
+}, "qe-test-generator");
 
 // Returns:
 // {
@@ -111,13 +176,54 @@ const mutationAnalysis = await agent.analyzeMutations({
 //     'test for boundary at line 45'
 //   ]
 // }
+
+// Coverage + mutation correlation
+await Task("Coverage Quality Analysis", {
+  coverageData: coverageReport,
+  mutationData: mutationReport,
+  identifyWeakCoverage: true
+}, "qe-coverage-analyzer");
 ```
+
+---
+
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/mutation-testing/
+├── mutation-results/*   - Stryker reports
+├── surviving/*          - Surviving mutants
+├── generated-tests/*    - Tests to kill mutants
+└── trends/*             - Mutation score over time
+```
+
+### Fleet Coordination
+```typescript
+const mutationFleet = await FleetManager.coordinate({
+  strategy: 'mutation-testing',
+  agents: [
+    'qe-test-generator',     // Generate tests for survivors
+    'qe-coverage-analyzer',  // Coverage correlation
+    'qe-quality-analyzer'    // Quality assessment
+  ],
+  topology: 'sequential'
+});
+```
+
+---
+
+## Related Skills
+- [tdd-london-chicago](../tdd-london-chicago/) - Write effective tests first
+- [test-design-techniques](../test-design-techniques/) - Boundary value analysis
+- [quality-metrics](../quality-metrics/) - Measure test effectiveness
+
+---
 
 ## Remember
 
-**High code coverage ≠ good tests**
+**High code coverage ≠ good tests.** 100% coverage but weak assertions = useless. Mutation testing proves tests actually catch bugs.
 
-- 100% coverage but weak assertions = useless
-- Mutation testing proves tests work
+**Focus on critical paths first.** Don't mutation test everything - prioritize payment, authentication, data integrity code.
 
-**With Agents:** Mutation testing handler automatically runs mutations, identifies weak tests, and generates missing test cases to kill surviving mutations.
+**With Agents:** Agents run mutation analysis, identify surviving mutants, and generate missing test cases to kill them. Automated improvement of test quality.

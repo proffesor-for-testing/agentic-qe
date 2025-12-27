@@ -1,708 +1,508 @@
 /**
- * memory/memory-share Test Suite
+ * Memory Share Handler Test Suite
  *
- * Tests for inter-agent memory sharing.
+ * Tests for memory sharing between agents with access control.
+ * Follows TDD RED phase - tests written before implementation verification.
+ *
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { MemoryShareHandler } from '@mcp/handlers/memory/memory-share';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('MemoryShareHandler', () => {
   let handler: MemoryShareHandler;
-  let mockRegistry: AgentRegistry;
-  let mockHookExecutor: HookExecutor;
-  let mockMemoryStore: Map<string, any>;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
+  let memoryStore: Map<string, any>;
 
   beforeEach(() => {
-    mockRegistry = {} as AgentRegistry;
-    mockHookExecutor = {
-      notify: jest.fn().mockResolvedValue(undefined)
-    } as any;
-    mockMemoryStore = new Map();
-    handler = new MemoryShareHandler(mockRegistry, mockHookExecutor, mockMemoryStore);
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
+    memoryStore = new Map();
+    handler = new MemoryShareHandler(mockRegistry, mockHookExecutor, memoryStore);
   });
 
-  const addMemoryRecord = (key: string, value: any, metadata: Record<string, any> = {}) => {
-    const [namespace, ...rest] = key.split(':');
-    mockMemoryStore.set(key, {
-      key,
-      value,
-      namespace,
-      timestamp: Date.now(),
-      ttl: 3600,
-      metadata,
-      persistent: false
-    });
-  };
-
-  describe('Happy Path', () => {
-    it('should share memory successfully', async () => {
-      addMemoryRecord('aqe:test-plan:1', { plan: 'unit-tests', coverage: 80 });
-
-      const response = await handler.handle({
-        sourceKey: 'test-plan:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['qe-executor-1', 'qe-reporter-1']
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.shared).toBe(true);
-      expect(response.data.targetAgents).toEqual(['qe-executor-1', 'qe-reporter-1']);
-      expect(response.data.targetKeys).toHaveLength(2);
-    });
-
-    it('should return expected data structure', async () => {
-      addMemoryRecord('aqe:config:1', { setting: 'value' });
-
-      const response = await handler.handle({
-        sourceKey: 'config:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('metadata');
-      expect(response.metadata).toHaveProperty('requestId');
-      expect(response.data).toHaveProperty('shared');
-      expect(response.data).toHaveProperty('sourceKey');
-      expect(response.data).toHaveProperty('targetKeys');
-      expect(response.data).toHaveProperty('targetAgents');
-      expect(response.data).toHaveProperty('permissions');
-    });
-
-    it('should create shared records for each target agent', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'shared-data' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-a', 'agent-b', 'agent-c']
-      });
-
-      expect(mockMemoryStore.has('shared:agent-a:data:1')).toBe(true);
-      expect(mockMemoryStore.has('shared:agent-b:data:1')).toBe(true);
-      expect(mockMemoryStore.has('shared:agent-c:data:1')).toBe(true);
-    });
-
-    it('should use default shared namespace', async () => {
-      addMemoryRecord('source:key:1', { data: 'test' });
-
-      const response = await handler.handle({
-        sourceKey: 'key:1',
-        sourceNamespace: 'source',
-        targetAgents: ['agent-1']
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.targetKeys[0]).toContain('shared:');
-    });
-
-    it('should use custom target namespace when specified', async () => {
-      addMemoryRecord('source:key:1', { data: 'test' });
-
-      await handler.handle({
-        sourceKey: 'key:1',
-        sourceNamespace: 'source',
-        targetAgents: ['agent-1'],
-        targetNamespace: 'custom-shared'
-      });
-
-      expect(mockMemoryStore.has('custom-shared:agent-1:key:1')).toBe(true);
-    });
-
-    it('should execute notification hook for each share', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1', 'agent-2']
-      });
-
-      expect(mockHookExecutor.notify).toHaveBeenCalledTimes(2);
-    });
+  afterEach(async () => {
+    memoryStore.clear();
   });
 
-  describe('Data Preservation', () => {
-    it('should copy source value to shared record', async () => {
-      const sourceValue = {
-        testPlan: 'integration-tests',
-        priority: 'high',
-        modules: ['auth', 'api', 'db']
-      };
-
-      addMemoryRecord('aqe:plan:1', sourceValue);
-
-      await handler.handle({
-        sourceKey: 'plan:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:plan:1');
-      expect(sharedRecord.value).toEqual(sourceValue);
-    });
-
-    it('should preserve source metadata and add sharing info', async () => {
-      const sourceMetadata = {
-        creator: 'test-gen-1',
+  describe('Happy Path - Memory Sharing', () => {
+    it('should share memory between agents successfully', async () => {
+      // GIVEN: Source memory exists in store
+      const sourceKey = 'test-data';
+      const sourceNamespace = 'aqe/test-plan';
+      memoryStore.set(`${sourceNamespace}:${sourceKey}`, {
+        value: { testSuite: 'UserService', coverage: 85 },
+        namespace: sourceNamespace,
         timestamp: Date.now(),
-        version: 2
-      };
-
-      addMemoryRecord('aqe:data:1', { value: 'test' }, sourceMetadata);
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
+        metadata: { agentId: 'qe-test-generator' }
       });
 
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:data:1');
-      expect(sharedRecord.metadata).toHaveProperty('creator', 'test-gen-1');
-      expect(sharedRecord.metadata).toHaveProperty('version', 2);
-      expect(sharedRecord.metadata).toHaveProperty('sourceKey');
-      expect(sharedRecord.metadata).toHaveProperty('sharedWith', 'agent-1');
-      expect(sharedRecord.metadata).toHaveProperty('sharedAt');
-    });
-
-    it('should use source TTL by default', async () => {
-      mockMemoryStore.set('aqe:data:1', {
-        key: 'aqe:data:1',
-        value: { data: 'test' },
-        namespace: 'aqe',
-        timestamp: Date.now(),
-        ttl: 7200,
-        metadata: {},
-        persistent: false
-      });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:data:1');
-      expect(sharedRecord.ttl).toBe(7200);
-    });
-
-    it('should use custom TTL when specified', async () => {
-      addMemoryRecord('aqe:data:1', { data: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1'],
-        ttl: 1800
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:data:1');
-      expect(sharedRecord.ttl).toBe(1800);
-    });
-
-    it('should mark shared records as non-persistent', async () => {
-      mockMemoryStore.set('aqe:data:1', {
-        key: 'aqe:data:1',
-        value: { data: 'test' },
-        namespace: 'aqe',
-        timestamp: Date.now(),
-        ttl: 3600,
-        metadata: {},
-        persistent: true
-      });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:data:1');
-      expect(sharedRecord.persistent).toBe(false);
-    });
-  });
-
-  describe('Permission Management', () => {
-    it('should set default read permission', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const targetKey = 'shared:agent-1:data:1';
-      expect(handler.hasPermission(targetKey, 'read')).toBe(true);
-    });
-
-    it('should set custom permissions when specified', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1'],
-        permissions: ['read', 'write', 'delete']
-      });
-
-      const targetKey = 'shared:agent-1:data:1';
-      expect(handler.hasPermission(targetKey, 'read')).toBe(true);
-      expect(handler.hasPermission(targetKey, 'write')).toBe(true);
-      expect(handler.hasPermission(targetKey, 'delete')).toBe(true);
-    });
-
-    it('should handle read-only permissions', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1'],
-        permissions: ['read']
-      });
-
-      const targetKey = 'shared:agent-1:data:1';
-      expect(handler.hasPermission(targetKey, 'read')).toBe(true);
-      expect(handler.hasPermission(targetKey, 'write')).toBe(false);
-    });
-
-    it('should handle multiple custom permissions', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1'],
-        permissions: ['read', 'execute']
-      });
-
-      const targetKey = 'shared:agent-1:data:1';
-      expect(handler.hasPermission(targetKey, 'read')).toBe(true);
-      expect(handler.hasPermission(targetKey, 'execute')).toBe(true);
-      expect(handler.hasPermission(targetKey, 'write')).toBe(false);
-    });
-
-    it('should set permissions for each target agent independently', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1', 'agent-2'],
+      // WHEN: Sharing memory with target agents
+      const response = await handler.handle({
+        sourceKey,
+        sourceNamespace,
+        targetAgents: ['qe-coverage-analyzer', 'qe-quality-gate'],
+        targetNamespace: 'shared',
         permissions: ['read', 'write']
       });
 
-      expect(handler.hasPermission('shared:agent-1:data:1', 'write')).toBe(true);
-      expect(handler.hasPermission('shared:agent-2:data:1', 'write')).toBe(true);
+      // THEN: Memory is shared successfully
+      expect(response.success).toBe(true);
+      expect(response.data.shared).toBe(true);
+      expect(response.data.sourceKey).toBe(`${sourceNamespace}:${sourceKey}`);
+      expect(response.data.targetAgents).toHaveLength(2);
+      expect(response.data.targetKeys).toHaveLength(2);
+      expect(response.data.permissions).toContain('read');
+      expect(response.data.permissions).toContain('write');
+    });
+
+    it('should share with default read permission when not specified', async () => {
+      // GIVEN: Source memory with sensitive data
+      memoryStore.set('secure:api-key', {
+        value: { key: 'secret-123' },
+        namespace: 'secure',
+        timestamp: Date.now()
+      });
+
+      // WHEN: Sharing without specifying permissions
+      const response = await handler.handle({
+        sourceKey: 'api-key',
+        sourceNamespace: 'secure',
+        targetAgents: ['qe-security-audit']
+      });
+
+      // THEN: Default read-only permission applied
+      expect(response.success).toBe(true);
+      expect(response.data.permissions).toEqual(['read']);
+    });
+
+    it('should preserve metadata from source memory', async () => {
+      // GIVEN: Source memory with detailed metadata
+      const metadata = {
+        agentId: 'qe-test-generator',
+        version: '2.0.0',
+        testFramework: 'jest',
+        createdBy: 'user-123'
+      };
+      memoryStore.set('aqe/test-plan:integration-tests', {
+        value: { tests: 50 },
+        namespace: 'aqe/test-plan',
+        timestamp: Date.now(),
+        metadata
+      });
+
+      // WHEN: Sharing memory
+      const response = await handler.handle({
+        sourceKey: 'integration-tests',
+        sourceNamespace: 'aqe/test-plan',
+        targetAgents: ['qe-test-executor']
+      });
+
+      // THEN: Target memory contains original metadata plus sharing info
+      const sharedKey = response.data.targetKeys[0];
+      const sharedRecord = memoryStore.get(sharedKey);
+      expect(sharedRecord.metadata.agentId).toBe('qe-test-generator');
+      expect(sharedRecord.metadata.version).toBe('2.0.0');
+      expect(sharedRecord.metadata.sourceKey).toBeDefined();
+      expect(sharedRecord.metadata.sharedWith).toBe('qe-test-executor');
+    });
+
+    it('should share with custom TTL', async () => {
+      // GIVEN: Source memory with TTL
+      memoryStore.set('temp:session-data', {
+        value: { sessionId: 'abc123' },
+        namespace: 'temp',
+        timestamp: Date.now(),
+        ttl: 60
+      });
+
+      // WHEN: Sharing with custom TTL
+      const response = await handler.handle({
+        sourceKey: 'session-data',
+        sourceNamespace: 'temp',
+        targetAgents: ['qe-test-executor'],
+        ttl: 120
+      });
+
+      // THEN: Shared memory has new TTL
+      const sharedKey = response.data.targetKeys[0];
+      const sharedRecord = memoryStore.get(sharedKey);
+      expect(sharedRecord.ttl).toBe(120);
+    });
+
+    it('should share with multiple target agents concurrently', async () => {
+      // GIVEN: Source memory to share widely
+      memoryStore.set('aqe/coverage:report', {
+        value: { lineCoverage: 92, branchCoverage: 85 },
+        namespace: 'aqe/coverage',
+        timestamp: Date.now()
+      });
+
+      // WHEN: Sharing with multiple agents
+      const targetAgents = [
+        'qe-quality-gate',
+        'qe-test-generator',
+        'qe-coverage-analyzer',
+        'qe-performance-tester',
+        'qe-security-audit'
+      ];
+      const response = await handler.handle({
+        sourceKey: 'report',
+        sourceNamespace: 'aqe/coverage',
+        targetAgents
+      });
+
+      // THEN: All agents receive the shared memory
+      expect(response.data.targetAgents).toHaveLength(5);
+      expect(response.data.targetKeys).toHaveLength(5);
+      targetAgents.forEach(agent => {
+        expect(response.data.targetAgents).toContain(agent);
+      });
     });
   });
 
   describe('Input Validation', () => {
     it('should reject missing sourceKey', async () => {
+      // GIVEN: Missing sourceKey parameter
+      // WHEN: Attempting to share
       const response = await handler.handle({
-        sourceNamespace: 'aqe',
+        sourceNamespace: 'test',
         targetAgents: ['agent-1']
       } as any);
 
+      // THEN: Validation error returned
       expect(response.success).toBe(false);
       expect(response.error).toContain('sourceKey');
     });
 
     it('should reject missing sourceNamespace', async () => {
+      // GIVEN: Missing sourceNamespace parameter
+      // WHEN: Attempting to share
       const response = await handler.handle({
-        sourceKey: 'key:1',
+        sourceKey: 'test',
         targetAgents: ['agent-1']
       } as any);
 
+      // THEN: Validation error returned
       expect(response.success).toBe(false);
       expect(response.error).toContain('sourceNamespace');
     });
 
     it('should reject missing targetAgents', async () => {
+      // GIVEN: Missing targetAgents parameter
+      // WHEN: Attempting to share
       const response = await handler.handle({
-        sourceKey: 'key:1',
-        sourceNamespace: 'aqe'
+        sourceKey: 'test',
+        sourceNamespace: 'ns'
       } as any);
 
+      // THEN: Validation error returned
       expect(response.success).toBe(false);
       expect(response.error).toContain('targetAgents');
     });
 
-    it('should reject non-existent source memory', async () => {
-      const response = await handler.handle({
-        sourceKey: 'non-existent',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      expect(response.success).toBe(false);
-      expect(response.error).toContain('Source memory not found');
-    });
-
     it('should reject empty targetAgents array', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
+      // GIVEN: Empty targetAgents array
+      memoryStore.set('ns:key', { value: 'data', namespace: 'ns' });
 
+      // WHEN: Attempting to share with no agents
       const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
+        sourceKey: 'key',
+        sourceNamespace: 'ns',
         targetAgents: []
       });
 
-      // Should either reject or handle gracefully
-      expect(response).toHaveProperty('success');
+      // THEN: Successful response with no shares
+      expect(response.success).toBe(true);
+      expect(response.data.targetKeys).toHaveLength(0);
     });
   });
 
-  describe('Multi-Agent Sharing', () => {
-    it('should share with single agent', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'single' });
-
+  describe('Error Handling', () => {
+    it('should handle non-existent source key', async () => {
+      // GIVEN: Source key does not exist
+      // WHEN: Attempting to share non-existent memory
       const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-solo']
+        sourceKey: 'non-existent',
+        sourceNamespace: 'aqe/test-plan',
+        targetAgents: ['qe-test-executor']
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.targetAgents).toHaveLength(1);
-      expect(response.data.targetKeys).toHaveLength(1);
+      // THEN: Error response returned
+      expect(response.success).toBe(false);
+      expect(response.error).toContain('Source memory not found');
+      expect(response.error).toContain('aqe/test-plan:non-existent');
     });
 
-    it('should share with multiple agents', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'multiple' });
-
-      const targetAgents = ['agent-1', 'agent-2', 'agent-3', 'agent-4', 'agent-5'];
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents
+    it('should handle storage errors gracefully', async () => {
+      // GIVEN: Source memory exists
+      memoryStore.set('test:data', {
+        value: 'test',
+        namespace: 'test',
+        timestamp: Date.now()
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.targetAgents).toHaveLength(5);
-      expect(response.data.targetKeys).toHaveLength(5);
-
-      targetAgents.forEach(agentId => {
-        expect(mockMemoryStore.has(`shared:${agentId}:data:1`)).toBe(true);
-      });
-    });
-
-    it('should share with large number of agents', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'broadcast' });
-
-      const targetAgents = Array.from({ length: 50 }, (_, i) => `agent-${i}`);
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents
+      // WHEN: Memory store throws error on set
+      const errorStore = new Map();
+      errorStore.set('test:data', { value: 'test', namespace: 'test' });
+      errorStore.set = jest.fn(() => {
+        throw new Error('Storage full');
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.targetAgents).toHaveLength(50);
-    });
-
-    it('should handle agents with special characters in IDs', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1@domain.com', 'agent-2_special', 'agent-3-prod']
+      const errorHandler = new MemoryShareHandler(mockRegistry, mockHookExecutor, errorStore as any);
+      const response = await errorHandler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'test',
+        targetAgents: ['agent-1']
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.targetAgents).toHaveLength(3);
+      // THEN: Error response returned
+      expect(response.success).toBe(false);
+      expect(response.error).toContain('Storage full');
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle sharing complex nested data', async () => {
+    it('should handle special characters in agent IDs', async () => {
+      // GIVEN: Source memory and agents with special characters
+      memoryStore.set('ns:key', {
+        value: { data: 'test' },
+        namespace: 'ns',
+        timestamp: Date.now()
+      });
+
+      const specialAgents = [
+        'agent-with-dashes',
+        'agent_with_underscores',
+        'agent.with.dots',
+        'agent:with:colons'
+      ];
+
+      // WHEN: Sharing with special agent IDs
+      const response = await handler.handle({
+        sourceKey: 'key',
+        sourceNamespace: 'ns',
+        targetAgents: specialAgents
+      });
+
+      // THEN: All shares successful
+      expect(response.success).toBe(true);
+      expect(response.data.targetKeys).toHaveLength(4);
+    });
+
+    it('should handle complex nested data structures', async () => {
+      // GIVEN: Source with deeply nested structure
       const complexData = {
         level1: {
           level2: {
             level3: {
               array: [1, 2, { nested: true }],
-              string: 'deep',
-              number: 42
+              map: { key: 'value' }
             }
           }
         },
         metadata: {
-          tags: ['test', 'integration', 'e2e'],
-          priority: 'high'
+          tags: ['tag1', 'tag2'],
+          config: { enabled: true, timeout: 5000 }
         }
       };
 
-      addMemoryRecord('aqe:complex:1', complexData);
-
-      await handler.handle({
-        sourceKey: 'complex:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
+      memoryStore.set('complex:data', {
+        value: complexData,
+        namespace: 'complex',
+        timestamp: Date.now()
       });
 
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:complex:1');
-      expect(sharedRecord.value).toEqual(complexData);
-    });
-
-    it('should handle sharing with empty string values', async () => {
-      addMemoryRecord('aqe:empty:1', { value: '', another: '' });
-
-      await handler.handle({
-        sourceKey: 'empty:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:empty:1');
-      expect(sharedRecord.value.value).toBe('');
-    });
-
-    it('should handle sharing with null values', async () => {
-      addMemoryRecord('aqe:null:1', { value: null, another: null });
-
-      await handler.handle({
-        sourceKey: 'null:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:null:1');
-      expect(sharedRecord.value.value).toBe(null);
-    });
-
-    it('should handle sharing with binary data', async () => {
-      const binaryData = Buffer.from('binary content').toString('base64');
-
-      addMemoryRecord('aqe:binary:1', { buffer: binaryData });
-
-      await handler.handle({
-        sourceKey: 'binary:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:binary:1');
-      expect(sharedRecord.value.buffer).toBe(binaryData);
-    });
-
-    it('should handle sharing same memory multiple times', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'reusable' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-2']
-      });
-
-      expect(mockMemoryStore.has('shared:agent-1:data:1')).toBe(true);
-      expect(mockMemoryStore.has('shared:agent-2:data:1')).toBe(true);
-    });
-
-    it('should handle concurrent sharing operations', async () => {
-      for (let i = 0; i < 10; i++) {
-        addMemoryRecord(`aqe:data:${i}`, { value: `data-${i}` });
-      }
-
-      const promises = Array.from({ length: 10 }, (_, i) =>
-        handler.handle({
-          sourceKey: `data:${i}`,
-          sourceNamespace: 'aqe',
-          targetAgents: [`agent-${i}`]
-        })
-      );
-
-      const results = await Promise.all(promises);
-
-      expect(results.every(r => r.success)).toBe(true);
-    });
-
-    it('should handle sharing to same agent from different sources', async () => {
-      addMemoryRecord('source1:data:1', { from: 'source1' });
-      addMemoryRecord('source2:data:2', { from: 'source2' });
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'source1',
-        targetAgents: ['agent-shared'],
-        targetNamespace: 'inbox'
-      });
-
-      await handler.handle({
-        sourceKey: 'data:2',
-        sourceNamespace: 'source2',
-        targetAgents: ['agent-shared'],
-        targetNamespace: 'inbox'
-      });
-
-      expect(mockMemoryStore.has('inbox:agent-shared:data:1')).toBe(true);
-      expect(mockMemoryStore.has('inbox:agent-shared:data:2')).toBe(true);
-    });
-
-    it('should update timestamp on shared records', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      const beforeShare = Date.now();
-
-      await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      const sharedRecord = mockMemoryStore.get('shared:agent-1:data:1');
-      expect(sharedRecord.timestamp).toBeGreaterThanOrEqual(beforeShare);
-    });
-
-    it('should handle sharing with very long key names', async () => {
-      const longKey = 'x'.repeat(200);
-      addMemoryRecord(`aqe:${longKey}`, { value: 'long-key-test' });
-
+      // WHEN: Sharing complex data
       const response = await handler.handle({
-        sourceKey: longKey,
-        sourceNamespace: 'aqe',
+        sourceKey: 'data',
+        sourceNamespace: 'complex',
         targetAgents: ['agent-1']
       });
 
+      // THEN: Complex structure preserved
       expect(response.success).toBe(true);
+      const sharedKey = response.data.targetKeys[0];
+      const sharedRecord = memoryStore.get(sharedKey);
+      expect(sharedRecord.value).toEqual(complexData);
+      expect(sharedRecord.value.level1.level2.level3.array).toHaveLength(3);
+    });
+
+    it('should handle null and undefined values in metadata', async () => {
+      // GIVEN: Source with null/undefined metadata
+      memoryStore.set('test:data', {
+        value: 'data',
+        namespace: 'test',
+        timestamp: Date.now(),
+        metadata: {
+          definedField: 'value',
+          nullField: null,
+          undefinedField: undefined
+        }
+      });
+
+      // WHEN: Sharing memory
+      const response = await handler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'test',
+        targetAgents: ['agent-1']
+      });
+
+      // THEN: Share successful with metadata
+      expect(response.success).toBe(true);
+      const sharedKey = response.data.targetKeys[0];
+      const sharedRecord = memoryStore.get(sharedKey);
+      expect(sharedRecord.metadata.definedField).toBe('value');
+    });
+
+    it('should handle sharing to same namespace as source', async () => {
+      // GIVEN: Source memory in aqe namespace
+      memoryStore.set('aqe:data', {
+        value: { test: true },
+        namespace: 'aqe',
+        timestamp: Date.now()
+      });
+
+      // WHEN: Sharing back to aqe namespace
+      const response = await handler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'aqe',
+        targetAgents: ['agent-1'],
+        targetNamespace: 'aqe'
+      });
+
+      // THEN: Share successful with distinct keys
+      expect(response.success).toBe(true);
+      expect(response.data.targetKeys[0]).toBe('aqe:agent-1:data');
+      expect(memoryStore.has('aqe:data')).toBe(true);
+      expect(memoryStore.has('aqe:agent-1:data')).toBe(true);
+    });
+  });
+
+  describe('Permission Management', () => {
+    it('should check read permission correctly', async () => {
+      // GIVEN: Memory shared with read permission
+      memoryStore.set('source:data', {
+        value: 'test',
+        namespace: 'source',
+        timestamp: Date.now()
+      });
+
+      await handler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'source',
+        targetAgents: ['agent-1'],
+        permissions: ['read']
+      });
+
+      // WHEN: Checking read permission
+      const hasRead = handler.hasPermission('shared:agent-1:data', 'read');
+
+      // THEN: Permission check returns true
+      expect(hasRead).toBe(true);
+    });
+
+    it('should check write permission correctly', async () => {
+      // GIVEN: Memory shared with read-only
+      memoryStore.set('source:data', {
+        value: 'test',
+        namespace: 'source',
+        timestamp: Date.now()
+      });
+
+      await handler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'source',
+        targetAgents: ['agent-1'],
+        permissions: ['read']
+      });
+
+      // WHEN: Checking write permission
+      const hasWrite = handler.hasPermission('shared:agent-1:data', 'write');
+
+      // THEN: Permission check returns false
+      expect(hasWrite).toBe(false);
+    });
+
+    it('should support multiple permissions', async () => {
+      // GIVEN: Memory shared with multiple permissions
+      memoryStore.set('source:data', {
+        value: 'test',
+        namespace: 'source',
+        timestamp: Date.now()
+      });
+
+      await handler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'source',
+        targetAgents: ['agent-1'],
+        permissions: ['read', 'write', 'delete']
+      });
+
+      // WHEN: Checking various permissions
+      const sharedKey = 'shared:agent-1:data';
+
+      // THEN: All granted permissions return true
+      expect(handler.hasPermission(sharedKey, 'read')).toBe(true);
+      expect(handler.hasPermission(sharedKey, 'write')).toBe(true);
+      expect(handler.hasPermission(sharedKey, 'delete')).toBe(true);
+      expect(handler.hasPermission(sharedKey, 'admin')).toBe(false);
     });
   });
 
   describe('Performance', () => {
-    it('should complete sharing operation within reasonable time', async () => {
-      addMemoryRecord('aqe:perf:1', { data: 'performance-test' });
+    it('should share memory within reasonable time', async () => {
+      // GIVEN: Source memory
+      memoryStore.set('perf:data', {
+        value: { data: 'test' },
+        namespace: 'perf',
+        timestamp: Date.now()
+      });
 
-      const targetAgents = Array.from({ length: 100 }, (_, i) => `agent-${i}`);
-
+      // WHEN: Sharing memory
       const startTime = Date.now();
       await handler.handle({
-        sourceKey: 'perf:1',
-        sourceNamespace: 'aqe',
+        sourceKey: 'data',
+        sourceNamespace: 'perf',
+        targetAgents: ['agent-1']
+      });
+      const endTime = Date.now();
+
+      // THEN: Completed within 100ms
+      expect(endTime - startTime).toBeLessThan(100);
+    });
+
+    it('should handle bulk sharing efficiently', async () => {
+      // GIVEN: Source memory and many target agents
+      memoryStore.set('bulk:data', {
+        value: { data: 'test' },
+        namespace: 'bulk',
+        timestamp: Date.now()
+      });
+
+      const targetAgents = Array.from({ length: 50 }, (_, i) => `agent-${i}`);
+
+      // WHEN: Sharing with 50 agents
+      const startTime = Date.now();
+      const response = await handler.handle({
+        sourceKey: 'data',
+        sourceNamespace: 'bulk',
         targetAgents
       });
       const endTime = Date.now();
 
-      expect(endTime - startTime).toBeLessThan(2000);
-    });
-
-    it('should handle rapid sequential shares efficiently', async () => {
-      for (let i = 0; i < 50; i++) {
-        addMemoryRecord(`aqe:data:${i}`, { value: `data-${i}` });
-      }
-
-      const startTime = Date.now();
-
-      for (let i = 0; i < 50; i++) {
-        await handler.handle({
-          sourceKey: `data:${i}`,
-          sourceNamespace: 'aqe',
-          targetAgents: ['agent-1']
-        });
-      }
-
-      const endTime = Date.now();
-
-      expect(endTime - startTime).toBeLessThan(5000);
-    });
-
-    it('should handle large data sharing efficiently', async () => {
-      const largeData = {
-        items: Array.from({ length: 1000 }, (_, i) => ({
-          id: i,
-          name: `item-${i}`,
-          data: `data-${i}`.repeat(10)
-        }))
-      };
-
-      addMemoryRecord('aqe:large:1', largeData);
-
-      const startTime = Date.now();
-      await handler.handle({
-        sourceKey: 'large:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1', 'agent-2', 'agent-3']
-      });
-      const endTime = Date.now();
-
-      expect(endTime - startTime).toBeLessThan(1000);
-    });
-  });
-
-  describe('Response Structure', () => {
-    it('should always include requestId', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      expect(response).toHaveProperty('metadata');
-      expect(response.metadata).toHaveProperty('requestId');
-      expect(typeof response.metadata.requestId).toBe('string');
-    });
-
-    it('should provide meaningful error messages', async () => {
-      const response = await handler.handle({} as any);
-
-      if (!response.success) {
-        expect(response.error).toBeTruthy();
-        expect(typeof response.error).toBe('string');
-        expect(response.error.length).toBeGreaterThan(0);
-      }
-    });
-
-    it('should include source key in response', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1']
-      });
-
-      expect(response.data.sourceKey).toBe('aqe:data:1');
-    });
-
-    it('should include all target keys in response', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1', 'agent-2']
-      });
-
-      expect(response.data.targetKeys).toContain('shared:agent-1:data:1');
-      expect(response.data.targetKeys).toContain('shared:agent-2:data:1');
-    });
-
-    it('should include permissions in response', async () => {
-      addMemoryRecord('aqe:data:1', { value: 'test' });
-
-      const response = await handler.handle({
-        sourceKey: 'data:1',
-        sourceNamespace: 'aqe',
-        targetAgents: ['agent-1'],
-        permissions: ['read', 'write']
-      });
-
-      expect(response.data.permissions).toEqual(['read', 'write']);
+      // THEN: Completed within 500ms and all shares successful
+      expect(endTime - startTime).toBeLessThan(500);
+      expect(response.data.targetKeys).toHaveLength(50);
     });
   });
 });

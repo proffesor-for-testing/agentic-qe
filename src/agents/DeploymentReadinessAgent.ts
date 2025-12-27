@@ -20,6 +20,7 @@
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { QETask, QEAgentType, DeploymentReadinessConfig as _DeploymentReadinessConfig } from '../types';
 import { EventEmitter as _EventEmitter } from 'events';
+import { PreTaskData, PostTaskData, TaskErrorData } from '../types/hook.types';
 
 // ============================================================================
 // Type Definitions
@@ -169,7 +170,7 @@ export interface StakeholderReport {
   confidenceScore: number;
   riskLevel: string;
   executiveSummary: string;
-  keyMetrics: Record<string, any>;
+  keyMetrics: Record<string, string | number | null>;
   changesSummary: string;
   riskAssessment: string;
   deploymentPlan: string;
@@ -180,12 +181,64 @@ export interface StakeholderReport {
 }
 
 // ============================================================================
+// Event Data Interfaces
+// ============================================================================
+
+/**
+ * Data structure for quality gate evaluation events
+ */
+export interface QualityGateEventData {
+  version?: string;
+  passed: boolean;
+  score?: number;
+  gates?: Array<{ name: string; passed: boolean; threshold: number; actual: number }>;
+}
+
+/**
+ * Data structure for performance test result events
+ */
+export interface PerformanceEventData {
+  version?: string;
+  avgResponseTime?: number;
+  p95ResponseTime?: number;
+  throughput?: number;
+  errorRate?: number;
+}
+
+/**
+ * Data structure for security scan result events
+ */
+export interface SecurityEventData {
+  version?: string;
+  issuesFound: number;
+  critical?: number;
+  high?: number;
+  medium?: number;
+  low?: number;
+}
+
+/**
+ * Deployment monitoring metrics
+ */
+export interface DeploymentMonitoringMetrics {
+  errorRate: number;
+  responseTime: number;
+  availability: number;
+}
+
+// ============================================================================
 // DeploymentReadinessAgent Implementation
 // ============================================================================
 
+/** Monitoring client connection status */
+interface MonitoringClient {
+  connected: boolean;
+  tool: string;
+}
+
 export class DeploymentReadinessAgent extends BaseAgent {
   private readonly config: DeploymentReadinessAgentConfig;
-  private monitoringClients: Map<string, any> = new Map();
+  private monitoringClients: Map<string, MonitoringClient> = new Map();
   private deploymentHistory: Array<{ deploymentId: string; success: boolean; signals: QualitySignals }> = [];
 
   constructor(config: DeploymentReadinessAgentConfig) {
@@ -258,7 +311,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
   // Lifecycle Hooks for Deployment Readiness
   // ============================================================================
 
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     await super.onPreTask(data);
 
     // Load historical deployment data
@@ -276,8 +329,11 @@ export class DeploymentReadinessAgent extends BaseAgent {
     });
   }
 
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
+
+    // Cast result to access deployment-specific properties
+    const result = data.result as Record<string, unknown> | undefined;
 
     // Store readiness results
     await this.memoryStore.store(
@@ -286,10 +342,10 @@ export class DeploymentReadinessAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        deploymentReady: data.result?.ready || false,
-        riskLevel: data.result?.riskLevel || 'unknown',
-        checksPerformed: data.result?.checks?.length || 0
+        success: result?.success !== false,
+        deploymentReady: result?.ready || false,
+        riskLevel: result?.riskLevel || 'unknown',
+        checksPerformed: (result?.checks as unknown[] | undefined)?.length || 0
       },
       86400
     );
@@ -303,12 +359,12 @@ export class DeploymentReadinessAgent extends BaseAgent {
 
     console.log(`[${this.agentId.type}] Deployment readiness check completed`, {
       taskId: data.assignment.id,
-      ready: data.result?.ready || false,
-      riskLevel: data.result?.riskLevel
+      ready: result?.ready || false,
+      riskLevel: result?.riskLevel
     });
   }
 
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     await super.onTaskError(data);
 
     // Store error details
@@ -577,7 +633,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
         `evaluation/${metadata.version}`
       );
       if (qualityGate) {
-        signals.qualityGate = qualityGate;
+        signals.qualityGate = qualityGate as QualitySignals['qualityGate'];
       }
     }
 
@@ -588,7 +644,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
         `results/${metadata.version}`
       );
       if (performance) {
-        signals.performance = performance;
+        signals.performance = performance as QualitySignals['performance'];
       }
     }
 
@@ -599,7 +655,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
         `scan/${metadata.version}`
       );
       if (security) {
-        signals.security = security;
+        signals.security = security as QualitySignals['security'];
       }
     }
 
@@ -609,7 +665,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       `coverage/${metadata.version}`
     );
     if (coverage) {
-      signals.coverage = coverage;
+      signals.coverage = coverage as QualitySignals['coverage'];
     }
 
     // Get test results
@@ -618,7 +674,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       `results/${metadata.version}`
     );
     if (testResults) {
-      signals.testResults = testResults;
+      signals.testResults = testResults as QualitySignals['testResults'];
     }
 
     // Store aggregated signals
@@ -1062,7 +1118,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     const qualityGate = await this.retrieveSharedMemory(
       QEAgentType.QUALITY_GATE,
       `evaluation/${metadata.version}`
-    );
+    ) as QualitySignals['qualityGate'] | undefined;
 
     return {
       category: 'code_quality',
@@ -1089,7 +1145,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     const coverage = await this.retrieveSharedMemory(
       QEAgentType.COVERAGE_ANALYZER,
       `coverage/${metadata.version}`
-    );
+    ) as QualitySignals['coverage'] | undefined;
 
     const passed = coverage && coverage.line >= 85;
 
@@ -1107,7 +1163,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     const testResults = await this.retrieveSharedMemory(
       QEAgentType.TEST_EXECUTOR,
       `results/${metadata.version}`
-    );
+    ) as QualitySignals['testResults'] | undefined;
 
     const passed = testResults && testResults.failed === 0;
 
@@ -1138,7 +1194,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     const performance = await this.retrieveSharedMemory(
       QEAgentType.PERFORMANCE_TESTER,
       `results/${metadata.version}`
-    );
+    ) as QualitySignals['performance'] | undefined;
 
     const status = performance?.status === 'passed' ? 'passed' : 'warning';
 
@@ -1156,7 +1212,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
     const security = await this.retrieveSharedMemory(
       QEAgentType.SECURITY_SCANNER,
       `scan/${metadata.version}`
-    );
+    ) as QualitySignals['security'] | undefined;
 
     const passed =
       security &&
@@ -1392,7 +1448,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       `${check.checklist.passedCount}/${check.checklist.items.length} checklist items passed.`;
   }
 
-  private extractKeyMetrics(check: ReadinessCheckResult): Record<string, any> {
+  private extractKeyMetrics(check: ReadinessCheckResult): Record<string, string | number | null> {
     return {
       confidenceScore: check.confidenceScore,
       riskLevel: check.riskLevel,
@@ -1447,13 +1503,13 @@ export class DeploymentReadinessAgent extends BaseAgent {
   private async monitorDeployment(data: {
     deploymentId: string;
     duration: number;
-  }): Promise<{ status: 'healthy' | 'degraded' | 'failed'; metrics: any }> {
+  }): Promise<{ status: 'healthy' | 'degraded' | 'failed'; metrics: DeploymentMonitoringMetrics }> {
     console.log(`Monitoring deployment ${data.deploymentId} for ${data.duration} minutes`);
 
     // Mock monitoring implementation
     // In production, would integrate with monitoring platforms
 
-    const metrics = {
+    const metrics: DeploymentMonitoringMetrics = {
       errorRate: 0.05,
       responseTime: 420,
       availability: 99.98
@@ -1484,18 +1540,93 @@ export class DeploymentReadinessAgent extends BaseAgent {
   // Event Handlers
   // ============================================================================
 
-  private async handleQualityGateResult(data: any): Promise<void> {
+  private async handleQualityGateResult(data: QualityGateEventData): Promise<void> {
     // Store quality gate result for aggregation
     await this.storeSharedMemory(`quality-gate-result/${data.version}`, data);
   }
 
-  private async handlePerformanceResults(data: any): Promise<void> {
+  private async handlePerformanceResults(data: PerformanceEventData): Promise<void> {
     // Store performance results for aggregation
     await this.storeSharedMemory(`performance-result/${data.version}`, data);
   }
 
-  private async handleSecurityResults(data: any): Promise<void> {
+  private async handleSecurityResults(data: SecurityEventData): Promise<void> {
     // Store security results for aggregation
     await this.storeSharedMemory(`security-result/${data.version}`, data);
   }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich deployment readiness metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      const taskResult = result as DeploymentTaskMetricsResult;
+
+      // Overall readiness
+      metrics.is_ready = taskResult.isReady ? 1 : 0;
+      metrics.readiness_score = taskResult.readinessScore || 0;
+      metrics.confidence = taskResult.confidence || 0;
+
+      // Checklist results
+      if (taskResult.checklist) {
+        metrics.checks_passed = taskResult.checklist.filter((c) => c.status === 'passed').length;
+        metrics.checks_failed = taskResult.checklist.filter((c) => c.status === 'failed').length;
+        metrics.checks_warning = taskResult.checklist.filter((c) => c.status === 'warning').length;
+        metrics.total_checks = taskResult.checklist.length;
+      }
+
+      // Gate results
+      if (taskResult.gates) {
+        metrics.gates_passed = taskResult.gates.filter((g) => g.passed).length;
+        metrics.gates_failed = taskResult.gates.filter((g) => !g.passed).length;
+        metrics.critical_gates_failed = taskResult.gates.filter(
+          (g) => !g.passed && g.severity === 'critical'
+        ).length;
+      }
+
+      // Risk assessment
+      if (taskResult.risk) {
+        metrics.risk_score = taskResult.risk.score || 0;
+        metrics.risk_factors = taskResult.risk.factors?.length || 0;
+        metrics.mitigations_required = taskResult.risk.mitigationsRequired || 0;
+      }
+
+      // Rollback readiness
+      if (taskResult.rollback) {
+        metrics.rollback_ready = taskResult.rollback.ready ? 1 : 0;
+        metrics.rollback_time_estimate = taskResult.rollback.estimatedTime || 0;
+      }
+
+      // Dependencies
+      metrics.dependency_issues = taskResult.dependencyIssues?.length || 0;
+      metrics.blocking_issues = taskResult.blockingIssues?.length || 0;
+    }
+
+    return metrics;
+  }
+}
+
+/**
+ * Internal interface for extractTaskMetrics result parsing
+ */
+interface DeploymentTaskMetricsResult {
+  isReady?: boolean;
+  readinessScore?: number;
+  confidence?: number;
+  checklist?: Array<{ status: string }>;
+  gates?: Array<{ passed: boolean; severity?: string }>;
+  risk?: {
+    score?: number;
+    factors?: unknown[];
+    mitigationsRequired?: number;
+  };
+  rollback?: {
+    ready?: boolean;
+    estimatedTime?: number;
+  };
+  dependencyIssues?: unknown[];
+  blockingIssues?: unknown[];
 }

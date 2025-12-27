@@ -7,13 +7,26 @@
  * 2. Measures query performance before/after optimization
  * 3. Validates >100× improvement expectation
  * 4. Tests cache hit rates and LRU eviction
+ *
+ * NOTE: Most tests in this file use REAL TIMERS intentionally because:
+ * - Performance benchmarks (Date.now, performance.now) measure actual elapsed time
+ * - Throughput tests run for fixed durations to measure ops/sec
+ * - Fake timers would make performance measurements meaningless
+ *
+ * EXCEPTION: The TTL expiration test uses fake timers for deterministic behavior
+ * since it tests cache expiration logic, not performance.
  */
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import { withFakeTimers } from '../helpers/timerTestUtils';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { SwarmMemoryManager, Pattern } from '../../src/core/memory/SwarmMemoryManager';
 import { PatternCache } from '../../src/core/memory/PatternCache';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+
+// Seeded random instance for reproducible benchmarks
+const rng = createSeededRandom(12345);
 
 describe('Pattern Query Performance Benchmark', () => {
   const testDbDir = path.resolve(process.cwd(), '.test-benchmark-perf');
@@ -44,12 +57,12 @@ describe('Pattern Query Performance Benchmark', () => {
 
     for (let i = 0; i < PATTERN_COUNT; i++) {
       const agentId = `agent-${i % AGENT_COUNT}`;
-      const confidence = 0.5 + (Math.random() * 0.5); // 0.5 to 1.0
+      const confidence = 0.5 + (rng.random() * 0.5); // 0.5 to 1.0
 
       await manager.storePattern({
         pattern: `test-pattern-${i}`,
         confidence,
-        usageCount: Math.floor(Math.random() * 100),
+        usageCount: rng.randomInt(0, 99),
         metadata: {
           agent_id: agentId,
           type: 'benchmark',
@@ -208,18 +221,21 @@ describe('Pattern Query Performance Benchmark', () => {
     });
 
     test('TTL expiration works correctly', async () => {
-      const cache = new PatternCache({ maxSize: 100, ttl: 100 }); // 100ms TTL
+      // Use fake timers for deterministic TTL testing
+      await withFakeTimers(async (timers) => {
+        const cache = new PatternCache({ maxSize: 100, ttl: 100 }); // 100ms TTL
 
-      cache.set('short-lived', [{ pattern: 'test' } as Pattern]);
+        cache.set('short-lived', [{ pattern: 'test' } as Pattern]);
 
-      // Should exist immediately
-      expect(cache.get('short-lived')).not.toBeNull();
+        // Should exist immediately
+        expect(cache.get('short-lived')).not.toBeNull();
 
-      // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 150));
+        // Advance time past TTL
+        timers.advance(150);
 
-      // Should be expired
-      expect(cache.get('short-lived')).toBeNull();
+        // Should be expired
+        expect(cache.get('short-lived')).toBeNull();
+      });
     });
 
     test('invalidation clears agent-specific entries', async () => {

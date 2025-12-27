@@ -1,709 +1,206 @@
 ---
 name: risk-based-testing
-description: Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions.
+description: "Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions."
+category: testing-methodologies
+priority: high
+tokenEstimate: 1000
+agents: [qe-regression-risk-analyzer, qe-test-generator, qe-production-intelligence, qe-quality-gate]
+implementation_status: optimized
+optimization_version: 1.0
+last_optimized: 2025-12-02
+dependencies: []
+quick_reference_card: true
+tags: [risk, prioritization, test-planning, coverage, impact-analysis]
 ---
 
 # Risk-Based Testing
 
-## Core Principle
+<default_to_action>
+When planning tests or allocating testing resources:
+1. IDENTIFY risks: What can go wrong? What's the impact? What's the likelihood?
+2. CALCULATE risk: Risk = Probability × Impact (use 1-5 scale for each)
+3. PRIORITIZE: Critical (20+) → High (12-19) → Medium (6-11) → Low (1-5)
+4. ALLOCATE effort: 60% critical, 25% high, 10% medium, 5% low
+5. REASSESS continuously: New info, changes, production incidents
 
-**You cannot test everything. Test what matters most.**
+**Quick Risk Assessment:**
+- Probability factors: Complexity, change frequency, developer experience, technical debt
+- Impact factors: User count, revenue, safety, reputation, regulatory
+- Dynamic adjustment: Production bugs increase risk; stable code decreases
 
-Risk-based testing focuses testing effort on areas where failures would cause the most harm, weighted by the likelihood of failure.
+**Critical Success Factors:**
+- Test where bugs hurt most, not everywhere equally
+- Risk is dynamic - reassess with new information
+- Production data informs risk (shift-right feeds shift-left)
+</default_to_action>
 
-## Risk Formula
+## Quick Reference Card
 
+### When to Use
+- Planning sprint/release test strategy
+- Deciding what to automate first
+- Allocating limited testing time
+- Justifying test coverage decisions
+
+### Risk Calculation
 ```
-Risk = Probability of Failure × Impact of Failure
-```
-
-**High Risk:** Test thoroughly, often, with multiple techniques
-**Medium Risk:** Standard testing, automated regression
-**Low Risk:** Light testing, maybe skip
-
-## Risk Identification
-
-### Business Impact Factors
-
-**Revenue Impact**
-- Directly generates revenue? (checkout, payment)
-- Blocks revenue? (login, product catalog)
-- Minor impact? (help documentation)
-
-**User Impact**
-- Number of users affected
-- Frequency of use
-- Critical to user workflow?
-- Workarounds available?
-
-**Regulatory/Compliance**
-- Legal requirements
-- Security standards (PCI-DSS, GDPR)
-- Industry regulations
-- Contractual obligations
-
-**Reputation**
-- Public-facing features
-- Brand perception
-- Social media amplification risk
-- Customer trust impact
-
-**Data Sensitivity**
-- Financial data
-- Personal information
-- Health records
-- Confidential business data
-
-### Technical Risk Factors
-
-**Complexity**
-- Complex algorithms → higher risk
-- Many dependencies → higher risk
-- Distributed systems → higher risk
-- Simple CRUD → lower risk
-
-**Change Frequency**
-- Frequently changed code → higher risk
-- New technology → higher risk
-- Stable, mature code → lower risk
-
-**Test Coverage**
-- Well-tested area → lower risk
-- No automated tests → higher risk
-- Poor test quality → higher risk
-
-**Historical Data**
-- Bug history (hotspots)
-- Production incidents
-- Failed releases
-- Customer complaints
-
-**Dependencies**
-- Third-party services
-- Legacy systems
-- Network reliability
-- External APIs
-
-## Risk Assessment Matrix
-
-### Creating Risk Matrix
-
-```
-Impact →   Low        Medium      High        Critical
-         ─────────────────────────────────────────────
-High     │ Medium    High        High        CRITICAL
-Prob     │
-↓        │
-Medium   │ Low       Medium      High        High
-         │
-Low      │ Low       Low         Medium      Medium
-         │
-Rare     │ Skip      Low         Low         Medium
+Risk Score = Probability (1-5) × Impact (1-5)
 ```
 
-**Priority = Risk Level**
-- Critical: Test first, test thoroughly
-- High: Standard comprehensive testing
-- Medium: Focused testing on key scenarios
-- Low: Smoke test or skip if time-limited
+| Score | Priority | Effort | Action |
+|-------|----------|--------|--------|
+| 20-25 | Critical | 60% | Comprehensive testing, multiple techniques |
+| 12-19 | High | 25% | Thorough testing, automation priority |
+| 6-11 | Medium | 10% | Standard testing, basic automation |
+| 1-5 | Low | 5% | Smoke test, exploratory only |
 
-### Example Risk Assessment
+### Probability Factors
+| Factor | Low (1) | Medium (3) | High (5) |
+|--------|---------|------------|----------|
+| Complexity | Simple CRUD | Business logic | Algorithms, integrations |
+| Change Rate | Stable 6+ months | Monthly changes | Weekly/daily changes |
+| Developer Experience | Senior, domain expert | Mid-level | Junior, new to codebase |
+| Technical Debt | Clean code | Some debt | Legacy, no tests |
 
-**E-commerce Application:**
+### Impact Factors
+| Factor | Low (1) | Medium (3) | High (5) |
+|--------|---------|------------|----------|
+| Users Affected | Admin only | Department | All users |
+| Revenue | None | Indirect | Direct (checkout) |
+| Safety | Convenience | Data loss | Physical harm |
+| Reputation | Internal | Industry | Public scandal |
 
-| Feature | Impact | Probability | Risk | Test Strategy |
-|---------|--------|-------------|------|---------------|
-| Payment processing | Critical | Medium | CRITICAL | Extensive testing, multiple payment types, error scenarios, security testing |
-| Product search | High | Medium | High | Core flows automated, exploratory for edge cases |
-| User reviews | Medium | Low | Medium | Basic functional tests, focus on new features |
-| Help documentation | Low | Low | Low | Quick smoke test, spell check |
-| Admin analytics | Medium | Low | Medium | Key reports tested, edge cases documented |
+---
 
-## Risk-Based Test Planning
+## Risk Assessment Workflow
 
-### Step 1: Identify Risks
-
-**Workshop with stakeholders:**
-- Product owner (business risks)
-- Developers (technical risks)
-- Support team (common issues)
-- QE (quality risks)
-- Security team (security risks)
-
-**Output:** List of potential failure points
-
-### Step 2: Assess Each Risk
-
-For each risk:
-1. **Probability:** How likely is this to fail? (Rare/Low/Medium/High)
-2. **Impact:** What happens if it fails? (Low/Medium/High/Critical)
-3. **Risk Level:** Use matrix to determine
-
-**Example:**
+### Step 1: List Features/Components
 ```
-Risk: Payment gateway timeout during high traffic
-
-Probability: Medium
-- Seen in load tests before
-- Known issue during sales events
-- Mitigation in place but not perfect
-
-Impact: Critical
-- Revenue loss (thousands/minute)
-- Customer frustration
-- Bad press potential
-
-Risk Level: CRITICAL → Test extensively
+Feature | Probability | Impact | Risk | Priority
+--------|-------------|--------|------|----------
+Checkout | 4 | 5 | 20 | Critical
+User Auth | 3 | 5 | 15 | High
+Admin Panel | 2 | 2 | 4 | Low
+Search | 3 | 3 | 9 | Medium
 ```
 
-### Step 3: Prioritize Testing
-
-**Critical Risks:**
-- Test first in sprint
-- Multiple testing techniques
-- Extensive test coverage
-- Performance/load testing
-- Security testing
-- Manual exploratory testing
-- Automated regression tests
-
-**High Risks:**
-- Core test scenarios automated
-- Key user flows tested manually
-- Edge cases documented
-- Regular regression testing
-
-**Medium Risks:**
-- Happy path automated
-- Basic edge case testing
-- Spot-check during exploratory sessions
-
-**Low Risks:**
-- Smoke test only
-- May skip if time-limited
-- Document known limitations
-
-### Step 4: Allocate Testing Time
-
-**Time budget based on risk:**
-
-```
-Critical: 40% of testing time
-High: 35% of testing time
-Medium: 20% of testing time
-Low: 5% of testing time
-```
-
-**Adjust based on context:**
-- Startup: Heavily weight Critical/High
-- Mature product: More balanced
-- Compliance-heavy: May need comprehensive coverage
-
-## Risk-Based Test Design
-
-### Coverage by Risk Level
-
-**Critical Risk Area:**
-```
-Test coverage:
-✓ Happy path (multiple variations)
-✓ All error scenarios
-✓ Boundary conditions
-✓ Performance under load
-✓ Security vulnerabilities
-✓ Recovery from failures
-✓ Concurrent operations
-✓ Data integrity
-✓ Integration points
-
-Techniques:
-- Exploratory testing sessions
-- Automated regression suite
-- Load/stress testing
-- Security scanning
-- Chaos engineering
-```
-
-**Medium Risk Area:**
-```
-Test coverage:
-✓ Happy path
-✓ Common error scenarios
-✓ Key boundary conditions
-
-Techniques:
-- Automated happy path tests
-- Spot-check during exploratory testing
-- Basic error handling verification
-```
-
-**Low Risk Area:**
-```
-Test coverage:
-✓ Smoke test (works at all?)
-
-Techniques:
-- Quick manual check
-- Maybe automated smoke test
-```
-
-### Example: Login Feature
-
-**Risk Assessment:**
-```
-Impact: High (blocks all functionality)
-Probability: Medium (well-understood, but complex)
-Risk Level: High
-```
-
-**Test Strategy:**
-```
-Critical Scenarios:
-✓ Valid credentials → Success
-✓ Invalid password → Error message
-✓ Account locked after failed attempts
-✓ Session timeout handling
-✓ Multi-factor authentication
-✓ Password reset flow
-✓ SQL injection attempts
-✓ Brute force protection
-
-Medium Priority:
-✓ Remember me functionality
-✓ Social login integration
-✓ Different user roles
-
-Low Priority:
-✓ Login page UI variations
-✓ Keyboard navigation
-```
-
-## Risk Mitigation Strategies
-
-### Reducing Probability
-
-**Technical Mitigation:**
-- Code reviews
-- Static analysis
-- Test automation
-- Pair programming
-- Design patterns
-- Simpler architecture
-
-**Process Mitigation:**
-- Feature flags (gradual rollout)
-- Canary deployments
-- Blue-green deployments
-- Comprehensive monitoring
-
-### Reducing Impact
-
-**Technical Mitigation:**
-- Graceful degradation
-- Circuit breakers
-- Fallback mechanisms
-- Data backups
-- Rollback procedures
-
-**Business Mitigation:**
-- Insurance
-- Service level agreements
-- Customer communication plans
-- Workarounds documented
-
-## Dynamic Risk Assessment
-
-**Risks change over time:**
-
-**Risk increases when:**
-- Major refactoring
-- New team members
-- Tight deadlines
-- New technology
-- Integration changes
-- High-traffic events coming (Black Friday)
-
-**Risk decreases when:**
-- Comprehensive test coverage
-- Code stabilizes
-- Team expertise grows
-- Multiple successful releases
-- Production monitoring improves
-
-**Re-assess risks:**
-- Every sprint planning
-- Before major releases
-- After production incidents
-- Quarterly review
-
-## Production Risk Monitoring
-
-### Leading Indicators
-
-Monitor for risk signals:
-
-**Code metrics:**
-- Increasing complexity
-- Test coverage declining
-- Code churn in critical areas
-- Growing tech debt
-
-**Team metrics:**
-- Velocity dropping
-- Bug fix time increasing
-- Team turnover
-
-**Production metrics:**
-- Error rates trending up
-- Performance degrading
-- Customer complaints rising
-
-### Incident-Based Risk Assessment
-
-**After each production incident:**
-
-1. **Root cause analysis**
-   - Why did it happen?
-   - Why wasn't it caught?
-
-2. **Risk re-assessment**
-   - Was this area properly risk-assessed?
-   - Should we increase testing focus?
-
-3. **Preventive measures**
-   - Add tests
-   - Improve monitoring
-   - Architectural changes
-
-**Example:**
-```
-Incident: Payment processing failed for 2 hours
-Root cause: Database connection pool exhausted
-Previous risk level: High
-New risk level: CRITICAL
-Action: Add load testing, improve monitoring, auto-scaling
-```
-
-## Risk-Based Automation Strategy
-
-### Automate Based on Risk × Frequency
-
-```
-High Risk + High Frequency = MUST AUTOMATE
-High Risk + Low Frequency = Manual testing OK
-Low Risk + High Frequency = Consider automation
-Low Risk + Low Frequency = Skip or manual spot-check
-```
-
-**Automation priorities:**
-```
-1. Critical user flows (checkout, payment)
-2. High-risk regressions (known to break)
-3. Security vulnerabilities (injection, XSS)
-4. Data integrity checks
-5. Integration points
-6. Lower priority features
-```
-
-## Communication of Risk
-
-### Stakeholder Risk Dashboard
-
-```markdown
-## Sprint 15 Risk Dashboard
-
-### CRITICAL Risks
-🔴 **Payment Gateway Integration**
-- Risk: Integration fails during high traffic
-- Impact: Revenue loss, customer frustration
-- Status: Load testing scheduled, monitoring enhanced
-- Test coverage: 85% → Target: 95%
-
-### HIGH Risks
-🟡 **User Authentication**
-- Risk: Session handling under concurrent logins
-- Impact: Security vulnerability, user lockouts
-- Status: Tests passing, exploratory testing planned
-
-### Recently Mitigated
-✅ **Database Performance** (was Critical)
-- Added connection pooling
-- Load testing completed successfully
-- Monitoring in place
-```
-
-### Risk-Based Test Reports
-
-```markdown
-## Test Summary - Release 3.2
-
-### Risk Coverage
-✅ Critical Risks: 100% tested
-✅ High Risks: 95% tested  
-✅ Medium Risks: 75% tested
-⚠️ Low Risks: 40% tested (acceptable)
-
-### Issues Found by Risk Level
-- Critical: 0 open issues
-- High: 1 open issue (non-blocking)
-- Medium: 3 open issues (documented)
-- Low: 5 open issues (deferred)
-
-### Recommendation: GREEN for release
-All critical and high-risk areas thoroughly tested and passing.
-```
-
-## Practical Examples
-
-### Example 1: New Feature - Social Login
-
-**Initial Risk Assessment:**
-```
-Feature: Login via Google/Facebook
-Impact: Medium (alternative to email login exists)
-Probability: Medium (third-party integration, new to team)
-Risk Level: Medium → High
-```
-
-**Test Strategy:**
-- Core flow automated
-- Error scenarios tested
-- Security review (OAuth flow)
-- Privacy compliance check
-- Fallback to email tested
-
-### Example 2: Bug Fix in Payment Processing
-
-**Risk Re-Assessment:**
-```
-Change: Fix rounding error in multi-currency payments
-Area Risk: Critical (payment processing)
-Change Risk: Medium (localized change)
-Overall: High → Test thoroughly despite "simple fix"
-```
-
-**Test Strategy:**
-- Fix verified with unit tests
-- Regression tests for payment flow
-- Manual testing with multiple currencies
-- Edge cases (0.01 amounts, max amounts)
-- Deploy to staging first
-- Monitor production closely
-
-## Combining Risk-Based with Other Approaches
-
-### Risk + Context-Driven Testing
-- Risk identifies WHERE to test
-- Context determines HOW to test
-
-### Risk + Exploratory Testing
-- High-risk areas get more exploration time
-- Use risk assessment to create charters
-
-### Risk + TDD
-- Critical code gets TDD treatment
-- Less critical code might skip TDD
-
-### Risk + Automation
-- Risk determines automation priority
-- High-risk = automate first and thoroughly
-
-## Common Pitfalls
-
-### ❌ Risk Assessment Too Generic
-"High risk: payment processing"
-
-**Better:** "Critical risk: payment processing timeout under load during checkout, especially for international transactions"
-
-### ❌ Not Updating Risk Assessment
-Risks from 6 months ago may not be relevant now.
-
-**Fix:** Review and update quarterly or after incidents
-
-### ❌ Ignoring Low Probability, High Impact
-Rare but catastrophic events still need attention.
-
-**Fix:** Some testing of high-impact items regardless of probability
-
-### ❌ Only Technical Risks
-Missing business, regulatory, reputation risks.
-
-**Fix:** Include diverse stakeholders in risk assessment
-
-## Risk-Based Testing Checklist
-
-**Before Sprint:**
-- [ ] Risks identified for new features
-- [ ] Risk levels assigned
-- [ ] Test strategy per risk level
-- [ ] Testing time allocated by risk
-
-**During Development:**
-- [ ] Critical areas tested first
-- [ ] Risk levels guide test depth
-- [ ] New risks identified and assessed
-
-**Before Release:**
-- [ ] All critical risks tested and passed
-- [ ] High risks have sufficient coverage
-- [ ] Known issues documented with risk level
-- [ ] Stakeholders informed of residual risks
-
-**After Release:**
-- [ ] Monitor for risk realization
-- [ ] Update risk assessment based on learnings
-- [ ] Improve testing for next cycle
-
-## Using with QE Agents
-
-### Automated Risk Assessment
-
-**qe-regression-risk-analyzer** performs intelligent risk scoring:
+### Step 2: Apply Test Depth
 ```typescript
-// Agent analyzes PR for risk factors
-const riskAnalysis = await agent.analyzeRisk({
-  diff: prChanges,
-  historicalData: true,
-  complexity: true,
-  testCoverage: true
-});
-
-// Returns prioritized risk areas
-// {
-//   criticalRisks: ['payment-processing', 'auth-session'],
-//   highRisks: ['order-calculation'],
-//   recommendedTests: [...],
-//   estimatedEffort: '4 hours'
-// }
-```
-
-### Risk-Driven Test Generation
-
-**qe-test-generator** creates tests based on risk levels:
-```typescript
-// Generate tests for critical risk areas
-await agent.generateTests({
-  riskLevel: 'critical',
-  features: ['payment', 'checkout'],
-  coverage: 'comprehensive',  // All scenarios + edge cases
-  techniques: ['boundary', 'error', 'load', 'security']
-});
-
-// Generate lighter tests for low risk
-await agent.generateTests({
-  riskLevel: 'low',
-  features: ['help-docs'],
-  coverage: 'smoke-only'  // Just verify it works
-});
-```
-
-### Dynamic Risk Re-Assessment
-
-**qe-production-intelligence** monitors production to update risk scores:
-```typescript
-// Agent tracks production incidents
-const productionRisks = await agent.analyzeIncidents({
-  timeframe: '30d',
-  severity: 'high',
-  frequency: 'recurring'
-});
-
-// Updates risk matrix based on real data
-// "Payment processing: Medium → CRITICAL (3 incidents this month)"
-// → Automatically increases test coverage for payment module
-```
-
-### Risk-Based Quality Gate
-
-**qe-quality-gate** makes GO/NO-GO decisions using risk:
-```typescript
-// Agent evaluates readiness for release
-const decision = await agent.evaluateRelease({
-  strategy: 'risk-based',
-  criteria: {
-    criticalRisks: 'all-tested-and-passed',
-    highRisks: 'coverage >= 90%',
-    mediumRisks: 'coverage >= 75%',
-    lowRisks: 'documented-only'
+await Task("Risk-Based Test Generation", {
+  critical: {
+    features: ['checkout', 'payment'],
+    depth: 'comprehensive',
+    techniques: ['unit', 'integration', 'e2e', 'performance', 'security']
+  },
+  high: {
+    features: ['auth', 'user-profile'],
+    depth: 'thorough',
+    techniques: ['unit', 'integration', 'e2e']
+  },
+  medium: {
+    features: ['search', 'notifications'],
+    depth: 'standard',
+    techniques: ['unit', 'integration']
+  },
+  low: {
+    features: ['admin-panel', 'settings'],
+    depth: 'smoke',
+    techniques: ['smoke-tests']
   }
-});
-
-// Returns:
-// {
-//   decision: 'GO' | 'NO-GO',
-//   blockers: [],
-//   residualRisks: ['Low: UI glitch in admin panel (documented)'],
-//   confidence: 0.95
-// }
+}, "qe-test-generator");
 ```
 
-### Fleet Coordination for Risk Management
+### Step 3: Reassess Dynamically
+```typescript
+// Production incident increases risk
+await Task("Update Risk Score", {
+  feature: 'search',
+  event: 'production-incident',
+  previousRisk: 9,
+  newProbability: 5,  // Increased due to incident
+  newRisk: 15         // Now HIGH priority
+}, "qe-regression-risk-analyzer");
+```
+
+---
+
+## ML-Enhanced Risk Analysis
 
 ```typescript
-// Multiple agents collaborate on risk management
+// Agent predicts risk using historical data
+const riskAnalysis = await Task("ML Risk Analysis", {
+  codeChanges: changedFiles,
+  historicalBugs: bugDatabase,
+  prediction: {
+    model: 'gradient-boosting',
+    factors: ['complexity', 'change-frequency', 'author-experience', 'file-age']
+  }
+}, "qe-regression-risk-analyzer");
+
+// Output: 95% accuracy risk prediction per file
+```
+
+---
+
+## Agent Coordination Hints
+
+### Memory Namespace
+```
+aqe/risk-based/
+├── risk-scores/*        - Current risk assessments
+├── historical-bugs/*    - Bug patterns by area
+├── production-data/*    - Incident data for risk
+└── coverage-map/*       - Test depth by risk level
+```
+
+### Fleet Coordination
+```typescript
 const riskFleet = await FleetManager.coordinate({
   strategy: 'risk-based-testing',
   agents: [
-    'qe-regression-risk-analyzer',    // Identify risks
-    'qe-test-generator',              // Generate risk-targeted tests
-    'qe-test-executor',               // Execute by priority
-    'qe-production-intelligence',     // Update risk from production
-    'qe-quality-gate'                 // Make release decision
+    'qe-regression-risk-analyzer',  // Risk scoring
+    'qe-test-generator',            // Risk-appropriate tests
+    'qe-production-intelligence',   // Production feedback
+    'qe-quality-gate'               // Risk-based gates
   ],
   topology: 'sequential'
 });
-
-// Executes full risk-based workflow
-await riskFleet.execute({
-  release: 'v3.2',
-  riskMatrix: 'e-commerce-default'
-});
 ```
 
-### Agent-Assisted Risk Workshops
+---
 
-```typescript
-// Agent facilitates risk identification workshop
-const workshop = await qe-requirements-validator.facilitateRiskWorkshop({
-  participants: ['product', 'dev', 'qe', 'support', 'security'],
-  features: ['new-checkout-flow'],
-  duration: '60min'
-});
+## Integration with CI/CD
 
-// Agent synthesizes input into risk matrix
-// Identifies: 15 risks across 5 categories
-// Prioritizes: 3 critical, 5 high, 7 medium
-// Recommends: Test strategy per risk level
+```yaml
+# Risk-based test selection in pipeline
+- name: Risk Analysis
+  run: aqe risk-analyze --changes ${{ github.event.pull_request.files }}
+
+- name: Run Critical Tests
+  if: risk.critical > 0
+  run: npm run test:critical
+
+- name: Run High Tests
+  if: risk.high > 0
+  run: npm run test:high
+
+- name: Skip Low Risk
+  if: risk.low_only
+  run: npm run test:smoke
 ```
 
 ---
 
 ## Related Skills
-
-**Core Quality Practices:**
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Risk-based agent coordination
-- [holistic-testing-pact](../holistic-testing-pact/) - Risk coverage across test quadrants
-- [context-driven-testing](../context-driven-testing/) - Risk assessment in context
-
-**Testing Approaches:**
-- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Risk-guided exploration charters
-- [test-automation-strategy](../test-automation-strategy/) - Automate based on risk × frequency
-- [api-testing-patterns](../api-testing-patterns/) - API risk scenarios
-- [performance-testing](../performance-testing/) - Load test high-risk areas
-- [security-testing](../security-testing/) - Security risk assessment
-
-**Communication:**
-- [quality-metrics](../quality-metrics/) - Risk-based metrics dashboard
-- [bug-reporting-excellence](../bug-reporting-excellence/) - Communicate bug risk levels
+- [agentic-quality-engineering](../agentic-quality-engineering/) - Risk-aware agents
+- [context-driven-testing](../context-driven-testing/) - Context affects risk
+- [regression-testing](../regression-testing/) - Risk-based regression selection
+- [shift-right-testing](../shift-right-testing/) - Production informs risk
 
 ---
 
 ## Remember
 
-**Perfect testing is impossible. Smart testing is achievable.**
+**Risk = Probability × Impact.** Test where bugs hurt most. Critical gets 60%, low gets 5%. Risk is dynamic - reassess with new info. Production incidents raise risk scores.
 
-Focus effort where it matters most. Accept that low-risk areas might have bugs. Communicate risk clearly. Adjust as you learn.
-
-Risk-based testing isn't about testing less - it's about testing smarter.
-
-**With Agents**: Agents automate risk scoring, continuously update risk matrices from production data, and orchestrate test generation based on risk priorities. Use agents to make risk-based testing data-driven and scalable.
+**With Agents:** Agents calculate risk using ML on historical data, select risk-appropriate tests, and adjust scores from production feedback. Use agents to maintain dynamic risk profiles at scale.

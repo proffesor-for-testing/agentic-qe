@@ -1,12 +1,22 @@
 /**
  * E2E CLI Workflow Tests
  * Testing complete CLI workflows from command input to final output
+ *
+ * NOTE: This file uses real timers intentionally because:
+ * 1. E2E tests spawn actual child processes that run in real time
+ * 2. Process timeouts (setTimeout at line ~80) prevent tests from hanging
+ * 3. Process interruption tests (setTimeout at line ~896) need real timing
+ * Fake timers would not work with child_process spawn/events.
  */
 
 import { spawn, ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
+
+// Seeded RNG for deterministic test behavior
+const rng = createSeededRandom(29000);
 
 // Helper functions for CLI testing
 class CLITestHelper {
@@ -255,7 +265,7 @@ export class UserService {
   }
 
   private generateId(): string {
-    return Math.random().toString(36).substr(2, 9);
+    return rng.random().toString(36).substr(2, 9);
   }
 }
 `;

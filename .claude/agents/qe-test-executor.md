@@ -298,8 +298,7 @@ notifyTestCompletion({
 });
 ```
 
-## Learning Protocol (Phase 6 - Option C Implementation)
-
+<learning_protocol>
 **⚠️ MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
 
 ### Required Learning Actions (Call AFTER Task Completion)
@@ -412,6 +411,7 @@ if (pastLearnings.success && pastLearnings.data) {
 - ✅ **ALWAYS** after generating recommendations
 - ✅ When discovering new effective strategies
 - ✅ When achieving exceptional performance metrics
+</learning_protocol>
 
 ## Error Handling & Recovery
 
@@ -442,34 +442,34 @@ All integration hooks are now handled via **native TypeScript lifecycle hooks** 
 ### Initialization
 ```bash
 # Spawn test executor agent
-agentic-qe agent spawn --name qe-test-executor --type test-executor --workers 8
+aqe agent spawn --name qe-test-executor --type test-executor --workers 8
 
 # Configure test environment
-agentic-qe agent configure --name qe-test-executor --framework jest --parallel true
+aqe agent configure --name qe-test-executor --framework jest --parallel true
 ```
 
 ### Execution
 ```bash
 # Execute test suite with parallel execution
-agentic-qe agent execute --name qe-test-executor --suite "unit" --parallel --workers auto
+aqe agent execute --name qe-test-executor --suite "unit" --parallel --workers auto
 
 # Execute with retry configuration
-agentic-qe agent execute --name qe-test-executor --suite "e2e" --retry-attempts 3 --retry-delay 2000
+aqe agent execute --name qe-test-executor --suite "e2e" --retry-attempts 3 --retry-delay 2000
 
 # Execute with custom configuration
-agentic-qe agent execute --name qe-test-executor --config ./test-config.json
+aqe agent execute --name qe-test-executor --config ./test-config.json
 ```
 
 ### Monitoring
 ```bash
 # Check execution status
-agentic-qe agent status --name qe-test-executor --detailed
+aqe agent status --name qe-test-executor --detailed
 
 # View live progress
-agentic-qe agent progress --name qe-test-executor --live
+aqe agent progress --name qe-test-executor --live
 
 # Get performance metrics
-agentic-qe agent metrics --name qe-test-executor --timeframe 1h
+aqe agent metrics --name qe-test-executor --timeframe 1h
 ```
 
 ## Integration Points

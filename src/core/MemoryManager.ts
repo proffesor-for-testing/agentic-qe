@@ -13,7 +13,7 @@ import { MemoryRecord } from '../types';
 export interface MemoryOptions {
   ttl?: number;
   namespace?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   persist?: boolean;
 }
 
@@ -48,9 +48,13 @@ export class MemoryManager extends EventEmitter {
     this.logger = Logger.getInstance();
 
     // Setup automatic cleanup every 5 minutes
+    // Use unref() to prevent interval from keeping process alive
     this.cleanupInterval = setInterval(() => {
       this.cleanupExpired();
     }, 5 * 60 * 1000);
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
 
     // Track this instance for cleanup
     MemoryManager.instances.add(this);
@@ -107,7 +111,7 @@ export class MemoryManager extends EventEmitter {
    */
   async store(
     key: string,
-    value: any,
+    value: unknown,
     options: MemoryOptions = {}
   ): Promise<void> {
     const namespace = options.namespace || 'default';
@@ -161,7 +165,7 @@ export class MemoryManager extends EventEmitter {
   async retrieve(
     key: string,
     namespace: string = 'default'
-  ): Promise<any> {
+  ): Promise<unknown> {
     const fullKey = this.createFullKey(key, namespace);
     const record = this.storage.get(fullKey);
 
@@ -190,14 +194,14 @@ export class MemoryManager extends EventEmitter {
   /**
    * Set data in memory (alias for store, implements MemoryStore interface)
    */
-  async set(key: string, value: any, namespace: string = 'default'): Promise<void> {
+  async set(key: string, value: unknown, namespace: string = 'default'): Promise<void> {
     await this.store(key, value, { namespace });
   }
 
   /**
    * Get data from memory (alias for retrieve, implements MemoryStore interface)
    */
-  async get(key: string, namespace: string = 'default'): Promise<any> {
+  async get(key: string, namespace: string = 'default'): Promise<unknown> {
     return await this.retrieve(key, namespace);
   }
 
@@ -271,7 +275,7 @@ export class MemoryManager extends EventEmitter {
     if (this.database) {
       try {
         const sql = `SELECT key FROM memory_store WHERE namespace = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`;
-        const rows = await this.database.all(sql, [namespace]);
+        const rows = await this.database.all<{ key: string }>(sql, [namespace]);
         const dbKeys = rows.map(row => row.key);
         // Merge and deduplicate
         const allKeys = new Set([...keys, ...dbKeys]);
@@ -608,8 +612,8 @@ export class MemoryManager extends EventEmitter {
     try {
       const sql = `SELECT value FROM memory_store WHERE key = ? AND namespace = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`;
       const row = await this.database.get(sql, [key, namespace]);
-      if (row) {
-        return JSON.parse(row.value) as MemoryRecord;
+      if (row && row.value !== null) {
+        return JSON.parse(row.value as string) as MemoryRecord;
       }
     } catch (error) {
       this.logger.warn('Failed to load from database:', error);
@@ -637,9 +641,10 @@ export class MemoryManager extends EventEmitter {
           const rows = await this.database.all(sql, [namespace]);
 
           for (const row of rows) {
-            const record = await this.loadFromDatabase(row.key, namespace);
+            const key = row.key as string;
+            const record = await this.loadFromDatabase(key, namespace);
             if (record && !this.isExpired(record)) {
-              const fullKey = this.createFullKey(row.key, namespace);
+              const fullKey = this.createFullKey(key, namespace);
               this.storage.set(fullKey, record);
             }
           }

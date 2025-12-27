@@ -61,10 +61,14 @@ export interface PerformanceMonitorRealtimeResult {
 
 /**
  * Monitor performance in real-time with streaming updates
+ * @deprecated Use performance_analyze_bottlenecks or performance_run_benchmark instead (Issue #115)
  */
 export async function performanceMonitorRealtime(
   params: PerformanceMonitorRealtimeParams
 ): Promise<PerformanceMonitorRealtimeResult> {
+  // DEPRECATION WARNING: This handler is deprecated in favor of Phase 3 domain tools
+  console.warn('[DEPRECATED] performance_monitor_realtime is deprecated. Use performance_analyze_bottlenecks or performance_run_benchmark instead (Issue #115)');
+
   const {
     targets,
     interval = 1000,

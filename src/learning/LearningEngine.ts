@@ -9,9 +9,24 @@ import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/Logger';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 import { QLearning, QLearningConfig } from './QLearning';
+import { SARSALearner, SARSAConfig } from './algorithms/SARSALearner';
+import { ActorCriticLearner, createDefaultActorCriticConfig } from './algorithms/ActorCriticLearner';
+import { PPOLearner, createDefaultPPOConfig } from './algorithms/PPOLearner';
+import { AbstractRLLearner } from './algorithms/AbstractRLLearner';
 import { StateExtractor } from './StateExtractor';
 import { RewardCalculator, TaskResult } from './RewardCalculator';
 import packageJson from '../../package.json';
+import {
+  recordLearningEpisode,
+  recordQValueUpdate,
+  recordPatternMatch,
+  recordAlgorithmSwitch,
+  recordExperienceSharing,
+  updateSharingConnections,
+  updateGaugeValues,
+  recordLearningSession,
+  withLearningSpan,
+} from '../telemetry/LearningTelemetry';
 
 const PACKAGE_VERSION = packageJson.version;
 import {
@@ -25,13 +40,35 @@ import {
   LearningModelState,
   FailurePattern,
   StrategyRecommendation,
-  LearningEvent
+  LearningEvent,
+  PerformanceMetrics
 } from './types';
+import { QETask } from '../types';
+import { ExperienceSharingProtocol, SharedExperience } from './ExperienceSharingProtocol';
+import { HNSWPatternAdapter, HNSWPatternAdapterConfig, PatternSearchResult } from './HNSWPatternAdapter';
+
+/**
+ * RL Algorithm type selection
+ */
+export type RLAlgorithmType = 'q-learning' | 'sarsa' | 'actor-critic' | 'ppo' | 'maml' | 'legacy';
+
+/**
+ * Extended learning configuration with algorithm selection
+ */
+export interface ExtendedLearningConfig extends LearningConfig {
+  algorithm?: RLAlgorithmType; // Which RL algorithm to use
+  enableExperienceSharing?: boolean; // Enable cross-agent experience sharing
+  experienceSharingPriority?: number; // Minimum priority for sharing (0-1)
+  /** Enable HNSW vector search for O(log n) pattern matching (Phase 0 M0.3) */
+  enableHNSW?: boolean;
+  /** HNSW adapter configuration */
+  hnswConfig?: HNSWPatternAdapterConfig;
+}
 
 /**
  * Default learning configuration
  */
-const DEFAULT_CONFIG: LearningConfig = {
+const DEFAULT_CONFIG: ExtendedLearningConfig = {
   enabled: true,
   learningRate: 0.1,
   discountFactor: 0.95,
@@ -40,7 +77,11 @@ const DEFAULT_CONFIG: LearningConfig = {
   minExplorationRate: 0.01,
   maxMemorySize: 100 * 1024 * 1024, // 100MB
   batchSize: 32,
-  updateFrequency: 10
+  updateFrequency: 10,
+  algorithm: 'q-learning', // Default to Q-Learning
+  enableExperienceSharing: false, // Disabled by default for backward compatibility
+  experienceSharingPriority: 0.5, // Only share moderately valuable experiences
+  enableHNSW: false, // Disabled by default for backward compatibility (Phase 0 M0.3)
 };
 
 /**
@@ -50,9 +91,10 @@ export class LearningEngine {
   private readonly logger: Logger;
   private readonly memoryStore: SwarmMemoryManager;
   private readonly agentId: string;
-  private config: LearningConfig;
+  private config: ExtendedLearningConfig;
   private qTable: Map<string, Map<string, number>>; // state-action values (legacy)
-  private qLearning?: QLearning; // Q-learning integration
+  private rlAlgorithm?: AbstractRLLearner; // Current RL algorithm (Q-Learning, SARSA, etc.)
+  private qLearning?: QLearning; // Q-learning integration (backward compatibility)
   private useQLearning: boolean;
   private experiences: TaskExperience[];
   // REMOVED: private patterns: Map<string, LearnedPattern>; (now persisted via memoryStore.storePattern)
@@ -60,11 +102,14 @@ export class LearningEngine {
   private taskCount: number;
   private readonly stateExtractor: StateExtractor;
   private readonly rewardCalculator: RewardCalculator;
+  private experienceSharing?: ExperienceSharingProtocol;
+  // Phase 0 M0.3: HNSW vector search for O(log n) pattern matching
+  private hnswAdapter?: HNSWPatternAdapter;
 
   constructor(
     agentId: string,
     memoryStore: SwarmMemoryManager,
-    config: Partial<LearningConfig> = {}
+    config: Partial<ExtendedLearningConfig> = {}
   ) {
     this.logger = Logger.getInstance();
     this.agentId = agentId;
@@ -79,13 +124,27 @@ export class LearningEngine {
     this.stateExtractor = new StateExtractor();
     this.rewardCalculator = new RewardCalculator();
 
-    // Architecture Improvement (Phase 3): LearningEngine now accepts SwarmMemoryManager
-    // directly for unified persistence. This ensures:
-    // 1. All learning patterns persist to .agentic-qe/agentdb.db via SwarmMemoryManager
-    // 2. Unified memory access across all agents
-    // 3. Proper resource management and no duplicate connections
-    // 4. Backward compatibility with QEReasoningBank
-    this.logger.info(`LearningEngine initialized for agent ${agentId} - using ${memoryStore.constructor.name} for persistent storage`);
+    // Initialize RL algorithm if specified
+    if (this.config.algorithm && this.config.algorithm !== 'legacy') {
+      this.setAlgorithm(this.config.algorithm);
+    }
+
+    // Phase 0 M0.3: Initialize HNSW adapter for O(log n) pattern matching
+    if (this.config.enableHNSW) {
+      this.hnswAdapter = new HNSWPatternAdapter(this.config.hnswConfig);
+      this.logger.info('HNSW pattern adapter created for O(log n) similarity search');
+    }
+
+    // UNIFIED PERSISTENCE ARCHITECTURE (v2.2.0):
+    // LearningEngine uses SwarmMemoryManager for ALL persistence.
+    // All data goes to the SINGLE database: .agentic-qe/memory.db
+    // This ensures CLI, MCP, and agents all share the same data.
+    //
+    // Key methods that persist to memory.db:
+    // - storeLearningExperience() -> learning_experiences table
+    // - storePattern() -> patterns table
+    // - upsertQValue() -> q_values table
+    this.logger.info(`LearningEngine initialized for agent ${agentId} with algorithm ${this.config.algorithm} - using ${memoryStore.constructor.name} for persistent storage`);
   }
 
   /**
@@ -105,11 +164,21 @@ export class LearningEngine {
 
     // Store config in memory via reasoningBank's memoryStore
     if (this.memoryStore) {
+      // Serialize config to Record<string, unknown> for type safety
+      const serializableConfig: Record<string, unknown> = {
+        ...this.config
+      };
       await this.memoryStore.store(
         `phase2/learning/${this.agentId}/config`,
-        this.config,
+        serializableConfig,
         { partition: 'learning' }
       );
+    }
+
+    // Phase 0 M0.3: Initialize HNSW adapter for vector similarity search
+    if (this.hnswAdapter) {
+      await this.hnswAdapter.initialize();
+      this.logger.info('HNSW pattern adapter initialized for O(log n) similarity search');
     }
 
     this.logger.info('LearningEngine initialized successfully');
@@ -122,7 +191,7 @@ export class LearningEngine {
    * Record experience from task execution (DEPRECATED)
    * Redirects to learnFromExecution() for consolidated implementation
    */
-  async recordExperience(task: any, result: TaskResult, feedback?: LearningFeedback): Promise<void> {
+  async recordExperience(task: unknown, result: TaskResult, feedback?: LearningFeedback): Promise<void> {
     this.logger.warn('[LearningEngine] recordExperience() is deprecated. Use learnFromExecution() instead. This method will be removed in v2.0.0');
 
     // Redirect to unified method
@@ -130,26 +199,26 @@ export class LearningEngine {
   }
 
   /**
-   * Load patterns from memoryStore (AgentDB via SwarmMemoryManager)
+   * Load patterns from memoryStore (SwarmMemoryManager -> memory.db)
    *
-   * Architecture: Retrieves patterns from SwarmMemoryManager which
-   * internally uses AgentDB (.agentic-qe/agentdb.db).
+   * Architecture: Retrieves patterns from the unified memory.db database
+   * via SwarmMemoryManager.
    *
    * Note: This method is legacy and not currently used (patterns loaded on-demand).
    */
   private async loadPatternsFromMemoryStore(): Promise<void> {
     try {
-      // Query all patterns from AgentDB (confidence >= 0 returns all)
+      // Query all patterns from memory.db (confidence >= 0 returns all)
       const allPatterns = await this.memoryStore.queryPatternsByConfidence(0);
 
       if (allPatterns.length === 0) {
-        this.logger.info('No existing patterns found in AgentDB');
+        this.logger.info('No existing patterns found in memory.db');
         return;
       }
 
-      this.logger.info(`Found ${allPatterns.length} patterns in AgentDB for agent ${this.agentId}`);
+      this.logger.info(`Found ${allPatterns.length} patterns in memory.db for agent ${this.agentId}`);
     } catch (error) {
-      this.logger.warn(`Failed to load patterns from AgentDB:`, error);
+      this.logger.warn(`Failed to load patterns from memory.db:`, error);
     }
   }
 
@@ -162,18 +231,22 @@ export class LearningEngine {
    * upsertQValue, storeLearningSnapshot) instead of LearningPersistence adapter.
    */
   async learnFromExecution(
-    task: any,
-    result: any,
+    task: unknown,
+    result: unknown,
     feedback?: LearningFeedback
   ): Promise<LearningOutcome> {
     if (!this.config.enabled) {
       return this.createOutcome(false, 0, 0);
     }
 
+    const episodeStartTime = Date.now();
+
     try {
       // Extract experience from task execution
-      const experience = this.extractExperience(task, result, feedback);
-      const reward = this.calculateReward(result, feedback);
+      const taskObj = (typeof task === 'object' && task !== null ? task : {}) as Record<string, unknown>;
+      const resultObj = (typeof result === 'object' && result !== null ? result : {}) as Record<string, unknown>;
+      const experience = this.extractExperience(taskObj, resultObj, feedback);
+      const reward = this.calculateReward(resultObj, feedback);
       experience.reward = reward;
 
       // Store in memory (fast)
@@ -182,9 +255,12 @@ export class LearningEngine {
       // Update Q-table (in-memory)
       await this.updateQTable(experience);
 
+      // Record telemetry: Q-value update occurred
+      recordQValueUpdate(this.agentId, 1, undefined, this.getAlgorithm());
+
       // Persist to database via memoryStore (replaces persistence adapter)
       // Only if memoryStore is SwarmMemoryManager
-      if (this.memoryStore && typeof (this.memoryStore as any).storeLearningExperience === "function") {
+      if (this.memoryStore && typeof (this.memoryStore as SwarmMemoryManager & { storeLearningExperience?: unknown }).storeLearningExperience === "function") {
         try {
           // Store experience
           await this.memoryStore.storeLearningExperience({
@@ -219,7 +295,7 @@ export class LearningEngine {
       await this.updatePatterns(experience);
 
       // Detect failure patterns
-      if (!result.success) {
+      if (!resultObj.success) {
         await this.detectFailurePattern(experience);
       }
 
@@ -231,7 +307,7 @@ export class LearningEngine {
         await this.performBatchUpdate();
 
         // Store learning snapshot via memoryStore
-        if (this.memoryStore && typeof (this.memoryStore as any).storeLearningExperience === "function") {
+        if (this.memoryStore && typeof (this.memoryStore as SwarmMemoryManager & { storeLearningExperience?: unknown }).storeLearningExperience === "function") {
           const improvement = await this.calculateImprovement();
           await this.memoryStore.storeLearningSnapshot({
             agentId: this.agentId,
@@ -251,6 +327,11 @@ export class LearningEngine {
 
       // Calculate improvement
       const improvement = await this.calculateImprovement();
+
+      // Share experience with peers if enabled and valuable
+      if (this.config.enableExperienceSharing && this.experienceSharing) {
+        await this.shareExperienceWithPeers(experience);
+      }
 
       // Emit learning event
       await this.emitLearningEvent('training', {
@@ -340,20 +421,59 @@ export class LearningEngine {
       // Use agent-specific query to avoid mixing patterns from different agents
       const dbPatterns = await this.memoryStore.queryPatternsByAgent(this.agentId, 0);
 
-      return dbPatterns.map((p: any) => ({
-        id: p.id, // Use existing ID, don't generate new ones
+      return dbPatterns.map((p: { id?: string; pattern: string; confidence: number; metadata?: Record<string, unknown>; usageCount?: number }) => ({
+        id: p.id || uuidv4(), // Use existing ID or generate new one
         pattern: p.pattern,
         confidence: p.confidence,
-        successRate: p.metadata?.success_rate || 0.5,
+        successRate: (p.metadata?.success_rate as number) ?? 0.5,
         usageCount: p.usageCount || 0,
-        contexts: p.metadata?.contexts || [],
-        createdAt: p.metadata?.created_at ? new Date(p.metadata.created_at) : new Date(),
-        lastUsedAt: p.metadata?.last_used_at ? new Date(p.metadata.last_used_at) : new Date()
+        contexts: (p.metadata?.contexts as string[]) ?? [],
+        createdAt: p.metadata?.created_at ? new Date(p.metadata.created_at as string | number) : new Date(),
+        lastUsedAt: p.metadata?.last_used_at ? new Date(p.metadata.last_used_at as string | number) : new Date()
       }));
     } catch (error) {
       this.logger.warn('Failed to query patterns:', error);
       return [];
     }
+  }
+
+  /**
+   * Search for similar patterns using HNSW vector similarity
+   * Phase 0 M0.3: O(log n) complexity with <1ms p95 latency
+   *
+   * @param query Search query (text to find similar patterns for)
+   * @param k Number of results to return (default: 5)
+   * @returns Similar patterns with similarity scores, or empty array if HNSW not enabled
+   */
+  async searchSimilarPatterns(query: string, k: number = 5): Promise<PatternSearchResult[]> {
+    if (!this.hnswAdapter) {
+      this.logger.debug('HNSW not enabled, searchSimilarPatterns returning empty');
+      return [];
+    }
+
+    try {
+      return await this.hnswAdapter.searchSimilar(query, k);
+    } catch (error) {
+      this.logger.warn('HNSW similarity search failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Check if HNSW vector search is enabled
+   */
+  isHNSWEnabled(): boolean {
+    return !!this.hnswAdapter;
+  }
+
+  /**
+   * Get HNSW adapter statistics
+   */
+  async getHNSWStats(): Promise<{ patternCount: number; useRuvLLM: boolean; embeddingDimension: number } | null> {
+    if (!this.hnswAdapter) {
+      return null;
+    }
+    return this.hnswAdapter.getStats();
   }
 
   /**
@@ -396,25 +516,26 @@ export class LearningEngine {
    * Extract experience from task execution
    */
   private extractExperience(
-    task: any,
-    result: any,
+    task: Record<string, unknown>,
+    result: Record<string, unknown>,
     feedback?: LearningFeedback
   ): TaskExperience {
+    const requirements = task.requirements as Record<string, unknown> | undefined;
     const state: TaskState = {
       taskComplexity: this.estimateComplexity(task),
-      requiredCapabilities: task.requirements?.capabilities || [],
-      contextFeatures: task.context || {},
-      previousAttempts: task.previousAttempts || 0,
-      availableResources: this.stateExtractor.extractState(task).availableResources,
-      timeConstraint: task.timeout
+      requiredCapabilities: (requirements?.capabilities as string[]) || [],
+      contextFeatures: (task.context as Record<string, unknown>) || {},
+      previousAttempts: (task.previousAttempts as number) || 0,
+      availableResources: this.stateExtractor.extractState(task as unknown as QETask).availableResources,
+      timeConstraint: task.timeout as number | undefined
     };
 
     const action: AgentAction = {
-      strategy: result.strategy || 'default',
-      toolsUsed: result.toolsUsed || [],
-      parallelization: result.parallelization || 0.5,
-      retryPolicy: result.retryPolicy || 'exponential',
-      resourceAllocation: result.resourceAllocation || 0.5
+      strategy: (result.strategy as string) || 'default',
+      toolsUsed: (result.toolsUsed as string[]) || [],
+      parallelization: (result.parallelization as number) || 0.5,
+      retryPolicy: (result.retryPolicy as string) || 'exponential',
+      resourceAllocation: (result.resourceAllocation as number) || 0.5
     };
 
     // Next state (after execution)
@@ -425,8 +546,8 @@ export class LearningEngine {
     };
 
     return {
-      taskId: task.id || uuidv4(),
-      taskType: task.type,
+      taskId: (task.id as string) || uuidv4(),
+      taskType: task.type as string,
       state,
       action,
       reward: 0, // will be calculated
@@ -439,21 +560,23 @@ export class LearningEngine {
   /**
    * Calculate reward from execution result and feedback
    */
-  private calculateReward(result: any, feedback?: LearningFeedback): number {
+  private calculateReward(result: Record<string, unknown>, feedback?: LearningFeedback): number {
     let reward = 0;
 
     // Success/failure (primary component)
     reward += result.success ? 1.0 : -1.0;
 
     // Execution time (faster is better)
-    if (result.executionTime) {
-      const timeFactor = Math.max(0, 1 - result.executionTime / 30000); // 30 sec baseline
+    const executionTime = result.executionTime as number | undefined;
+    if (executionTime) {
+      const timeFactor = Math.max(0, 1 - executionTime / 30000); // 30 sec baseline
       reward += timeFactor * 0.5;
     }
 
     // Error rate penalty
-    if (result.errors) {
-      reward -= result.errors.length * 0.1;
+    const errors = result.errors as unknown[] | undefined;
+    if (errors) {
+      reward -= errors.length * 0.1;
     }
 
     // User feedback
@@ -463,8 +586,9 @@ export class LearningEngine {
     }
 
     // Coverage/quality bonus (for test generation)
-    if (result.coverage) {
-      reward += (result.coverage - 0.8) * 2; // bonus above 80%
+    const coverage = result.coverage as number | undefined;
+    if (coverage) {
+      reward += (coverage - 0.8) * 2; // bonus above 80%
     }
 
     return Math.max(-2, Math.min(2, reward)); // clamp to [-2, 2]
@@ -533,7 +657,7 @@ export class LearningEngine {
 
       if (this.memoryStore && typeof this.memoryStore.queryPatternsByAgent === 'function') {
         const agentPatterns = await this.memoryStore.queryPatternsByAgent(this.agentId, 0);
-        const found = agentPatterns.find((p: any) => p.pattern === patternKey);
+        const found = agentPatterns.find((p: { pattern?: string }) => p.pattern === patternKey);
 
         if (found && found.metadata) {
           const metadata = typeof found.metadata === 'string'
@@ -582,6 +706,19 @@ export class LearningEngine {
             last_used_at: existingPattern.lastUsedAt
           }
         });
+
+        // Phase 0 M0.3: Update in HNSW for vector similarity search
+        if (this.hnswAdapter) {
+          try {
+            await this.hnswAdapter.storePattern({
+              ...existingPattern,
+              agentId: this.agentId,
+              averageReward: experience.reward,
+            });
+          } catch (hnswError) {
+            this.logger.warn('HNSW pattern update failed, continuing with SQLite only:', hnswError);
+          }
+        }
       } else {
         // Create new pattern
         const pattern: LearnedPattern = {
@@ -609,6 +746,19 @@ export class LearningEngine {
             last_used_at: pattern.lastUsedAt
           }
         });
+
+        // Phase 0 M0.3: Also store in HNSW for vector similarity search
+        if (this.hnswAdapter) {
+          try {
+            await this.hnswAdapter.storePattern({
+              ...pattern,
+              agentId: this.agentId,
+              averageReward: experience.reward,
+            });
+          } catch (hnswError) {
+            this.logger.warn('HNSW pattern storage failed, continuing with SQLite only:', hnswError);
+          }
+        }
 
         // Emit pattern discovered event
         await this.emitLearningEvent('pattern_discovered', pattern);
@@ -693,15 +843,18 @@ export class LearningEngine {
   /**
    * Estimate task complexity
    */
-  private estimateComplexity(task: any): number {
+  private estimateComplexity(task: Record<string, unknown>): number {
     let complexity = 0.5; // baseline
 
-    if (task.requirements?.capabilities) {
-      complexity += task.requirements.capabilities.length * 0.1;
+    const requirements = task.requirements as Record<string, unknown> | undefined;
+    const capabilities = requirements?.capabilities as unknown[] | undefined;
+    if (capabilities) {
+      complexity += capabilities.length * 0.1;
     }
 
-    if (task.previousAttempts) {
-      complexity += task.previousAttempts * 0.1;
+    const previousAttempts = task.previousAttempts as number | undefined;
+    if (previousAttempts) {
+      complexity += previousAttempts * 0.1;
     }
 
     return Math.min(1.0, complexity);
@@ -750,9 +903,25 @@ export class LearningEngine {
       state.size = await this.calculateStateSize();
     }
 
+    // Serialize state to Record<string, unknown> for type safety
+    // Convert Date objects to ISO strings for JSON serialization
+    const serializableState: Record<string, unknown> = {
+      ...state,
+      lastUpdated: state.lastUpdated.toISOString(),
+      experiences: state.experiences.map(exp => ({
+        ...exp,
+        timestamp: exp.timestamp.toISOString()
+      })),
+      patterns: state.patterns.map(p => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        lastUsedAt: p.lastUsedAt.toISOString()
+      }))
+    };
+
     await this.memoryStore.store(
       `phase2/learning/${this.agentId}/state`,
-      state,
+      serializableState,
       { partition: 'learning' }
     );
 
@@ -807,8 +976,8 @@ export class LearningEngine {
   /**
    * Serialize Q-table for QLearning import (converts to QValue format)
    */
-  private serializeQTableForQLearning(): Record<string, Record<string, any>> {
-    const serialized: Record<string, Record<string, any>> = {};
+  private serializeQTableForQLearning(): Record<string, Record<string, { state: string; action: string; value: number; updateCount: number; lastUpdated: number }>> {
+    const serialized: Record<string, Record<string, { state: string; action: string; value: number; updateCount: number; lastUpdated: number }>> = {};
     for (const [state, actions] of this.qTable.entries()) {
       serialized[state] = {};
       for (const [action, value] of actions.entries()) {
@@ -827,7 +996,7 @@ export class LearningEngine {
   /**
    * Deserialize Q-table from QLearning export (extracts values from QValue format)
    */
-  private deserializeQTableFromQLearning(data: Record<string, Record<string, any>>): void {
+  private deserializeQTableFromQLearning(data: Record<string, Record<string, { value: number }>>): void {
     this.qTable.clear();
     for (const [state, actions] of Object.entries(data)) {
       const actionMap = new Map<string, number>();
@@ -853,38 +1022,54 @@ export class LearningEngine {
   /**
    * Get current performance metrics
    */
-  private async getCurrentPerformance(): Promise<any> {
+  private async getCurrentPerformance(): Promise<PerformanceMetrics> {
     const recentExperiences = this.experiences.slice(-100);
-    if (recentExperiences.length === 0) {
-      return {
-        avgReward: 0,
-        successRate: 0,
-        totalExperiences: 0
-      };
-    }
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - 24 * 60 * 60 * 1000); // last 24 hours
+
+    const avgReward = recentExperiences.length > 0
+      ? recentExperiences.reduce((sum, e) => sum + e.reward, 0) / recentExperiences.length
+      : 0;
+    const successRate = recentExperiences.length > 0
+      ? recentExperiences.filter(e => e.reward > 0).length / recentExperiences.length
+      : 0;
 
     return {
-      avgReward: recentExperiences.reduce((sum, e) => sum + e.reward, 0) / recentExperiences.length,
-      successRate: recentExperiences.filter(e => e.reward > 0).length / recentExperiences.length,
-      totalExperiences: this.experiences.length
+      agentId: this.agentId,
+      period: { start: periodStart, end: now },
+      metrics: {
+        tasksCompleted: recentExperiences.length,
+        successRate,
+        averageExecutionTime: 0, // Not tracked at this level
+        errorRate: 1 - successRate,
+        userSatisfaction: successRate, // Use success rate as proxy
+        resourceEfficiency: avgReward > 0 ? Math.min(1, avgReward) : 0
+      },
+      trends: []
     };
   }
 
   /**
    * Emit learning event
    */
-  private async emitLearningEvent(type: string, data: any): Promise<void> {
+  private async emitLearningEvent(type: string, data: unknown): Promise<void> {
     const event: LearningEvent = {
       id: uuidv4(),
-      type: type as any,
+      type: type as LearningEvent['type'],
       agentId: this.agentId,
       data,
       timestamp: new Date()
     };
 
+    // Serialize event to Record<string, unknown> for type safety
+    const serializableEvent: Record<string, unknown> = {
+      ...event,
+      timestamp: event.timestamp.toISOString()
+    };
+
     await this.memoryStore.storeEvent({
       type: `learning:${type}`,
-      payload: event,
+      payload: serializableEvent,
       source: this.agentId,
       timestamp: Date.now()
     });
@@ -1065,7 +1250,371 @@ export class LearningEngine {
    * The shared SwarmMemoryManager handles database lifecycle management.
    */
   dispose(): void {
-    // No resources to clean up - memoryStore is managed externally
+    // Clean up experience sharing listeners
+    if (this.experienceSharing) {
+      this.experienceSharing.removeAllListeners('experience_received');
+      this.experienceSharing = undefined;
+    }
+
     this.logger.debug(`LearningEngine disposed for agent ${this.agentId}`);
+  }
+
+  /**
+   * Set the RL algorithm to use (Q-Learning, SARSA, etc.)
+   * Supports dynamic algorithm switching with state transfer
+   */
+  setAlgorithm(algorithm: RLAlgorithmType): void {
+    if (algorithm === 'legacy') {
+      // Revert to legacy Q-table implementation
+      this.disableRLAlgorithm();
+      return;
+    }
+
+    const rlConfig = {
+      learningRate: this.config.learningRate,
+      discountFactor: this.config.discountFactor,
+      explorationRate: this.config.explorationRate,
+      explorationDecay: this.config.explorationDecay,
+      minExplorationRate: this.config.minExplorationRate,
+      useExperienceReplay: true,
+      replayBufferSize: 10000,
+      batchSize: this.config.batchSize
+    };
+
+    // Export current algorithm state if exists
+    let existingState;
+    if (this.rlAlgorithm) {
+      existingState = this.rlAlgorithm.export();
+    } else if (this.qLearning) {
+      // Migrate from legacy qLearning
+      existingState = this.qLearning.export();
+    }
+
+    // Create new algorithm instance
+    switch (algorithm) {
+      case 'q-learning':
+        this.rlAlgorithm = new QLearning(rlConfig);
+        this.qLearning = this.rlAlgorithm as QLearning; // Backward compatibility
+        this.useQLearning = true;
+        break;
+      case 'sarsa':
+        this.rlAlgorithm = new SARSALearner(rlConfig);
+        this.useQLearning = false; // SARSA is different from Q-Learning
+        break;
+      case 'actor-critic':
+        this.rlAlgorithm = new ActorCriticLearner({
+          ...rlConfig,
+          actorLearningRate: rlConfig.learningRate * 0.1,
+          criticLearningRate: rlConfig.learningRate,
+          entropyCoefficient: 0.01,
+          temperature: 1.0,
+          normalizeAdvantage: true,
+          targetUpdateFrequency: 100
+        });
+        this.useQLearning = false;
+        break;
+      case 'ppo':
+        this.rlAlgorithm = new PPOLearner({
+          ...rlConfig,
+          clipEpsilon: 0.2,
+          ppoEpochs: 4,
+          miniBatchSize: 32,
+          valueLossCoefficient: 0.5,
+          entropyCoefficient: 0.01,
+          gaeLambda: 0.95,
+          maxGradNorm: 0.5,
+          clipValueLoss: true,
+          policyLearningRate: rlConfig.learningRate,
+          valueLearningRate: rlConfig.learningRate * 3
+        });
+        this.useQLearning = false;
+        break;
+      default:
+        throw new Error(`Unknown RL algorithm: ${algorithm}`);
+    }
+
+    // Import existing state if available
+    if (existingState) {
+      this.rlAlgorithm.import(existingState);
+      this.logger.info(`Migrated existing Q-table to ${algorithm} (${this.rlAlgorithm.getTableSize()} state-action pairs)`);
+    } else if (this.qTable.size > 0) {
+      // Import from legacy Q-table
+      this.importLegacyQTable();
+    }
+
+    this.config.algorithm = algorithm;
+    this.logger.info(`Switched to ${algorithm} algorithm for agent ${this.agentId}`, { config: rlConfig });
+  }
+
+  /**
+   * Disable RL algorithm and revert to legacy Q-table
+   */
+  private disableRLAlgorithm(): void {
+    if (this.rlAlgorithm) {
+      // Export RL algorithm state to legacy Q-table
+      const exported = this.rlAlgorithm.export();
+      this.deserializeQTableFromQLearning(exported.qTable);
+    } else if (this.qLearning && this.useQLearning) {
+      // Export from legacy qLearning
+      const exported = this.qLearning.export();
+      this.deserializeQTableFromQLearning(exported.qTable);
+    }
+
+    this.rlAlgorithm = undefined;
+    this.qLearning = undefined;
+    this.useQLearning = false;
+    this.config.algorithm = 'legacy';
+
+    this.logger.info(`Disabled RL algorithm for agent ${this.agentId}, reverted to legacy Q-table`);
+  }
+
+  /**
+   * Import legacy Q-table into current RL algorithm
+   */
+  private importLegacyQTable(): void {
+    if (!this.rlAlgorithm) {
+      return;
+    }
+
+    const serialized = this.serializeQTableForQLearning();
+    this.rlAlgorithm.import({
+      qTable: serialized,
+      config: {
+        learningRate: this.config.learningRate,
+        discountFactor: this.config.discountFactor,
+        explorationRate: this.config.explorationRate,
+        explorationDecay: this.config.explorationDecay,
+        minExplorationRate: this.config.minExplorationRate,
+        useExperienceReplay: true,
+        replayBufferSize: 10000,
+        batchSize: this.config.batchSize
+      },
+      stepCount: this.taskCount,
+      episodeCount: Math.floor(this.taskCount / 10)
+    });
+
+    this.logger.info(`Imported legacy Q-table to ${this.config.algorithm} (${this.rlAlgorithm.getTableSize()} state-action pairs)`);
+  }
+
+  /**
+   * Get current RL algorithm type
+   */
+  getAlgorithm(): RLAlgorithmType {
+    return this.config.algorithm ?? 'legacy';
+  }
+
+  /**
+   * Get RL algorithm instance (for advanced use)
+   */
+  getRLAlgorithm(): AbstractRLLearner | undefined {
+    return this.rlAlgorithm;
+  }
+
+  /**
+   * Get algorithm-specific statistics
+   */
+  getAlgorithmStats(): {
+    algorithm: RLAlgorithmType;
+    stats?: ReturnType<AbstractRLLearner['getStatistics']>;
+  } {
+    if (this.rlAlgorithm) {
+      return {
+        algorithm: this.config.algorithm ?? 'legacy',
+        stats: this.rlAlgorithm.getStatistics()
+      };
+    }
+
+    return {
+      algorithm: 'legacy'
+    };
+  }
+
+  // ============================================================================
+  // Experience Sharing Integration
+  // ============================================================================
+
+  /**
+   * Enable experience sharing with other agents
+   * Connects this LearningEngine to an ExperienceSharingProtocol
+   *
+   * @param protocol - The ExperienceSharingProtocol instance to use
+   */
+  enableExperienceSharing(protocol: ExperienceSharingProtocol): void {
+    this.experienceSharing = protocol;
+    this.config.enableExperienceSharing = true;
+
+    // Subscribe to incoming experiences from other agents
+    protocol.on('experience_received', async (event: { experienceId: string; sourceAgentId: string }) => {
+      await this.handleReceivedExperience(event.experienceId);
+    });
+
+    this.logger.info(`Experience sharing enabled for agent ${this.agentId}`);
+  }
+
+  /**
+   * Disable experience sharing
+   */
+  disableExperienceSharing(): void {
+    if (this.experienceSharing) {
+      this.experienceSharing.removeAllListeners('experience_received');
+      this.experienceSharing = undefined;
+    }
+    this.config.enableExperienceSharing = false;
+
+    this.logger.info(`Experience sharing disabled for agent ${this.agentId}`);
+  }
+
+  /**
+   * Check if experience sharing is enabled
+   */
+  isExperienceSharingEnabled(): boolean {
+    return this.config.enableExperienceSharing === true && this.experienceSharing !== undefined;
+  }
+
+  /**
+   * Get the ExperienceSharingProtocol instance (if enabled)
+   */
+  getExperienceSharingProtocol(): ExperienceSharingProtocol | undefined {
+    return this.experienceSharing;
+  }
+
+  /**
+   * Share an experience with other agents
+   * Called internally after learning from execution when sharing is enabled
+   *
+   * @param experience - The experience to share
+   * @param priority - Optional priority override (0-1, higher = more valuable)
+   */
+  async shareExperienceWithPeers(experience: TaskExperience, priority?: number): Promise<string | undefined> {
+    if (!this.experienceSharing) {
+      return undefined;
+    }
+
+    // Calculate priority from reward if not provided
+    const calculatedPriority = priority ?? this.calculateExperiencePriority(experience);
+
+    // Only share if priority meets threshold
+    if (calculatedPriority < (this.config.experienceSharingPriority ?? 0.5)) {
+      this.logger.debug(`Experience below sharing threshold: ${calculatedPriority} < ${this.config.experienceSharingPriority}`);
+      return undefined;
+    }
+
+    try {
+      const experienceId = await this.experienceSharing.shareExperience(experience, calculatedPriority);
+      this.logger.debug(`Shared experience with peers: ${experienceId}`, { priority: calculatedPriority });
+      return experienceId;
+    } catch (error) {
+      this.logger.warn('Failed to share experience with peers:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Calculate the priority/value of an experience for sharing
+   * Higher rewards and successful experiences get higher priority
+   */
+  private calculateExperiencePriority(experience: TaskExperience): number {
+    // Base priority from reward (normalized from [-2, 2] to [0, 1])
+    const rewardPriority = (experience.reward + 2) / 4;
+
+    // Boost for successful experiences (positive reward)
+    const successBoost = experience.reward > 0 ? 0.2 : 0;
+
+    // Boost for unusual/interesting states (high complexity)
+    const complexityBoost = experience.state.taskComplexity > 0.7 ? 0.1 : 0;
+
+    return Math.min(1.0, Math.max(0, rewardPriority + successBoost + complexityBoost));
+  }
+
+  /**
+   * Handle an experience received from another agent
+   * Integrates the shared experience into local learning
+   */
+  private async handleReceivedExperience(experienceId: string): Promise<void> {
+    if (!this.experienceSharing) {
+      return;
+    }
+
+    try {
+      // Get the shared experience from the protocol
+      const sharedExperiences = await this.experienceSharing.getRelevantExperiences(
+        { taskComplexity: 0, requiredCapabilities: [], contextFeatures: {}, previousAttempts: 0, availableResources: 1 },
+        100
+      );
+
+      const sharedExp = sharedExperiences.find(e => e.id === experienceId);
+      if (!sharedExp) {
+        return; // Experience not found or already processed
+      }
+
+      // Learn from the shared experience (with reduced weight)
+      // Apply a transfer learning discount factor
+      const transferDiscount = 0.5; // Shared experiences weighted 50%
+      const adjustedExperience = {
+        ...sharedExp.experience,
+        reward: sharedExp.experience.reward * transferDiscount
+      };
+
+      // Update Q-table with shared experience
+      await this.updateQTable(adjustedExperience);
+
+      // Store in local experiences buffer
+      this.experiences.push(adjustedExperience);
+
+      this.logger.debug(`Integrated shared experience: ${experienceId}`, {
+        from: sharedExp.sourceAgentId,
+        originalReward: sharedExp.experience.reward,
+        adjustedReward: adjustedExperience.reward
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to handle received experience ${experienceId}:`, error);
+    }
+  }
+
+  /**
+   * Query relevant experiences from peers for a given state
+   * Useful for transfer learning before executing a task
+   *
+   * @param state - The current task state
+   * @param limit - Maximum number of experiences to retrieve
+   */
+  async queryPeerExperiences(state: TaskState, limit: number = 10): Promise<TaskExperience[]> {
+    if (!this.experienceSharing) {
+      return [];
+    }
+
+    try {
+      const sharedExperiences = await this.experienceSharing.getRelevantExperiences(state, limit);
+      return sharedExperiences.map(se => se.experience);
+    } catch (error) {
+      this.logger.warn('Failed to query peer experiences:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get experience sharing statistics
+   */
+  getExperienceSharingStats(): {
+    enabled: boolean;
+    stats?: {
+      experiencesShared: number;
+      experiencesReceived: number;
+      activeConnections: number;
+    };
+  } {
+    if (!this.experienceSharing) {
+      return { enabled: false };
+    }
+
+    const stats = this.experienceSharing.getStats();
+    return {
+      enabled: true,
+      stats: {
+        experiencesShared: stats.experiencesShared,
+        experiencesReceived: stats.experiencesReceived,
+        activeConnections: stats.activeConnections
+      }
+    };
   }
 }

@@ -1,935 +1,688 @@
 /**
- * test/test-report-comprehensive Test Suite
+ * test-report-comprehensive Test Suite (TDD RED Phase)
  *
- * Tests for comprehensive test reporting in multiple formats (HTML, JSON, JUnit, Markdown, PDF).
+ * Tests for TestReportComprehensiveHandler - Comprehensive test reporting.
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import { TestReportComprehensiveHandler } from '@mcp/handlers/test/test-report-comprehensive';
 
 describe('TestReportComprehensiveHandler', () => {
   let handler: TestReportComprehensiveHandler;
 
-  const sampleTestResults = {
+  const mockResults = {
     total: 100,
     passed: 85,
     failed: 10,
     skipped: 5,
     duration: 45000,
     suites: [
-      { name: 'Unit Tests', tests: 50, failures: 3, duration: 15000 },
-      { name: 'Integration Tests', tests: 30, failures: 5, duration: 20000 },
-      { name: 'E2E Tests', tests: 20, failures: 2, duration: 10000 },
-    ],
+      { name: 'Unit Tests', tests: 50, failures: 3 },
+      { name: 'Integration Tests', tests: 30, failures: 5 },
+      { name: 'E2E Tests', tests: 20, failures: 2 }
+    ]
   };
 
   beforeEach(() => {
     handler = new TestReportComprehensiveHandler();
   });
 
-  describe('Section 1: HTML Report Generation', () => {
-    it('should generate HTML report successfully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeSummary: true,
-      });
+  describe('Happy Path - HTML Format', () => {
+    it('should generate HTML report with summary', async () => {
+      // GIVEN: Test results for HTML report
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
+        includeSummary: true
+      };
 
+      // WHEN: Generating HTML report
+      const response = await handler.handle(args);
+
+      // THEN: Returns HTML content
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
       expect(response.data.format).toBe('html');
       expect(response.data.content).toContain('<!DOCTYPE html>');
-      expect(response.data.content).toContain('<html>');
+      expect(response.data.content).toContain('Test Report');
+      expect(response.data.content).toContain('85'); // passed count
+      expect(response.data.content).toContain('10'); // failed count
     });
 
-    it('should include test summary in HTML report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('Summary');
-      expect(response.data.content).toContain('Total Tests');
-      expect(response.data.content).toContain('100');
-      expect(response.data.content).toContain('85');
-    });
-
-    it('should include pass rate in HTML report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('Pass Rate');
-      expect(response.data.content).toContain('85%');
-    });
-
-    it('should include styled HTML with CSS', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('<style>');
-      expect(response.data.content).toContain('font-family');
-    });
-
-    it('should include test suite details when requested', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeDetails: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('Test Suites');
-      expect(response.data.content).toContain('Unit Tests');
-    });
-
-    it('should include charts placeholder in HTML when requested', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
+    it('should include charts in HTML report', async () => {
+      // GIVEN: HTML report with charts
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
         includeCharts: true,
-      });
+        includeSummary: true
+      };
 
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('charts');
-    });
-  });
+      // WHEN: Generating report with charts
+      const response = await handler.handle(args);
 
-  describe('Section 2: JSON Report Generation', () => {
-    it('should generate JSON report successfully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.format).toBe('json');
-      expect(typeof response.data.content).toBe('string');
-
-      const parsed = JSON.parse(response.data.content);
-      expect(parsed).toBeDefined();
-    });
-
-    it('should include all test results in JSON', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      const parsed = JSON.parse(response.data.content);
-      expect(parsed.total).toBe(100);
-      expect(parsed.passed).toBe(85);
-      expect(parsed.failed).toBe(10);
-      expect(parsed.skipped).toBe(5);
-    });
-
-    it('should include pass rate in JSON', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      const parsed = JSON.parse(response.data.content);
-      expect(parsed.passRate).toBe(85);
-    });
-
-    it('should include timestamp in JSON', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      const parsed = JSON.parse(response.data.content);
-      expect(parsed.timestamp).toBeDefined();
-      expect(typeof parsed.timestamp).toBe('string');
-    });
-
-    it('should format JSON with proper indentation', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('\n');
-      expect(response.data.content).toContain('  ');
-    });
-  });
-
-  describe('Section 3: JUnit XML Report Generation', () => {
-    it('should generate JUnit XML report successfully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.format).toBe('junit');
-      expect(response.data.content).toContain('<?xml version="1.0"');
-      expect(response.data.content).toContain('<testsuites');
-    });
-
-    it('should include test counts in JUnit XML', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('tests="100"');
-      expect(response.data.content).toContain('failures="10"');
-    });
-
-    it('should include test suite information', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('<testsuite');
-      expect(response.data.content).toContain('Unit Tests');
-    });
-
-    it('should include duration in seconds', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('time="45"');
-    });
-
-    it('should close all XML tags properly', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('</testsuites>');
-      expect(response.data.content).toContain('</testsuite>');
-    });
-  });
-
-  describe('Section 4: Markdown Report Generation', () => {
-    it('should generate Markdown report successfully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.format).toBe('markdown');
-      expect(response.data.content).toContain('# Test Execution Report');
-    });
-
-    it('should include summary table in Markdown', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('## Summary');
-      expect(response.data.content).toContain('| Metric | Value |');
-      expect(response.data.content).toContain('| Total Tests | 100 |');
-    });
-
-    it('should include emoji indicators in Markdown', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('✅');
-      expect(response.data.content).toContain('❌');
-    });
-
-    it('should include test suite details when requested', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeDetails: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('## Test Suites');
-      expect(response.data.content).toContain('### Unit Tests');
-    });
-
-    it('should include generation timestamp', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('*Generated at');
-    });
-  });
-
-  describe('Section 5: PDF Report Generation', () => {
-    it('should generate PDF report successfully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'pdf',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.format).toBe('pdf');
-      expect(response.data.content).toBeDefined();
-    });
-
-    it('should include test count in PDF content', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'pdf',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('100 tests');
-    });
-
-    it('should handle PDF generation placeholder', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'pdf',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('PDF_CONTENT');
-    });
-  });
-
-  describe('Section 6: Chart Generation', () => {
-    it('should generate pass/fail chart data', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: true,
-      });
-
+      // THEN: Charts are included
       expect(response.success).toBe(true);
       expect(response.data.charts).toBeDefined();
       expect(response.data.charts.passFailChart).toBeDefined();
       expect(response.data.charts.passFailChart.type).toBe('pie');
     });
 
-    it('should include correct chart data for pass/fail', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.charts.passFailChart.data.labels).toEqual(['Passed', 'Failed']);
-      expect(response.data.charts.passFailChart.data.values).toEqual([85, 10]);
-    });
-
-    it('should generate trend chart when historical data provided', async () => {
-      const historicalData = [
-        { date: '2024-01-01', passed: 80, failed: 15 },
-        { date: '2024-01-02', passed: 83, failed: 12 },
-        { date: '2024-01-03', passed: 85, failed: 10 },
-      ];
-
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: true,
-        includeTrends: true,
-        historicalData,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.charts.trendChart).toBeDefined();
-    });
-
-    it('should not include trend chart without historical data', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.charts.trendChart).toBeUndefined();
-    });
-  });
-
-  describe('Section 7: Trend Analysis', () => {
-    it('should calculate trends from historical data', async () => {
-      const historicalData = [
-        { date: '2024-01-01', passed: 80, failed: 20 },
-        { date: '2024-01-02', passed: 85, failed: 15 },
-      ];
-
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-        includeTrends: true,
-        historicalData,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.trends).toBeDefined();
-      expect(response.data.trends.direction).toBeDefined();
-    });
-
-    it('should detect improving trend', async () => {
-      const historicalData = [
-        { date: '2024-01-01', passed: 75, failed: 25 },
-      ];
-
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-        includeTrends: true,
-        historicalData,
-      });
-
-      expect(response.success).toBe(true);
-      if (response.data.trends) {
-        expect(response.data.trends.direction).toBe('improving');
-      }
-    });
-
-    it('should detect declining trend', async () => {
-      const historicalData = [
-        { date: '2024-01-01', passed: 95, failed: 5 },
-      ];
-
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-        includeTrends: true,
-        historicalData,
-      });
-
-      expect(response.success).toBe(true);
-      if (response.data.trends) {
-        expect(response.data.trends.direction).toBe('declining');
-      }
-    });
-
-    it('should detect stable trend', async () => {
-      const historicalData = [
-        { date: '2024-01-01', passed: 85, failed: 10 },
-      ];
-
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-        includeTrends: true,
-        historicalData,
-      });
-
-      expect(response.success).toBe(true);
-      if (response.data.trends) {
-        expect(response.data.trends.direction).toBe('stable');
-      }
-    });
-
-    it('should calculate change percentage', async () => {
-      const historicalData = [
-        { date: '2024-01-01', passed: 80, failed: 20 },
-      ];
-
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-        includeTrends: true,
-        historicalData,
-      });
-
-      expect(response.success).toBe(true);
-      if (response.data.trends) {
-        expect(response.data.trends.changePercentage).toBeDefined();
-        expect(typeof response.data.trends.changePercentage).toBe('number');
-      }
-    });
-
-    it('should handle missing historical data gracefully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-        includeTrends: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.trends).toBeUndefined();
-    });
-  });
-
-  describe('Section 8: Report Options', () => {
-    it('should respect includeSummary option', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeSummary: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('## Summary');
-    });
-
-    it('should omit summary when includeSummary is false', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeSummary: false,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).not.toContain('## Summary');
-    });
-
-    it('should respect includeDetails option', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
+    it('should include detailed test suites in HTML', async () => {
+      // GIVEN: HTML report with details
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
         includeDetails: true,
-      });
+        includeSummary: true
+      };
 
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('Test Suites');
-    });
+      // WHEN: Generating detailed report
+      const response = await handler.handle(args);
 
-    it('should omit details when includeDetails is false', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeDetails: false,
-      });
-
-      expect(response.success).toBe(true);
-    });
-
-    it('should respect includeCharts option', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.charts).toBeDefined();
-    });
-
-    it('should omit charts when includeCharts is false', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: false,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.charts).toBeUndefined();
-    });
-  });
-
-  describe('Section 9: Input Validation', () => {
-    it('should reject missing results', async () => {
-      const response = await handler.handle({
-        format: 'html',
-      } as any);
-
-      expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
-    });
-
-    it('should reject missing format', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-      } as any);
-
-      expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
-    });
-
-    it('should reject invalid format', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'invalid-format' as any,
-      });
-
-      expect(response.success).toBe(false);
-      expect(response.error).toContain('Unsupported format');
-    });
-
-    it('should handle empty test results', async () => {
-      const response = await handler.handle({
-        results: { total: 0, passed: 0, failed: 0 },
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      const parsed = JSON.parse(response.data.content);
-      expect(parsed.total).toBe(0);
-    });
-  });
-
-  describe('Section 10: Test Suite Details', () => {
-    it('should include suite names in report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeDetails: true,
-      });
-
+      // THEN: Suite details are included
       expect(response.success).toBe(true);
       expect(response.data.content).toContain('Unit Tests');
       expect(response.data.content).toContain('Integration Tests');
       expect(response.data.content).toContain('E2E Tests');
     });
+  });
 
-    it('should include suite test counts', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeDetails: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('Tests: 50');
-      expect(response.data.content).toContain('Tests: 30');
-      expect(response.data.content).toContain('Tests: 20');
-    });
-
-    it('should include suite failure counts', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeDetails: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toContain('Failures: 3');
-      expect(response.data.content).toContain('Failures: 5');
-      expect(response.data.content).toContain('Failures: 2');
-    });
-
-    it('should handle suites without durations', async () => {
-      const resultsWithoutDuration = {
-        total: 50,
-        passed: 45,
-        failed: 5,
-        suites: [
-          { name: 'Quick Tests', tests: 50, failures: 5 },
-        ],
+  describe('JSON Format', () => {
+    it('should generate JSON report', async () => {
+      // GIVEN: Test results for JSON report
+      const args = {
+        results: mockResults,
+        format: 'json' as const
       };
 
-      const response = await handler.handle({
-        results: resultsWithoutDuration,
-        format: 'html',
-        includeDetails: true,
-      });
+      // WHEN: Generating JSON report
+      const response = await handler.handle(args);
 
+      // THEN: Returns valid JSON
       expect(response.success).toBe(true);
-    });
-  });
+      expect(response.data.format).toBe('json');
+      expect(() => JSON.parse(response.data.content)).not.toThrow();
 
-  describe('Section 11: Metadata', () => {
-    it('should include generation timestamp', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.generatedAt).toBeDefined();
-      expect(typeof response.data.generatedAt).toBe('string');
+      const parsed = JSON.parse(response.data.content);
+      expect(parsed.total).toBe(100);
+      expect(parsed.passed).toBe(85);
+      expect(parsed.failed).toBe(10);
+      expect(parsed.passRate).toBe(85);
     });
 
-    it('should include format in metadata', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.format).toBe('html');
-    });
-
-    it('should include content in response', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.content).toBeDefined();
-      expect(typeof response.data.content).toBe('string');
-    });
-
-    it('should include requestId for tracking', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.metadata.requestId).toBeDefined();
-      expect(typeof response.metadata.requestId).toBe('string');
-    });
-  });
-
-  describe('Section 12: Concurrent Report Generation', () => {
-    it('should handle concurrent report generation', async () => {
-      const promises = [
-        handler.handle({ results: sampleTestResults, format: 'html' }),
-        handler.handle({ results: sampleTestResults, format: 'json' }),
-        handler.handle({ results: sampleTestResults, format: 'markdown' }),
-      ];
-
-      const results = await Promise.all(promises);
-      results.forEach((result) => {
-        expect(result.success).toBe(true);
-      });
-    });
-
-    it('should generate different formats concurrently', async () => {
-      const formats: Array<'html' | 'json' | 'junit' | 'markdown' | 'pdf'> = [
-        'html',
-        'json',
-        'junit',
-        'markdown',
-        'pdf',
-      ];
-
-      const promises = formats.map((format) =>
-        handler.handle({ results: sampleTestResults, format })
-      );
-
-      const results = await Promise.all(promises);
-      results.forEach((result, i) => {
-        expect(result.success).toBe(true);
-        expect(result.data.format).toBe(formats[i]);
-      });
-    });
-
-    it('should handle concurrent generation with different options', async () => {
-      const promises = [
-        handler.handle({ results: sampleTestResults, format: 'html', includeCharts: true }),
-        handler.handle({ results: sampleTestResults, format: 'html', includeDetails: true }),
-        handler.handle({ results: sampleTestResults, format: 'html', includeSummary: true }),
-      ];
-
-      const results = await Promise.all(promises);
-      results.forEach((result) => {
-        expect(result.success).toBe(true);
-      });
-    });
-  });
-
-  describe('Section 13: Error Handling', () => {
-    it('should handle report generation errors gracefully', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-      });
-
-      expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('metadata');
-      expect(response.metadata).toHaveProperty('requestId');
-    });
-
-    it('should provide meaningful error messages', async () => {
-      const response = await handler.handle({} as any);
-
-      if (!response.success) {
-        expect(response.error).toBeTruthy();
-        expect(typeof response.error).toBe('string');
-      }
-    });
-
-    it('should handle malformed test results', async () => {
-      const malformedResults = {
-        total: 'not-a-number',
-        passed: 50,
-        failed: 10,
+    it('should include structured data in JSON format', async () => {
+      // GIVEN: JSON report with structured data
+      const args = {
+        results: mockResults,
+        format: 'json' as const,
+        structured: true
       };
 
-      const response = await handler.handle({
-        results: malformedResults as any,
-        format: 'json',
-      });
+      // WHEN: Generating structured JSON
+      const response = await handler.handle(args);
 
-      expect(response).toHaveProperty('success');
-    });
-
-    it('should recover from chart generation failures', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeCharts: true,
-      });
-
-      expect(response).toHaveProperty('success');
-    });
-  });
-
-  describe('Section 14: Performance', () => {
-    it('should complete HTML report within reasonable time', async () => {
-      const startTime = Date.now();
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-      });
-      const endTime = Date.now();
-
-      expect(response.success).toBe(true);
-      expect(endTime - startTime).toBeLessThan(2000);
-    });
-
-    it('should complete JSON report within reasonable time', async () => {
-      const startTime = Date.now();
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-      const endTime = Date.now();
-
-      expect(response.success).toBe(true);
-      expect(endTime - startTime).toBeLessThan(1000);
-    });
-
-    it('should complete JUnit report within reasonable time', async () => {
-      const startTime = Date.now();
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
-      const endTime = Date.now();
-
-      expect(response.success).toBe(true);
-      expect(endTime - startTime).toBeLessThan(1000);
-    });
-
-    it('should handle large test suites efficiently', async () => {
-      const largeResults = {
-        total: 10000,
-        passed: 9500,
-        failed: 400,
-        skipped: 100,
-        duration: 600000,
-        suites: Array.from({ length: 100 }, (_, i) => ({
-          name: `Suite ${i}`,
-          tests: 100,
-          failures: 4,
-          duration: 6000,
-        })),
-      };
-
-      const startTime = Date.now();
-      const response = await handler.handle({
-        results: largeResults,
-        format: 'json',
-      });
-      const endTime = Date.now();
-
-      expect(response.success).toBe(true);
-      expect(endTime - startTime).toBeLessThan(5000);
-    });
-  });
-
-  describe('Section 15: Report Completeness', () => {
-    it('should include all required fields in HTML report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'html',
-        includeSummary: true,
-        includeDetails: true,
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.format).toBe('html');
-      expect(response.data.content).toBeDefined();
-      expect(response.data.generatedAt).toBeDefined();
-    });
-
-    it('should include all required fields in JSON report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'json',
-      });
-
+      // THEN: Structured format is used
       expect(response.success).toBe(true);
       const parsed = JSON.parse(response.data.content);
-      expect(parsed.total).toBeDefined();
-      expect(parsed.passed).toBeDefined();
-      expect(parsed.failed).toBeDefined();
-      expect(parsed.passRate).toBeDefined();
+      expect(parsed.structured).toBe(true);
       expect(parsed.timestamp).toBeDefined();
     });
+  });
 
-    it('should include all required fields in JUnit report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'junit',
-      });
+  describe('JUnit XML Format', () => {
+    it('should generate JUnit XML report', async () => {
+      // GIVEN: Test results for JUnit format
+      const args = {
+        results: mockResults,
+        format: 'junit' as const
+      };
 
+      // WHEN: Generating JUnit report
+      const response = await handler.handle(args);
+
+      // THEN: Returns valid XML
       expect(response.success).toBe(true);
-      expect(response.data.content).toContain('<?xml version');
+      expect(response.data.format).toBe('junit');
+      expect(response.data.content).toContain('<?xml version="1.0"');
       expect(response.data.content).toContain('<testsuites');
-      expect(response.data.content).toContain('tests=');
-      expect(response.data.content).toContain('failures=');
+      expect(response.data.content).toContain('tests="100"');
+      expect(response.data.content).toContain('failures="10"');
     });
 
-    it('should include all required fields in Markdown report', async () => {
-      const response = await handler.handle({
-        results: sampleTestResults,
-        format: 'markdown',
-        includeSummary: true,
-      });
+    it('should include test suite details in JUnit XML', async () => {
+      // GIVEN: JUnit report with suites
+      const args = {
+        results: mockResults,
+        format: 'junit' as const
+      };
 
+      // WHEN: Generating JUnit report
+      const response = await handler.handle(args);
+
+      // THEN: Suites are included
       expect(response.success).toBe(true);
+      expect(response.data.content).toContain('<testsuite');
+      expect(response.data.content).toContain('Unit Tests');
+    });
+  });
+
+  describe('Markdown Format', () => {
+    it('should generate Markdown report with summary', async () => {
+      // GIVEN: Test results for Markdown
+      const args = {
+        results: mockResults,
+        format: 'markdown' as const,
+        includeSummary: true
+      };
+
+      // WHEN: Generating Markdown report
+      const response = await handler.handle(args);
+
+      // THEN: Returns Markdown content
+      expect(response.success).toBe(true);
+      expect(response.data.format).toBe('markdown');
       expect(response.data.content).toContain('# Test Execution Report');
+      expect(response.data.content).toContain('## Summary');
       expect(response.data.content).toContain('| Metric | Value |');
-      expect(response.data.content).toContain('*Generated at');
+      expect(response.data.content).toContain('| Total Tests | 100 |');
     });
 
-    it('should provide complete metadata for all formats', async () => {
-      const formats: Array<'html' | 'json' | 'junit' | 'markdown' | 'pdf'> = [
-        'html',
-        'json',
-        'junit',
-        'markdown',
-        'pdf',
+    it('should include test suite details in Markdown', async () => {
+      // GIVEN: Markdown report with details
+      const args = {
+        results: mockResults,
+        format: 'markdown' as const,
+        includeSummary: true,
+        includeDetails: true
+      };
+
+      // WHEN: Generating detailed Markdown
+      const response = await handler.handle(args);
+
+      // THEN: Details are included
+      expect(response.success).toBe(true);
+      expect(response.data.content).toContain('## Test Suites');
+      expect(response.data.content).toContain('### Unit Tests');
+    });
+
+    it('should include emoji indicators in Markdown', async () => {
+      // GIVEN: Markdown report
+      const args = {
+        results: mockResults,
+        format: 'markdown' as const,
+        includeSummary: true
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Emojis are present
+      expect(response.success).toBe(true);
+      expect(response.data.content).toMatch(/✅/);
+      expect(response.data.content).toMatch(/❌/);
+    });
+  });
+
+  describe('PDF Format', () => {
+    it('should generate PDF report placeholder', async () => {
+      // GIVEN: Test results for PDF
+      const args = {
+        results: mockResults,
+        format: 'pdf' as const
+      };
+
+      // WHEN: Generating PDF report
+      const response = await handler.handle(args);
+
+      // THEN: Returns PDF content (simulated)
+      expect(response.success).toBe(true);
+      expect(response.data.format).toBe('pdf');
+      expect(response.data.content).toContain('PDF_CONTENT');
+    });
+  });
+
+  describe('Trend Analysis', () => {
+    it('should calculate trends with historical data', async () => {
+      // GIVEN: Results with historical comparison
+      const historicalData = [
+        { date: '2025-01-01', passed: 75, failed: 25 },
+        { date: '2025-01-02', passed: 80, failed: 20 }
       ];
 
-      for (const format of formats) {
-        const response = await handler.handle({
-          results: sampleTestResults,
-          format,
-        });
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
+        includeTrends: true,
+        historicalData
+      };
 
-        expect(response.success).toBe(true);
-        expect(response.data.format).toBe(format);
-        expect(response.data.content).toBeDefined();
-        expect(response.data.generatedAt).toBeDefined();
-      }
+      // WHEN: Generating report with trends
+      const response = await handler.handle(args);
+
+      // THEN: Trend data is calculated
+      expect(response.success).toBe(true);
+      expect(response.data.trends).toBeDefined();
+      expect(response.data.trends).toMatchObject({
+        direction: expect.stringMatching(/improving|declining|stable/),
+        changePercentage: expect.any(Number),
+        current: expect.any(Number),
+        previous: expect.any(Number)
+      });
+    });
+
+    it('should detect improving trend', async () => {
+      // GIVEN: Improving test results
+      const historicalData = [
+        { date: '2025-01-01', passed: 60, failed: 40 }
+      ];
+
+      const args = {
+        results: mockResults, // 85% pass rate
+        format: 'json' as const,
+        includeTrends: true,
+        historicalData
+      };
+
+      // WHEN: Calculating trends
+      const response = await handler.handle(args);
+
+      // THEN: Trend is improving
+      expect(response.success).toBe(true);
+      expect(response.data.trends.direction).toBe('improving');
+    });
+
+    it('should detect declining trend', async () => {
+      // GIVEN: Declining test results
+      const historicalData = [
+        { date: '2025-01-01', passed: 95, failed: 5 }
+      ];
+
+      const args = {
+        results: mockResults, // 85% pass rate
+        format: 'json' as const,
+        includeTrends: true,
+        historicalData
+      };
+
+      // WHEN: Calculating trends
+      const response = await handler.handle(args);
+
+      // THEN: Trend is declining
+      expect(response.success).toBe(true);
+      expect(response.data.trends.direction).toBe('declining');
+    });
+
+    it('should detect stable trend', async () => {
+      // GIVEN: Stable test results
+      const historicalData = [
+        { date: '2025-01-01', passed: 85, failed: 15 }
+      ];
+
+      const args = {
+        results: mockResults, // 85% pass rate
+        format: 'json' as const,
+        includeTrends: true,
+        historicalData
+      };
+
+      // WHEN: Calculating trends
+      const response = await handler.handle(args);
+
+      // THEN: Trend is stable
+      expect(response.success).toBe(true);
+      expect(response.data.trends.direction).toBe('stable');
+    });
+
+    it('should include trend chart when enabled', async () => {
+      // GIVEN: HTML report with trends and charts
+      const historicalData = [
+        { date: '2025-01-01', passed: 70 },
+        { date: '2025-01-02', passed: 75 },
+        { date: '2025-01-03', passed: 80 }
+      ];
+
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
+        includeCharts: true,
+        includeTrends: true,
+        historicalData
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Trend chart is included
+      expect(response.success).toBe(true);
+      expect(response.data.charts.trendChart).toBeDefined();
+      expect(response.data.charts.trendChart.type).toBe('line');
+    });
+  });
+
+  describe('Chart Generation', () => {
+    it('should generate pass/fail pie chart', async () => {
+      // GIVEN: Results with chart generation
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
+        includeCharts: true
+      };
+
+      // WHEN: Generating charts
+      const response = await handler.handle(args);
+
+      // THEN: Pie chart is generated
+      expect(response.success).toBe(true);
+      expect(response.data.charts.passFailChart).toMatchObject({
+        type: 'pie',
+        data: {
+          labels: ['Passed', 'Failed'],
+          values: [85, 10]
+        }
+      });
+    });
+
+    it('should not include charts when disabled', async () => {
+      // GIVEN: Report without charts
+      const args = {
+        results: mockResults,
+        format: 'html' as const,
+        includeCharts: false
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: No charts included
+      expect(response.success).toBe(true);
+      expect(response.data.charts).toBeUndefined();
+    });
+  });
+
+  describe('Report Sections', () => {
+    it('should include only summary when other sections disabled', async () => {
+      // GIVEN: Report with only summary
+      const args = {
+        results: mockResults,
+        format: 'markdown' as const,
+        includeSummary: true,
+        includeDetails: false,
+        includeCharts: false,
+        includeTrends: false
+      };
+
+      // WHEN: Generating minimal report
+      const response = await handler.handle(args);
+
+      // THEN: Only summary is present
+      expect(response.success).toBe(true);
+      expect(response.data.content).toContain('## Summary');
+      expect(response.data.content).not.toContain('## Test Suites');
+    });
+
+    it('should exclude summary when not requested', async () => {
+      // GIVEN: Report without summary
+      const args = {
+        results: mockResults,
+        format: 'markdown' as const,
+        includeSummary: false,
+        includeDetails: true
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Summary is excluded
+      expect(response.success).toBe(true);
+      expect(response.data.content).not.toContain('## Summary');
+    });
+  });
+
+  describe('Timestamp and Metadata', () => {
+    it('should include generation timestamp', async () => {
+      // GIVEN: Any report generation
+      const args = {
+        results: mockResults,
+        format: 'json' as const
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Timestamp is included
+      expect(response.success).toBe(true);
+      expect(response.data.generatedAt).toBeDefined();
+      expect(new Date(response.data.generatedAt).getTime()).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
+  describe('Input Validation', () => {
+    it('should reject missing results', async () => {
+      // GIVEN: Invalid args without results
+      const args = {
+        format: 'html' as const
+      } as any;
+
+      // WHEN: Attempting to generate report
+      const response = await handler.handle(args);
+
+      // THEN: Returns validation error
+      expect(response.success).toBe(false);
+      expect(response.error).toContain('results');
+    });
+
+    it('should reject missing format', async () => {
+      // GIVEN: Args without format
+      const args = {
+        results: mockResults
+      } as any;
+
+      // WHEN: Attempting to generate report
+      const response = await handler.handle(args);
+
+      // THEN: Returns validation error
+      expect(response.success).toBe(false);
+      expect(response.error).toContain('format');
+    });
+
+    it('should reject unsupported format', async () => {
+      // GIVEN: Invalid format
+      const args = {
+        results: mockResults,
+        format: 'yaml' as any
+      };
+
+      // WHEN: Attempting to generate report
+      const response = await handler.handle(args);
+
+      // THEN: Returns error
+      expect(response.success).toBe(false);
+      expect(response.error).toMatch(/unsupported format/i);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle zero tests', async () => {
+      // GIVEN: Results with no tests
+      const args = {
+        results: {
+          total: 0,
+          passed: 0,
+          failed: 0,
+          skipped: 0
+        },
+        format: 'html' as const,
+        includeSummary: true
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Handles gracefully
+      expect(response.success).toBe(true);
+      expect(response.data.content).toContain('0');
+    });
+
+    it('should handle all tests passing', async () => {
+      // GIVEN: 100% pass rate
+      const args = {
+        results: {
+          total: 50,
+          passed: 50,
+          failed: 0,
+          skipped: 0,
+          duration: 30000
+        },
+        format: 'json' as const
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Shows perfect pass rate
+      expect(response.success).toBe(true);
+      const parsed = JSON.parse(response.data.content);
+      expect(parsed.passRate).toBe(100);
+    });
+
+    it('should handle all tests failing', async () => {
+      // GIVEN: 0% pass rate
+      const args = {
+        results: {
+          total: 20,
+          passed: 0,
+          failed: 20,
+          skipped: 0,
+          duration: 15000
+        },
+        format: 'markdown' as const,
+        includeSummary: true
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Shows 0% pass rate
+      expect(response.success).toBe(true);
+      expect(response.data.content).toContain('0%');
+    });
+
+    it('should handle missing duration', async () => {
+      // GIVEN: Results without duration
+      const args = {
+        results: {
+          total: 50,
+          passed: 40,
+          failed: 10,
+          skipped: 0
+        },
+        format: 'html' as const,
+        includeSummary: true
+      };
+
+      // WHEN: Generating report
+      const response = await handler.handle(args);
+
+      // THEN: Handles missing duration
+      expect(response.success).toBe(true);
+      expect(response.data.content).toContain('40'); // Has other data
+    });
+
+    it('should handle missing suites', async () => {
+      // GIVEN: Results without suite details
+      const args = {
+        results: {
+          total: 30,
+          passed: 25,
+          failed: 5,
+          skipped: 0
+        },
+        format: 'html' as const,
+        includeDetails: true
+      };
+
+      // WHEN: Generating report with details
+      const response = await handler.handle(args);
+
+      // THEN: Handles missing suites gracefully
+      expect(response.success).toBe(true);
+    });
+
+    it('should handle empty historical data', async () => {
+      // GIVEN: Trends with empty history
+      const args = {
+        results: mockResults,
+        format: 'json' as const,
+        includeTrends: true,
+        historicalData: []
+      };
+
+      // WHEN: Calculating trends
+      const response = await handler.handle(args);
+
+      // THEN: Returns stable trend
+      expect(response.success).toBe(true);
+      expect(response.data.trends.direction).toBe('stable');
+      expect(response.data.trends.changePercentage).toBe(0);
+    });
+  });
+
+  describe('Performance', () => {
+    it('should generate report quickly', async () => {
+      // GIVEN: Large result set
+      const largeResults = {
+        total: 1000,
+        passed: 900,
+        failed: 100,
+        skipped: 0,
+        duration: 300000,
+        suites: Array.from({ length: 50 }, (_, i) => ({
+          name: `Suite ${i}`,
+          tests: 20,
+          failures: 2
+        }))
+      };
+
+      const args = {
+        results: largeResults,
+        format: 'html' as const,
+        includeSummary: true,
+        includeDetails: true,
+        includeCharts: true
+      };
+
+      // WHEN: Generating comprehensive report
+      const startTime = Date.now();
+      const response = await handler.handle(args);
+      const duration = Date.now() - startTime;
+
+      // THEN: Completes quickly
+      expect(response.success).toBe(true);
+      expect(duration).toBeLessThan(1000);
+    });
+  });
+
+  describe('Multiple Format Support', () => {
+    it('should generate reports in all supported formats', async () => {
+      // GIVEN: Test results
+      const formats: Array<'html' | 'json' | 'junit' | 'markdown' | 'pdf'> = [
+        'html', 'json', 'junit', 'markdown', 'pdf'
+      ];
+
+      // WHEN: Generating all formats
+      const promises = formats.map(format =>
+        handler.handle({ results: mockResults, format })
+      );
+      const results = await Promise.all(promises);
+
+      // THEN: All formats generate successfully
+      results.forEach((result, index) => {
+        expect(result.success).toBe(true);
+        expect(result.data.format).toBe(formats[index]);
+      });
     });
   });
 });

@@ -12,11 +12,14 @@ import {
   AgentAction,
   TaskExperience
 } from '../../src/learning/types';
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Q-Learning Convergence Validation', () => {
   let qLearning: QLearning;
+  let rng: SeededRandom;
 
   beforeEach(() => {
+    rng = createSeededRandom(42);
     qLearning = new QLearning({
       learningRate: 0.15, // Increased for faster learning
       discountFactor: 0.95,
@@ -204,11 +207,11 @@ describe('Q-Learning Convergence Validation', () => {
       // Create diverse task states
       for (let i = 0; i < numTasks; i++) {
         taskStates.push({
-          taskComplexity: 0.3 + Math.random() * 0.5,
+          taskComplexity: 0.3 + rng.random() * 0.5,
           requiredCapabilities: ['testing', 'coverage'],
           contextFeatures: { taskId: i },
           previousAttempts: 0,
-          availableResources: 0.6 + Math.random() * 0.3
+          availableResources: 0.6 + rng.random() * 0.3
         });
       }
 
@@ -282,7 +285,7 @@ describe('Q-Learning Convergence Validation', () => {
       let baselineSuccessSum = 0;
 
       for (const state of taskStates) {
-        const randomAction = actions[Math.floor(Math.random() * actions.length)];
+        const randomAction = rng.randomElement(actions);
         const reward = calculateReward(state, randomAction);
         baselineSuccessSum += Math.max(0, reward);
       }
@@ -389,10 +392,11 @@ describe('Q-Learning Convergence Validation', () => {
           }
         ];
 
-        // Baseline: Random selection
+        // Baseline: Random selection (using separate RNG for reproducibility)
+        const baselineRng = createSeededRandom(42 + run);
         let baselineReward = 0;
         for (let i = 0; i < 50; i++) {
-          const randomAction = actions[Math.floor(Math.random() * actions.length)];
+          const randomAction = baselineRng.randomElement(actions);
           const reward = randomAction.strategy === 'good' ? 1.5 : 0.3;
           baselineReward += reward;
         }

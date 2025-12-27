@@ -31,6 +31,7 @@ export async function createClaudeMd(config: FleetConfig, isYesMode: boolean = f
 
   const claudeMdPath = path.join(process.cwd(), 'CLAUDE.md');
   const agentCount = await countAgentFiles('.claude/agents');
+  const skillCount = await countSkillFiles('.claude/skills');
 
   // Check if CLAUDE.md exists
   const exists = await fs.pathExists(claudeMdPath);
@@ -73,6 +74,7 @@ export async function createClaudeMd(config: FleetConfig, isYesMode: boolean = f
   // Generate condensed CLAUDE.md using template
   const claudeMdContent = generateCondensedClaudeMd({
     agentCount,
+    skillCount,
     topology: config.topology,
     maxAgents: config.maxAgents,
     testingFocus: config.testingFocus,
@@ -105,7 +107,7 @@ export async function createClaudeMd(config: FleetConfig, isYesMode: boolean = f
 }
 
 /**
- * Count agent files in .claude/agents directory
+ * Count agent files in .claude/agents directory (including subagents)
  *
  * @param agentsDir - Path to agents directory
  * @returns Number of .md files found
@@ -118,8 +120,53 @@ async function countAgentFiles(agentsDir: string): Promise<number> {
   }
 
   try {
+    // Count main agents
     const files = await fs.readdir(agentsPath);
-    return files.filter(f => f.endsWith('.md')).length;
+    let count = files.filter(f => f.endsWith('.md')).length;
+
+    // Count subagents if directory exists
+    const subagentsPath = path.join(agentsPath, 'subagents');
+    if (await fs.pathExists(subagentsPath)) {
+      const subFiles = await fs.readdir(subagentsPath);
+      count += subFiles.filter(f => f.endsWith('.md')).length;
+    }
+
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Count skill files in .claude/skills directory (recursively)
+ *
+ * @param skillsDir - Path to skills directory
+ * @returns Number of .md files found
+ */
+async function countSkillFiles(skillsDir: string): Promise<number> {
+  const skillsPath = path.join(process.cwd(), skillsDir);
+
+  if (!await fs.pathExists(skillsPath)) {
+    return 0;
+  }
+
+  try {
+    let count = 0;
+
+    async function countRecursive(dir: string): Promise<void> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await countRecursive(fullPath);
+        } else if (entry.name.endsWith('.md')) {
+          count++;
+        }
+      }
+    }
+
+    await countRecursive(skillsPath);
+    return count;
   } catch {
     return 0;
   }

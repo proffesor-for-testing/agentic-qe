@@ -1,4 +1,41 @@
-# Agentic-Flow Research Documentation
+# Agentic QE Research Repository
+
+**Latest Research:** Bun Project Analysis (December 12, 2025)
+**Active Research Areas:** Performance optimization, testing frameworks, architecture patterns
+**Total Research Projects:** 2 complete, 5 planned
+
+---
+
+## 🆕 Latest Research: Bun Project (December 12, 2025)
+
+**Status:** ✅ Complete
+**Repository:** https://github.com/oven-sh/bun
+**Version:** 1.3.5
+
+### Quick Access
+- [**Comprehensive Analysis**](./bun-project-analysis.md) (~40KB) - Deep dive into architecture, performance, testing
+- [**Quick Reference**](./bun-quick-reference.md) (~15KB) - Tables, metrics, commands
+- [**Architecture Patterns**](./bun-architecture-patterns.md) (~25KB) - 10 detailed patterns with code
+- [**Actionable Insights**](./bun-actionable-insights.md) (~20KB) - Prioritized roadmap with 12 initiatives
+
+### Key Findings
+- **4x faster startup** than Node.js (5.2ms vs 25.1ms)
+- **28x faster npm scripts** (~6ms vs ~170ms)
+- **25x faster installs** than npm
+- **Zig + JavaScriptCore** architecture for native performance
+- **Binary caching** for 10x speedup
+- **Platform-specific syscalls** (clonefile, hardlink)
+
+### Impact on Agentic QE
+**Immediate** (P0-P1): Binary caching, AI-friendly output, platform optimization, plugin system
+**Medium-Term** (P2-P3): Benchmarking, distributed caching, memory profiling, Docker images
+**Long-Term** (P4-P5): Native test runner, bytecode caching, code generation, Rust/Zig components
+
+---
+
+## 📚 Research Archive
+
+### 1. Agentic-Flow Research (October 20, 2025)
 
 **Research Completed:** October 20, 2025
 **Repository Analyzed:** https://github.com/ruvnet/agentic-flow

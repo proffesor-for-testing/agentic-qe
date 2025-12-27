@@ -34,7 +34,7 @@ This document compares **planned features** from two major improvement plans aga
 - State persistence via filesystem (MCP P1.3)
 - Embedding cache (MCP P1.4)
 - Skill library pattern (MCP P2.1)
-- All 19 QE agents update to use unified storage (Phase 3)
+- All 18 QE agents update to use unified storage (Phase 3)
 
 ---
 
@@ -823,7 +823,7 @@ Visual testing is a major QE use case that competitors lack.
 
 | Task | Priority | Effort | Status | Dependencies |
 |------|----------|--------|--------|--------------|
-| **Phase 3: Update 19 QE Agents** | ⭐⭐⭐⭐⭐ | 38-57h | ❌ Not started | Phase 1-2 complete ✅ |
+| **Phase 3: Update 18 QE Agents** | ⭐⭐⭐⭐⭐ | 38-57h | ❌ Not started | Phase 1-2 complete ✅ |
 | - High priority agents (4) | ⭐⭐⭐⭐⭐ | 8-12h | ❌ Not started | - |
 | - Medium priority agents (4) | ⭐⭐⭐⭐ | 8-12h | ❌ Not started | High priority done |
 | - Low priority agents (11) | ⭐⭐⭐ | 22-33h | ❌ Not started | Medium priority done |
@@ -1091,7 +1091,7 @@ From the Test Coverage Implementation Plan, the following gaps exist:
 
 ### MUST HAVE (Sprint 1-2):
 
-1. ✅ **Phase 3: Update all 19 QE agents** (38-57h)
+1. ✅ **Phase 3: Update all 18 QE agents** (38-57h)
    - Critical for unified storage benefits
    - Unblocks fleet-wide learning
 

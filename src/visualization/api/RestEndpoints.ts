@@ -113,7 +113,7 @@ export class RestApiServer {
     defaultLimit: 50,
     maxLimit: 1000,
     enableCors: true,
-    corsOrigins: ['*'],
+    corsOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000'],
   };
 
   constructor(
@@ -501,7 +501,7 @@ export class RestApiServer {
    */
   private calculateEtag(data: unknown): string {
     const hash = require('crypto')
-      .createHash('md5')
+      .createHash('sha256')
       .update(JSON.stringify(data))
       .digest('hex');
     return `"${hash}"`;

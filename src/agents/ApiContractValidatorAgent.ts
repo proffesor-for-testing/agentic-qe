@@ -15,7 +15,7 @@
  * ROI: 350% (prevents 15-20% of production incidents)
  */
 
-import Ajv, { ErrorObject } from 'ajv';
+import Ajv, { ErrorObject, Options as AjvOptions } from 'ajv';
 import addFormats from 'ajv-formats';
 import { parse as parseGraphQL, buildSchema, GraphQLError } from 'graphql';
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
@@ -23,13 +23,38 @@ import {
   QEAgentType,
   QETask,
   ApiContractValidatorConfig,
-  WEEK3_EVENT_TYPES
+  WEEK3_EVENT_TYPES,
+  TaskAssignment
 } from '../types';
+import {
+  OpenAPISchema,
+  OperationObject,
+  ParameterObject,
+  ResponsesObject,
+  ResponseObject,
+  SchemaObject,
+  HttpRequest,
+  HttpResponse,
+  PathItemObject
+} from '../types/api-contract.types';
 
 interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
   warnings?: ValidationWarning[];
+}
+
+/** Severity levels for validation errors and breaking changes */
+type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+/** AJV error params type - represents validation error parameters from AJV */
+interface AjvErrorParams {
+  missingProperty?: string;
+  additionalProperty?: string;
+  type?: string;
+  limit?: number;
+  comparison?: string;
+  [key: string]: unknown;
 }
 
 interface ValidationError {
@@ -39,8 +64,8 @@ interface ValidationError {
   param?: string;
   field?: string;
   status?: number;
-  severity?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-  params?: any;
+  severity?: Severity;
+  params?: AjvErrorParams;
 }
 
 interface ValidationWarning {
@@ -50,7 +75,7 @@ interface ValidationWarning {
 
 interface BreakingChange {
   type: string;
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  severity: Severity;
   message: string;
   endpoint?: string;
   method?: string;
@@ -99,7 +124,7 @@ interface VersionValidationResult {
 }
 
 interface VersionViolation {
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  severity: Exclude<Severity, 'LOW'>;
   message: string;
   expected: string;
   actual: string;
@@ -119,7 +144,7 @@ interface ConsumerImpact {
   affectedEndpoints: AffectedEndpoint[];
   totalRequests: number;
   estimatedMigrationTime: string;
-  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  priority: Severity;
 }
 
 interface AffectedEndpoint {
@@ -147,6 +172,89 @@ export interface ApiContractValidatorAgentConfig extends BaseAgentConfig {
   validatorConfig: ApiContractValidatorConfig;
 }
 
+/** Parsed semantic version */
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+}
+
+/** Version bump type */
+type VersionBump = 'MAJOR' | 'MINOR' | 'PATCH';
+
+/** Required version bump calculation result */
+interface RequiredVersionBump {
+  type: VersionBump;
+  reason: string;
+  recommendedVersion: string;
+}
+
+/** Task result metrics extracted for learning */
+interface TaskResultMetrics {
+  isValid?: boolean;
+  errors?: unknown[];
+  warnings?: unknown[];
+  breakingChanges?: Array<{ severity?: Severity }>;
+  schemaValidation?: { valid?: boolean; errors?: unknown[] };
+  backwardCompatible?: boolean;
+  consumerContracts?: { satisfied?: number; violated?: number };
+  confidence?: number;
+  coverage?: number;
+}
+
+// ============================================================================
+// Task Payload Parameter Interfaces
+// ============================================================================
+
+/** Parameters for validateContract */
+interface ValidateContractParams {
+  schema: OpenAPISchema | string;
+  format: 'openapi' | 'swagger' | 'graphql';
+}
+
+/** Parameters for detectBreakingChanges */
+interface DetectBreakingChangesParams {
+  baseline: OpenAPISchema | string;
+  candidate: OpenAPISchema | string;
+  format?: 'openapi' | 'graphql';
+}
+
+/** Parameters for validateVersionBump */
+interface ValidateVersionBumpParams {
+  currentVersion: string;
+  proposedVersion: string;
+  changes: ChangeDetectionResult | { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] };
+}
+
+/** Parameters for analyzeConsumerImpact */
+interface AnalyzeConsumerImpactParams {
+  changes: { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] };
+  consumers: Consumer[];
+}
+
+/** Parameters for generateDiff */
+interface GenerateDiffParams {
+  baseline: OpenAPISchema | string;
+  candidate: OpenAPISchema | string;
+  format?: 'markdown' | 'json' | 'html';
+}
+
+/** Parameters for generateMigrationGuide */
+interface GenerateMigrationGuideParams {
+  fromVersion: string;
+  toVersion: string;
+  changes: { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] };
+}
+
+/** Parameters for validateRequestResponse */
+interface ValidateRequestResponseParams {
+  request: HttpRequest;
+  response: HttpResponse;
+  schema: OpenAPISchema;
+  endpoint: string;
+  method: string;
+}
+
 export class ApiContractValidatorAgent extends BaseAgent {
   private readonly config: ApiContractValidatorConfig;
   private ajv: InstanceType<typeof Ajv>;
@@ -156,8 +264,9 @@ export class ApiContractValidatorAgent extends BaseAgent {
     this.config = config.validatorConfig;
     this.ajv = new Ajv({ allErrors: true });
     try {
-      addFormats(this.ajv as any);
-    } catch (e) {
+      // Type assertion needed due to ajv-formats library type incompatibility
+      addFormats(this.ajv as Parameters<typeof addFormats>[0]);
+    } catch {
       // Formats may not be compatible, continue without them
     }
   }
@@ -166,13 +275,13 @@ export class ApiContractValidatorAgent extends BaseAgent {
   // Lifecycle Hooks for API Contract Validation
   // ============================================================================
 
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: { assignment: TaskAssignment; context?: Record<string, unknown> }): Promise<void> {
     await super.onPreTask(data);
 
     // Load historical validation data
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as unknown[] | null;
 
     if (history) {
       console.log(`Loaded ${history.length} historical validation entries`);
@@ -184,8 +293,14 @@ export class ApiContractValidatorAgent extends BaseAgent {
     });
   }
 
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: { assignment: TaskAssignment; result: unknown }): Promise<void> {
     await super.onPostTask(data);
+
+    const taskResult = data.result as {
+      success?: boolean;
+      breakingChanges?: unknown[];
+      contractsValidated?: number;
+    } | null;
 
     // Store validation results
     await this.memoryStore.store(
@@ -194,9 +309,9 @@ export class ApiContractValidatorAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        breakingChangesDetected: data.result?.breakingChanges?.length || 0,
-        contractsValidated: data.result?.contractsValidated || 0
+        success: taskResult?.success !== false,
+        breakingChangesDetected: taskResult?.breakingChanges?.length || 0,
+        contractsValidated: taskResult?.contractsValidated || 0
       },
       86400
     );
@@ -210,11 +325,11 @@ export class ApiContractValidatorAgent extends BaseAgent {
 
     console.log(`[${this.agentId.type}] API contract validation task completed`, {
       taskId: data.assignment.id,
-      breakingChanges: data.result?.breakingChanges?.length || 0
+      breakingChanges: taskResult?.breakingChanges?.length || 0
     });
   }
 
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: { assignment: TaskAssignment; error: Error }): Promise<void> {
     await super.onTaskError(data);
 
     // Store error details
@@ -252,8 +367,9 @@ export class ApiContractValidatorAgent extends BaseAgent {
     // Initialize validation components
     this.ajv = new Ajv({ allErrors: true });
     try {
-      addFormats(this.ajv as any);
-    } catch (e) {
+      // Type assertion needed due to ajv-formats library type incompatibility
+      addFormats(this.ajv as Parameters<typeof addFormats>[0]);
+    } catch {
       // Formats may not be compatible, continue without them
     }
 
@@ -285,30 +401,30 @@ export class ApiContractValidatorAgent extends BaseAgent {
     });
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<ValidationResult | ChangeDetectionResult | VersionValidationResult | ConsumerImpactAnalysis | string> {
     const taskType = task.type;
 
     switch (taskType) {
       case 'validate-contract':
-        return await this.validateContract(task.payload);
+        return await this.validateContract(task.payload as ValidateContractParams);
 
       case 'detect-breaking-changes':
-        return await this.detectBreakingChanges(task.payload);
+        return await this.detectBreakingChanges(task.payload as DetectBreakingChangesParams);
 
       case 'validate-version':
-        return await this.validateVersionBump(task.payload);
+        return await this.validateVersionBump(task.payload as ValidateVersionBumpParams);
 
       case 'analyze-consumer-impact':
-        return await this.analyzeConsumerImpact(task.payload);
+        return await this.analyzeConsumerImpact(task.payload as AnalyzeConsumerImpactParams);
 
       case 'generate-diff':
-        return await this.generateDiff(task.payload);
+        return await this.generateDiff(task.payload as GenerateDiffParams);
 
       case 'generate-migration-guide':
-        return await this.generateMigrationGuide(task.payload);
+        return await this.generateMigrationGuide(task.payload as GenerateMigrationGuideParams);
 
       case 'validate-request-response':
-        return await this.validateRequestResponse(task.payload);
+        return await this.validateRequestResponse(task.payload as ValidateRequestResponseParams);
 
       default:
         throw new Error(`Unknown task type: ${taskType}`);
@@ -322,15 +438,16 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Validate an API contract (OpenAPI, GraphQL, etc.)
    */
-  public async validateContract(params: {
-    schema: any;
-    format: 'openapi' | 'swagger' | 'graphql';
-  }): Promise<ValidationResult> {
+  public async validateContract(params: ValidateContractParams): Promise<ValidationResult> {
     const { schema, format } = params;
 
     let result: ValidationResult;
 
     if (format === 'graphql') {
+      // GraphQL schema must be a string
+      if (typeof schema !== 'string') {
+        return { valid: false, errors: [{ type: 'INVALID_SCHEMA', message: 'GraphQL schema must be a string' }] };
+      }
       result = this.validateGraphQLSchema(schema);
     } else {
       result = this.validateOpenAPISchema(schema);
@@ -360,16 +477,21 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Detect breaking changes between two schema versions
    */
-  public async detectBreakingChanges(params: {
-    baseline: any;
-    candidate: any;
-    format?: 'openapi' | 'graphql';
-  }): Promise<ChangeDetectionResult> {
+  public async detectBreakingChanges(params: DetectBreakingChangesParams): Promise<ChangeDetectionResult> {
     const { baseline, candidate, format = 'openapi' } = params;
 
     let result: ChangeDetectionResult;
 
     if (format === 'graphql') {
+      // GraphQL schemas must be strings
+      if (typeof baseline !== 'string' || typeof candidate !== 'string') {
+        return {
+          breaking: [{ type: 'INVALID_SCHEMA', severity: 'CRITICAL', message: 'GraphQL schemas must be strings' }],
+          nonBreaking: [],
+          hasBreakingChanges: true,
+          summary: { totalBreaking: 1, totalNonBreaking: 0, recommendation: 'Provide valid GraphQL schema strings' }
+        };
+      }
       result = this.detectGraphQLBreakingChanges(baseline, candidate);
     } else {
       result = this.detectOpenAPIBreakingChanges(baseline, candidate);
@@ -401,13 +523,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Validate request/response against schema
    */
-  public async validateRequestResponse(params: {
-    request: any;
-    response: any;
-    schema: any;
-    endpoint: string;
-    method: string;
-  }): Promise<ValidationResult> {
+  public async validateRequestResponse(params: ValidateRequestResponseParams): Promise<ValidationResult> {
     const { request, response, schema, endpoint, method } = params;
 
     const errors: ValidationError[] = [];
@@ -444,11 +560,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Validate semantic version bump
    */
-  public async validateVersionBump(params: {
-    currentVersion: string;
-    proposedVersion: string;
-    changes: ChangeDetectionResult | { breaking: any[]; nonBreaking: any[] };
-  }): Promise<VersionValidationResult> {
+  public async validateVersionBump(params: ValidateVersionBumpParams): Promise<VersionValidationResult> {
     const { currentVersion, proposedVersion, changes } = params;
 
     const current = this.parseVersion(currentVersion);
@@ -496,10 +608,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Analyze consumer impact of API changes
    */
-  public async analyzeConsumerImpact(params: {
-    changes: { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] };
-    consumers: Consumer[];
-  }): Promise<ConsumerImpactAnalysis> {
+  public async analyzeConsumerImpact(params: AnalyzeConsumerImpactParams): Promise<ConsumerImpactAnalysis> {
     const { changes, consumers } = params;
     const impacts: ConsumerImpact[] = [];
 
@@ -550,11 +659,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Generate contract diff report
    */
-  public async generateDiff(params: {
-    baseline: any;
-    candidate: any;
-    format?: 'markdown' | 'json' | 'html';
-  }): Promise<string> {
+  public async generateDiff(params: GenerateDiffParams): Promise<string> {
     const { baseline, candidate, format = 'markdown' } = params;
 
     const changes = await this.detectBreakingChanges({ baseline, candidate });
@@ -569,11 +674,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
   /**
    * Generate migration guide
    */
-  public async generateMigrationGuide(params: {
-    fromVersion: string;
-    toVersion: string;
-    changes: { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] };
-  }): Promise<string> {
+  public async generateMigrationGuide(params: GenerateMigrationGuideParams): Promise<string> {
     const { fromVersion, toVersion, changes } = params;
 
     let guide = `# Migration Guide: ${fromVersion} → ${toVersion}\n\n`;
@@ -601,8 +702,18 @@ export class ApiContractValidatorAgent extends BaseAgent {
   // Private Implementation
   // ============================================================================
 
-  private validateOpenAPISchema(schema: any): ValidationResult {
+  private validateOpenAPISchema(schema: OpenAPISchema | string): ValidationResult {
     const errors: ValidationError[] = [];
+
+    // Handle string input (should be parsed first)
+    if (typeof schema === 'string') {
+      errors.push({
+        type: 'INVALID_SCHEMA_TYPE',
+        message: 'Schema must be an object, not a string. Parse the schema first.',
+        severity: 'CRITICAL'
+      });
+      return { valid: false, errors };
+    }
 
     // Validate required top-level fields
     if (!schema.openapi && !schema.swagger) {
@@ -681,7 +792,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
     };
   }
 
-  private validateRequest(request: any, operation: any): ValidationResult {
+  private validateRequest(request: HttpRequest, operation: OperationObject): ValidationResult {
     const errors: ValidationError[] = [];
 
     // Validate path parameters
@@ -702,7 +813,8 @@ export class ApiContractValidatorAgent extends BaseAgent {
     // Validate query parameters
     for (const param of parameters) {
       if (param.in === 'query' && param.required) {
-        if (request.query[param.name] === undefined) {
+        const queryValue = request.query[param.name];
+        if (queryValue === undefined) {
           errors.push({
             type: 'MISSING_QUERY_PARAM',
             param: param.name,
@@ -725,7 +837,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
     return { valid: errors.length === 0, errors };
   }
 
-  private validateResponse(response: any, operation: any): ValidationResult {
+  private validateResponse(response: HttpResponse, operation: OperationObject): ValidationResult {
     const errors: ValidationError[] = [];
 
     const statusSchema = operation.responses?.[String(response.status)];
@@ -751,7 +863,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
     return { valid: errors.length === 0, errors };
   }
 
-  private validateAgainstJSONSchema(data: any, schema: any): ValidationResult {
+  private validateAgainstJSONSchema(data: unknown, schema: SchemaObject): ValidationResult {
     const validate = this.ajv.compile(schema);
     const validResult = validate(data);
     const valid = typeof validResult === 'boolean' ? validResult : false;
@@ -760,24 +872,34 @@ export class ApiContractValidatorAgent extends BaseAgent {
       ? []
       : (validate.errors || []).map((error: ErrorObject) => ({
           type: 'SCHEMA_VALIDATION',
-          path: (error as any).instancePath || (error as any).dataPath || '',
+          path: error.instancePath || '',
           message: error.message || 'Validation error',
-          params: error.params,
+          params: error.params as AjvErrorParams,
           severity: 'HIGH' as const
         }));
 
     return { valid, errors };
   }
 
-  private detectOpenAPIBreakingChanges(baseline: any, candidate: any): ChangeDetectionResult {
+  private detectOpenAPIBreakingChanges(baseline: OpenAPISchema | string, candidate: OpenAPISchema | string): ChangeDetectionResult {
     const breaking: BreakingChange[] = [];
     const nonBreaking: NonBreakingChange[] = [];
+
+    // Handle string inputs
+    if (typeof baseline === 'string' || typeof candidate === 'string') {
+      breaking.push({
+        type: 'INVALID_SCHEMA_TYPE',
+        severity: 'CRITICAL',
+        message: 'OpenAPI schemas must be objects, not strings'
+      });
+      return { breaking, nonBreaking, hasBreakingChanges: true, summary: this.generateSummary(breaking, nonBreaking) };
+    }
 
     // Compare endpoints
     const baselinePaths = baseline.paths || {};
     const candidatePaths = candidate.paths || {};
 
-    for (const [path, methods] of Object.entries<any>(baselinePaths)) {
+    for (const [path, methods] of Object.entries(baselinePaths)) {
       if (!candidatePaths[path]) {
         breaking.push({
           type: 'ENDPOINT_REMOVED',
@@ -788,8 +910,14 @@ export class ApiContractValidatorAgent extends BaseAgent {
         continue;
       }
 
-      for (const [method, operation] of Object.entries<any>(methods)) {
-        if (!candidatePaths[path][method]) {
+      const pathItem = methods as PathItemObject;
+      const candidatePathItem = candidatePaths[path] as PathItemObject;
+
+      for (const [method, operation] of Object.entries(pathItem)) {
+        if (!operation || typeof operation !== 'object') continue;
+
+        const candidateOp = candidatePathItem[method as keyof PathItemObject];
+        if (!candidateOp) {
           breaking.push({
             type: 'METHOD_REMOVED',
             severity: 'CRITICAL',
@@ -800,18 +928,21 @@ export class ApiContractValidatorAgent extends BaseAgent {
           continue;
         }
 
+        const op = operation as OperationObject;
+        const candOp = candidateOp as OperationObject;
+
         // Compare parameters
         const paramChanges = this.compareParameters(
-          operation.parameters || [],
-          candidatePaths[path][method].parameters || []
+          op.parameters || [],
+          candOp.parameters || []
         );
         breaking.push(...paramChanges.breaking);
         nonBreaking.push(...paramChanges.nonBreaking);
 
         // Compare responses
         const responseChanges = this.compareResponses(
-          operation.responses || {},
-          candidatePaths[path][method].responses || {}
+          op.responses || {},
+          candOp.responses || {}
         );
         breaking.push(...responseChanges.breaking.map(c => ({ ...c, endpoint: path, method: method.toUpperCase() })));
         nonBreaking.push(...responseChanges.nonBreaking.map(c => ({ ...c, endpoint: path, method: method.toUpperCase() })));
@@ -864,8 +995,8 @@ export class ApiContractValidatorAgent extends BaseAgent {
   }
 
   private compareParameters(
-    baseline: any[],
-    candidate: any[]
+    baseline: ParameterObject[],
+    candidate: ParameterObject[]
   ): { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] } {
     const breaking: BreakingChange[] = [];
     const nonBreaking: NonBreakingChange[] = [];
@@ -904,14 +1035,16 @@ export class ApiContractValidatorAgent extends BaseAgent {
         }
 
         // Check for type changes
-        if (param.schema?.type !== candidateParam.schema?.type) {
+        const baseType = param.schema?.type;
+        const candidateType = candidateParam.schema?.type;
+        if (baseType !== candidateType) {
           breaking.push({
             type: 'PARAM_TYPE_CHANGED',
             severity: 'HIGH',
             param: param.name,
-            oldType: param.schema?.type,
-            newType: candidateParam.schema?.type,
-            message: `Parameter '${param.name}' type changed from ${param.schema?.type} to ${candidateParam.schema?.type}`
+            oldType: Array.isArray(baseType) ? baseType.join('|') : baseType,
+            newType: Array.isArray(candidateType) ? candidateType.join('|') : candidateType,
+            message: `Parameter '${param.name}' type changed from ${baseType} to ${candidateType}`
           });
         }
       }
@@ -935,14 +1068,14 @@ export class ApiContractValidatorAgent extends BaseAgent {
   }
 
   private compareResponses(
-    baseline: any,
-    candidate: any
+    baseline: ResponsesObject,
+    candidate: ResponsesObject
   ): { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] } {
     const breaking: BreakingChange[] = [];
     const nonBreaking: NonBreakingChange[] = [];
 
     // Check for removed success responses
-    for (const [status, response] of Object.entries<any>(baseline)) {
+    for (const [status, response] of Object.entries(baseline)) {
       if (!candidate[status]) {
         if (status.startsWith('2')) {
           breaking.push({
@@ -954,8 +1087,10 @@ export class ApiContractValidatorAgent extends BaseAgent {
         }
       } else {
         // Compare response schemas
-        const baselineSchema = response.content?.['application/json']?.schema;
-        const candidateSchema = candidate[status].content?.['application/json']?.schema;
+        const baselineResponse = response as ResponseObject;
+        const candidateResponse = candidate[status] as ResponseObject;
+        const baselineSchema = baselineResponse.content?.['application/json']?.schema;
+        const candidateSchema = candidateResponse.content?.['application/json']?.schema;
 
         if (baselineSchema && candidateSchema) {
           const schemaChanges = this.compareResponseSchemas(baselineSchema, candidateSchema);
@@ -969,8 +1104,8 @@ export class ApiContractValidatorAgent extends BaseAgent {
   }
 
   private compareResponseSchemas(
-    baseline: any,
-    candidate: any
+    baseline: SchemaObject,
+    candidate: SchemaObject
   ): { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] } {
     const breaking: BreakingChange[] = [];
     const nonBreaking: NonBreakingChange[] = [];
@@ -991,7 +1126,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
 
     // Check for type changes in existing fields
     if (baseline.properties && candidate.properties) {
-      for (const [field, fieldSchema] of Object.entries<any>(baseline.properties)) {
+      for (const [field, fieldSchema] of Object.entries(baseline.properties)) {
         const candidateFieldSchema = candidate.properties[field];
 
         if (!candidateFieldSchema) {
@@ -1001,15 +1136,19 @@ export class ApiContractValidatorAgent extends BaseAgent {
             field,
             message: `Response field '${field}' was removed`
           });
-        } else if (fieldSchema.type !== candidateFieldSchema.type) {
-          breaking.push({
-            type: 'FIELD_TYPE_CHANGED',
-            severity: 'HIGH',
-            field,
-            oldType: fieldSchema.type,
-            newType: candidateFieldSchema.type,
-            message: `Response field '${field}' type changed from ${fieldSchema.type} to ${candidateFieldSchema.type}`
-          });
+        } else {
+          const baseType = fieldSchema.type;
+          const candidateType = candidateFieldSchema.type;
+          if (baseType !== candidateType) {
+            breaking.push({
+              type: 'FIELD_TYPE_CHANGED',
+              severity: 'HIGH',
+              field,
+              oldType: Array.isArray(baseType) ? baseType.join('|') : baseType,
+              newType: Array.isArray(candidateType) ? candidateType.join('|') : candidateType,
+              message: `Response field '${field}' type changed from ${baseType} to ${candidateType}`
+            });
+          }
         }
       }
 
@@ -1028,7 +1167,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
     return { breaking, nonBreaking };
   }
 
-  private parseVersion(version: string): { major: number; minor: number; patch: number } {
+  private parseVersion(version: string): ParsedVersion {
     const cleaned = version.replace(/^v/, '');
     const parts = cleaned.split('.').map(Number);
     return {
@@ -1038,20 +1177,15 @@ export class ApiContractValidatorAgent extends BaseAgent {
     };
   }
 
-  private getActualBump(
-    current: { major: number; minor: number; patch: number },
-    proposed: { major: number; minor: number; patch: number }
-  ): 'MAJOR' | 'MINOR' | 'PATCH' {
+  private getActualBump(current: ParsedVersion, proposed: ParsedVersion): VersionBump {
     if (proposed.major > current.major) return 'MAJOR';
     if (proposed.minor > current.minor) return 'MINOR';
     return 'PATCH';
   }
 
-  private calculateRequiredVersionBump(changes: any): {
-    type: 'MAJOR' | 'MINOR' | 'PATCH';
-    reason: string;
-    recommendedVersion: string;
-  } {
+  private calculateRequiredVersionBump(
+    changes: ChangeDetectionResult | { breaking: BreakingChange[]; nonBreaking: NonBreakingChange[] }
+  ): RequiredVersionBump {
     if (changes.breaking && changes.breaking.length > 0) {
       return {
         type: 'MAJOR',
@@ -1060,7 +1194,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
       };
     }
 
-    if (changes.nonBreaking && changes.nonBreaking.some((c: any) => c.type?.includes('ADDED'))) {
+    if (changes.nonBreaking && changes.nonBreaking.some((c) => c.type?.includes('ADDED'))) {
       return {
         type: 'MINOR',
         reason: 'New features added',
@@ -1164,5 +1298,56 @@ export class ApiContractValidatorAgent extends BaseAgent {
     if (changes.some((c) => c.severity === 'HIGH')) return 'HIGH';
     if (changes.some((c) => c.severity === 'MEDIUM')) return 'MEDIUM';
     return 'LOW';
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich API contract validation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      const taskResult = result as TaskResultMetrics;
+
+      // Validation results
+      metrics.is_valid = taskResult.isValid ? 1 : 0;
+      metrics.total_errors = taskResult.errors?.length || 0;
+      metrics.total_warnings = taskResult.warnings?.length || 0;
+
+      // Breaking changes
+      if (taskResult.breakingChanges && Array.isArray(taskResult.breakingChanges)) {
+        metrics.breaking_changes = taskResult.breakingChanges.length;
+        metrics.critical_changes = taskResult.breakingChanges.filter((c) => c.severity === 'CRITICAL').length;
+        metrics.high_changes = taskResult.breakingChanges.filter((c) => c.severity === 'HIGH').length;
+      }
+
+      // Schema validation
+      if (taskResult.schemaValidation) {
+        metrics.schema_valid = taskResult.schemaValidation.valid ? 1 : 0;
+        metrics.schema_errors = taskResult.schemaValidation.errors?.length || 0;
+      }
+
+      // Backward compatibility
+      if (typeof taskResult.backwardCompatible === 'boolean') {
+        metrics.backward_compatible = taskResult.backwardCompatible ? 1 : 0;
+      }
+
+      // Consumer contracts
+      if (taskResult.consumerContracts) {
+        metrics.contracts_satisfied = taskResult.consumerContracts.satisfied || 0;
+        metrics.contracts_violated = taskResult.consumerContracts.violated || 0;
+      }
+
+      // Confidence and coverage
+      if (typeof taskResult.confidence === 'number') {
+        metrics.confidence = taskResult.confidence;
+      }
+      if (typeof taskResult.coverage === 'number') {
+        metrics.coverage = taskResult.coverage;
+      }
+    }
+
+    return metrics;
   }
 }

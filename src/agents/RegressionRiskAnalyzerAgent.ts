@@ -21,6 +21,12 @@ import {
   QETask,
   AQE_MEMORY_NAMESPACES
 } from '../types';
+import {
+  PreTaskData,
+  PostTaskData,
+  TaskErrorData,
+  FlexibleTaskResult
+} from '../types/hook.types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
@@ -217,13 +223,57 @@ export interface MLModelMetrics {
 // Main Agent Implementation
 // ============================================================================
 
+// ============================================================================
+// Risk Score Parameter Types
+// ============================================================================
+
+/**
+ * Parameters for calculating risk score
+ */
+export interface RiskScoreParams {
+  changedFiles?: Array<{ path: string; linesAdded?: number; linesDeleted?: number; criticality?: number }>;
+  complexity?: number;
+  coverage?: number;
+  historicalFailures?: number;
+}
+
+/**
+ * Risk factors for module recommendations
+ */
+export interface RiskFactors {
+  complexity?: number;
+  coverage?: number;
+  historicalFailures?: number;
+  codeChurn?: number;
+  changeFrequency?: number;
+  failureCount?: number;
+  criticality?: number;
+}
+
+/**
+ * Historical data entry structure
+ */
+interface HistoricalDataEntry {
+  commit?: string;
+  timestamp?: Date | number;
+  passed?: boolean;
+  complexity?: number;
+  failedTests?: string[];
+  similarity?: number;
+  [key: string]: unknown;
+}
+
+// ============================================================================
+// Main Agent Implementation
+// ============================================================================
+
 export class RegressionRiskAnalyzerAgent extends BaseAgent {
   private readonly config: RegressionRiskAnalyzerConfig;
   private dependencyGraph?: DependencyGraph;
   private coverageMap: Map<string, string[]> = new Map();
-  private historicalData: Map<string, any> = new Map();
+  private historicalData: Map<string, HistoricalDataEntry> = new Map();
   private riskHeatMap?: RiskHeatMap;
-  private mlModel?: any; // Placeholder for ML model
+  private mlModel?: unknown; // ML model placeholder
 
   constructor(config: RegressionRiskAnalyzerConfig) {
     super({
@@ -319,7 +369,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   /**
    * Pre-task hook - Load regression analysis history
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     await super.onPreTask(data);
 
     const history = await this.memoryStore.retrieve(
@@ -327,7 +377,8 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     );
 
     if (history) {
-      console.log(`Loaded ${history.length} historical regression analysis entries`);
+      const historyArray = Array.isArray(history) ? history : [];
+      console.log(`Loaded ${historyArray.length} historical regression analysis entries`);
     }
 
     console.log(`[${this.agentId.type}] Starting regression risk analysis task`, {
@@ -339,8 +390,10 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   /**
    * Post-task hook - Store risk analysis and emit events
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
+
+    const result = data.result as Record<string, unknown> | null;
 
     await this.memoryStore.store(
       `aqe/${this.agentId.type}/results/${data.assignment.id}`,
@@ -348,9 +401,9 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        riskLevel: data.result?.riskLevel,
-        testsSelected: data.result?.selectedTests?.length || 0
+        success: result?.success !== false,
+        riskLevel: result?.riskLevel,
+        testsSelected: Array.isArray(result?.selectedTests) ? result.selectedTests.length : 0
       },
       86400
     );
@@ -359,19 +412,19 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       agentId: this.agentId,
       result: data.result,
       timestamp: new Date(),
-      riskAssessment: data.result?.riskAssessment
+      riskAssessment: result?.riskAssessment
     });
 
     console.log(`[${this.agentId.type}] Regression risk analysis completed`, {
       taskId: data.assignment.id,
-      riskLevel: data.result?.riskLevel
+      riskLevel: result?.riskLevel
     });
   }
 
   /**
    * Task error hook - Log regression analysis failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     await super.onTaskError(data);
 
     await this.memoryStore.store(
@@ -468,7 +521,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       const history = await this.retrieveSharedMemory(
         QEAgentType.REGRESSION_RISK_ANALYZER,
         'history'
-      );
+      ) as { analyses?: unknown[] } | null;
       if (history) {
         console.log(`Loaded ${history.analyses?.length || 0} historical analyses`);
       }
@@ -477,7 +530,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       const patterns = await this.retrieveSharedMemory(
         QEAgentType.REGRESSION_RISK_ANALYZER,
         'patterns'
-      );
+      ) as unknown[] | null;
       if (patterns) {
         console.log(`Loaded ${patterns.length || 0} learned patterns`);
       }
@@ -592,7 +645,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     const confidence = params.confidence || this.config.confidenceLevel || 0.95;
 
     // Get or create change analysis
-    const analysis = params.changeAnalysis || await this.retrieveMemory('last-analysis');
+    const analysis = params.changeAnalysis || await this.retrieveMemory('last-analysis') as ChangeAnalysis | null;
     if (!analysis) {
       throw new Error('No change analysis available. Run analyze-changes first.');
     }
@@ -658,8 +711,22 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   /**
    * Calculate risk score for changes
    */
-  public calculateRiskScore(params: any): number {
-    return this.calculateRiskScoreFromAnalysis(params);
+  public calculateRiskScore(params: RiskScoreParams): number {
+    // Convert RiskScoreParams to the internal analysis format
+    const changedFiles: ChangedFile[] = (params.changedFiles || []).map(f => ({
+      path: f.path,
+      linesAdded: f.linesAdded || 0,
+      linesDeleted: f.linesDeleted || 0,
+      complexity: params.complexity || 0,
+      criticality: f.criticality || 0,
+      changeType: 'modified' as const
+    }));
+
+    return this.calculateRiskScoreFromAnalysis({
+      changedFiles,
+      directImpact: [],
+      transitiveImpact: []
+    });
   }
 
   /**
@@ -1233,7 +1300,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
 
   private async loadCoverageMap(): Promise<void> {
     // Load coverage map from memory or generate mock data
-    const stored = await this.retrieveMemory('coverage-map');
+    const stored = await this.retrieveMemory('coverage-map') as [string, string[]][] | null;
     if (stored) {
       this.coverageMap = new Map(stored);
     } else {
@@ -1247,7 +1314,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   }
 
   private async loadHistoricalData(): Promise<void> {
-    const stored = await this.retrieveMemory('historical-data');
+    const stored = await this.retrieveMemory('historical-data') as [string, HistoricalDataEntry][] | null;
     if (stored) {
       this.historicalData = new Map(stored);
     }
@@ -1443,9 +1510,9 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     }
   }
 
-  private generateModuleRecommendation(riskLevel: string, factors: any): string {
+  private generateModuleRecommendation(riskLevel: string, factors: RiskFactors): string {
     if (riskLevel === 'CRITICAL' || riskLevel === 'HIGH') {
-      if (factors.coverage < 80) {
+      if ((factors.coverage ?? 100) < 80) {
         return 'Increase test coverage to 95%+, refactor to reduce complexity';
       }
       return 'Monitor closely, consider refactoring';
@@ -1497,18 +1564,18 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     }
   }
 
-  private async findSimilarChanges(_analysis: ChangeAnalysis): Promise<any[]> {
+  private async findSimilarChanges(_analysis: ChangeAnalysis): Promise<HistoricalDataEntry[]> {
     // Simplified - in production, would use cosine similarity
     return [
       {
-        commitSha: 'abc123',
+        commit: 'abc123',
         similarity: 0.85,
         failedTests: ['tests/integration/checkout.integration.test.ts']
       }
     ];
   }
 
-  private async loadHistoricalTestResults(_days: number): Promise<any[]> {
+  private async loadHistoricalTestResults(_days: number): Promise<HistoricalDataEntry[]> {
     // Mock implementation
     return Array.from({ length: 100 }, (_, i) => ({
       commit: `commit-${i}`,
@@ -1537,5 +1604,65 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
         changeType: 'modified'
       }
     ];
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich regression risk metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: FlexibleTaskResult): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      const resultObj = result as Record<string, unknown>;
+
+      // Risk scores
+      if (typeof resultObj.riskScore === 'number') {
+        metrics.risk_score = resultObj.riskScore;
+      }
+      if (typeof resultObj.overallRisk === 'number') {
+        metrics.overall_risk = resultObj.overallRisk;
+      }
+
+      // Change impact
+      if (resultObj.changedFiles && Array.isArray(resultObj.changedFiles)) {
+        const changedFiles = resultObj.changedFiles as Array<{ linesAdded?: number; linesDeleted?: number; criticality?: number }>;
+        metrics.files_changed = changedFiles.length;
+        metrics.lines_added = changedFiles.reduce((sum: number, f) => sum + (f.linesAdded || 0), 0);
+        metrics.lines_deleted = changedFiles.reduce((sum: number, f) => sum + (f.linesDeleted || 0), 0);
+        metrics.high_criticality_files = changedFiles.filter(f => (f.criticality ?? 0) > 0.7).length;
+      }
+
+      // Test selection
+      if (resultObj.selectedTests && Array.isArray(resultObj.selectedTests)) {
+        const selectedTests = resultObj.selectedTests as Array<{ priority?: string }>;
+        metrics.tests_selected = selectedTests.length;
+        metrics.critical_tests = selectedTests.filter(t => t.priority === 'critical').length;
+      }
+
+      // Coverage analysis
+      if (resultObj.impactedAreas && Array.isArray(resultObj.impactedAreas)) {
+        metrics.impacted_areas = resultObj.impactedAreas.length;
+      }
+
+      // Regression probability
+      if (typeof resultObj.regressionProbability === 'number') {
+        metrics.regression_probability = resultObj.regressionProbability;
+      }
+
+      // Historical data
+      if (resultObj.historical && typeof resultObj.historical === 'object') {
+        const historical = resultObj.historical as { failures?: number; similarChanges?: number };
+        metrics.historical_failures = historical.failures || 0;
+        metrics.similar_changes_analyzed = historical.similarChanges || 0;
+      }
+
+      // Confidence
+      if (typeof resultObj.confidence === 'number') {
+        metrics.confidence = resultObj.confidence;
+      }
+    }
+
+    return metrics;
   }
 }

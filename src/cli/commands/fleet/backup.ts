@@ -30,7 +30,7 @@ export interface BackupResult {
 interface FleetBackup {
   version: string;
   timestamp: string;
-  config: any;
+  config: Record<string, unknown>;
   agents: AgentBackup[];
   tasks: TaskBackup[];
   metrics: MetricBackup[];
@@ -40,21 +40,31 @@ interface AgentBackup {
   id: string;
   type: string;
   status: string;
-  config: any;
-  metrics: any;
+  config: Record<string, unknown>;
+  metrics: Record<string, unknown>;
 }
 
 interface TaskBackup {
   id: string;
   type: string;
   status: string;
-  data: any;
+  data: unknown;
 }
 
 interface MetricBackup {
   type: string;
   name: string;
   value: number;
+  timestamp: string;
+}
+
+/**
+ * Database row type for metric queries
+ */
+interface MetricRow {
+  metric_type: string;
+  metric_name: string;
+  metric_value: number;
   timestamp: string;
 }
 
@@ -83,7 +93,7 @@ export async function backup(options: BackupOptions): Promise<BackupResult> {
     }));
 
     // Get recent metrics from database
-    const metricsRows = await options.database.all(`
+    const metricsRows = await options.database.all<MetricRow>(`
       SELECT metric_type, metric_name, metric_value, timestamp
       FROM metrics
       WHERE timestamp > datetime('now', '-7 days')
@@ -92,10 +102,10 @@ export async function backup(options: BackupOptions): Promise<BackupResult> {
     `);
 
     const metricBackups: MetricBackup[] = metricsRows.map(row => ({
-      type: row.metric_type,
-      name: row.metric_name,
-      value: row.metric_value,
-      timestamp: row.timestamp
+      type: String(row.metric_type),
+      name: String(row.metric_name),
+      value: Number(row.metric_value),
+      timestamp: String(row.timestamp)
     }));
 
     const backup: FleetBackup = {

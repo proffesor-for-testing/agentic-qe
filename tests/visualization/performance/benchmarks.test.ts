@@ -5,6 +5,7 @@
 
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { performance } from 'perf_hooks';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 // Performance metrics collector
 class PerformanceMetrics {
@@ -51,14 +52,16 @@ class PerformanceMetrics {
 
 // Mock components for performance testing
 class MockVisualizationEngine {
+  private rng = createSeededRandom(500001);
+
   renderGraph(nodeCount: number): number {
     const start = performance.now();
 
     // Simulate graph layout calculation
     const nodes = Array(nodeCount).fill(null).map((_, i) => ({
       id: `node-${i}`,
-      x: Math.random() * 1000,
-      y: Math.random() * 600
+      x: this.rng.random() * 1000,
+      y: this.rng.random() * 600
     }));
 
     // Simulate force-directed layout iterations
@@ -98,7 +101,7 @@ class MockVisualizationEngine {
 
   private async mockAPICall(responseSize: number): Promise<void> {
     return new Promise(resolve => {
-      const delay = Math.random() * 50 + responseSize * 0.5;
+      const delay = this.rng.random() * 50 + responseSize * 0.5;
       setTimeout(resolve, delay);
     });
   }
@@ -117,7 +120,7 @@ class MockVisualizationEngine {
           if (latencies.length === messageCount) {
             resolve(latencies);
           }
-        }, Math.random() * 100 + 10);
+        }, this.rng.random() * 100 + 10);
       }
     });
   }
@@ -456,11 +459,12 @@ describe('Performance Benchmark Tests', () => {
     it('should handle burst traffic', async () => {
       const burstSize = 500;
       const startTime = performance.now();
+      const rng = createSeededRandom(21001);
 
       // Simulate burst of events
       await Promise.all(
         Array(burstSize).fill(null).map(() =>
-          new Promise(resolve => setTimeout(resolve, Math.random() * 10))
+          new Promise(resolve => setTimeout(resolve, rng.random() * 10))
         )
       );
 

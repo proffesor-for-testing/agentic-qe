@@ -1,6 +1,7 @@
 name: MCP Tools Testing
 permissions:
   contents: read
+  issues: write
   pull-requests: write
   checks: write
 
@@ -23,10 +24,10 @@ on:
 
 jobs:
   mcp-unit-tests:
-    name: MCP Unit Tests
+    name: MCP Unit Tests (Batched)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: false  # DISABLED - See issue #39 - Re-enable in v1.4.5 after batching implementation
+    timeout-minutes: 20
+    # Re-enabled in v2.5.4 with batched execution - Issue #39 resolved
 
     steps:
       - name: Checkout code
@@ -41,12 +42,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run MCP unit tests
+      - name: TypeScript pre-check
+        run: npm run typecheck
+        # Fail fast on type errors before running tests
+
+      - name: Run MCP unit tests (batched)
         run: npm run test:mcp
         env:
-          NODE_OPTIONS: '--max-old-space-size=768'
-        # Note: 35/54 tools lack unit tests - tracked in issue for v1.3.7/v1.4.0
-        # Tests should pass for implemented tools (19/54)
+          NODE_OPTIONS: '--max-old-space-size=1024'
+        # Batched execution runs 7 batches sequentially to prevent OOM
+        # Each batch: core, coordination, memory, analysis, test-tools, security, other
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

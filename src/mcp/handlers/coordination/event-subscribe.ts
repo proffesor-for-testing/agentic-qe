@@ -15,7 +15,7 @@ import { EventHandler } from '../../../core/events/types.js';
 
 export interface EventSubscribeArgs {
   events: string[];
-  filter?: Record<string, any>;
+  filter?: Record<string, unknown>;
   action?: 'subscribe' | 'unsubscribe';
   subscriptionId?: string;
 }
@@ -23,7 +23,7 @@ export interface EventSubscribeArgs {
 export interface Subscription {
   subscriptionId: string;
   events: string[];
-  filter: Record<string, any>;
+  filter: Record<string, unknown>;
   createdAt: string;
   active: boolean;
   eventCount?: number;
@@ -99,11 +99,12 @@ export class EventSubscribeHandler extends BaseHandler {
     const handlers: EventHandler[] = [];
 
     for (const eventPattern of args.events) {
-      const handler: EventHandler = async (data: any) => {
+      const handler: EventHandler = async (data: unknown) => {
         // Apply filter if specified
+        const dataRecord = data as Record<string, unknown>;
         if (args.filter && Object.keys(args.filter).length > 0) {
           const matches = Object.entries(args.filter).every(([key, value]) => {
-            return data[key] === value;
+            return dataRecord[key] === value;
           });
 
           if (!matches) return;
@@ -146,7 +147,7 @@ export class EventSubscribeHandler extends BaseHandler {
     // Store subscription
     this.subscriptions.set(subscriptionId, subscription);
 
-    await this.memory.store(`subscription:${subscriptionId}`, subscription, {
+    await this.memory.store(`subscription:${subscriptionId}`, subscription as unknown as Record<string, unknown>, {
       partition: 'subscriptions',
       ttl: 86400 // 24 hours
     });
@@ -206,7 +207,7 @@ export class EventSubscribeHandler extends BaseHandler {
     // Update subscription status
     subscription.active = false;
 
-    await this.memory.store(`subscription:${subscriptionId}`, subscription, {
+    await this.memory.store(`subscription:${subscriptionId}`, subscription as unknown as Record<string, unknown>, {
       partition: 'subscriptions'
     });
 

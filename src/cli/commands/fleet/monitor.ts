@@ -10,6 +10,34 @@ export interface FleetMonitorOptions {
   verbose?: boolean;
 }
 
+interface AgentEntry {
+  id: string;
+  status: string;
+  type?: string;
+}
+
+interface TaskEntry {
+  status: string;
+}
+
+interface Registry {
+  agents: AgentEntry[];
+  tasks: TaskEntry[];
+  fleet: { status: string };
+}
+
+interface RealTimeMetrics {
+  cpu: number;
+  memory: number;
+  taskThroughput: number;
+  avgResponseTime: number;
+}
+
+interface HealthStatus {
+  overall: string;
+  warnings: string[];
+}
+
 export class FleetMonitorCommand {
   private static isMonitoring = false;
   private static monitoringInterval: NodeJS.Timeout | null = null;
@@ -98,9 +126,9 @@ export class FleetMonitorCommand {
 
       // Display agent statistics
       console.log(chalk.blue('\n🤖 Agent Statistics:'));
-      const activeAgents = registry.agents.filter((a: any) => a.status === 'active').length;
-      const idleAgents = registry.agents.filter((a: any) => a.status === 'idle').length;
-      const busyAgents = registry.agents.filter((a: any) => a.status === 'busy').length;
+      const activeAgents = registry.agents.filter((a: AgentEntry) => a.status === 'active').length;
+      const idleAgents = registry.agents.filter((a: AgentEntry) => a.status === 'idle').length;
+      const busyAgents = registry.agents.filter((a: AgentEntry) => a.status === 'busy').length;
 
       console.log(chalk.gray(`  Total Agents: ${registry.agents.length}`));
       console.log(chalk.green(`  Active: ${activeAgents}`));
@@ -109,10 +137,10 @@ export class FleetMonitorCommand {
 
       // Display task statistics
       console.log(chalk.blue('\n📋 Task Statistics:'));
-      const runningTasks = registry.tasks.filter((t: any) => t.status === 'running').length;
-      const pendingTasks = registry.tasks.filter((t: any) => t.status === 'pending').length;
-      const completedTasks = registry.tasks.filter((t: any) => t.status === 'completed').length;
-      const failedTasks = registry.tasks.filter((t: any) => t.status === 'failed').length;
+      const runningTasks = registry.tasks.filter((t: TaskEntry) => t.status === 'running').length;
+      const pendingTasks = registry.tasks.filter((t: TaskEntry) => t.status === 'pending').length;
+      const completedTasks = registry.tasks.filter((t: TaskEntry) => t.status === 'completed').length;
+      const failedTasks = registry.tasks.filter((t: TaskEntry) => t.status === 'failed').length;
 
       console.log(chalk.yellow(`  Running: ${runningTasks}`));
       console.log(chalk.gray(`  Pending: ${pendingTasks}`));
@@ -129,7 +157,7 @@ export class FleetMonitorCommand {
       // Verbose mode: Show detailed agent info
       if (verbose && registry.agents.length > 0) {
         console.log(chalk.blue('\n🔍 Agent Details:'));
-        registry.agents.slice(0, 5).forEach((agent: any) => {
+        registry.agents.slice(0, 5).forEach((agent: AgentEntry) => {
           console.log(chalk.gray(`  ${agent.id}: ${agent.type} - ${agent.status}`));
         });
         if (registry.agents.length > 5) {
@@ -145,12 +173,13 @@ export class FleetMonitorCommand {
         console.log(chalk.yellow(`  Warnings: ${health.warnings.length}`));
       }
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Error collecting monitoring data:'), error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Error collecting monitoring data:'), message);
     }
   }
 
-  private static async collectRealTimeMetrics(): Promise<any> {
+  private static async collectRealTimeMetrics(): Promise<RealTimeMetrics> {
     // Simulate real-time metrics collection
     // In production, this would query actual system metrics
     return {
@@ -161,14 +190,14 @@ export class FleetMonitorCommand {
     };
   }
 
-  private static calculateHealthStatus(registry: any, metrics: any): any {
-    const health: any = {
+  private static calculateHealthStatus(registry: Registry, metrics: RealTimeMetrics): HealthStatus {
+    const health: HealthStatus = {
       overall: 'healthy',
       warnings: []
     };
 
     // Check agent health
-    const activeAgents = registry.agents.filter((a: any) => a.status === 'active').length;
+    const activeAgents = registry.agents.filter((a: AgentEntry) => a.status === 'active').length;
     if (activeAgents < registry.agents.length * 0.5) {
       health.warnings.push('Low active agent count');
       health.overall = 'degraded';
@@ -177,7 +206,7 @@ export class FleetMonitorCommand {
     // Check task failure rate
     const tasks = registry.tasks || [];
     if (tasks.length > 0) {
-      const failedTasks = tasks.filter((t: any) => t.status === 'failed').length;
+      const failedTasks = tasks.filter((t: TaskEntry) => t.status === 'failed').length;
       const failureRate = failedTasks / tasks.length;
       if (failureRate > 0.2) {
         health.warnings.push(`High task failure rate: ${(failureRate * 100).toFixed(1)}%`);
@@ -212,7 +241,7 @@ export class FleetMonitorCommand {
   }
 
   private static getHealthColor(status: string): string {
-    const colors: Record<string, any> = {
+    const colors: Record<string, (text: string) => string> = {
       'healthy': chalk.green,
       'degraded': chalk.yellow,
       'warning': chalk.yellow,

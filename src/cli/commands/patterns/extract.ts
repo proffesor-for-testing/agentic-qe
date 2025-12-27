@@ -138,9 +138,9 @@ export async function patternsExtract(directory: string, options: PatternExtract
             pattern.template,
             JSON.stringify(pattern.examples),
             pattern.confidence,
-            pattern.usageCount,
+            pattern.usageCount ?? 0,
             pattern.successRate,
-            pattern.quality,
+            pattern.quality ?? null,
             JSON.stringify(pattern.metadata)
           ]);
           saved++;
@@ -164,9 +164,10 @@ export async function patternsExtract(directory: string, options: PatternExtract
 
     console.log();
 
-  } catch (error: any) {
+  } catch (error) {
     spinner.fail('Extraction failed');
-    console.error(chalk.red('❌ Error:'), error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red('❌ Error:'), message);
     process.exit(1);
   }
 }

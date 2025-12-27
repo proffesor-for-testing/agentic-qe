@@ -15,36 +15,39 @@
  * Replaces custom neural implementation with AgentDB native training
  */
 
+import { createSeededRandom, SeededRandom } from '../../src/utils/SeededRandom';
+
 describe('AgentDB Neural Training - 9 Algorithms', () => {
-  // Test data generators
-  const generateTrainingData = (count: number) => {
+  // Test data generators - accept rng for deterministic generation
+  const generateTrainingData = (count: number, rng: SeededRandom) => {
     return Array.from({ length: count }, (_, i) => ({
-      state: Array.from({ length: 12 }, () => Math.random()),
-      action: Math.floor(Math.random() * 4),
-      reward: Math.random(),
-      nextState: Array.from({ length: 12 }, () => Math.random()),
-      done: Math.random() > 0.9
+      state: Array.from({ length: 12 }, () => rng.random()),
+      action: Math.floor(rng.random() * 4),
+      reward: rng.random(),
+      nextState: Array.from({ length: 12 }, () => rng.random()),
+      done: rng.random() > 0.9
     }));
   };
 
-  const generateTestResults = (count: number, isFlaky: boolean) => {
+  const generateTestResults = (count: number, isFlaky: boolean, rng: SeededRandom) => {
     return Array.from({ length: count }, (_, i) => ({
       testName: isFlaky ? 'flaky-test' : 'stable-test',
-      passed: isFlaky ? Math.random() > 0.4 : Math.random() > 0.02,
+      passed: isFlaky ? rng.random() > 0.4 : rng.random() > 0.02,
       status: 'passed' as const,
-      duration: isFlaky ? 50 + Math.random() * 300 : 100 + Math.random() * 20,
+      duration: isFlaky ? 50 + rng.random() * 300 : 100 + rng.random() * 20,
       timestamp: Date.now() + i * 1000,
-      retryCount: isFlaky ? Math.floor(Math.random() * 3) : 0
+      retryCount: isFlaky ? Math.floor(rng.random() * 3) : 0
     }));
   };
 
   describe('1. Decision Transformer', () => {
     it('should train with trajectory data', async () => {
+      const rng = createSeededRandom(11000);
       // Decision Transformer uses GPT-like architecture for RL
       const trajectories = Array.from({ length: 10 }, () => ({
-        states: Array.from({ length: 20 }, () => Array(12).fill(Math.random())),
-        actions: Array.from({ length: 20 }, () => Math.floor(Math.random() * 4)),
-        rewards: Array.from({ length: 20 }, () => Math.random()),
+        states: Array.from({ length: 20 }, () => Array(12).fill(rng.random())),
+        actions: Array.from({ length: 20 }, () => Math.floor(rng.random() * 4)),
+        rewards: Array.from({ length: 20 }, () => rng.random()),
         returns: Array.from({ length: 20 }, (_, i) => (20 - i) * 0.1)
       }));
 
@@ -54,27 +57,29 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should predict actions from desired returns', async () => {
-      const state = Array.from({ length: 12 }, () => Math.random());
+      const rng = createSeededRandom(11100);
+      const state = Array.from({ length: 12 }, () => rng.random());
       const desiredReturn = 10.0;
 
       // Decision Transformer predicts action to achieve desired return
-      const action = Math.floor(Math.random() * 4);
+      const action = Math.floor(rng.random() * 4);
 
       expect(action).toBeGreaterThanOrEqual(0);
       expect(action).toBeLessThan(4);
     });
 
     it('should handle variable-length trajectories', async () => {
+      const rng = createSeededRandom(11200);
       const shortTrajectory = {
-        states: Array(5).fill(0).map(() => Array(12).fill(Math.random())),
-        actions: Array(5).fill(0).map(() => Math.floor(Math.random() * 4)),
-        rewards: Array(5).fill(0).map(() => Math.random())
+        states: Array(5).fill(0).map(() => Array(12).fill(rng.random())),
+        actions: Array(5).fill(0).map(() => Math.floor(rng.random() * 4)),
+        rewards: Array(5).fill(0).map(() => rng.random())
       };
 
       const longTrajectory = {
-        states: Array(50).fill(0).map(() => Array(12).fill(Math.random())),
-        actions: Array(50).fill(0).map(() => Math.floor(Math.random() * 4)),
-        rewards: Array(50).fill(0).map(() => Math.random())
+        states: Array(50).fill(0).map(() => Array(12).fill(rng.random())),
+        actions: Array(50).fill(0).map(() => Math.floor(rng.random() * 4)),
+        rewards: Array(50).fill(0).map(() => rng.random())
       };
 
       expect(shortTrajectory.states).toHaveLength(5);
@@ -84,7 +89,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('2. Q-Learning (Off-Policy)', () => {
     it('should learn Q-values from experience replay', async () => {
-      const experiences = generateTrainingData(100);
+      const rng = createSeededRandom(11300);
+      const experiences = generateTrainingData(100, rng);
 
       // Q-Learning: Q(s,a) ← Q(s,a) + α[r + γ max Q(s',a') - Q(s,a)]
       const qTable = new Map<string, number[]>();
@@ -100,12 +106,13 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should use epsilon-greedy exploration', async () => {
+      const rng = createSeededRandom(11400);
       const epsilon = 0.1;
       const actions: number[] = [];
 
       for (let i = 0; i < 100; i++) {
-        const action = Math.random() < epsilon
-          ? Math.floor(Math.random() * 4) // Explore
+        const action = rng.random() < epsilon
+          ? Math.floor(rng.random() * 4) // Explore
           : 0; // Exploit (best action)
         actions.push(action);
       }
@@ -116,11 +123,12 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should converge to optimal policy', async () => {
+      const rng = createSeededRandom(11500);
       const episodes = 100;
       const rewards: number[] = [];
 
       for (let i = 0; i < episodes; i++) {
-        const episodeReward = Math.random() + i * 0.01; // Increasing trend
+        const episodeReward = rng.random() + i * 0.01; // Increasing trend
         rewards.push(episodeReward);
       }
 
@@ -133,15 +141,16 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('3. SARSA (On-Policy)', () => {
     it('should update using actual next action', async () => {
-      const experiences = generateTrainingData(100);
+      const rng = createSeededRandom(11600);
+      const experiences = generateTrainingData(100, rng);
 
       // SARSA: Q(s,a) ← Q(s,a) + α[r + γ Q(s',a') - Q(s,a)]
       // where a' is the actual next action taken
       const updates: number[] = [];
 
       for (const exp of experiences) {
-        const qCurrent = Math.random();
-        const qNext = Math.random();
+        const qCurrent = rng.random();
+        const qNext = rng.random();
         const update = exp.reward + 0.9 * qNext - qCurrent;
         updates.push(update);
       }
@@ -150,7 +159,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should learn safe policies with high exploration', async () => {
-      const safetyMetric = Math.random();
+      const rng = createSeededRandom(11700);
+      const safetyMetric = rng.random();
       expect(safetyMetric).toBeGreaterThanOrEqual(0);
       expect(safetyMetric).toBeLessThanOrEqual(1);
     });
@@ -158,7 +168,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('4. Actor-Critic', () => {
     it('should train actor and critic networks', async () => {
-      const experiences = generateTrainingData(100);
+      const rng = createSeededRandom(11800);
+      const experiences = generateTrainingData(100, rng);
 
       // Actor: Policy network π(a|s)
       const actorLosses: number[] = [];
@@ -167,8 +178,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
       const criticLosses: number[] = [];
 
       for (const exp of experiences) {
-        actorLosses.push(Math.random());
-        criticLosses.push(Math.random());
+        actorLosses.push(rng.random());
+        criticLosses.push(rng.random());
       }
 
       expect(actorLosses).toHaveLength(100);
@@ -184,11 +195,12 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should handle continuous action spaces', async () => {
-      const state = Array.from({ length: 12 }, () => Math.random());
+      const rng = createSeededRandom(11900);
+      const state = Array.from({ length: 12 }, () => rng.random());
 
       // Actor outputs mean and std for continuous actions
-      const mean = Math.random() * 2 - 1; // [-1, 1]
-      const std = Math.random() * 0.5 + 0.1; // [0.1, 0.6]
+      const mean = rng.random() * 2 - 1; // [-1, 1]
+      const std = rng.random() * 0.5 + 0.1; // [0.1, 0.6]
 
       expect(mean).toBeGreaterThanOrEqual(-1);
       expect(mean).toBeLessThanOrEqual(1);
@@ -198,10 +210,11 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('5. Monte Carlo Methods', () => {
     it('should learn from complete episodes', async () => {
+      const rng = createSeededRandom(12000);
       const episode = {
-        states: Array(20).fill(0).map(() => Array(12).fill(Math.random())),
-        actions: Array(20).fill(0).map(() => Math.floor(Math.random() * 4)),
-        rewards: Array(20).fill(0).map(() => Math.random())
+        states: Array(20).fill(0).map(() => Array(12).fill(rng.random())),
+        actions: Array(20).fill(0).map(() => Math.floor(rng.random() * 4)),
+        rewards: Array(20).fill(0).map(() => rng.random())
       };
 
       // Calculate returns (G_t = sum of discounted rewards)
@@ -219,10 +232,11 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should use first-visit or every-visit updates', async () => {
+      const rng = createSeededRandom(12100);
       const visitCounts = new Map<string, number>();
       const episode = Array(20).fill(0).map(() => ({
-        state: `state-${Math.floor(Math.random() * 5)}`,
-        reward: Math.random()
+        state: `state-${Math.floor(rng.random() * 5)}`,
+        reward: rng.random()
       }));
 
       // First-visit
@@ -240,7 +254,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('6. TD-Lambda (Eligibility Traces)', () => {
     it('should use eligibility traces for credit assignment', async () => {
-      const experiences = generateTrainingData(50);
+      const rng = createSeededRandom(12200);
+      const experiences = generateTrainingData(50, rng);
       const lambda = 0.9; // Trace decay parameter
 
       // Eligibility trace: e_t = γλe_{t-1} + ∇Q(s,a)
@@ -270,10 +285,11 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('7. REINFORCE (Policy Gradient)', () => {
     it('should update policy using policy gradient', async () => {
+      const rng = createSeededRandom(12300);
       const episode = {
-        states: Array(20).fill(0).map(() => Array(12).fill(Math.random())),
-        actions: Array(20).fill(0).map(() => Math.floor(Math.random() * 4)),
-        rewards: Array(20).fill(0).map(() => Math.random())
+        states: Array(20).fill(0).map(() => Array(12).fill(rng.random())),
+        actions: Array(20).fill(0).map(() => Math.floor(rng.random() * 4)),
+        rewards: Array(20).fill(0).map(() => rng.random())
       };
 
       // REINFORCE: ∇J(θ) = E[∇log π(a|s) * G_t]
@@ -289,7 +305,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should use baseline to reduce variance', async () => {
-      const returns = Array(20).fill(0).map(() => Math.random() * 10);
+      const rng = createSeededRandom(12400);
+      const returns = Array(20).fill(0).map(() => rng.random() * 10);
       const baseline = returns.reduce((a, b) => a + b) / returns.length;
 
       const advantagesWithBaseline = returns.map(r => r - baseline);
@@ -331,11 +348,12 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should perform multiple epochs on batch', async () => {
+      const rng = createSeededRandom(12500);
       const batchSize = 64;
       const epochs = 10;
 
       for (let epoch = 0; epoch < epochs; epoch++) {
-        const batch = generateTrainingData(batchSize);
+        const batch = generateTrainingData(batchSize, rng);
         expect(batch).toHaveLength(batchSize);
       }
     });
@@ -343,12 +361,13 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('9. DQN (Deep Q-Network)', () => {
     it('should use experience replay buffer', async () => {
+      const rng = createSeededRandom(12600);
       const bufferSize = 10000;
       const buffer: any[] = [];
 
       // Add experiences
       for (let i = 0; i < 100; i++) {
-        const exp = generateTrainingData(1)[0];
+        const exp = generateTrainingData(1, rng)[0];
         buffer.push(exp);
         if (buffer.length > bufferSize) {
           buffer.shift();
@@ -359,11 +378,12 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should use target network for stability', async () => {
+      const rng = createSeededRandom(12700);
       // Online network (updated frequently)
-      const onlineQ = Math.random();
+      const onlineQ = rng.random();
 
       // Target network (updated periodically)
-      const targetQ = Math.random();
+      const targetQ = rng.random();
 
       // TD target: r + γ * max Q_target(s', a')
       const reward = 1.0;
@@ -382,11 +402,12 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should handle double DQN', async () => {
+      const rng = createSeededRandom(12800);
       // Double DQN: Use online network to select action, target network to evaluate
-      const state = Array.from({ length: 12 }, () => Math.random());
+      const state = Array.from({ length: 12 }, () => rng.random());
 
-      const onlineQValues = Array(4).fill(0).map(() => Math.random());
-      const targetQValues = Array(4).fill(0).map(() => Math.random());
+      const onlineQValues = Array(4).fill(0).map(() => rng.random());
+      const targetQValues = Array(4).fill(0).map(() => rng.random());
 
       // Select action using online network
       const bestAction = onlineQValues.indexOf(Math.max(...onlineQValues));
@@ -400,10 +421,11 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('Training Performance Benchmarks', () => {
     it('should train Decision Transformer in <5s for 100 trajectories', async () => {
+      const rng = createSeededRandom(12900);
       const trajectories = Array.from({ length: 100 }, () => ({
-        states: Array(20).fill(0).map(() => Array(12).fill(Math.random())),
-        actions: Array(20).fill(0).map(() => Math.floor(Math.random() * 4)),
-        rewards: Array(20).fill(0).map(() => Math.random())
+        states: Array(20).fill(0).map(() => Array(12).fill(rng.random())),
+        actions: Array(20).fill(0).map(() => Math.floor(rng.random() * 4)),
+        rewards: Array(20).fill(0).map(() => rng.random())
       }));
 
       const startTime = Date.now();
@@ -418,8 +440,9 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should achieve 80%+ test accuracy for flaky detection', async () => {
-      const stableTests = generateTestResults(50, false);
-      const flakyTests = generateTestResults(50, true);
+      const rng = createSeededRandom(13000);
+      const stableTests = generateTestResults(50, false, rng);
+      const flakyTests = generateTestResults(50, true, rng);
 
       // Calculate features
       const calculateFeatures = (results: typeof stableTests) => {
@@ -443,7 +466,8 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
     });
 
     it('should handle 1000+ training samples efficiently', async () => {
-      const samples = generateTrainingData(1000);
+      const rng = createSeededRandom(13100);
+      const samples = generateTrainingData(1000, rng);
 
       const startTime = Date.now();
 
@@ -459,12 +483,13 @@ describe('AgentDB Neural Training - 9 Algorithms', () => {
 
   describe('Integration with AgentDB Features', () => {
     it('should use HNSW indexing for fast similarity search', async () => {
+      const rng = createSeededRandom(13200);
       // AgentDB provides 150x faster search with HNSW
       const states = Array.from({ length: 1000 }, () =>
-        Array.from({ length: 12 }, () => Math.random())
+        Array.from({ length: 12 }, () => rng.random())
       );
 
-      const queryState = Array.from({ length: 12 }, () => Math.random());
+      const queryState = Array.from({ length: 12 }, () => rng.random());
 
       const startTime = performance.now();
 

@@ -18,29 +18,30 @@ import {
   QETask,
   PostTaskData
 } from '../types';
+import { TaskErrorData, FlexibleTaskResult, PreTaskData } from '../types/hook.types';
 
 // ============================================================================
 // Simple Logger Interface
 // ============================================================================
 
 interface Logger {
-  info(message: string, ...args: any[]): void;
-  warn(message: string, ...args: any[]): void;
-  error(message: string, ...args: any[]): void;
-  debug(message: string, ...args: any[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+  debug(message: string, ...args: unknown[]): void;
 }
 
 class ConsoleLogger implements Logger {
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     console.log(`[INFO] ${message}`, ...args);
   }
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     console.warn(`[WARN] ${message}`, ...args);
   }
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     console.error(`[ERROR] ${message}`, ...args);
   }
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     console.debug(`[DEBUG] ${message}`, ...args);
   }
 }
@@ -99,6 +100,52 @@ export interface ComplexityAnalysisResult {
   score: number; // 0-100, higher is better
   recommendations: string[];
   analysisTime: number;
+}
+
+/**
+ * Complexity hotspot identified during analysis
+ */
+export interface ComplexityHotspot {
+  file: string;
+  line?: number;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  complexity: number;
+  reason?: string;
+}
+
+/**
+ * Extended result structure for extractTaskMetrics
+ * Represents the shape of results that may be returned from external analysis tools
+ */
+interface ExtractedMetricsResult {
+  summary?: {
+    totalFiles?: number;
+    totalFunctions?: number;
+    averageComplexity?: number;
+    maxComplexity?: number;
+  };
+  cyclomatic?: {
+    average?: number;
+    max?: number;
+    highComplexityCount?: number;
+  };
+  cognitive?: {
+    average?: number;
+    max?: number;
+  };
+  halstead?: {
+    difficulty?: number;
+    effort?: number;
+    volume?: number;
+  };
+  maintainabilityIndex?: number;
+  refactoringTargets?: unknown[];
+  hotspots?: ComplexityHotspot[];
+  loc?: {
+    total?: number;
+    code?: number;
+    comments?: number;
+  };
 }
 
 // ============================================================================
@@ -474,7 +521,7 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
    * Pre-task hook - Called before task execution
    * Demonstrates loading context before work
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     this.logger.info('Pre-task hook: Loading complexity analysis context', {
       taskId: data.assignment.id
     });
@@ -533,7 +580,7 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
    * Task error hook - Called when task fails
    * Demonstrates error handling and recovery
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     this.logger.error('Task error hook: Complexity analysis failed', {
       taskId: data.assignment.id,
       error: data.error.message
@@ -600,5 +647,63 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
   protected async cleanup(): Promise<void> {
     this.logger.info('Cleaning up complexity analyzer resources');
     // Clean up any resources (e.g., temp files, connections)
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich code complexity metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: FlexibleTaskResult): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      const typedResult = result as ExtractedMetricsResult;
+
+      // Overall complexity metrics
+      if (typedResult.summary) {
+        metrics.total_files = typedResult.summary.totalFiles || 0;
+        metrics.total_functions = typedResult.summary.totalFunctions || 0;
+        metrics.avg_complexity = typedResult.summary.averageComplexity || 0;
+        metrics.max_complexity = typedResult.summary.maxComplexity || 0;
+      }
+
+      // Cyclomatic complexity
+      if (typedResult.cyclomatic) {
+        metrics.cyclomatic_avg = typedResult.cyclomatic.average || 0;
+        metrics.cyclomatic_max = typedResult.cyclomatic.max || 0;
+        metrics.high_complexity_count = typedResult.cyclomatic.highComplexityCount || 0;
+      }
+
+      // Cognitive complexity
+      if (typedResult.cognitive) {
+        metrics.cognitive_avg = typedResult.cognitive.average || 0;
+        metrics.cognitive_max = typedResult.cognitive.max || 0;
+      }
+
+      // Halstead metrics
+      if (typedResult.halstead) {
+        metrics.halstead_difficulty = typedResult.halstead.difficulty || 0;
+        metrics.halstead_effort = typedResult.halstead.effort || 0;
+        metrics.halstead_volume = typedResult.halstead.volume || 0;
+      }
+
+      // Maintainability
+      if (typeof typedResult.maintainabilityIndex === 'number') {
+        metrics.maintainability_index = typedResult.maintainabilityIndex;
+      }
+
+      // Refactoring suggestions
+      metrics.refactoring_suggestions = typedResult.refactoringTargets?.length || 0;
+      metrics.critical_hotspots = typedResult.hotspots?.filter((h: ComplexityHotspot) => h.severity === 'critical').length || 0;
+
+      // Lines of code
+      if (typedResult.loc) {
+        metrics.total_loc = typedResult.loc.total || 0;
+        metrics.code_loc = typedResult.loc.code || 0;
+        metrics.comment_loc = typedResult.loc.comments || 0;
+      }
+    }
+
+    return metrics;
   }
 }

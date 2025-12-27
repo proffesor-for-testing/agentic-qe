@@ -515,6 +515,137 @@ aqe analyze coverage --path src/services
 # Check for large node_modules coverage (exclude in config)
 ```
 
+## Critical Path Analysis (NEW in v2.6.5+)
+
+AQE now integrates **MinCut analysis** for intelligent coverage gap prioritization. This uses graph-theoretic algorithms to identify code paths that are structurally critical to your application.
+
+### How It Works
+
+```
+Coverage Gaps → Build Dependency Graph → MinCut Analysis → Prioritized Gaps
+```
+
+1. **Dependency Graph**: Builds a graph of file dependencies (imports, calls, references)
+2. **MinCut Algorithm**: Uses Stoer-Wagner to find minimum cuts - critical bottleneck code
+3. **Criticality Scoring**: Assigns 0-1 scores based on structural importance
+4. **Gap Prioritization**: Combines coverage gaps with criticality for smarter prioritization
+
+### Enable Critical Path Analysis
+
+```typescript
+// In agent configuration
+const agent = new CoverageAnalyzerAgent({
+  enableCriticalPathAnalysis: true  // Enable MinCut-based prioritization
+});
+
+// Or via CLI
+aqe analyze gaps --critical-paths
+```
+
+### Understanding Critical Path Results
+
+```
+📊 Critical Path Analysis Results:
+
+🔥 CRITICAL PATHS (Bottleneck Code):
+  1. src/core/auth/TokenValidator.ts
+     └─> Criticality: 0.92 (cut 15 dependencies)
+     └─> Coverage: 72%
+     └─> Impact: HIGH - blocks 23 downstream modules
+
+  2. src/services/DataProcessor.ts
+     └─> Criticality: 0.85 (cut 12 dependencies)
+     └─> Coverage: 68%
+     └─> Impact: HIGH - core data pipeline
+
+🎯 PRIORITIZED COVERAGE GAPS:
+  Gap                          Coverage   Criticality   Priority
+  ─────────────────────────────────────────────────────────────
+  auth/TokenValidator.ts       72%        0.92          🔴 CRITICAL
+  services/DataProcessor.ts    68%        0.85          🔴 CRITICAL
+  api/UserController.ts        81%        0.45          🟡 HIGH
+  utils/StringHelpers.ts       55%        0.12          🟢 LOW
+```
+
+### Programmatic API
+
+```typescript
+import { CriticalPathDetector } from 'agentic-qe/coverage';
+import { MinCutAnalyzer, GraphAdapter } from 'agentic-qe/code-intelligence';
+
+// Create detector
+const detector = new CriticalPathDetector({
+  minCutThreshold: 0.3,        // Min criticality to report
+  maxBottlenecks: 10,          // Max bottleneck nodes to identify
+  includeGraphMetrics: true    // Include graph statistics
+});
+
+// Build input from coverage data
+const input = {
+  nodes: [
+    { id: 'auth.ts', filePath: 'src/auth.ts', coverage: 0.72 },
+    { id: 'user.ts', filePath: 'src/user.ts', coverage: 0.95 },
+    // ...
+  ],
+  edges: [
+    { source: 'auth.ts', target: 'user.ts', weight: 0.8 },
+    // ...
+  ]
+};
+
+// Detect critical paths
+const result = await detector.detectCriticalPaths(input);
+
+console.log(`Found ${result.criticalPaths.length} critical paths`);
+console.log(`Bottleneck nodes: ${result.bottlenecks.map(b => b.id).join(', ')}`);
+
+// Get prioritized gaps (combines coverage + criticality)
+const prioritizedGaps = await detector.getPrioritizedGaps(input);
+
+for (const gap of prioritizedGaps) {
+  console.log(`${gap.filePath}: ${gap.coverage}% coverage, ${gap.criticalityScore} criticality`);
+}
+```
+
+### Use Cases
+
+**1. Identify Structural Bottlenecks**
+```typescript
+// Find code that, if broken, would affect many modules
+const bottlenecks = result.bottlenecks.filter(b => b.cutValue > 0.7);
+// These files need the most testing attention
+```
+
+**2. Prioritize Test Generation**
+```typescript
+// Generate tests for highest criticality gaps first
+const criticalGaps = prioritizedGaps.filter(g => g.criticalityScore > 0.5);
+for (const gap of criticalGaps) {
+  await generateTestsFor(gap.filePath);
+}
+```
+
+**3. Architecture Health Check**
+```typescript
+// High criticality = potential single points of failure
+if (result.graphMetrics.maxCutValue > 0.9) {
+  console.warn('Architecture has critical bottleneck - consider refactoring');
+}
+```
+
+### Performance
+
+| Graph Size | Analysis Time | Memory |
+|------------|---------------|--------|
+| 50 files   | ~5ms          | ~2MB   |
+| 500 files  | ~50ms         | ~15MB  |
+| 2000 files | ~500ms        | ~60MB  |
+
+### Related
+
+- [MinCut Analysis Guide](./mincut-analysis.md) - Detailed MinCut algorithm documentation
+- [Code Intelligence Quickstart](./code-intelligence-quickstart.md) - Full code understanding setup
+
 ## Best Practices
 
 1. **Set realistic thresholds** - 95% is excellent, 100% is often unnecessary
@@ -523,6 +654,7 @@ aqe analyze coverage --path src/services
 4. **Use risk assessment** - Prioritize high-risk gaps
 5. **Integrate with CI/CD** - Fail builds if coverage decreases
 6. **Review regularly** - Weekly coverage reviews help maintain quality
+7. **Enable critical path analysis** - Use MinCut to find structural bottlenecks (NEW)
 
 ## Next Steps
 

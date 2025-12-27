@@ -44,6 +44,15 @@ interface SignificantChange {
   timestamp: string;
 }
 
+/**
+ * Database row for metric trend queries
+ */
+interface MetricTrendRow {
+  metric_name: string;
+  metric_value: number;
+  timestamp: string;
+}
+
 export async function trends(options: TrendsOptions): Promise<TrendsResult> {
   const logger = Logger.getInstance();
   const timeRange = options.timeRange || '30d';
@@ -54,7 +63,7 @@ export async function trends(options: TrendsOptions): Promise<TrendsResult> {
     const startTime = new Date(Date.now() - timeWindow);
 
     // Fetch metrics from database
-    const metricsData = await options.database.all(`
+    const metricsData = await options.database.all<MetricTrendRow>(`
       SELECT metric_name, metric_value, timestamp
       FROM metrics
       WHERE timestamp > ?

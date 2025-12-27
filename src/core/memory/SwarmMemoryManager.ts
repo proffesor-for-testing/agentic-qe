@@ -21,9 +21,252 @@ import { PatternCache } from './PatternCache';
 import { memorySpanManager } from '../../telemetry/instrumentation/memory';
 import { QEAgentType } from '../../types';
 
-export interface MemoryEntry {
+// ============================================================================
+// Type-safe database value types
+// ============================================================================
+
+/**
+ * JSON-serializable value type for memory storage
+ * Represents any value that can be stored and retrieved from the database
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/**
+ * Alias for unknown serializable data - use when the shape is not known
+ * but the value will be JSON serialized/deserialized
+ */
+export type SerializableValue = JsonValue | Record<string, unknown>;
+
+/**
+ * SQL parameter types that can be safely passed to better-sqlite3
+ */
+export type SqlParam = string | number | null | Buffer | bigint;
+
+// ============================================================================
+// Database row interfaces for type-safe queries
+// ============================================================================
+
+/** Row returned from memory_entries table */
+interface MemoryEntryRow {
   key: string;
-  value: any;
+  value: string;
+  partition: string;
+  created_at: number;
+  expires_at: number | null;
+  owner: string;
+  access_level: string;
+  team_id: string | null;
+  swarm_id: string | null;
+  metadata?: string | null;
+}
+
+/** Row returned from events table */
+interface EventRow {
+  id: string;
+  type: string;
+  payload: string;
+  timestamp: number;
+  source: string;
+  ttl: number;
+}
+
+/** Row returned from workflow_state table */
+interface WorkflowStateRow {
+  id: string;
+  step: string;
+  status: string;
+  checkpoint: string;
+  sha: string;
+  ttl: number;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Row returned from patterns table */
+interface PatternRow {
+  id: string;
+  pattern: string;
+  confidence: number;
+  usage_count: number;
+  metadata: string | null;
+  ttl: number;
+  created_at: number;
+  agent_id: string | null;
+}
+
+/** Row returned from consensus_state table */
+interface ConsensusRow {
+  id: string;
+  decision: string;
+  proposer: string;
+  votes: string;
+  quorum: number;
+  status: string;
+  version: number;
+  ttl: number;
+  created_at: number;
+}
+
+/** Row returned from performance_metrics table */
+interface PerformanceMetricRow {
+  id: string;
+  metric: string;
+  value: number;
+  unit: string;
+  timestamp: number;
+  agent_id: string | null;
+}
+
+/** Row returned from artifacts table */
+interface ArtifactRow {
+  id: string;
+  kind: string;
+  path: string;
+  sha256: string;
+  tags: string;
+  metadata: string | null;
+  ttl: number;
+  created_at: number;
+}
+
+/** Row returned from sessions table */
+interface SessionRow {
+  id: string;
+  mode: string;
+  state: string;
+  checkpoints: string;
+  created_at: number;
+  last_resumed: number | null;
+}
+
+/** Row returned from agent_registry table */
+interface AgentRegistryRow {
+  id: string;
+  type: string;
+  capabilities: string;
+  status: string;
+  performance: string;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Row returned from goap_goals table */
+interface GOAPGoalRow {
+  id: string;
+  conditions: string;
+  cost: number;
+  priority: string | null;
+  created_at: number;
+}
+
+/** Row returned from goap_actions table */
+interface GOAPActionRow {
+  id: string;
+  preconditions: string;
+  effects: string;
+  cost: number;
+  agent_type: string | null;
+  created_at: number;
+}
+
+/** Row returned from goap_plans table */
+interface GOAPPlanRow {
+  id: string;
+  goal_id: string;
+  sequence: string;
+  total_cost: number;
+  created_at: number;
+}
+
+/** Row returned from ooda_cycles table */
+interface OODACycleRow {
+  id: string;
+  phase: string;
+  observations: string | null;
+  orientation: string | null;
+  decision: string | null;
+  action: string | null;
+  timestamp: number;
+  completed: number;
+  result: string | null;
+}
+
+/** Row returned from hints table */
+interface HintRow {
+  key: string;
+  value: string;
+  created_at: number;
+  expires_at: number | null;
+}
+
+/** Row returned from memory_acl table */
+interface ACLRow {
+  resource_id: string;
+  owner: string;
+  access_level: string;
+  team_id: string | null;
+  swarm_id: string | null;
+  granted_permissions: string | null;
+  blocked_agents: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Count query result */
+interface CountRow {
+  count: number;
+}
+
+/** Partition query result */
+interface PartitionRow {
+  partition: string;
+}
+
+/** Access level count result */
+interface AccessLevelCountRow {
+  access_level: string;
+  count: number;
+}
+
+/** PRAGMA table_info result */
+interface TableInfoRow {
+  name: string;
+  type: string;
+  notnull: number;
+  pk: number;
+}
+
+/** Agent performance data structure */
+export interface AgentPerformanceData {
+  tasksCompleted?: number;
+  tasksFailed?: number;
+  avgExecutionTime?: number;
+  lastActive?: number;
+  successRate?: number;
+  [key: string]: unknown;
+}
+
+/** OODA phase data structure */
+export type OODAPhaseData = Record<string, unknown>;
+
+/** Learning metrics structure */
+export interface LearningMetrics {
+  accuracy?: number;
+  loss?: number;
+  epochsCompleted?: number;
+  learningRate?: number;
+  [key: string]: unknown;
+}
+
+export interface MemoryEntry<T = SerializableValue> {
+  key: string;
+  value: T;
   partition?: string;
   ttl?: number;
   createdAt: number;
@@ -37,7 +280,7 @@ export interface MemoryEntry {
 export interface StoreOptions {
   partition?: string;
   ttl?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   owner?: string;
   accessLevel?: AccessLevel;
   teamId?: string;
@@ -60,34 +303,44 @@ export interface DeleteOptions {
   isSystemAgent?: boolean;
 }
 
-export interface Hint {
+export interface Hint<T = SerializableValue> {
   key: string;
-  value: any;
+  value: T;
   ttl?: number;
   createdAt: number;
   expiresAt?: number;
 }
 
 // Table 3: Events
-export interface Event {
+export interface Event<T = SerializableValue> {
   id?: string;
   type: string;
-  payload: any;
+  payload: T;
   timestamp?: number;
   source: string;
   ttl?: number;
 }
 
 // Table 4: Workflow State
-export interface WorkflowState {
+export interface WorkflowState<T = SerializableValue> {
   id: string;
   step: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  checkpoint: any;
+  checkpoint: T;
   sha: string;
   ttl?: number;
   createdAt?: number;
   updatedAt?: number;
+}
+
+/** Pattern metadata structure */
+export interface PatternMetadata {
+  agent_id?: string;
+  agentId?: string;
+  framework?: string;
+  language?: string;
+  category?: string;
+  [key: string]: unknown;
 }
 
 // Table 5: Patterns
@@ -97,7 +350,7 @@ export interface Pattern {
   confidence: number;
   usageCount: number;
   ttl?: number;
-  metadata?: any;
+  metadata?: PatternMetadata;
   createdAt?: number;
 }
 
@@ -124,6 +377,16 @@ export interface PerformanceMetric {
   agentId?: string;
 }
 
+/** Artifact metadata structure */
+export interface ArtifactMetadata {
+  description?: string;
+  author?: string;
+  version?: string;
+  size?: number;
+  mimeType?: string;
+  [key: string]: unknown;
+}
+
 // Table 8: Artifacts
 export interface Artifact {
   id: string;
@@ -131,24 +394,41 @@ export interface Artifact {
   path: string;
   sha256: string;
   tags: string[];
-  metadata?: any;
+  metadata?: ArtifactMetadata;
   ttl?: number;
   createdAt?: number;
 }
 
+/** Session state structure */
+export interface SessionState {
+  currentStep?: string;
+  completedSteps?: string[];
+  pendingActions?: string[];
+  context?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Checkpoint state structure */
+export interface CheckpointState {
+  step?: string;
+  data?: Record<string, unknown>;
+  timestamp?: number;
+  [key: string]: unknown;
+}
+
 // Table 9: Sessions
-export interface Session {
+export interface Session<T = SessionState> {
   id: string;
   mode: 'swarm' | 'hive-mind';
-  state: any;
+  state: T;
   checkpoints: Checkpoint[];
   createdAt?: number;
   lastResumed?: number;
 }
 
-export interface Checkpoint {
+export interface Checkpoint<T = CheckpointState> {
   timestamp: number;
-  state: any;
+  state: T;
   sha: string;
 }
 
@@ -158,7 +438,7 @@ export interface AgentRegistration {
   type: string;
   capabilities: string[];
   status: 'active' | 'idle' | 'terminated';
-  performance: any;
+  performance: AgentPerformanceData;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -189,24 +469,72 @@ export interface GOAPPlan {
   createdAt?: number;
 }
 
+/** OODA observations data */
+export interface OODAObservations {
+  inputs?: unknown[];
+  signals?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** OODA orientation data */
+export interface OODAOrientation {
+  analysis?: string;
+  synthesis?: Record<string, unknown>;
+  mentalModels?: string[];
+  [key: string]: unknown;
+}
+
+/** OODA decision data */
+export interface OODADecision {
+  selectedOption?: string;
+  alternatives?: string[];
+  rationale?: string;
+  confidence?: number;
+  [key: string]: unknown;
+}
+
+/** OODA action data */
+export interface OODAAction {
+  actionType?: string;
+  parameters?: Record<string, unknown>;
+  expectedOutcome?: string;
+  [key: string]: unknown;
+}
+
+/** OODA result data */
+export interface OODAResult {
+  success?: boolean;
+  outcome?: string;
+  feedback?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 // Table 12: OODA Cycles
 export interface OODACycle {
   id: string;
   phase: 'observe' | 'orient' | 'decide' | 'act';
-  observations?: any;
-  orientation?: any;
-  decision?: any;
-  action?: any;
+  observations?: OODAObservations;
+  orientation?: OODAOrientation;
+  decision?: OODADecision;
+  action?: OODAAction;
   timestamp: number;
   completed?: boolean;
-  result?: any;
+  result?: OODAResult;
 }
 
 /**
  * SwarmMemoryManager - Manages persistent memory for agent swarm coordination
  *
+ * IMPORTANT: This class uses better-sqlite3 which is intentionally synchronous.
+ * All database operations are synchronous for maximum performance.
+ * Only initialize() is async due to filesystem operations.
+ *
+ * Issue #65: Converted from misleading async/await pattern to honest synchronous API.
+ * See: https://github.com/proffesor-for-testing/agentic-qe/issues/65
+ *
  * Features:
- * - SQLite-based persistent storage with 12-table schema
+ * - SQLite-based persistent storage with 12-table schema (SYNCHRONOUS)
  * - Partitioned key-value store
  * - TTL-based expiration with different policies per table
  * - Hint/blackboard pattern support
@@ -255,25 +583,35 @@ export class SwarmMemoryManager {
     });
   }
 
-  private run(sql: string, params: any[] = []): void {
+  private run(sql: string, params: SqlParam[] = []): void {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
     this.db.prepare(sql).run(...params);
   }
 
-  private queryOne<T = any>(sql: string, params: any[] = []): T | undefined {
+  private queryOne<T>(sql: string, params: SqlParam[] = []): T | undefined {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
     return this.db.prepare(sql).get(...params) as T | undefined;
   }
 
-  private queryAll<T = any>(sql: string, params: any[] = []): T[] {
+  private queryAll<T>(sql: string, params: SqlParam[] = []): T[] {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
     return this.db.prepare(sql).all(...params) as T[];
+  }
+
+  /**
+   * Execute a raw SQL query (public method for CLI/admin usage)
+   * @param sql SQL query string
+   * @param params Query parameters
+   * @returns Array of results
+   */
+  queryRaw<T>(sql: string, params: SqlParam[] = []): T[] {
+    return this.queryAll<T>(sql, params);
   }
 
   async initialize(): Promise<void> {
@@ -293,7 +631,8 @@ export class SwarmMemoryManager {
     }
 
     // Create memory entries table with access control fields
-    await this.run(`
+    // Note: All this.run() calls are synchronous (better-sqlite3)
+    this.run(`
       CREATE TABLE IF NOT EXISTS memory_entries (
         key TEXT NOT NULL,
         partition TEXT NOT NULL DEFAULT 'default',
@@ -310,7 +649,7 @@ export class SwarmMemoryManager {
     `);
 
     // Create ACL table for advanced permissions
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS memory_acl (
         resource_id TEXT PRIMARY KEY,
         owner TEXT NOT NULL,
@@ -325,7 +664,7 @@ export class SwarmMemoryManager {
     `);
 
     // Create hints table for blackboard pattern
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS hints (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT NOT NULL,
@@ -336,7 +675,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 3: Events (TTL: 30 days)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS events (
         id TEXT PRIMARY KEY,
         type TEXT NOT NULL,
@@ -349,7 +688,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 4: Workflow State (TTL: never expires)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS workflow_state (
         id TEXT PRIMARY KEY,
         step TEXT NOT NULL,
@@ -364,7 +703,7 @@ export class SwarmMemoryManager {
 
     // Table 5: Patterns (TTL: 7 days)
     // Issue #79: Added domain and success_rate columns for learning persistence
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS patterns (
         id TEXT PRIMARY KEY,
         pattern TEXT NOT NULL UNIQUE,
@@ -383,36 +722,36 @@ export class SwarmMemoryManager {
     // Migration: Add columns if they don't exist (for existing databases)
     // SQLite doesn't support IF NOT EXISTS for columns, so check first
     try {
-      const tableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(patterns)`);
+      const tableInfo = this.queryAll<TableInfoRow>(`PRAGMA table_info(patterns)`);
       const columnNames = tableInfo.map(col => col.name);
 
       if (!columnNames.includes('agent_id')) {
-        await this.run(`ALTER TABLE patterns ADD COLUMN agent_id TEXT`);
+        this.run(`ALTER TABLE patterns ADD COLUMN agent_id TEXT`);
       }
       // Issue #79: Add domain column for learning persistence
       if (!columnNames.includes('domain')) {
-        await this.run(`ALTER TABLE patterns ADD COLUMN domain TEXT DEFAULT 'general'`);
+        this.run(`ALTER TABLE patterns ADD COLUMN domain TEXT DEFAULT 'general'`);
       }
       // Issue #79: Add success_rate column for learning persistence
       if (!columnNames.includes('success_rate')) {
-        await this.run(`ALTER TABLE patterns ADD COLUMN success_rate REAL DEFAULT 1.0`);
+        this.run(`ALTER TABLE patterns ADD COLUMN success_rate REAL DEFAULT 1.0`);
       }
     } catch (e) {
       // Ignore errors - columns might already exist
     }
 
     // Create indexes for O(log n) pattern queries (Issue #57)
-    await this.run(`
+    this.run(`
       CREATE INDEX IF NOT EXISTS idx_patterns_agent_confidence
       ON patterns(agent_id, confidence DESC)
     `);
-    await this.run(`
+    this.run(`
       CREATE INDEX IF NOT EXISTS idx_patterns_agent
       ON patterns(agent_id)
     `);
 
     // Table 6: Consensus State (TTL: 7 days)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS consensus_state (
         id TEXT PRIMARY KEY,
         decision TEXT NOT NULL,
@@ -428,7 +767,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 7: Performance Metrics
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS performance_metrics (
         id TEXT PRIMARY KEY,
         metric TEXT NOT NULL,
@@ -440,7 +779,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 8: Artifacts (TTL: never expires)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS artifacts (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
@@ -454,7 +793,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 9: Sessions (for resumability)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         mode TEXT NOT NULL,
@@ -466,7 +805,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 10: Agent Registry
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS agent_registry (
         id TEXT PRIMARY KEY,
         type TEXT NOT NULL,
@@ -479,7 +818,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 11: GOAP State
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS goap_goals (
         id TEXT PRIMARY KEY,
         conditions TEXT NOT NULL,
@@ -489,7 +828,7 @@ export class SwarmMemoryManager {
       )
     `);
 
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS goap_actions (
         id TEXT PRIMARY KEY,
         preconditions TEXT NOT NULL,
@@ -500,7 +839,7 @@ export class SwarmMemoryManager {
       )
     `);
 
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS goap_plans (
         id TEXT PRIMARY KEY,
         goal_id TEXT NOT NULL,
@@ -511,7 +850,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 12: OODA Cycles
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS ooda_cycles (
         id TEXT PRIMARY KEY,
         phase TEXT NOT NULL,
@@ -526,30 +865,30 @@ export class SwarmMemoryManager {
     `);
 
     // Create indexes for performance
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_memory_partition ON memory_entries(partition)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_memory_expires ON memory_entries(expires_at)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_memory_owner ON memory_entries(owner)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_memory_access ON memory_entries(access_level)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_hints_key ON hints(key)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_hints_expires ON hints(expires_at)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_acl_owner ON memory_acl(owner)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_events_type ON events(type)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_events_source ON events(source)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_events_expires ON events(expires_at)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_workflow_status ON workflow_state(status)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_patterns_expires ON patterns(expires_at)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_consensus_status ON consensus_state(status)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_consensus_expires ON consensus_state(expires_at)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_metrics_metric ON performance_metrics(metric)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_metrics_agent ON performance_metrics(agent_id)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_artifacts_kind ON artifacts(kind)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_agent_status ON agent_registry(status)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_ooda_phase ON ooda_cycles(phase)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_memory_partition ON memory_entries(partition)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_memory_expires ON memory_entries(expires_at)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_memory_owner ON memory_entries(owner)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_memory_access ON memory_entries(access_level)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_hints_key ON hints(key)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_hints_expires ON hints(expires_at)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_acl_owner ON memory_acl(owner)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_events_type ON events(type)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_events_source ON events(source)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_events_expires ON events(expires_at)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_workflow_status ON workflow_state(status)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_patterns_expires ON patterns(expires_at)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_consensus_status ON consensus_state(status)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_consensus_expires ON consensus_state(expires_at)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_metrics_metric ON performance_metrics(metric)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_metrics_agent ON performance_metrics(agent_id)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_artifacts_kind ON artifacts(kind)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_agent_status ON agent_registry(status)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_ooda_phase ON ooda_cycles(phase)`);
 
     // Table 13: Q-values (Q-learning)
     // Issue #79: Added metadata column for learning persistence
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS q_values (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
@@ -566,17 +905,17 @@ export class SwarmMemoryManager {
 
     // Issue #79: Migration for q_values metadata column
     try {
-      const qvTableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(q_values)`);
+      const qvTableInfo = this.queryAll<TableInfoRow>(`PRAGMA table_info(q_values)`);
       if (!qvTableInfo.some(col => col.name === 'metadata')) {
-        await this.run(`ALTER TABLE q_values ADD COLUMN metadata TEXT`);
+        this.run(`ALTER TABLE q_values ADD COLUMN metadata TEXT`);
       }
-    } catch (e) {
+    } catch {
       // Ignore errors - column might already exist
     }
 
     // Table 14: Learning Experiences
     // Issue #79: Added metadata and created_at columns for learning persistence
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS learning_experiences (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
@@ -595,21 +934,21 @@ export class SwarmMemoryManager {
 
     // Issue #79: Migration for learning_experiences columns
     try {
-      const leTableInfo = this.queryAll<{ name: string }>(`PRAGMA table_info(learning_experiences)`);
+      const leTableInfo = this.queryAll<TableInfoRow>(`PRAGMA table_info(learning_experiences)`);
       const leColumnNames = leTableInfo.map(col => col.name);
 
       if (!leColumnNames.includes('metadata')) {
-        await this.run(`ALTER TABLE learning_experiences ADD COLUMN metadata TEXT`);
+        this.run(`ALTER TABLE learning_experiences ADD COLUMN metadata TEXT`);
       }
       if (!leColumnNames.includes('created_at')) {
-        await this.run(`ALTER TABLE learning_experiences ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
+        this.run(`ALTER TABLE learning_experiences ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
       }
-    } catch (e) {
+    } catch {
       // Ignore errors - columns might already exist
     }
 
     // Table 15: Learning History (snapshots and metrics)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS learning_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
@@ -625,7 +964,7 @@ export class SwarmMemoryManager {
     `);
 
     // Table 16: Learning Metrics (aggregated performance data)
-    await this.run(`
+    this.run(`
       CREATE TABLE IF NOT EXISTS learning_metrics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
@@ -638,10 +977,10 @@ export class SwarmMemoryManager {
     `);
 
     // Learning indexes for performance
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_q_values_agent ON q_values(agent_id)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_learning_exp_agent ON learning_experiences(agent_id)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_learning_hist_agent ON learning_history(agent_id)`);
-    await this.run(`CREATE INDEX IF NOT EXISTS idx_learning_metrics_agent ON learning_metrics(agent_id)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_q_values_agent ON q_values(agent_id)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_learning_exp_agent ON learning_experiences(agent_id)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_learning_hist_agent ON learning_history(agent_id)`);
+    this.run(`CREATE INDEX IF NOT EXISTS idx_learning_metrics_agent ON learning_metrics(agent_id)`);
 
     this.initialized = true;
   }
@@ -649,19 +988,28 @@ export class SwarmMemoryManager {
   /**
    * Store a key-value pair in memory with OpenTelemetry instrumentation
    *
-   * Automatically instruments the memory store operation with distributed tracing.
-   * Records namespace, key, value size, TTL, and operation performance metrics.
+   * NOTE: This method is async only for auto-initialization. The actual DB
+   * operations are synchronous (better-sqlite3). For maximum performance,
+   * call initialize() first and use storeSync() instead.
    *
    * @param key - Memory key
    * @param value - Value to store (will be JSON serialized)
    * @param options - Store options including partition, TTL, access control
    */
-  async store(key: string, value: any, options: StoreOptions = {}): Promise<void> {
-    // Auto-initialize if not initialized
+  async store(key: string, value: SerializableValue, options: StoreOptions = {}): Promise<void> {
+    // Auto-initialize if not initialized (only async part)
     if (!this.initialized) {
       await this.initialize();
     }
+    // Delegate to sync implementation
+    this.storeSync(key, value, options);
+  }
 
+  /**
+   * Synchronous store operation - use when already initialized
+   * Issue #65: Honest synchronous API for better-sqlite3
+   */
+  storeSync(key: string, value: SerializableValue, options: StoreOptions = {}): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized. Call initialize() first.');
     }
@@ -689,7 +1037,7 @@ export class SwarmMemoryManager {
       const metadata = options.metadata ? JSON.stringify(options.metadata) : null;
 
       // Check write permission if updating existing entry
-      const existing = await this.queryOne<any>(
+      const existing = this.queryOne<Pick<MemoryEntryRow, 'owner' | 'access_level' | 'team_id' | 'swarm_id'>>(
         `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
         [key, partition]
       );
@@ -702,9 +1050,9 @@ export class SwarmMemoryManager {
           accessLevel: existing.access_level as AccessLevel,
           permission: Permission.WRITE,
           teamId: options.teamId,
-          resourceTeamId: existing.team_id,
+          resourceTeamId: existing.team_id ?? undefined,
           swarmId: options.swarmId,
-          resourceSwarmId: existing.swarm_id
+          resourceSwarmId: existing.swarm_id ?? undefined
         });
 
         if (!permCheck.allowed) {
@@ -712,7 +1060,7 @@ export class SwarmMemoryManager {
         }
       }
 
-      await this.run(
+      this.run(
         `INSERT OR REPLACE INTO memory_entries
          (key, partition, value, metadata, created_at, expires_at, owner, access_level, team_id, swarm_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -756,7 +1104,7 @@ export class SwarmMemoryManager {
    * Alias for store() method to maintain compatibility with MemoryStore interface
    * Used by VerificationHookManager and other components
    */
-  async set(key: string, value: any, options: StoreOptions | string = {}): Promise<void> {
+  async set(key: string, value: SerializableValue, options: StoreOptions | string = {}): Promise<void> {
     // Handle legacy API: set(key, value, partition)
     if (typeof options === 'string') {
       return this.store(key, value, { partition: options });
@@ -765,10 +1113,21 @@ export class SwarmMemoryManager {
   }
 
   /**
+   * Synchronous set - use when already initialized
+   */
+  setSync(key: string, value: SerializableValue, options: StoreOptions | string = {}): void {
+    if (typeof options === 'string') {
+      this.storeSync(key, value, { partition: options });
+    } else {
+      this.storeSync(key, value, options);
+    }
+  }
+
+  /**
    * Alias for retrieve() method to maintain compatibility
    * Supports both options object and partition string
    */
-  async get(key: string, options: RetrieveOptions | string = {}): Promise<any> {
+  async get(key: string, options: RetrieveOptions | string = {}): Promise<SerializableValue | null> {
     // Handle legacy API: get(key, partition)
     if (typeof options === 'string') {
       return this.retrieve(key, { partition: options });
@@ -777,21 +1136,38 @@ export class SwarmMemoryManager {
   }
 
   /**
+   * Synchronous get - use when already initialized
+   */
+  getSync(key: string, options: RetrieveOptions | string = {}): SerializableValue | null {
+    if (typeof options === 'string') {
+      return this.retrieveSync(key, { partition: options });
+    }
+    return this.retrieveSync(key, options);
+  }
+
+  /**
    * Retrieve a value from memory with OpenTelemetry instrumentation
    *
-   * Automatically instruments the memory retrieve operation with distributed tracing.
-   * Records namespace, key, whether the value was found, value size, and performance metrics.
+   * NOTE: This method is async only for auto-initialization. For maximum
+   * performance, call initialize() first and use retrieveSync() instead.
    *
    * @param key - Memory key
    * @param options - Retrieve options including partition, agentId for access control
    * @returns Retrieved value or null if not found
    */
-  async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
-    // Auto-initialize if not initialized
+  async retrieve(key: string, options: RetrieveOptions = {}): Promise<SerializableValue | null> {
+    // Auto-initialize if not initialized (only async part)
     if (!this.initialized) {
       await this.initialize();
     }
+    return this.retrieveSync(key, options);
+  }
 
+  /**
+   * Synchronous retrieve operation - use when already initialized
+   * Issue #65: Honest synchronous API for better-sqlite3
+   */
+  retrieveSync(key: string, options: RetrieveOptions = {}): SerializableValue | null {
     if (!this.db) {
       throw new Error('Memory manager not initialized. Call initialize() first.');
     }
@@ -812,14 +1188,14 @@ export class SwarmMemoryManager {
       const now = Date.now();
       let query = `SELECT value, owner, access_level, team_id, swarm_id
                    FROM memory_entries WHERE key = ? AND partition = ?`;
-      const params: any[] = [key, partition];
+      const params: SqlParam[] = [key, partition];
 
       if (!options.includeExpired) {
         query += ` AND (expires_at IS NULL OR expires_at > ?)`;
         params.push(now);
       }
 
-      const row = await this.queryOne<any>(query, params);
+      const row = this.queryOne<Pick<MemoryEntryRow, 'value' | 'owner' | 'access_level' | 'team_id' | 'swarm_id'>>(query, params);
 
       if (!row) {
         // Complete span - not found
@@ -839,9 +1215,9 @@ export class SwarmMemoryManager {
           accessLevel: row.access_level as AccessLevel,
           permission: Permission.READ,
           teamId: options.teamId,
-          resourceTeamId: row.team_id,
+          resourceTeamId: row.team_id ?? undefined,
           swarmId: options.swarmId,
-          resourceSwarmId: row.swarm_id,
+          resourceSwarmId: row.swarm_id ?? undefined,
           isSystemAgent: options.isSystemAgent
         });
 
@@ -876,15 +1252,13 @@ export class SwarmMemoryManager {
 
   /**
    * Query/search memory entries by pattern with OpenTelemetry instrumentation
-   *
-   * Automatically instruments the memory search operation with distributed tracing.
-   * Records namespace, search pattern, result count, and performance metrics.
+   * Issue #65: Converted to synchronous API
    *
    * @param pattern - SQL LIKE pattern for key matching
    * @param options - Retrieve options including partition, agentId for access control
    * @returns Array of matching memory entries
    */
-  async query(pattern: string, options: RetrieveOptions = {}): Promise<MemoryEntry[]> {
+  query(pattern: string, options: RetrieveOptions = {}): MemoryEntry[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -903,46 +1277,46 @@ export class SwarmMemoryManager {
 
     try {
       const now = Date.now();
-      let query = `SELECT key, value, partition, created_at, expires_at, owner, access_level, team_id, swarm_id
+      let queryStr = `SELECT key, value, partition, created_at, expires_at, owner, access_level, team_id, swarm_id
                    FROM memory_entries
                    WHERE partition = ? AND key LIKE ?`;
-      const params: any[] = [partition, pattern];
+      const params: SqlParam[] = [partition, pattern];
 
       if (!options.includeExpired) {
-        query += ` AND (expires_at IS NULL OR expires_at > ?)`;
+        queryStr += ` AND (expires_at IS NULL OR expires_at > ?)`;
         params.push(now);
       }
 
-      const rows = await this.queryAll<any>(query, params);
+      const rows = this.queryAll<MemoryEntryRow>(queryStr, params);
 
       // Filter by access control if agentId provided
       const filteredRows = options.agentId
-        ? rows.filter((row: any) => {
+        ? rows.filter((row) => {
             const permCheck = this.accessControl.checkPermission({
               agentId: options.agentId!,
               resourceOwner: row.owner,
               accessLevel: row.access_level as AccessLevel,
               permission: Permission.READ,
               teamId: options.teamId,
-              resourceTeamId: row.team_id,
+              resourceTeamId: row.team_id ?? undefined,
               swarmId: options.swarmId,
-              resourceSwarmId: row.swarm_id,
+              resourceSwarmId: row.swarm_id ?? undefined,
               isSystemAgent: options.isSystemAgent
             });
             return permCheck.allowed;
           })
         : rows;
 
-      const results = filteredRows.map((row: any) => ({
+      const results = filteredRows.map((row) => ({
         key: row.key,
-        value: JSON.parse(row.value),
+        value: JSON.parse(row.value) as SerializableValue,
         partition: row.partition,
         createdAt: row.created_at,
-        expiresAt: row.expires_at,
+        expiresAt: row.expires_at ?? undefined,
         owner: row.owner,
         accessLevel: row.access_level as AccessLevel,
-        teamId: row.team_id,
-        swarmId: row.swarm_id
+        teamId: row.team_id ?? undefined,
+        swarmId: row.swarm_id ?? undefined
       }));
 
       // Complete span successfully
@@ -975,7 +1349,7 @@ export class SwarmMemoryManager {
    * @param partition - Memory partition (namespace)
    * @param options - Delete options including agentId for access control
    */
-  async delete(key: string, partition: string = 'default', options: DeleteOptions = {}): Promise<void> {
+  delete(key: string, partition: string = 'default', options: DeleteOptions = {}): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -994,7 +1368,7 @@ export class SwarmMemoryManager {
     try {
       // Check delete permission if agentId provided
       if (options.agentId) {
-        const row = await this.queryOne<any>(
+        const row = this.queryOne<Pick<MemoryEntryRow, 'owner' | 'access_level' | 'team_id' | 'swarm_id'>>(
           `SELECT owner, access_level, team_id, swarm_id FROM memory_entries WHERE key = ? AND partition = ?`,
           [key, partition]
         );
@@ -1006,9 +1380,9 @@ export class SwarmMemoryManager {
             accessLevel: row.access_level as AccessLevel,
             permission: Permission.DELETE,
             teamId: options.teamId,
-            resourceTeamId: row.team_id,
+            resourceTeamId: row.team_id ?? undefined,
             swarmId: options.swarmId,
-            resourceSwarmId: row.swarm_id,
+            resourceSwarmId: row.swarm_id ?? undefined,
             isSystemAgent: options.isSystemAgent
           });
 
@@ -1018,11 +1392,11 @@ export class SwarmMemoryManager {
         }
       }
 
-      await this.run(`DELETE FROM memory_entries WHERE key = ? AND partition = ?`, [key, partition]);
+      this.run(`DELETE FROM memory_entries WHERE key = ? AND partition = ?`, [key, partition]);
 
       // Clean up ACL if exists
       const resourceId = `${partition}:${key}`;
-      await this.run(`DELETE FROM memory_acl WHERE resource_id = ?`, [resourceId]);
+      this.run(`DELETE FROM memory_acl WHERE resource_id = ?`, [resourceId]);
       this.aclCache.delete(resourceId);
 
       // Complete span successfully
@@ -1043,15 +1417,15 @@ export class SwarmMemoryManager {
     }
   }
 
-  async clear(partition: string = 'default'): Promise<void> {
+  clear(partition: string = 'default'): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    await this.run(`DELETE FROM memory_entries WHERE partition = ?`, [partition]);
+    this.run(`DELETE FROM memory_entries WHERE partition = ?`, [partition]);
   }
 
-  async postHint(hint: { key: string; value: any; ttl?: number }): Promise<void> {
+  postHint(hint: { key: string; value: SerializableValue; ttl?: number }): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1059,20 +1433,20 @@ export class SwarmMemoryManager {
     const createdAt = Date.now();
     const expiresAt = hint.ttl ? createdAt + (hint.ttl * 1000) : null;
 
-    await this.run(
+    this.run(
       `INSERT INTO hints (key, value, created_at, expires_at) VALUES (?, ?, ?, ?)`,
       [hint.key, JSON.stringify(hint.value), createdAt, expiresAt]
     );
   }
 
-  async readHints(pattern: string): Promise<Hint[]> {
+  readHints(pattern: string): Hint[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<HintRow>(
       `SELECT key, value, created_at, expires_at
        FROM hints
        WHERE key LIKE ? AND (expires_at IS NULL OR expires_at > ?)
@@ -1080,15 +1454,15 @@ export class SwarmMemoryManager {
       [pattern, now]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       key: row.key,
-      value: JSON.parse(row.value),
+      value: JSON.parse(row.value) as SerializableValue,
       createdAt: row.created_at,
-      expiresAt: row.expires_at
+      expiresAt: row.expires_at ?? undefined
     }));
   }
 
-  async cleanExpired(): Promise<number> {
+  cleanExpired(): number {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1096,31 +1470,31 @@ export class SwarmMemoryManager {
     const now = Date.now();
 
     // Clean memory entries
-    await this.run(
+    this.run(
       `DELETE FROM memory_entries WHERE expires_at IS NOT NULL AND expires_at <= ?`,
       [now]
     );
 
     // Clean hints
-    await this.run(
+    this.run(
       `DELETE FROM hints WHERE expires_at IS NOT NULL AND expires_at <= ?`,
       [now]
     );
 
     // Clean events
-    await this.run(
+    this.run(
       `DELETE FROM events WHERE expires_at IS NOT NULL AND expires_at <= ?`,
       [now]
     );
 
     // Clean patterns
-    await this.run(
+    this.run(
       `DELETE FROM patterns WHERE expires_at IS NOT NULL AND expires_at <= ?`,
       [now]
     );
 
     // Clean consensus
-    await this.run(
+    this.run(
       `DELETE FROM consensus_state WHERE expires_at IS NOT NULL AND expires_at <= ?`,
       [now]
     );
@@ -1128,7 +1502,7 @@ export class SwarmMemoryManager {
     return 0;
   }
 
-  async close(): Promise<void> {
+  close(): void {
     if (this.db) {
       this.db.close();
       this.db = null;
@@ -1136,7 +1510,7 @@ export class SwarmMemoryManager {
     }
   }
 
-  async stats(): Promise<{
+  stats(): {
     totalEntries: number;
     totalHints: number;
     totalEvents: number;
@@ -1153,27 +1527,27 @@ export class SwarmMemoryManager {
     totalOODACycles: number;
     partitions: string[];
     accessLevels: Record<string, number>;
-  }> {
+  } {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const entriesCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM memory_entries`);
-    const hintsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM hints`);
-    const eventsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM events`);
-    const workflowsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM workflow_state`);
-    const patternsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM patterns`);
-    const consensusCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM consensus_state`);
-    const metricsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM performance_metrics`);
-    const artifactsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM artifacts`);
-    const sessionsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM sessions`);
-    const agentsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM agent_registry`);
-    const goapGoalsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM goap_goals`);
-    const goapActionsCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM goap_actions`);
-    const goapPlansCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM goap_plans`);
-    const oodaCyclesCount = await this.queryOne<{count: number}>(`SELECT COUNT(*) as count FROM ooda_cycles`);
-    const partitionsResult = await this.queryAll<{partition: string}>(`SELECT DISTINCT partition FROM memory_entries`);
-    const accessLevelsResult = await this.queryAll<{access_level: string; count: number}>(
+    const entriesCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM memory_entries`);
+    const hintsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM hints`);
+    const eventsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM events`);
+    const workflowsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM workflow_state`);
+    const patternsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM patterns`);
+    const consensusCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM consensus_state`);
+    const metricsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM performance_metrics`);
+    const artifactsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM artifacts`);
+    const sessionsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM sessions`);
+    const agentsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM agent_registry`);
+    const goapGoalsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM goap_goals`);
+    const goapActionsCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM goap_actions`);
+    const goapPlansCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM goap_plans`);
+    const oodaCyclesCount = this.queryOne<CountRow>(`SELECT COUNT(*) as count FROM ooda_cycles`);
+    const partitionsResult = this.queryAll<PartitionRow>(`SELECT DISTINCT partition FROM memory_entries`);
+    const accessLevelsResult = this.queryAll<AccessLevelCountRow>(
       `SELECT access_level, COUNT(*) as count FROM memory_entries GROUP BY access_level`
     );
 
@@ -1206,7 +1580,7 @@ export class SwarmMemoryManager {
   // Table 3: Events (TTL: 30 days)
   // ============================================================================
 
-  async storeEvent(event: Event): Promise<string> {
+  storeEvent(event: Event): string {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1216,7 +1590,7 @@ export class SwarmMemoryManager {
     const ttl = event.ttl !== undefined ? event.ttl : this.TTL_POLICY.events;
     const expiresAt = ttl > 0 ? timestamp + (ttl * 1000) : null;
 
-    await this.run(
+    this.run(
       `INSERT INTO events (id, type, payload, timestamp, source, ttl, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, event.type, JSON.stringify(event.payload), timestamp, event.source, ttl, expiresAt]
@@ -1225,13 +1599,13 @@ export class SwarmMemoryManager {
     return id;
   }
 
-  async queryEvents(type: string): Promise<Event[]> {
+  queryEvents(type: string): Event[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<EventRow>(
       `SELECT id, type, payload, timestamp, source, ttl
        FROM events
        WHERE type = ? AND (expires_at IS NULL OR expires_at > ?)
@@ -1239,23 +1613,23 @@ export class SwarmMemoryManager {
       [type, now]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       type: row.type,
-      payload: JSON.parse(row.payload),
+      payload: JSON.parse(row.payload) as SerializableValue,
       timestamp: row.timestamp,
       source: row.source,
       ttl: row.ttl
     }));
   }
 
-  async getEventsBySource(source: string): Promise<Event[]> {
+  getEventsBySource(source: string): Event[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<EventRow>(
       `SELECT id, type, payload, timestamp, source, ttl
        FROM events
        WHERE source = ? AND (expires_at IS NULL OR expires_at > ?)
@@ -1263,10 +1637,10 @@ export class SwarmMemoryManager {
       [source, now]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       type: row.type,
-      payload: JSON.parse(row.payload),
+      payload: JSON.parse(row.payload) as SerializableValue,
       timestamp: row.timestamp,
       source: row.source,
       ttl: row.ttl
@@ -1277,7 +1651,7 @@ export class SwarmMemoryManager {
   // Table 4: Workflow State (TTL: never expires)
   // ============================================================================
 
-  async storeWorkflowState(workflow: WorkflowState): Promise<void> {
+  storeWorkflowState(workflow: WorkflowState): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1285,19 +1659,19 @@ export class SwarmMemoryManager {
     const now = Date.now();
     const ttl = workflow.ttl !== undefined ? workflow.ttl : this.TTL_POLICY.workflow_state;
 
-    await this.run(
+    this.run(
       `INSERT OR REPLACE INTO workflow_state (id, step, status, checkpoint, sha, ttl, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [workflow.id, workflow.step, workflow.status, JSON.stringify(workflow.checkpoint), workflow.sha, ttl, now, now]
     );
   }
 
-  async getWorkflowState(id: string): Promise<WorkflowState> {
+  getWorkflowState(id: string): WorkflowState {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<WorkflowStateRow>(
       `SELECT id, step, status, checkpoint, sha, ttl, created_at, updated_at
        FROM workflow_state
        WHERE id = ?`,
@@ -1311,8 +1685,8 @@ export class SwarmMemoryManager {
     return {
       id: row.id,
       step: row.step,
-      status: row.status,
-      checkpoint: JSON.parse(row.checkpoint),
+      status: row.status as WorkflowState['status'],
+      checkpoint: JSON.parse(row.checkpoint) as SerializableValue,
       sha: row.sha,
       ttl: row.ttl,
       createdAt: row.created_at,
@@ -1320,15 +1694,15 @@ export class SwarmMemoryManager {
     };
   }
 
-  async updateWorkflowState(id: string, updates: Partial<WorkflowState>): Promise<void> {
+  updateWorkflowState(id: string, updates: Partial<WorkflowState>): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const current = await this.getWorkflowState(id);
+    const current = this.getWorkflowState(id);
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `UPDATE workflow_state
        SET step = ?, status = ?, checkpoint = ?, sha = ?, updated_at = ?
        WHERE id = ?`,
@@ -1343,23 +1717,23 @@ export class SwarmMemoryManager {
     );
   }
 
-  async queryWorkflowsByStatus(status: string): Promise<WorkflowState[]> {
+  queryWorkflowsByStatus(status: string): WorkflowState[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<WorkflowStateRow>(
       `SELECT id, step, status, checkpoint, sha, ttl, created_at, updated_at
        FROM workflow_state
        WHERE status = ?`,
       [status]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       step: row.step,
-      status: row.status,
-      checkpoint: JSON.parse(row.checkpoint),
+      status: row.status as WorkflowState['status'],
+      checkpoint: JSON.parse(row.checkpoint) as SerializableValue,
       sha: row.sha,
       ttl: row.ttl,
       createdAt: row.created_at,
@@ -1371,7 +1745,7 @@ export class SwarmMemoryManager {
   // Table 5: Patterns (TTL: 7 days)
   // ============================================================================
 
-  async storePattern(pattern: Pattern): Promise<string> {
+  storePattern(pattern: Pattern): string {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1384,7 +1758,7 @@ export class SwarmMemoryManager {
     // Extract agent_id from metadata for indexed lookups (O(log n) vs O(n))
     const agentId = pattern.metadata?.agent_id || pattern.metadata?.agentId || null;
 
-    await this.run(
+    this.run(
       `INSERT OR REPLACE INTO patterns (id, pattern, confidence, usage_count, metadata, ttl, expires_at, created_at, agent_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -1406,13 +1780,13 @@ export class SwarmMemoryManager {
     return id;
   }
 
-  async getPattern(patternName: string): Promise<Pattern> {
+  getPattern(patternName: string): Pattern {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<PatternRow>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
        WHERE pattern = ? AND (expires_at IS NULL OR expires_at > ?)`,
@@ -1428,19 +1802,19 @@ export class SwarmMemoryManager {
       pattern: row.pattern,
       confidence: row.confidence,
       usageCount: row.usage_count,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: row.metadata ? JSON.parse(row.metadata) as PatternMetadata : undefined,
       ttl: row.ttl,
       createdAt: row.created_at
     };
   }
 
-  async incrementPatternUsage(patternName: string): Promise<void> {
+  incrementPatternUsage(patternName: string): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     // Get the agent_id before updating to invalidate correct cache entries
-    const pattern = this.queryOne<any>(
+    const pattern = this.queryOne<Pick<PatternRow, 'agent_id' | 'metadata'>>(
       `SELECT agent_id, metadata FROM patterns WHERE pattern = ?`,
       [patternName]
     );
@@ -1454,8 +1828,9 @@ export class SwarmMemoryManager {
 
     // Invalidate cache for affected agent
     if (pattern) {
+      const parsedMetadata = pattern.metadata ? JSON.parse(pattern.metadata) as PatternMetadata : null;
       const agentId = pattern.agent_id ||
-        (pattern.metadata ? JSON.parse(pattern.metadata).agent_id || JSON.parse(pattern.metadata).agentId : null);
+        (parsedMetadata ? parsedMetadata.agent_id || parsedMetadata.agentId : null) || null;
       this.invalidatePatternCacheForAgent(agentId);
     }
   }
@@ -1474,13 +1849,13 @@ export class SwarmMemoryManager {
     }
   }
 
-  async queryPatternsByConfidence(threshold: number): Promise<Pattern[]> {
+  queryPatternsByConfidence(threshold: number): Pattern[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<PatternRow>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
        WHERE confidence >= ? AND (expires_at IS NULL OR expires_at > ?)
@@ -1488,12 +1863,12 @@ export class SwarmMemoryManager {
       [threshold, now]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       pattern: row.pattern,
       confidence: row.confidence,
       usageCount: row.usage_count,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: row.metadata ? JSON.parse(row.metadata) as PatternMetadata : undefined,
       ttl: row.ttl,
       createdAt: row.created_at
     }));
@@ -1513,7 +1888,7 @@ export class SwarmMemoryManager {
     return value.replace(/[%_\\]/g, '\\$&');
   }
 
-  async queryPatternsByAgent(agentId: string, minConfidence: number = 0): Promise<Pattern[]> {
+  queryPatternsByAgent(agentId: string, minConfidence: number = 0): Pattern[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1530,7 +1905,7 @@ export class SwarmMemoryManager {
 
     // Split into two queries to ensure index usage on the fast path
     // Query 1: O(log n) - Use index for agent_id column (post-migration data)
-    const indexedRows = this.queryAll<any>(
+    const indexedRows = this.queryAll<PatternRow>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
        WHERE agent_id = ?
@@ -1541,7 +1916,7 @@ export class SwarmMemoryManager {
     );
 
     // Query 2: O(n) - Fallback LIKE scan for pre-migration data (agent_id IS NULL)
-    const nullRows = this.queryAll<any>(
+    const nullRows = this.queryAll<PatternRow>(
       `SELECT id, pattern, confidence, usage_count, metadata, ttl, created_at
        FROM patterns
        WHERE agent_id IS NULL
@@ -1559,14 +1934,14 @@ export class SwarmMemoryManager {
 
     // Combine results and sort by confidence (descending)
     const allRows = [...indexedRows, ...nullRows];
-    allRows.sort((a: any, b: any) => b.confidence - a.confidence);
+    allRows.sort((a, b) => b.confidence - a.confidence);
 
-    const patterns = allRows.map((row: any) => ({
+    const patterns = allRows.map((row) => ({
       id: row.id,
       pattern: row.pattern,
       confidence: row.confidence,
       usageCount: row.usage_count,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: row.metadata ? JSON.parse(row.metadata) as PatternMetadata : undefined,
       ttl: row.ttl,
       createdAt: row.created_at
     }));
@@ -1595,7 +1970,7 @@ export class SwarmMemoryManager {
   // Table 6: Consensus State (TTL: 7 days)
   // ============================================================================
 
-  async createConsensusProposal(proposal: ConsensusProposal): Promise<void> {
+  createConsensusProposal(proposal: ConsensusProposal): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1604,7 +1979,7 @@ export class SwarmMemoryManager {
     const ttl = proposal.ttl !== undefined ? proposal.ttl : this.TTL_POLICY.consensus;
     const expiresAt = ttl > 0 ? now + (ttl * 1000) : null;
 
-    await this.run(
+    this.run(
       `INSERT INTO consensus_state (id, decision, proposer, votes, quorum, status, version, ttl, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -1622,13 +1997,13 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getConsensusProposal(id: string): Promise<ConsensusProposal> {
+  getConsensusProposal(id: string): ConsensusProposal {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<ConsensusRow>(
       `SELECT id, decision, proposer, votes, quorum, status, version, ttl, created_at
        FROM consensus_state
        WHERE id = ? AND (expires_at IS NULL OR expires_at > ?)`,
@@ -1643,21 +2018,21 @@ export class SwarmMemoryManager {
       id: row.id,
       decision: row.decision,
       proposer: row.proposer,
-      votes: JSON.parse(row.votes),
+      votes: JSON.parse(row.votes) as string[],
       quorum: row.quorum,
-      status: row.status,
+      status: row.status as ConsensusProposal['status'],
       version: row.version,
       ttl: row.ttl,
       createdAt: row.created_at
     };
   }
 
-  async voteOnConsensus(proposalId: string, agentId: string): Promise<boolean> {
+  voteOnConsensus(proposalId: string, agentId: string): boolean {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const proposal = await this.getConsensusProposal(proposalId);
+    const proposal = this.getConsensusProposal(proposalId);
 
     if (!proposal.votes.includes(agentId)) {
       proposal.votes.push(agentId);
@@ -1669,7 +2044,7 @@ export class SwarmMemoryManager {
       proposal.status = 'approved';
     }
 
-    await this.run(
+    this.run(
       `UPDATE consensus_state
        SET votes = ?, status = ?
        WHERE id = ?`,
@@ -1679,26 +2054,26 @@ export class SwarmMemoryManager {
     return approved;
   }
 
-  async queryConsensusProposals(status: string): Promise<ConsensusProposal[]> {
+  queryConsensusProposals(status: string): ConsensusProposal[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<ConsensusRow>(
       `SELECT id, decision, proposer, votes, quorum, status, version, ttl, created_at
        FROM consensus_state
        WHERE status = ? AND (expires_at IS NULL OR expires_at > ?)`,
       [status, now]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       decision: row.decision,
       proposer: row.proposer,
-      votes: JSON.parse(row.votes),
+      votes: JSON.parse(row.votes) as string[],
       quorum: row.quorum,
-      status: row.status,
+      status: row.status as ConsensusProposal['status'],
       version: row.version,
       ttl: row.ttl,
       createdAt: row.created_at
@@ -1709,7 +2084,7 @@ export class SwarmMemoryManager {
   // Table 7: Performance Metrics
   // ============================================================================
 
-  async storePerformanceMetric(metric: PerformanceMetric): Promise<string> {
+  storePerformanceMetric(metric: PerformanceMetric): string {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1717,7 +2092,7 @@ export class SwarmMemoryManager {
     const id = metric.id || `metric-${Date.now()}-${SecureRandom.generateId(5)}`;
     const timestamp = metric.timestamp || Date.now();
 
-    await this.run(
+    this.run(
       `INSERT INTO performance_metrics (id, metric, value, unit, timestamp, agent_id)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [id, metric.metric, metric.value, metric.unit, timestamp, metric.agentId || null]
@@ -1726,12 +2101,12 @@ export class SwarmMemoryManager {
     return id;
   }
 
-  async queryPerformanceMetrics(metricName: string): Promise<PerformanceMetric[]> {
+  queryPerformanceMetrics(metricName: string): PerformanceMetric[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<PerformanceMetricRow>(
       `SELECT id, metric, value, unit, timestamp, agent_id
        FROM performance_metrics
        WHERE metric = ?
@@ -1739,22 +2114,22 @@ export class SwarmMemoryManager {
       [metricName]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       metric: row.metric,
       value: row.value,
       unit: row.unit,
       timestamp: row.timestamp,
-      agentId: row.agent_id
+      agentId: row.agent_id ?? undefined
     }));
   }
 
-  async getMetricsByAgent(agentId: string): Promise<PerformanceMetric[]> {
+  getMetricsByAgent(agentId: string): PerformanceMetric[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<PerformanceMetricRow>(
       `SELECT id, metric, value, unit, timestamp, agent_id
        FROM performance_metrics
        WHERE agent_id = ?
@@ -1762,22 +2137,22 @@ export class SwarmMemoryManager {
       [agentId]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       metric: row.metric,
       value: row.value,
       unit: row.unit,
       timestamp: row.timestamp,
-      agentId: row.agent_id
+      agentId: row.agent_id ?? undefined
     }));
   }
 
-  async getAverageMetric(metricName: string): Promise<number> {
+  getAverageMetric(metricName: string): number {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<{ avg: number }>(
+    const row = this.queryOne<{ avg: number }>(
       `SELECT AVG(value) as avg FROM performance_metrics WHERE metric = ?`,
       [metricName]
     );
@@ -1789,7 +2164,7 @@ export class SwarmMemoryManager {
   // Table 8: Artifacts (TTL: never expires)
   // ============================================================================
 
-  async createArtifact(artifact: Artifact): Promise<void> {
+  createArtifact(artifact: Artifact): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -1797,7 +2172,7 @@ export class SwarmMemoryManager {
     const now = Date.now();
     const ttl = artifact.ttl !== undefined ? artifact.ttl : this.TTL_POLICY.artifacts;
 
-    await this.run(
+    this.run(
       `INSERT INTO artifacts (id, kind, path, sha256, tags, metadata, ttl, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -1813,12 +2188,12 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getArtifact(id: string): Promise<Artifact> {
+  getArtifact(id: string): Artifact {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<ArtifactRow>(
       `SELECT id, kind, path, sha256, tags, metadata, ttl, created_at
        FROM artifacts
        WHERE id = ?`,
@@ -1831,59 +2206,59 @@ export class SwarmMemoryManager {
 
     return {
       id: row.id,
-      kind: row.kind,
+      kind: row.kind as Artifact['kind'],
       path: row.path,
       sha256: row.sha256,
-      tags: JSON.parse(row.tags),
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      tags: JSON.parse(row.tags) as string[],
+      metadata: row.metadata ? JSON.parse(row.metadata) as ArtifactMetadata : undefined,
       ttl: row.ttl,
       createdAt: row.created_at
     };
   }
 
-  async queryArtifactsByKind(kind: string): Promise<Artifact[]> {
+  queryArtifactsByKind(kind: string): Artifact[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<ArtifactRow>(
       `SELECT id, kind, path, sha256, tags, metadata, ttl, created_at
        FROM artifacts
        WHERE kind = ?`,
       [kind]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
-      kind: row.kind,
+      kind: row.kind as Artifact['kind'],
       path: row.path,
       sha256: row.sha256,
-      tags: JSON.parse(row.tags),
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      tags: JSON.parse(row.tags) as string[],
+      metadata: row.metadata ? JSON.parse(row.metadata) as ArtifactMetadata : undefined,
       ttl: row.ttl,
       createdAt: row.created_at
     }));
   }
 
-  async queryArtifactsByTag(tag: string): Promise<Artifact[]> {
+  queryArtifactsByTag(tag: string): Artifact[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<ArtifactRow>(
       `SELECT id, kind, path, sha256, tags, metadata, ttl, created_at
        FROM artifacts
        WHERE tags LIKE ?`,
       [`%"${tag}"%`]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
-      kind: row.kind,
+      kind: row.kind as Artifact['kind'],
       path: row.path,
       sha256: row.sha256,
-      tags: JSON.parse(row.tags),
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      tags: JSON.parse(row.tags) as string[],
+      metadata: row.metadata ? JSON.parse(row.metadata) as ArtifactMetadata : undefined,
       ttl: row.ttl,
       createdAt: row.created_at
     }));
@@ -1893,14 +2268,14 @@ export class SwarmMemoryManager {
   // Table 9: Sessions (resumability)
   // ============================================================================
 
-  async createSession(session: Session): Promise<void> {
+  createSession(session: Session): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `INSERT INTO sessions (id, mode, state, checkpoints, created_at, last_resumed)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -1914,12 +2289,12 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getSession(id: string): Promise<Session> {
+  getSession(id: string): Session {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<SessionRow>(
       `SELECT id, mode, state, checkpoints, created_at, last_resumed
        FROM sessions
        WHERE id = ?`,
@@ -1932,23 +2307,23 @@ export class SwarmMemoryManager {
 
     return {
       id: row.id,
-      mode: row.mode,
-      state: JSON.parse(row.state),
-      checkpoints: JSON.parse(row.checkpoints),
+      mode: row.mode as Session['mode'],
+      state: JSON.parse(row.state) as SessionState,
+      checkpoints: JSON.parse(row.checkpoints) as Checkpoint[],
       createdAt: row.created_at,
-      lastResumed: row.last_resumed
+      lastResumed: row.last_resumed ?? undefined
     };
   }
 
-  async addSessionCheckpoint(sessionId: string, checkpoint: Checkpoint): Promise<void> {
+  addSessionCheckpoint(sessionId: string, checkpoint: Checkpoint): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const session = await this.getSession(sessionId);
+    const session = this.getSession(sessionId);
     session.checkpoints.push(checkpoint);
 
-    await this.run(
+    this.run(
       `UPDATE sessions
        SET checkpoints = ?
        WHERE id = ?`,
@@ -1956,21 +2331,21 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getLatestCheckpoint(sessionId: string): Promise<Checkpoint | undefined> {
-    const session = await this.getSession(sessionId);
+  getLatestCheckpoint(sessionId: string): Checkpoint | undefined {
+    const session = this.getSession(sessionId);
     return session.checkpoints.length > 0
       ? session.checkpoints[session.checkpoints.length - 1]
       : undefined;
   }
 
-  async markSessionResumed(sessionId: string): Promise<void> {
+  markSessionResumed(sessionId: string): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `UPDATE sessions
        SET last_resumed = ?
        WHERE id = ?`,
@@ -1982,14 +2357,14 @@ export class SwarmMemoryManager {
   // Table 10: Agent Registry
   // ============================================================================
 
-  async registerAgent(agent: AgentRegistration): Promise<void> {
+  registerAgent(agent: AgentRegistration): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `INSERT INTO agent_registry (id, type, capabilities, status, performance, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -2004,12 +2379,12 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getAgent(id: string): Promise<AgentRegistration> {
+  getAgent(id: string): AgentRegistration {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<AgentRegistryRow>(
       `SELECT id, type, capabilities, status, performance, created_at, updated_at
        FROM agent_registry
        WHERE id = ?`,
@@ -2023,22 +2398,22 @@ export class SwarmMemoryManager {
     return {
       id: row.id,
       type: row.type,
-      capabilities: JSON.parse(row.capabilities),
-      status: row.status,
-      performance: JSON.parse(row.performance),
+      capabilities: JSON.parse(row.capabilities) as string[],
+      status: row.status as AgentRegistration['status'],
+      performance: JSON.parse(row.performance) as AgentPerformanceData,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
   }
 
-  async updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): Promise<void> {
+  updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `UPDATE agent_registry
        SET status = ?, updated_at = ?
        WHERE id = ?`,
@@ -2046,37 +2421,37 @@ export class SwarmMemoryManager {
     );
   }
 
-  async queryAgentsByStatus(status: string): Promise<AgentRegistration[]> {
+  queryAgentsByStatus(status: string): AgentRegistration[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<AgentRegistryRow>(
       `SELECT id, type, capabilities, status, performance, created_at, updated_at
        FROM agent_registry
        WHERE status = ?`,
       [status]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
       type: row.type,
-      capabilities: JSON.parse(row.capabilities),
-      status: row.status,
-      performance: JSON.parse(row.performance),
+      capabilities: JSON.parse(row.capabilities) as string[],
+      status: row.status as AgentRegistration['status'],
+      performance: JSON.parse(row.performance) as AgentPerformanceData,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
   }
 
-  async updateAgentPerformance(agentId: string, performance: any): Promise<void> {
+  updateAgentPerformance(agentId: string, performance: AgentPerformanceData): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `UPDATE agent_registry
        SET performance = ?, updated_at = ?
        WHERE id = ?`,
@@ -2088,26 +2463,26 @@ export class SwarmMemoryManager {
   // Table 11: GOAP State
   // ============================================================================
 
-  async storeGOAPGoal(goal: GOAPGoal): Promise<void> {
+  storeGOAPGoal(goal: GOAPGoal): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `INSERT INTO goap_goals (id, conditions, cost, priority, created_at)
        VALUES (?, ?, ?, ?, ?)`,
       [goal.id, JSON.stringify(goal.conditions), goal.cost, goal.priority || null, now]
     );
   }
 
-  async getGOAPGoal(id: string): Promise<GOAPGoal> {
+  getGOAPGoal(id: string): GOAPGoal {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<GOAPGoalRow>(
       `SELECT id, conditions, cost, priority, created_at
        FROM goap_goals
        WHERE id = ?`,
@@ -2120,21 +2495,21 @@ export class SwarmMemoryManager {
 
     return {
       id: row.id,
-      conditions: JSON.parse(row.conditions),
+      conditions: JSON.parse(row.conditions) as string[],
       cost: row.cost,
-      priority: row.priority,
+      priority: row.priority ?? undefined,
       createdAt: row.created_at
     };
   }
 
-  async storeGOAPAction(action: GOAPAction): Promise<void> {
+  storeGOAPAction(action: GOAPAction): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `INSERT INTO goap_actions (id, preconditions, effects, cost, agent_type, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -2148,12 +2523,12 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getGOAPAction(id: string): Promise<GOAPAction> {
+  getGOAPAction(id: string): GOAPAction {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<GOAPActionRow>(
       `SELECT id, preconditions, effects, cost, agent_type, created_at
        FROM goap_actions
        WHERE id = ?`,
@@ -2166,34 +2541,34 @@ export class SwarmMemoryManager {
 
     return {
       id: row.id,
-      preconditions: JSON.parse(row.preconditions),
-      effects: JSON.parse(row.effects),
+      preconditions: JSON.parse(row.preconditions) as string[],
+      effects: JSON.parse(row.effects) as string[],
       cost: row.cost,
-      agentType: row.agent_type,
+      agentType: row.agent_type ?? undefined,
       createdAt: row.created_at
     };
   }
 
-  async storeGOAPPlan(plan: GOAPPlan): Promise<void> {
+  storeGOAPPlan(plan: GOAPPlan): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
     const now = Date.now();
 
-    await this.run(
+    this.run(
       `INSERT INTO goap_plans (id, goal_id, sequence, total_cost, created_at)
        VALUES (?, ?, ?, ?, ?)`,
       [plan.id, plan.goalId, JSON.stringify(plan.sequence), plan.totalCost, now]
     );
   }
 
-  async getGOAPPlan(id: string): Promise<GOAPPlan> {
+  getGOAPPlan(id: string): GOAPPlan {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<GOAPPlanRow>(
       `SELECT id, goal_id, sequence, total_cost, created_at
        FROM goap_plans
        WHERE id = ?`,
@@ -2207,7 +2582,7 @@ export class SwarmMemoryManager {
     return {
       id: row.id,
       goalId: row.goal_id,
-      sequence: JSON.parse(row.sequence),
+      sequence: JSON.parse(row.sequence) as string[],
       totalCost: row.total_cost,
       createdAt: row.created_at
     };
@@ -2217,12 +2592,12 @@ export class SwarmMemoryManager {
   // Table 12: OODA Cycles
   // ============================================================================
 
-  async storeOODACycle(cycle: OODACycle): Promise<void> {
+  storeOODACycle(cycle: OODACycle): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    await this.run(
+    this.run(
       `INSERT INTO ooda_cycles (id, phase, observations, orientation, decision, action, timestamp, completed, result)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -2239,12 +2614,12 @@ export class SwarmMemoryManager {
     );
   }
 
-  async getOODACycle(id: string): Promise<OODACycle> {
+  getOODACycle(id: string): OODACycle {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<OODACycleRow>(
       `SELECT id, phase, observations, orientation, decision, action, timestamp, completed, result
        FROM ooda_cycles
        WHERE id = ?`,
@@ -2257,18 +2632,18 @@ export class SwarmMemoryManager {
 
     return {
       id: row.id,
-      phase: row.phase,
-      observations: row.observations ? JSON.parse(row.observations) : undefined,
-      orientation: row.orientation ? JSON.parse(row.orientation) : undefined,
-      decision: row.decision ? JSON.parse(row.decision) : undefined,
-      action: row.action ? JSON.parse(row.action) : undefined,
+      phase: row.phase as OODACycle['phase'],
+      observations: row.observations ? JSON.parse(row.observations) as OODAObservations : undefined,
+      orientation: row.orientation ? JSON.parse(row.orientation) as OODAOrientation : undefined,
+      decision: row.decision ? JSON.parse(row.decision) as OODADecision : undefined,
+      action: row.action ? JSON.parse(row.action) as OODAAction : undefined,
       timestamp: row.timestamp,
       completed: row.completed === 1,
-      result: row.result ? JSON.parse(row.result) : undefined
+      result: row.result ? JSON.parse(row.result) as OODAResult : undefined
     };
   }
 
-  async updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): Promise<void> {
+  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: OODAPhaseData): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2282,7 +2657,7 @@ export class SwarmMemoryManager {
 
     const field = fieldMap[phase];
 
-    await this.run(
+    this.run(
       `UPDATE ooda_cycles
        SET phase = ?, ${field} = ?
        WHERE id = ?`,
@@ -2290,12 +2665,12 @@ export class SwarmMemoryManager {
     );
   }
 
-  async completeOODACycle(cycleId: string, result: any): Promise<void> {
+  completeOODACycle(cycleId: string, result: OODAResult): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    await this.run(
+    this.run(
       `UPDATE ooda_cycles
        SET completed = 1, result = ?
        WHERE id = ?`,
@@ -2303,28 +2678,28 @@ export class SwarmMemoryManager {
     );
   }
 
-  async queryOODACyclesByPhase(phase: string): Promise<OODACycle[]> {
+  queryOODACyclesByPhase(phase: string): OODACycle[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
 
-    const rows = await this.queryAll<any>(
+    const rows = this.queryAll<OODACycleRow>(
       `SELECT id, phase, observations, orientation, decision, action, timestamp, completed, result
        FROM ooda_cycles
        WHERE phase = ?`,
       [phase]
     );
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id,
-      phase: row.phase,
-      observations: row.observations ? JSON.parse(row.observations) : undefined,
-      orientation: row.orientation ? JSON.parse(row.orientation) : undefined,
-      decision: row.decision ? JSON.parse(row.decision) : undefined,
-      action: row.action ? JSON.parse(row.action) : undefined,
+      phase: row.phase as OODACycle['phase'],
+      observations: row.observations ? JSON.parse(row.observations) as OODAObservations : undefined,
+      orientation: row.orientation ? JSON.parse(row.orientation) as OODAOrientation : undefined,
+      decision: row.decision ? JSON.parse(row.decision) as OODADecision : undefined,
+      action: row.action ? JSON.parse(row.action) as OODAAction : undefined,
       timestamp: row.timestamp,
       completed: row.completed === 1,
-      result: row.result ? JSON.parse(row.result) : undefined
+      result: row.result ? JSON.parse(row.result) as OODAResult : undefined
     }));
   }
 
@@ -2333,7 +2708,7 @@ export class SwarmMemoryManager {
   /**
    * Store ACL for a memory entry
    */
-  async storeACL(acl: ACL): Promise<void> {
+  storeACL(acl: ACL): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2341,7 +2716,7 @@ export class SwarmMemoryManager {
     const grantedPerms = acl.grantedPermissions ? JSON.stringify(acl.grantedPermissions) : null;
     const blockedAgents = acl.blockedAgents ? JSON.stringify(acl.blockedAgents) : null;
 
-    await this.run(
+    this.run(
       `INSERT OR REPLACE INTO memory_acl
        (resource_id, owner, access_level, team_id, swarm_id, granted_permissions, blocked_agents, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -2364,7 +2739,7 @@ export class SwarmMemoryManager {
   /**
    * Retrieve ACL for a memory entry
    */
-  async getACL(resourceId: string): Promise<ACL | null> {
+  getACL(resourceId: string): ACL | null {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2374,7 +2749,7 @@ export class SwarmMemoryManager {
       return this.aclCache.get(resourceId)!;
     }
 
-    const row = await this.queryOne<any>(
+    const row = this.queryOne<ACLRow>(
       `SELECT * FROM memory_acl WHERE resource_id = ?`,
       [resourceId]
     );
@@ -2387,10 +2762,10 @@ export class SwarmMemoryManager {
       resourceId: row.resource_id,
       owner: row.owner,
       accessLevel: row.access_level as AccessLevel,
-      teamId: row.team_id,
-      swarmId: row.swarm_id,
-      grantedPermissions: row.granted_permissions ? JSON.parse(row.granted_permissions) : undefined,
-      blockedAgents: row.blocked_agents ? JSON.parse(row.blocked_agents) : undefined,
+      teamId: row.team_id ?? undefined,
+      swarmId: row.swarm_id ?? undefined,
+      grantedPermissions: row.granted_permissions ? JSON.parse(row.granted_permissions) as Record<string, Permission[]> : undefined,
+      blockedAgents: row.blocked_agents ? JSON.parse(row.blocked_agents) as string[] : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     };
@@ -2402,66 +2777,66 @@ export class SwarmMemoryManager {
   /**
    * Update ACL for a memory entry
    */
-  async updateACL(resourceId: string, updates: Partial<ACL>): Promise<void> {
-    const existing = await this.getACL(resourceId);
+  updateACL(resourceId: string, updates: Partial<ACL>): void {
+    const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
 
     const updated = this.accessControl.updateACL(existing, updates);
-    await this.storeACL(updated);
+    this.storeACL(updated);
   }
 
   /**
    * Grant permission to an agent
    */
-  async grantPermission(resourceId: string, agentId: string, permissions: Permission[]): Promise<void> {
-    const existing = await this.getACL(resourceId);
+  grantPermission(resourceId: string, agentId: string, permissions: Permission[]): void {
+    const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
 
     const updated = this.accessControl.grantPermission(existing, agentId, permissions);
-    await this.storeACL(updated);
+    this.storeACL(updated);
   }
 
   /**
    * Revoke permission from an agent
    */
-  async revokePermission(resourceId: string, agentId: string, permissions: Permission[]): Promise<void> {
-    const existing = await this.getACL(resourceId);
+  revokePermission(resourceId: string, agentId: string, permissions: Permission[]): void {
+    const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
 
     const updated = this.accessControl.revokePermission(existing, agentId, permissions);
-    await this.storeACL(updated);
+    this.storeACL(updated);
   }
 
   /**
    * Block an agent from accessing a resource
    */
-  async blockAgent(resourceId: string, agentId: string): Promise<void> {
-    const existing = await this.getACL(resourceId);
+  blockAgent(resourceId: string, agentId: string): void {
+    const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
 
     const updated = this.accessControl.blockAgent(existing, agentId);
-    await this.storeACL(updated);
+    this.storeACL(updated);
   }
 
   /**
    * Unblock an agent
    */
-  async unblockAgent(resourceId: string, agentId: string): Promise<void> {
-    const existing = await this.getACL(resourceId);
+  unblockAgent(resourceId: string, agentId: string): void {
+    const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
     }
 
     const updated = this.accessControl.unblockAgent(existing, agentId);
-    await this.storeACL(updated);
+    this.storeACL(updated);
   }
 
   /**
@@ -2521,7 +2896,7 @@ export class SwarmMemoryManager {
    * @param port - Peer port number
    * @returns Peer ID
    */
-  async addQUICPeer(address: string, port: number): Promise<string> {
+  addQUICPeer(address: string, port: number): string {
     if (!this.agentDBManager) {
       throw new Error('AgentDB not enabled. Call enableAgentDB() first.');
     }
@@ -2536,7 +2911,7 @@ export class SwarmMemoryManager {
    *
    * @param peerId - Peer ID to remove
    */
-  async removeQUICPeer(peerId: string): Promise<void> {
+  removeQUICPeer(peerId: string): void {
     if (!this.agentDBManager) {
       throw new Error('AgentDB not enabled');
     }
@@ -2544,12 +2919,15 @@ export class SwarmMemoryManager {
     // AgentDB handles peer management internally
   }
 
+  /** QUIC metrics structure */
+
+
   /**
    * Get QUIC performance metrics
    *
    * @returns Performance metrics or null if not enabled
    */
-  getQUICMetrics(): any | null {
+  getQUICMetrics(): Record<string, unknown> | null {
     if (!this.agentDBManager) {
       return null;
     }
@@ -2558,12 +2936,15 @@ export class SwarmMemoryManager {
     return null;
   }
 
+  /** QUIC peer information structure */
+
+
   /**
    * Get list of connected QUIC peers
    *
    * @returns Array of peer information or empty array if not enabled
    */
-  getQUICPeers(): any[] {
+  getQUICPeers(): Array<Record<string, unknown>> {
     if (!this.agentDBManager) {
       return [];
     }
@@ -2588,7 +2969,7 @@ export class SwarmMemoryManager {
    * @param partition - Optional partition filter
    * @returns Array of modified entries with metadata
    */
-  async getModifiedEntries(since: number, partition?: string): Promise<MemoryEntry[]> {
+  getModifiedEntries(since: number, partition?: string): MemoryEntry[] {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2599,7 +2980,7 @@ export class SwarmMemoryManager {
       WHERE created_at > ?
     `;
 
-    const params: any[] = [since];
+    const params: SqlParam[] = [since];
 
     if (partition) {
       query += ` AND partition = ?`;
@@ -2608,18 +2989,18 @@ export class SwarmMemoryManager {
 
     query += ` ORDER BY created_at ASC`;
 
-    const rows = await this.queryAll<any>(query, params);
+    const rows = this.queryAll<MemoryEntryRow>(query, params);
 
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       key: row.key,
-      value: JSON.parse(row.value),
+      value: JSON.parse(row.value) as SerializableValue,
       partition: row.partition,
       createdAt: row.created_at,
-      expiresAt: row.expires_at,
+      expiresAt: row.expires_at ?? undefined,
       owner: row.owner,
       accessLevel: row.access_level as AccessLevel,
-      teamId: row.team_id,
-      swarmId: row.swarm_id
+      teamId: row.team_id ?? undefined,
+      swarmId: row.swarm_id ?? undefined
     }));
   }
 
@@ -2652,7 +3033,7 @@ export class SwarmMemoryManager {
    * Store a learning experience for Q-learning
    * Delegates to the underlying Database instance
    */
-  async storeLearningExperience(experience: {
+  storeLearningExperience(experience: {
     agentId: string;
     taskId?: string;
     taskType: string;
@@ -2661,7 +3042,7 @@ export class SwarmMemoryManager {
     reward: number;
     nextState: string;
     episodeId?: string;
-  }): Promise<void> {
+  }): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2688,12 +3069,12 @@ export class SwarmMemoryManager {
    * Upsert a Q-value for a state-action pair
    * Delegates to the underlying Database instance
    */
-  async upsertQValue(
+  upsertQValue(
     agentId: string,
     stateKey: string,
     actionKey: string,
     qValue: number
-  ): Promise<void> {
+  ): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2713,12 +3094,12 @@ export class SwarmMemoryManager {
   /**
    * Get all Q-values for an agent
    */
-  async getAllQValues(agentId: string): Promise<Array<{
+  getAllQValues(agentId: string): Array<{
     state_key: string;
     action_key: string;
     q_value: number;
     update_count: number;
-  }>> {
+  }> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2730,7 +3111,7 @@ export class SwarmMemoryManager {
       ORDER BY last_updated DESC
     `;
 
-    return await this.queryAll<{
+    return this.queryAll<{
       state_key: string;
       action_key: string;
       q_value: number;
@@ -2741,7 +3122,7 @@ export class SwarmMemoryManager {
   /**
    * Get Q-value for a specific state-action pair
    */
-  async getQValue(agentId: string, stateKey: string, actionKey: string): Promise<number | null> {
+  getQValue(agentId: string, stateKey: string, actionKey: string): number | null {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2751,7 +3132,7 @@ export class SwarmMemoryManager {
       WHERE agent_id = ? AND state_key = ? AND action_key = ?
     `;
 
-    const row = await this.queryOne<{ q_value: number }>(sql, [agentId, stateKey, actionKey]);
+    const row = this.queryOne<{ q_value: number }>(sql, [agentId, stateKey, actionKey]);
     return row ? row.q_value : null;
   }
 
@@ -2759,11 +3140,11 @@ export class SwarmMemoryManager {
    * Get the best action for a given state based on Q-values
    * Returns the action with the highest Q-value for the specified state
    */
-  async getBestAction(agentId: string, stateKey: string): Promise<{
+  getBestAction(agentId: string, stateKey: string): {
     action_key: string;
     q_value: number;
     update_count: number;
-  } | null> {
+  } | null {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2776,7 +3157,7 @@ export class SwarmMemoryManager {
       LIMIT 1
     `;
 
-    const result = await this.queryOne<{
+    const result = this.queryOne<{
       action_key: string;
       q_value: number;
       update_count: number;
@@ -2788,7 +3169,7 @@ export class SwarmMemoryManager {
    * Get recent learning experiences for an agent
    * Returns experiences ordered by most recent first
    */
-  async getRecentLearningExperiences(agentId: string, limit: number = 10): Promise<Array<{
+  getRecentLearningExperiences(agentId: string, limit: number = 10): Array<{
     id: number;
     agent_id: string;
     task_type: string;
@@ -2798,7 +3179,7 @@ export class SwarmMemoryManager {
     next_state: string;
     episode_id: string | null;
     created_at: string;
-  }>> {
+  }> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2811,7 +3192,7 @@ export class SwarmMemoryManager {
       LIMIT ?
     `;
 
-    return await this.queryAll<{
+    return this.queryAll<{
       id: number;
       agent_id: string;
       task_type: string;
@@ -2827,7 +3208,7 @@ export class SwarmMemoryManager {
   /**
    * Get learning experiences by task type
    */
-  async getLearningExperiencesByTaskType(agentId: string, taskType: string, limit: number = 50): Promise<Array<{
+  getLearningExperiencesByTaskType(agentId: string, taskType: string, limit: number = 50): Array<{
     id: number;
     agent_id: string;
     task_type: string;
@@ -2836,7 +3217,7 @@ export class SwarmMemoryManager {
     reward: number;
     next_state: string;
     created_at: string;
-  }>> {
+  }> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2849,7 +3230,7 @@ export class SwarmMemoryManager {
       LIMIT ?
     `;
 
-    return await this.queryAll<{
+    return this.queryAll<{
       id: number;
       agent_id: string;
       task_type: string;
@@ -2865,7 +3246,7 @@ export class SwarmMemoryManager {
    * Get high-reward learning experiences for pattern extraction
    * Useful for identifying successful strategies to replicate
    */
-  async getHighRewardExperiences(agentId: string, minReward: number = 0.8, limit: number = 20): Promise<Array<{
+  getHighRewardExperiences(agentId: string, minReward: number = 0.8, limit: number = 20): Array<{
     id: number;
     task_type: string;
     state: string;
@@ -2873,7 +3254,7 @@ export class SwarmMemoryManager {
     reward: number;
     next_state: string;
     created_at: string;
-  }>> {
+  }> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2886,7 +3267,7 @@ export class SwarmMemoryManager {
       LIMIT ?
     `;
 
-    return await this.queryAll<{
+    return this.queryAll<{
       id: number;
       task_type: string;
       state: string;
@@ -2901,14 +3282,14 @@ export class SwarmMemoryManager {
    * Get learning statistics for an agent
    * Useful for tracking learning progress over time
    */
-  async getLearningStats(agentId: string): Promise<{
+  getLearningStats(agentId: string): {
     totalExperiences: number;
     averageReward: number;
     maxReward: number;
     minReward: number;
     uniqueTaskTypes: number;
     uniqueActions: number;
-  }> {
+  } {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2925,7 +3306,7 @@ export class SwarmMemoryManager {
       WHERE agent_id = ?
     `;
 
-    const row = await this.queryOne<{
+    const row = this.queryOne<{
       total_experiences: number;
       avg_reward: number;
       max_reward: number;
@@ -2947,14 +3328,14 @@ export class SwarmMemoryManager {
   /**
    * Store a learning performance snapshot
    */
-  async storeLearningSnapshot(snapshot: {
+  storeLearningSnapshot(snapshot: {
     agentId: string;
     snapshotType: 'performance' | 'q_table' | 'pattern';
-    metrics: any;
+    metrics: LearningMetrics;
     improvementRate?: number;
     totalExperiences?: number;
     explorationRate?: number;
-  }): Promise<void> {
+  }): void {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -2981,7 +3362,7 @@ export class SwarmMemoryManager {
   /**
    * Get learning history for an agent
    */
-  async getLearningHistory(agentId: string, limit: number = 100): Promise<Array<{
+  getLearningHistory(agentId: string, limit: number = 100): Array<{
     id: number;
     agent_id: string;
     pattern_id?: string;
@@ -2992,7 +3373,7 @@ export class SwarmMemoryManager {
     q_value?: number;
     episode?: number;
     timestamp: string;
-  }>> {
+  }> {
     if (!this.db) {
       throw new Error('Memory manager not initialized');
     }
@@ -3006,7 +3387,7 @@ export class SwarmMemoryManager {
       LIMIT ?
     `;
 
-    return await this.queryAll<{
+    return this.queryAll<{
       id: number;
       agent_id: string;
       pattern_id?: string;

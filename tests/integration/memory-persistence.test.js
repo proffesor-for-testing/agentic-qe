@@ -6,6 +6,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
+const { createSeededRandom } = require('../../src/utils/SeededRandom');
 
 describe('Memory Persistence Integration Tests', () => {
   const memoryNamespace = 'aqe-memory-test';
@@ -150,12 +151,13 @@ describe('Memory Persistence Integration Tests', () => {
       const operations = [];
 
       // Store 100 test result records
+      const rng = createSeededRandom(27200);
       for (let i = 0; i < 100; i++) {
         const testResult = {
           testId: `test-${i}`,
           suite: `Suite${Math.floor(i / 10)}`,
           status: i % 10 === 0 ? 'failed' : 'passed',
-          duration: Math.random() * 1000,
+          duration: rng.random() * 1000,
           timestamp: new Date().toISOString()
         };
 

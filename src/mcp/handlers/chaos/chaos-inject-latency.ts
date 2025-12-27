@@ -17,6 +17,42 @@ const activeInjections = new Map<string, ActiveInjection>();
 // Proxy handlers for intercepting network calls
 const proxyHandlers = new Map<string, any>();
 
+// Cleanup interval handle (lazy-initialized to prevent memory leaks)
+let cleanupIntervalHandle: NodeJS.Timeout | null = null;
+
+/**
+ * Start cleanup interval if not already running
+ * Uses unref() to prevent interval from keeping process alive
+ */
+function ensureCleanupInterval(): void {
+  if (!cleanupIntervalHandle) {
+    cleanupIntervalHandle = setInterval(cleanupExpiredInjections, 60000);
+    // Prevent interval from keeping process alive
+    if (cleanupIntervalHandle.unref) {
+      cleanupIntervalHandle.unref();
+    }
+  }
+}
+
+/**
+ * Stop cleanup interval and clear all injections
+ * Call this during test teardown or process shutdown
+ */
+export function shutdown(): void {
+  if (cleanupIntervalHandle) {
+    clearInterval(cleanupIntervalHandle);
+    cleanupIntervalHandle = null;
+  }
+  // Rollback all active injections
+  for (const [id, injection] of activeInjections.entries()) {
+    if (injection.active) {
+      rollbackLatencyInjection(id).catch(() => {});
+    }
+  }
+  activeInjections.clear();
+  proxyHandlers.clear();
+}
+
 /**
  * Generate latency value based on distribution
  */
@@ -212,6 +248,9 @@ export async function chaosInjectLatency(
     };
     activeInjections.set(injectionId, injection);
 
+    // Start cleanup interval when first injection is created (lazy init)
+    ensureCleanupInterval();
+
     // Auto-rollback after duration
     if (config.duration) {
       setTimeout(async () => {
@@ -274,6 +313,3 @@ export function cleanupExpiredInjections(): void {
     }
   }
 }
-
-// Run cleanup every 60 seconds
-setInterval(cleanupExpiredInjections, 60000);

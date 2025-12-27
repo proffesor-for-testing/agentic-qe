@@ -4,15 +4,16 @@
  * Features:
  * - Parallel execution with worker pools
  * - Retry logic for flaky tests
- * - Load balancing across workers
+ * - Load balancing across workers (including MinCut optimization)
  * - Timeout handling
  * - Result aggregation
  *
- * @version 1.0.0
+ * @version 2.0.0 - Added MinCut-based test partitioning
  */
 
 import { BaseHandler, HandlerResponse } from '../base-handler';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
+import { MinCutPartitioner, TestFile, PartitionResult } from '../../../test/partition/index.js';
 
 export interface TestExecuteParallelArgs {
   testFiles: string[];
@@ -22,17 +23,78 @@ export interface TestExecuteParallelArgs {
   maxRetries?: number;
   retryDelay?: number;
   continueOnFailure?: boolean;
-  loadBalancing?: 'round-robin' | 'least-loaded' | 'random';
+  /** Load balancing strategy. 'mincut' uses MinCut algorithm to minimize cross-partition dependencies */
+  loadBalancing?: 'round-robin' | 'least-loaded' | 'random' | 'mincut';
   collectCoverage?: boolean;
+  /** Test metadata for MinCut partitioning (optional, will be inferred if not provided) */
+  testMetadata?: Map<string, TestFileMetadata>;
+}
+
+/** Metadata for MinCut-based partitioning */
+export interface TestFileMetadata {
+  estimatedDuration?: number;
+  dependencies?: string[];
+  flakinessScore?: number;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  tags?: string[];
+}
+
+interface TestResult {
+  testFile: string;
+  passed: boolean;
+  duration?: number;
+  workerIndex?: number;
+  timeout: boolean;
+  assertions?: number;
+  attempts?: number;
+  error?: string;
+}
+
+interface ExecutionSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  passRate: number;
+  totalDuration: number;
+  avgDuration: number;
+}
+
+interface WorkerStats {
+  totalWorkers: number;
+  efficiency: number;
+  loadBalance: string;
+  partitioning?: {
+    algorithm: string;
+    crossPartitionDeps: number;
+    loadBalanceScore: number;
+    estimatedSpeedup: number;
+    computationTimeMs: number;
+    minCutValue?: number;
+  };
+}
+
+interface RetryInfo {
+  attempted: number;
+  successful: number;
+  maxAttempts: number;
 }
 
 export class TestExecuteParallelHandler extends BaseHandler {
-  private workerPool: any[] = [];
-  private executionQueue: any[] = [];
+  private workerPool: unknown[] = [];
+  private executionQueue: unknown[] = [];
+  private partitioner: MinCutPartitioner | null = null;
+  private lastPartitionResult: PartitionResult | null = null;
 
   constructor() {
     super();
     this.initializeWorkerPool();
+  }
+
+  /**
+   * Get the last partition result (for analysis/debugging)
+   */
+  getLastPartitionResult(): PartitionResult | null {
+    return this.lastPartitionResult;
   }
 
   async handle(args: TestExecuteParallelArgs): Promise<HandlerResponse> {
@@ -67,7 +129,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
           retries,
           executionStrategy: 'parallel',
           totalDuration: Date.now() - startTime,
-          timeouts: results.filter((r: any) => r.timeout).length
+          timeouts: results.filter((r) => r.timeout).length
         };
       });
 
@@ -81,12 +143,18 @@ export class TestExecuteParallelHandler extends BaseHandler {
     this.executionQueue = [];
   }
 
-  private async executeTestsParallel(args: TestExecuteParallelArgs): Promise<any[]> {
+  private async executeTestsParallel(args: TestExecuteParallelArgs): Promise<TestResult[]> {
     const parallelism = args.parallelism || 1;
-    const results: any[] = [];
+    const results: TestResult[] = [];
+    const strategy = args.loadBalancing || 'round-robin';
 
-    // Distribute tests across workers
-    const batches = this.distributeTests(args.testFiles, parallelism, args.loadBalancing || 'round-robin');
+    // Distribute tests across workers - use MinCut if requested
+    let batches: string[][];
+    if (strategy === 'mincut') {
+      batches = await this.distributeTestsWithMinCut(args.testFiles, parallelism, args.testMetadata);
+    } else {
+      batches = this.distributeTests(args.testFiles, parallelism, strategy);
+    }
 
     // Execute batches in parallel
     const batchPromises = batches.map(async (batch, workerIndex) => {
@@ -103,12 +171,12 @@ export class TestExecuteParallelHandler extends BaseHandler {
     return results;
   }
 
-  private async executeTestBatch(testFiles: string[], workerIndex: number, args: TestExecuteParallelArgs): Promise<any[]> {
-    const results = [];
+  private async executeTestBatch(testFiles: string[], workerIndex: number, args: TestExecuteParallelArgs): Promise<TestResult[]> {
+    const results: TestResult[] = [];
 
     for (const testFile of testFiles) {
       let attempts = 0;
-      let result: any = null;
+      let result: TestResult | null = null;
 
       while (attempts <= (args.maxRetries || 0)) {
         try {
@@ -138,17 +206,19 @@ export class TestExecuteParallelHandler extends BaseHandler {
         }
       }
 
-      results.push({
-        ...result,
-        attempts,
-        workerIndex
-      });
+      if (result) {
+        results.push({
+          ...result,
+          attempts,
+          workerIndex
+        });
+      }
     }
 
     return results;
   }
 
-  private async executeTest(testFile: string, workerIndex: number, timeout: number): Promise<any> {
+  private async executeTest(testFile: string, workerIndex: number, timeout: number): Promise<TestResult> {
     // Simulate test execution
     await new Promise(resolve => setTimeout(resolve, 50 + SecureRandom.randomFloat() * 100));
 
@@ -191,12 +261,109 @@ export class TestExecuteParallelHandler extends BaseHandler {
           batches[randomIndex].push(file);
         });
         break;
+
+      // Note: 'mincut' is handled by distributeTestsWithMinCut, not here
     }
 
     return batches;
   }
 
-  private aggregateResults(results: any[]): any {
+  /**
+   * Distribute tests using MinCut algorithm to minimize cross-partition dependencies
+   */
+  private async distributeTestsWithMinCut(
+    testFiles: string[],
+    parallelism: number,
+    metadata?: Map<string, TestFileMetadata>
+  ): Promise<string[][]> {
+    // Convert test files to TestFile format for partitioner
+    const tests: TestFile[] = testFiles.map(path => {
+      const meta = metadata?.get(path);
+      return {
+        path,
+        estimatedDuration: meta?.estimatedDuration ?? 100, // Default 100ms
+        dependencies: meta?.dependencies ?? this.inferDependencies(path, testFiles),
+        dependents: [], // Will be computed by analyzing reverse dependencies
+        flakinessScore: meta?.flakinessScore ?? 0,
+        priority: meta?.priority ?? 'medium',
+        tags: meta?.tags ?? this.inferTags(path),
+      };
+    });
+
+    // Compute dependents (reverse dependencies)
+    for (const test of tests) {
+      for (const dep of test.dependencies) {
+        const dependentTest = tests.find(t => t.path === dep);
+        if (dependentTest) {
+          dependentTest.dependents.push(test.path);
+        }
+      }
+    }
+
+    // Initialize partitioner if needed
+    if (!this.partitioner || this.partitioner.getConfig().partitionCount !== parallelism) {
+      this.partitioner = new MinCutPartitioner({ partitionCount: parallelism });
+    }
+
+    // Run partitioning
+    const result = await this.partitioner.partition(tests);
+    this.lastPartitionResult = result;
+
+    this.log('info', `MinCut partitioning completed`, {
+      algorithm: result.algorithm,
+      crossPartitionDeps: result.totalCrossPartitionDeps,
+      loadBalanceScore: result.loadBalanceScore.toFixed(2),
+      estimatedSpeedup: result.estimatedSpeedup.toFixed(2),
+      computationTimeMs: result.computationTimeMs.toFixed(2),
+    });
+
+    // Convert partitions back to string arrays
+    return result.partitions.map(p => p.tests.map(t => t.path));
+  }
+
+  /**
+   * Infer dependencies from test file path (heuristic)
+   * Tests in the same directory are likely to share fixtures
+   */
+  private inferDependencies(testPath: string, allTests: string[]): string[] {
+    const dir = testPath.substring(0, testPath.lastIndexOf('/'));
+    const deps: string[] = [];
+
+    for (const other of allTests) {
+      if (other !== testPath) {
+        const otherDir = other.substring(0, other.lastIndexOf('/'));
+        // Tests in same directory likely share fixtures/setup
+        if (dir === otherDir && Math.random() < 0.3) {
+          deps.push(other);
+        }
+      }
+    }
+
+    return deps;
+  }
+
+  /**
+   * Infer tags from test file path
+   */
+  private inferTags(testPath: string): string[] {
+    const tags: string[] = [];
+    const pathParts = testPath.toLowerCase().split('/');
+
+    // Extract module/feature names from path
+    for (const part of pathParts) {
+      if (part.includes('unit')) tags.push('unit');
+      if (part.includes('integration')) tags.push('integration');
+      if (part.includes('e2e')) tags.push('e2e');
+      if (part.includes('api')) tags.push('api');
+      if (part.includes('ui')) tags.push('ui');
+      if (part.includes('auth')) tags.push('auth');
+      if (part.includes('db') || part.includes('database')) tags.push('database');
+    }
+
+    return tags;
+  }
+
+  private aggregateResults(results: TestResult[]): ExecutionSummary {
     const total = results.length;
     const passed = results.filter(r => r.passed).length;
     const failed = total - passed;
@@ -212,16 +379,30 @@ export class TestExecuteParallelHandler extends BaseHandler {
     };
   }
 
-  private getWorkerStats(parallelism: number): any {
-    return {
+  private getWorkerStats(parallelism: number): WorkerStats {
+    const stats: WorkerStats = {
       totalWorkers: parallelism,
       efficiency: Math.round(75 + SecureRandom.randomFloat() * 20), // Simulate 75-95% efficiency
       loadBalance: 'balanced'
     };
+
+    // Add MinCut partition stats if available
+    if (this.lastPartitionResult) {
+      stats.partitioning = {
+        algorithm: this.lastPartitionResult.algorithm,
+        crossPartitionDeps: this.lastPartitionResult.totalCrossPartitionDeps,
+        loadBalanceScore: this.lastPartitionResult.loadBalanceScore,
+        estimatedSpeedup: this.lastPartitionResult.estimatedSpeedup,
+        computationTimeMs: this.lastPartitionResult.computationTimeMs,
+        minCutValue: this.lastPartitionResult.minCutValue,
+      };
+    }
+
+    return stats;
   }
 
-  private collectRetryInfo(results: any[]): any {
-    const retriedTests = results.filter(r => r.attempts > 1);
+  private collectRetryInfo(results: TestResult[]): RetryInfo {
+    const retriedTests = results.filter(r => (r.attempts || 1) > 1);
 
     return {
       attempted: retriedTests.length,

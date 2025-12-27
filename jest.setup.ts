@@ -9,9 +9,16 @@
 import 'jest-extended';
 import { EventBus } from './src/core/EventBus';
 import { SwarmMemoryManager } from './src/core/memory/SwarmMemoryManager';
+import { MemoryManager } from './src/core/MemoryManager';
+import { IntervalRegistry } from './src/utils/IntervalRegistry';
 import * as path from 'path';
 
-const WORKSPACE_PATH = '/workspaces/agentic-qe-cf';
+// Import chaos handler shutdown functions for cleanup
+import { shutdown as shutdownChaosLatency } from './src/mcp/handlers/chaos/chaos-inject-latency';
+import { shutdown as shutdownChaosFailure } from './src/mcp/handlers/chaos/chaos-inject-failure';
+
+// Use __dirname to get the actual project root (works on any machine)
+const WORKSPACE_PATH = __dirname;
 const originalCwd = process.cwd.bind(process);
 
 // CRITICAL: Mock process.cwd() BEFORE any other modules load
@@ -21,7 +28,7 @@ process.cwd = jest.fn(() => {
     const cwd = originalCwd();
     return cwd && cwd !== '' ? cwd : WORKSPACE_PATH;
   } catch (error) {
-    // Fallback to known workspace path if cwd() fails
+    // Fallback to project root if cwd() fails
     return WORKSPACE_PATH;
   }
 });
@@ -129,6 +136,20 @@ afterAll(async () => {
   try {
     // Wait for pending promises
     await new Promise(resolve => setImmediate(resolve));
+
+    // Shutdown chaos handlers (P0 critical - Issue #112)
+    try {
+      shutdownChaosLatency();
+      shutdownChaosFailure();
+    } catch {
+      // Ignore errors if not initialized
+    }
+
+    // Shutdown all registered intervals
+    await IntervalRegistry.shutdownAll();
+
+    // Shutdown all MemoryManager instances (P0 critical - Issue #112)
+    await MemoryManager.shutdownAll();
 
     // Close EventBus
     if (globalEventBus) {

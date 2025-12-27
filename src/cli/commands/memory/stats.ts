@@ -76,8 +76,8 @@ export async function stats(options: StatsOptions): Promise<StatsResult> {
     // Get disk storage stats
     let diskKeys = 0;
     try {
-      const result = await options.database.get('SELECT COUNT(*) as count FROM memory_store');
-      diskKeys = result?.count || 0;
+      const result = await options.database.get<{ count: number }>('SELECT COUNT(*) as count FROM memory_store');
+      diskKeys = result?.count ?? 0;
     } catch (error) {
       logger.warn('Could not get disk key count');
     }

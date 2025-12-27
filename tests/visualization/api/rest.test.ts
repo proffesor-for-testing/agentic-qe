@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 interface APIResponse<T> {
   success: boolean;
@@ -143,6 +144,7 @@ class MockRESTClient {
     const page = Number(params?.page) || 1;
     const pageSize = Number(params?.pageSize) || 20;
     const total = 50;
+    const rng = createSeededRandom(21002);
 
     const metrics: MetricData[] = [];
     const start = (page - 1) * pageSize;
@@ -152,7 +154,7 @@ class MockRESTClient {
       metrics.push({
         id: `metric-${i}`,
         name: 'test_metric',
-        value: Math.random() * 100,
+        value: rng.random() * 100,
         timestamp: Date.now() - i * 1000,
         tags: { agent: `agent-${i % 5}` }
       });

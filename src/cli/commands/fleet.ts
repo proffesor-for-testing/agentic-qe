@@ -2,7 +2,240 @@ import { ProcessExit } from '../../utils/ProcessExit';
 import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
-import { FleetOptions } from '../../types';
+import { FleetOptions, FleetConfig, AgentConfig } from '../../types';
+
+// ============================================================================
+// Fleet Command Type Definitions
+// ============================================================================
+
+/**
+ * Error with message and stack trace for proper error handling
+ */
+interface FleetCommandError extends Error {
+  message: string;
+  stack?: string;
+}
+
+/**
+ * Type guard to check if an error has message and stack properties
+ */
+function isFleetCommandError(error: unknown): error is FleetCommandError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as FleetCommandError).message === 'string'
+  );
+}
+
+/**
+ * Extended fleet configuration stored in fleet.json
+ */
+interface StoredFleetConfig extends FleetConfig {
+  fleet?: {
+    id: string;
+    status?: string;
+  };
+  lastModified?: string;
+}
+
+/**
+ * Agent configuration stored in agents.json
+ */
+interface StoredAgentConfig {
+  fleet: {
+    agents: AgentConfigEntry[];
+    maxAgents: number;
+    status?: string;
+  };
+}
+
+/**
+ * Individual agent configuration entry
+ */
+interface AgentConfigEntry {
+  type: string;
+  count: number;
+  config?: Record<string, unknown>;
+}
+
+/**
+ * Fleet registry data structure
+ */
+interface FleetRegistry {
+  fleet: {
+    agents: FleetRegistryAgent[];
+    status: FleetStatus;
+  };
+}
+
+/**
+ * Agent entry in fleet registry
+ */
+interface FleetRegistryAgent {
+  id: string;
+  type: string;
+  status: string;
+}
+
+/**
+ * Possible fleet status values
+ */
+type FleetStatus = 'active' | 'idle' | 'degraded' | 'unknown' | 'destroyed';
+
+/**
+ * Execution history entry from report files
+ */
+interface ExecutionHistoryEntry {
+  timestamp: string;
+  summary?: ExecutionSummary;
+  agents?: Record<string, ExecutionAgentData>;
+}
+
+/**
+ * Execution summary from report
+ */
+interface ExecutionSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped?: number;
+  duration: number;
+}
+
+/**
+ * Agent-specific execution data
+ */
+interface ExecutionAgentData {
+  tasks: number;
+  duration: number;
+}
+
+/**
+ * Agent performance analysis result
+ */
+interface AgentPerformanceAnalysis {
+  totalExecutions: number;
+  averageSuccess: number;
+  averageDuration: number;
+  agentUtilization: Record<string, AgentUtilizationMetrics>;
+  trends: 'stable' | 'improving' | 'declining';
+}
+
+/**
+ * Individual agent utilization metrics
+ */
+interface AgentUtilizationMetrics {
+  usage: number;
+  tasks: number;
+  avgDuration: number;
+}
+
+/**
+ * Fleet health status
+ */
+interface FleetHealth {
+  overall: HealthStatus;
+  warnings: string[];
+}
+
+/**
+ * Health status values
+ */
+type HealthStatus = 'healthy' | 'degraded' | 'critical' | 'unknown' | 'stale';
+
+/**
+ * Health report from health check
+ */
+interface HealthReport {
+  timestamp: string;
+  overall: HealthStatus;
+  components: Record<string, ComponentHealth>;
+  issues: HealthIssue[];
+  recommendations: string[];
+}
+
+/**
+ * Component health status
+ */
+interface ComponentHealth {
+  status: HealthStatus;
+  message?: string;
+  issues: string[];
+}
+
+/**
+ * Health issue details
+ */
+interface HealthIssue {
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  component?: string;
+}
+
+/**
+ * Deployment configuration
+ */
+interface DeploymentConfig {
+  version: string;
+  environment: string;
+  fleet: StoredFleetConfig;
+  environment_config: EnvironmentConfig;
+  agentCount: number;
+  components: string[];
+  resources: DeploymentResources;
+  metadata: DeploymentMetadata;
+}
+
+/**
+ * Environment-specific configuration
+ */
+interface EnvironmentConfig {
+  [key: string]: unknown;
+}
+
+/**
+ * Deployment resource allocation
+ */
+interface DeploymentResources {
+  memory: string;
+  cpu: string;
+  storage: string;
+}
+
+/**
+ * Deployment metadata
+ */
+interface DeploymentMetadata {
+  generatedAt: string;
+  topology: string;
+}
+
+/**
+ * Deployment validation result
+ */
+interface DeploymentValidation {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Fleet destruction record
+ */
+interface DestructionRecord {
+  fleet: {
+    id: string;
+    status: 'destroyed';
+    destroyedAt: string;
+    reason: string;
+    agentCount: number;
+  };
+}
+
+// ============================================================================
+// FleetCommand Class Implementation
+// ============================================================================
 
 export class FleetCommand {
   static async execute(action: string, options: FleetOptions): Promise<void> {
@@ -35,10 +268,14 @@ export class FleetCommand {
           await this.showFleetStatus(options, spinner);
       }
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Fleet operation failed:'), error.message);
-      if (options.verbose) {
-        console.error(chalk.gray(error.stack));
+    } catch (error: unknown) {
+      if (isFleetCommandError(error)) {
+        console.error(chalk.red('❌ Fleet operation failed:'), error.message);
+        if (options.verbose && error.stack) {
+          console.error(chalk.gray(error.stack));
+        }
+      } else {
+        console.error(chalk.red('❌ Fleet operation failed:'), String(error));
       }
       ProcessExit.exitIfNotTest(1);
     }
@@ -71,14 +308,14 @@ export class FleetCommand {
     spinner.text = 'Loading fleet configuration...';
 
     // Load fleet configuration
-    const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
-    const agentConfig = await fs.readJson('.agentic-qe/config/agents.json');
+    const fleetConfig: StoredFleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
+    const agentConfig: StoredAgentConfig = await fs.readJson('.agentic-qe/config/agents.json');
 
     spinner.text = 'Analyzing fleet status...';
 
     // Load fleet registry
     const registryPath = '.agentic-qe/data/registry.json';
-    let fleetRegistry = { fleet: { agents: [], status: 'unknown' } };
+    let fleetRegistry: FleetRegistry = { fleet: { agents: [], status: 'unknown' } };
 
     if (await fs.pathExists(registryPath)) {
       fleetRegistry = await fs.readJson(registryPath);
@@ -105,11 +342,11 @@ export class FleetCommand {
     spinner.text = `Scaling fleet to ${targetAgents} agents...`;
 
     // Load current configuration
-    const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
-    const agentConfig = await fs.readJson('.agentic-qe/config/agents.json');
+    const fleetConfig: StoredFleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
+    const agentConfig: StoredAgentConfig = await fs.readJson('.agentic-qe/config/agents.json');
 
     // Calculate scaling changes
-    const currentAgents = fleetConfig.maxAgents;
+    const currentAgents = fleetConfig.maxAgents ?? 0;
     const scalingOperation = targetAgents > currentAgents ? 'scale-up' : 'scale-down';
 
     spinner.text = `Performing ${scalingOperation} operation...`;
@@ -119,10 +356,10 @@ export class FleetCommand {
     fleetConfig.lastModified = new Date().toISOString();
 
     // Update agent distribution
-    const agentTypes = agentConfig.fleet.agents;
+    const agentTypes: AgentConfigEntry[] = agentConfig.fleet.agents;
     const agentsPerType = Math.ceil(targetAgents / agentTypes.length);
 
-    agentTypes.forEach((agent: any) => {
+    agentTypes.forEach((agent: AgentConfigEntry) => {
       agent.count = Math.min(agentsPerType, targetAgents);
     });
 
@@ -150,8 +387,8 @@ export class FleetCommand {
     spinner.text = `Deploying fleet to ${options.env} environment...`;
 
     // Load configurations
-    const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
-    const envConfig = await this.loadEnvironmentConfig(options.env);
+    const fleetConfig: StoredFleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
+    const envConfig: EnvironmentConfig = await this.loadEnvironmentConfig(options.env);
 
     spinner.text = 'Preparing deployment manifests...';
 
@@ -192,7 +429,7 @@ export class FleetCommand {
     spinner.text = 'Initiating fleet destruction...';
 
     // Load current configuration
-    const fleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
+    const fleetConfig: StoredFleetConfig = await fs.readJson('.agentic-qe/config/fleet.json');
 
     spinner.text = 'Stopping all agents gracefully...';
 
@@ -238,13 +475,13 @@ echo "Fleet destroyed successfully"
     spinner.text = 'Cleaning up fleet resources...';
 
     // Update fleet status
-    const destructionRecord = {
+    const destructionRecord: DestructionRecord = {
       fleet: {
         id: fleetConfig.fleet?.id || 'unknown',
         status: 'destroyed',
         destroyedAt: new Date().toISOString(),
         reason: 'user_requested',
-        agentCount: fleetConfig.maxAgents
+        agentCount: fleetConfig.maxAgents ?? 0
       }
     };
 
@@ -262,7 +499,7 @@ echo "Fleet destroyed successfully"
   private static async healthCheck(options: FleetOptions, spinner: ora.Ora): Promise<void> {
     spinner.text = 'Running comprehensive health check...';
 
-    const healthReport: any = {
+    const healthReport: HealthReport = {
       timestamp: new Date().toISOString(),
       overall: 'unknown',
       components: {},
@@ -287,8 +524,8 @@ echo "Fleet destroyed successfully"
     healthReport.components.coordination = await this.checkCoordinationHealth();
 
     // Calculate overall health
-    const componentStatuses = Object.values(healthReport.components).map((c: any) => c.status);
-    const healthyCount = componentStatuses.filter((status: any) => status === 'healthy').length;
+    const componentStatuses = Object.values(healthReport.components).map((c: ComponentHealth) => c.status);
+    const healthyCount = componentStatuses.filter((status: HealthStatus) => status === 'healthy').length;
     const totalCount = componentStatuses.length;
 
     if (healthyCount === totalCount) {
@@ -311,7 +548,7 @@ echo "Fleet destroyed successfully"
     await this.storeHealthCheck(healthReport);
   }
 
-  private static async getExecutionHistory(): Promise<any[]> {
+  private static async getExecutionHistory(): Promise<ExecutionHistoryEntry[]> {
     const reportsDir = '.agentic-qe/reports';
 
     if (!await fs.pathExists(reportsDir)) {
@@ -325,12 +562,12 @@ echo "Fleet destroyed successfully"
       .reverse()
       .slice(0, 10); // Last 10 executions
 
-    const history = [];
+    const history: ExecutionHistoryEntry[] = [];
     for (const file of executionFiles) {
       try {
-        const execution = await fs.readJson(`${reportsDir}/${file}`);
+        const execution: ExecutionHistoryEntry = await fs.readJson(`${reportsDir}/${file}`);
         history.push(execution);
-      } catch (error) {
+      } catch {
         // Skip corrupted files
       }
     }
@@ -338,10 +575,10 @@ echo "Fleet destroyed successfully"
     return history;
   }
 
-  private static async analyzeAgentPerformance(): Promise<any> {
+  private static async analyzeAgentPerformance(): Promise<AgentPerformanceAnalysis> {
     const executionHistory = await this.getExecutionHistory();
 
-    const performance = {
+    const performance: AgentPerformanceAnalysis = {
       totalExecutions: executionHistory.length,
       averageSuccess: 0,
       averageDuration: 0,
@@ -362,35 +599,38 @@ echo "Fleet destroyed successfully"
     performance.averageDuration = totalDuration / executionHistory.length;
 
     // Analyze agent utilization
-    executionHistory.forEach(exec => {
-      Object.entries(exec.agents || {}).forEach(([agent, data]: [string, any]) => {
-        if (!(performance.agentUtilization as any)[agent]) {
-          (performance.agentUtilization as any)[agent] = {
+    executionHistory.forEach((exec: ExecutionHistoryEntry) => {
+      const agentData = exec.agents || {};
+      Object.entries(agentData).forEach(([agent, data]: [string, ExecutionAgentData]) => {
+        if (!performance.agentUtilization[agent]) {
+          performance.agentUtilization[agent] = {
             usage: 0,
             tasks: 0,
             avgDuration: 0
           };
         }
-        (performance.agentUtilization as any)[agent].usage++;
-        (performance.agentUtilization as any)[agent].tasks += data.tasks || 0;
-        (performance.agentUtilization as any)[agent].avgDuration += data.duration || 0;
+        performance.agentUtilization[agent].usage++;
+        performance.agentUtilization[agent].tasks += data.tasks || 0;
+        performance.agentUtilization[agent].avgDuration += data.duration || 0;
       });
     });
 
     // Normalize agent utilization
-    Object.values(performance.agentUtilization).forEach((agent: any) => {
-      agent.avgDuration = agent.avgDuration / agent.usage;
+    Object.values(performance.agentUtilization).forEach((agent: AgentUtilizationMetrics) => {
+      if (agent.usage > 0) {
+        agent.avgDuration = agent.avgDuration / agent.usage;
+      }
     });
 
     return performance;
   }
 
   private static displayFleetStatus(
-    fleetConfig: any,
-    agentConfig: any,
-    registry: any,
-    history: any[],
-    performance: any,
+    fleetConfig: StoredFleetConfig,
+    agentConfig: StoredAgentConfig,
+    registry: FleetRegistry,
+    history: ExecutionHistoryEntry[],
+    performance: AgentPerformanceAnalysis,
     options: FleetOptions
   ): void {
     console.log(chalk.yellow('\n🚁 Fleet Status Dashboard\n'));
@@ -404,8 +644,8 @@ echo "Fleet destroyed successfully"
 
     // Agent configuration
     console.log(chalk.blue('\n🤖 Agent Configuration:'));
-    const agents = agentConfig.fleet?.agents || [];
-    agents.forEach((agent: any) => {
+    const agents: AgentConfigEntry[] = agentConfig.fleet?.agents || [];
+    agents.forEach((agent: AgentConfigEntry) => {
       console.log(chalk.gray(`  ${agent.type}: ${agent.count} instances`));
     });
 
@@ -418,8 +658,8 @@ echo "Fleet destroyed successfully"
 
     // Recent activity
     if (history.length > 0) {
+      const latest: ExecutionHistoryEntry = history[0];
       console.log(chalk.blue('\n📈 Recent Activity:'));
-      const latest = history[0];
       console.log(chalk.gray(`  Latest Execution: ${new Date(latest.timestamp).toLocaleString()}`));
       console.log(chalk.gray(`  Tests: ${latest.summary?.passed || 0}/${latest.summary?.total || 0} passed`));
       console.log(chalk.gray(`  Duration: ${((latest.summary?.duration || 0) / 1000).toFixed(2)}s`));
@@ -428,15 +668,16 @@ echo "Fleet destroyed successfully"
     // Agent utilization (if verbose)
     if (options.verbose && Object.keys(performance.agentUtilization).length > 0) {
       console.log(chalk.blue('\n🔧 Agent Utilization:'));
-      Object.entries(performance.agentUtilization).forEach(([agent, data]: [string, any]) => {
+      Object.entries(performance.agentUtilization).forEach(([agent, data]: [string, AgentUtilizationMetrics]) => {
         console.log(chalk.gray(`  ${agent}: ${data.usage} uses, ${data.tasks} tasks, ${(data.avgDuration / 1000).toFixed(2)}s avg`));
       });
     }
 
     // Health indicators
-    const healthStatus = this.calculateFleetHealth(fleetConfig, history, performance);
+    const healthStatus: FleetHealth = this.calculateFleetHealth(fleetConfig, history, performance);
     console.log(chalk.blue('\n💚 Health Status:'));
-    console.log(chalk.gray(`  Overall: ${this.getHealthColor(healthStatus.overall)}${healthStatus.overall}`));
+    const healthColorFn = this.getHealthColorFn(healthStatus.overall);
+    console.log(chalk.gray(`  Overall: ${healthColorFn(healthStatus.overall)}`));
 
     if (healthStatus.warnings.length > 0) {
       console.log(chalk.yellow('\n⚠️  Warnings:'));
@@ -458,8 +699,12 @@ echo "Fleet destroyed successfully"
     console.log(chalk.gray('  3. Scale fleet if needed: agentic-qe fleet scale --agents <count>'));
   }
 
-  private static calculateFleetHealth(fleetConfig: any, history: any[], performance: any): any {
-    const health: any = {
+  private static calculateFleetHealth(
+    fleetConfig: StoredFleetConfig,
+    history: ExecutionHistoryEntry[],
+    performance: AgentPerformanceAnalysis
+  ): FleetHealth {
+    const health: FleetHealth = {
       overall: 'healthy',
       warnings: []
     };
@@ -498,8 +743,19 @@ echo "Fleet destroyed successfully"
     return health;
   }
 
-  private static getHealthColor(status: string): string {
-    const colors: Record<string, (text: string) => string> = {
+  /**
+   * Get a color function for the given health status
+   * @deprecated Use getHealthColorFn instead
+   */
+  private static getHealthColor(status: string): (text: string) => string {
+    return this.getHealthColorFn(status as HealthStatus);
+  }
+
+  /**
+   * Get a chalk color function for the given health status
+   */
+  private static getHealthColorFn(status: HealthStatus): (text: string) => string {
+    const colors: Record<HealthStatus, (text: string) => string> = {
       'healthy': chalk.green,
       'degraded': chalk.yellow,
       'critical': chalk.red,
@@ -507,7 +763,7 @@ echo "Fleet destroyed successfully"
       'stale': chalk.yellow
     };
 
-    return (colors[status] || chalk.white) as any;
+    return colors[status] || chalk.white;
   }
 
   private static displayScalingSummary(current: number, target: number, operation: string): void {
@@ -522,7 +778,11 @@ echo "Fleet destroyed successfully"
     console.log(chalk.gray('  2. Run tests to validate scaled fleet: agentic-qe run tests'));
   }
 
-  private static displayDeploymentSummary(config: any, validation: any, options: FleetOptions): void {
+  private static displayDeploymentSummary(
+    config: DeploymentConfig,
+    validation: DeploymentValidation,
+    options: FleetOptions
+  ): void {
     console.log(chalk.yellow('\n📦 Deployment Summary:'));
     console.log(chalk.gray(`  Environment: ${options.env}`));
     console.log(chalk.gray(`  Agents: ${config.agentCount}`));
@@ -542,7 +802,7 @@ echo "Fleet destroyed successfully"
     console.log(chalk.gray('  3. Monitor deployment status after execution'));
   }
 
-  private static displayDestructionSummary(fleetConfig: any, archiveDir: string): void {
+  private static displayDestructionSummary(fleetConfig: StoredFleetConfig, archiveDir: string): void {
     console.log(chalk.yellow('\n💥 Fleet Destruction Summary:'));
     console.log(chalk.gray(`  Fleet ID: ${fleetConfig.fleet?.id || 'Unknown'}`));
     console.log(chalk.gray(`  Agents Destroyed: ${fleetConfig.maxAgents}`));
@@ -555,25 +815,25 @@ echo "Fleet destroyed successfully"
     console.log(chalk.gray('  • Historical data remains accessible in archive'));
   }
 
-  private static displayHealthReport(healthReport: any, options: FleetOptions): void {
+  private static displayHealthReport(healthReport: HealthReport, _options: FleetOptions): void {
     console.log(chalk.yellow('\n🏥 Fleet Health Report\n'));
 
     // Overall status
-    const overallColor: any = this.getHealthColor(healthReport.overall);
+    const overallColor = this.getHealthColorFn(healthReport.overall);
     console.log(chalk.blue('📊 Overall Health:'));
     console.log(`  Status: ${overallColor(healthReport.overall.toUpperCase())}`);
 
     // Component health
     console.log(chalk.blue('\n🔧 Component Health:'));
-    Object.entries(healthReport.components).forEach(([component, data]: [string, any]) => {
-      const statusColor: any = this.getHealthColor(data.status);
+    Object.entries(healthReport.components).forEach(([component, data]: [string, ComponentHealth]) => {
+      const statusColor = this.getHealthColorFn(data.status);
       console.log(`  ${component}: ${statusColor(data.status)} ${data.message ? `- ${data.message}` : ''}`);
     });
 
     // Issues
     if (healthReport.issues.length > 0) {
       console.log(chalk.red('\n🚨 Issues Found:'));
-      healthReport.issues.forEach((issue: any) => {
+      healthReport.issues.forEach((issue: HealthIssue) => {
         console.log(chalk.red(`  • ${issue.severity.toUpperCase()}: ${issue.description}`));
       });
     }
@@ -591,22 +851,27 @@ echo "Fleet destroyed successfully"
   }
 
   // Helper methods for deployment and health checks
-  private static async loadEnvironmentConfig(env: string): Promise<any> {
+  private static async loadEnvironmentConfig(env: string): Promise<EnvironmentConfig> {
     const envConfigPath = `.agentic-qe/config/environments.json`;
     if (await fs.pathExists(envConfigPath)) {
-      const envConfigs = await fs.readJson(envConfigPath);
+      const envConfigs: Record<string, EnvironmentConfig> = await fs.readJson(envConfigPath);
       return envConfigs[env] || {};
     }
     return {};
   }
 
-  private static async generateDeploymentConfig(fleetConfig: any, envConfig: any, options: FleetOptions): Promise<any> {
+  private static async generateDeploymentConfig(
+    fleetConfig: StoredFleetConfig,
+    envConfig: EnvironmentConfig,
+    options: FleetOptions
+  ): Promise<DeploymentConfig> {
+    const maxAgents = fleetConfig.maxAgents ?? 0;
     return {
       version: '1.0',
       environment: options.env,
       fleet: fleetConfig,
       environment_config: envConfig,
-      agentCount: fleetConfig.maxAgents,
+      agentCount: maxAgents,
       components: [
         'fleet-manager',
         'agent-registry',
@@ -614,18 +879,22 @@ echo "Fleet destroyed successfully"
         'monitoring-dashboard'
       ],
       resources: {
-        memory: `${fleetConfig.maxAgents * 100}MB`,
-        cpu: `${fleetConfig.maxAgents * 0.5}`,
+        memory: `${maxAgents * 100}MB`,
+        cpu: `${maxAgents * 0.5}`,
         storage: '1GB'
       },
       metadata: {
         generatedAt: new Date().toISOString(),
-        topology: fleetConfig.topology
+        topology: fleetConfig.topology ?? 'hierarchical'
       }
     };
   }
 
-  private static async generateDeploymentScripts(deploymentDir: string, config: any, options: FleetOptions): Promise<void> {
+  private static async generateDeploymentScripts(
+    deploymentDir: string,
+    config: DeploymentConfig,
+    options: FleetOptions
+  ): Promise<void> {
     const deployScript = `#!/bin/bash
 # Deployment script for ${options.env} environment
 echo "Deploying Agentic QE Fleet to ${options.env}..."
@@ -644,8 +913,8 @@ echo "Deployment completed successfully!"
     await fs.chmod(`${deploymentDir}/deploy.sh`, '755');
   }
 
-  private static async validateDeployment(config: any): Promise<any> {
-    const validation: any = {
+  private static async validateDeployment(config: DeploymentConfig): Promise<DeploymentValidation> {
+    const validation: DeploymentValidation = {
       valid: true,
       errors: [],
       warnings: []
@@ -671,7 +940,12 @@ echo "Deployment completed successfully!"
     return validation;
   }
 
-  private static async generateScalingScript(operation: string, current: number, target: number, options: FleetOptions): Promise<void> {
+  private static async generateScalingScript(
+    operation: string,
+    current: number,
+    target: number,
+    _options: FleetOptions
+  ): Promise<void> {
     const script = `#!/bin/bash
 # Fleet scaling script: ${operation}
 echo "Scaling fleet from ${current} to ${target} agents..."
@@ -696,8 +970,8 @@ echo "Scaling completed successfully!"
     await fs.chmod('.agentic-qe/scripts/scale-fleet.sh', '755');
   }
 
-  private static async checkConfigurationHealth(): Promise<any> {
-    const health: any = { status: 'healthy', issues: [] };
+  private static async checkConfigurationHealth(): Promise<ComponentHealth> {
+    const health: ComponentHealth = { status: 'healthy', issues: [] };
 
     const requiredFiles = [
       '.agentic-qe/config/fleet.json',
@@ -714,8 +988,8 @@ echo "Scaling completed successfully!"
     return health;
   }
 
-  private static async checkDataHealth(): Promise<any> {
-    const health: any = { status: 'healthy', issues: [] };
+  private static async checkDataHealth(): Promise<ComponentHealth> {
+    const health: ComponentHealth = { status: 'healthy', issues: [] };
 
     // Check if data directory exists
     if (!await fs.pathExists('.agentic-qe/data')) {
@@ -726,8 +1000,8 @@ echo "Scaling completed successfully!"
     return health;
   }
 
-  private static async checkExecutionHealth(): Promise<any> {
-    const health: any = { status: 'healthy', issues: [] };
+  private static async checkExecutionHealth(): Promise<ComponentHealth> {
+    const health: ComponentHealth = { status: 'healthy', issues: [] };
 
     const executionHistory = await this.getExecutionHistory();
 
@@ -736,7 +1010,9 @@ echo "Scaling completed successfully!"
       health.status = 'unknown';
     } else {
       const latestExecution = executionHistory[0];
-      const failureRate = latestExecution.summary?.failed / latestExecution.summary?.total;
+      const total = latestExecution.summary?.total ?? 0;
+      const failed = latestExecution.summary?.failed ?? 0;
+      const failureRate = total > 0 ? failed / total : 0;
 
       if (failureRate > 0.2) {
         health.issues.push(`High failure rate: ${(failureRate * 100).toFixed(1)}%`);
@@ -747,8 +1023,8 @@ echo "Scaling completed successfully!"
     return health;
   }
 
-  private static async checkCoordinationHealth(): Promise<any> {
-    const health: any = { status: 'healthy', issues: [] };
+  private static async checkCoordinationHealth(): Promise<ComponentHealth> {
+    const health: ComponentHealth = { status: 'healthy', issues: [] };
 
     // Check if coordination scripts exist (created by init.ts)
     const coordinationScripts = [
@@ -771,10 +1047,10 @@ echo "Scaling completed successfully!"
     return health;
   }
 
-  private static generateHealthRecommendations(components: any): string[] {
-    const recommendations: any[] = [];
+  private static generateHealthRecommendations(components: Record<string, ComponentHealth>): string[] {
+    const recommendations: string[] = [];
 
-    Object.entries(components).forEach(([component, data]: [string, any]) => {
+    Object.entries(components).forEach(([component, data]: [string, ComponentHealth]) => {
       if (data.status !== 'healthy') {
         switch (component) {
           case 'configuration':
@@ -817,19 +1093,19 @@ echo "Scaling completed successfully!"
     await fs.writeJson('.agentic-qe/data/scaling-latest.json', scalingRecord, { spaces: 2 });
   }
 
-  private static async storeDeploymentOperation(config: any): Promise<void> {
+  private static async storeDeploymentOperation(config: DeploymentConfig): Promise<void> {
     // Store deployment operation in fleet data
     await fs.ensureDir('.agentic-qe/data');
     await fs.writeJson('.agentic-qe/data/deployment-latest.json', config, { spaces: 2 });
   }
 
-  private static async storeDestructionOperation(record: any): Promise<void> {
+  private static async storeDestructionOperation(record: DestructionRecord): Promise<void> {
     // Store destruction operation in fleet data
     await fs.ensureDir('.agentic-qe/data');
     await fs.writeJson('.agentic-qe/data/destruction-record.json', record, { spaces: 2 });
   }
 
-  private static async storeHealthCheck(healthReport: any): Promise<void> {
+  private static async storeHealthCheck(healthReport: HealthReport): Promise<void> {
     // Save health report to file
     const reportsDir = '.agentic-qe/reports';
     await fs.ensureDir(reportsDir);

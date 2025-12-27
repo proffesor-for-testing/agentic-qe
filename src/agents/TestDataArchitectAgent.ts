@@ -13,8 +13,153 @@ import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   QEAgentType,
   QETask,
-  TestDataArchitectConfig
+  TestDataArchitectConfig,
+  PreTaskData,
+  PostTaskData,
+  TaskErrorData
 } from '../types';
+
+// ============================================================================
+// Type Definitions for Test Data Generation
+// ============================================================================
+
+/**
+ * Primitive field value types that can be stored in database fields
+ */
+export type FieldValue = string | number | boolean | Date | null | undefined;
+
+/**
+ * Extended field value including complex types
+ */
+export type ExtendedFieldValue = FieldValue | Record<string, unknown> | unknown[];
+
+/**
+ * A single data record with typed field values
+ */
+export type DataRecord = Record<string, ExtendedFieldValue>;
+
+/**
+ * Constraint value types based on constraint type
+ */
+export type ConstraintValue =
+  | boolean                              // for not_null, unique
+  | number                               // for min, max
+  | string                               // for pattern
+  | string[]                             // for enum values
+  | { min?: number; max?: number };      // for length constraints
+
+/**
+ * Configuration for schema introspection from various sources
+ */
+export interface SchemaIntrospectionConfig {
+  source: 'postgresql' | 'mysql' | 'mongodb' | 'sqlite' | 'openapi' | 'graphql' | 'typescript';
+  connectionString?: string;
+  schemaFile?: string;
+  tables?: string[];
+}
+
+/**
+ * Configuration for edge case generation
+ */
+export interface EdgeCaseConfig {
+  schema: TableSchema | DatabaseSchema;
+  comprehensive?: boolean;
+}
+
+/**
+ * Configuration for data versioning
+ */
+export interface DataVersionConfig {
+  datasetId: string;
+  version: string;
+  description?: string;
+  tags?: string[];
+}
+
+/**
+ * Data version metadata
+ */
+export interface DataVersion {
+  id: string;
+  datasetId: string;
+  version: string;
+  description?: string;
+  tags: string[];
+  timestamp: Date;
+  checksum: string;
+  size: number;
+}
+
+/**
+ * Configuration for database seeding
+ */
+export interface DatabaseSeedConfig {
+  datasetId: string;
+  database: 'postgresql' | 'mysql' | 'mongodb' | 'sqlite';
+  connectionString: string;
+  truncate?: boolean;
+}
+
+/**
+ * Result of database seeding operation
+ */
+export interface DatabaseSeedResult {
+  success: boolean;
+  recordsInserted: number;
+  duration: number;
+}
+
+/**
+ * Configuration for production pattern analysis
+ */
+export interface ProductionPatternConfig {
+  data: DataRecord[];
+  schema: TableSchema;
+}
+
+/**
+ * Result of production pattern analysis
+ */
+export interface ProductionPatternResult {
+  distributions: Record<string, Distribution>;
+  correlations: Record<string, number>;
+  commonValues: Record<string, ExtendedFieldValue[]>;
+}
+
+/**
+ * Configuration for data anonymization
+ */
+export interface AnonymizeDataConfig {
+  data: DataRecord[];
+  schema: TableSchema;
+  strategy?: AnonymizationStrategy;
+  preserveStatistics?: boolean;
+}
+
+/**
+ * Configuration for data validation
+ */
+export interface ValidateDataConfig {
+  data: DataRecord[];
+  schema: TableSchema | DatabaseSchema;
+}
+
+/**
+ * Faker.js mock instance type
+ */
+export interface FakerInstance {
+  locale: string;
+  seed?: number;
+}
+
+/**
+ * Generator options for createGenerator
+ */
+export interface GeneratorOptions {
+  min?: number;
+  max?: number;
+  values?: string[];
+}
 
 // ============================================================================
 // Configuration Interfaces
@@ -60,7 +205,7 @@ export interface FieldSchema {
   name: string;
   type: FieldType;
   nullable: boolean;
-  defaultValue?: any;
+  defaultValue?: FieldValue | string; // string for SQL expressions like 'NOW()'
   maxLength?: number;
   precision?: number;
   scale?: number;
@@ -115,7 +260,7 @@ export enum SemanticFormat {
 
 export interface FieldConstraint {
   type: 'min' | 'max' | 'length' | 'pattern' | 'enum' | 'unique' | 'not_null';
-  value: any;
+  value: ConstraintValue;
 }
 
 export interface CheckConstraint {
@@ -179,8 +324,8 @@ export interface DataGenerationResult {
 }
 
 export interface GeneratedDataset {
-  tables?: Record<string, any[]>; // Multi-table data
-  records?: any[]; // Single-table data
+  tables?: Record<string, DataRecord[]>; // Multi-table data
+  records?: DataRecord[]; // Single-table data
   format: 'json' | 'sql' | 'csv';
   size: number;
 }
@@ -196,7 +341,7 @@ export interface ConstraintViolation {
   type: 'NOT_NULL' | 'UNIQUE' | 'CHECK' | 'FOREIGN_KEY' | 'DATA_TYPE';
   field: string;
   table?: string;
-  value?: any;
+  value?: ExtendedFieldValue;
   message: string;
   severity: 'ERROR' | 'WARNING';
 }
@@ -212,7 +357,7 @@ export interface GenerationMetadata {
   timestamp: Date;
   generator: string;
   version: string;
-  config: any;
+  config: DataGenerationRequest;
   statistics: DataStatistics;
 }
 
@@ -272,7 +417,7 @@ export interface StatisticalValidation {
 // Data Generator Interface
 // ============================================================================
 
-export type DataGenerator = () => any;
+export type DataGenerator = () => ExtendedFieldValue;
 
 // ============================================================================
 // Test Data Architect Agent Implementation
@@ -282,8 +427,8 @@ export class TestDataArchitectAgent extends BaseAgent {
   private readonly config: TestDataArchitectAgentConfig;
   private schemaCache: Map<string, DatabaseSchema> = new Map();
   private generatedDatasets: Map<string, GeneratedDataset> = new Map();
-  private tokenMap: Map<string, string> = new Map(); // For consistent anonymization
-  private faker: any; // Faker.js instance
+  private tokenMap: Map<string, ExtendedFieldValue> = new Map(); // For consistent anonymization
+  private faker: FakerInstance | null = null; // Faker.js instance
 
   constructor(config: TestDataArchitectAgentConfig) {
     super({
@@ -392,14 +537,14 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Pre-task hook - Load data generation history
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     await super.onPreTask(data);
 
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
     );
 
-    if (history) {
+    if (history && Array.isArray(history)) {
       console.log(`Loaded ${history.length} historical test data generation entries`);
     }
 
@@ -412,8 +557,13 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Post-task hook - Store generated datasets and emit events
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     await super.onPostTask(data);
+
+    // Type assertion for result properties since FlexibleTaskResult includes unknown
+    const result = data.result as Record<string, unknown> | null | undefined;
+    const success = result?.success !== false;
+    const recordCount = (typeof result?.recordCount === 'number' ? result.recordCount : 0);
 
     await this.memoryStore.store(
       `aqe/${this.agentId.type}/results/${data.assignment.id}`,
@@ -421,8 +571,8 @@ export class TestDataArchitectAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        recordsGenerated: data.result?.recordCount || 0
+        success,
+        recordsGenerated: recordCount
       },
       86400
     );
@@ -435,14 +585,14 @@ export class TestDataArchitectAgent extends BaseAgent {
 
     console.log(`[${this.agentId.type}] Test data generation completed`, {
       taskId: data.assignment.id,
-      recordsGenerated: data.result?.recordCount || 0
+      recordsGenerated: recordCount
     });
   }
 
   /**
    * Task error hook - Log data generation failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     await super.onTaskError(data);
 
     await this.memoryStore.store(
@@ -489,33 +639,37 @@ export class TestDataArchitectAgent extends BaseAgent {
     console.log('TestDataArchitectAgent initialized successfully');
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<
+    DatabaseSchema | DataGenerationResult | AnonymizationResult |
+    ValidationResult | DataRecord[] | ProductionPatternResult |
+    DataVersion | DatabaseSeedResult
+  > {
     console.log(`TestDataArchitectAgent executing task: ${task.type}`);
 
     switch (task.type) {
       case 'introspect-schema':
-        return await this.introspectSchema(task.payload);
+        return await this.introspectSchema(task.payload as SchemaIntrospectionConfig);
 
       case 'generate-data':
-        return await this.generateData(task.payload);
+        return await this.generateData(task.payload as DataGenerationRequest);
 
       case 'anonymize-data':
-        return await this.anonymizeData(task.payload);
+        return await this.anonymizeData(task.payload as AnonymizeDataConfig);
 
       case 'validate-data':
-        return await this.validateData(task.payload);
+        return await this.validateData(task.payload as ValidateDataConfig);
 
       case 'generate-edge-cases':
-        return await this.generateEdgeCases(task.payload);
+        return await this.generateEdgeCases(task.payload as EdgeCaseConfig);
 
       case 'analyze-production-patterns':
-        return await this.analyzeProductionPatterns(task.payload);
+        return await this.analyzeProductionPatterns(task.payload as ProductionPatternConfig);
 
       case 'create-data-version':
-        return await this.createDataVersion(task.payload);
+        return await this.createDataVersion(task.payload as DataVersionConfig);
 
       case 'seed-database':
-        return await this.seedDatabase(task.payload);
+        return await this.seedDatabase(task.payload as DatabaseSeedConfig);
 
       default:
         throw new Error(`Unknown task type: ${task.type}`);
@@ -569,12 +723,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Introspect database schema from various sources
    */
-  public async introspectSchema(config: {
-    source: 'postgresql' | 'mysql' | 'mongodb' | 'sqlite' | 'openapi' | 'graphql' | 'typescript';
-    connectionString?: string;
-    schemaFile?: string;
-    tables?: string[];
-  }): Promise<DatabaseSchema> {
+  public async introspectSchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     console.log(`Introspecting schema from ${config.source}`);
 
     let schema: DatabaseSchema;
@@ -626,7 +775,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Introspect SQL database schema (PostgreSQL, MySQL, SQLite)
    */
-  private async introspectSQLDatabase(config: any): Promise<DatabaseSchema> {
+  private async introspectSQLDatabase(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation - in production, would connect to actual database
     console.log(`Introspecting SQL database: ${config.source}`);
 
@@ -809,7 +958,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Introspect MongoDB schema
    */
-  private async introspectMongoDatabase(config: any): Promise<DatabaseSchema> {
+  private async introspectMongoDatabase(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
     console.log('Introspecting MongoDB schema');
 
@@ -826,7 +975,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Introspect OpenAPI schema
    */
-  private async introspectOpenAPISchema(config: any): Promise<DatabaseSchema> {
+  private async introspectOpenAPISchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
     console.log('Introspecting OpenAPI schema');
 
@@ -842,7 +991,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Introspect GraphQL schema
    */
-  private async introspectGraphQLSchema(config: any): Promise<DatabaseSchema> {
+  private async introspectGraphQLSchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
     console.log('Introspecting GraphQL schema');
 
@@ -858,7 +1007,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Introspect TypeScript schema
    */
-  private async introspectTypeScriptSchema(config: any): Promise<DatabaseSchema> {
+  private async introspectTypeScriptSchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
     console.log('Introspecting TypeScript schema');
 
@@ -962,7 +1111,7 @@ export class TestDataArchitectAgent extends BaseAgent {
     schema: DatabaseSchema,
     count: number
   ): Promise<GeneratedDataset> {
-    const data: Record<string, any[]> = {};
+    const data: Record<string, DataRecord[]> = {};
 
     // Topological sort to determine generation order
     const generationOrder = this.topologicalSort(schema);
@@ -984,9 +1133,9 @@ export class TestDataArchitectAgent extends BaseAgent {
   private async generateTableData(
     table: TableSchema,
     count: number,
-    existingData: Record<string, any[]>
-  ): Promise<any[]> {
-    const records: any[] = [];
+    existingData: Record<string, DataRecord[]>
+  ): Promise<DataRecord[]> {
+    const records: DataRecord[] = [];
     const batchSize = this.config.batchSize || 1000;
 
     for (let i = 0; i < count; i += batchSize) {
@@ -1004,12 +1153,12 @@ export class TestDataArchitectAgent extends BaseAgent {
   private async generateBatch(
     table: TableSchema,
     count: number,
-    existingData: Record<string, any[]>
-  ): Promise<any[]> {
-    const records: any[] = [];
+    existingData: Record<string, DataRecord[]>
+  ): Promise<DataRecord[]> {
+    const records: DataRecord[] = [];
 
     for (let i = 0; i < count; i++) {
-      const record: any = {};
+      const record: DataRecord = {};
 
       for (const field of table.fields) {
         // Check for foreign key
@@ -1080,10 +1229,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Generate edge case data
    */
-  public async generateEdgeCases(config: {
-    schema: TableSchema | DatabaseSchema;
-    comprehensive?: boolean;
-  }): Promise<any[]> {
+  public async generateEdgeCases(config: EdgeCaseConfig): Promise<DataRecord[]> {
     console.log('Generating edge case data');
 
     let schema: DatabaseSchema;
@@ -1108,7 +1254,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Generate edge cases for entire schema
    */
   private async generateEdgeCasesForSchema(schema: DatabaseSchema): Promise<GeneratedDataset> {
-    const edgeCases: Record<string, any[]> = {};
+    const edgeCases: Record<string, DataRecord[]> = {};
 
     for (const table of schema.tables) {
       edgeCases[table.name] = await this.generateEdgeCasesForTable(table);
@@ -1124,14 +1270,14 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Generate edge cases for a table
    */
-  private async generateEdgeCasesForTable(table: TableSchema): Promise<any[]> {
-    const edgeCases: any[] = [];
+  private async generateEdgeCasesForTable(table: TableSchema): Promise<DataRecord[]> {
+    const edgeCases: DataRecord[] = [];
 
     for (const field of table.fields) {
       const fieldEdgeCases = this.generateFieldEdgeCases(field);
 
       for (const edgeValue of fieldEdgeCases) {
-        const record: any = {};
+        const record: DataRecord = {};
 
         // Fill other fields with normal values
         for (const f of table.fields) {
@@ -1152,8 +1298,8 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Generate edge cases for a field
    */
-  private generateFieldEdgeCases(field: FieldSchema): any[] {
-    const edgeCases: any[] = [];
+  private generateFieldEdgeCases(field: FieldSchema): ExtendedFieldValue[] {
+    const edgeCases: ExtendedFieldValue[] = [];
 
     switch (field.type) {
       case FieldType.STRING:
@@ -1177,27 +1323,30 @@ export class TestDataArchitectAgent extends BaseAgent {
         );
         break;
 
-      case FieldType.INTEGER:
+      case FieldType.INTEGER: {
         const minConstraint = field.constraints.find(c => c.type === 'min');
         const maxConstraint = field.constraints.find(c => c.type === 'max');
+        const minVal = typeof minConstraint?.value === 'number' ? minConstraint.value : -2147483648;
+        const maxVal = typeof maxConstraint?.value === 'number' ? maxConstraint.value : 2147483647;
 
         edgeCases.push(
           0,                                       // Zero
           1,                                       // Minimum positive
           -1,                                      // Minimum negative
-          minConstraint ? minConstraint.value : -2147483648,
-          maxConstraint ? maxConstraint.value : 2147483647
+          minVal,
+          maxVal
         );
 
-        if (minConstraint) {
+        if (minConstraint && typeof minConstraint.value === 'number') {
           edgeCases.push(minConstraint.value - 1);
           edgeCases.push(minConstraint.value + 1);
         }
-        if (maxConstraint) {
+        if (maxConstraint && typeof maxConstraint.value === 'number') {
           edgeCases.push(maxConstraint.value - 1);
           edgeCases.push(maxConstraint.value + 1);
         }
         break;
+      }
 
       case FieldType.FLOAT:
       case FieldType.DECIMAL:
@@ -1243,12 +1392,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Anonymize PII data
    */
-  public async anonymizeData(config: {
-    data: any[];
-    schema: TableSchema;
-    strategy?: AnonymizationStrategy;
-    preserveStatistics?: boolean;
-  }): Promise<AnonymizationResult> {
+  public async anonymizeData(config: AnonymizeDataConfig): Promise<AnonymizationResult> {
     console.log('Anonymizing PII data');
 
     const strategy = config.strategy || AnonymizationStrategy.TOKENIZE;
@@ -1316,10 +1460,10 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Anonymize a single field value
    */
   private anonymizeField(
-    value: any,
+    value: ExtendedFieldValue,
     field: FieldSchema,
     strategy: AnonymizationStrategy
-  ): any {
+  ): ExtendedFieldValue {
     if (value === null || value === undefined) {
       return value;
     }
@@ -1351,7 +1495,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Mask a value (show first and last char)
    */
-  private maskValue(value: any, field: FieldSchema): any {
+  private maskValue(value: ExtendedFieldValue, _field: FieldSchema): string {
     const str = String(value);
     if (str.length <= 2) {
       return '**';
@@ -1362,7 +1506,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Hash a value (deterministic)
    */
-  private hashValue(value: any): string {
+  private hashValue(value: ExtendedFieldValue): string {
     // Simple hash function (in production, use crypto)
     const str = String(value);
     let hash = 0;
@@ -1377,7 +1521,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Tokenize a value (consistent replacement)
    */
-  private tokenizeValue(value: any, field: FieldSchema): any {
+  private tokenizeValue(value: ExtendedFieldValue, field: FieldSchema): ExtendedFieldValue {
     const key = `${field.name}:${value}`;
 
     if (!this.tokenMap.has(key)) {
@@ -1390,13 +1534,21 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Generalize a value (reduce precision)
    */
-  private generalizeValue(value: any, field: FieldSchema): any {
+  private generalizeValue(value: ExtendedFieldValue, field: FieldSchema): ExtendedFieldValue {
     if (field.type === FieldType.INTEGER || field.type === FieldType.FLOAT) {
       return Math.round(Number(value) / 10) * 10;
     }
 
     if (field.type === FieldType.DATE || field.type === FieldType.DATETIME) {
-      const date = new Date(value);
+      // Handle Date conversion safely
+      let date: Date;
+      if (value instanceof Date) {
+        date = value;
+      } else if (typeof value === 'string' || typeof value === 'number') {
+        date = new Date(value);
+      } else {
+        return value;
+      }
       return new Date(date.getFullYear(), date.getMonth(), 1);
     }
 
@@ -1406,7 +1558,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Substitute with random value
    */
-  private substituteValue(field: FieldSchema): any {
+  private substituteValue(field: FieldSchema): ExtendedFieldValue {
     return this.generateFieldValue(field);
   }
 
@@ -1417,10 +1569,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Validate generated data
    */
-  public async validateData(config: {
-    data: any[];
-    schema: TableSchema | DatabaseSchema;
-  }): Promise<ValidationResult> {
+  public async validateData(config: ValidateDataConfig): Promise<ValidationResult> {
     console.log('Validating generated data');
 
     let schema: DatabaseSchema;
@@ -1564,7 +1713,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Evaluate a check constraint
    */
-  private evaluateCheckConstraint(record: any, constraint: CheckConstraint): boolean {
+  private evaluateCheckConstraint(record: DataRecord, constraint: CheckConstraint): boolean {
     try {
       // Replace field names with values
       let expression = constraint.expression;
@@ -1663,7 +1812,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Parse a value from string (helper for safe evaluation)
    */
-  private parseValue(value: string): any {
+  private parseValue(value: string): string | number | boolean {
     // Try to parse as number
     if (/^-?\d+\.?\d*$/.test(value)) {
       return parseFloat(value);
@@ -1686,16 +1835,13 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Analyze production data patterns
    */
-  public async analyzeProductionPatterns(config: {
-    data: any[];
-    schema: TableSchema;
-  }): Promise<any> {
+  public async analyzeProductionPatterns(config: ProductionPatternConfig): Promise<ProductionPatternResult> {
     console.log('Analyzing production data patterns');
 
-    const patterns = {
-      distributions: {} as Record<string, Distribution>,
-      correlations: {} as Record<string, number>,
-      commonValues: {} as Record<string, any[]>
+    const patterns: ProductionPatternResult = {
+      distributions: {},
+      correlations: {},
+      commonValues: {}
     };
 
     // Analyze distributions for numeric fields
@@ -1737,12 +1883,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Create a data version
    */
-  public async createDataVersion(config: {
-    datasetId: string;
-    version: string;
-    description?: string;
-    tags?: string[];
-  }): Promise<any> {
+  public async createDataVersion(config: DataVersionConfig): Promise<DataVersion> {
     console.log(`Creating data version: ${config.version}`);
 
     const dataset = this.generatedDatasets.get(config.datasetId);
@@ -1782,12 +1923,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Seed database with generated data
    */
-  public async seedDatabase(config: {
-    datasetId: string;
-    database: 'postgresql' | 'mysql' | 'mongodb' | 'sqlite';
-    connectionString: string;
-    truncate?: boolean;
-  }): Promise<any> {
+  public async seedDatabase(config: DatabaseSeedConfig): Promise<DatabaseSeedResult> {
     console.log(`Seeding ${config.database} database`);
 
     const dataset = this.generatedDatasets.get(config.datasetId);
@@ -1829,8 +1965,13 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Create data generator function
    */
-  private createGenerator(type: string, options?: any): DataGenerator {
+  private createGenerator(type: string, options?: GeneratorOptions | string[]): DataGenerator {
     return () => {
+      // Handle array options (for enum)
+      const opts: GeneratorOptions = Array.isArray(options)
+        ? { values: options }
+        : (options || {});
+
       switch (type) {
         case 'uuid':
           return this.generateUUID();
@@ -1839,15 +1980,15 @@ export class TestDataArchitectAgent extends BaseAgent {
         case 'name':
           return this.generateName();
         case 'age':
-          return this.generateAge(options?.min || 18, options?.max || 120);
+          return this.generateAge(opts.min ?? 18, opts.max ?? 120);
         case 'timestamp':
           return new Date();
         case 'integer':
-          return this.generateInteger(options?.min || 1, options?.max || 1000000);
+          return this.generateInteger(opts.min ?? 1, opts.max ?? 1000000);
         case 'price':
           return this.generatePrice();
         case 'enum':
-          return this.selectRandom(options || []);
+          return this.selectRandom(opts.values || []);
         default:
           return null;
       }
@@ -1857,20 +1998,20 @@ export class TestDataArchitectAgent extends BaseAgent {
   /**
    * Generate field value
    */
-  private generateFieldValue(field: FieldSchema): any {
+  private generateFieldValue(field: FieldSchema): ExtendedFieldValue {
     switch (field.type) {
       case FieldType.UUID:
         return this.generateUUID();
       case FieldType.STRING:
       case FieldType.TEXT:
         return this.generateString(field.maxLength || 255);
-      case FieldType.INTEGER:
+      case FieldType.INTEGER: {
         const minConstraint = field.constraints.find(c => c.type === 'min');
         const maxConstraint = field.constraints.find(c => c.type === 'max');
-        return this.generateInteger(
-          minConstraint?.value || 0,
-          maxConstraint?.value || 1000000
-        );
+        const minVal = typeof minConstraint?.value === 'number' ? minConstraint.value : 0;
+        const maxVal = typeof maxConstraint?.value === 'number' ? maxConstraint.value : 1000000;
+        return this.generateInteger(minVal, maxVal);
+      }
       case FieldType.FLOAT:
       case FieldType.DECIMAL:
         return this.generateFloat();
@@ -1880,9 +2021,13 @@ export class TestDataArchitectAgent extends BaseAgent {
       case FieldType.DATETIME:
       case FieldType.TIMESTAMP:
         return new Date();
-      case FieldType.ENUM:
+      case FieldType.ENUM: {
         const enumConstraint = field.constraints.find(c => c.type === 'enum');
-        return enumConstraint ? this.selectRandom(enumConstraint.value) : null;
+        if (enumConstraint && Array.isArray(enumConstraint.value)) {
+          return this.selectRandom(enumConstraint.value);
+        }
+        return null;
+      }
       default:
         return null;
     }
@@ -1993,6 +2138,73 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private generateVersionId(): string {
     return `version-${Date.now()}-${SecureRandom.generateId(5)}`;
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich test data generation metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: unknown): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (!result || typeof result !== 'object') {
+      return metrics;
+    }
+
+    // Type guard for result object
+    const r = result as Record<string, unknown>;
+
+    // Generation metrics
+    if (r.generation && typeof r.generation === 'object') {
+      const gen = r.generation as Record<string, unknown>;
+      metrics.records_generated = typeof gen.recordCount === 'number' ? gen.recordCount : 0;
+      metrics.generation_time = typeof gen.duration === 'number' ? gen.duration : 0;
+      metrics.records_per_second = typeof gen.throughput === 'number' ? gen.throughput : 0;
+    }
+
+    // Data quality metrics
+    if (r.validation && typeof r.validation === 'object') {
+      const val = r.validation as Record<string, unknown>;
+      metrics.validation_passed = val.passed ? 1 : 0;
+      metrics.validation_errors = Array.isArray(val.errors) ? val.errors.length : 0;
+      metrics.data_quality_score = typeof val.qualityScore === 'number' ? val.qualityScore : 0;
+    }
+
+    // Schema compliance
+    if (r.schema && typeof r.schema === 'object') {
+      const schema = r.schema as Record<string, unknown>;
+      metrics.schema_compliant = schema.compliant ? 1 : 0;
+      metrics.schema_violations = Array.isArray(schema.violations) ? schema.violations.length : 0;
+    }
+
+    // Referential integrity
+    if (r.integrity && typeof r.integrity === 'object') {
+      const integrity = r.integrity as Record<string, unknown>;
+      metrics.integrity_valid = integrity.valid ? 1 : 0;
+      metrics.orphan_records = typeof integrity.orphanRecords === 'number' ? integrity.orphanRecords : 0;
+      metrics.duplicate_records = typeof integrity.duplicates === 'number' ? integrity.duplicates : 0;
+    }
+
+    // Privacy/anonymization
+    if (r.anonymization && typeof r.anonymization === 'object') {
+      const anon = r.anonymization as Record<string, unknown>;
+      metrics.fields_anonymized = typeof anon.fieldsProcessed === 'number' ? anon.fieldsProcessed : 0;
+      metrics.pii_detected = typeof anon.piiDetected === 'number' ? anon.piiDetected : 0;
+      metrics.anonymization_coverage = typeof anon.coverage === 'number' ? anon.coverage : 0;
+    }
+
+    // Dataset size
+    metrics.total_records = typeof r.totalRecords === 'number'
+      ? r.totalRecords
+      : (typeof r.recordCount === 'number' ? r.recordCount : 0);
+    metrics.total_tables = Array.isArray(r.tables) ? r.tables.length : 0;
+
+    // GDPR compliance
+    if (typeof r.gdprCompliant === 'boolean') {
+      metrics.gdpr_compliant = r.gdprCompliant ? 1 : 0;
+    }
+
+    return metrics;
   }
 }
 

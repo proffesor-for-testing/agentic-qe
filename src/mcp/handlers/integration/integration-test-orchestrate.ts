@@ -241,19 +241,12 @@ export async function integrationTestOrchestrate(
       ? () => executeSequential(params.services, params.scenario, testData)
       : () => executeParallel(params.services, params.scenario, testData);
 
-    // Execute with timeout
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Test execution timeout')), timeout)
-    );
-
-    const executePromise = retryCount > 0
-      ? executeWithRetry(executeFn, retryCount)
-      : executeFn().then(results => ({ results, retries: 0 }));
-
-    const { results, retries } = await Promise.race([
-      executePromise,
-      timeoutPromise,
-    ]) as { results: TestResult[]; retries: number };
+    // Execute tests directly - Jest handles timeouts via testTimeout config
+    // Removed Promise.race() wrapper that caused deadlock in CI under memory pressure
+    // See: https://github.com/proffesor-for-testing/agentic-qe/pull/171
+    const { results, retries } = retryCount > 0
+      ? await executeWithRetry(executeFn, retryCount)
+      : await executeFn().then(results => ({ results, retries: 0 }));
 
     const executionTime = Date.now() - startTime;
     const allPassed = results.every(r => r.status === 'passed');

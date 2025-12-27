@@ -15,6 +15,7 @@ import { MemoryManager } from '../src/core/MemoryManager';
 import { Agent, AgentStatus } from '../src/core/Agent';
 import { Task, TaskStatus } from '../src/core/Task';
 import { v4 as uuidv4 } from 'uuid';
+import { createSeededRandom } from '../src/utils/SeededRandom';
 
 interface BenchmarkResult {
   name: string;
@@ -515,6 +516,9 @@ class PerformanceBenchmarker {
       { name: 'Tree Operations', complexity: 'O(log n)' }
     ];
 
+    // Seeded RNG for reproducible sublinear verification (seed: 16000)
+    const rng = createSeededRandom(16000);
+
     for (const algorithm of algorithms) {
       console.log(`  Testing ${algorithm.name}...`);
 
@@ -528,7 +532,7 @@ class PerformanceBenchmarker {
             // Simulate binary search on sorted array
             const sortedArray = Array.from({ length: size }, (_, i) => i);
             for (let i = 0; i < 100; i++) {
-              const target = Math.floor(Math.random() * size);
+              const target = Math.floor(rng.random() * size);
               this.binarySearch(sortedArray, target);
             }
             break;
@@ -540,7 +544,7 @@ class PerformanceBenchmarker {
               map.set(`key-${i}`, `value-${i}`);
             }
             for (let i = 0; i < 100; i++) {
-              const key = `key-${Math.floor(Math.random() * size)}`;
+              const key = `key-${Math.floor(rng.random() * size)}`;
               map.get(key);
             }
             break;

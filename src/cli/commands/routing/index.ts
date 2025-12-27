@@ -10,6 +10,7 @@ import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 
 export interface RoutingCommandOptions {
   config?: string;
@@ -17,6 +18,87 @@ export interface RoutingCommandOptions {
   timeframe?: string;
   export?: string;
   verbose?: boolean;
+}
+
+/**
+ * Cost data entry for a specific model
+ */
+interface CostDataEntry {
+  modelId: string;
+  requestCount: number;
+  estimatedCost: number;
+  tokensUsed: number;
+}
+
+/**
+ * Cost tracking data structure
+ */
+interface CostTrackingData {
+  totalRequests: number;
+  totalCost: number;
+  totalSavings: number;
+  byModel: Record<string, unknown>;
+  byComplexity: Record<string, unknown>;
+}
+
+/**
+ * Routing statistics data structure
+ */
+interface RoutingStatistics {
+  avgLatency: number;
+  fallbackRate: number;
+  successRate: number;
+  retryRate: number;
+  modelPerformance?: Record<string, ModelPerformance>;
+}
+
+/**
+ * Model performance metrics
+ */
+interface ModelPerformance {
+  requests: number;
+  avgLatency: number;
+  successRate: number;
+}
+
+/**
+ * Type guard to check if value is a CostDataEntry
+ */
+function isCostDataEntry(value: unknown): value is CostDataEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.modelId === 'string' &&
+    typeof obj.requestCount === 'number' &&
+    typeof obj.estimatedCost === 'number'
+  );
+}
+
+/**
+ * Type guard to check if value is CostTrackingData
+ */
+function isCostTrackingData(value: unknown): value is CostTrackingData {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.totalRequests === 'number' ||
+    typeof obj.totalCost === 'number' ||
+    typeof obj.totalSavings === 'number'
+  );
+}
+
+/**
+ * Type guard to check if value is RoutingStatistics
+ */
+function isRoutingStatistics(value: unknown): value is RoutingStatistics {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.avgLatency === 'number' ||
+    typeof obj.fallbackRate === 'number' ||
+    typeof obj.successRate === 'number' ||
+    typeof obj.retryRate === 'number'
+  );
 }
 
 export interface RoutingConfig {
@@ -46,6 +128,14 @@ export interface RoutingConfig {
 
 export class RoutingCommand {
   private static configPath = '.agentic-qe/config/routing.json';
+
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Execute routing command
@@ -113,8 +203,9 @@ export class RoutingCommand {
       console.log(chalk.gray(`  Critical tasks → ${config.multiModelRouter.modelRules.critical.model}`));
       console.log(chalk.gray('\n💡 Use "aqe routing dashboard" to monitor cost savings'));
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Failed to enable routing:'), error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Failed to enable routing:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -146,8 +237,9 @@ export class RoutingCommand {
       console.log(chalk.gray(`  Default model: ${config.multiModelRouter.defaultModel}`));
       console.log(chalk.gray('\n💡 Use "aqe routing enable" to re-enable cost optimization'));
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Failed to disable routing:'), error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Failed to disable routing:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -205,8 +297,9 @@ export class RoutingCommand {
 
       console.log();
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Failed to get status:'), error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Failed to get status:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -221,9 +314,7 @@ export class RoutingCommand {
       // Try to load cost data from SwarmMemoryManager via CostTracker
       try {
         // Initialize memory manager for coordination partition
-        const memoryPath = '.agentic-qe/data/swarm-memory.db';
-        const memoryManager = new SwarmMemoryManager(memoryPath);
-        await memoryManager.initialize();
+        const memoryManager = await this.getMemoryManager();
 
         // Try to retrieve cost data from CostTracker's storage location
         const costsData = await memoryManager.retrieve('routing/costs', {
@@ -231,36 +322,49 @@ export class RoutingCommand {
         });
 
         if (costsData && Array.isArray(costsData)) {
-          // Calculate aggregated metrics from CostTracker's per-model data
-          const totalRequests = costsData.reduce((sum: number, cost: any) => sum + (cost.requestCount || 0), 0);
-          const totalCost = costsData.reduce((sum: number, cost: any) => sum + (cost.estimatedCost || 0), 0);
-
-          // Calculate baseline cost (if all requests used Claude Sonnet 4.5)
-          const totalTokens = costsData.reduce((sum: number, cost: any) => sum + (cost.tokensUsed || 0), 0);
-          const baselineCostPerToken = 0.0030; // Claude Sonnet 4.5 cost per 1k tokens
-          const baselineCost = (totalTokens / 1000) * baselineCostPerToken;
-          const totalSavings = baselineCost - totalCost;
-          const savingsPercent = baselineCost > 0 ? ((totalSavings / baselineCost) * 100) : 0;
-
-          console.log(`  📊 Total Requests: ${chalk.cyan(totalRequests.toLocaleString())}`);
-          console.log(`  💵 Total Cost: ${chalk.cyan('$' + totalCost.toFixed(4))}`);
-          console.log(`  💰 Total Savings: ${chalk.green('$' + totalSavings.toFixed(4))} (${savingsPercent.toFixed(1)}%)`);
-          console.log(`  🎯 Baseline Cost: ${chalk.gray('$' + baselineCost.toFixed(4))} (all Sonnet 4.5)`);
-
-          console.log(chalk.blue('\n📈 Requests by Model:\n'));
-          for (const cost of costsData) {
-            if (cost.requestCount > 0) {
-              const percentage = ((cost.requestCount / totalRequests) * 100).toFixed(1);
-              const avgCost = cost.estimatedCost / cost.requestCount;
-              console.log(`  ${chalk.cyan(cost.modelId)}: ${cost.requestCount} requests (${percentage}%) - Avg: $${avgCost.toFixed(4)}`);
+          // Filter and validate cost data entries using type guard
+          const validCostEntries: CostDataEntry[] = [];
+          for (const item of costsData) {
+            if (isCostDataEntry(item)) {
+              validCostEntries.push(item);
             }
           }
 
-          console.log(chalk.blue('\n💡 Cost Breakdown:\n'));
-          for (const cost of costsData) {
-            if (cost.estimatedCost > 0) {
-              const percentage = ((cost.estimatedCost / totalCost) * 100).toFixed(1);
-              console.log(`  ${chalk.cyan(cost.modelId)}: $${cost.estimatedCost.toFixed(4)} (${percentage}%)`);
+          if (validCostEntries.length === 0) {
+            console.log(chalk.yellow('  No valid cost data entries found'));
+            console.log(chalk.gray('  Cost tracking will populate after routing is enabled and requests are processed'));
+          } else {
+            // Calculate aggregated metrics from CostTracker's per-model data
+            const totalRequests = validCostEntries.reduce((sum, cost) => sum + cost.requestCount, 0);
+            const totalCost = validCostEntries.reduce((sum, cost) => sum + cost.estimatedCost, 0);
+
+            // Calculate baseline cost (if all requests used Claude Sonnet 4.5)
+            const totalTokens = validCostEntries.reduce((sum, cost) => sum + (cost.tokensUsed || 0), 0);
+            const baselineCostPerToken = 0.0030; // Claude Sonnet 4.5 cost per 1k tokens
+            const baselineCost = (totalTokens / 1000) * baselineCostPerToken;
+            const totalSavings = baselineCost - totalCost;
+            const savingsPercent = baselineCost > 0 ? ((totalSavings / baselineCost) * 100) : 0;
+
+            console.log(`  Total Requests: ${chalk.cyan(totalRequests.toLocaleString())}`);
+            console.log(`  Total Cost: ${chalk.cyan('$' + totalCost.toFixed(4))}`);
+            console.log(`  Total Savings: ${chalk.green('$' + totalSavings.toFixed(4))} (${savingsPercent.toFixed(1)}%)`);
+            console.log(`  Baseline Cost: ${chalk.gray('$' + baselineCost.toFixed(4))} (all Sonnet 4.5)`);
+
+            console.log(chalk.blue('\nRequests by Model:\n'));
+            for (const cost of validCostEntries) {
+              if (cost.requestCount > 0) {
+                const percentage = ((cost.requestCount / totalRequests) * 100).toFixed(1);
+                const avgCost = cost.estimatedCost / cost.requestCount;
+                console.log(`  ${chalk.cyan(cost.modelId)}: ${cost.requestCount} requests (${percentage}%) - Avg: $${avgCost.toFixed(4)}`);
+              }
+            }
+
+            console.log(chalk.blue('\nCost Breakdown:\n'));
+            for (const cost of validCostEntries) {
+              if (cost.estimatedCost > 0) {
+                const percentage = ((cost.estimatedCost / totalCost) * 100).toFixed(1);
+                console.log(`  ${chalk.cyan(cost.modelId)}: $${cost.estimatedCost.toFixed(4)} (${percentage}%)`);
+              }
             }
           }
 
@@ -283,8 +387,9 @@ export class RoutingCommand {
       console.log(chalk.gray('  aqe routing status -v   - View routing configuration'));
       console.log();
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Failed to show dashboard:'), error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Failed to show dashboard:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -296,21 +401,20 @@ export class RoutingCommand {
     try {
       console.log(chalk.blue('📊 Generating cost report...\n'));
 
-      const memoryPath = '.agentic-qe/data/swarm-memory.db';
-      const memoryManager = new SwarmMemoryManager(memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       // Retrieve cost tracking data
       const costData = await memoryManager.retrieve('routing/cost-tracking', {
         partition: 'coordination'
       });
 
-      if (!costData) {
-        console.log(chalk.yellow('⚠️  No cost data available for reporting'));
+      if (!costData || !isCostTrackingData(costData)) {
+        console.log(chalk.yellow('No cost data available for reporting'));
         console.log(chalk.gray('Cost tracking will populate after routing is enabled and requests are processed'));
         return;
       }
 
+      // Now costData is typed as CostTrackingData
       const report = {
         generatedAt: new Date().toISOString(),
         summary: {
@@ -349,8 +453,9 @@ export class RoutingCommand {
         console.log(chalk.gray('💡 Use --export <file> to save report to file\n'));
       }
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Failed to generate report:'), error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Failed to generate report:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -362,21 +467,20 @@ export class RoutingCommand {
     try {
       console.log(chalk.blue('\n📈 Routing Statistics\n'));
 
-      const memoryPath = '.agentic-qe/data/swarm-memory.db';
-      const memoryManager = new SwarmMemoryManager(memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       // Retrieve statistics
       const stats = await memoryManager.retrieve('routing/statistics', {
         partition: 'coordination'
       });
 
-      if (!stats) {
-        console.log(chalk.yellow('⚠️  No statistics available yet'));
+      if (!stats || !isRoutingStatistics(stats)) {
+        console.log(chalk.yellow('No statistics available yet'));
         console.log(chalk.gray('Statistics will populate after routing is enabled and requests are processed\n'));
         return;
       }
 
+      // Now stats is typed as RoutingStatistics
       console.log(chalk.blue('Performance Metrics:\n'));
       console.log(`  Average Latency: ${chalk.cyan((stats.avgLatency || 0).toFixed(2) + 'ms')}`);
       console.log(`  Fallback Rate: ${chalk.cyan((stats.fallbackRate || 0).toFixed(2) + '%')}`);
@@ -384,8 +488,8 @@ export class RoutingCommand {
       console.log(`  Retry Rate: ${chalk.yellow((stats.retryRate || 0).toFixed(2) + '%')}`);
 
       if (stats.modelPerformance) {
-        console.log(chalk.blue('\n🎯 Model Performance:\n'));
-        for (const [model, perf] of Object.entries(stats.modelPerformance as Record<string, any>)) {
+        console.log(chalk.blue('\nModel Performance:\n'));
+        for (const [model, perf] of Object.entries(stats.modelPerformance)) {
           console.log(`  ${chalk.cyan(model)}:`);
           console.log(`    Requests: ${perf.requests || 0}`);
           console.log(`    Avg Latency: ${(perf.avgLatency || 0).toFixed(2)}ms`);
@@ -395,8 +499,9 @@ export class RoutingCommand {
 
       console.log();
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Failed to show stats:'), error.message);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red('❌ Failed to show stats:'), errorMessage);
       ProcessExit.exitIfNotTest(1);
     }
   }

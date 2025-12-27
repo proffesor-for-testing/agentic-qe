@@ -1,0 +1,6 @@
+# GitHub Sponsors Configuration
+# Support Agentic QE Fleet - AI-powered Quality Engineering
+
+# Custom sponsorship link pointing to our funding page
+custom:
+  - https://github.com/proffesor-for-testing/agentic-qe/blob/main/FUNDING.md

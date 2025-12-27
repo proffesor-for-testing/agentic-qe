@@ -344,23 +344,36 @@ async function checkDependencyHealth(options: HealthCheckOptions): Promise<Compo
 }
 
 async function checkDatabaseHealth(options: HealthCheckOptions): Promise<ComponentHealth> {
-  const dbPath = path.join(process.cwd(), '.swarm', 'memory.db');
+  // Check both .agentic-qe (primary) and .swarm (legacy) database locations
+  const aqeDbPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+  const swarmDbPath = path.join(process.cwd(), '.swarm', 'memory.db');
 
-  // Check if database exists (async)
-  let dbExists = false;
+  // Check if databases exist (async)
+  let aqeDbExists = false;
+  let swarmDbExists = false;
   try {
-    await fs.access(dbPath);
-    dbExists = true;
+    await fs.access(aqeDbPath);
+    aqeDbExists = true;
   } catch {
-    dbExists = false;
+    aqeDbExists = false;
   }
+  try {
+    await fs.access(swarmDbPath);
+    swarmDbExists = true;
+  } catch {
+    swarmDbExists = false;
+  }
+
+  // Use .agentic-qe as primary, .swarm as fallback for legacy compatibility
+  const dbPath = aqeDbExists ? aqeDbPath : swarmDbPath;
+  const dbExists = aqeDbExists || swarmDbExists;
 
   if (!dbExists) {
     return {
       name: 'database',
       status: 'degraded',
       message: 'Database not initialized',
-      remediation: ['Initialize database with: npx claude-flow memory store "test" "value"'],
+      remediation: ['Initialize database with: aqe init'],
     };
   }
 

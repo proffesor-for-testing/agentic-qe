@@ -10,9 +10,9 @@ export interface QETask {
   id: string;
   type: string;
   description?: string;
-  data: any;
+  data: unknown;
   priority: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -23,6 +23,13 @@ export enum AIModel {
   GPT_3_5_TURBO = 'gpt-3.5-turbo',
   CLAUDE_SONNET_4_5 = 'claude-sonnet-4.5',
   CLAUDE_HAIKU = 'claude-haiku',
+  // RuvLLM local models (zero cost)
+  RUVLLM_LLAMA_3_2_3B = 'ruvllm:llama-3.2-3b-instruct',
+  RUVLLM_LLAMA_3_2_1B = 'ruvllm:llama-3.2-1b-instruct',
+  RUVLLM_LLAMA_3_1_8B = 'ruvllm:llama-3.1-8b-instruct',
+  RUVLLM_PHI_3_MINI = 'ruvllm:phi-3-mini',
+  RUVLLM_MISTRAL_7B = 'ruvllm:mistral-7b-instruct',
+  RUVLLM_QWEN2_7B = 'ruvllm:qwen2-7b-instruct',
 }
 
 /**
@@ -69,6 +76,8 @@ export interface RouterConfig {
   enableFallback: boolean;
   maxRetries: number;
   costThreshold: number; // Max cost per task in USD
+  preferLocal?: boolean; // Prefer local RuvLLM models when available
+  ruvllmEndpoint?: string; // RuvLLM server endpoint (e.g., http://localhost:8080)
 }
 
 /**
@@ -130,12 +139,18 @@ export interface ModelRouter {
   /**
    * Export cost dashboard data
    */
-  exportCostDashboard(): Promise<any>;
+  exportCostDashboard(): Promise<CostDashboardData>;
 
   /**
    * Analyze task complexity
    */
   analyzeComplexity(task: QETask): Promise<TaskComplexity>;
+
+  /**
+   * Route to local RuvLLM model if available
+   * Returns null if local routing fails or is unavailable
+   */
+  routeToLocal(task: QETask, analysis: ComplexityAnalysis): Promise<ModelSelection | null>;
 }
 
 /**
@@ -148,4 +163,45 @@ export interface TaskAnalysis {
   requiresSecurity: boolean;
   requiresPerformance: boolean;
   confidence: number;
+}
+
+/**
+ * Alias for TaskAnalysis used in complexity analysis
+ */
+export type ComplexityAnalysis = TaskAnalysis;
+
+/**
+ * Model cost detail for dashboard
+ */
+export interface ModelCostDetail {
+  model: AIModel;
+  requests: number;
+  tokensUsed: number;
+  cost: string;
+  avgTokensPerRequest: number;
+  costPerToken: number;
+  percentage: string;
+}
+
+/**
+ * Cost dashboard summary
+ */
+export interface CostDashboardSummary {
+  totalCost: string;
+  totalRequests: number;
+  costSavings: string;
+  savingsPercentage: string;
+  avgCostPerTask: string;
+  avgCostPerTest: string;
+  sessionDuration: string;
+}
+
+/**
+ * Cost dashboard data for export
+ */
+export interface CostDashboardData {
+  summary: CostDashboardSummary;
+  models: ModelCostDetail[];
+  distribution: Record<AIModel, number>;
+  timestamp: string;
 }

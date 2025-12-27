@@ -26,6 +26,13 @@ import { Logger } from '../../utils/Logger';
 import { generateEmbedding } from '../../utils/EmbeddingGenerator.js';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
 import { AgentDBManager, MemoryPattern } from '../memory/AgentDBManager';
+
+/**
+ * Extended MemoryPattern with similarity score from retrieval
+ */
+interface RetrievedMemoryPattern extends MemoryPattern {
+  similarity?: number;
+}
 import {
   NeuralConfig,
   Experience,
@@ -111,16 +118,17 @@ export class NeuralTrainer {
         await this.initializeLearningPlugin();
       }
 
-      // Store config in memory
+      // Store config in memory - cast to Record<string, unknown> for SerializableValue compatibility
       await this.memoryStore.store(
         `neural/${this.agentId}/config`,
-        this.config,
+        this.configToSerializable(this.config),
         { partition: 'neural' }
       );
 
       this.logger.info('NeuralTrainer initialized successfully');
-    } catch (error: any) {
-      this.logger.error(`Failed to initialize NeuralTrainer: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to initialize NeuralTrainer: ${message}`);
       throw error;
     }
   }
@@ -219,8 +227,9 @@ export class NeuralTrainer {
       );
 
       return result;
-    } catch (error: any) {
-      this.logger.error(`Training failed: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Training failed: ${message}`);
       throw error;
     } finally {
       this.isTraining = false;
@@ -254,12 +263,12 @@ export class NeuralTrainer {
       });
 
       // Extract actions and Q-values from similar experiences
-      const actions = retrievalResult.memories.map((memory: any) => {
-        const data = JSON.parse(memory.pattern_data);
+      const actions = retrievalResult.memories.map((memory: RetrievedMemoryPattern) => {
+        const data = JSON.parse(memory.pattern_data) as Record<string, unknown>;
         return {
-          action: data.action,
-          qValue: data.qValue || 0,
-          similarity: memory.similarity
+          action: data.action as Action,
+          qValue: (data.qValue as number) || 0,
+          similarity: memory.similarity || 0
         };
       });
 
@@ -268,7 +277,7 @@ export class NeuralTrainer {
 
       // Calculate confidence based on similarity scores
       const confidence = actions.length > 0
-        ? actions.reduce((sum: number, a: any) => sum + a.similarity, 0) / actions.length
+        ? actions.reduce((sum, a) => sum + a.similarity, 0) / actions.length
         : 0.5;
 
       return {
@@ -276,14 +285,15 @@ export class NeuralTrainer {
         confidence,
         qValue: bestAction.qValue,
         algorithm: predictionAlgorithm,
-        alternativeActions: actions.slice(0, 3).map((a: any) => ({
+        alternativeActions: actions.slice(0, 3).map((a) => ({
           action: a.action,
           qValue: a.qValue,
           confidence: a.similarity
         }))
       };
-    } catch (error: any) {
-      this.logger.error(`Prediction failed: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Prediction failed: ${message}`);
       throw error;
     }
   }
@@ -318,8 +328,9 @@ export class NeuralTrainer {
       this.currentModel = model;
 
       this.logger.info(`Model saved to ${modelPath}`);
-    } catch (error: any) {
-      this.logger.error(`Failed to save model: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to save model: ${message}`);
       throw error;
     }
   }
@@ -351,8 +362,9 @@ export class NeuralTrainer {
       this.logger.info(`Model loaded from ${path}: ${model.experienceCount} experiences, ${model.episodeCount} episodes`);
 
       return model;
-    } catch (error: any) {
-      this.logger.error(`Failed to load model: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to load model: ${message}`);
       throw error;
     }
   }
@@ -367,7 +379,7 @@ export class NeuralTrainer {
 
     await this.memoryStore.store(
       `neural/${this.agentId}/config`,
-      this.config,
+      this.configToSerializable(this.config),
       { partition: 'neural' }
     );
   }
@@ -463,8 +475,9 @@ export class NeuralTrainer {
       }
 
       this.logger.info('AgentDB learning plugin initialized');
-    } catch (error: any) {
-      this.logger.warn(`Learning plugin initialization failed: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Learning plugin initialization failed: ${message}`);
     }
   }
 
@@ -506,8 +519,9 @@ export class NeuralTrainer {
         await this.agentDB.store(pattern);
       }
       this.logger.info(`Stored ${patterns.length} experiences in AgentDB`);
-    } catch (error: any) {
-      this.logger.error(`Failed to store experiences: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to store experiences: ${message}`);
       throw error;
     }
   }
@@ -583,10 +597,10 @@ export class NeuralTrainer {
       this.checkpoints = this.checkpoints.slice(-this.config.maxCheckpoints);
     }
 
-    // Save checkpoint to memory
+    // Save checkpoint to memory - wrap checkpoints in an object for SerializableValue compatibility
     await this.memoryStore.store(
       `neural/${this.agentId}/checkpoints`,
-      this.checkpoints,
+      { checkpoints: this.checkpointsToSerializable(this.checkpoints) } as Record<string, unknown>,
       { partition: 'neural' }
     );
 
@@ -599,22 +613,170 @@ export class NeuralTrainer {
   private async loadTrainingState(): Promise<void> {
     try {
       // Load checkpoints
-      const checkpoints = await this.memoryStore.retrieve(
+      const checkpointsData = await this.memoryStore.retrieve(
         `neural/${this.agentId}/checkpoints`,
         { partition: 'neural' }
       );
 
-      if (checkpoints) {
-        this.checkpoints = checkpoints;
-
-        if (this.checkpoints.length > 0) {
+      if (checkpointsData) {
+        // Parse and validate checkpoints from retrieved data
+        const parsedCheckpoints = this.parseCheckpointsFromStore(checkpointsData);
+        if (parsedCheckpoints.length > 0) {
+          this.checkpoints = parsedCheckpoints;
           const latest = this.checkpoints[this.checkpoints.length - 1];
           this.episodeCount = latest.episodeCount;
           this.logger.info(`Loaded training state: ${this.episodeCount} episodes`);
         }
       }
-    } catch (error: any) {
-      this.logger.warn(`Could not load training state: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Could not load training state: ${errorMessage}`);
     }
+  }
+
+  // ============================================================================
+  // Serialization Helpers for Type-Safe Memory Storage
+  // ============================================================================
+
+  /**
+   * Convert NeuralConfig to a serializable record
+   */
+  private configToSerializable(config: NeuralConfig): Record<string, unknown> {
+    return {
+      enabled: config.enabled,
+      algorithm: config.algorithm,
+      learningRate: config.learningRate,
+      batchSize: config.batchSize,
+      epochs: config.epochs,
+      validationSplit: config.validationSplit,
+      modelSaveInterval: config.modelSaveInterval,
+      checkpointInterval: config.checkpointInterval,
+      maxCheckpoints: config.maxCheckpoints,
+      useGPU: config.useGPU,
+      memorySize: config.memorySize,
+      gamma: config.gamma,
+      epsilon: config.epsilon,
+      tau: config.tau
+    };
+  }
+
+  /**
+   * Convert ModelCheckpoint array to serializable format
+   */
+  private checkpointsToSerializable(checkpoints: ModelCheckpoint[]): Record<string, unknown>[] {
+    return checkpoints.map(checkpoint => ({
+      id: checkpoint.id,
+      episodeCount: checkpoint.episodeCount,
+      algorithm: checkpoint.algorithm,
+      metrics: {
+        algorithm: checkpoint.metrics.algorithm,
+        loss: checkpoint.metrics.loss,
+        valLoss: checkpoint.metrics.valLoss,
+        epochs: checkpoint.metrics.epochs,
+        experienceCount: checkpoint.metrics.experienceCount,
+        duration: checkpoint.metrics.duration,
+        timestamp: checkpoint.metrics.timestamp instanceof Date
+          ? checkpoint.metrics.timestamp.toISOString()
+          : String(checkpoint.metrics.timestamp)
+      },
+      timestamp: checkpoint.timestamp instanceof Date
+        ? checkpoint.timestamp.toISOString()
+        : String(checkpoint.timestamp)
+    }));
+  }
+
+  /**
+   * Parse checkpoints from memory store with type guards
+   */
+  private parseCheckpointsFromStore(data: unknown): ModelCheckpoint[] {
+    // Type guard: handle wrapped format { checkpoints: [...] }
+    let checkpointsArray: unknown[];
+    if (typeof data === 'object' && data !== null && 'checkpoints' in data) {
+      const wrapped = data as Record<string, unknown>;
+      if (!Array.isArray(wrapped['checkpoints'])) {
+        return [];
+      }
+      checkpointsArray = wrapped['checkpoints'];
+    } else if (Array.isArray(data)) {
+      // Legacy format: direct array
+      checkpointsArray = data;
+    } else {
+      return [];
+    }
+
+    const checkpoints: ModelCheckpoint[] = [];
+
+    for (const item of checkpointsArray) {
+      // Type guard: item must be an object
+      if (typeof item !== 'object' || item === null) {
+        continue;
+      }
+
+      const record = item as Record<string, unknown>;
+
+      // Validate required fields exist and have correct types
+      if (
+        typeof record['id'] !== 'string' ||
+        typeof record['episodeCount'] !== 'number' ||
+        typeof record['algorithm'] !== 'string' ||
+        typeof record['metrics'] !== 'object' ||
+        record['metrics'] === null
+      ) {
+        continue;
+      }
+
+      const metricsRecord = record['metrics'] as Record<string, unknown>;
+
+      // Validate metrics fields
+      if (
+        typeof metricsRecord['algorithm'] !== 'string' ||
+        typeof metricsRecord['loss'] !== 'number' ||
+        typeof metricsRecord['epochs'] !== 'number' ||
+        typeof metricsRecord['experienceCount'] !== 'number' ||
+        typeof metricsRecord['duration'] !== 'number'
+      ) {
+        continue;
+      }
+
+      // Parse timestamp
+      const timestampValue = record['timestamp'];
+      let timestamp: Date;
+      if (typeof timestampValue === 'string') {
+        timestamp = new Date(timestampValue);
+      } else if (typeof timestampValue === 'number') {
+        timestamp = new Date(timestampValue);
+      } else {
+        timestamp = new Date();
+      }
+
+      // Parse metrics timestamp
+      const metricsTimestampValue = metricsRecord['timestamp'];
+      let metricsTimestamp: Date;
+      if (typeof metricsTimestampValue === 'string') {
+        metricsTimestamp = new Date(metricsTimestampValue);
+      } else if (typeof metricsTimestampValue === 'number') {
+        metricsTimestamp = new Date(metricsTimestampValue);
+      } else {
+        metricsTimestamp = new Date();
+      }
+
+      checkpoints.push({
+        id: record['id'] as string,
+        episodeCount: record['episodeCount'] as number,
+        algorithm: record['algorithm'] as RLAlgorithm,
+        metrics: {
+          algorithm: metricsRecord['algorithm'] as RLAlgorithm,
+          loss: metricsRecord['loss'] as number,
+          valLoss: typeof metricsRecord['valLoss'] === 'number' ? metricsRecord['valLoss'] : undefined,
+          epochs: metricsRecord['epochs'] as number,
+          experienceCount: metricsRecord['experienceCount'] as number,
+          duration: metricsRecord['duration'] as number,
+          timestamp: metricsTimestamp
+        },
+        timestamp
+      });
+    }
+
+    return checkpoints;
   }
 }

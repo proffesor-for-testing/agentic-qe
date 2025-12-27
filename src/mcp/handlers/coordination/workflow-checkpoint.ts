@@ -9,12 +9,12 @@
 
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { SecureRandom } from '../../../utils/SecureRandom.js';
-import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
+import { SwarmMemoryManager, SerializableValue } from '../../../core/memory/SwarmMemoryManager.js';
 
 export interface WorkflowCheckpointArgs {
   executionId: string;
   reason?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Checkpoint {
@@ -26,10 +26,53 @@ export interface Checkpoint {
     completedSteps: string[];
     currentStep?: string;
     failedSteps: string[];
-    variables: Record<string, any>;
-    context: Record<string, any>;
+    variables: Record<string, unknown>;
+    context: Record<string, unknown>;
   };
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Internal interface for execution data retrieved from memory
+ */
+interface ExecutionData {
+  completedSteps?: string[];
+  currentStep?: string;
+  failedSteps?: string[];
+  context?: {
+    variables?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  status?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Type guard to check if a value is a valid ExecutionData object
+ */
+function isExecutionData(value: SerializableValue | null): value is ExecutionData {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+/**
+ * Type guard to check if a value is a valid Checkpoint-like object
+ */
+function isCheckpoint(value: unknown): value is Checkpoint {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj['checkpointId'] === 'string' &&
+    typeof obj['executionId'] === 'string' &&
+    typeof obj['timestamp'] === 'string' &&
+    typeof obj['state'] === 'object' &&
+    obj['state'] !== null
+  );
 }
 
 export class WorkflowCheckpointHandler extends BaseHandler {
@@ -64,13 +107,20 @@ export class WorkflowCheckpointHandler extends BaseHandler {
     const checkpointId = `cp-${Date.now()}-${SecureRandom.generateId(3)}`;
 
     // Retrieve execution state from memory
-    const execution = await this.memory.retrieve(`workflow:execution:${args.executionId}`, {
+    const executionRaw = await this.memory.retrieve(`workflow:execution:${args.executionId}`, {
       partition: 'workflow_executions'
     });
 
-    if (!execution) {
+    if (!executionRaw) {
       throw new Error(`Execution ${args.executionId} not found`);
     }
+
+    // Validate execution data with type guard
+    if (!isExecutionData(executionRaw)) {
+      throw new Error(`Invalid execution data format for ${args.executionId}`);
+    }
+
+    const execution = executionRaw;
 
     const checkpoint: Checkpoint = {
       checkpointId,
@@ -91,8 +141,17 @@ export class WorkflowCheckpointHandler extends BaseHandler {
       }
     };
 
-    // Store checkpoint in memory
-    await this.memory.store(`workflow:checkpoint:${checkpointId}`, checkpoint, {
+    // Store checkpoint in memory - cast to Record<string, unknown> for SerializableValue compatibility
+    const checkpointData: Record<string, unknown> = {
+      checkpointId: checkpoint.checkpointId,
+      executionId: checkpoint.executionId,
+      timestamp: checkpoint.timestamp,
+      reason: checkpoint.reason,
+      state: checkpoint.state,
+      metadata: checkpoint.metadata
+    };
+
+    await this.memory.store(`workflow:checkpoint:${checkpointId}`, checkpointData, {
       partition: 'workflow_checkpoints',
       ttl: 604800 // 7 days
     });
@@ -119,30 +178,47 @@ export class WorkflowCheckpointHandler extends BaseHandler {
    */
   async getCheckpoint(checkpointId: string): Promise<Checkpoint | null> {
     // Try local map first
-    let checkpoint = this.checkpoints.get(checkpointId);
-
-    // Fallback to memory
-    if (!checkpoint) {
-      checkpoint = await this.memory.retrieve(`workflow:checkpoint:${checkpointId}`, {
-        partition: 'workflow_checkpoints'
-      });
+    const cached = this.checkpoints.get(checkpointId);
+    if (cached) {
+      return cached;
     }
 
-    return checkpoint || null;
+    // Fallback to memory
+    const retrieved = await this.memory.retrieve(`workflow:checkpoint:${checkpointId}`, {
+      partition: 'workflow_checkpoints'
+    });
+
+    // Validate retrieved data with type guard
+    if (retrieved && isCheckpoint(retrieved)) {
+      return retrieved;
+    }
+
+    return null;
   }
 
   /**
    * List checkpoints for an execution
    */
-  async listCheckpoints(executionId: string): Promise<Checkpoint[]> {
+  listCheckpoints(executionId: string): Checkpoint[] {
     const pattern = `workflow:checkpoint:%`;
-    const entries = await this.memory.query(pattern, {
+    const entries = this.memory.query(pattern, {
       partition: 'workflow_checkpoints'
     });
 
-    return entries
-      .map(entry => entry.value)
-      .filter(cp => cp.executionId === executionId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    // Filter and validate entries as Checkpoint objects
+    const checkpoints: Checkpoint[] = [];
+    for (const entry of entries) {
+      if (isCheckpoint(entry.value)) {
+        const cp = entry.value;
+        if (cp.executionId === executionId) {
+          checkpoints.push(cp);
+        }
+      }
+    }
+
+    // Sort by timestamp descending (most recent first)
+    return checkpoints.sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
   }
 }

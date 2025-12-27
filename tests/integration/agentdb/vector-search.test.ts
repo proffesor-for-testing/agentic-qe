@@ -16,6 +16,7 @@ import Database from 'better-sqlite3';
 import { AgentDBManager, AgentDBConfig, MemoryPattern, RetrievalOptions } from '@core/memory/AgentDBManager';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('AgentDB Vector Search Integration', () => {
   let agentDBManager: AgentDBManager;
@@ -129,6 +130,9 @@ describe('AgentDB Vector Search Integration', () => {
 
   describe('HNSW Index Creation', () => {
     beforeEach(async () => {
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17002);
+
       // Store patterns with embeddings to trigger index creation
       const patterns: MemoryPattern[] = Array.from({ length: 100 }, (_, i) => ({
         id: `hnsw-pattern-${i}`,
@@ -139,7 +143,7 @@ describe('AgentDB Vector Search Integration', () => {
           embedding: generateRandomEmbedding(),
           metadata: { index: i }
         }),
-        confidence: 0.8 + Math.random() * 0.2,
+        confidence: 0.8 + rng.random() * 0.2,
         usage_count: 0,
         success_count: 0,
         created_at: Date.now(),
@@ -334,6 +338,9 @@ describe('AgentDB Vector Search Integration', () => {
 
   describe('Search Performance (<100µs target)', () => {
     beforeEach(async () => {
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17003);
+
       // Create large dataset for performance testing
       const patterns: MemoryPattern[] = Array.from({ length: 1000 }, (_, i) => ({
         id: `perf-pattern-${i}`,
@@ -344,8 +351,8 @@ describe('AgentDB Vector Search Integration', () => {
           embedding: generateRandomEmbedding(),
           metadata: { index: i, category: `cat-${i % 5}` }
         }),
-        confidence: 0.8 + Math.random() * 0.2,
-        usage_count: Math.floor(Math.random() * 100),
+        confidence: 0.8 + rng.random() * 0.2,
+        usage_count: Math.floor(rng.random() * 100),
         success_count: 0,
         created_at: Date.now(),
         last_used: Date.now()
@@ -559,8 +566,11 @@ describe('AgentDB Vector Search Integration', () => {
 
 // Helper functions
 
+// Seeded RNG for deterministic test results
+const rngHelper = createSeededRandom(17004);
+
 function generateRandomEmbedding(dimension: number = 384): number[] {
-  return Array.from({ length: dimension }, () => Math.random() * 2 - 1);
+  return Array.from({ length: dimension }, () => rngHelper.random() * 2 - 1);
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {

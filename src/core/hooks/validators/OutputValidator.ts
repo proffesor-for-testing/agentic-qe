@@ -3,7 +3,7 @@
  */
 
 export interface OutputValidationOptions {
-  output: any;
+  output: Record<string, unknown>;
   expectedStructure?: Record<string, string>;
   expectedTypes?: Record<string, string>;
   requiredFields?: string[];
@@ -13,7 +13,7 @@ export interface OutputValidationResult {
   valid: boolean;
   validations: string[];
   errors: string[];
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export class OutputValidator {

@@ -17,6 +17,7 @@ import {
 } from '@core/neural/types';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('Neural Training Integration', () => {
   let memoryStore: SwarmMemoryManager;
@@ -433,29 +434,30 @@ describe('Neural Training Integration', () => {
 // ============================================================================
 
 function createTestExperiences(count: number): Experience[] {
+  const rng = createSeededRandom(15000);
   const experiences: Experience[] = [];
 
   for (let i = 0; i < count; i++) {
     const state: State = {
-      taskComplexity: Math.random(),
+      taskComplexity: rng.random(),
       capabilities: ['test-generation', 'coverage-analysis'],
       contextFeatures: {
         framework: 'jest',
         iteration: i
       },
-      resourceAvailability: 0.8 + Math.random() * 0.2,
-      previousAttempts: Math.floor(Math.random() * 3)
+      resourceAvailability: 0.8 + rng.random() * 0.2,
+      previousAttempts: Math.floor(rng.random() * 3)
     };
 
     const action: Action = {
-      type: ['parallel', 'sequential', 'adaptive'][Math.floor(Math.random() * 3)],
+      type: ['parallel', 'sequential', 'adaptive'][Math.floor(rng.random() * 3)],
       parameters: {
-        parallelization: Math.random(),
+        parallelization: rng.random(),
         retryPolicy: 'exponential'
       }
     };
 
-    const reward = Math.random() > 0.3 ? Math.random() : -Math.random();
+    const reward = rng.random() > 0.3 ? rng.random() : -rng.random();
 
     const nextState: State = {
       ...state,
@@ -469,7 +471,7 @@ function createTestExperiences(count: number): Experience[] {
       action,
       reward,
       nextState,
-      done: Math.random() > 0.2,
+      done: rng.random() > 0.2,
       timestamp: new Date()
     });
   }
@@ -478,6 +480,7 @@ function createTestExperiences(count: number): Experience[] {
 }
 
 function createMockPostTaskData(success: boolean, quality: number): any {
+  const rng = createSeededRandom(15100);
   return {
     assignment: {
       id: `task-${Date.now()}`,
@@ -498,7 +501,7 @@ function createMockPostTaskData(success: boolean, quality: number): any {
       success,
       quality,
       coverage: quality,
-      executionTime: 5000 + Math.random() * 5000,
+      executionTime: 5000 + rng.random() * 5000,
       strategy: 'adaptive',
       toolsUsed: ['jest'],
       errors: success ? [] : ['Test error']

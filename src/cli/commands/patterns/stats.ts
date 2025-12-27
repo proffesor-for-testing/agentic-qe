@@ -14,6 +14,40 @@ export interface PatternStatsOptions {
   detailed?: boolean;
 }
 
+interface CategoryStatRow {
+  category: string;
+  count: number;
+  avg_confidence: number;
+  avg_success_rate: number;
+}
+
+interface FrameworkStatRow {
+  framework: string;
+  count: number;
+  avg_confidence: number;
+}
+
+interface TopPatternRow {
+  name: string;
+  category: string;
+  confidence: number;
+  usage_count: number;
+}
+
+interface RecentPatternRow {
+  name: string;
+  category: string;
+  created_at: string;
+}
+
+interface OverallStatsRow {
+  total_patterns: number;
+  avg_confidence: number;
+  avg_success_rate: number;
+  avg_quality: number;
+  total_usage: number;
+}
+
 export async function patternsStats(options: PatternStatsOptions = {}): Promise<void> {
   const spinner = ora('Calculating pattern statistics...').start();
 
@@ -23,7 +57,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     await db.initialize();
 
     // Get overall stats
-    const overallStats = await db.get(`
+    const overallStats = await db.get<OverallStatsRow>(`
       SELECT
         COUNT(*) as total_patterns,
         AVG(confidence) as avg_confidence,
@@ -34,7 +68,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     `);
 
     // Get stats by category
-    const categoryStats = await db.all(`
+    const categoryStats = await db.all<CategoryStatRow>(`
       SELECT
         category,
         COUNT(*) as count,
@@ -46,7 +80,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     `);
 
     // Get stats by framework
-    const frameworkStats = await db.all(`
+    const frameworkStats = await db.all<FrameworkStatRow>(`
       SELECT
         framework,
         COUNT(*) as count,
@@ -57,7 +91,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     `);
 
     // Get top patterns
-    const topPatterns = await db.all(`
+    const topPatterns = await db.all<TopPatternRow>(`
       SELECT name, category, confidence, usage_count
       FROM patterns
       ORDER BY usage_count DESC, confidence DESC
@@ -65,7 +99,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     `);
 
     // Get recent patterns
-    const recentPatterns = await db.all(`
+    const recentPatterns = await db.all<RecentPatternRow>(`
       SELECT name, category, created_at
       FROM patterns
       ORDER BY created_at DESC
@@ -82,9 +116,9 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     // Overall metrics
     console.log(chalk.cyan('Overall Metrics:'));
     console.log(`  Total Patterns:    ${chalk.green(overallStats?.total_patterns?.toLocaleString() || '0')}`);
-    console.log(`  Avg Confidence:    ${formatConfidence(overallStats?.avg_confidence || 0)}`);
-    console.log(`  Avg Success Rate:  ${formatPercentage(overallStats?.avg_success_rate || 0)}`);
-    console.log(`  Avg Quality:       ${formatQuality(overallStats?.avg_quality || 0)}`);
+    console.log(`  Avg Confidence:    ${formatConfidence(Number(overallStats?.avg_confidence) || 0)}`);
+    console.log(`  Avg Success Rate:  ${formatPercentage(Number(overallStats?.avg_success_rate) || 0)}`);
+    console.log(`  Avg Quality:       ${formatQuality(Number(overallStats?.avg_quality) || 0)}`);
     console.log(`  Total Usage:       ${chalk.cyan(overallStats?.total_usage?.toLocaleString() || '0')}`);
     console.log();
 
@@ -106,7 +140,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
         }
       });
 
-      categoryStats.forEach((stat: any) => {
+      categoryStats.forEach((stat) => {
         categoryTable.push([
           stat.category,
           chalk.cyan(stat.count),
@@ -136,7 +170,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
         }
       });
 
-      frameworkStats.forEach((stat: any) => {
+      frameworkStats.forEach((stat) => {
         frameworkTable.push([
           stat.framework,
           chalk.cyan(stat.count),
@@ -152,7 +186,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     if (topPatterns.length > 0) {
       console.log(chalk.blue('🏆 Top Patterns (by usage):\n'));
 
-      topPatterns.forEach((p: any, index: number) => {
+      topPatterns.forEach((p, index: number) => {
         const prefix = index === topPatterns.length - 1 ? '└─' : '├─';
         console.log(`${prefix} ${chalk.cyan(p.name)}`);
         console.log(`   ├─ Type: ${p.category}`);
@@ -166,7 +200,7 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
     if (options.detailed && recentPatterns.length > 0) {
       console.log(chalk.blue('🆕 Recently Added:\n'));
 
-      recentPatterns.forEach((p: any, index: number) => {
+      recentPatterns.forEach((p, index: number) => {
         const prefix = index === recentPatterns.length - 1 ? '└─' : '├─';
         const date = new Date(p.created_at).toLocaleDateString();
         console.log(`${prefix} ${chalk.cyan(p.name)} (${p.category}) - ${chalk.gray(date)}`);
@@ -188,9 +222,10 @@ export async function patternsStats(options: PatternStatsOptions = {}): Promise<
 
     console.log();
 
-  } catch (error: any) {
+  } catch (error) {
     spinner.fail('Failed to calculate statistics');
-    console.error(chalk.red('❌ Error:'), error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red('❌ Error:'), message);
     console.log(chalk.gray('\n💡 Make sure database exists: .agentic-qe/data/patterns.db'));
     process.exit(1);
   }

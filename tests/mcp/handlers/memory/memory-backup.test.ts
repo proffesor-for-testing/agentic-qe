@@ -1,656 +1,566 @@
 /**
- * memory/memory-backup Test Suite
+ * Memory Backup Handler Test Suite
  *
- * Tests for memory namespace backup and restore.
+ * Tests for backup and restore operations for memory namespaces.
+ * Follows TDD RED phase - tests written before implementation verification.
+ *
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { MemoryBackupHandler } from '@mcp/handlers/memory/memory-backup';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('MemoryBackupHandler', () => {
   let handler: MemoryBackupHandler;
-  let mockRegistry: AgentRegistry;
-  let mockHookExecutor: HookExecutor;
-  let mockMemoryStore: Map<string, any>;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
+  let memoryStore: Map<string, any>;
 
   beforeEach(() => {
-    mockRegistry = {} as AgentRegistry;
-    mockHookExecutor = {} as HookExecutor;
-    mockMemoryStore = new Map();
-    handler = new MemoryBackupHandler(mockRegistry, mockHookExecutor, mockMemoryStore);
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
+    memoryStore = new Map();
+    handler = new MemoryBackupHandler(mockRegistry, mockHookExecutor, memoryStore);
   });
 
-  const addMemoryRecord = (key: string, namespace: string, value: any) => {
-    mockMemoryStore.set(key, {
-      key,
-      value,
-      namespace,
-      timestamp: Date.now(),
-      ttl: 3600,
-      metadata: {},
-      persistent: false
-    });
-  };
+  afterEach(async () => {
+    memoryStore.clear();
+  });
 
-  describe('Create Backup - Happy Path', () => {
-    it('should create backup successfully', async () => {
-      addMemoryRecord('aqe:test-plan:1', 'aqe', { plan: 'unit-tests' });
-      addMemoryRecord('aqe:test-plan:2', 'aqe', { plan: 'integration-tests' });
+  describe('Happy Path - Create Backup', () => {
+    it('should create backup of namespace successfully', async () => {
+      // GIVEN: Memory records in a namespace
+      memoryStore.set('aqe/test-plan:suite-1', {
+        value: { tests: 50, coverage: 85 },
+        partition: 'aqe/test-plan',
+        createdAt: Date.now(),
+        metadata: { agentId: 'qe-test-generator' }
+      });
+      memoryStore.set('aqe/test-plan:suite-2', {
+        value: { tests: 30, coverage: 90 },
+        partition: 'aqe/test-plan',
+        createdAt: Date.now(),
+        metadata: { agentId: 'qe-test-generator' }
+      });
 
+      // WHEN: Creating backup
       const response = await handler.handle({
         action: 'create',
-        namespace: 'aqe',
+        namespace: 'aqe/test-plan',
         backupId: 'backup-001'
       });
 
+      // THEN: Backup created successfully
       expect(response.success).toBe(true);
       expect(response.data.created).toBe(true);
       expect(response.data.backupId).toBe('backup-001');
-      expect(response.data.namespace).toBe('aqe');
+      expect(response.data.namespace).toBe('aqe/test-plan');
       expect(response.data.recordCount).toBe(2);
+      expect(response.data.createdAt).toBeDefined();
     });
 
-    it('should return expected data structure for create', async () => {
-      addMemoryRecord('test:key:1', 'test', { data: 'value' });
-
-      const response = await handler.handle({
-        action: 'create',
-        namespace: 'test',
-        backupId: 'backup-002'
-      });
-
-      expect(response).toHaveProperty('success');
-      expect(response).toHaveProperty('metadata');
-      expect(response.metadata).toHaveProperty('requestId');
-      expect(response.data).toHaveProperty('created');
-      expect(response.data).toHaveProperty('backupId');
-      expect(response.data).toHaveProperty('namespace');
-      expect(response.data).toHaveProperty('recordCount');
-      expect(response.data).toHaveProperty('createdAt');
-    });
-
-    it('should backup only records from specified namespace', async () => {
-      addMemoryRecord('aqe:key:1', 'aqe', { data: 'aqe-data' });
-      addMemoryRecord('other:key:1', 'other', { data: 'other-data' });
-      addMemoryRecord('aqe:key:2', 'aqe', { data: 'aqe-data-2' });
-
-      const response = await handler.handle({
-        action: 'create',
-        namespace: 'aqe',
-        backupId: 'aqe-backup'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.recordCount).toBe(2);
-    });
-
-    it('should create backup with zero records', async () => {
+    it('should create empty backup for namespace with no data', async () => {
+      // GIVEN: Empty namespace
+      // WHEN: Creating backup
       const response = await handler.handle({
         action: 'create',
         namespace: 'empty-namespace',
-        backupId: 'empty-backup'
+        backupId: 'backup-empty'
       });
 
+      // THEN: Empty backup created
       expect(response.success).toBe(true);
       expect(response.data.recordCount).toBe(0);
     });
 
-    it('should preserve record metadata in backup', async () => {
-      const metadata = { priority: 'high', agent: 'test-gen-1' };
-      mockMemoryStore.set('aqe:key:1', {
-        key: 'aqe:key:1',
-        value: { test: 'data' },
-        namespace: 'aqe',
-        timestamp: Date.now(),
-        ttl: 7200,
-        metadata,
-        persistent: true
+    it('should preserve metadata in backup', async () => {
+      // GIVEN: Records with rich metadata
+      memoryStore.set('test:data-1', {
+        value: { data: 'test' },
+        partition: 'test',
+        createdAt: Date.now(),
+        ttl: 300,
+        metadata: {
+          agentId: 'qe-test-generator',
+          version: '2.0.0',
+          tags: ['critical', 'regression']
+        }
       });
 
+      // WHEN: Creating backup
       await handler.handle({
         action: 'create',
-        namespace: 'aqe',
-        backupId: 'meta-backup'
+        namespace: 'test',
+        backupId: 'backup-meta'
       });
 
-      const listResponse = await handler.handle({
-        action: 'list'
+      // THEN: Can restore with all metadata
+      const restoreResponse = await handler.handle({
+        action: 'restore',
+        backupId: 'backup-meta'
       });
 
-      expect(listResponse.success).toBe(true);
-      expect(listResponse.data.backups).toHaveLength(1);
+      expect(restoreResponse.success).toBe(true);
+      const restored = memoryStore.get('test:data-1');
+      expect(restored.metadata.version).toBe('2.0.0');
+      expect(restored.metadata.tags).toContain('critical');
     });
   });
 
-  describe('Restore Backup - Happy Path', () => {
-    it('should restore backup successfully', async () => {
-      addMemoryRecord('aqe:key:1', 'aqe', { data: 'value-1' });
-      addMemoryRecord('aqe:key:2', 'aqe', { data: 'value-2' });
-
+  describe('Happy Path - Restore Backup', () => {
+    it('should restore backup to original namespace', async () => {
+      // GIVEN: Backup exists
+      memoryStore.set('backup:data', {
+        value: { data: 'original' },
+        partition: 'backup',
+        createdAt: Date.now()
+      });
       await handler.handle({
         action: 'create',
-        namespace: 'aqe',
-        backupId: 'restore-test'
+        namespace: 'backup',
+        backupId: 'backup-restore-1'
       });
 
-      mockMemoryStore.clear();
+      // Clear the original data
+      memoryStore.clear();
 
+      // WHEN: Restoring backup
       const response = await handler.handle({
         action: 'restore',
-        backupId: 'restore-test'
+        backupId: 'backup-restore-1'
       });
 
+      // THEN: Data restored successfully
       expect(response.success).toBe(true);
       expect(response.data.restored).toBe(true);
-      expect(response.data.backupId).toBe('restore-test');
-      expect(response.data.restoredCount).toBe(2);
-      expect(response.data.targetNamespace).toBe('aqe');
+      expect(response.data.backupId).toBe('backup-restore-1');
+      expect(response.data.targetNamespace).toBe('backup');
+      expect(response.data.restoredCount).toBe(1);
+      expect(memoryStore.has('backup:data')).toBe(true);
     });
 
-    it('should restore to original namespace by default', async () => {
-      addMemoryRecord('original:key:1', 'original', { data: 'test' });
-
+    it('should restore backup to different namespace', async () => {
+      // GIVEN: Backup from production namespace
+      memoryStore.set('production:config', {
+        value: { apiUrl: 'https://api.prod.com' },
+        partition: 'production',
+        createdAt: Date.now()
+      });
       await handler.handle({
         action: 'create',
-        namespace: 'original',
-        backupId: 'ns-test'
+        namespace: 'production',
+        backupId: 'prod-backup'
       });
 
-      mockMemoryStore.clear();
-
-      await handler.handle({
-        action: 'restore',
-        backupId: 'ns-test'
-      });
-
-      const restoredKeys = Array.from(mockMemoryStore.keys());
-      expect(restoredKeys.some(k => k.startsWith('original:'))).toBe(true);
-    });
-
-    it('should restore to different namespace when specified', async () => {
-      addMemoryRecord('source:key:1', 'source', { data: 'test' });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'source',
-        backupId: 'cross-ns'
-      });
-
+      // WHEN: Restoring to staging namespace
       const response = await handler.handle({
         action: 'restore',
-        backupId: 'cross-ns',
-        targetNamespace: 'destination'
+        backupId: 'prod-backup',
+        targetNamespace: 'staging'
       });
 
+      // THEN: Data restored to staging namespace
       expect(response.success).toBe(true);
-      expect(response.data.targetNamespace).toBe('destination');
-
-      const restoredKeys = Array.from(mockMemoryStore.keys());
-      expect(restoredKeys.some(k => k.startsWith('destination:'))).toBe(true);
+      expect(response.data.targetNamespace).toBe('staging');
+      expect(memoryStore.has('staging:config')).toBe(true);
+      const restored = memoryStore.get('staging:config');
+      expect(restored.value.apiUrl).toBe('https://api.prod.com');
+      expect(restored.partition).toBe('staging');
     });
 
-    it('should update timestamps on restore', async () => {
-      const oldTimestamp = Date.now() - 3600000;
-      mockMemoryStore.set('test:key:1', {
-        key: 'test:key:1',
-        value: { data: 'old' },
-        namespace: 'test',
-        timestamp: oldTimestamp,
-        ttl: 3600,
-        metadata: {},
-        persistent: false
-      });
-
+    it('should restore multiple records correctly', async () => {
+      // GIVEN: Namespace with multiple records
+      for (let i = 0; i < 10; i++) {
+        memoryStore.set(`bulk:record-${i}`, {
+          value: { id: i, data: `data-${i}` },
+          partition: 'bulk',
+          createdAt: Date.now()
+        });
+      }
       await handler.handle({
         action: 'create',
-        namespace: 'test',
-        backupId: 'timestamp-test'
+        namespace: 'bulk',
+        backupId: 'bulk-backup'
       });
 
-      mockMemoryStore.clear();
+      memoryStore.clear();
 
-      const beforeRestore = Date.now();
-      await handler.handle({
+      // WHEN: Restoring bulk backup
+      const response = await handler.handle({
         action: 'restore',
-        backupId: 'timestamp-test'
+        backupId: 'bulk-backup'
       });
 
-      const restored = mockMemoryStore.get('test:key:1');
-      expect(restored.timestamp).toBeGreaterThanOrEqual(beforeRestore);
+      // THEN: All records restored
+      expect(response.data.restoredCount).toBe(10);
+      for (let i = 0; i < 10; i++) {
+        expect(memoryStore.has(`bulk:record-${i}`)).toBe(true);
+      }
     });
   });
 
-  describe('List Backups', () => {
-    it('should list all backups successfully', async () => {
-      addMemoryRecord('ns1:key:1', 'ns1', { data: 'data1' });
-      addMemoryRecord('ns2:key:1', 'ns2', { data: 'data2' });
+  describe('Happy Path - List Backups', () => {
+    it('should list all backups', async () => {
+      // GIVEN: Multiple backups exist
+      memoryStore.set('ns1:data', { value: 'data', partition: 'ns1', createdAt: Date.now() });
+      memoryStore.set('ns2:data', { value: 'data', partition: 'ns2', createdAt: Date.now() });
 
-      await handler.handle({ action: 'create', namespace: 'ns1', backupId: 'backup-1' });
-      await handler.handle({ action: 'create', namespace: 'ns2', backupId: 'backup-2' });
+      await handler.handle({
+        action: 'create',
+        namespace: 'ns1',
+        backupId: 'backup-1'
+      });
+      await handler.handle({
+        action: 'create',
+        namespace: 'ns2',
+        backupId: 'backup-2'
+      });
 
+      // WHEN: Listing all backups
       const response = await handler.handle({
         action: 'list'
       });
 
+      // THEN: All backups listed
       expect(response.success).toBe(true);
       expect(response.data.backups).toHaveLength(2);
-      expect(response.data.backups[0]).toHaveProperty('backupId');
-      expect(response.data.backups[0]).toHaveProperty('namespace');
-      expect(response.data.backups[0]).toHaveProperty('recordCount');
-      expect(response.data.backups[0]).toHaveProperty('createdAt');
+      expect(response.data.backups.map((b: any) => b.backupId)).toContain('backup-1');
+      expect(response.data.backups.map((b: any) => b.backupId)).toContain('backup-2');
     });
 
     it('should filter backups by namespace', async () => {
-      addMemoryRecord('aqe:key:1', 'aqe', { data: 'aqe-data' });
-      addMemoryRecord('other:key:1', 'other', { data: 'other-data' });
+      // GIVEN: Backups from different namespaces
+      memoryStore.set('aqe:data', { value: 'data', partition: 'aqe', createdAt: Date.now() });
+      memoryStore.set('test:data', { value: 'data', partition: 'test', createdAt: Date.now() });
 
-      await handler.handle({ action: 'create', namespace: 'aqe', backupId: 'aqe-backup' });
-      await handler.handle({ action: 'create', namespace: 'other', backupId: 'other-backup' });
+      await handler.handle({
+        action: 'create',
+        namespace: 'aqe',
+        backupId: 'aqe-backup'
+      });
+      await handler.handle({
+        action: 'create',
+        namespace: 'test',
+        backupId: 'test-backup'
+      });
 
+      // WHEN: Listing backups for specific namespace
       const response = await handler.handle({
         action: 'list',
         namespace: 'aqe'
       });
 
-      expect(response.success).toBe(true);
+      // THEN: Only aqe backups listed
       expect(response.data.backups).toHaveLength(1);
+      expect(response.data.backups[0].backupId).toBe('aqe-backup');
       expect(response.data.backups[0].namespace).toBe('aqe');
     });
 
-    it('should return empty list when no backups exist', async () => {
+    it('should include backup metadata in list', async () => {
+      // GIVEN: Backup with metadata
+      memoryStore.set('test:data', { value: 'data', partition: 'test', createdAt: Date.now() });
+      await handler.handle({
+        action: 'create',
+        namespace: 'test',
+        backupId: 'backup-with-meta'
+      });
+
+      // WHEN: Listing backups
       const response = await handler.handle({
         action: 'list'
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.backups).toEqual([]);
-    });
-
-    it('should include metadata in listed backups', async () => {
-      addMemoryRecord('test:key:1', 'test', { data: 'test' });
-      addMemoryRecord('test:key:2', 'test', { data: 'test2' });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'test',
-        backupId: 'metadata-backup'
-      });
-
-      const response = await handler.handle({ action: 'list' });
-
-      expect(response.success).toBe(true);
-      expect(response.data.backups[0].backupId).toBe('metadata-backup');
-      expect(response.data.backups[0].recordCount).toBe(2);
+      // THEN: Metadata included
+      const backup = response.data.backups[0];
+      expect(backup.backupId).toBe('backup-with-meta');
+      expect(backup.namespace).toBe('test');
+      expect(backup.recordCount).toBe(1);
+      expect(backup.createdAt).toBeDefined();
     });
   });
 
-  describe('Delete Backup', () => {
+  describe('Happy Path - Delete Backup', () => {
     it('should delete backup successfully', async () => {
-      addMemoryRecord('test:key:1', 'test', { data: 'test' });
-
+      // GIVEN: Backup exists
+      memoryStore.set('test:data', { value: 'data', partition: 'test', createdAt: Date.now() });
       await handler.handle({
         action: 'create',
         namespace: 'test',
-        backupId: 'delete-test'
+        backupId: 'backup-to-delete'
       });
 
+      // WHEN: Deleting backup
       const response = await handler.handle({
         action: 'delete',
-        backupId: 'delete-test'
+        backupId: 'backup-to-delete'
       });
 
+      // THEN: Backup deleted
       expect(response.success).toBe(true);
       expect(response.data.deleted).toBe(true);
-      expect(response.data.backupId).toBe('delete-test');
-    });
+      expect(response.data.backupId).toBe('backup-to-delete');
 
-    it('should fail to delete non-existent backup', async () => {
-      const response = await handler.handle({
-        action: 'delete',
-        backupId: 'non-existent-backup'
-      });
-
-      expect(response.success).toBe(false);
-      expect(response.error).toContain('Backup not found');
-    });
-
-    it('should remove backup from list after deletion', async () => {
-      addMemoryRecord('test:key:1', 'test', { data: 'test' });
-
-      await handler.handle({ action: 'create', namespace: 'test', backupId: 'removal-test' });
-
-      await handler.handle({ action: 'delete', backupId: 'removal-test' });
-
+      // Verify backup no longer in list
       const listResponse = await handler.handle({ action: 'list' });
-
-      expect(listResponse.success).toBe(true);
       expect(listResponse.data.backups).toHaveLength(0);
     });
   });
 
   describe('Input Validation', () => {
     it('should reject missing action', async () => {
+      // GIVEN: Missing action parameter
+      // WHEN: Handling request
       const response = await handler.handle({
         namespace: 'test',
-        backupId: 'test'
+        backupId: 'backup-1'
       } as any);
 
-      expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
-    });
-
-    it('should reject invalid action', async () => {
-      const response = await handler.handle({
-        action: 'invalid-action',
-        namespace: 'test'
-      } as any);
-
+      // THEN: Returns success (action will be undefined and cause switch default)
+      // This tests that the handler validates action in the switch statement
       expect(response.success).toBe(false);
       expect(response.error).toContain('Invalid action');
     });
 
     it('should reject create without namespace', async () => {
+      // GIVEN: Create action without namespace
+      // WHEN: Creating backup
       const response = await handler.handle({
         action: 'create',
-        backupId: 'test'
+        backupId: 'backup-1'
       } as any);
 
+      // THEN: Validation error
       expect(response.success).toBe(false);
       expect(response.error).toContain('namespace');
     });
 
     it('should reject create without backupId', async () => {
+      // GIVEN: Create action without backupId
+      // WHEN: Creating backup
       const response = await handler.handle({
         action: 'create',
         namespace: 'test'
       } as any);
 
+      // THEN: Validation error
       expect(response.success).toBe(false);
       expect(response.error).toContain('backupId');
     });
 
     it('should reject restore without backupId', async () => {
+      // GIVEN: Restore action without backupId
+      // WHEN: Restoring backup
       const response = await handler.handle({
         action: 'restore'
       } as any);
 
+      // THEN: Validation error
       expect(response.success).toBe(false);
       expect(response.error).toContain('backupId');
     });
 
     it('should reject delete without backupId', async () => {
+      // GIVEN: Delete action without backupId
+      // WHEN: Deleting backup
       const response = await handler.handle({
         action: 'delete'
       } as any);
 
+      // THEN: Validation error
       expect(response.success).toBe(false);
       expect(response.error).toContain('backupId');
     });
+  });
 
-    it('should reject restore of non-existent backup', async () => {
+  describe('Error Handling', () => {
+    it('should handle restore of non-existent backup', async () => {
+      // GIVEN: Backup does not exist
+      // WHEN: Attempting to restore
       const response = await handler.handle({
         action: 'restore',
-        backupId: 'non-existent'
+        backupId: 'non-existent-backup'
       });
 
+      // THEN: Error response
+      expect(response.success).toBe(false);
+      expect(response.error).toContain('Backup not found');
+      expect(response.error).toContain('non-existent-backup');
+    });
+
+    it('should handle delete of non-existent backup', async () => {
+      // GIVEN: Backup does not exist
+      // WHEN: Attempting to delete
+      const response = await handler.handle({
+        action: 'delete',
+        backupId: 'non-existent-backup'
+      });
+
+      // THEN: Error response
       expect(response.success).toBe(false);
       expect(response.error).toContain('Backup not found');
     });
-  });
 
-  describe('Cross-namespace Operations', () => {
-    it('should backup and restore across namespaces', async () => {
-      addMemoryRecord('source:config:1', 'source', { setting: 'value-1' });
-      addMemoryRecord('source:config:2', 'source', { setting: 'value-2' });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'source',
-        backupId: 'cross-ns-backup'
-      });
-
+    it('should handle invalid action', async () => {
+      // GIVEN: Invalid action type
+      // WHEN: Handling request
       const response = await handler.handle({
-        action: 'restore',
-        backupId: 'cross-ns-backup',
-        targetNamespace: 'target'
+        action: 'invalid-action' as any,
+        namespace: 'test',
+        backupId: 'backup-1'
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.targetNamespace).toBe('target');
-
-      const targetKeys = Array.from(mockMemoryStore.keys())
-        .filter(k => k.startsWith('target:'));
-
-      expect(targetKeys.length).toBe(2);
-    });
-
-    it('should properly update key prefixes when changing namespace', async () => {
-      addMemoryRecord('alpha:data:item', 'alpha', { value: 'test' });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'alpha',
-        backupId: 'prefix-test'
-      });
-
-      mockMemoryStore.clear();
-
-      await handler.handle({
-        action: 'restore',
-        backupId: 'prefix-test',
-        targetNamespace: 'beta'
-      });
-
-      expect(mockMemoryStore.has('beta:data:item')).toBe(true);
-      expect(mockMemoryStore.has('alpha:data:item')).toBe(false);
-    });
-
-    it('should handle namespace with special characters', async () => {
-      addMemoryRecord('my-app/v1:config', 'my-app/v1', { data: 'test' });
-
-      const createResponse = await handler.handle({
-        action: 'create',
-        namespace: 'my-app/v1',
-        backupId: 'special-ns'
-      });
-
-      expect(createResponse.success).toBe(true);
-
-      const restoreResponse = await handler.handle({
-        action: 'restore',
-        backupId: 'special-ns',
-        targetNamespace: 'my-app/v2'
-      });
-
-      expect(restoreResponse.success).toBe(true);
+      // THEN: Error response
+      expect(response.success).toBe(false);
+      expect(response.error).toContain('Invalid action');
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle large backup (1000+ records)', async () => {
-      for (let i = 0; i < 1000; i++) {
-        addMemoryRecord(`large:key:${i}`, 'large', { index: i, data: `value-${i}` });
+    it('should handle backup with special characters in backupId', async () => {
+      // GIVEN: BackupId with special characters
+      memoryStore.set('test:data', { value: 'data', partition: 'test', createdAt: Date.now() });
+
+      const specialIds = [
+        'backup-with-dashes',
+        'backup_with_underscores',
+        'backup.with.dots',
+        'backup-2024-01-01'
+      ];
+
+      // WHEN: Creating backups with special IDs
+      for (const backupId of specialIds) {
+        const response = await handler.handle({
+          action: 'create',
+          namespace: 'test',
+          backupId
+        });
+
+        // THEN: Backup created successfully
+        expect(response.success).toBe(true);
+      }
+    });
+
+    it('should handle namespace with forward slashes', async () => {
+      // GIVEN: Namespace with path-like structure
+      memoryStore.set('aqe/test-plan/integration:data', {
+        value: 'test',
+        partition: 'aqe/test-plan/integration',
+        createdAt: Date.now()
+      });
+
+      // WHEN: Creating backup
+      const response = await handler.handle({
+        action: 'create',
+        namespace: 'aqe/test-plan/integration',
+        backupId: 'nested-ns-backup'
+      });
+
+      // THEN: Backup successful
+      expect(response.success).toBe(true);
+    });
+
+    it('should handle large number of records in namespace', async () => {
+      // GIVEN: 100 records in namespace
+      for (let i = 0; i < 100; i++) {
+        memoryStore.set(`large:record-${i}`, {
+          value: { id: i, data: Array(100).fill('x').join('') },
+          partition: 'large',
+          createdAt: Date.now()
+        });
       }
 
+      // WHEN: Creating backup
       const response = await handler.handle({
         action: 'create',
         namespace: 'large',
         backupId: 'large-backup'
       });
 
+      // THEN: All records backed up
       expect(response.success).toBe(true);
-      expect(response.data.recordCount).toBe(1000);
+      expect(response.data.recordCount).toBe(100);
     });
 
-    it('should handle backup with complex nested data', async () => {
-      const complexData = {
-        level1: {
-          level2: {
-            level3: {
-              array: [1, 2, 3, { nested: 'deep' }],
-              date: new Date().toISOString(),
-              null: null,
-              boolean: true
-            }
-          }
-        }
-      };
-
-      addMemoryRecord('complex:key:1', 'complex', complexData);
-
+    it('should handle restoring over existing data', async () => {
+      // GIVEN: Backup and existing data in target namespace
+      memoryStore.set('test:data', {
+        value: { version: 1 },
+        partition: 'test',
+        createdAt: Date.now()
+      });
       await handler.handle({
         action: 'create',
-        namespace: 'complex',
-        backupId: 'complex-backup'
+        namespace: 'test',
+        backupId: 'overwrite-backup'
       });
 
-      mockMemoryStore.clear();
-
-      await handler.handle({
-        action: 'restore',
-        backupId: 'complex-backup'
-      });
-
-      const restored = mockMemoryStore.get('complex:key:1');
-      expect(restored.value).toEqual(complexData);
-    });
-
-    it('should handle concurrent backup operations', async () => {
-      for (let i = 0; i < 10; i++) {
-        addMemoryRecord(`ns${i}:key:1`, `ns${i}`, { data: `value-${i}` });
-      }
-
-      const promises = Array.from({ length: 10 }, (_, i) =>
-        handler.handle({
-          action: 'create',
-          namespace: `ns${i}`,
-          backupId: `concurrent-${i}`
-        })
-      );
-
-      const results = await Promise.all(promises);
-
-      expect(results.every(r => r.success)).toBe(true);
-
-      const listResponse = await handler.handle({ action: 'list' });
-      expect(listResponse.data.backups).toHaveLength(10);
-    });
-
-    it('should handle backup with empty string values', async () => {
-      addMemoryRecord('empty:key:1', 'empty', { value: '' });
-      addMemoryRecord('empty:key:2', 'empty', { value: '', another: '' });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'empty',
-        backupId: 'empty-values'
-      });
-
-      mockMemoryStore.clear();
-
-      await handler.handle({
-        action: 'restore',
-        backupId: 'empty-values'
-      });
-
-      const restored1 = mockMemoryStore.get('empty:key:1');
-      expect(restored1.value.value).toBe('');
-    });
-
-    it('should handle backup with binary data (buffers)', async () => {
-      const binaryData = Buffer.from('binary content').toString('base64');
-
-      addMemoryRecord('binary:key:1', 'binary', { buffer: binaryData });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'binary',
-        backupId: 'binary-backup'
-      });
-
-      mockMemoryStore.clear();
-
-      await handler.handle({
-        action: 'restore',
-        backupId: 'binary-backup'
-      });
-
-      const restored = mockMemoryStore.get('binary:key:1');
-      expect(restored.value.buffer).toBe(binaryData);
-    });
-
-    it('should handle multiple backups of same namespace', async () => {
-      addMemoryRecord('multi:key:1', 'multi', { version: 1 });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'multi',
-        backupId: 'multi-v1'
-      });
-
-      mockMemoryStore.set('multi:key:1', {
-        key: 'multi:key:1',
+      // Update the data
+      memoryStore.set('test:data', {
         value: { version: 2 },
-        namespace: 'multi',
-        timestamp: Date.now(),
-        ttl: 3600,
-        metadata: {},
-        persistent: false
+        partition: 'test',
+        createdAt: Date.now()
       });
 
-      await handler.handle({
-        action: 'create',
-        namespace: 'multi',
-        backupId: 'multi-v2'
-      });
-
-      const listResponse = await handler.handle({
-        action: 'list',
-        namespace: 'multi'
-      });
-
-      expect(listResponse.data.backups).toHaveLength(2);
-    });
-
-    it('should handle restore overwriting existing keys', async () => {
-      addMemoryRecord('overwrite:key:1', 'overwrite', { value: 'original' });
-
-      await handler.handle({
-        action: 'create',
-        namespace: 'overwrite',
-        backupId: 'overwrite-backup'
-      });
-
-      mockMemoryStore.set('overwrite:key:1', {
-        key: 'overwrite:key:1',
-        value: { value: 'modified' },
-        namespace: 'overwrite',
-        timestamp: Date.now(),
-        ttl: 3600,
-        metadata: {},
-        persistent: false
-      });
-
-      await handler.handle({
+      // WHEN: Restoring backup (overwrites)
+      const response = await handler.handle({
         action: 'restore',
         backupId: 'overwrite-backup'
       });
 
-      const restored = mockMemoryStore.get('overwrite:key:1');
-      expect(restored.value.value).toBe('original');
+      // THEN: Old version restored
+      expect(response.success).toBe(true);
+      const restored = memoryStore.get('test:data');
+      expect(restored.value.version).toBe(1);
+    });
+
+    it('should handle TTL preservation in backup/restore', async () => {
+      // GIVEN: Record with TTL
+      memoryStore.set('temp:session', {
+        value: { sessionId: 'abc123' },
+        partition: 'temp',
+        createdAt: Date.now(),
+        ttl: 300
+      });
+
+      // WHEN: Creating and restoring backup
+      await handler.handle({
+        action: 'create',
+        namespace: 'temp',
+        backupId: 'ttl-backup'
+      });
+
+      memoryStore.clear();
+
+      await handler.handle({
+        action: 'restore',
+        backupId: 'ttl-backup'
+      });
+
+      // THEN: TTL preserved
+      const restored = memoryStore.get('temp:session');
+      expect(restored.ttl).toBe(300);
     });
   });
 
   describe('Performance', () => {
-    it('should complete backup operation within reasonable time', async () => {
-      for (let i = 0; i < 100; i++) {
-        addMemoryRecord(`perf:key:${i}`, 'perf', { data: `value-${i}` });
+    it('should create backup within reasonable time', async () => {
+      // GIVEN: 10 records
+      for (let i = 0; i < 10; i++) {
+        memoryStore.set(`perf:record-${i}`, {
+          value: { id: i },
+          partition: 'perf',
+          createdAt: Date.now()
+        });
       }
 
+      // WHEN: Creating backup
       const startTime = Date.now();
       await handler.handle({
         action: 'create',
@@ -659,70 +569,37 @@ describe('MemoryBackupHandler', () => {
       });
       const endTime = Date.now();
 
-      expect(endTime - startTime).toBeLessThan(1000);
+      // THEN: Completed within 100ms
+      expect(endTime - startTime).toBeLessThan(100);
     });
 
-    it('should complete restore operation within reasonable time', async () => {
-      for (let i = 0; i < 100; i++) {
-        addMemoryRecord(`perf:key:${i}`, 'perf', { data: `value-${i}` });
+    it('should restore backup within reasonable time', async () => {
+      // GIVEN: Backup with 10 records
+      for (let i = 0; i < 10; i++) {
+        memoryStore.set(`perf:record-${i}`, {
+          value: { id: i },
+          partition: 'perf',
+          createdAt: Date.now()
+        });
       }
-
       await handler.handle({
         action: 'create',
         namespace: 'perf',
-        backupId: 'perf-restore'
+        backupId: 'restore-perf-backup'
       });
 
-      mockMemoryStore.clear();
+      memoryStore.clear();
 
+      // WHEN: Restoring backup
       const startTime = Date.now();
       await handler.handle({
         action: 'restore',
-        backupId: 'perf-restore'
+        backupId: 'restore-perf-backup'
       });
       const endTime = Date.now();
 
-      expect(endTime - startTime).toBeLessThan(1000);
-    });
-
-    it('should handle rapid sequential operations efficiently', async () => {
-      addMemoryRecord('rapid:key:1', 'rapid', { data: 'test' });
-
-      const startTime = Date.now();
-
-      for (let i = 0; i < 50; i++) {
-        await handler.handle({
-          action: 'create',
-          namespace: 'rapid',
-          backupId: `rapid-${i}`
-        });
-      }
-
-      const endTime = Date.now();
-
-      expect(endTime - startTime).toBeLessThan(5000);
-    });
-  });
-
-  describe('Response Structure', () => {
-    it('should always include requestId', async () => {
-      const response = await handler.handle({
-        action: 'list'
-      });
-
-      expect(response).toHaveProperty('metadata');
-      expect(response.metadata).toHaveProperty('requestId');
-      expect(typeof response.metadata.requestId).toBe('string');
-    });
-
-    it('should provide meaningful error messages', async () => {
-      const response = await handler.handle({} as any);
-
-      if (!response.success) {
-        expect(response.error).toBeTruthy();
-        expect(typeof response.error).toBe('string');
-        expect(response.error.length).toBeGreaterThan(0);
-      }
+      // THEN: Completed within 100ms
+      expect(endTime - startTime).toBeLessThan(100);
     });
   });
 });

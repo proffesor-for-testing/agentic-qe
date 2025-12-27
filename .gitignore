@@ -35,6 +35,15 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 
+# Local n8n data (contains credentials, database, etc.)
+.n8n-local/
+
+# Core dumps
+core
+
+# Test results (generated files)
+test-results/
+
 # IDE
 .vscode/
 .idea/
@@ -61,12 +70,21 @@ coverage/
 !src/mcp/tools/qe/visual/
 .nyc_output/
 
+# Test temporary databases (prevent leaking to project root)
+.test-memory-*.db*
+.test-learning*.db*
+tests/.tmp/
+
 # Misc
 *.bak
 *.tmp
 .cache/
 .roo/
 .hive-mind/
+
+# Project-specific ignores
+CLAUDE.md.backup
+/aqe
 
 
 # Removed Windows wrapper files per user request
@@ -105,8 +123,21 @@ coordination/orchestration/*
 *.sqlite-wal
 claude-flow
 .agentic-qe/memory/
+.agentic-qe/data/learning/state.json
+.agentic-qe/data/improvement/state.json
+.agentic-qe/a11y-scans/
 data/
 test-projects/
+
+
+# Mock files - allow agentdb mock for CI
+__mocks__/*
+!__mocks__/agentdb.ts
+
+# Test artifacts that should not be committed
+test-learning-persistence
+junit.xml
+docs/qx-reports/*
 
 # Claude Flow generated files
 .claude/settings.local.json
@@ -115,6 +146,9 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-
 # Local agent configurations
 .wshobson-agents/
+
+# Additional patterns from upstream
+tests/tmp/*
+tmp/*

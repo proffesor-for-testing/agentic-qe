@@ -5,7 +5,7 @@
 import { ISwarmMemoryManager } from '../../../types/memory-interfaces';
 
 export interface ConfigurationCheckOptions {
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   schema?: Record<string, { type: string; min?: number; max?: number }>;
   requiredKeys?: string[];
   validateAgainstStored?: boolean;
@@ -115,7 +115,7 @@ export class ConfigurationChecker {
     };
   }
 
-  private compareConfigs(current: any, stored: any): string[] {
+  private compareConfigs(current: Record<string, unknown>, stored: Record<string, unknown>): string[] {
     const differences: string[] = [];
 
     for (const key of Object.keys(stored)) {

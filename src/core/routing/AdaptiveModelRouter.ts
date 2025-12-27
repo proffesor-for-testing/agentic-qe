@@ -11,6 +11,8 @@ import {
   TaskComplexity,
   RouterStats,
   RouterConfig,
+  CostDashboardData,
+  ComplexityAnalysis,
 } from './types';
 import { MODEL_RULES, FALLBACK_CHAINS, DEFAULT_ROUTER_CONFIG } from './ModelRules';
 import { ComplexityAnalyzer } from './ComplexityAnalyzer';
@@ -67,6 +69,14 @@ export class AdaptiveModelRouter implements ModelRouter {
     try {
       // Analyze task complexity
       const analysis = this.complexityAnalyzer.analyzeComplexity(task);
+
+      // Try local routing first if preferLocal is enabled
+      if (this.config.preferLocal) {
+        const localSelection = await this.routeToLocal(task, analysis);
+        if (localSelection) {
+          return localSelection;
+        }
+      }
 
       // Select model based on task type and complexity
       const agentType = this.extractAgentType(task);
@@ -164,7 +174,7 @@ export class AdaptiveModelRouter implements ModelRouter {
   /**
    * Export cost dashboard data
    */
-  async exportCostDashboard(): Promise<any> {
+  async exportCostDashboard(): Promise<CostDashboardData> {
     return await this.costTracker.exportCostDashboard();
   }
 
@@ -174,6 +184,129 @@ export class AdaptiveModelRouter implements ModelRouter {
   async analyzeComplexity(task: QETask): Promise<TaskComplexity> {
     const analysis = this.complexityAnalyzer.analyzeComplexity(task);
     return analysis.complexity;
+  }
+
+  /**
+   * Route to local RuvLLM model if available
+   * Returns null if local routing fails or is unavailable
+   */
+  async routeToLocal(task: QETask, analysis: ComplexityAnalysis): Promise<ModelSelection | null> {
+    try {
+      // Check if RuvLLM is available
+      const isAvailable = await this.checkLocalAvailability();
+      if (!isAvailable) {
+        this.eventBus.emit('router:local-unavailable', {
+          task: task.id,
+          reason: 'RuvLLM server not reachable',
+        });
+        return null;
+      }
+
+      // Select appropriate local model based on complexity
+      const localModel = this.selectLocalModel(analysis.complexity);
+
+      // Compare costs: local (free) vs cloud
+      const agentType = this.extractAgentType(task);
+      const cloudModel = this.selectModelForTask(agentType, analysis.complexity);
+      const cloudCost = await this.estimateCost(cloudModel, analysis.estimatedTokens);
+
+      // Get fallback models (cloud models for when local fails)
+      const fallbackModels = FALLBACK_CHAINS[localModel] || [];
+
+      // Create local selection
+      const selection: ModelSelection = {
+        model: localModel,
+        complexity: analysis.complexity,
+        reasoning: this.buildLocalReasoning(analysis, cloudModel, cloudCost),
+        estimatedCost: 0, // Local inference is free
+        fallbackModels,
+        confidence: analysis.confidence * 0.9, // Slightly lower confidence for local
+      };
+
+      // Store selection in memory
+      await this.storeSelection(task, selection);
+
+      // Emit local selection event
+      this.eventBus.emit('router:local-selected', {
+        task: task.id,
+        model: localModel,
+        complexity: analysis.complexity,
+        costSavings: cloudCost,
+        cloudAlternative: cloudModel,
+      });
+
+      return selection;
+    } catch (error) {
+      this.eventBus.emit('router:local-error', {
+        task: task.id,
+        error: (error as Error).message,
+      });
+      return null; // Fallback to cloud routing
+    }
+  }
+
+  /**
+   * Check if local RuvLLM is available
+   */
+  private async checkLocalAvailability(): Promise<boolean> {
+    try {
+      const endpoint = this.config.ruvllmEndpoint || 'http://localhost:8080';
+
+      // Create abort controller for timeout (compatible with older Node.js)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      try {
+        const response = await fetch(`${endpoint}/health`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response.ok;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Select appropriate local model based on complexity
+   */
+  private selectLocalModel(complexity: TaskComplexity): AIModel {
+    switch (complexity) {
+      case TaskComplexity.SIMPLE:
+        return AIModel.RUVLLM_LLAMA_3_2_1B; // Fast, lightweight
+      case TaskComplexity.MODERATE:
+        return AIModel.RUVLLM_LLAMA_3_2_3B; // Balanced
+      case TaskComplexity.COMPLEX:
+        return AIModel.RUVLLM_LLAMA_3_1_8B; // Strong reasoning
+      case TaskComplexity.CRITICAL:
+        return AIModel.RUVLLM_MISTRAL_7B; // Best local model
+      default:
+        return AIModel.RUVLLM_LLAMA_3_2_3B;
+    }
+  }
+
+  /**
+   * Build reasoning string for local selection
+   */
+  private buildLocalReasoning(analysis: ComplexityAnalysis, cloudModel: AIModel, cloudCost: number): string {
+    const reasons: string[] = [];
+
+    reasons.push(`Local inference (zero cost vs $${cloudCost.toFixed(4)} for ${cloudModel})`);
+    reasons.push(`Complexity: ${analysis.complexity}`);
+    reasons.push(`Privacy-preserving`);
+
+    if (analysis.requiresSecurity) {
+      reasons.push('Security analysis - data stays local');
+    }
+    if (analysis.requiresPerformance) {
+      reasons.push('Performance analysis - low latency');
+    }
+
+    return reasons.join(', ');
   }
 
   /**
@@ -201,7 +334,7 @@ export class AdaptiveModelRouter implements ModelRouter {
 
     // Try to extract from context
     if (task.data && typeof task.data === 'object' && 'agentType' in task.data) {
-      return (task.data as any).agentType;
+      return (task.data as Record<string, unknown>).agentType as string;
     }
 
     return 'default';
@@ -265,7 +398,7 @@ export class AdaptiveModelRouter implements ModelRouter {
   /**
    * Build reasoning string for selection
    */
-  private buildReasoning(agentType: string, analysis: any): string {
+  private buildReasoning(agentType: string, analysis: ComplexityAnalysis): string {
     const reasons: string[] = [];
 
     reasons.push(`Complexity: ${analysis.complexity}`);
@@ -289,7 +422,7 @@ export class AdaptiveModelRouter implements ModelRouter {
    */
   private async storeSelection(task: QETask, selection: ModelSelection): Promise<void> {
     const key = `routing/selection/${task.id}`;
-    await this.memoryStore.store(key, selection, {
+    await this.memoryStore.store(key, selection as unknown as Record<string, unknown>, {
       partition: 'coordination',
       ttl: 3600, // 1 hour
     });

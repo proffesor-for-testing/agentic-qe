@@ -15,6 +15,239 @@
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import { AgentType as _AgentType, QEAgentType, QETask, AgentStatus } from '../types';
+import {
+  TopologyMinCutAnalyzer,
+  FleetTopology,
+  TopologyNode,
+  TopologyEdge,
+  ResilienceResult,
+  SPOFResult,
+} from '../fleet/topology/index.js';
+import { PostTaskData, TaskErrorData, FlexibleTaskResult, PreTaskData } from '../types/hook.types';
+
+// ============================================================================
+// Event Data Interfaces
+// ============================================================================
+
+/**
+ * Data for agent spawned events
+ */
+interface AgentSpawnedEventData {
+  agentId: string;
+  type: string;
+  capabilities?: string[];
+}
+
+/**
+ * Data for agent terminated events
+ */
+interface AgentTerminatedEventData {
+  agentId: string;
+  reason?: string;
+}
+
+/**
+ * Data for agent error events
+ */
+interface AgentErrorEventData {
+  agentId: string;
+  error: Error | string;
+  context?: Record<string, unknown>;
+}
+
+/**
+ * Data for task submitted events
+ */
+interface TaskSubmittedEventData {
+  taskId?: string;
+  task?: QETask;
+  type?: string;
+  priority?: number;
+}
+
+/**
+ * Data for task completed events
+ */
+interface TaskCompletedEventData {
+  taskId: string;
+  success: boolean;
+  result?: unknown;
+  duration?: number;
+}
+
+// ============================================================================
+// Return Type Interfaces
+// ============================================================================
+
+/**
+ * Result of fleet initialization
+ */
+interface FleetInitResult {
+  topology: string;
+  poolsInitialized: string[];
+  totalAgents: number;
+  status: string;
+}
+
+/**
+ * Result of workload rebalancing
+ */
+interface RebalanceResult {
+  strategy: Record<string, number>;
+  fleetUtilization: number;
+  timestamp: Date;
+}
+
+/**
+ * Configuration for fleet initialization
+ */
+interface FleetInitConfig {
+  topology?: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive';
+  maxAgents?: number;
+  agentPools?: Record<string, { min: number; max: number; priority: string }>;
+}
+
+/**
+ * Payload for topology optimization results
+ */
+interface TopologyOptimizationResult {
+  optimizations: unknown[];
+  currentResilience?: number;
+  currentGrade?: string;
+  message?: string;
+}
+
+/**
+ * Result of spawning agents
+ */
+interface SpawnAgentsResult {
+  type: string;
+  spawnedCount: number;
+  agentIds: string[];
+  poolStatus: AgentPoolStatus;
+}
+
+/**
+ * Payload for spawning agents
+ */
+interface SpawnAgentsPayload {
+  type: string;
+  count?: number;
+  config?: Record<string, unknown>;
+}
+
+/**
+ * Result of terminating an agent
+ */
+interface TerminateAgentResult {
+  agentId: string;
+  terminated: boolean;
+}
+
+/**
+ * Result of changing topology
+ */
+interface TopologyChangeResult {
+  oldMode: string;
+  newMode: string;
+  nodes: number;
+  connections: number;
+  efficiency: number;
+}
+
+/**
+ * Result of scaling an agent pool
+ */
+interface ScalePoolResult {
+  type: string;
+  spawnedCount?: number;
+  agentIds?: string[];
+  poolStatus?: AgentPoolStatus;
+  terminatedCount?: number;
+  reason?: string;
+}
+
+/**
+ * Result of recovering an agent
+ */
+interface RecoverAgentResult {
+  agentId: string;
+  recovered: boolean;
+  newAgentId?: string;
+  attempts?: number;
+  reason?: string;
+}
+
+/**
+ * Fleet status response
+ */
+interface FleetStatusResult {
+  fleetId: string;
+  status: string;
+  topology: string;
+  totalAgents: number;
+  activeAgents: number;
+  agentPools: Record<string, {
+    active: number;
+    idle: number;
+    busy: number;
+    failed: number;
+    utilization: string;
+  }>;
+  resourceUtilization: {
+    cpu: string;
+    memory: string;
+  };
+  workloadQueue: number;
+  activeConflicts: number;
+  timestamp: Date;
+}
+
+/**
+ * Detailed status response
+ */
+interface DetailedStatusResult {
+  fleetMetrics: FleetMetrics;
+  topology: TopologyState;
+  agentPools: Record<string, AgentPoolStatus>;
+  resourceAllocations: Record<string, ResourceAllocation>;
+  activeConflicts: Record<string, ConflictResolution>;
+  workloadQueueSize: number;
+  scalingHistory: ScalingDecision[];
+}
+
+/**
+ * Result of conflict resolution
+ */
+interface ConflictResolutionResult {
+  conflictId: string;
+  type: ConflictResolution['type'];
+  agents: string[];
+  severity: ConflictResolution['severity'];
+  strategy: string;
+  resolved: boolean;
+  timestamp: Date;
+  resolution: unknown;
+}
+
+/**
+ * Union type for all possible task results from performTask
+ */
+type FleetTaskResult =
+  | FleetInitResult
+  | SpawnResult
+  | TerminateAgentResult
+  | TopologyChangeResult
+  | RebalanceResult
+  | ConflictResolutionResult
+  | FleetStatusResult
+  | FleetMetrics
+  | ScalePoolResult
+  | RecoverAgentResult
+  | ResilienceResult
+  | SPOFResult[]
+  | TopologyOptimizationResult
+  | null;
 
 export interface FleetCommanderConfig extends BaseAgentConfig {
   topology?: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive';
@@ -41,6 +274,14 @@ export interface FleetCommanderConfig extends BaseAgentConfig {
     heartbeatInterval: number;
     heartbeatTimeout: number;
     maxRetries: number;
+  };
+  /** Enable SPOF analysis using min-cut algorithms */
+  spofAnalysis?: {
+    enabled: boolean;
+    /** Minimum resilience score threshold (0-1) */
+    minResilienceScore?: number;
+    /** Auto-warn on topology changes with critical SPOFs */
+    autoWarn?: boolean;
   };
 }
 
@@ -81,6 +322,47 @@ export interface ConflictResolution {
   timestamp: Date;
 }
 
+/**
+ * Configuration for spawning new agents
+ */
+export interface SpawnConfig {
+  /** CPU allocation for the agent */
+  cpu?: number;
+  /** Memory allocation (e.g., '512MB', '1GB') */
+  memory?: string;
+  /** Priority level for resource allocation */
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  /** Custom capabilities for the agent */
+  capabilities?: string[];
+  /** Initial context data for the agent */
+  context?: Record<string, unknown>;
+  /** Whether to enable fault tolerance for this agent */
+  faultTolerant?: boolean;
+  /** Maximum retry attempts for agent recovery */
+  maxRetries?: number;
+  /** Whether the resource is already allocated */
+  allocated?: boolean;
+}
+
+/**
+ * Payload for agent spawn requests
+ */
+export interface SpawnPayload {
+  type: string;
+  count?: number;
+  config?: SpawnConfig;
+}
+
+/**
+ * Result of agent spawn operation
+ */
+export interface SpawnResult {
+  type: string;
+  spawnedCount: number;
+  agentIds: string[];
+  poolStatus: AgentPoolStatus;
+}
+
 export interface ScalingDecision {
   action: 'scale-up' | 'scale-down' | 'no-action';
   agentType: string;
@@ -115,6 +397,10 @@ export class FleetCommanderAgent extends BaseAgent {
   private workloadQueue: QETask[] = [];
   private heartbeatMonitorInterval?: NodeJS.Timeout;
   private autoScalingMonitorInterval?: NodeJS.Timeout;
+  /** Min-cut based topology analyzer for SPOF detection */
+  private topologyAnalyzer?: TopologyMinCutAnalyzer;
+  /** Last resilience analysis result */
+  private lastResilienceResult?: ResilienceResult;
   private fleetMetrics: FleetMetrics = {
     totalAgents: 0,
     activeAgents: 0,
@@ -208,6 +494,11 @@ export class FleetCommanderAgent extends BaseAgent {
         heartbeatTimeout: 15000,
         maxRetries: 3
       },
+      spofAnalysis: {
+        enabled: true,
+        minResilienceScore: 0.6,
+        autoWarn: true,
+      },
       ...config
     };
 
@@ -219,6 +510,14 @@ export class FleetCommanderAgent extends BaseAgent {
       lastChanged: new Date()
     };
 
+    // Initialize SPOF analyzer if enabled
+    if (this.config.spofAnalysis?.enabled) {
+      this.topologyAnalyzer = new TopologyMinCutAnalyzer({
+        minResilienceScore: this.config.spofAnalysis.minResilienceScore,
+        analyzeAllSpofs: true,
+      });
+    }
+
     this.initializeAgentPools();
   }
 
@@ -229,7 +528,7 @@ export class FleetCommanderAgent extends BaseAgent {
   /**
    * Pre-task hook - Load fleet coordination state before task execution
    */
-  protected async onPreTask(data: { assignment: any }): Promise<void> {
+  protected async onPreTask(data: PreTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB loading)
     await super.onPreTask(data);
 
@@ -251,9 +550,14 @@ export class FleetCommanderAgent extends BaseAgent {
   /**
    * Post-task hook - Store coordination results and emit fleet events
    */
-  protected async onPostTask(data: { assignment: any; result: any }): Promise<void> {
+  protected async onPostTask(data: PostTaskData): Promise<void> {
     // Call parent implementation first (includes AgentDB storage, learning)
     await super.onPostTask(data);
+
+    // Type-safe access to result properties
+    const result = data.result as Record<string, unknown> | undefined;
+    const success = result?.success !== false;
+    const agentsCoordinated = (result?.agentsCoordinated as number) || 0;
 
     // Store fleet coordination results
     await this.memoryStore.store(
@@ -262,8 +566,8 @@ export class FleetCommanderAgent extends BaseAgent {
         result: data.result,
         timestamp: new Date(),
         taskType: data.assignment.task.type,
-        success: data.result?.success !== false,
-        agentsCoordinated: data.result?.agentsCoordinated || 0
+        success,
+        agentsCoordinated
       },
       86400 // 24 hours
     );
@@ -285,7 +589,7 @@ export class FleetCommanderAgent extends BaseAgent {
   /**
    * Task error hook - Handle fleet coordination failures
    */
-  protected async onTaskError(data: { assignment: any; error: Error }): Promise<void> {
+  protected async onTaskError(data: TaskErrorData): Promise<void> {
     // Call parent implementation
     await super.onTaskError(data);
 
@@ -380,7 +684,7 @@ export class FleetCommanderAgent extends BaseAgent {
     console.log('[FleetCommander] Initialization complete');
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<FleetTaskResult> {
     console.log(`[FleetCommander] Performing task: ${task.type}`);
 
     switch (task.type) {
@@ -413,6 +717,15 @@ export class FleetCommanderAgent extends BaseAgent {
 
       case 'recover-agent':
         return await this.recoverAgent(task.payload);
+
+      case 'topology-analyze':
+        return await this.analyzeTopologyResilience();
+
+      case 'topology-spof-check':
+        return await this.getTopologySpofs();
+
+      case 'topology-optimize':
+        return await this.getTopologyOptimizations();
 
       default:
         throw new Error(`Unknown task type: ${task.type}`);
@@ -475,23 +788,21 @@ export class FleetCommanderAgent extends BaseAgent {
   // Fleet Initialization
   // ============================================================================
 
-  private async initializeFleet(config: any): Promise<any> {
-    console.log('[FleetCommander] Initializing fleet with config:', config);
+  private async initializeFleet(_config: FleetInitConfig): Promise<FleetInitResult> {
+    console.log('[FleetCommander] Initializing fleet with config:', _config);
 
-    const results = {
+    const results: FleetInitResult = {
       topology: this.topologyState.mode,
-      poolsInitialized: [] as string[],
+      poolsInitialized: [],
       totalAgents: 0,
       status: 'success'
     };
 
     // Initialize agent pools based on configuration
     for (const [agentType, poolConfig] of Object.entries(this.config.agentPools || {})) {
-      const pool = poolConfig as any;
-
       // Spawn minimum required agents for each pool
-      for (let i = 0; i < pool.min; i++) {
-        await this.requestAgentSpawn(agentType, pool.priority);
+      for (let i = 0; i < poolConfig.min; i++) {
+        await this.requestAgentSpawn(agentType, poolConfig.priority);
         results.totalAgents++;
       }
 
@@ -528,7 +839,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // Agent Lifecycle Management
   // ============================================================================
 
-  private async spawnAgents(payload: { type: string; count?: number; config?: any }): Promise<any> {
+  private async spawnAgents(payload: SpawnPayload): Promise<SpawnResult> {
     const { type, count = 1, config = {} } = payload;
     const spawnedAgents: string[] = [];
 
@@ -573,7 +884,7 @@ export class FleetCommanderAgent extends BaseAgent {
     };
   }
 
-  private async terminateAgent(payload: { agentId: string }): Promise<any> {
+  private async terminateAgent(payload: { agentId: string }): Promise<TerminateAgentResult> {
     const { agentId } = payload;
     console.log(`[FleetCommander] Terminating agent ${agentId}`);
 
@@ -592,7 +903,7 @@ export class FleetCommanderAgent extends BaseAgent {
     return { agentId, terminated: true };
   }
 
-  private async handleAgentSpawned(data: any): Promise<void> {
+  private async handleAgentSpawned(data: AgentSpawnedEventData): Promise<void> {
     const { agentId, type } = data;
     console.log(`[FleetCommander] Agent spawned: ${agentId} (${type})`);
 
@@ -617,7 +928,7 @@ export class FleetCommanderAgent extends BaseAgent {
     });
   }
 
-  private async handleAgentTerminated(data: any): Promise<void> {
+  private async handleAgentTerminated(data: AgentTerminatedEventData): Promise<void> {
     const { agentId } = data;
     console.log(`[FleetCommander] Agent terminated: ${agentId}`);
 
@@ -643,7 +954,7 @@ export class FleetCommanderAgent extends BaseAgent {
     this.topologyState.nodes = Math.max(0, this.topologyState.nodes - 1);
   }
 
-  private async handleAgentError(data: any): Promise<void> {
+  private async handleAgentError(data: AgentErrorEventData): Promise<void> {
     const { agentId, error } = data;
     console.error(`[FleetCommander] Agent error: ${agentId}`, error);
 
@@ -715,7 +1026,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // Topology Management
   // ============================================================================
 
-  private async changeTopology(payload: { mode: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive' }): Promise<any> {
+  private async changeTopology(payload: { mode: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive' }): Promise<TopologyChangeResult> {
     const { mode } = payload;
     console.log(`[FleetCommander] Changing topology from ${this.topologyState.mode} to ${mode}`);
 
@@ -804,10 +1115,245 @@ export class FleetCommanderAgent extends BaseAgent {
   }
 
   // ============================================================================
+  // Topology Resilience Analysis (Min-Cut SPOF Detection)
+  // ============================================================================
+
+  /**
+   * Analyze current topology for resilience and SPOFs
+   *
+   * Uses min-cut algorithm to detect single points of failure
+   * and calculate overall topology resilience score.
+   */
+  private async analyzeTopologyResilience(): Promise<ResilienceResult | null> {
+    if (!this.topologyAnalyzer) {
+      console.warn('[FleetCommander] SPOF analysis disabled');
+      return null;
+    }
+
+    console.log('[FleetCommander] Analyzing topology resilience...');
+
+    const fleetTopology = await this.buildFleetTopology();
+    const result = await this.topologyAnalyzer.analyzeResilience(fleetTopology);
+
+    // Store result for caching
+    this.lastResilienceResult = result;
+
+    // Store in memory for other agents
+    await this.memoryStore.store('aqe/fleet/resilience', {
+      result,
+      timestamp: new Date(),
+    });
+
+    // Auto-warn if enabled and critical SPOFs detected
+    if (this.config.spofAnalysis?.autoWarn && result.criticalSpofs.length > 0) {
+      this.emitEvent('fleet.spof-warning', {
+        criticalSpofs: result.criticalSpofs,
+        resilienceScore: result.score,
+        grade: result.grade,
+        recommendations: result.recommendations,
+      }, 'critical');
+
+      console.warn(
+        `[FleetCommander] WARNING: ${result.criticalSpofs.length} critical SPOF(s) detected. ` +
+        `Resilience score: ${(result.score * 100).toFixed(1)}% (Grade: ${result.grade})`
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Get detected SPOFs in current topology
+   */
+  private async getTopologySpofs(): Promise<SPOFResult[]> {
+    if (!this.topologyAnalyzer) {
+      return [];
+    }
+
+    const fleetTopology = await this.buildFleetTopology();
+    return await this.topologyAnalyzer.detectSpofs(fleetTopology);
+  }
+
+  /**
+   * Get topology optimization suggestions
+   */
+  private async getTopologyOptimizations(): Promise<TopologyOptimizationResult> {
+    if (!this.topologyAnalyzer) {
+      return { optimizations: [], message: 'SPOF analysis disabled' };
+    }
+
+    const fleetTopology = await this.buildFleetTopology();
+    const optimizations = await this.topologyAnalyzer.suggestOptimizations(
+      fleetTopology,
+      this.lastResilienceResult
+    );
+
+    return {
+      optimizations,
+      currentResilience: this.lastResilienceResult?.score,
+      currentGrade: this.lastResilienceResult?.grade,
+    };
+  }
+
+  /**
+   * Build FleetTopology from current agent state
+   */
+  private async buildFleetTopology(): Promise<FleetTopology> {
+    const nodes: TopologyNode[] = [];
+    const edges: TopologyEdge[] = [];
+
+    // Build nodes from agent pools and allocations
+    for (const [agentId, allocation] of this.resourceAllocations.entries()) {
+      const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`);
+      if (!agentData) continue;
+
+      // Determine role based on agent type
+      let role: TopologyNode['role'] = 'worker';
+      if (agentData.type === QEAgentType.FLEET_COMMANDER) {
+        role = 'coordinator';
+      }
+
+      nodes.push({
+        id: agentId,
+        type: agentData.type,
+        role,
+        status: agentData.status || 'active',
+        priority: allocation.priority as TopologyNode['priority'],
+      });
+    }
+
+    // Add self (FleetCommander) as coordinator if not already present
+    const selfId = this.agentId.id;
+    if (!nodes.find(n => n.id === selfId)) {
+      nodes.push({
+        id: selfId,
+        type: QEAgentType.FLEET_COMMANDER,
+        role: 'coordinator',
+        status: 'active',
+        priority: 'critical',
+      });
+    }
+
+    // Build edges based on topology mode
+    const nodeIds = nodes.map(n => n.id);
+    switch (this.topologyState.mode) {
+      case 'hierarchical':
+        // Star topology: commander connects to all workers
+        for (const nodeId of nodeIds) {
+          if (nodeId !== selfId) {
+            edges.push({
+              id: `${selfId}-${nodeId}`,
+              sourceId: selfId,
+              targetId: nodeId,
+              connectionType: 'command',
+              weight: 1.0,
+              bidirectional: true,
+            });
+          }
+        }
+        break;
+
+      case 'mesh':
+        // Full mesh: all nodes connected
+        for (let i = 0; i < nodeIds.length; i++) {
+          for (let j = i + 1; j < nodeIds.length; j++) {
+            edges.push({
+              id: `${nodeIds[i]}-${nodeIds[j]}`,
+              sourceId: nodeIds[i],
+              targetId: nodeIds[j],
+              connectionType: 'coordination',
+              weight: 1.0,
+              bidirectional: true,
+            });
+          }
+        }
+        break;
+
+      case 'hybrid':
+        // Hierarchical + some cross-connections
+        for (const nodeId of nodeIds) {
+          if (nodeId !== selfId) {
+            edges.push({
+              id: `${selfId}-${nodeId}`,
+              sourceId: selfId,
+              targetId: nodeId,
+              connectionType: 'command',
+              weight: 1.0,
+              bidirectional: true,
+            });
+          }
+        }
+        // Add some peer connections between workers
+        const workers = nodeIds.filter(id => id !== selfId);
+        for (let i = 0; i < workers.length - 1; i += 2) {
+          if (workers[i + 1]) {
+            edges.push({
+              id: `${workers[i]}-${workers[i + 1]}`,
+              sourceId: workers[i],
+              targetId: workers[i + 1],
+              connectionType: 'data',
+              weight: 0.5,
+              bidirectional: true,
+            });
+          }
+        }
+        break;
+
+      case 'adaptive':
+        // Dynamic based on utilization
+        const utilization = this.calculateFleetUtilization();
+        if (utilization < 0.5) {
+          // Low load: hierarchical
+          for (const nodeId of nodeIds) {
+            if (nodeId !== selfId) {
+              edges.push({
+                id: `${selfId}-${nodeId}`,
+                sourceId: selfId,
+                targetId: nodeId,
+                connectionType: 'command',
+                weight: 1.0,
+                bidirectional: true,
+              });
+            }
+          }
+        } else {
+          // High load: mesh for better distribution
+          for (let i = 0; i < nodeIds.length; i++) {
+            for (let j = i + 1; j < nodeIds.length; j++) {
+              edges.push({
+                id: `${nodeIds[i]}-${nodeIds[j]}`,
+                sourceId: nodeIds[i],
+                targetId: nodeIds[j],
+                connectionType: 'coordination',
+                weight: 1.0,
+                bidirectional: true,
+              });
+            }
+          }
+        }
+        break;
+    }
+
+    return {
+      nodes,
+      edges,
+      mode: this.topologyState.mode,
+      lastUpdated: new Date(),
+    };
+  }
+
+  /**
+   * Get last resilience analysis result (cached)
+   */
+  public getLastResilienceResult(): ResilienceResult | undefined {
+    return this.lastResilienceResult;
+  }
+
+  // ============================================================================
   // Load Balancing
   // ============================================================================
 
-  private async rebalanceWorkload(_payload: any): Promise<any> {
+  private async rebalanceWorkload(_payload: Record<string, unknown>): Promise<RebalanceResult> {
     console.log('[FleetCommander] Rebalancing workload across fleet');
 
     const rebalancingStrategy = await this.calculateRebalancingStrategy();
@@ -816,7 +1362,7 @@ export class FleetCommanderAgent extends BaseAgent {
     for (const [agentType, targetUtilization] of Object.entries(rebalancingStrategy)) {
       const poolStatus = this.agentPools.get(agentType);
       if (poolStatus) {
-        poolStatus.utilization = targetUtilization as number;
+        poolStatus.utilization = targetUtilization;
         this.agentPools.set(agentType, poolStatus);
       }
     }
@@ -868,7 +1414,12 @@ export class FleetCommanderAgent extends BaseAgent {
   // Conflict Resolution
   // ============================================================================
 
-  private async resolveConflict(payload: any): Promise<any> {
+  private async resolveConflict(payload: {
+    type: ConflictResolution['type'];
+    agents: string[];
+    severity?: ConflictResolution['severity'];
+    allocation?: ResourceAllocation;
+  }): Promise<ConflictResolutionResult> {
     const { type, agents, severity = 'medium', allocation } = payload;
     console.log(`[FleetCommander] Resolving ${type} conflict involving ${agents.length} agent(s)`);
 
@@ -926,7 +1477,11 @@ export class FleetCommanderAgent extends BaseAgent {
     return 'default';
   }
 
-  private async resolveResourceContention(agents: string[], _allocation: ResourceAllocation): Promise<any> {
+  private async resolveResourceContention(agents: string[], _allocation?: ResourceAllocation): Promise<{
+    strategy: string;
+    allocation: string;
+    deferred: string[];
+  }> {
     // Priority-weighted resource allocation
     const agentAllocations = await Promise.all(
       agents.map(async (agentId) => {
@@ -951,7 +1506,11 @@ export class FleetCommanderAgent extends BaseAgent {
     };
   }
 
-  private async resolveDeadlock(agents: string[]): Promise<any> {
+  private async resolveDeadlock(agents: string[]): Promise<{
+    strategy: string;
+    victim: string;
+    action: string;
+  }> {
     // Select victim (lowest priority agent) and abort
     const victim = agents[0]; // Simplified: select first agent
 
@@ -967,7 +1526,10 @@ export class FleetCommanderAgent extends BaseAgent {
     };
   }
 
-  private async resolvePriorityConflict(agents: string[]): Promise<any> {
+  private async resolvePriorityConflict(agents: string[]): Promise<{
+    strategy: string;
+    executionOrder: string[];
+  }> {
     // Use priority queue to order execution
     return {
       strategy: 'priority-queue',
@@ -979,7 +1541,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // Auto-Scaling
   // ============================================================================
 
-  private async scaleAgentPool(payload: { type: string; action: 'scale-up' | 'scale-down'; count?: number }): Promise<any> {
+  private async scaleAgentPool(payload: { type: string; action: 'scale-up' | 'scale-down'; count?: number }): Promise<ScalePoolResult> {
     const { type, action, count = 1 } = payload;
     console.log(`[FleetCommander] ${action} agent pool ${type} by ${count}`);
 
@@ -990,7 +1552,7 @@ export class FleetCommanderAgent extends BaseAgent {
     }
   }
 
-  private async scaleDownPool(agentType: string, count: number): Promise<any> {
+  private async scaleDownPool(agentType: string, count: number): Promise<ScalePoolResult> {
     const poolStatus = this.agentPools.get(agentType);
     if (!poolStatus) {
       throw new Error(`Unknown agent type: ${agentType}`);
@@ -1151,7 +1713,7 @@ export class FleetCommanderAgent extends BaseAgent {
     await this.recoverAgent({ agentId });
   }
 
-  private async recoverAgent(payload: { agentId: string }): Promise<any> {
+  private async recoverAgent(payload: { agentId: string }): Promise<RecoverAgentResult> {
     const { agentId } = payload;
     console.log(`[FleetCommander] Attempting to recover agent ${agentId}`);
 
@@ -1196,8 +1758,8 @@ export class FleetCommanderAgent extends BaseAgent {
   // Task Management
   // ============================================================================
 
-  private async handleTaskSubmitted(data: any): Promise<void> {
-    const task = data.task || data;
+  private async handleTaskSubmitted(data: TaskSubmittedEventData): Promise<void> {
+    const task = data.task || (data as unknown as QETask);
     this.workloadQueue.push(task);
 
     // Analyze workload and potentially trigger scaling
@@ -1212,7 +1774,7 @@ export class FleetCommanderAgent extends BaseAgent {
     }
   }
 
-  private async handleTaskCompleted(data: any): Promise<void> {
+  private async handleTaskCompleted(data: TaskCompletedEventData): Promise<void> {
     // Update metrics
     this.fleetMetrics.totalTasksCompleted++;
 
@@ -1227,7 +1789,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // Status & Metrics
   // ============================================================================
 
-  private async getFleetStatus(): Promise<any> {
+  private async getFleetStatus(): Promise<FleetStatusResult> {
     return {
       fleetId: this.agentId.id,
       status: 'operational',
@@ -1281,7 +1843,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // Helper Methods
   // ============================================================================
 
-  private async requestAgentSpawn(type: string, priority: string, config: any = {}): Promise<string> {
+  private async requestAgentSpawn(type: string, priority: string, config: SpawnConfig = {}): Promise<string> {
     const agentId = `${type}-${Date.now()}-${SecureRandom.randomFloat().toString(36).substring(7)}`;
 
     // Emit spawn request event
@@ -1298,7 +1860,7 @@ export class FleetCommanderAgent extends BaseAgent {
   /**
    * Get current fleet commander status with detailed metrics
    */
-  public async getDetailedStatus(): Promise<any> {
+  public async getDetailedStatus(): Promise<Record<string, unknown> & DetailedStatusResult> {
     return {
       ...this.getStatus(),
       fleetMetrics: await this.getFleetMetrics(),
@@ -1309,5 +1871,74 @@ export class FleetCommanderAgent extends BaseAgent {
       workloadQueueSize: this.workloadQueue.length,
       scalingHistory: this.scalingHistory.slice(-10) // Last 10 scaling decisions
     };
+  }
+
+  /**
+   * Extract domain-specific metrics for Nightly-Learner
+   * Provides rich fleet coordination metrics for pattern learning
+   */
+  protected extractTaskMetrics(result: FlexibleTaskResult): Record<string, number> {
+    const metrics: Record<string, number> = {};
+
+    if (result && typeof result === 'object') {
+      // Type-safe access to result object
+      const resultObj = result as Record<string, unknown>;
+
+      // Fleet size and composition
+      metrics.total_agents = (resultObj.totalAgents as number) || (resultObj.agentCount as number) || 0;
+      metrics.active_agents = (resultObj.activeAgents as number) || 0;
+      metrics.idle_agents = (resultObj.idleAgents as number) || 0;
+
+      // Task orchestration
+      const orchestration = resultObj.orchestration as Record<string, unknown> | undefined;
+      if (orchestration) {
+        metrics.tasks_distributed = (orchestration.tasksDistributed as number) || 0;
+        metrics.tasks_completed = (orchestration.tasksCompleted as number) || 0;
+        metrics.tasks_failed = (orchestration.tasksFailed as number) || 0;
+        metrics.distribution_efficiency = (orchestration.efficiency as number) || 0;
+      }
+
+      // Resource utilization
+      const resources = resultObj.resources as Record<string, unknown> | undefined;
+      if (resources) {
+        metrics.cpu_utilization = (resources.cpuUtilization as number) || 0;
+        metrics.memory_utilization = (resources.memoryUtilization as number) || 0;
+        metrics.resource_efficiency = (resources.efficiency as number) || 0;
+      }
+
+      // Scaling metrics
+      const scaling = resultObj.scaling as Record<string, unknown> | undefined;
+      if (scaling) {
+        metrics.scale_up_events = (scaling.scaleUpEvents as number) || 0;
+        metrics.scale_down_events = (scaling.scaleDownEvents as number) || 0;
+        metrics.auto_scaling_decisions = (scaling.autoDecisions as number) || 0;
+      }
+
+      // Conflict resolution
+      const conflicts = resultObj.conflicts as Record<string, unknown> | undefined;
+      if (conflicts) {
+        metrics.conflicts_detected = (conflicts.detected as number) || 0;
+        metrics.conflicts_resolved = (conflicts.resolved as number) || 0;
+        metrics.resolution_time_avg = (conflicts.avgResolutionTime as number) || 0;
+      }
+
+      // Topology metrics
+      const topology = resultObj.topology as Record<string, unknown> | undefined;
+      if (topology) {
+        metrics.topology_changes = (topology.changes as number) || 0;
+        metrics.topology_stability = (topology.stability as number) || 0;
+      }
+
+      // Workload queue
+      metrics.queue_size = (resultObj.queueSize as number) || (resultObj.workloadQueueSize as number) || 0;
+      metrics.queue_wait_time_avg = (resultObj.avgQueueWaitTime as number) || 0;
+
+      // Overall fleet health
+      if (typeof resultObj.fleetHealth === 'number') {
+        metrics.fleet_health = resultObj.fleetHealth;
+      }
+    }
+
+    return metrics;
   }
 }

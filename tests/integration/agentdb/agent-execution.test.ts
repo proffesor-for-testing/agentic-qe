@@ -21,6 +21,7 @@ import { AgentId, TaskAssignment } from '@typessrc/types';
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSeededRandom } from '../../../src/utils/SeededRandom';
 
 describe('AgentDB End-to-End Agent Execution', () => {
   let agentDB1: AgentDBManager;
@@ -364,6 +365,9 @@ describe('AgentDB End-to-End Agent Execution', () => {
 
   describe('Performance Verification', () => {
     it('should demonstrate "150x faster" vector search', async () => {
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17005);
+
       // Store many patterns for benchmark
       const patterns = Array.from({ length: 100 }, (_, i) => ({
         id: `perf-pattern-${i}`,
@@ -371,7 +375,7 @@ describe('AgentDB End-to-End Agent Execution', () => {
         domain: 'performance',
         pattern_data: JSON.stringify({
           text: `Performance test pattern ${i}`,
-          embedding: Array.from({ length: 384 }, () => Math.random() * 2 - 1)
+          embedding: Array.from({ length: 384 }, () => rng.random() * 2 - 1)
         }),
         confidence: 0.9,
         usage_count: 0,
@@ -402,13 +406,16 @@ describe('AgentDB End-to-End Agent Execution', () => {
     }, 60000);
 
     it('should demonstrate "84% faster" QUIC sync latency', async () => {
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17006);
+
       const pattern = {
         id: 'latency-test',
         type: 'test',
         domain: 'latency',
         pattern_data: JSON.stringify({
           text: 'Latency test pattern',
-          embedding: Array.from({ length: 384 }, () => Math.random())
+          embedding: Array.from({ length: 384 }, () => rng.random())
         }),
         confidence: 0.95,
         usage_count: 0,
@@ -445,6 +452,9 @@ describe('AgentDB End-to-End Agent Execution', () => {
     }, 60000);
 
     it('should demonstrate memory reduction with quantization', async () => {
+      // Seeded RNG for deterministic test results
+      const rng = createSeededRandom(17007);
+
       const statsBeforeQuant = await agentDB1.getMemoryUsage();
 
       // Store large dataset
@@ -454,7 +464,7 @@ describe('AgentDB End-to-End Agent Execution', () => {
         domain: 'quantization',
         pattern_data: JSON.stringify({
           text: `Quantization test ${i}`,
-          embedding: Array.from({ length: 384 }, () => Math.random())
+          embedding: Array.from({ length: 384 }, () => rng.random())
         }),
         confidence: 0.9,
         usage_count: 0,

@@ -63,6 +63,143 @@ export interface FileCoverage {
 }
 
 /**
+ * Error with optional code property (e.g., ENOENT)
+ */
+interface NodeError extends Error {
+  code?: string;
+}
+
+/**
+ * Jest test result structure
+ */
+interface JestTestResult {
+  title: string;
+  fullName?: string;
+  status: 'passed' | 'failed' | 'skipped' | 'pending';
+  duration?: number;
+  failureMessages?: string[];
+  ancestorTitles?: string[];
+}
+
+/**
+ * Jest suite result structure
+ */
+interface JestSuiteResult {
+  assertionResults?: JestTestResult[];
+}
+
+/**
+ * Jest JSON output structure
+ */
+interface JestJsonResult {
+  testResults?: JestSuiteResult[];
+  numTotalTests?: number;
+  numPassedTests?: number;
+  numFailedTests?: number;
+  numPendingTests?: number;
+  coverageMap?: Record<string, JestFileCoverage>;
+}
+
+/**
+ * Jest coverage data for a file
+ */
+interface JestFileCoverage {
+  l?: { pct?: number; total?: number; covered?: number };
+  s?: { pct?: number; total?: number; covered?: number };
+  f?: { pct?: number; total?: number; covered?: number };
+  b?: { pct?: number; total?: number; covered?: number };
+}
+
+/**
+ * Mocha test result structure
+ */
+interface MochaTestResult {
+  title: string;
+  fullTitle?: string;
+  pass?: boolean;
+  pending?: boolean;
+  duration?: number;
+  err?: { message?: string };
+}
+
+/**
+ * Mocha JSON output structure
+ */
+interface MochaJsonResult {
+  tests?: MochaTestResult[];
+  stats?: {
+    tests?: number;
+    passes?: number;
+    failures?: number;
+    pending?: number;
+    duration?: number;
+  };
+}
+
+/**
+ * Playwright test structure
+ */
+interface PlaywrightTest {
+  status: string;
+  results?: Array<{
+    duration?: number;
+    error?: { message?: string };
+  }>;
+}
+
+/**
+ * Playwright spec structure
+ */
+interface PlaywrightSpec {
+  title: string;
+  tests?: PlaywrightTest[];
+}
+
+/**
+ * Playwright suite structure
+ */
+interface PlaywrightSuite {
+  title: string;
+  specs?: PlaywrightSpec[];
+}
+
+/**
+ * Playwright JSON output structure
+ */
+interface PlaywrightJsonResult {
+  suites?: PlaywrightSuite[];
+}
+
+/**
+ * Cypress test structure
+ */
+interface CypressTest {
+  title: string[];
+  state: 'passed' | 'failed' | 'skipped' | 'pending';
+  duration?: number;
+  err?: { message?: string };
+}
+
+/**
+ * Cypress run structure
+ */
+interface CypressRun {
+  tests?: CypressTest[];
+}
+
+/**
+ * Cypress JSON output structure
+ */
+interface CypressJsonResult {
+  runs?: CypressRun[];
+  totalTests?: number;
+  totalPassed?: number;
+  totalFailed?: number;
+  totalSkipped?: number;
+  totalDuration?: number;
+}
+
+/**
  * Real test framework executor using child_process
  */
 export class TestFrameworkExecutor {
@@ -274,7 +411,7 @@ export class TestFrameworkExecutor {
         );
       }
     } catch (error) {
-      if ((error as any).code === 'ENOENT') {
+      if ((error as NodeError).code === 'ENOENT') {
         throw new Error(`package.json not found in ${workingDir}`);
       }
       throw error;
@@ -337,16 +474,16 @@ export class TestFrameworkExecutor {
         throw new Error('Could not find JSON output in Jest results');
       }
 
-      const jestResult = JSON.parse(jsonOutput);
+      const jestResult = JSON.parse(jsonOutput) as JestJsonResult;
       const tests: TestCaseResult[] = [];
 
       // Parse test results
-      jestResult.testResults?.forEach((suiteResult: any) => {
-        suiteResult.assertionResults?.forEach((testResult: any) => {
+      jestResult.testResults?.forEach((suiteResult: JestSuiteResult) => {
+        suiteResult.assertionResults?.forEach((testResult: JestTestResult) => {
           tests.push({
             name: testResult.title,
             fullName: testResult.fullName || testResult.title,
-            status: testResult.status as 'passed' | 'failed' | 'skipped' | 'pending',
+            status: testResult.status,
             duration: testResult.duration || 0,
             failureMessages: testResult.failureMessages,
             ancestorTitles: testResult.ancestorTitles
@@ -396,17 +533,17 @@ export class TestFrameworkExecutor {
         throw new Error('Could not find JSON output in Mocha results');
       }
 
-      const mochaResult = JSON.parse(jsonOutput);
+      const mochaResult = JSON.parse(jsonOutput) as MochaJsonResult;
       const tests: TestCaseResult[] = [];
 
       // Parse test results
-      mochaResult.tests?.forEach((testResult: any) => {
+      mochaResult.tests?.forEach((testResult: MochaTestResult) => {
         tests.push({
           name: testResult.title,
           fullName: testResult.fullTitle || testResult.title,
           status: testResult.pass ? 'passed' : testResult.pending ? 'pending' : 'failed',
           duration: testResult.duration || 0,
-          failureMessages: testResult.err ? [testResult.err.message] : undefined
+          failureMessages: testResult.err?.message ? [testResult.err.message] : undefined
         });
       });
 
@@ -447,12 +584,12 @@ export class TestFrameworkExecutor {
         throw new Error('Could not find JSON output in Playwright results');
       }
 
-      const playwrightResult = JSON.parse(jsonOutput);
+      const playwrightResult = JSON.parse(jsonOutput) as PlaywrightJsonResult;
       const tests: TestCaseResult[] = [];
 
       // Parse test results
-      playwrightResult.suites?.forEach((suite: any) => {
-        suite.specs?.forEach((spec: any) => {
+      playwrightResult.suites?.forEach((suite: PlaywrightSuite) => {
+        suite.specs?.forEach((spec: PlaywrightSpec) => {
           const test = spec.tests?.[0];
           if (test) {
             tests.push({
@@ -461,7 +598,7 @@ export class TestFrameworkExecutor {
               status: test.status === 'expected' ? 'passed' :
                       test.status === 'skipped' ? 'skipped' : 'failed',
               duration: test.results?.[0]?.duration || 0,
-              failureMessages: test.results?.[0]?.error ? [test.results[0].error.message] : undefined
+              failureMessages: test.results?.[0]?.error?.message ? [test.results[0].error.message] : undefined
             });
           }
         });
@@ -502,18 +639,18 @@ export class TestFrameworkExecutor {
         throw new Error('Could not find JSON output in Cypress results');
       }
 
-      const cypressResult = JSON.parse(jsonOutput);
+      const cypressResult = JSON.parse(jsonOutput) as CypressJsonResult;
       const tests: TestCaseResult[] = [];
 
       // Parse test results
-      cypressResult.runs?.forEach((run: any) => {
-        run.tests?.forEach((test: any) => {
+      cypressResult.runs?.forEach((run: CypressRun) => {
+        run.tests?.forEach((test: CypressTest) => {
           tests.push({
             name: test.title.join(' '),
             fullName: test.title.join(' > '),
-            status: test.state as 'passed' | 'failed' | 'skipped' | 'pending',
+            status: test.state,
             duration: test.duration || 0,
-            failureMessages: test.err ? [test.err.message] : undefined
+            failureMessages: test.err?.message ? [test.err.message] : undefined
           });
         });
       });
@@ -596,7 +733,7 @@ export class TestFrameworkExecutor {
   /**
    * Parse Jest coverage data
    */
-  private parseJestCoverage(coverageMap: any): CoverageData {
+  private parseJestCoverage(coverageMap: Record<string, JestFileCoverage>): CoverageData {
     const files: Record<string, FileCoverage> = {};
     let totalLines = 0, coveredLines = 0;
     let totalStatements = 0, coveredStatements = 0;

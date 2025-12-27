@@ -16,16 +16,24 @@ import { LearningEngine } from '../../src/learning/LearningEngine';
 import { SwarmMemoryManager } from '../../src/core/memory/SwarmMemoryManager';
 import { Database } from '../../src/utils/Database';
 import { TaskResult } from '../../src/learning/RewardCalculator';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 import fs from 'fs';
 import path from 'path';
 
 describe('LearningEngine Performance (Refactored)', () => {
-  const testDbPath = path.join(process.cwd(), '.test-learning-perf.db');
-  const memoryDbPath = path.join(process.cwd(), '.test-memory-perf.db');
+  // Use tests/.tmp directory for test databases (not project root)
+  const tmpDir = path.join(__dirname, '../.tmp');
+  const testDbPath = path.join(tmpDir, '.test-learning-perf.db');
+  const memoryDbPath = path.join(tmpDir, '.test-memory-perf.db');
   let database: Database;
   let memoryManager: SwarmMemoryManager;
 
   beforeEach(async () => {
+    // Ensure tmp directory exists
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
     // Clean up test databases
     [testDbPath, memoryDbPath].forEach(dbPath => {
       if (fs.existsSync(dbPath)) {
@@ -180,6 +188,7 @@ describe('LearningEngine Performance (Refactored)', () => {
     it('should complete 1000 learning cycles in <5 seconds', async () => {
       const agentId = 'perf-agent-throughput';
       let engine: LearningEngine | null = null;
+      const rng = createSeededRandom(900001);
 
       try {
         engine = new LearningEngine(
@@ -201,10 +210,10 @@ describe('LearningEngine Performance (Refactored)', () => {
           };
 
           const result: TaskResult = {
-            success: Math.random() > 0.2,
-            executionTime: 1000 + Math.random() * 500,
+            success: rng.random() > 0.2,
+            executionTime: 1000 + rng.random() * 500,
             errors: [],
-            coverage: 0.7 + Math.random() * 0.3,
+            coverage: 0.7 + rng.random() * 0.3,
             metadata: {
               strategy: i % 3 === 0 ? 'template' : i % 3 === 1 ? 'property' : 'mutation',
               toolsUsed: ['jest'],
@@ -510,6 +519,7 @@ describe('LearningEngine Performance (Refactored)', () => {
     it('should retrieve learning statistics quickly', async () => {
       const agentId = 'perf-agent-stats';
       let engine: LearningEngine | null = null;
+      const rng = createSeededRandom(900002);
 
       try {
         engine = new LearningEngine(
@@ -529,7 +539,7 @@ describe('LearningEngine Performance (Refactored)', () => {
           };
 
           const result: TaskResult = {
-            success: Math.random() > 0.3,
+            success: rng.random() > 0.3,
             executionTime: 1000,
             errors: [],
             coverage: 0.85,

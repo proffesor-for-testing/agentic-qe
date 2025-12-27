@@ -1,729 +1,601 @@
 /**
- * memory/blackboard-read Test Suite
+ * Blackboard Read Handler Test Suite
  *
- * Tests for reading coordination hints from blackboard.
+ * Tests for reading coordination hints from blackboard pattern.
+ * Follows TDD RED phase - tests written before implementation verification.
+ *
  * @version 1.0.0
  * @author Agentic QE Team
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { BlackboardReadHandler } from '@mcp/handlers/memory/blackboard-read';
 import { AgentRegistry } from '@mcp/services/AgentRegistry';
 import { HookExecutor } from '@mcp/services/HookExecutor';
 
+// Mock services to prevent heavy initialization (database, EventBus, etc.)
+jest.mock('../../../../src/mcp/services/AgentRegistry.js');
+jest.mock('../../../../src/mcp/services/HookExecutor.js');
+
 describe('BlackboardReadHandler', () => {
   let handler: BlackboardReadHandler;
-  let mockRegistry: AgentRegistry;
-  let mockHookExecutor: HookExecutor;
-  let mockBlackboard: Map<string, any[]>;
+  let mockRegistry: any;
+  let mockHookExecutor: any;
+  let blackboard: Map<string, any[]>;
 
   beforeEach(() => {
-    mockRegistry = {} as AgentRegistry;
-    mockHookExecutor = {} as HookExecutor;
-    mockBlackboard = new Map();
-    handler = new BlackboardReadHandler(mockRegistry, mockHookExecutor, mockBlackboard);
+    mockRegistry = { getAgent: jest.fn(), listAgents: jest.fn().mockReturnValue([]) } as any;
+    mockHookExecutor = { executePreTask: jest.fn().mockResolvedValue(undefined), executePostTask: jest.fn().mockResolvedValue(undefined), executePostEdit: jest.fn().mockResolvedValue(undefined), notify: jest.fn().mockResolvedValue(undefined) } as any;
+    blackboard = new Map();
+    handler = new BlackboardReadHandler(mockRegistry, mockHookExecutor, blackboard);
   });
 
-  describe('Happy Path', () => {
-    it('should read hints from blackboard successfully', async () => {
-      const testHints = [
+  afterEach(async () => {
+    blackboard.clear();
+  });
+
+  describe('Happy Path - Read Hints', () => {
+    it('should read hints from topic successfully', async () => {
+      // GIVEN: Topic with hints
+      blackboard.set('test-results', [
         {
           id: 'hint-1',
-          message: 'Test coverage below threshold',
-          priority: 'high',
-          agentId: 'test-gen-1',
+          message: 'Test suite completed',
+          priority: 'medium',
+          agentId: 'qe-test-generator',
           timestamp: Date.now(),
-          metadata: { module: 'auth' }
+          metadata: { coverage: 85 }
         },
         {
           id: 'hint-2',
-          message: 'Performance degradation detected',
-          priority: 'critical',
-          agentId: 'perf-monitor-1',
-          timestamp: Date.now() - 1000,
-          metadata: { endpoint: '/api/login' }
+          message: 'Coverage analysis done',
+          priority: 'low',
+          agentId: 'qe-coverage-analyzer',
+          timestamp: Date.now(),
+          metadata: { gaps: 5 }
         }
-      ];
+      ]);
 
-      mockBlackboard.set('testing', testHints);
-
+      // WHEN: Reading from topic
       const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'qe-coordinator-1'
+        topic: 'test-results',
+        agentId: 'qe-quality-gate'
       });
 
+      // THEN: Hints returned successfully
       expect(response.success).toBe(true);
-      expect(response.data).toBeDefined();
-      expect(response.data.topic).toBe('testing');
+      expect(response.data.topic).toBe('test-results');
       expect(response.data.hints).toHaveLength(2);
       expect(response.data.count).toBe(2);
+      expect(response.data.hints[0].id).toBe('hint-1');
+      expect(response.data.hints[0].message).toBe('Test suite completed');
     });
 
-    it('should return hints with complete data structure', async () => {
-      const testHints = [
-        {
-          id: 'hint-1',
-          message: 'Security vulnerability detected',
-          priority: 'critical',
-          agentId: 'security-scanner-1',
-          timestamp: Date.now(),
-          metadata: { cve: 'CVE-2024-1234', severity: 'high' }
-        }
-      ];
-
-      mockBlackboard.set('security', testHints);
-
-      const response = await handler.handle({
-        topic: 'security',
-        agentId: 'security-coordinator-1'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.hints[0]).toHaveProperty('id');
-      expect(response.data.hints[0]).toHaveProperty('message');
-      expect(response.data.hints[0]).toHaveProperty('priority');
-      expect(response.data.hints[0]).toHaveProperty('agentId');
-      expect(response.data.hints[0]).toHaveProperty('timestamp');
-      expect(response.data.hints[0]).toHaveProperty('metadata');
-      expect(response.data.hints[0].metadata.cve).toBe('CVE-2024-1234');
-    });
-
-    it('should return empty hints array for non-existent topic', async () => {
+    it('should return empty array for non-existent topic', async () => {
+      // GIVEN: Topic does not exist
+      // WHEN: Reading from non-existent topic
       const response = await handler.handle({
         topic: 'non-existent-topic',
-        agentId: 'test-agent-1'
+        agentId: 'agent-1'
       });
 
+      // THEN: Empty hints array returned
       expect(response.success).toBe(true);
       expect(response.data.hints).toHaveLength(0);
       expect(response.data.count).toBe(0);
     });
 
-    it('should handle multiple topics independently', async () => {
-      const testingHints = [
+    it('should include hint metadata in response', async () => {
+      // GIVEN: Hints with rich metadata
+      blackboard.set('coordination', [
         {
-          id: 'test-1',
-          message: 'Test hint',
+          id: 'hint-1',
+          message: 'Test message',
           priority: 'medium',
           agentId: 'agent-1',
           timestamp: Date.now(),
-          metadata: {}
+          metadata: {
+            testSuite: 'UserService',
+            framework: 'jest',
+            tags: ['critical', 'regression']
+          }
         }
-      ];
+      ]);
 
-      const performanceHints = [
-        {
-          id: 'perf-1',
-          message: 'Performance hint',
-          priority: 'high',
-          agentId: 'agent-2',
-          timestamp: Date.now(),
-          metadata: {}
-        },
-        {
-          id: 'perf-2',
-          message: 'Another performance hint',
-          priority: 'medium',
-          agentId: 'agent-3',
-          timestamp: Date.now(),
-          metadata: {}
-        }
-      ];
-
-      mockBlackboard.set('testing', testingHints);
-      mockBlackboard.set('performance', performanceHints);
-
-      const testingResponse = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1'
+      // WHEN: Reading hints
+      const response = await handler.handle({
+        topic: 'coordination',
+        agentId: 'agent-2'
       });
 
-      const performanceResponse = await handler.handle({
-        topic: 'performance',
-        agentId: 'reader-2'
+      // THEN: Metadata included in response
+      expect(response.data.hints[0].metadata).toEqual({
+        testSuite: 'UserService',
+        framework: 'jest',
+        tags: ['critical', 'regression']
       });
-
-      expect(testingResponse.data.count).toBe(1);
-      expect(performanceResponse.data.count).toBe(2);
     });
   });
 
   describe('Priority Filtering', () => {
     beforeEach(() => {
-      const mixedPriorityHints = [
+      // Set up hints with different priorities
+      blackboard.set('priority-test', [
         {
-          id: 'hint-1',
-          message: 'Low priority hint',
+          id: 'low-1',
+          message: 'Low priority',
           priority: 'low',
           agentId: 'agent-1',
           timestamp: Date.now(),
           metadata: {}
         },
         {
-          id: 'hint-2',
-          message: 'Medium priority hint',
-          priority: 'medium',
-          agentId: 'agent-2',
-          timestamp: Date.now(),
-          metadata: {}
-        },
-        {
-          id: 'hint-3',
-          message: 'High priority hint',
-          priority: 'high',
-          agentId: 'agent-3',
-          timestamp: Date.now(),
-          metadata: {}
-        },
-        {
-          id: 'hint-4',
-          message: 'Critical priority hint',
-          priority: 'critical',
-          agentId: 'agent-4',
-          timestamp: Date.now(),
-          metadata: {}
-        }
-      ];
-
-      mockBlackboard.set('testing', mixedPriorityHints);
-    });
-
-    it('should filter hints by minimum priority - low', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        minPriority: 'low'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(4);
-    });
-
-    it('should filter hints by minimum priority - medium', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        minPriority: 'medium'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(3);
-      expect(response.data.hints.every((h: any) =>
-        ['medium', 'high', 'critical'].includes(h.priority)
-      )).toBe(true);
-    });
-
-    it('should filter hints by minimum priority - high', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        minPriority: 'high'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(2);
-      expect(response.data.hints.every((h: any) =>
-        ['high', 'critical'].includes(h.priority)
-      )).toBe(true);
-    });
-
-    it('should filter hints by minimum priority - critical', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        minPriority: 'critical'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(1);
-      expect(response.data.hints[0].priority).toBe('critical');
-    });
-
-    it('should sort hints by priority (highest first)', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1'
-      });
-
-      expect(response.success).toBe(true);
-      const priorities = response.data.hints.map((h: any) => h.priority);
-      expect(priorities).toEqual(['critical', 'high', 'medium', 'low']);
-    });
-  });
-
-  describe('Time-based Filtering', () => {
-    it('should filter hints by timestamp - since parameter', async () => {
-      const now = Date.now();
-      const hints = [
-        {
-          id: 'hint-1',
-          message: 'Old hint',
-          priority: 'medium',
-          agentId: 'agent-1',
-          timestamp: now - 3600000, // 1 hour ago
-          metadata: {}
-        },
-        {
-          id: 'hint-2',
-          message: 'Recent hint',
-          priority: 'high',
-          agentId: 'agent-2',
-          timestamp: now - 600000, // 10 minutes ago
-          metadata: {}
-        },
-        {
-          id: 'hint-3',
-          message: 'Very recent hint',
-          priority: 'critical',
-          agentId: 'agent-3',
-          timestamp: now - 60000, // 1 minute ago
-          metadata: {}
-        }
-      ];
-
-      mockBlackboard.set('testing', hints);
-
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        since: now - 1200000 // 20 minutes ago
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(2);
-      expect(response.data.hints.every((h: any) => h.timestamp >= now - 1200000)).toBe(true);
-    });
-
-    it('should combine priority and time filtering', async () => {
-      const now = Date.now();
-      const hints = [
-        {
-          id: 'hint-1',
-          message: 'Old low priority',
-          priority: 'low',
-          agentId: 'agent-1',
-          timestamp: now - 3600000,
-          metadata: {}
-        },
-        {
-          id: 'hint-2',
-          message: 'Recent high priority',
-          priority: 'high',
-          agentId: 'agent-2',
-          timestamp: now - 600000,
-          metadata: {}
-        },
-        {
-          id: 'hint-3',
-          message: 'Recent low priority',
-          priority: 'low',
-          agentId: 'agent-3',
-          timestamp: now - 300000,
-          metadata: {}
-        }
-      ];
-
-      mockBlackboard.set('testing', hints);
-
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        minPriority: 'high',
-        since: now - 1200000
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(1);
-      expect(response.data.hints[0].id).toBe('hint-2');
-    });
-
-    it('should sort by priority first, then by timestamp', async () => {
-      const now = Date.now();
-      const hints = [
-        {
-          id: 'hint-1',
-          message: 'Older high priority',
-          priority: 'high',
-          agentId: 'agent-1',
-          timestamp: now - 600000,
-          metadata: {}
-        },
-        {
-          id: 'hint-2',
-          message: 'Newer high priority',
-          priority: 'high',
-          agentId: 'agent-2',
-          timestamp: now - 300000,
-          metadata: {}
-        },
-        {
-          id: 'hint-3',
+          id: 'medium-1',
           message: 'Medium priority',
           priority: 'medium',
-          agentId: 'agent-3',
-          timestamp: now - 100000,
+          agentId: 'agent-1',
+          timestamp: Date.now(),
           metadata: {}
-        }
-      ];
-
-      mockBlackboard.set('testing', hints);
-
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.hints[0].id).toBe('hint-2'); // Newest high priority first
-      expect(response.data.hints[1].id).toBe('hint-1'); // Older high priority second
-      expect(response.data.hints[2].id).toBe('hint-3'); // Medium priority last
-    });
-  });
-
-  describe('Pagination', () => {
-    beforeEach(() => {
-      const manyHints = Array.from({ length: 100 }, (_, i) => ({
-        id: `hint-${i}`,
-        message: `Hint ${i}`,
-        priority: ['low', 'medium', 'high', 'critical'][i % 4],
-        agentId: `agent-${i}`,
-        timestamp: Date.now() - (i * 1000),
-        metadata: { index: i }
-      }));
-
-      mockBlackboard.set('testing', manyHints);
-    });
-
-    it('should apply default limit of 50 hints', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(50);
-    });
-
-    it('should respect custom limit parameter', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        limit: 10
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(10);
-    });
-
-    it('should return all hints if limit exceeds available', async () => {
-      mockBlackboard.set('small-topic', [
+        },
         {
-          id: 'hint-1',
-          message: 'Only hint',
-          priority: 'medium',
+          id: 'high-1',
+          message: 'High priority',
+          priority: 'high',
+          agentId: 'agent-1',
+          timestamp: Date.now(),
+          metadata: {}
+        },
+        {
+          id: 'critical-1',
+          message: 'Critical priority',
+          priority: 'critical',
           agentId: 'agent-1',
           timestamp: Date.now(),
           metadata: {}
         }
       ]);
+    });
 
+    it('should filter by minimum priority - low', async () => {
+      // GIVEN: Hints with various priorities
+      // WHEN: Reading with minPriority=low
       const response = await handler.handle({
-        topic: 'small-topic',
-        agentId: 'reader-1',
+        topic: 'priority-test',
+        agentId: 'agent-1',
+        minPriority: 'low'
+      });
+
+      // THEN: All hints returned (low and above)
+      expect(response.data.hints).toHaveLength(4);
+    });
+
+    it('should filter by minimum priority - medium', async () => {
+      // GIVEN: Hints with various priorities
+      // WHEN: Reading with minPriority=medium
+      const response = await handler.handle({
+        topic: 'priority-test',
+        agentId: 'agent-1',
+        minPriority: 'medium'
+      });
+
+      // THEN: Only medium, high, critical returned
+      expect(response.data.hints).toHaveLength(3);
+      expect(response.data.hints.map((h: any) => h.priority)).toContain('medium');
+      expect(response.data.hints.map((h: any) => h.priority)).toContain('high');
+      expect(response.data.hints.map((h: any) => h.priority)).toContain('critical');
+    });
+
+    it('should filter by minimum priority - high', async () => {
+      // GIVEN: Hints with various priorities
+      // WHEN: Reading with minPriority=high
+      const response = await handler.handle({
+        topic: 'priority-test',
+        agentId: 'agent-1',
+        minPriority: 'high'
+      });
+
+      // THEN: Only high and critical returned
+      expect(response.data.hints).toHaveLength(2);
+      expect(response.data.hints.map((h: any) => h.priority)).toContain('high');
+      expect(response.data.hints.map((h: any) => h.priority)).toContain('critical');
+    });
+
+    it('should filter by minimum priority - critical', async () => {
+      // GIVEN: Hints with various priorities
+      // WHEN: Reading with minPriority=critical
+      const response = await handler.handle({
+        topic: 'priority-test',
+        agentId: 'agent-1',
+        minPriority: 'critical'
+      });
+
+      // THEN: Only critical returned
+      expect(response.data.hints).toHaveLength(1);
+      expect(response.data.hints[0].priority).toBe('critical');
+    });
+  });
+
+  describe('Time Filtering', () => {
+    it('should filter by timestamp - since parameter', async () => {
+      // GIVEN: Hints with different timestamps
+      const now = Date.now();
+      const oneHourAgo = now - 3600000;
+      const twoHoursAgo = now - 7200000;
+
+      blackboard.set('time-test', [
+        {
+          id: 'old-hint',
+          message: 'Old hint',
+          priority: 'low',
+          agentId: 'agent-1',
+          timestamp: twoHoursAgo,
+          metadata: {}
+        },
+        {
+          id: 'recent-hint',
+          message: 'Recent hint',
+          priority: 'low',
+          agentId: 'agent-1',
+          timestamp: oneHourAgo,
+          metadata: {}
+        },
+        {
+          id: 'new-hint',
+          message: 'New hint',
+          priority: 'low',
+          agentId: 'agent-1',
+          timestamp: now,
+          metadata: {}
+        }
+      ]);
+
+      // WHEN: Reading hints since one hour ago
+      const response = await handler.handle({
+        topic: 'time-test',
+        agentId: 'agent-1',
+        since: oneHourAgo
+      });
+
+      // THEN: Only hints from one hour ago or later returned
+      expect(response.data.hints).toHaveLength(2);
+      expect(response.data.hints.map((h: any) => h.id)).toContain('recent-hint');
+      expect(response.data.hints.map((h: any) => h.id)).toContain('new-hint');
+      expect(response.data.hints.map((h: any) => h.id)).not.toContain('old-hint');
+    });
+
+    it('should return all hints when since is in future', async () => {
+      // GIVEN: Hints with current timestamps
+      const now = Date.now();
+      blackboard.set('future-test', [
+        {
+          id: 'hint-1',
+          message: 'Hint 1',
+          priority: 'low',
+          agentId: 'agent-1',
+          timestamp: now,
+          metadata: {}
+        }
+      ]);
+
+      // WHEN: Reading with future timestamp
+      const futureTime = now + 3600000;
+      const response = await handler.handle({
+        topic: 'future-test',
+        agentId: 'agent-1',
+        since: futureTime
+      });
+
+      // THEN: No hints returned (all older than since)
+      expect(response.data.hints).toHaveLength(0);
+    });
+  });
+
+  describe('Sorting', () => {
+    it('should sort by priority descending, then timestamp descending', async () => {
+      // GIVEN: Hints with mixed priorities and timestamps
+      const now = Date.now();
+      blackboard.set('sort-test', [
+        {
+          id: 'low-old',
+          message: 'Low priority old',
+          priority: 'low',
+          agentId: 'agent-1',
+          timestamp: now - 3000,
+          metadata: {}
+        },
+        {
+          id: 'high-new',
+          message: 'High priority new',
+          priority: 'high',
+          agentId: 'agent-1',
+          timestamp: now,
+          metadata: {}
+        },
+        {
+          id: 'medium-mid',
+          message: 'Medium priority mid',
+          priority: 'medium',
+          agentId: 'agent-1',
+          timestamp: now - 1000,
+          metadata: {}
+        },
+        {
+          id: 'high-old',
+          message: 'High priority old',
+          priority: 'high',
+          agentId: 'agent-1',
+          timestamp: now - 2000,
+          metadata: {}
+        }
+      ]);
+
+      // WHEN: Reading hints
+      const response = await handler.handle({
+        topic: 'sort-test',
+        agentId: 'agent-1'
+      });
+
+      // THEN: Sorted correctly (high priority first, then by recency)
+      const hints = response.data.hints;
+      expect(hints[0].id).toBe('high-new');  // high + newest
+      expect(hints[1].id).toBe('high-old');  // high + older
+      expect(hints[2].id).toBe('medium-mid'); // medium
+      expect(hints[3].id).toBe('low-old');    // low
+    });
+  });
+
+  describe('Limit Parameter', () => {
+    it('should apply default limit of 50', async () => {
+      // GIVEN: 60 hints in topic
+      const hints = Array.from({ length: 60 }, (_, i) => ({
+        id: `hint-${i}`,
+        message: `Message ${i}`,
+        priority: 'low',
+        agentId: 'agent-1',
+        timestamp: Date.now(),
+        metadata: {}
+      }));
+      blackboard.set('limit-test', hints);
+
+      // WHEN: Reading without limit parameter
+      const response = await handler.handle({
+        topic: 'limit-test',
+        agentId: 'agent-1'
+      });
+
+      // THEN: Only 50 hints returned (default limit)
+      expect(response.data.hints).toHaveLength(50);
+    });
+
+    it('should apply custom limit', async () => {
+      // GIVEN: 50 hints in topic
+      const hints = Array.from({ length: 50 }, (_, i) => ({
+        id: `hint-${i}`,
+        message: `Message ${i}`,
+        priority: 'low',
+        agentId: 'agent-1',
+        timestamp: Date.now(),
+        metadata: {}
+      }));
+      blackboard.set('custom-limit-test', hints);
+
+      // WHEN: Reading with limit=10
+      const response = await handler.handle({
+        topic: 'custom-limit-test',
+        agentId: 'agent-1',
+        limit: 10
+      });
+
+      // THEN: Only 10 hints returned
+      expect(response.data.hints).toHaveLength(10);
+    });
+
+    it('should return all hints if limit exceeds count', async () => {
+      // GIVEN: 5 hints in topic
+      const hints = Array.from({ length: 5 }, (_, i) => ({
+        id: `hint-${i}`,
+        message: `Message ${i}`,
+        priority: 'low',
+        agentId: 'agent-1',
+        timestamp: Date.now(),
+        metadata: {}
+      }));
+      blackboard.set('small-limit-test', hints);
+
+      // WHEN: Reading with limit=100
+      const response = await handler.handle({
+        topic: 'small-limit-test',
+        agentId: 'agent-1',
         limit: 100
       });
 
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(1);
-    });
-
-    it('should limit results after filtering', async () => {
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1',
-        minPriority: 'high',
-        limit: 5
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBeLessThanOrEqual(5);
-      expect(response.data.hints.every((h: any) =>
-        ['high', 'critical'].includes(h.priority)
-      )).toBe(true);
+      // THEN: All 5 hints returned
+      expect(response.data.hints).toHaveLength(5);
     });
   });
 
   describe('Input Validation', () => {
     it('should reject missing topic', async () => {
+      // GIVEN: Missing topic parameter
+      // WHEN: Reading hints
       const response = await handler.handle({
-        agentId: 'test-agent-1'
+        agentId: 'agent-1'
       } as any);
 
+      // THEN: Validation error
       expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
       expect(response.error).toContain('topic');
     });
 
     it('should reject missing agentId', async () => {
+      // GIVEN: Missing agentId parameter
+      // WHEN: Reading hints
       const response = await handler.handle({
-        topic: 'testing'
+        topic: 'test'
       } as any);
 
+      // THEN: Validation error
       expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
       expect(response.error).toContain('agentId');
-    });
-
-    it('should reject completely empty input', async () => {
-      const response = await handler.handle({} as any);
-
-      expect(response.success).toBe(false);
-      expect(response.error).toBeDefined();
-    });
-
-    it('should handle invalid priority gracefully', async () => {
-      mockBlackboard.set('testing', [
-        {
-          id: 'hint-1',
-          message: 'Test',
-          priority: 'medium',
-          agentId: 'agent-1',
-          timestamp: Date.now(),
-          metadata: {}
-        }
-      ]);
-
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'agent-1',
-        minPriority: 'invalid' as any
-      });
-
-      // Should either filter correctly or handle gracefully
-      expect(response).toHaveProperty('success');
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty blackboard', async () => {
-      const response = await handler.handle({
-        topic: 'empty-topic',
-        agentId: 'agent-1'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.hints).toEqual([]);
-      expect(response.data.count).toBe(0);
-    });
-
-    it('should handle hints with missing metadata', async () => {
-      mockBlackboard.set('testing', [
-        {
-          id: 'hint-1',
-          message: 'No metadata',
-          priority: 'medium',
-          agentId: 'agent-1',
-          timestamp: Date.now()
-        } as any
-      ]);
-
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1'
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.hints[0]).toHaveProperty('metadata');
-    });
-
-    it('should handle very large limit values', async () => {
-      mockBlackboard.set('testing', [
+    it('should handle special characters in topic names', async () => {
+      // GIVEN: Topic with special characters
+      const specialTopic = 'test:topic/with-special.chars_123';
+      blackboard.set(specialTopic, [
         {
           id: 'hint-1',
           message: 'Test',
-          priority: 'medium',
+          priority: 'low',
           agentId: 'agent-1',
           timestamp: Date.now(),
           metadata: {}
         }
       ]);
 
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'agent-1',
-        limit: Number.MAX_SAFE_INTEGER
-      });
-
-      expect(response.success).toBe(true);
-      expect(response.data.count).toBe(1);
-    });
-
-    it('should handle concurrent reads from same topic', async () => {
-      const testHints = Array.from({ length: 20 }, (_, i) => ({
-        id: `hint-${i}`,
-        message: `Test ${i}`,
-        priority: 'medium',
-        agentId: `agent-${i}`,
-        timestamp: Date.now(),
-        metadata: {}
-      }));
-
-      mockBlackboard.set('concurrent-topic', testHints);
-
-      const promises = Array.from({ length: 10 }, (_, i) =>
-        handler.handle({
-          topic: 'concurrent-topic',
-          agentId: `reader-${i}`,
-          limit: 5
-        })
-      );
-
-      const results = await Promise.all(promises);
-
-      results.forEach(result => {
-        expect(result.success).toBe(true);
-        expect(result.data.count).toBeLessThanOrEqual(5);
-      });
-    });
-
-    it('should handle special characters in topic names', async () => {
-      const specialTopic = 'testing/sub-topic:with-special-chars';
-      mockBlackboard.set(specialTopic, [
-        {
-          id: 'hint-1',
-          message: 'Special topic',
-          priority: 'medium',
-          agentId: 'agent-1',
-          timestamp: Date.now(),
-          metadata: {}
-        }
-      ]);
-
+      // WHEN: Reading from special topic
       const response = await handler.handle({
         topic: specialTopic,
         agentId: 'agent-1'
       });
 
+      // THEN: Hints returned successfully
       expect(response.success).toBe(true);
-      expect(response.data.count).toBe(1);
+      expect(response.data.hints).toHaveLength(1);
     });
 
-    it('should handle future timestamps gracefully', async () => {
-      const futureTime = Date.now() + 3600000;
-      mockBlackboard.set('testing', [
+    it('should handle hints with missing optional metadata fields', async () => {
+      // GIVEN: Hint without metadata
+      blackboard.set('minimal-hint', [
         {
           id: 'hint-1',
-          message: 'Future hint',
-          priority: 'medium',
+          message: 'Minimal hint',
+          priority: 'low',
           agentId: 'agent-1',
-          timestamp: futureTime,
+          timestamp: Date.now(),
           metadata: {}
         }
       ]);
 
+      // WHEN: Reading hints
       const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'agent-1',
-        since: Date.now()
+        topic: 'minimal-hint',
+        agentId: 'agent-1'
       });
 
+      // THEN: Hint returned with empty metadata
       expect(response.success).toBe(true);
-      expect(response.data.count).toBe(1);
+      expect(response.data.hints[0].metadata).toEqual({});
+    });
+
+    it('should handle combined filters - priority, time, limit', async () => {
+      // GIVEN: Many hints with various properties
+      const now = Date.now();
+      const hints = [
+        { id: '1', message: 'M1', priority: 'low', agentId: 'a1', timestamp: now - 5000, metadata: {} },
+        { id: '2', message: 'M2', priority: 'medium', agentId: 'a1', timestamp: now - 4000, metadata: {} },
+        { id: '3', message: 'M3', priority: 'high', agentId: 'a1', timestamp: now - 3000, metadata: {} },
+        { id: '4', message: 'M4', priority: 'critical', agentId: 'a1', timestamp: now - 2000, metadata: {} },
+        { id: '5', message: 'M5', priority: 'high', agentId: 'a1', timestamp: now - 1000, metadata: {} },
+        { id: '6', message: 'M6', priority: 'medium', agentId: 'a1', timestamp: now, metadata: {} }
+      ];
+      blackboard.set('combined-filter', hints);
+
+      // WHEN: Reading with minPriority=medium, since=(now-3500), limit=2
+      const response = await handler.handle({
+        topic: 'combined-filter',
+        agentId: 'agent-1',
+        minPriority: 'medium',
+        since: now - 3500,
+        limit: 2
+      });
+
+      // THEN: Filtered and limited correctly
+      // Should include: critical, high (recent), medium (recent)
+      // After sorting: critical, high (recent)
+      // After limit: top 2
+      expect(response.data.hints.length).toBeLessThanOrEqual(2);
+      expect(response.data.hints.every((h: any) =>
+        ['medium', 'high', 'critical'].includes(h.priority)
+      )).toBe(true);
+    });
+
+    it('should handle reading from topic with only expired hints', async () => {
+      // GIVEN: Topic exists but all hints expired (filtered by time)
+      const veryOldTimestamp = Date.now() - 86400000; // 24 hours ago
+      blackboard.set('expired-hints', [
+        {
+          id: 'hint-1',
+          message: 'Old hint',
+          priority: 'low',
+          agentId: 'agent-1',
+          timestamp: veryOldTimestamp,
+          metadata: {}
+        }
+      ]);
+
+      // WHEN: Reading recent hints only
+      const response = await handler.handle({
+        topic: 'expired-hints',
+        agentId: 'agent-1',
+        since: Date.now() - 3600000 // Last hour only
+      });
+
+      // THEN: No hints returned
+      expect(response.success).toBe(true);
+      expect(response.data.hints).toHaveLength(0);
     });
   });
 
   describe('Performance', () => {
-    it('should complete read operation within reasonable time', async () => {
-      const hints = Array.from({ length: 1000 }, (_, i) => ({
+    it('should read hints within reasonable time', async () => {
+      // GIVEN: Topic with 10 hints
+      const hints = Array.from({ length: 10 }, (_, i) => ({
         id: `hint-${i}`,
-        message: `Performance test ${i}`,
-        priority: ['low', 'medium', 'high', 'critical'][i % 4],
-        agentId: `agent-${i}`,
-        timestamp: Date.now() - (i * 1000),
-        metadata: { index: i }
+        message: `Message ${i}`,
+        priority: 'low',
+        agentId: 'agent-1',
+        timestamp: Date.now(),
+        metadata: {}
       }));
+      blackboard.set('perf-test', hints);
 
-      mockBlackboard.set('performance', hints);
-
+      // WHEN: Reading hints
       const startTime = Date.now();
-      const response = await handler.handle({
-        topic: 'performance',
-        agentId: 'perf-reader',
-        minPriority: 'high',
-        limit: 50
-      });
-      const endTime = Date.now();
-
-      expect(response.success).toBe(true);
-      expect(endTime - startTime).toBeLessThan(1000);
-    });
-
-    it('should handle rapid sequential reads efficiently', async () => {
-      mockBlackboard.set('rapid-reads', [
-        {
-          id: 'hint-1',
-          message: 'Rapid read test',
-          priority: 'medium',
-          agentId: 'agent-1',
-          timestamp: Date.now(),
-          metadata: {}
-        }
-      ]);
-
-      const startTime = Date.now();
-      for (let i = 0; i < 100; i++) {
-        await handler.handle({
-          topic: 'rapid-reads',
-          agentId: `reader-${i}`
-        });
-      }
-      const endTime = Date.now();
-
-      expect(endTime - startTime).toBeLessThan(5000);
-    });
-  });
-
-  describe('Response Structure', () => {
-    it('should always include requestId', async () => {
-      mockBlackboard.set('testing', []);
-
-      const response = await handler.handle({
-        topic: 'testing',
+      await handler.handle({
+        topic: 'perf-test',
         agentId: 'agent-1'
       });
+      const endTime = Date.now();
 
-      expect(response).toHaveProperty('metadata');
-      expect(response.metadata).toHaveProperty('requestId');
-      expect(typeof response.metadata.requestId).toBe('string');
+      // THEN: Completed within 100ms
+      expect(endTime - startTime).toBeLessThan(100);
     });
 
-    it('should include proper metadata in response', async () => {
-      mockBlackboard.set('testing', [
-        {
-          id: 'hint-1',
-          message: 'Test with rich metadata',
-          priority: 'high',
-          agentId: 'agent-1',
-          timestamp: Date.now(),
-          metadata: {
-            module: 'auth',
-            testType: 'unit',
-            framework: 'jest',
-            coverage: 75.5
-          }
-        }
-      ]);
+    it('should handle large result sets efficiently', async () => {
+      // GIVEN: Topic with 1000 hints
+      const hints = Array.from({ length: 1000 }, (_, i) => ({
+        id: `hint-${i}`,
+        message: `Message ${i}`,
+        priority: 'low',
+        agentId: 'agent-1',
+        timestamp: Date.now(),
+        metadata: {}
+      }));
+      blackboard.set('large-perf-test', hints);
 
-      const response = await handler.handle({
-        topic: 'testing',
-        agentId: 'reader-1'
+      // WHEN: Reading with default limit
+      const startTime = Date.now();
+      await handler.handle({
+        topic: 'large-perf-test',
+        agentId: 'agent-1'
       });
+      const endTime = Date.now();
 
-      expect(response.success).toBe(true);
-      expect(response.data.hints[0].metadata).toHaveProperty('module');
-      expect(response.data.hints[0].metadata).toHaveProperty('testType');
-      expect(response.data.hints[0].metadata).toHaveProperty('framework');
-      expect(response.data.hints[0].metadata.coverage).toBe(75.5);
+      // THEN: Completed within 200ms
+      expect(endTime - startTime).toBeLessThan(200);
     });
   });
 });

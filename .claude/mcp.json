@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "agentic-qe": {
+      "command": "npx",
+      "args": ["aqe-mcp"],
+      "env": {
+        "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+        "AQE_LEARNING_ENABLED": "true",
+        "NODE_NO_WARNINGS": "1"
+      }
+    },
+    "claude-flow": {
+      "command": "npx",
+      "args": ["claude-flow@alpha", "mcp", "start"],
+      "env": {
+        "CLAUDE_FLOW_HOOKS_ENABLED": "true",
+        "NODE_NO_WARNINGS": "1"
+      }
+    },
+    "ruv-swarm": {
+      "command": "npx",
+      "args": ["ruv-swarm", "mcp", "start"],
+      "env": {
+        "NODE_NO_WARNINGS": "1"
+      }
+    }
+  }
+}

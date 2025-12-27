@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
+import { SwarmMemoryManager, SerializableValue } from '../memory/SwarmMemoryManager';
 
 export interface ConsensusProposal {
   id: string;
@@ -15,6 +15,49 @@ export interface ConsensusState {
   quorum: number;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: number;
+}
+
+/**
+ * Type guard to validate that a value is a ConsensusState
+ */
+function isConsensusState(value: unknown): value is ConsensusState {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.decision === 'string' &&
+    typeof obj.proposer === 'string' &&
+    Array.isArray(obj.votes) &&
+    obj.votes.every((v: unknown) => typeof v === 'string') &&
+    typeof obj.quorum === 'number' &&
+    (obj.status === 'pending' || obj.status === 'approved' || obj.status === 'rejected') &&
+    typeof obj.createdAt === 'number'
+  );
+}
+
+/**
+ * Convert ConsensusState to a serializable record for memory storage
+ */
+function toSerializable(state: ConsensusState): Record<string, unknown> {
+  return {
+    decision: state.decision,
+    proposer: state.proposer,
+    votes: state.votes,
+    quorum: state.quorum,
+    status: state.status,
+    createdAt: state.createdAt
+  };
+}
+
+/**
+ * Parse a SerializableValue into a ConsensusState, returning null if invalid
+ */
+function parseConsensusState(value: SerializableValue | null): ConsensusState | null {
+  if (value === null || !isConsensusState(value)) {
+    return null;
+  }
+  return value;
 }
 
 /**
@@ -47,7 +90,7 @@ export class ConsensusGating extends EventEmitter {
       createdAt: Date.now()
     };
 
-    await this.memory.store(`consensus:${proposal.id}`, state, {
+    await this.memory.store(`consensus:${proposal.id}`, toSerializable(state), {
       partition: 'consensus_state',
       ttl: 604800 // 7 days
     });
@@ -62,9 +105,11 @@ export class ConsensusGating extends EventEmitter {
    * Returns true if consensus is reached
    */
   async vote(proposalId: string, agentId: string): Promise<boolean> {
-    const state = await this.memory.retrieve(`consensus:${proposalId}`, {
+    const rawState = await this.memory.retrieve(`consensus:${proposalId}`, {
       partition: 'consensus_state'
     });
+
+    const state = parseConsensusState(rawState);
 
     if (!state) {
       throw new Error(`Proposal ${proposalId} not found`);
@@ -74,9 +119,9 @@ export class ConsensusGating extends EventEmitter {
       throw new Error(`Proposal ${proposalId} is already ${state.status}`);
     }
 
-    // Prevent duplicate votes
+    // Prevent duplicate votes - if already voted, consensus not yet reached (still pending)
     if (state.votes.includes(agentId)) {
-      return state.status === 'approved';
+      return false;
     }
 
     state.votes.push(agentId);
@@ -84,14 +129,14 @@ export class ConsensusGating extends EventEmitter {
     // Check if quorum is reached (+1 for proposer)
     if (state.votes.length >= state.quorum + 1) {
       state.status = 'approved';
-      await this.memory.store(`consensus:${proposalId}`, state, {
+      await this.memory.store(`consensus:${proposalId}`, toSerializable(state), {
         partition: 'consensus_state'
       });
       this.emit('consensus:reached', state);
       return true;
     }
 
-    await this.memory.store(`consensus:${proposalId}`, state, {
+    await this.memory.store(`consensus:${proposalId}`, toSerializable(state), {
       partition: 'consensus_state'
     });
 
@@ -104,18 +149,21 @@ export class ConsensusGating extends EventEmitter {
    * Get current state of a proposal
    */
   async getProposalState(proposalId: string): Promise<ConsensusState | null> {
-    return await this.memory.retrieve(`consensus:${proposalId}`, {
+    const rawState = await this.memory.retrieve(`consensus:${proposalId}`, {
       partition: 'consensus_state'
     });
+    return parseConsensusState(rawState);
   }
 
   /**
    * Reject a proposal (requires proposer or admin privileges)
    */
   async reject(proposalId: string, agentId: string): Promise<void> {
-    const state = await this.memory.retrieve(`consensus:${proposalId}`, {
+    const rawState = await this.memory.retrieve(`consensus:${proposalId}`, {
       partition: 'consensus_state'
     });
+
+    const state = parseConsensusState(rawState);
 
     if (!state) {
       throw new Error(`Proposal ${proposalId} not found`);
@@ -127,7 +175,7 @@ export class ConsensusGating extends EventEmitter {
     }
 
     state.status = 'rejected';
-    await this.memory.store(`consensus:${proposalId}`, state, {
+    await this.memory.store(`consensus:${proposalId}`, toSerializable(state), {
       partition: 'consensus_state'
     });
 

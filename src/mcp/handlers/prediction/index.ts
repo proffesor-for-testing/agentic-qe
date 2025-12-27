@@ -10,7 +10,7 @@
 export { PredictDefectsAIHandler } from './predict-defects-ai';
 export { VisualTestRegressionHandler } from './visual-test-regression';
 export { FlakyTestDetectHandler } from './flaky-test-detect';
-export { RegressionRiskAnalyzeHandler } from './regression-risk-analyze';
+// NOTE: RegressionRiskAnalyzeHandler removed in Issue #115 - use QE_REGRESSION_ANALYZE_RISK instead
 export { DeploymentReadinessCheckHandler } from './deployment-readiness-check';
 
 export type {
@@ -31,11 +31,7 @@ export type {
   FlakyTest
 } from './flaky-test-detect';
 
-export type {
-  RegressionRiskAnalyzeArgs,
-  RegressionRiskResult,
-  FileRiskAnalysis
-} from './regression-risk-analyze';
+// NOTE: RegressionRiskAnalyze types removed in Issue #115 - use QE_REGRESSION_ANALYZE_RISK instead
 
 export type {
   DeploymentReadinessCheckArgs,

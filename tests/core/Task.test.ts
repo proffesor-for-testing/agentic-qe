@@ -4,6 +4,7 @@
  */
 
 import { Task } from '@core/Task';
+import { withFakeTimers } from '../helpers/timerTestUtils';
 
 describe('Task', () => {
   describe('task creation', () => {
@@ -167,36 +168,49 @@ describe('Task', () => {
 
   describe('task timeout', () => {
     it('should handle task timeout', async () => {
-      const task = new Task('timeout-task', 'test', {}, { timeout: 50 });
+      await withFakeTimers(async (timers) => {
+        const task = new Task('timeout-task', 'test', {}, { timeout: 50 });
 
-      task.markAsRunning();
+        task.markAsRunning();
 
-      // Wait longer than timeout
-      await new Promise(resolve => setTimeout(resolve, 100));
+        // Advance time past the timeout
+        timers.advance(100);
 
-      expect(task.isTimedOut()).toBe(true);
+        expect(task.isTimedOut()).toBe(true);
+      });
     });
 
     it('should not timeout completed tasks', async () => {
-      const task = new Task('quick-task', 'test', {}, { timeout: 100 });
+      await withFakeTimers(async (timers) => {
+        const task = new Task('quick-task', 'test', {}, { timeout: 100 });
 
-      task.markAsRunning();
-      task.markAsCompleted({ result: 'quick' });
+        task.markAsRunning();
+        task.markAsCompleted({ result: 'quick' });
 
-      // Wait longer than timeout
-      await new Promise(resolve => setTimeout(resolve, 150));
+        // Advance time past the timeout
+        timers.advance(150);
 
-      expect(task.isTimedOut()).toBe(false);
+        expect(task.isTimedOut()).toBe(false);
+      });
     });
 
-    it('should calculate remaining time', () => {
-      const task = new Task('timed-task', 'test', {}, { timeout: 1000 });
+    it('should calculate remaining time', async () => {
+      await withFakeTimers(async (timers) => {
+        const startTime = Date.now();
+        timers.setSystemTime(startTime);
 
-      task.markAsRunning();
-      const remainingTime = task.getRemainingTime();
+        const task = new Task('timed-task', 'test', {}, { timeout: 1000 });
 
-      expect(remainingTime).toBeLessThanOrEqual(1000);
-      expect(remainingTime).toBeGreaterThan(900); // Allow some execution time
+        task.markAsRunning();
+
+        // Advance a small amount of time
+        timers.advance(50);
+
+        const remainingTime = task.getRemainingTime();
+
+        expect(remainingTime).toBeLessThanOrEqual(1000);
+        expect(remainingTime).toBeGreaterThan(900); // Should be ~950ms remaining
+      });
     });
   });
 

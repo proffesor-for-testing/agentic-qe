@@ -3,7 +3,7 @@
  * Tracks model usage costs and provides analytics
  */
 
-import { AIModel, ModelCost, RouterStats } from './types';
+import { AIModel, ModelCost, RouterStats, CostDashboardData } from './types';
 import { MODEL_CAPABILITIES } from './ModelRules';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
 import { EventBus } from '../EventBus';
@@ -72,14 +72,48 @@ export class CostTracker {
   }
 
   /**
+   * Convert ModelCost to JSON-serializable object
+   */
+  private serializeModelCost(cost: ModelCost): { [key: string]: string | number } {
+    return {
+      modelId: cost.modelId,
+      tokensUsed: cost.tokensUsed,
+      estimatedCost: cost.estimatedCost,
+      requestCount: cost.requestCount,
+      avgTokensPerRequest: cost.avgTokensPerRequest,
+      timestamp: cost.timestamp,
+    };
+  }
+
+  /**
    * Persist costs to SwarmMemoryManager
    */
   private async persistCosts(): Promise<void> {
     const costsArray = Array.from(this.costs.values());
-    await this.memoryStore.store('routing/costs', costsArray, {
+    // Convert to JsonValue[] (array of serializable objects)
+    const serializableCosts = costsArray.map(cost => this.serializeModelCost(cost));
+    await this.memoryStore.store('routing/costs', serializableCosts, {
       partition: 'coordination',
       ttl: 86400, // 24 hours
     });
+  }
+
+  /**
+   * Type guard to check if value is a valid ModelCost object
+   */
+  private isModelCost(value: unknown): value is ModelCost {
+    if (typeof value !== 'object' || value === null) {
+      return false;
+    }
+    const obj = value as Record<string, unknown>;
+    return (
+      typeof obj.modelId === 'string' &&
+      typeof obj.tokensUsed === 'number' &&
+      typeof obj.estimatedCost === 'number' &&
+      typeof obj.requestCount === 'number' &&
+      typeof obj.avgTokensPerRequest === 'number' &&
+      typeof obj.timestamp === 'number'
+    );
   }
 
   /**
@@ -92,8 +126,10 @@ export class CostTracker {
       });
 
       if (stored && Array.isArray(stored)) {
-        stored.forEach((cost: ModelCost) => {
-          this.costs.set(cost.modelId, cost);
+        stored.forEach((item: unknown) => {
+          if (this.isModelCost(item)) {
+            this.costs.set(item.modelId, item);
+          }
         });
       }
     } catch (error) {
@@ -116,7 +152,7 @@ export class CostTracker {
     const costSavings = baselineCost - totalCost;
 
     // Model distribution
-    const modelDistribution: Record<AIModel, number> = {} as any;
+    const modelDistribution = {} as Record<AIModel, number>;
     Object.values(AIModel).forEach((model) => {
       const cost = this.costs.get(model);
       modelDistribution[model] = cost?.requestCount || 0;
@@ -147,8 +183,8 @@ export class CostTracker {
       });
 
       if (testMetrics && typeof testMetrics === 'object' && 'totalTests' in testMetrics) {
-        const totalTests = (testMetrics as any).totalTests;
-        if (totalTests > 0) {
+        const totalTests = (testMetrics as Record<string, unknown>).totalTests;
+        if (typeof totalTests === 'number' && totalTests > 0) {
           const stats = await this.getStats();
           return stats.totalCost / totalTests;
         }
@@ -163,7 +199,7 @@ export class CostTracker {
   /**
    * Export cost dashboard data
    */
-  async exportCostDashboard(): Promise<any> {
+  async exportCostDashboard(): Promise<CostDashboardData> {
     const stats = await this.getStats();
     const costsArray = Array.from(this.costs.values());
 

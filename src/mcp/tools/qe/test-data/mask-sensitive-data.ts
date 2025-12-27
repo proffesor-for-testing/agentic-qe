@@ -49,7 +49,7 @@ export interface SensitiveFieldDef {
  */
 export interface MaskSensitiveDataParams {
   /** Records to mask */
-  data: Array<{ [key: string]: any }>;
+  data: Array<Record<string, unknown>>;
 
   /** Sensitive field definitions */
   sensitiveFields: SensitiveFieldDef[];
@@ -117,7 +117,7 @@ export interface GDPRComplianceResult {
  */
 export interface MaskSensitiveDataResult {
   /** Masked data */
-  data: Array<{ [key: string]: any }>;
+  data: Array<Record<string, unknown>>;
 
   /** Original data size (bytes) */
   originalSize: number;
@@ -160,7 +160,7 @@ export interface MaskingAuditEntry {
 /**
  * Simple hash function for audit logging (non-cryptographic)
  */
-function simpleHash(value: any): string {
+function simpleHash(value: unknown): string {
   const str = JSON.stringify(value);
   let hash = 0;
 
@@ -189,7 +189,7 @@ class MaskingUtil {
   /**
    * Mask value - show first and last character
    */
-  mask(value: any, fieldType: string = 'string'): any {
+  mask(value: unknown, fieldType: string = 'string'): unknown {
     if (value === null || value === undefined) {
       return null;
     }
@@ -216,7 +216,7 @@ class MaskingUtil {
   /**
    * Hash value - deterministic one-way function
    */
-  hash(value: any): string {
+  hash(value: unknown): string {
     const str = String(value) + this.salt;
     let hash = 0;
 
@@ -232,7 +232,7 @@ class MaskingUtil {
   /**
    * Tokenize - consistent one-to-one replacement
    */
-  tokenize(value: any): string {
+  tokenize(value: unknown): string {
     const key = String(value);
 
     if (!this.tokenMap.has(key)) {
@@ -260,7 +260,7 @@ class MaskingUtil {
   /**
    * Generalize - reduce precision/detail
    */
-  generalize(value: any, fieldType: string): any {
+  generalize(value: unknown, fieldType: string): unknown {
     if (value === null || value === undefined) {
       return null;
     }
@@ -283,7 +283,7 @@ class MaskingUtil {
   /**
    * Substitute - replace with generic value
    */
-  substitute(value: any, fieldType: string): any {
+  substitute(value: unknown, fieldType: string): unknown {
     if (value === null || value === undefined) {
       return null;
     }
@@ -312,7 +312,7 @@ class MaskingUtil {
   /**
    * Redact - complete removal/replacement
    */
-  redact(value: any): string {
+  redact(value: unknown): string {
     return '[REDACTED]';
   }
 
@@ -395,7 +395,7 @@ export async function maskSensitiveData(
         }
 
         // Apply masking strategy
-        let maskedValue: any;
+        let maskedValue: unknown;
 
         switch (strategy) {
           case AnonymizationStrategy.MASK:

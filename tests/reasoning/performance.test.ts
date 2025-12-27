@@ -12,6 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { QEReasoningBank, TestPattern } from '../../src/reasoning/QEReasoningBank';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 import * as fs from 'fs-extra';
 import * as path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -419,6 +420,7 @@ describe('Pattern Bank Performance', () => {
  * Generate test patterns for performance testing
  */
 function generatePatterns(count: number, startIndex: number = 0): TestPattern[] {
+  const rng = createSeededRandom(15000 + startIndex);
   const patterns: TestPattern[] = [];
   const frameworks: Array<'jest' | 'mocha' | 'vitest' | 'playwright' | 'cypress' | 'jasmine' | 'ava'> =
     ['jest', 'mocha', 'vitest', 'playwright'];
@@ -445,11 +447,11 @@ function generatePatterns(count: number, startIndex: number = 0): TestPattern[] 
       language,
       template: `template-${i}`,
       examples: [`example-${i}`, `example-${i}-2`],
-      confidence: 0.7 + Math.random() * 0.3,
-      usageCount: Math.floor(Math.random() * 100),
-      successRate: 0.6 + Math.random() * 0.4,
+      confidence: 0.7 + rng.random() * 0.3,
+      usageCount: Math.floor(rng.random() * 100),
+      successRate: 0.6 + rng.random() * 0.4,
       metadata: {
-        createdAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - rng.random() * 90 * 24 * 60 * 60 * 1000),
         updatedAt: new Date(),
         version: '1.0.0',
         tags

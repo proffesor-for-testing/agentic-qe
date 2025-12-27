@@ -26,6 +26,7 @@ import { SwarmMemoryManager } from '@core/memory/SwarmMemoryManager';
 import { Database } from '@utils/Database';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 // Mock Logger
 import * as LoggerModule from '@utils/Logger';
@@ -113,6 +114,7 @@ describe('Learning System Performance Tests', () => {
   describe('Pattern Lookup Performance', () => {
     it('should lookup patterns under 50ms (p95)', async () => {
       // Pre-populate patterns
+      const rng = createSeededRandom(300001);
       const patternCount = 100;
       for (let i = 0; i < patternCount; i++) {
         const pattern: TestPattern = {
@@ -124,9 +126,9 @@ describe('Learning System Performance Tests', () => {
           language: 'typescript',
           template: `template ${i}`,
           examples: [`example ${i}`],
-          confidence: 0.8 + (Math.random() * 0.15),
-          usageCount: Math.floor(Math.random() * 50),
-          successRate: 0.7 + (Math.random() * 0.25),
+          confidence: 0.8 + (rng.random() * 0.15),
+          usageCount: Math.floor(rng.random() * 50),
+          successRate: 0.7 + (rng.random() * 0.25),
           metadata: {
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -319,6 +321,7 @@ describe('Learning System Performance Tests', () => {
   describe('Database Query Efficiency', () => {
     it('should use indexes for fast queries', async () => {
       // Populate database
+      const rng = createSeededRandom(300002);
       for (let i = 0; i < 500; i++) {
         await database.run(`
           INSERT INTO patterns (
@@ -336,8 +339,8 @@ describe('Learning System Performance Tests', () => {
           JSON.stringify([]),
           0.8,
           i % 50,
-          0.8 + (Math.random() * 0.15),
-          0.75 + (Math.random() * 0.2),
+          0.8 + (rng.random() * 0.15),
+          0.75 + (rng.random() * 0.2),
           JSON.stringify({ createdAt: new Date(), updatedAt: new Date(), version: '1.0.0', tags: [] })
         ]);
       }
@@ -583,6 +586,7 @@ describe('Learning System Performance Tests', () => {
    */
   describe('Learning Overhead', () => {
     it('should add minimal overhead to task execution', async () => {
+      const rng = createSeededRandom(300003);
       const iterations = 100;
       const overheadTimes: number[] = [];
 
@@ -594,7 +598,7 @@ describe('Learning System Performance Tests', () => {
         };
 
         const result = {
-          success: Math.random() > 0.2,
+          success: rng.random() > 0.2,
           executionTime: 1000,
           strategy: 'parallel',
           toolsUsed: ['jest'],

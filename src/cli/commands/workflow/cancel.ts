@@ -9,6 +9,7 @@
 
 import { SecureRandom } from '../../../utils/SecureRandom.js';
 import chalk from 'chalk';
+import { getSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory.js';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager.js';
 import { Logger } from '../../../utils/Logger.js';
 
@@ -37,13 +38,8 @@ export interface CancelWorkflowResult {
     status: string;
     cancelledAt: string;
     cancelReason?: string;
-    finalState: {
-      completedSteps: string[];
-      failedSteps: string[];
-      progress: number;
-      context: any;
-    };
-    partialResults?: any;
+    finalState: FinalWorkflowState;
+    partialResults?: unknown;
   };
   stoppedAgents: string[];
   cleanedResources: string[];
@@ -52,6 +48,35 @@ export interface CancelWorkflowResult {
   cleanupPerformed: boolean;
   retryAttempts?: number;
   cleanupErrors?: string[];
+}
+
+/** Internal interface for workflow execution data retrieved from memory */
+interface WorkflowExecutionData {
+  workflowId: string;
+  executionId: string;
+  workflowName?: string;
+  status: string;
+  completedSteps?: string[];
+  failedSteps?: string[];
+  currentStep?: string;
+  context?: Record<string, unknown>;
+  checkpoints?: unknown[];
+  results?: unknown;
+  cancelledAt?: string;
+  cancelReason?: string;
+  cancellationMode?: string;
+}
+
+/** Final workflow state structure */
+interface FinalWorkflowState {
+  completedSteps: string[];
+  failedSteps: string[];
+  currentStep?: string;
+  progress: number;
+  context: Record<string, unknown>;
+  variables: Record<string, unknown>;
+  checkpoints: unknown[];
+  results?: unknown;
 }
 
 /**
@@ -71,8 +96,9 @@ export async function cancelWorkflow(options: CancelWorkflowOptions): Promise<Ca
       throw new Error('Confirmation is required for forced cancellation. Use --confirm flag.');
     }
 
-    // Initialize memory manager
-    const memory = new SwarmMemoryManager();
+    // Initialize memory manager (uses shared singleton at .agentic-qe/memory.db)
+    const memory = getSharedMemoryManager();
+    await memory.initialize();
 
     // Retrieve workflow execution
     const execution = await retrieveWorkflowExecution(memory, options.workflowId);
@@ -107,7 +133,7 @@ export async function cancelWorkflow(options: CancelWorkflowOptions): Promise<Ca
     execution.cancellationMode = cancellationMode;
 
     // Store updated execution in memory
-    await memory.store(`workflow:execution:${execution.executionId}`, execution, {
+    await memory.store(`workflow:execution:${execution.executionId}`, execution as unknown as Record<string, unknown>, {
       partition: 'workflow_executions',
       ttl: 86400 // 24 hours
     });
@@ -194,21 +220,39 @@ export async function cancelWorkflow(options: CancelWorkflowOptions): Promise<Ca
   }
 }
 
+/** Type guard to check if value is a workflow execution record */
+function isWorkflowExecutionRecord(
+  value: unknown
+): value is WorkflowExecutionData {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.workflowId === 'string' &&
+    typeof record.executionId === 'string' &&
+    typeof record.status === 'string'
+  );
+}
+
 /**
  * Retrieve workflow execution from memory
  */
 async function retrieveWorkflowExecution(
   memory: SwarmMemoryManager,
   workflowId: string
-): Promise<any> {
+): Promise<WorkflowExecutionData> {
   const pattern = 'workflow:execution:%';
   const entries = await memory.query(pattern, {
     partition: 'workflow_executions'
   });
 
-  const execution = entries.find(entry => entry.value.workflowId === workflowId);
+  const execution = entries.find(entry => {
+    const value = entry.value;
+    return isWorkflowExecutionRecord(value) && value.workflowId === workflowId;
+  });
 
-  if (!execution) {
+  if (!execution || !isWorkflowExecutionRecord(execution.value)) {
     throw new Error(`Workflow not found: ${workflowId}`);
   }
 
@@ -218,7 +262,7 @@ async function retrieveWorkflowExecution(
 /**
  * Validate workflow can be cancelled
  */
-function validateWorkflowForCancellation(execution: any): void {
+function validateWorkflowForCancellation(execution: WorkflowExecutionData): void {
   if (execution.status === 'completed') {
     throw new Error(`Cannot cancel completed workflow ${execution.workflowId}`);
   }
@@ -233,21 +277,25 @@ function validateWorkflowForCancellation(execution: any): void {
  */
 async function saveFinalState(
   memory: SwarmMemoryManager,
-  execution: any,
+  execution: WorkflowExecutionData,
   preserveResults: boolean = false
-): Promise<any> {
-  const finalState = {
+): Promise<FinalWorkflowState> {
+  const context = execution.context || {};
+  const variables = (typeof context.variables === 'object' && context.variables !== null)
+    ? context.variables as Record<string, unknown>
+    : {};
+  const finalState: FinalWorkflowState = {
     completedSteps: execution.completedSteps || [],
     failedSteps: execution.failedSteps || [],
     currentStep: execution.currentStep,
     progress: calculateProgress(execution),
-    context: execution.context || {},
-    variables: execution.context?.variables || {},
+    context,
+    variables,
     checkpoints: execution.checkpoints || [],
     results: preserveResults ? execution.results : undefined
   };
 
-  await memory.store(`workflow:final-state:${execution.executionId}`, finalState, {
+  await memory.store(`workflow:final-state:${execution.executionId}`, finalState as unknown as Record<string, unknown>, {
     partition: 'workflow_states',
     ttl: 604800 // 7 days
   });
@@ -258,7 +306,7 @@ async function saveFinalState(
 /**
  * Calculate workflow progress
  */
-function calculateProgress(execution: any): number {
+function calculateProgress(execution: WorkflowExecutionData): number {
   const total = (execution.completedSteps?.length || 0) + (execution.failedSteps?.length || 0);
   const completed = execution.completedSteps?.length || 0;
   return total > 0 ? completed / total : 0;
@@ -269,7 +317,7 @@ function calculateProgress(execution: any): number {
  */
 async function stopWorkflowAgents(
   memory: SwarmMemoryManager,
-  execution: any,
+  execution: WorkflowExecutionData,
   options: CancelWorkflowOptions
 ): Promise<string[]> {
   const stoppedAgents: string[] = [];
@@ -310,8 +358,8 @@ async function stopWorkflowAgents(
  */
 async function cleanupWorkflowResources(
   memory: SwarmMemoryManager,
-  execution: any,
-  options: CancelWorkflowOptions
+  execution: WorkflowExecutionData,
+  _options: CancelWorkflowOptions
 ): Promise<{ cleaned: string[]; errors: string[] }> {
   const cleaned: string[] = [];
   const errors: string[] = [];
@@ -349,7 +397,7 @@ async function cleanupWorkflowResources(
  */
 async function notifyDependentWorkflows(
   memory: SwarmMemoryManager,
-  execution: any
+  execution: WorkflowExecutionData
 ): Promise<string[]> {
   const notifiedWorkflows: string[] = [];
 
@@ -373,8 +421,8 @@ async function notifyDependentWorkflows(
  */
 async function createCancellationCheckpoint(
   memory: SwarmMemoryManager,
-  execution: any,
-  finalState: any,
+  execution: WorkflowExecutionData,
+  finalState: FinalWorkflowState,
   options: CancelWorkflowOptions
 ): Promise<string> {
   const checkpointId = `cancel-${Date.now()}-${SecureRandom.generateId(6)}`;
@@ -399,8 +447,8 @@ async function createCancellationCheckpoint(
  * Clean up workflow memory
  */
 async function cleanupWorkflowMemory(
-  memory: SwarmMemoryManager,
-  execution: any
+  _memory: SwarmMemoryManager,
+  execution: WorkflowExecutionData
 ): Promise<void> {
   // Remove workflow execution data
   // In a real implementation, this would selectively clean memory

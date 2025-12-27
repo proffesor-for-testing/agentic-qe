@@ -4,6 +4,7 @@
  */
 
 import * as fs from 'fs-extra';
+import { withFakeTimers } from '../helpers/timerTestUtils';
 import { AgentSpawnCommand } from '@cli/commands/agent/spawn';
 import { AgentListCommand } from '@cli/commands/agent/list';
 import { AgentMetricsCommand } from '@cli/commands/agent/metrics';
@@ -144,14 +145,16 @@ describe('Agent Management Commands', () => {
     });
 
     it('should follow logs in real-time', async () => {
-      const logsPromise = AgentLogsCommand.execute({
-        agentId: 'agent-1',
-        follow: true
+      await withFakeTimers(async (timers) => {
+        const logsPromise = AgentLogsCommand.execute({
+          agentId: 'agent-1',
+          follow: true
+        });
+
+        timers.advance(100);
+
+        expect(mockedFs.readFile).toHaveBeenCalled();
       });
-
-      setTimeout(() => logsPromise, 100);
-
-      expect(mockedFs.readFile).toHaveBeenCalled();
     });
 
     it('should filter logs by level', async () => {

@@ -9,6 +9,7 @@
 const { performance } = require('perf_hooks');
 const { execSync } = require('child_process');
 const EventEmitter = require('events');
+const { createSeededRandom } = require('../src/utils/SeededRandom');
 
 class SimplePerformanceTester {
   constructor() {
@@ -209,6 +210,11 @@ class SimplePerformanceTester {
 
       const measurements = [];
 
+      // Create seeded random generators for reproducible tests
+      const rngBinarySearch = createSeededRandom(23100);
+      const rngHashMap = createSeededRandom(23101);
+      const rngLinearSearch = createSeededRandom(23102);
+
       for (const size of this.testSizes) {
         const startTime = performance.now();
 
@@ -217,7 +223,7 @@ class SimplePerformanceTester {
             // Test binary search
             const sortedArray = Array.from({ length: size }, (_, i) => i);
             for (let i = 0; i < 1000; i++) {
-              const target = Math.floor(Math.random() * size);
+              const target = Math.floor(rngBinarySearch.random() * size);
               this.binarySearch(sortedArray, target);
             }
             break;
@@ -229,7 +235,7 @@ class SimplePerformanceTester {
               map.set(i, `value-${i}`);
             }
             for (let i = 0; i < 1000; i++) {
-              const key = Math.floor(Math.random() * size);
+              const key = Math.floor(rngHashMap.random() * size);
               map.get(key);
             }
             break;
@@ -238,7 +244,7 @@ class SimplePerformanceTester {
             // Test linear search
             const array = Array.from({ length: size }, (_, i) => i);
             for (let i = 0; i < 100; i++) { // Fewer iterations for O(n) algorithm
-              const target = Math.floor(Math.random() * size);
+              const target = Math.floor(rngLinearSearch.random() * size);
               this.linearSearch(array, target);
             }
             break;

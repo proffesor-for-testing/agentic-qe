@@ -5,6 +5,9 @@
 
 const { EventStore } = require('../../dist/persistence/event-store.js');
 const { ReasoningStore } = require('../../dist/persistence/reasoning-store.js');
+const { createSeededRandom } = require('../../src/utils/SeededRandom');
+
+const rng = createSeededRandom(26000);
 
 async function generateTestData() {
   console.log('📊 Generating test data for Phase 3 visualization...\n');
@@ -30,9 +33,9 @@ async function generateTestData() {
       agent_id: agent,
       event_type: eventType,
       payload: {
-        test_count: Math.floor(Math.random() * 100),
-        coverage: Math.floor(Math.random() * 100),
-        duration_ms: Math.floor(Math.random() * 5000),
+        test_count: Math.floor(rng.random() * 100),
+        coverage: Math.floor(rng.random() * 100),
+        duration_ms: Math.floor(rng.random() * 5000),
         status: i % 5 === 0 ? 'error' : 'completed',
         metadata: {
           iteration: i + 1,

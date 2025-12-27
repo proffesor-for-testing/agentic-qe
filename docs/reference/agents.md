@@ -1,6 +1,6 @@
 # Agentic QE Fleet - Agent Reference
 
-This document provides comprehensive reference for all 18 QE agents in the Agentic Quality Engineering Fleet.
+This document provides comprehensive reference for all 21 QE agents, 15 n8n workflow testing agents, and 11 subagents in the Agentic Quality Engineering Fleet.
 
 ## Overview
 
@@ -247,6 +247,49 @@ Task("Deployment check", "Assess deployment readiness", "qe-deployment-readiness
 
 ---
 
+## Code Understanding Agent (1 agent)
+
+### qe-code-intelligence
+**Knowledge graph-based code understanding with 80% token reduction**
+
+**Capabilities:**
+- Tree-sitter multi-language parsing (TypeScript, Python, Go, Rust, JavaScript)
+- Semantic embeddings via Ollama nomic-embed-text (768 dimensions)
+- RuVector PostgreSQL storage with vector similarity search
+- Hybrid search (BM25 + Vector with RRF fusion)
+- Knowledge graph with entity relationships (imports, extends, calls)
+- Context building for other agents with 80% token reduction
+- Mermaid diagram generation (class diagrams, dependency graphs)
+- Incremental indexing with git change detection
+
+**Usage:**
+```javascript
+// Index codebase
+Task("Index codebase", "Parse and index all TypeScript files in src/", "qe-code-intelligence")
+
+// Semantic search
+Task("Find auth code", "Search for code related to JWT authentication", "qe-code-intelligence")
+
+// Build context for another agent
+Task("Build test context", "Create context for UserService to pass to test-generator", "qe-code-intelligence")
+```
+
+**CLI Commands:**
+```bash
+aqe kg index              # Index codebase
+aqe kg query "search"     # Semantic search
+aqe kg graph file.ts      # Generate diagram
+aqe kg stats              # Show statistics
+```
+
+**Memory Namespace:**
+- Stores: `aqe/code-intelligence/index-stats`, `aqe/code-intelligence/context/*`
+- Reads: `aqe/project-metadata/*`
+
+**Prerequisites:** Ollama + nomic-embed-text, RuVector PostgreSQL. See [Code Intelligence Quick Start](../guides/code-intelligence-quickstart.md).
+
+---
+
 ## Advanced Testing Agents (4 agents)
 
 ### qe-regression-risk-analyzer
@@ -377,6 +420,163 @@ Task("Chaos testing", "Test system resilience with controlled failures", "qe-cha
 
 ---
 
+### qe-a11y-ally
+**Intelligent accessibility testing with WCAG 2.2 compliance**
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+**Capabilities:**
+- WCAG 2.2 Level A, AA, AAA validation using axe-core
+- Context-aware ARIA label generation
+- Intelligent remediation with code examples
+- Keyboard navigation and screen reader testing
+- Color contrast optimization
+- AI video analysis (OpenAI, Anthropic, Ollama, moondream)
+- WebVTT caption generation
+- EN 301 549 EU compliance mapping
+- ARIA Authoring Practices Guide (APG) patterns
+
+**Usage:**
+```javascript
+Task("Accessibility scan", "Run WCAG 2.2 AA compliance check", "qe-a11y-ally")
+Task("Generate captions", "Create WebVTT captions for video", "qe-a11y-ally")
+Task("Remediation", "Fix accessibility issues with code suggestions", "qe-a11y-ally")
+```
+
+**Memory Namespace:**
+- Stores: `aqe/accessibility/scan-results`, `aqe/accessibility/remediation`
+- Reads: `aqe/test-plan/*`
+
+**MCP Tools (10 tools):**
+- `scan-comprehensive` - Full WCAG 2.2 scan
+- `remediation-code-generator` - Auto-fix code generation
+- `html-report-generator` - Detailed HTML reports
+- `video-vision-analyzer` - AI video accessibility analysis
+- `webvtt-generator` - Caption file generation
+
+---
+
+## n8n Workflow Testing Agents (15 agents)
+*Contributed by [@fndlalit](https://github.com/fndlalit)*
+
+The n8n workflow testing agents provide comprehensive testing capabilities for n8n automation workflows.
+
+### n8n-workflow-executor
+**Execute and validate n8n workflows programmatically**
+
+**Capabilities:**
+- Execute workflows via n8n REST API
+- Inject test data at workflow start or specific nodes
+- Validate node-to-node data flow
+- Assert expected outputs per node
+- Measure execution time and resource usage
+
+**Usage:**
+```javascript
+Task("Execute n8n workflow", "Test workflow with sample data", "n8n-workflow-executor")
+```
+
+---
+
+### n8n-chaos-tester
+**Fault injection and resilience testing for n8n workflows**
+
+**Capabilities:**
+- Controlled fault injection using N8nTestHarness
+- Network failure simulation
+- Node timeout testing
+- Error propagation validation
+- Recovery path verification
+
+---
+
+### n8n-security-auditor
+**Security scanning for n8n workflows**
+
+**Capabilities:**
+- 40+ secret patterns detection
+- Runtime credential leak detection
+- API key exposure scanning
+- Node permission validation
+- OWASP compliance checking
+
+---
+
+### n8n-performance-tester
+**Load and stress testing for n8n workflows**
+
+**Capabilities:**
+- Concurrent execution testing
+- Timing metrics and percentiles
+- Bottleneck identification
+- Resource usage monitoring
+- SLA validation
+
+---
+
+### n8n-compliance-validator
+**GDPR/HIPAA/SOC2/PCI-DSS compliance validation**
+
+**Capabilities:**
+- Data handling compliance checks
+- PII detection and tracing
+- Audit trail validation
+- Regulatory mapping
+- Compliance reporting
+
+---
+
+### Additional n8n Agents
+
+| Agent | Purpose |
+|-------|---------|
+| **n8n-bdd-scenario-tester** | Cucumber-style BDD testing with real execution |
+| **n8n-expression-validator** | Safe expression validation using pattern matching |
+| **n8n-integration-test** | Real API connectivity testing via workflow execution |
+| **n8n-trigger-test** | Webhook testing with correct n8n URL patterns |
+| **n8n-monitoring-validator** | SLA compliance checking with runtime metrics |
+| **n8n-node-validator** | Node configuration validation |
+| **n8n-unit-tester** | Unit testing for individual workflow nodes |
+| **n8n-version-comparator** | Version compatibility analysis |
+| **n8n-ci-orchestrator** | CI/CD pipeline integration for n8n workflows |
+| **n8n-base-agent** | Base agent with common n8n testing functionality |
+
+**Setup Guide:** [n8n Real Instance Setup](../guides/n8n-real-instance-setup.md)
+
+---
+
+## MCP Tool Discovery System
+
+The Agentic QE Fleet uses **lazy-loaded MCP tools** to reduce initial context by 87%.
+
+### Tool Discovery
+
+```javascript
+// Discover available tool domains
+mcp__agentic_qe__tools_discover()
+// Returns: security, coverage, test-generation, test-execution, quality-gates,
+//          fleet-management, memory, learning, patterns, reporting
+
+// Load specific domain tools
+mcp__agentic_qe__tools_load_domain({ domain: "security" })
+mcp__agentic_qe__tools_load_domain({ domain: "coverage" })
+```
+
+### Automatic Loading
+
+Tools are **auto-loaded based on keywords** when agents work:
+- "security", "vulnerability" → loads security tools
+- "coverage", "gaps" → loads coverage tools
+- "generate", "create tests" → loads test-generation tools
+- "execute", "run tests" → loads test-execution tools
+
+### Benefits
+
+- **87% context reduction** (from 15,000 to 2,000 tokens initially)
+- **Faster agent spawning** with minimal overhead
+- **On-demand loading** only when tools are needed
+
+---
+
 ## Agent Coordination
 
 All agents coordinate through the **`aqe/*` memory namespace**:
@@ -403,7 +603,7 @@ Task("Performance Test", "Load test critical paths", "qe-performance-tester")
 ---
 
 **Related Documentation:**
-- [Skills Reference](skills.md) - All 34 QE skills
+- [Skills Reference](skills.md) - All 46 QE skills
 - [Usage Guide](usage.md) - Complete usage examples
 - [AQE Hooks](../architecture/AQE-HOOKS.md) - Agent coordination details
 

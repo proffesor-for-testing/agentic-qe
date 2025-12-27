@@ -9,10 +9,76 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs-extra';
 import { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
+import { getSharedMemoryManager, initializeSharedMemoryManager } from '../../../core/memory/MemoryManagerFactory';
 import { ImprovementLoop } from '../../../learning/ImprovementLoop';
 import { LearningEngine } from '../../../learning/LearningEngine';
 import { PerformanceTracker } from '../../../learning/PerformanceTracker';
 import { ProcessExit } from '../../../utils/ProcessExit';
+
+// Type guard utilities for SerializableValue
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// Local interfaces for structured data from memory
+interface LoopStatusData {
+  active?: boolean;
+  lastCycle?: number;
+  startedAt?: number;
+  stoppedAt?: number;
+}
+
+interface CycleData {
+  timestamp: number;
+  improvement?: {
+    improvementRate?: number;
+  };
+  opportunities?: number;
+  activeTests?: number;
+  failurePatterns?: number;
+}
+
+interface ABTestData {
+  name?: string;
+  status?: string;
+  results?: ABTestResultData[];
+  sampleSize?: number;
+  startedAt?: number;
+}
+
+interface ABTestResultData {
+  sampleCount: number;
+}
+
+interface TrendData {
+  metric: string;
+  changeRate: number;
+  direction: 'up' | 'down' | 'stable';
+}
+
+interface ReportData {
+  summary: string;
+  trends?: TrendData[];
+  recommendations: string[];
+}
+
+// Type guard functions
+function asLoopStatus(value: unknown): LoopStatusData | null {
+  if (!isRecord(value)) return null;
+  return value as LoopStatusData;
+}
+
+function asCycleData(value: unknown): CycleData | null {
+  if (!isRecord(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.timestamp !== 'number') return null;
+  return record as unknown as CycleData;
+}
+
+function asABTestData(value: unknown): ABTestData | null {
+  if (!isRecord(value)) return null;
+  return value as ABTestData;
+}
 
 export interface ImproveCommandOptions {
   agent?: string;
@@ -27,14 +93,23 @@ export interface ImproveCommandOptions {
 
 /**
  * ImproveCommand - CLI handler for improvement operations
+ *
+ * Uses shared memory manager singleton to ensure all CLI, MCP, and agent
+ * operations use the same database (.agentic-qe/memory.db).
  */
 export class ImproveCommand {
-  private static memoryPath = '.agentic-qe/data/swarm-memory.db';
+  /**
+   * Get the shared memory manager singleton.
+   * All persistence now goes to .agentic-qe/memory.db
+   */
+  private static async getMemoryManager(): Promise<SwarmMemoryManager> {
+    return initializeSharedMemoryManager();
+  }
 
   /**
    * Execute improve command
    */
-  static async execute(subcommand: string, args: any[] = [], options: ImproveCommandOptions = {}): Promise<void> {
+  static async execute(subcommand: string, args: string[] = [], options: ImproveCommandOptions = {}): Promise<void> {
     switch (subcommand) {
       case 'status':
         await this.showStatus(options);
@@ -74,16 +149,16 @@ export class ImproveCommand {
     const spinner = ora('Loading improvement status...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
       // Check if loop is running
-      const loopStatus = await memoryManager.retrieve(
+      const loopStatusRaw = await memoryManager.retrieve(
         `phase2/learning/${agentId}/loop-status`,
         { partition: 'learning' }
       );
+      const loopStatus = asLoopStatus(loopStatusRaw);
 
       spinner.succeed('Status loaded');
 
@@ -96,61 +171,71 @@ export class ImproveCommand {
       console.log(`Agent: ${chalk.cyan(agentId)}`);
       console.log(`├─ Status: ${statusIcon} ${statusText}`);
 
-      if (isActive) {
+      if (isActive && loopStatus) {
         console.log(`├─ Cycle Interval: ${chalk.cyan('1 hour')}`);
-        console.log(`├─ Last Cycle: ${chalk.gray(this.formatTimeAgo(loopStatus?.lastCycle))}`);
-        console.log(`└─ Next Cycle: ${chalk.gray(this.formatNextCycle(loopStatus?.lastCycle))}`);
+        console.log(`├─ Last Cycle: ${chalk.gray(this.formatTimeAgo(loopStatus.lastCycle))}`);
+        console.log(`└─ Next Cycle: ${chalk.gray(this.formatNextCycle(loopStatus.lastCycle))}`);
       } else {
         console.log(`└─ Use "aqe improve start" to activate`);
       }
 
       // Load recent improvements
-      const cycles = await memoryManager.query(
+      const cyclesRaw = await memoryManager.query(
         `phase2/learning/${agentId}/cycles/%`,
         { partition: 'learning' }
       );
 
-      if (cycles.length > 0) {
+      // Parse and filter valid cycle entries
+      const validCycles = cyclesRaw
+        .map(entry => ({ key: entry.key, data: asCycleData(entry.value) }))
+        .filter((entry): entry is { key: string; data: CycleData } => entry.data !== null);
+
+      if (validCycles.length > 0) {
         console.log(chalk.blue('\n📈 Recent Improvements:\n'));
 
-        const recentCycles = cycles
-          .sort((a, b) => b.value.timestamp - a.value.timestamp)
+        const recentCycles = validCycles
+          .sort((a, b) => b.data.timestamp - a.data.timestamp)
           .slice(0, 3);
 
         recentCycles.forEach((cycle, index) => {
-          const data = cycle.value;
+          const data = cycle.data;
           const prefix = index === recentCycles.length - 1 ? '└─' : '├─';
           console.log(`${prefix} [${chalk.gray(new Date(data.timestamp).toLocaleString())}]`);
           console.log(`   ├─ Improvement: ${this.formatImprovement(data.improvement?.improvementRate || 0)}`);
-          console.log(`   ├─ Opportunities: ${chalk.cyan(data.opportunities)}`);
-          console.log(`   └─ Active Tests: ${chalk.cyan(data.activeTests)}`);
+          console.log(`   ├─ Opportunities: ${chalk.cyan(String(data.opportunities ?? 0))}`);
+          console.log(`   └─ Active Tests: ${chalk.cyan(String(data.activeTests ?? 0))}`);
         });
       }
 
       // Load active A/B tests
-      const activeTests = await memoryManager.query(
+      const activeTestsRaw = await memoryManager.query(
         `phase2/learning/${agentId}/abtests/%`,
         { partition: 'learning' }
       );
 
-      const runningTests = activeTests.filter(t => t.value.status === 'running');
+      // Parse and filter valid A/B test entries
+      const validTests = activeTestsRaw
+        .map(entry => ({ key: entry.key, data: asABTestData(entry.value) }))
+        .filter((entry): entry is { key: string; data: ABTestData } => entry.data !== null);
+
+      const runningTests = validTests.filter(t => t.data.status === 'running');
 
       if (runningTests.length > 0) {
         console.log(chalk.blue('\n🧪 Active A/B Tests:\n'));
         runningTests.forEach((test, index) => {
-          const data = test.value;
+          const data = test.data;
           const prefix = index === runningTests.length - 1 ? '└─' : '├─';
-          console.log(`${prefix} ${chalk.cyan(data.name)}`);
-          console.log(`   ├─ Progress: ${this.formatProgress(data.results, data.sampleSize)}`);
-          console.log(`   └─ Started: ${chalk.gray(new Date(data.startedAt).toLocaleString())}`);
+          console.log(`${prefix} ${chalk.cyan(data.name ?? 'Unknown')}`);
+          console.log(`   ├─ Progress: ${this.formatProgress(data.results ?? [], data.sampleSize ?? 0)}`);
+          console.log(`   └─ Started: ${chalk.gray(data.startedAt ? new Date(data.startedAt).toLocaleString() : 'Unknown')}`);
         });
       }
 
       console.log();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to load status');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -162,8 +247,7 @@ export class ImproveCommand {
     const spinner = ora('Starting improvement loop...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -184,13 +268,14 @@ export class ImproveCommand {
       // Note: In CLI, we can't actually keep loop running. This would be handled by a daemon.
 
       // Mark as active in memory
+      const loopStatusValue: Record<string, unknown> = {
+        active: true,
+        lastCycle: Date.now(),
+        startedAt: Date.now()
+      };
       await memoryManager.store(
         `phase2/learning/${agentId}/loop-status`,
-        {
-          active: true,
-          lastCycle: Date.now(),
-          startedAt: Date.now()
-        },
+        loopStatusValue,
         { partition: 'learning' }
       );
 
@@ -200,9 +285,9 @@ export class ImproveCommand {
       console.log(chalk.gray('Cycle interval: 1 hour'));
       console.log(chalk.gray('The loop will analyze performance and apply optimizations automatically\n'));
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to start loop');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -214,17 +299,17 @@ export class ImproveCommand {
     const spinner = ora('Stopping improvement loop...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
+      const stoppedStatusValue: Record<string, unknown> = {
+        active: false,
+        stoppedAt: Date.now()
+      };
       await memoryManager.store(
         `phase2/learning/${agentId}/loop-status`,
-        {
-          active: false,
-          stoppedAt: Date.now()
-        },
+        stoppedStatusValue,
         { partition: 'learning' }
       );
 
@@ -232,9 +317,9 @@ export class ImproveCommand {
       console.log(chalk.yellow('\n⚠️  Continuous improvement deactivated'));
       console.log(chalk.gray('Use "aqe improve start" to reactivate\n'));
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to stop loop');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -246,21 +331,25 @@ export class ImproveCommand {
     const spinner = ora('Loading improvement history...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
       const days = options.days || 30;
 
-      const cycles = await memoryManager.query(
+      const cyclesRaw = await memoryManager.query(
         `phase2/learning/${agentId}/cycles/%`,
         { partition: 'learning' }
       );
 
+      // Parse and filter valid cycle entries
+      const validCycles = cyclesRaw
+        .map(entry => ({ key: entry.key, data: asCycleData(entry.value) }))
+        .filter((entry): entry is { key: string; data: CycleData } => entry.data !== null);
+
       const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-      const recentCycles = cycles
-        .filter(c => c.value.timestamp >= cutoff)
-        .sort((a, b) => b.value.timestamp - a.value.timestamp);
+      const recentCycles = validCycles
+        .filter(c => c.data.timestamp >= cutoff)
+        .sort((a, b) => b.data.timestamp - a.data.timestamp);
 
       spinner.succeed(`Loaded ${recentCycles.length} improvement cycles`);
 
@@ -272,20 +361,20 @@ export class ImproveCommand {
       }
 
       recentCycles.forEach((cycle, index) => {
-        const data = cycle.value;
+        const data = cycle.data;
         const date = new Date(data.timestamp).toLocaleString();
 
         console.log(`${chalk.cyan((index + 1).toString().padStart(2))}. ${date}`);
         console.log(`    Improvement: ${this.formatImprovement(data.improvement?.improvementRate || 0)}`);
-        console.log(`    Opportunities: ${data.opportunities}`);
-        console.log(`    Failure Patterns: ${data.failurePatterns}`);
-        console.log(`    Active Tests: ${data.activeTests}`);
+        console.log(`    Opportunities: ${data.opportunities ?? 0}`);
+        console.log(`    Failure Patterns: ${data.failurePatterns ?? 0}`);
+        console.log(`    Active Tests: ${data.activeTests ?? 0}`);
         console.log();
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to load history');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -302,8 +391,7 @@ export class ImproveCommand {
     const spinner = ora('Creating A/B test...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -340,9 +428,9 @@ export class ImproveCommand {
       console.log(chalk.gray('\nThe test will run automatically during task executions'));
       console.log(chalk.gray('Use "aqe improve status" to monitor progress\n'));
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to create A/B test');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -354,8 +442,7 @@ export class ImproveCommand {
     const spinner = ora('Analyzing failure patterns...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -388,9 +475,9 @@ export class ImproveCommand {
         console.log();
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to analyze failures');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -421,9 +508,9 @@ export class ImproveCommand {
       console.log(`ID: ${chalk.cyan(recommendationId)}`);
       console.log(chalk.gray('Monitor "aqe improve status" to see effects\n'));
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to apply recommendation');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -435,8 +522,7 @@ export class ImproveCommand {
     const spinner = ora('Generating improvement report...').start();
 
     try {
-      const memoryManager = new SwarmMemoryManager(this.memoryPath);
-      await memoryManager.initialize();
+      const memoryManager = await this.getMemoryManager();
 
       const agentId = options.agent || 'default';
 
@@ -486,9 +572,9 @@ export class ImproveCommand {
 
       console.log();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail('Failed to generate report');
-      console.error(chalk.red('❌ Error:'), error.message);
+      console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       ProcessExit.exitIfNotTest(1);
     }
   }
@@ -561,13 +647,13 @@ export class ImproveCommand {
     return `in ${minutes}m`;
   }
 
-  private static formatProgress(results: any[], sampleSize: number): string {
+  private static formatProgress(results: ABTestResultData[], sampleSize: number): string {
     const total = results.reduce((sum, r) => sum + r.sampleCount, 0);
-    const percentage = (total / sampleSize * 100).toFixed(0);
+    const percentage = sampleSize > 0 ? (total / sampleSize * 100).toFixed(0) : '0';
     return `${total}/${sampleSize} (${percentage}%)`;
   }
 
-  private static generateHTMLReport(report: any): string {
+  private static generateHTMLReport(report: ReportData): string {
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -591,7 +677,7 @@ export class ImproveCommand {
   <div class="trends">
     <h2>Trends</h2>
     <ul>
-      ${report.trends?.map((t: any) => `<li>${t.metric}: ${t.changeRate.toFixed(1)}% ${t.direction}</li>`).join('') || ''}
+      ${report.trends?.map((t: TrendData) => `<li>${t.metric}: ${t.changeRate.toFixed(1)}% ${t.direction}</li>`).join('') || ''}
     </ul>
   </div>
   <div class="recommendations">
@@ -606,6 +692,6 @@ export class ImproveCommand {
 }
 
 // Export command functions for CLI registration
-export async function improveCommand(subcommand: string, args: any[], options: ImproveCommandOptions): Promise<void> {
+export async function improveCommand(subcommand: string, args: string[], options: ImproveCommandOptions): Promise<void> {
   await ImproveCommand.execute(subcommand, args, options);
 }

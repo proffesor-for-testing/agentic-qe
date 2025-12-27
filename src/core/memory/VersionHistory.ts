@@ -1,18 +1,18 @@
-import { SwarmMemoryManager, StoreOptions, RetrieveOptions } from './SwarmMemoryManager';
+import { SwarmMemoryManager, StoreOptions, RetrieveOptions, SerializableValue } from './SwarmMemoryManager';
 import * as crypto from 'crypto';
 
 export interface VersionEntry {
   key: string;
-  value: any;
+  value: SerializableValue;
   version: number;
   timestamp: number;
   checksum: string;
   partition?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface VersionStoreOptions extends StoreOptions {
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface VersionRetrieveOptions extends RetrieveOptions {
@@ -38,7 +38,7 @@ export class VersionHistory {
   /**
    * Calculate SHA-256 checksum for data
    */
-  private calculateChecksum(data: any): string {
+  private calculateChecksum(data: SerializableValue): string {
     const jsonString = typeof data === 'string' ? data : JSON.stringify(data);
     return crypto.createHash('sha256').update(jsonString).digest('hex');
   }
@@ -62,7 +62,7 @@ export class VersionHistory {
    */
   async store(
     key: string,
-    value: any,
+    value: SerializableValue,
     options: VersionStoreOptions = {}
   ): Promise<number> {
     const timestamp = Date.now();
@@ -84,9 +84,18 @@ export class VersionHistory {
       metadata: options.metadata
     };
 
-    // Store version
+    // Store version - serialize to Record<string, unknown> for type safety
     const versionKey = this.getVersionKey(key, timestamp);
-    await this.memoryManager.store(versionKey, versionEntry, {
+    const serializableEntry: Record<string, unknown> = {
+      key: versionEntry.key,
+      value: versionEntry.value,
+      version: versionEntry.version,
+      timestamp: versionEntry.timestamp,
+      checksum: versionEntry.checksum,
+      partition: versionEntry.partition,
+      metadata: versionEntry.metadata
+    };
+    await this.memoryManager.store(versionKey, serializableEntry, {
       partition: versionPartition,
       ttl: options.ttl,
       metadata: {
@@ -140,7 +149,23 @@ export class VersionHistory {
     });
 
     const versions = entries
-      .map(entry => entry.value as VersionEntry)
+      .map(entry => {
+        // Type guard: ensure entry.value is an object with required VersionEntry properties
+        const val = entry.value;
+        if (
+          typeof val === 'object' &&
+          val !== null &&
+          'key' in val &&
+          'value' in val &&
+          'version' in val &&
+          'timestamp' in val &&
+          'checksum' in val
+        ) {
+          return val as unknown as VersionEntry;
+        }
+        return null;
+      })
+      .filter((v): v is VersionEntry => v !== null)
       .sort((a, b) => a.timestamp - b.timestamp);
 
     return versions;
@@ -163,7 +188,20 @@ export class VersionHistory {
       includeExpired: options.includeExpired
     });
 
-    return value || null;
+    // Type guard: ensure value is a valid VersionEntry
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'key' in value &&
+      'value' in value &&
+      'version' in value &&
+      'timestamp' in value &&
+      'checksum' in value
+    ) {
+      return value as unknown as VersionEntry;
+    }
+
+    return null;
   }
 
   /**

@@ -20,16 +20,23 @@ import { TaskResult } from '../../src/learning/RewardCalculator';
 import { LearningFeedback } from '../../src/learning/types';
 import fs from 'fs';
 import path from 'path';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Learning System Database Persistence', () => {
-  // Use SEPARATE database files to avoid schema conflicts
-  const testDbPath = path.join(process.cwd(), '.test-learning.db');
-  const memoryDbPath = path.join(process.cwd(), '.test-memory.db');
+  // Use tests/.tmp directory for test databases (not project root)
+  const tmpDir = path.join(__dirname, '../.tmp');
+  const testDbPath = path.join(tmpDir, '.test-learning.db');
+  const memoryDbPath = path.join(tmpDir, '.test-memory.db');
   let database: Database;
   let memoryManager: SwarmMemoryManager;
   let learningEngine: LearningEngine | null = null;
 
   beforeEach(async () => {
+    // Ensure tmp directory exists
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
     // Clean up test databases if they exist
     if (fs.existsSync(testDbPath)) {
       fs.unlinkSync(testDbPath);
@@ -314,6 +321,7 @@ describe('Learning System Database Persistence', () => {
 
     it('should handle high volume of experiences efficiently', async () => {
       const agentId = 'test-agent-volume';
+      const rng = createSeededRandom(18300);
       learningEngine = new LearningEngine(
         agentId,
         memoryManager,
@@ -338,10 +346,10 @@ describe('Learning System Database Persistence', () => {
         };
 
         const result: TaskResult = {
-          success: Math.random() > 0.3,
-          executionTime: 1000 + Math.random() * 2000,
+          success: rng.random() > 0.3,
+          executionTime: 1000 + rng.random() * 2000,
           errors: [],
-          coverage: 0.6 + Math.random() * 0.4,
+          coverage: 0.6 + rng.random() * 0.4,
           metadata: {
             strategy: i % 3 === 0 ? 'template' : i % 3 === 1 ? 'property' : 'mutation',
             toolsUsed: ['jest'],

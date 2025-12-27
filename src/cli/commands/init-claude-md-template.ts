@@ -6,6 +6,7 @@
 
 export function generateCondensedClaudeMd(config: {
   agentCount: number;
+  skillCount?: number;
   topology?: string;
   maxAgents?: number;
   testingFocus?: string[];
@@ -14,18 +15,33 @@ export function generateCondensedClaudeMd(config: {
   routing?: any;
   streaming?: any;
 }, packageVersion: string): string {
+  const skills = config.skillCount || 41;
   return `# Agentic QE Fleet Configuration
+
+## ⚠️ INTEGRITY RULE (ABSOLUTE)
+
+**We value the quality we deliver to our users.**
+
+- ❌ NO shortcuts - do the work properly or don't do it
+- ❌ NO fake data - use real data, real tests, real results
+- ❌ NO false claims - only report what actually works and is verified
+- ✅ ALWAYS implement all code/tests with proper implementation
+- ✅ ALWAYS verify before claiming success
+- ✅ ALWAYS use real database queries, not mocks, for integration tests
+- ✅ ALWAYS run actual tests, not assume they pass
+
+---
 
 ## 🤖 Agentic QE Fleet Quick Reference
 
 **${config.agentCount} QE Agents:** Test generation, coverage analysis, performance, security, flaky detection
-**37 QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
+**${skills} QE Skills:** agentic-quality-engineering, tdd-london-chicago, api-testing-patterns, six-thinking-hats, brutal-honesty-review, cicd-pipeline-qe-orchestrator
 **8 Slash Commands:** \`/aqe-execute\`, \`/aqe-generate\`, \`/aqe-coverage\`, \`/aqe-quality\`
 
 ### 📚 Complete Documentation
 
-- **[Agent Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)** - All 18 QE agents with capabilities and usage
-- **[Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)** - All 37 QE skills organized by category
+- **[Agent Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/agents.md)** - All ${config.agentCount} QE agents with capabilities and usage
+- **[Skills Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/skills.md)** - All ${skills} QE skills organized by category
 - **[Usage Guide](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/usage.md)** - Complete usage examples and workflows
 
 ### 🎯 Quick Start

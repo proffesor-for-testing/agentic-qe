@@ -9,6 +9,66 @@ export interface FleetTopologyOptions {
 
 type TopologyType = 'hierarchical' | 'mesh' | 'ring' | 'star';
 
+interface FleetConfig {
+  topology: TopologyType;
+  maxAgents: number;
+  lastModified?: string;
+  topologyChangedAt?: string;
+}
+
+interface AgentRegistryEntry {
+  id: string;
+  status: string;
+  type?: string;
+  dependencies?: string[];
+}
+
+interface TaskRegistryEntry {
+  id: string;
+  status: string;
+  dependencies?: string[];
+}
+
+interface Registry {
+  agents: AgentRegistryEntry[];
+  tasks: TaskRegistryEntry[];
+}
+
+interface WorkloadAnalysis {
+  agentCount: number;
+  taskCount: number;
+  communicationPattern: string;
+  taskComplexity: string;
+}
+
+interface TopologyRecommendation {
+  topology: TopologyType;
+  reason: string;
+}
+
+interface TopologyCharacteristics {
+  communicationOverhead: string;
+  faultTolerance: string;
+  scalability: string;
+  bestFor: string;
+  features: string[];
+}
+
+interface PerformanceData {
+  messageCount: number;
+  totalLatency: number;
+  resourceUtilization: number;
+  coordinationOverhead: number;
+}
+
+interface TopologyEfficiency {
+  messageThroughput: number;
+  averageLatency: number;
+  resourceUtilization: number;
+  coordinationEfficiency: number;
+  bottlenecks: string[];
+}
+
 export class FleetTopologyCommand {
   private static readonly VALID_TOPOLOGIES: TopologyType[] = ['hierarchical', 'mesh', 'ring', 'star'];
 
@@ -39,18 +99,19 @@ export class FleetTopologyCommand {
     return await this.showTopology(fleetConfig);
   }
 
-  private static async changeTopology(fleetConfig: any, newTopology: string): Promise<any> {
+  private static async changeTopology(fleetConfig: FleetConfig, newTopology: string): Promise<{ oldTopology: TopologyType; newTopology: TopologyType; characteristics: TopologyCharacteristics; transitionRequired: boolean }> {
     // Validate topology
     if (!this.VALID_TOPOLOGIES.includes(newTopology as TopologyType)) {
       throw new Error(`Invalid topology: ${newTopology}. Valid options: ${this.VALID_TOPOLOGIES.join(', ')}`);
     }
 
     const oldTopology = fleetConfig.topology;
+    const validNewTopology = newTopology as TopologyType;
 
     console.log(chalk.yellow(`Changing topology from ${oldTopology} to ${newTopology}...\n`));
 
     // Update configuration
-    fleetConfig.topology = newTopology;
+    fleetConfig.topology = validNewTopology;
     fleetConfig.lastModified = new Date().toISOString();
     fleetConfig.topologyChangedAt = new Date().toISOString();
 
@@ -58,25 +119,25 @@ export class FleetTopologyCommand {
     await fs.writeJson('.agentic-qe/config/fleet.json', fleetConfig, { spaces: 2 });
 
     // Generate topology transition script
-    await this.generateTopologyTransitionScript(oldTopology, newTopology);
+    await this.generateTopologyTransitionScript(oldTopology, validNewTopology);
 
     console.log(chalk.green('✅ Topology changed successfully\n'));
 
     // Display topology characteristics
-    this.displayTopologyInfo(newTopology);
+    this.displayTopologyInfo(validNewTopology);
 
     // Store topology change in coordination
-    await this.storeTopologyChange(oldTopology, newTopology);
+    await this.storeTopologyChange(oldTopology, validNewTopology);
 
     return {
       oldTopology,
-      newTopology,
-      characteristics: this.getTopologyCharacteristics(newTopology),
+      newTopology: validNewTopology,
+      characteristics: this.getTopologyCharacteristics(validNewTopology),
       transitionRequired: true
     };
   }
 
-  private static async optimizeTopology(fleetConfig: any): Promise<any> {
+  private static async optimizeTopology(fleetConfig: FleetConfig): Promise<{ current: TopologyType; recommended: TopologyType; analysis: WorkloadAnalysis }> {
     console.log(chalk.blue('🔍 Analyzing workload for topology optimization...\n'));
 
     // Load agent and task data for analysis
@@ -121,7 +182,7 @@ export class FleetTopologyCommand {
     };
   }
 
-  private static async analyzeTopology(fleetConfig: any): Promise<any> {
+  private static async analyzeTopology(fleetConfig: FleetConfig): Promise<{ topology: TopologyType; characteristics: TopologyCharacteristics; efficiency: TopologyEfficiency }> {
     console.log(chalk.blue('🔍 Topology Efficiency Analysis\n'));
 
     const topology = fleetConfig.topology;
@@ -161,7 +222,7 @@ export class FleetTopologyCommand {
     };
   }
 
-  private static async showTopology(fleetConfig: any): Promise<any> {
+  private static async showTopology(fleetConfig: FleetConfig): Promise<{ topology: TopologyType; maxAgents: number }> {
     const topology = fleetConfig.topology;
 
     console.log(chalk.blue('📊 Current Fleet Topology\n'));
@@ -189,8 +250,8 @@ export class FleetTopologyCommand {
     });
   }
 
-  private static getTopologyCharacteristics(topology: string): any {
-    const characteristics: Record<TopologyType, any> = {
+  private static getTopologyCharacteristics(topology: string): TopologyCharacteristics {
+    const characteristics: Record<TopologyType, TopologyCharacteristics> = {
       'hierarchical': {
         communicationOverhead: 'Low',
         faultTolerance: 'Medium',
@@ -250,7 +311,7 @@ export class FleetTopologyCommand {
     };
   }
 
-  private static analyzeWorkloadPattern(registry: any): any {
+  private static analyzeWorkloadPattern(registry: Registry): WorkloadAnalysis {
     const agents = registry.agents || [];
     const tasks = registry.tasks || [];
 
@@ -265,7 +326,7 @@ export class FleetTopologyCommand {
     // Analyze task complexity
     let taskComplexity = 'medium';
     if (tasks.length > 0) {
-      const avgDependencies = tasks.reduce((sum: number, t: any) => sum + (t.dependencies?.length || 0), 0) / tasks.length;
+      const avgDependencies = tasks.reduce((sum: number, t: TaskRegistryEntry) => sum + (t.dependencies?.length || 0), 0) / tasks.length;
       if (avgDependencies > 3) {
         taskComplexity = 'high';
       } else if (avgDependencies < 1) {
@@ -281,7 +342,7 @@ export class FleetTopologyCommand {
     };
   }
 
-  private static recommendTopology(analysis: any, fleetConfig: any): any {
+  private static recommendTopology(analysis: WorkloadAnalysis, _fleetConfig: FleetConfig): TopologyRecommendation {
     const { agentCount, taskCount, communicationPattern, taskComplexity } = analysis;
 
     // Recommendation logic
@@ -312,7 +373,7 @@ export class FleetTopologyCommand {
     };
   }
 
-  private static async loadPerformanceData(): Promise<any> {
+  private static async loadPerformanceData(): Promise<PerformanceData> {
     // Load recent performance metrics
     return {
       messageCount: 1000,
@@ -322,8 +383,8 @@ export class FleetTopologyCommand {
     };
   }
 
-  private static calculateTopologyEfficiency(topology: string, perfData: any): any {
-    const efficiency: any = {
+  private static calculateTopologyEfficiency(_topology: string, perfData: PerformanceData): TopologyEfficiency {
+    const efficiency: TopologyEfficiency = {
       messageThroughput: Math.floor(perfData.messageCount / 60),
       averageLatency: Math.floor(perfData.totalLatency / perfData.messageCount),
       resourceUtilization: perfData.resourceUtilization,
@@ -386,7 +447,7 @@ echo "Topology transition completed successfully!"
     }
   }
 
-  private static async storeOptimizationAnalysis(analysis: any, recommendation: any): Promise<void> {
+  private static async storeOptimizationAnalysis(analysis: WorkloadAnalysis, recommendation: TopologyRecommendation): Promise<void> {
     try {
       const { execSync } = require('child_process');
       const data = JSON.stringify({ analysis, recommendation, timestamp: new Date().toISOString() });

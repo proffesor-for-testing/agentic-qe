@@ -91,32 +91,38 @@ jest.mock('@core/EventBus', () => {
   };
 });
 
-// Mock MemoryManager to prevent Logger and Database dependency issues
-jest.mock('@core/MemoryManager', () => {
-  const EventEmitter = require('events');
-
-  class MockMemoryManager extends EventEmitter {
+// Mock SwarmMemoryManager to prevent database file issues in tests
+// Issue #137: FleetManager now uses SwarmMemoryManager instead of MemoryManager
+jest.mock('@core/memory/SwarmMemoryManager', () => {
+  class MockSwarmMemoryManager {
     initialize = jest.fn().mockResolvedValue(undefined);
-    shutdown = jest.fn().mockResolvedValue(undefined);
+    close = jest.fn().mockResolvedValue(undefined);
     store = jest.fn().mockResolvedValue(undefined);
     retrieve = jest.fn().mockResolvedValue(undefined);
     delete = jest.fn().mockResolvedValue(true);
     search = jest.fn().mockResolvedValue([]);
-    getStats = jest.fn().mockResolvedValue({
-      totalKeys: 0,
-      totalSize: 0,
-      namespaces: [],
-      expiredKeys: 0,
-      persistentKeys: 0
+    getImplementationInfo = jest.fn().mockReturnValue({
+      version: '2.5.1',
+      type: 'SwarmMemoryManager'
     });
+    // Pattern storage methods
+    storePattern = jest.fn().mockResolvedValue(undefined);
+    getPatterns = jest.fn().mockResolvedValue([]);
+    updatePatternUsage = jest.fn().mockResolvedValue(undefined);
+    // Performance metrics methods
+    recordPerformance = jest.fn().mockResolvedValue(undefined);
+    getPerformanceMetrics = jest.fn().mockResolvedValue([]);
+    // Event methods
+    logEvent = jest.fn().mockResolvedValue(undefined);
+    getEvents = jest.fn().mockResolvedValue([]);
 
-    constructor(database?: any) {
-      super();
+    constructor(dbPath?: string) {
+      // Mock constructor accepts dbPath but doesn't use it
     }
   }
 
   return {
-    MemoryManager: MockMemoryManager
+    SwarmMemoryManager: MockSwarmMemoryManager
   };
 });
 
@@ -218,13 +224,5 @@ describe('FleetManager', () => {
       expect(agents.length).toBe(0); // No agents created during initialization
     });
 
-    // TODO: Add proper agent spawning tests with mocked createAgent factory
-    // Currently skipped because we need to mock the entire agent factory
-    it.skip('should spawn new agents', async () => {
-      const agent = await fleetManager.spawnAgent('test-executor');
-
-      expect(agent).toBeDefined();
-      expect(agent.getType()).toBe('test-executor');
-    });
   });
 });

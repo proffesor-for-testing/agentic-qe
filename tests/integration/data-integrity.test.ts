@@ -8,11 +8,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';
 import * as crypto from 'crypto';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('Data Integrity - Integration Tests', () => {
   const testDir = path.join(__dirname, '../.tmp/data-integrity-test-' + Date.now());
   const sourceDbPath = path.join(testDir, 'source.db');
   const targetDbPath = path.join(testDir, 'target.db');
+
+  // Seeded RNG for deterministic test data
+  const rng = createSeededRandom(18000);
 
   beforeAll(() => {
     fs.mkdirSync(testDir, { recursive: true });
@@ -91,7 +95,7 @@ describe('Data Integrity - Integration Tests', () => {
         `input-${i}`,
         `output-${i}`,
         `critique-${i}`,
-        Math.random(),
+        rng.random(),
         i % 2,
         1000 + i * 10,
         500 + i * 5,
@@ -107,10 +111,10 @@ describe('Data Integrity - Integration Tests', () => {
       insertPatterns.run(
         `pat${i}`,
         `pattern-type-${i % 3}`,
-        JSON.stringify({ strategy: `strategy-${i}`, confidence: Math.random() }),
+        JSON.stringify({ strategy: `strategy-${i}`, confidence: rng.random() }),
         `agent-${i % 5}`,
         `domain-${i % 3}`,
-        0.5 + Math.random() * 0.5,
+        0.5 + rng.random() * 0.5,
         i * 2,
         Date.now() + i
       );

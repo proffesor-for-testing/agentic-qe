@@ -4,6 +4,7 @@
  */
 
 import { TestPrioritizer, TestCase, PriorityScore } from './testPrioritizer';
+import { createSeededRandom } from '../../src/utils/SeededRandom';
 
 describe('TestPrioritizer', () => {
   let prioritizer: TestPrioritizer;
@@ -355,17 +356,18 @@ describe('TestPrioritizer', () => {
 });
 
 // Helper function to generate test suite
-function generateTestSuite(size: number): TestCase[] {
+function generateTestSuite(size: number, seed: number = 600001): TestCase[] {
+  const rng = createSeededRandom(seed);
   return Array.from({ length: size }, (_, i) => ({
     id: `test-${i}`,
     path: `src/module${Math.floor(i / 10)}/Class${i % 10}.test.js`,
-    complexity: Math.floor(Math.random() * 10) + 1,
-    coverage: Math.random() * 50 + 5, // 5-55% coverage
-    criticalPath: Math.random() < 0.1, // 10% critical path
+    complexity: Math.floor(rng.random() * 10) + 1,
+    coverage: rng.random() * 50 + 5, // 5-55% coverage
+    criticalPath: rng.random() < 0.1, // 10% critical path
     dependencies: Array.from(
-      { length: Math.floor(Math.random() * 3) },
+      { length: Math.floor(rng.random() * 3) },
       (_, j) => `dep-${i}-${j}`
     ),
-    executionTime: Math.random() * 2000 + 50 // 50-2050ms
+    executionTime: rng.random() * 2000 + 50 // 50-2050ms
   }));
 }
