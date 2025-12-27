@@ -4,7 +4,7 @@
   "runArgs": [
     "--privileged",
     "--memory=8g",
-    "--memory-swap=6g",
+    "--memory-swap=12g",
     "--memory-reservation=2g",
     "--cpus=3",
     "--oom-kill-disable=false",
