@@ -7,7 +7,6 @@
 
 import {
   HTSMCategory,
-  SFDIPOT_SUBCATEGORIES,
   StructureSubcategory,
   FunctionSubcategory,
   DataSubcategory,
@@ -18,11 +17,32 @@ import {
   ClarifyingQuestion,
   ProjectContext,
 } from '../types';
-import { CategoryAnalysisResult, SubcategoryAnalysis } from '../analyzers';
+import {
+  CategoryAnalysisResult,
+  SubcategoryAnalysis,
+  BrutalHonestyAnalyzer,
+  EnhancedQuestion,
+  BrutalHonestySeverity,
+} from '../analyzers';
+import {
+  domainPatternRegistry,
+} from '../patterns/domain-registry';
+import { DetectedDomain } from '../types';
 
 export interface QuestionGeneratorConfig {
   maxQuestionsPerCategory: number;
   coverageThreshold: number; // Generate questions if coverage below this
+  enableBrutalHonesty?: boolean; // Enable Linus-mode precision
+}
+
+/**
+ * Result of generating questions with enhancements
+ */
+export interface QuestionGenerationResult {
+  questions: ClarifyingQuestion[];
+  enhancedQuestions: EnhancedQuestion[];
+  criticalQuestions: EnhancedQuestion[];  // Questions with CRITICAL risk if unanswered
+  highRiskQuestions: EnhancedQuestion[];  // Questions with HIGH risk if unanswered
 }
 
 /**
@@ -33,16 +53,20 @@ export interface QuestionGeneratorConfig {
  */
 export class QuestionGenerator {
   private config: QuestionGeneratorConfig;
+  private brutalHonestyAnalyzer: BrutalHonestyAnalyzer;
 
   constructor(config: Partial<QuestionGeneratorConfig> = {}) {
     this.config = {
       maxQuestionsPerCategory: config.maxQuestionsPerCategory || 5,
       coverageThreshold: config.coverageThreshold || 0.3,
+      enableBrutalHonesty: config.enableBrutalHonesty ?? true,
     };
+    this.brutalHonestyAnalyzer = new BrutalHonestyAnalyzer();
   }
 
   /**
    * Generate questions for gaps in category analysis
+   * Enhanced with domain-specific clarifying questions
    */
   generateForCategory(
     analysis: CategoryAnalysisResult,
@@ -50,12 +74,22 @@ export class QuestionGenerator {
   ): ClarifyingQuestion[] {
     const questions: ClarifyingQuestion[] = [];
 
-    // Get uncovered subcategories
+    // First, inject domain-specific questions (highest priority)
+    if (context.detectedDomains && context.detectedDomains.length > 0) {
+      const domainQuestions = this.generateDomainSpecificQuestions(
+        analysis.category,
+        context.detectedDomains
+      );
+      questions.push(...domainQuestions);
+    }
+
+    // Then add generic gap-filling questions
     const uncovered = analysis.subcategoryAnalysis.filter(
       s => s.relevance < this.config.coverageThreshold
     );
 
-    for (const subcatAnalysis of uncovered.slice(0, this.config.maxQuestionsPerCategory)) {
+    const remainingSlots = this.config.maxQuestionsPerCategory - questions.length;
+    for (const subcatAnalysis of uncovered.slice(0, remainingSlots)) {
       const question = this.generateQuestion(
         analysis.category,
         subcatAnalysis,
@@ -67,6 +101,149 @@ export class QuestionGenerator {
     }
 
     return questions;
+  }
+
+  /**
+   * Generate domain-specific clarifying questions
+   * These are expert-crafted questions for specific domains like Stripe, GDPR, etc.
+   */
+  private generateDomainSpecificQuestions(
+    category: HTSMCategory,
+    detectedDomains: DetectedDomain[]
+  ): ClarifyingQuestion[] {
+    const questions: ClarifyingQuestion[] = [];
+
+    // Get domain names with sufficient confidence
+    const domainNames = detectedDomains
+      .filter(d => d.confidence >= 0.5)
+      .map(d => d.domain);
+
+    if (domainNames.length === 0) {
+      return questions;
+    }
+
+    // Get clarifying questions from the registry for each domain
+    for (const domainName of domainNames) {
+      const pattern = domainPatternRegistry.getPattern(domainName);
+      if (pattern && pattern.clarifyingQuestions) {
+        // Filter questions relevant to this category
+        const relevantQuestions = pattern.clarifyingQuestions.filter(
+          q => q.category === category
+        );
+
+        // Add up to 2 questions per domain per category
+        for (const q of relevantQuestions.slice(0, 2)) {
+          const question: ClarifyingQuestion = {
+            category: q.category,
+            subcategory: domainName,  // Use domain name as subcategory for domain-specific questions
+            question: q.question,
+            rationale: q.riskIfUnanswered,
+            source: 'template',  // Domain-specific questions are template-based
+          };
+          questions.push(question);
+        }
+      }
+    }
+
+    return questions;
+  }
+
+  /**
+   * Generate questions with brutal honesty enhancements (Linus mode)
+   *
+   * This method generates questions and enhances them with:
+   * - Technical precision requirements
+   * - Assumptions being challenged
+   * - Risk severity if left unanswered
+   * - Impact area identification
+   */
+  generateWithEnhancements(
+    analysis: CategoryAnalysisResult,
+    context: ProjectContext,
+    requirementsContext: string
+  ): QuestionGenerationResult {
+    // Generate base questions
+    const questions = this.generateForCategory(analysis, context);
+
+    // Skip enhancement if brutal honesty is disabled
+    if (!this.config.enableBrutalHonesty) {
+      return {
+        questions,
+        enhancedQuestions: [],
+        criticalQuestions: [],
+        highRiskQuestions: [],
+      };
+    }
+
+    // Enhance questions using Linus mode
+    const enhancedQuestions = this.brutalHonestyAnalyzer.enhanceQuestions(
+      questions,
+      requirementsContext
+    );
+
+    // Categorize by risk level
+    const criticalQuestions = enhancedQuestions.filter(
+      q => q.riskIfUnanswered === BrutalHonestySeverity.CRITICAL
+    );
+
+    const highRiskQuestions = enhancedQuestions.filter(
+      q => q.riskIfUnanswered === BrutalHonestySeverity.HIGH
+    );
+
+    return {
+      questions,
+      enhancedQuestions,
+      criticalQuestions,
+      highRiskQuestions,
+    };
+  }
+
+  /**
+   * Generate enhanced questions for all categories
+   */
+  generateAllWithEnhancements(
+    analysisResults: Map<HTSMCategory, CategoryAnalysisResult>,
+    context: ProjectContext,
+    requirementsContext: string
+  ): {
+    allQuestions: ClarifyingQuestion[];
+    allEnhanced: EnhancedQuestion[];
+    byCriticality: {
+      critical: EnhancedQuestion[];
+      high: EnhancedQuestion[];
+      medium: EnhancedQuestion[];
+      low: EnhancedQuestion[];
+    };
+  } {
+    const allQuestions: ClarifyingQuestion[] = [];
+    const allEnhanced: EnhancedQuestion[] = [];
+
+    for (const [_category, analysis] of Array.from(analysisResults.entries())) {
+      const result = this.generateWithEnhancements(analysis, context, requirementsContext);
+      allQuestions.push(...result.questions);
+      allEnhanced.push(...result.enhancedQuestions);
+    }
+
+    // Sort by criticality
+    const byCriticality = {
+      critical: allEnhanced.filter(q => q.riskIfUnanswered === BrutalHonestySeverity.CRITICAL),
+      high: allEnhanced.filter(q => q.riskIfUnanswered === BrutalHonestySeverity.HIGH),
+      medium: allEnhanced.filter(q => q.riskIfUnanswered === BrutalHonestySeverity.MEDIUM),
+      low: allEnhanced.filter(q => q.riskIfUnanswered === BrutalHonestySeverity.LOW),
+    };
+
+    return {
+      allQuestions,
+      allEnhanced,
+      byCriticality,
+    };
+  }
+
+  /**
+   * Get the brutal honesty analyzer instance
+   */
+  getBrutalHonestyAnalyzer(): BrutalHonestyAnalyzer {
+    return this.brutalHonestyAnalyzer;
   }
 
   /**
@@ -345,7 +522,7 @@ export class QuestionGenerator {
   ): ClarifyingQuestion[] {
     const allQuestions: ClarifyingQuestion[] = [];
 
-    for (const [category, analysis] of Array.from(analysisResults.entries())) {
+    for (const [_category, analysis] of Array.from(analysisResults.entries())) {
       const questions = this.generateForCategory(analysis, context);
       allQuestions.push(...questions);
     }

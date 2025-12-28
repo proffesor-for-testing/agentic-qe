@@ -1,0 +1,274 @@
+{
+  "metadata": {
+    "assessmentId": "epic3-ai-personalization-2025-12-28",
+    "epic": "Epic 3: AI-Powered Personalization & Search Enhancement",
+    "domain": "ecommerce",
+    "subdomain": "ai-ml-personalization",
+    "assessmentDate": "2025-12-28T00:00:00Z",
+    "framework": "SFDIPOT (James Bach HTSM)",
+    "version": "1.0.0",
+    "client": "Next.co.uk"
+  },
+  "epicDetails": {
+    "priority": "HIGH",
+    "timeline": {
+      "start": "2026-02",
+      "end": "2026-04"
+    },
+    "riskLevel": "MEDIUM",
+    "dependencies": ["E2 (Progressive Enhancement & Core Web Vitals)"],
+    "enables": ["E5 (Social Proof & UGC Integration)"],
+    "sharedResources": ["Data Science", "Backend teams"]
+  },
+  "factorScores": {
+    "structure": {
+      "score": 7.5,
+      "maxScore": 10,
+      "weight": 0.15,
+      "weighted": 1.125,
+      "rationale": "Well-defined component architecture, but ML model internals and third-party dependencies introduce opacity."
+    },
+    "function": {
+      "score": 8.0,
+      "maxScore": 10,
+      "weight": 0.25,
+      "weighted": 2.0,
+      "rationale": "Comprehensive feature set with clear acceptance criteria. ML algorithm opacity and third-party service reliability are concerns."
+    },
+    "data": {
+      "score": 7.0,
+      "maxScore": 10,
+      "weight": 0.15,
+      "weighted": 1.05,
+      "rationale": "Complex data flows with multiple storage systems. GDPR compliance for user data is critical and well-defined."
+    },
+    "interfaces": {
+      "score": 8.5,
+      "maxScore": 10,
+      "weight": 0.15,
+      "weighted": 1.275,
+      "rationale": "Well-defined API contracts with clear integration points. UI complexity is manageable with modern testing frameworks."
+    },
+    "platform": {
+      "score": 7.5,
+      "maxScore": 10,
+      "weight": 0.1,
+      "weighted": 0.75,
+      "rationale": "Standard web platform with complex external dependencies. ML and search service availability are critical concerns."
+    },
+    "operations": {
+      "score": 8.0,
+      "maxScore": 10,
+      "weight": 0.1,
+      "weighted": 0.8,
+      "rationale": "Well-defined user scenarios with clear personas. Edge cases around cold start and power users need attention."
+    },
+    "time": {
+      "score": 7.0,
+      "maxScore": 10,
+      "weight": 0.1,
+      "weighted": 0.7,
+      "rationale": "Clear latency requirements but complex state transitions. ML model deployment timing needs careful orchestration."
+    },
+    "overall": {
+      "score": 7.64,
+      "maxScore": 10,
+      "weighted": 7.7
+    }
+  },
+  "testIdeas": {
+    "summary": {
+      "total": 87,
+      "byPriority": {
+        "P0": 26,
+        "P1": 31,
+        "P2": 22,
+        "P3": 8
+      },
+      "byAutomation": {
+        "api-level": 23,
+        "integration-level": 22,
+        "e2e-level": 27,
+        "performance": 7,
+        "security": 7,
+        "concurrency": 2,
+        "accessibility": 2,
+        "human-exploration": 5
+      }
+    },
+    "P0": [
+      {"id": "P0-01", "category": "Function", "description": "Verify personalized recommendations display for logged-in users", "automation": "e2e-level"},
+      {"id": "P0-02", "category": "Function", "description": "Verify natural language search returns relevant results for 'blue dress for summer wedding'", "automation": "e2e-level"},
+      {"id": "P0-03", "category": "Function", "description": "Verify privacy opt-out immediately stops personalization", "automation": "e2e-level"},
+      {"id": "P0-04", "category": "Function", "description": "Verify privacy opt-out preserves core shopping functionality", "automation": "e2e-level"},
+      {"id": "P0-05", "category": "Data", "description": "Verify user data is deleted upon privacy opt-out request", "automation": "api-level"},
+      {"id": "P0-06", "category": "Data", "description": "Verify search query sanitization prevents injection attacks", "automation": "security"},
+      {"id": "P0-07", "category": "Data", "description": "Verify uploaded images are scanned for malware", "automation": "security"},
+      {"id": "P0-08", "category": "Interface", "description": "Verify recommendations API returns within 200ms SLA", "automation": "performance"},
+      {"id": "P0-09", "category": "Interface", "description": "Verify search autocomplete responds within 100ms", "automation": "performance"},
+      {"id": "P0-10", "category": "Security", "description": "Verify user cannot access another user's browsing history", "automation": "security"},
+      {"id": "P0-11", "category": "Security", "description": "Verify ML model input validation prevents prompt injection", "automation": "security"},
+      {"id": "P0-12", "category": "Security", "description": "Verify API endpoints require proper authentication", "automation": "security"},
+      {"id": "P0-13", "category": "Security", "description": "Verify privacy preferences are encrypted at rest", "automation": "security"},
+      {"id": "P0-14", "category": "Platform", "description": "Verify personalization works on Chrome latest", "automation": "e2e-level"},
+      {"id": "P0-15", "category": "Platform", "description": "Verify personalization works on Safari iOS", "automation": "e2e-level"},
+      {"id": "P0-16", "category": "Operations", "description": "Verify new user (cold start) sees appropriate fallback content", "automation": "e2e-level"},
+      {"id": "P0-17", "category": "Operations", "description": "Verify logged-in returning customer sees relevant recommendations", "automation": "e2e-level"},
+      {"id": "P0-18", "category": "Time", "description": "Verify page with personalization meets 2.5s LCP target", "automation": "performance"},
+      {"id": "P0-19", "category": "Time", "description": "Verify A/B experiment assignment is consistent across sessions", "automation": "api-level"},
+      {"id": "P0-20", "category": "Function", "description": "Verify fallback to popular items when ML service is unavailable", "automation": "integration-level"},
+      {"id": "P0-21", "category": "Function", "description": "Verify graceful degradation when search service times out", "automation": "integration-level"},
+      {"id": "P0-22", "category": "Function", "description": "Verify privacy service failure defaults to no personalization", "automation": "integration-level"},
+      {"id": "P0-23", "category": "Data", "description": "Verify GDPR-compliant consent records are maintained", "automation": "api-level"},
+      {"id": "P0-24", "category": "Interface", "description": "Verify PrivacyOptOut event triggers all personalization services", "automation": "integration-level"},
+      {"id": "P0-25", "category": "Function", "description": "Verify visual search returns similar products for uploaded image", "automation": "e2e-level"},
+      {"id": "P0-26", "category": "Security", "description": "Verify image upload size limits are enforced (max 10MB)", "automation": "api-level"}
+    ],
+    "P1": [
+      {"id": "P1-01", "category": "Function", "description": "Verify 'Continue Shopping' shows recently viewed items", "automation": "e2e-level"},
+      {"id": "P1-02", "category": "Function", "description": "Verify abandoned cart items appear in continue shopping section", "automation": "integration-level"},
+      {"id": "P1-03", "category": "Function", "description": "Verify search autocomplete includes product images", "automation": "e2e-level"},
+      {"id": "P1-04", "category": "Function", "description": "Verify search shows category suggestions", "automation": "e2e-level"},
+      {"id": "P1-05", "category": "Function", "description": "Verify visual search handles various image formats (JPEG, PNG, WebP)", "automation": "api-level"},
+      {"id": "P1-06", "category": "Function", "description": "Verify error message for unsupported image formats", "automation": "e2e-level"},
+      {"id": "P1-07", "category": "Function", "description": "Verify A/B testing framework correctly assigns variants", "automation": "api-level"},
+      {"id": "P1-08", "category": "Function", "description": "Verify A/B testing supports rollback capability", "automation": "integration-level"},
+      {"id": "P1-09", "category": "Function", "description": "Verify 'Shop by Occasion' shows calendar-based sections", "automation": "e2e-level"},
+      {"id": "P1-10", "category": "Function", "description": "Verify recommendation diversity avoids filter bubbles", "automation": "human-exploration"},
+      {"id": "P1-11", "category": "Data", "description": "Verify cross-device preference synchronization", "automation": "e2e-level"},
+      {"id": "P1-12", "category": "Data", "description": "Verify item availability status updates in recommendations", "automation": "integration-level"},
+      {"id": "P1-13", "category": "Data", "description": "Verify recommendation consistency with deterministic replay", "automation": "api-level"},
+      {"id": "P1-14", "category": "Data", "description": "Verify search index syncs with product catalog within SLA", "automation": "integration-level"},
+      {"id": "P1-15", "category": "Interface", "description": "Verify personalized carousel lazy loading works correctly", "automation": "e2e-level"},
+      {"id": "P1-16", "category": "Interface", "description": "Verify search autocomplete debounce prevents excessive requests", "automation": "integration-level"},
+      {"id": "P1-17", "category": "Interface", "description": "Verify visual search upload provides progress feedback", "automation": "e2e-level"},
+      {"id": "P1-18", "category": "Interface", "description": "Verify privacy toggle state persists across sessions", "automation": "e2e-level"},
+      {"id": "P1-19", "category": "Interface", "description": "Verify UserViewedProduct events are published correctly", "automation": "integration-level"},
+      {"id": "P1-20", "category": "Interface", "description": "Verify RecommendationClicked events feed A/B framework", "automation": "integration-level"},
+      {"id": "P1-21", "category": "Platform", "description": "Verify personalization on Firefox latest", "automation": "e2e-level"},
+      {"id": "P1-22", "category": "Platform", "description": "Verify personalization on Edge latest", "automation": "e2e-level"},
+      {"id": "P1-23", "category": "Platform", "description": "Verify ML service failover to fallback within 500ms", "automation": "integration-level"},
+      {"id": "P1-24", "category": "Operations", "description": "Verify power user with 1000+ viewed items gets relevant recommendations", "automation": "performance"},
+      {"id": "P1-25", "category": "Operations", "description": "Verify rapid browsing (100+ pages) doesn't break tracking", "automation": "performance"},
+      {"id": "P1-26", "category": "Operations", "description": "Verify session spanning days maintains preferences", "automation": "e2e-level"},
+      {"id": "P1-27", "category": "Time", "description": "Verify multiple concurrent users get consistent recommendations", "automation": "concurrency"},
+      {"id": "P1-28", "category": "Time", "description": "Verify ML model rollover maintains recommendation quality", "automation": "integration-level"},
+      {"id": "P1-29", "category": "Time", "description": "Verify anonymous to logged-in transition merges browsing history", "automation": "e2e-level"},
+      {"id": "P1-30", "category": "Time", "description": "Verify cache invalidation triggers on product updates", "automation": "integration-level"},
+      {"id": "P1-31", "category": "Function", "description": "Verify recommendation accuracy meets 40% CTR target (A/B baseline)", "automation": "human-exploration"}
+    ],
+    "P2": [
+      {"id": "P2-01", "category": "Function", "description": "Verify trending search suggestions appear in autocomplete", "automation": "e2e-level"},
+      {"id": "P2-02", "category": "Function", "description": "Verify occasion category accuracy for Valentine's Day", "automation": "human-exploration"},
+      {"id": "P2-03", "category": "Data", "description": "Verify handling of empty search queries", "automation": "api-level"},
+      {"id": "P2-04", "category": "Data", "description": "Verify handling of special characters in search", "automation": "api-level"},
+      {"id": "P2-05", "category": "Data", "description": "Verify unicode support in natural language search", "automation": "api-level"},
+      {"id": "P2-06", "category": "Data", "description": "Verify browsing history pagination for heavy users", "automation": "api-level"},
+      {"id": "P2-07", "category": "Interface", "description": "Verify dynamic content loading in occasion sections", "automation": "e2e-level"},
+      {"id": "P2-08", "category": "Interface", "description": "Verify SearchPerformed events reach analytics platform", "automation": "integration-level"},
+      {"id": "P2-09", "category": "Platform", "description": "Verify personalization on Samsung Internet", "automation": "e2e-level"},
+      {"id": "P2-10", "category": "Platform", "description": "Verify tablet responsive layout for recommendations", "automation": "e2e-level"},
+      {"id": "P2-11", "category": "Platform", "description": "Verify visual search disabled gracefully when CV API unavailable", "automation": "integration-level"},
+      {"id": "P2-12", "category": "Operations", "description": "Verify slow 3G network progressive loading", "automation": "performance"},
+      {"id": "P2-13", "category": "Operations", "description": "Verify offline error states for personalization", "automation": "e2e-level"},
+      {"id": "P2-14", "category": "Operations", "description": "Verify geo-targeting for UK vs EU users", "automation": "integration-level"},
+      {"id": "P2-15", "category": "Operations", "description": "Verify peak time (7-9pm) load handling", "automation": "performance"},
+      {"id": "P2-16", "category": "Time", "description": "Verify parallel visual search uploads queue correctly", "automation": "concurrency"},
+      {"id": "P2-17", "category": "Time", "description": "Verify preference update conflict resolution (last-write-wins)", "automation": "api-level"},
+      {"id": "P2-18", "category": "Time", "description": "Verify occasion section updates at date boundaries", "automation": "integration-level"},
+      {"id": "P2-19", "category": "Function", "description": "Verify A/B testing statistical significance calculation", "automation": "api-level"},
+      {"id": "P2-20", "category": "Interface", "description": "Verify keyboard navigation in search autocomplete", "automation": "accessibility"},
+      {"id": "P2-21", "category": "Interface", "description": "Verify ARIA labels for personalized content sections", "automation": "accessibility"},
+      {"id": "P2-22", "category": "Platform", "description": "Verify image capture from Android camera works for visual search", "automation": "e2e-level"}
+    ],
+    "P3": [
+      {"id": "P3-01", "category": "Data", "description": "Verify handling of very small images (<10KB) in visual search", "automation": "api-level"},
+      {"id": "P3-02", "category": "Data", "description": "Verify handling of corrupted image files", "automation": "api-level"},
+      {"id": "P3-03", "category": "Operations", "description": "Verify resource consumption on low battery devices", "automation": "human-exploration"},
+      {"id": "P3-04", "category": "Operations", "description": "Verify behavior with low device storage", "automation": "human-exploration"},
+      {"id": "P3-05", "category": "Time", "description": "Verify stale data detection in recommendations", "automation": "integration-level"},
+      {"id": "P3-06", "category": "Time", "description": "Verify privacy consent audit log completeness", "automation": "api-level"},
+      {"id": "P3-07", "category": "Platform", "description": "Verify CDN failover for product images", "automation": "integration-level"},
+      {"id": "P3-08", "category": "Interface", "description": "Verify analytics queue and retry on failure", "automation": "integration-level"}
+    ]
+  },
+  "testabilityScores": {
+    "acceptanceCriteria": [
+      {"id": "AC1", "description": "Personalized recommendations for logged-in users", "testability": "HIGH", "score": 9, "notes": "Clear behavior, measurable output"},
+      {"id": "AC2", "description": "Continue Shopping section", "testability": "HIGH", "score": 8, "notes": "Deterministic, observable"},
+      {"id": "AC3", "description": "Search autocomplete with images", "testability": "HIGH", "score": 9, "notes": "UI observable, latency measurable"},
+      {"id": "AC4", "description": "Natural language search", "testability": "MEDIUM", "score": 6, "notes": "Subjective relevance, needs golden set"},
+      {"id": "AC5", "description": "Visual search capability", "testability": "MEDIUM", "score": 5, "notes": "ML accuracy subjective, benchmark needed"},
+      {"id": "AC6", "description": "Privacy controls with opt-out", "testability": "HIGH", "score": 9, "notes": "Binary state, verifiable behavior"},
+      {"id": "AC7", "description": "A/B testing framework", "testability": "MEDIUM", "score": 7, "notes": "Statistical outcomes, requires time"},
+      {"id": "AC8", "description": "Shop by Occasion sections", "testability": "MEDIUM", "score": 6, "notes": "Trend-based, timing dependent"}
+    ],
+    "average": 7.4
+  },
+  "riskHeatmap": {
+    "risks": [
+      {"name": "Recommendation Bias", "probability": "MEDIUM", "impact": "HIGH", "score": 6, "mitigation": "Diverse training data, human review, bias detection tests"},
+      {"name": "Cold Start Problem", "probability": "HIGH", "impact": "MEDIUM", "score": 6, "mitigation": "Fallback heuristics, popularity-based defaults"},
+      {"name": "Model Drift", "probability": "MEDIUM", "impact": "HIGH", "score": 6, "mitigation": "Continuous monitoring, A/B testing, canary deployments"},
+      {"name": "Visual Search Inaccuracy", "probability": "HIGH", "impact": "MEDIUM", "score": 6, "mitigation": "Benchmark image sets, confidence thresholds"},
+      {"name": "NLP Misinterpretation", "probability": "MEDIUM", "impact": "MEDIUM", "score": 4, "mitigation": "Query expansion, synonym handling tests"},
+      {"name": "Performance Regression", "probability": "HIGH", "impact": "MEDIUM", "score": 6, "mitigation": "Edge caching, lazy loading, performance budgets"},
+      {"name": "GDPR Non-Compliance", "probability": "LOW", "impact": "CRITICAL", "score": 5, "mitigation": "Consent audit, data deletion verification"},
+      {"name": "Filter Bubble Effect", "probability": "MEDIUM", "impact": "MEDIUM", "score": 4, "mitigation": "Diversity metrics, exploratory recommendations"},
+      {"name": "A/B Test Pollution", "probability": "MEDIUM", "impact": "LOW", "score": 2, "mitigation": "Experiment isolation, user bucketing tests"},
+      {"name": "Cache Staleness", "probability": "MEDIUM", "impact": "LOW", "score": 2, "mitigation": "TTL testing, invalidation verification"}
+    ]
+  },
+  "clarifyingQuestions": {
+    "highPriority": [
+      {"id": "CQ-01", "category": "ML Model Transparency", "question": "What metrics define 'relevant' recommendations? Is there a relevance scoring algorithm we can test?"},
+      {"id": "CQ-02", "category": "ML Model Transparency", "question": "What is the model retraining frequency and how do we test model transitions?"},
+      {"id": "CQ-03", "category": "Privacy Implementation", "question": "How long does data deletion take after opt-out? What is the SLA?"},
+      {"id": "CQ-04", "category": "Privacy Implementation", "question": "Are there any third-party data processors that also need to delete data?"},
+      {"id": "CQ-05", "category": "Visual Search Scope", "question": "What product categories support visual search? (Clothing only? Homeware?)"},
+      {"id": "CQ-06", "category": "Visual Search Scope", "question": "What is the acceptable confidence threshold for returning results?"},
+      {"id": "CQ-07", "category": "Performance Baselines", "question": "What are the current personalization latency baselines from E2?"},
+      {"id": "CQ-08", "category": "Performance Baselines", "question": "What is the acceptable degradation threshold before fallback triggers?"}
+    ],
+    "mediumPriority": [
+      {"id": "CQ-09", "category": "A/B Testing Framework", "question": "How many concurrent experiments can run? Is there experiment conflict detection?"},
+      {"id": "CQ-10", "category": "A/B Testing Framework", "question": "What is the minimum sample size for statistical significance?"},
+      {"id": "CQ-11", "category": "Search Behavior", "question": "How are search synonyms configured? Is there a synonym management interface?"},
+      {"id": "CQ-12", "category": "Search Behavior", "question": "What languages are supported for natural language search?"},
+      {"id": "CQ-13", "category": "Occasion Sections", "question": "What is the lead time for occasion section content preparation?"},
+      {"id": "CQ-14", "category": "Occasion Sections", "question": "Who defines which occasions are supported?"}
+    ],
+    "lowPriority": [
+      {"id": "CQ-15", "category": "Analytics Integration", "question": "What is the analytics event delivery SLA?"},
+      {"id": "CQ-16", "category": "Analytics Integration", "question": "Are there data quality checks for recommendation click tracking?"}
+    ]
+  },
+  "learnedPatterns": {
+    "domain": "ecommerce-ai-ml",
+    "priorityMappings": {
+      "privacy_compliance": "P0",
+      "recommendation_accuracy": "P0",
+      "search_relevance": "P0",
+      "visual_search": "P1",
+      "occasion_sections": "P1",
+      "ab_testing": "P1"
+    },
+    "automationFitness": {
+      "ml_model_accuracy": "api-level + golden-dataset",
+      "search_relevance": "integration-level + benchmark",
+      "visual_search": "integration-level + image-benchmark",
+      "privacy_controls": "e2e-level",
+      "performance_sla": "performance"
+    },
+    "riskIndicators": {
+      "ml_components": ["bias", "drift", "cold_start", "accuracy"],
+      "privacy_features": ["gdpr", "data_deletion", "consent"],
+      "search_features": ["nlp_parsing", "relevance", "latency"]
+    },
+    "testabilityHeuristics": {
+      "highTestability": ["binary_states", "api_contracts", "observable_ui"],
+      "mediumTestability": ["ml_outputs", "subjective_relevance"],
+      "lowTestability": ["user_satisfaction", "business_metrics"]
+    }
+  }
+}

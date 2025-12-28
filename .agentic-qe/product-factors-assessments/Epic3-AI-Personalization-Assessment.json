@@ -1,0 +1,1188 @@
+{
+  "assessment": {
+    "id": "SFDIPOT-Epic3-AI-Personalization",
+    "name": "Epic 3: AI-Powered Personalization & Search Enhancement",
+    "version": "1.0.0",
+    "timestamp": "2025-12-28T13:30:00.000Z",
+    "domain": "ecommerce",
+    "subdomain": "retail-fashion",
+    "priority": "HIGH",
+    "timeline": "February - April 2026",
+    "riskLevel": "MEDIUM"
+  },
+  "businessContext": {
+    "summary": "Personalized experiences drive 10-15% revenue lift in e-commerce",
+    "currentGaps": [
+      "Generic homepage misses opportunities to showcase relevant products",
+      "No browsing history-based recommendations",
+      "No purchase pattern analysis",
+      "Missing seasonal context personalization"
+    ],
+    "expectedOutcomes": [
+      "10-15% revenue increase through personalization",
+      "Reduced search friction",
+      "Increased conversion rates",
+      "Enhanced customer engagement"
+    ]
+  },
+  "sfdipotAnalysis": {
+    "structure": {
+      "category": "S",
+      "description": "What the product IS - Components, architecture, dependencies",
+      "subcategories": {
+        "codeComponents": {
+          "items": [
+            "ML Recommendation Engine (collaborative + content-based filtering)",
+            "Elasticsearch/Algolia semantic search integration",
+            "Visual search computer vision module",
+            "Real-time personalization API",
+            "Edge caching layer",
+            "Privacy controls and consent management system",
+            "A/B testing framework for recommendation algorithms",
+            "Dynamic section renderer for 'Shop by Occasion'"
+          ],
+          "testIdeas": [
+            {
+              "id": "S-CODE-001",
+              "title": "Verify ML recommendation engine initialization",
+              "description": "Test that the recommendation engine initializes correctly with required models and configurations",
+              "priority": "P0",
+              "automationFitness": "integration-level",
+              "riskFactors": ["ML model availability", "Configuration errors"]
+            },
+            {
+              "id": "S-CODE-002",
+              "title": "Validate search engine connection pooling",
+              "description": "Verify Elasticsearch/Algolia connection pool management under load",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Connection leaks", "Pool exhaustion"]
+            },
+            {
+              "id": "S-CODE-003",
+              "title": "Test visual search module error boundaries",
+              "description": "Verify graceful degradation when computer vision API fails",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["API failures", "Image processing errors"]
+            },
+            {
+              "id": "S-CODE-004",
+              "title": "Verify edge caching layer TTL configurations",
+              "description": "Test cache invalidation and TTL behavior for personalized content",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Stale data", "Cache coherence"]
+            }
+          ]
+        },
+        "dependencies": {
+          "items": [
+            "ML recommendation model training pipeline",
+            "Elasticsearch/Algolia cloud service",
+            "Computer vision API (Google Vision, AWS Rekognition, or similar)",
+            "User authentication service",
+            "Product catalog service",
+            "User behavior tracking service",
+            "CDN for edge caching",
+            "E2 Performance infrastructure (dependency)"
+          ],
+          "testIdeas": [
+            {
+              "id": "S-DEP-001",
+              "title": "Test fallback when ML service unavailable",
+              "description": "Verify system degrades gracefully to non-personalized recommendations",
+              "priority": "P0",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Service outage", "User experience degradation"]
+            },
+            {
+              "id": "S-DEP-002",
+              "title": "Validate search service failover",
+              "description": "Test automatic failover when primary search service fails",
+              "priority": "P0",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Search unavailability", "Revenue impact"]
+            },
+            {
+              "id": "S-DEP-003",
+              "title": "Test behavior tracking service integration",
+              "description": "Verify browsing history and behavior events are captured correctly",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Data loss", "Incomplete tracking"]
+            }
+          ]
+        },
+        "architecture": {
+          "items": [
+            "Microservices architecture for personalization",
+            "Event-driven behavior tracking",
+            "Real-time streaming for recommendations",
+            "Edge computing for low-latency personalization",
+            "CQRS pattern for read-heavy operations"
+          ],
+          "testIdeas": [
+            {
+              "id": "S-ARCH-001",
+              "title": "Validate microservice communication patterns",
+              "description": "Test inter-service communication reliability and circuit breakers",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Service coupling", "Cascade failures"]
+            },
+            {
+              "id": "S-ARCH-002",
+              "title": "Test event streaming reliability",
+              "description": "Verify no event loss during high-traffic periods",
+              "priority": "P1",
+              "automationFitness": "performance",
+              "riskFactors": ["Event loss", "Delayed processing"]
+            }
+          ]
+        }
+      }
+    },
+    "function": {
+      "category": "F",
+      "description": "What the product DOES - Features, calculations, security, error handling",
+      "subcategories": {
+        "coreFeatures": {
+          "items": [
+            "Personalized product recommendations for logged-in users",
+            "Continue Shopping section (recently viewed, abandoned cart)",
+            "Autocomplete with images, categories, trending suggestions",
+            "Natural language search",
+            "Visual search (image upload)",
+            "Privacy preferences and opt-out",
+            "A/B testing for algorithms",
+            "Shop by Occasion dynamic sections"
+          ],
+          "testIdeas": [
+            {
+              "id": "F-CORE-001",
+              "title": "Verify personalized recommendations accuracy",
+              "description": "Test that recommendations are relevant based on user purchase history and browsing",
+              "priority": "P0",
+              "automationFitness": "api-level",
+              "riskFactors": ["Irrelevant recommendations", "User frustration"]
+            },
+            {
+              "id": "F-CORE-002",
+              "title": "Test Continue Shopping section population",
+              "description": "Verify recently viewed items and abandoned cart items appear correctly",
+              "priority": "P0",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Missing items", "Incorrect order"]
+            },
+            {
+              "id": "F-CORE-003",
+              "title": "Validate natural language search parsing",
+              "description": "Test various natural language queries like 'blue dress for summer wedding'",
+              "priority": "P0",
+              "automationFitness": "api-level",
+              "riskFactors": ["Query misinterpretation", "Poor results"]
+            },
+            {
+              "id": "F-CORE-004",
+              "title": "Test visual search accuracy",
+              "description": "Verify image uploads return visually similar products",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Poor matching", "Processing failures"]
+            },
+            {
+              "id": "F-CORE-005",
+              "title": "Verify autocomplete suggestions relevance",
+              "description": "Test autocomplete shows relevant products, categories, and trending items",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Irrelevant suggestions", "Slow response"]
+            },
+            {
+              "id": "F-CORE-006",
+              "title": "Test Shop by Occasion dynamic content",
+              "description": "Verify occasion sections update based on calendar and trends",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Wrong occasion", "Stale content"]
+            }
+          ]
+        },
+        "security": {
+          "items": [
+            "User data protection for browsing history",
+            "PII handling in recommendations",
+            "Consent management compliance",
+            "Image upload security (malware scanning)",
+            "API authentication and authorization"
+          ],
+          "testIdeas": [
+            {
+              "id": "F-SEC-001",
+              "title": "Test unauthorized access to personalization API",
+              "description": "Verify personalization data cannot be accessed without proper authentication",
+              "priority": "P0",
+              "automationFitness": "security",
+              "riskFactors": ["Data breach", "Privacy violation"]
+            },
+            {
+              "id": "F-SEC-002",
+              "title": "Validate image upload security",
+              "description": "Test that malicious files are rejected during visual search upload",
+              "priority": "P0",
+              "automationFitness": "security",
+              "riskFactors": ["Malware injection", "XSS attacks"]
+            },
+            {
+              "id": "F-SEC-003",
+              "title": "Test cross-user data isolation",
+              "description": "Verify one user cannot see another user's browsing history or recommendations",
+              "priority": "P0",
+              "automationFitness": "security",
+              "riskFactors": ["Data leakage", "Privacy breach"]
+            },
+            {
+              "id": "F-SEC-004",
+              "title": "Validate consent token handling",
+              "description": "Test consent tokens are properly validated before personalization",
+              "priority": "P1",
+              "automationFitness": "security",
+              "riskFactors": ["GDPR violation", "Compliance risk"]
+            }
+          ]
+        },
+        "errorHandling": {
+          "items": [
+            "ML model inference failures",
+            "Search service timeouts",
+            "Image processing errors",
+            "Invalid natural language queries",
+            "Missing user profile data"
+          ],
+          "testIdeas": [
+            {
+              "id": "F-ERR-001",
+              "title": "Test graceful degradation on ML failure",
+              "description": "Verify system shows generic recommendations when ML service fails",
+              "priority": "P0",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Blank sections", "Error display"]
+            },
+            {
+              "id": "F-ERR-002",
+              "title": "Validate search timeout handling",
+              "description": "Test user-friendly message on search service timeout",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Poor UX", "User confusion"]
+            },
+            {
+              "id": "F-ERR-003",
+              "title": "Test invalid image format handling",
+              "description": "Verify clear error messages for unsupported image formats",
+              "priority": "P2",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["User frustration", "Unclear errors"]
+            }
+          ]
+        },
+        "calculations": {
+          "items": [
+            "Recommendation scoring algorithms",
+            "Search relevance ranking",
+            "Trending product calculations",
+            "Seasonal weighting adjustments",
+            "A/B test statistical significance"
+          ],
+          "testIdeas": [
+            {
+              "id": "F-CALC-001",
+              "title": "Validate recommendation scoring accuracy",
+              "description": "Test that scoring algorithm weights factors correctly",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Incorrect rankings", "Poor personalization"]
+            },
+            {
+              "id": "F-CALC-002",
+              "title": "Test A/B test variant assignment",
+              "description": "Verify even distribution of users across test variants",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Biased results", "Invalid tests"]
+            },
+            {
+              "id": "F-CALC-003",
+              "title": "Validate search relevance ranking",
+              "description": "Test search results are ranked by relevance not arbitrary order",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Poor search experience", "Lower conversion"]
+            }
+          ]
+        }
+      }
+    },
+    "data": {
+      "category": "D",
+      "description": "What the product PROCESSES - Input/output, boundaries, persistence",
+      "subcategories": {
+        "input": {
+          "items": [
+            "User browsing history events",
+            "Purchase history data",
+            "Search queries (text and natural language)",
+            "Image uploads for visual search",
+            "User preference settings",
+            "Consent/opt-out selections"
+          ],
+          "testIdeas": [
+            {
+              "id": "D-IN-001",
+              "title": "Test search query boundary limits",
+              "description": "Verify system handles very long search queries gracefully",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Buffer overflow", "Crash"]
+            },
+            {
+              "id": "D-IN-002",
+              "title": "Validate image upload size limits",
+              "description": "Test system behavior with oversized image uploads",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["DoS vulnerability", "Memory exhaustion"]
+            },
+            {
+              "id": "D-IN-003",
+              "title": "Test special characters in natural language queries",
+              "description": "Verify SQL injection and XSS prevention in search input",
+              "priority": "P0",
+              "automationFitness": "security",
+              "riskFactors": ["SQL injection", "XSS attack"]
+            },
+            {
+              "id": "D-IN-004",
+              "title": "Validate browsing history event schema",
+              "description": "Test that malformed events are rejected with proper logging",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Data corruption", "Processing errors"]
+            }
+          ]
+        },
+        "output": {
+          "items": [
+            "Personalized recommendation lists",
+            "Search result sets with metadata",
+            "Autocomplete suggestions",
+            "Visual search matches with similarity scores",
+            "Occasion-based product collections"
+          ],
+          "testIdeas": [
+            {
+              "id": "D-OUT-001",
+              "title": "Verify recommendation list ordering",
+              "description": "Test that recommendations are ordered by relevance score",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Wrong ordering", "Poor UX"]
+            },
+            {
+              "id": "D-OUT-002",
+              "title": "Test search results pagination",
+              "description": "Verify correct pagination of large result sets",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Missing results", "Duplicate items"]
+            },
+            {
+              "id": "D-OUT-003",
+              "title": "Validate visual search similarity scores",
+              "description": "Test that similarity scores accurately reflect visual match quality",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Inaccurate scores", "Misleading results"]
+            }
+          ]
+        },
+        "persistence": {
+          "items": [
+            "User preference storage",
+            "Browsing history retention",
+            "A/B test assignment persistence",
+            "Recommendation model checkpoints",
+            "Consent records"
+          ],
+          "testIdeas": [
+            {
+              "id": "D-PERS-001",
+              "title": "Test preference persistence across sessions",
+              "description": "Verify user preferences are retained after logout/login",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Lost preferences", "User frustration"]
+            },
+            {
+              "id": "D-PERS-002",
+              "title": "Validate browsing history retention policy",
+              "description": "Test that history is retained/purged according to policy",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["GDPR violation", "Storage issues"]
+            },
+            {
+              "id": "D-PERS-003",
+              "title": "Test consent record immutability",
+              "description": "Verify consent records cannot be modified after creation",
+              "priority": "P0",
+              "automationFitness": "security",
+              "riskFactors": ["Audit failure", "Legal liability"]
+            },
+            {
+              "id": "D-PERS-004",
+              "title": "Validate A/B test assignment stickiness",
+              "description": "Test that users remain in same variant across sessions",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Invalid test results", "Inconsistent UX"]
+            }
+          ]
+        },
+        "boundaries": {
+          "items": [
+            "Maximum recommendations per section",
+            "Search result limits",
+            "Image size/format constraints",
+            "Query length limits",
+            "History retention duration"
+          ],
+          "testIdeas": [
+            {
+              "id": "D-BOUND-001",
+              "title": "Test recommendation section limits",
+              "description": "Verify system correctly limits recommendations per section",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["UI overflow", "Performance issues"]
+            },
+            {
+              "id": "D-BOUND-002",
+              "title": "Validate image format acceptance",
+              "description": "Test all supported image formats work for visual search",
+              "priority": "P2",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Format rejection", "Lost functionality"]
+            }
+          ]
+        }
+      }
+    },
+    "interfaces": {
+      "category": "I",
+      "description": "How the product CONNECTS - UI, APIs, integrations",
+      "subcategories": {
+        "userInterface": {
+          "items": [
+            "Personalized homepage sections",
+            "Search autocomplete dropdown",
+            "Visual search upload interface",
+            "Privacy preference controls",
+            "Shop by Occasion carousels",
+            "Continue Shopping section"
+          ],
+          "testIdeas": [
+            {
+              "id": "I-UI-001",
+              "title": "Test search autocomplete responsiveness",
+              "description": "Verify autocomplete appears within 200ms of typing",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Slow UX", "User abandonment"]
+            },
+            {
+              "id": "I-UI-002",
+              "title": "Validate image upload drag-and-drop",
+              "description": "Test drag-and-drop functionality for visual search",
+              "priority": "P2",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Poor UX", "Accessibility issues"]
+            },
+            {
+              "id": "I-UI-003",
+              "title": "Test privacy toggle functionality",
+              "description": "Verify privacy opt-out toggles work immediately",
+              "priority": "P0",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Privacy violation", "Legal risk"]
+            },
+            {
+              "id": "I-UI-004",
+              "title": "Validate recommendation section accessibility",
+              "description": "Test keyboard navigation and screen reader support",
+              "priority": "P1",
+              "automationFitness": "accessibility",
+              "riskFactors": ["WCAG non-compliance", "Excluded users"]
+            },
+            {
+              "id": "I-UI-005",
+              "title": "Test carousel navigation for Shop by Occasion",
+              "description": "Verify carousel controls work on all devices",
+              "priority": "P2",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Broken navigation", "Inaccessible content"]
+            }
+          ]
+        },
+        "apis": {
+          "items": [
+            "Personalization API (GET /api/recommendations)",
+            "Search API (POST /api/search)",
+            "Visual Search API (POST /api/visual-search)",
+            "Preference API (PUT /api/preferences)",
+            "Behavior Tracking API (POST /api/events)"
+          ],
+          "testIdeas": [
+            {
+              "id": "I-API-001",
+              "title": "Test personalization API response format",
+              "description": "Verify API returns correct schema with all required fields",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Schema mismatch", "Frontend errors"]
+            },
+            {
+              "id": "I-API-002",
+              "title": "Validate search API rate limiting",
+              "description": "Test API enforces rate limits to prevent abuse",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["DoS vulnerability", "Cost overrun"]
+            },
+            {
+              "id": "I-API-003",
+              "title": "Test visual search API timeout handling",
+              "description": "Verify appropriate timeout for image processing",
+              "priority": "P1",
+              "automationFitness": "api-level",
+              "riskFactors": ["Hung requests", "Poor UX"]
+            },
+            {
+              "id": "I-API-004",
+              "title": "Validate API versioning",
+              "description": "Test backward compatibility with API versions",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Breaking changes", "Client failures"]
+            }
+          ]
+        },
+        "integrations": {
+          "items": [
+            "ML recommendation engine integration",
+            "Elasticsearch/Algolia integration",
+            "Computer vision API integration",
+            "CDN edge caching integration",
+            "Analytics and tracking integration",
+            "A/B testing platform integration"
+          ],
+          "testIdeas": [
+            {
+              "id": "I-INT-001",
+              "title": "Test ML engine integration health checks",
+              "description": "Verify health checks detect ML service degradation",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Undetected failures", "Silent degradation"]
+            },
+            {
+              "id": "I-INT-002",
+              "title": "Validate search service index synchronization",
+              "description": "Test product catalog changes sync to search index",
+              "priority": "P0",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Stale search results", "Missing products"]
+            },
+            {
+              "id": "I-INT-003",
+              "title": "Test A/B platform event forwarding",
+              "description": "Verify conversion events reach A/B testing platform",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Lost attribution", "Invalid test results"]
+            }
+          ]
+        }
+      }
+    },
+    "platform": {
+      "category": "P",
+      "description": "What the product DEPENDS ON - Browser, OS, external systems",
+      "subcategories": {
+        "browsers": {
+          "items": [
+            "Chrome (desktop and mobile)",
+            "Safari (desktop and iOS)",
+            "Firefox (desktop)",
+            "Edge (desktop)",
+            "Samsung Internet (mobile)"
+          ],
+          "testIdeas": [
+            {
+              "id": "P-BROW-001",
+              "title": "Test visual search on Safari iOS",
+              "description": "Verify image upload works on Safari mobile",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["File input issues", "Format support"]
+            },
+            {
+              "id": "P-BROW-002",
+              "title": "Validate autocomplete on all browsers",
+              "description": "Test search autocomplete consistency across browsers",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Inconsistent behavior", "Broken UX"]
+            },
+            {
+              "id": "P-BROW-003",
+              "title": "Test personalization in private/incognito mode",
+              "description": "Verify graceful degradation when cookies blocked",
+              "priority": "P2",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Errors", "Poor fallback"]
+            }
+          ]
+        },
+        "devices": {
+          "items": [
+            "Desktop (1920x1080, 2560x1440)",
+            "Tablet (iPad, Android tablets)",
+            "Mobile (iPhone, Android phones)",
+            "Low-end devices (older hardware)"
+          ],
+          "testIdeas": [
+            {
+              "id": "P-DEV-001",
+              "title": "Test recommendation carousels on mobile",
+              "description": "Verify touch swipe works for product carousels",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Touch issues", "Broken navigation"]
+            },
+            {
+              "id": "P-DEV-002",
+              "title": "Validate image upload on low-memory devices",
+              "description": "Test visual search doesn't crash low-memory devices",
+              "priority": "P2",
+              "automationFitness": "performance",
+              "riskFactors": ["App crash", "Memory exhaustion"]
+            }
+          ]
+        },
+        "externalSystems": {
+          "items": [
+            "Elasticsearch/Algolia cloud",
+            "AWS/GCP for ML inference",
+            "Computer vision APIs",
+            "CDN providers",
+            "Analytics platforms"
+          ],
+          "testIdeas": [
+            {
+              "id": "P-EXT-001",
+              "title": "Test search service region failover",
+              "description": "Verify automatic failover to backup region",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Regional outage", "Service disruption"]
+            },
+            {
+              "id": "P-EXT-002",
+              "title": "Validate ML service latency SLA",
+              "description": "Test that ML inference meets latency requirements",
+              "priority": "P1",
+              "automationFitness": "performance",
+              "riskFactors": ["Slow recommendations", "Poor UX"]
+            }
+          ]
+        }
+      }
+    },
+    "operations": {
+      "category": "O",
+      "description": "How the product is USED - Usage patterns, users, environments",
+      "subcategories": {
+        "userTypes": {
+          "items": [
+            "Returning customers (logged in)",
+            "New visitors (anonymous)",
+            "Gift shoppers (occasion-based)",
+            "Privacy-conscious users (opted out)",
+            "Power users (heavy browsing history)"
+          ],
+          "testIdeas": [
+            {
+              "id": "O-USER-001",
+              "title": "Test new visitor experience without history",
+              "description": "Verify appropriate fallback recommendations for new users",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Empty sections", "Poor first impression"]
+            },
+            {
+              "id": "O-USER-002",
+              "title": "Validate opted-out user experience",
+              "description": "Test that opted-out users see generic content without tracking",
+              "priority": "P0",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Privacy violation", "Trust breach"]
+            },
+            {
+              "id": "O-USER-003",
+              "title": "Test power user with extensive history",
+              "description": "Verify performance with users having 1000+ browsing events",
+              "priority": "P2",
+              "automationFitness": "performance",
+              "riskFactors": ["Slow loading", "Memory issues"]
+            },
+            {
+              "id": "O-USER-004",
+              "title": "Validate gift shopper occasion suggestions",
+              "description": "Test occasion-based recommendations for gift shopping scenarios",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Irrelevant suggestions", "Missed opportunities"]
+            }
+          ]
+        },
+        "usagePatterns": {
+          "items": [
+            "Browse and buy flow",
+            "Search and purchase flow",
+            "Visual search inspiration flow",
+            "Occasion-based shopping",
+            "Return visit with cart recovery"
+          ],
+          "testIdeas": [
+            {
+              "id": "O-USAGE-001",
+              "title": "Test cart recovery notification",
+              "description": "Verify abandoned cart items appear in Continue Shopping",
+              "priority": "P0",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Lost sales", "Recovery failure"]
+            },
+            {
+              "id": "O-USAGE-002",
+              "title": "Validate search to purchase funnel",
+              "description": "Test complete flow from natural language search to checkout",
+              "priority": "P1",
+              "automationFitness": "e2e-level",
+              "riskFactors": ["Funnel breaks", "Conversion loss"]
+            }
+          ]
+        },
+        "environments": {
+          "items": [
+            "Development environment",
+            "Staging with production data sample",
+            "Production UK region",
+            "Production EU region"
+          ],
+          "testIdeas": [
+            {
+              "id": "O-ENV-001",
+              "title": "Validate staging data representativeness",
+              "description": "Test that staging ML models match production behavior",
+              "priority": "P2",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Test/prod mismatch", "Missed bugs"]
+            },
+            {
+              "id": "O-ENV-002",
+              "title": "Test EU region data residency",
+              "description": "Verify personalization data stays in EU for EU users",
+              "priority": "P0",
+              "automationFitness": "security",
+              "riskFactors": ["GDPR violation", "Legal liability"]
+            }
+          ]
+        }
+      }
+    },
+    "time": {
+      "category": "T",
+      "description": "WHEN things happen - Timing, concurrency, scheduling",
+      "subcategories": {
+        "timing": {
+          "items": [
+            "Recommendation refresh frequency",
+            "Search indexing latency",
+            "Real-time personalization updates",
+            "Model retraining schedule",
+            "Cache TTL expiration"
+          ],
+          "testIdeas": [
+            {
+              "id": "T-TIME-001",
+              "title": "Test real-time recommendation updates",
+              "description": "Verify recommendations update within 30 seconds of browsing action",
+              "priority": "P2",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Stale recommendations", "Missed personalization"]
+            },
+            {
+              "id": "T-TIME-002",
+              "title": "Validate search index freshness",
+              "description": "Test new products appear in search within SLA",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Missing products", "Lost sales"]
+            },
+            {
+              "id": "T-TIME-003",
+              "title": "Test cache invalidation timing",
+              "description": "Verify personalized content updates after cache TTL",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Stale content", "Wrong recommendations"]
+            }
+          ]
+        },
+        "concurrency": {
+          "items": [
+            "Concurrent user sessions",
+            "Parallel search requests",
+            "Simultaneous image uploads",
+            "Race conditions in preference updates"
+          ],
+          "testIdeas": [
+            {
+              "id": "T-CONC-001",
+              "title": "Test concurrent preference updates",
+              "description": "Verify correct handling when user updates preferences simultaneously",
+              "priority": "P1",
+              "automationFitness": "concurrency",
+              "riskFactors": ["Lost updates", "Data inconsistency"]
+            },
+            {
+              "id": "T-CONC-002",
+              "title": "Validate high-concurrency search performance",
+              "description": "Test search latency with 1000 concurrent requests",
+              "priority": "P1",
+              "automationFitness": "performance",
+              "riskFactors": ["Degraded performance", "Timeouts"]
+            },
+            {
+              "id": "T-CONC-003",
+              "title": "Test A/B test assignment race conditions",
+              "description": "Verify consistent variant assignment under concurrent access",
+              "priority": "P2",
+              "automationFitness": "concurrency",
+              "riskFactors": ["Inconsistent assignments", "Invalid tests"]
+            }
+          ]
+        },
+        "scheduling": {
+          "items": [
+            "ML model retraining jobs",
+            "Search index rebuilds",
+            "Occasion calendar updates",
+            "Trending product calculations"
+          ],
+          "testIdeas": [
+            {
+              "id": "T-SCHED-001",
+              "title": "Test model retraining impact on service",
+              "description": "Verify zero-downtime during model updates",
+              "priority": "P1",
+              "automationFitness": "integration-level",
+              "riskFactors": ["Service disruption", "Degraded quality"]
+            },
+            {
+              "id": "T-SCHED-002",
+              "title": "Validate occasion calendar transitions",
+              "description": "Test smooth transition between seasonal occasions",
+              "priority": "P2",
+              "automationFitness": "api-level",
+              "riskFactors": ["Wrong occasion", "Outdated content"]
+            }
+          ]
+        },
+        "peakLoad": {
+          "items": [
+            "Black Friday traffic spike",
+            "Sale event launches",
+            "Marketing campaign peaks",
+            "Lunch/evening browsing peaks"
+          ],
+          "testIdeas": [
+            {
+              "id": "T-PEAK-001",
+              "title": "Test Black Friday scale capacity",
+              "description": "Verify system handles 10x normal traffic",
+              "priority": "P0",
+              "automationFitness": "performance",
+              "riskFactors": ["System crash", "Revenue loss"]
+            },
+            {
+              "id": "T-PEAK-002",
+              "title": "Validate sale launch search performance",
+              "description": "Test search latency during flash sale events",
+              "priority": "P1",
+              "automationFitness": "performance",
+              "riskFactors": ["Slow search", "User frustration"]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "testIdeas": {
+    "summary": {
+      "total": 63,
+      "byPriority": {
+        "P0": 16,
+        "P1": 30,
+        "P2": 15,
+        "P3": 2
+      },
+      "byAutomationFitness": {
+        "api-level": 18,
+        "integration-level": 16,
+        "e2e-level": 14,
+        "security": 8,
+        "performance": 6,
+        "accessibility": 1,
+        "concurrency": 3,
+        "human-exploration": 2
+      }
+    },
+    "criticalPath": [
+      {
+        "id": "F-CORE-001",
+        "title": "Verify personalized recommendations accuracy",
+        "rationale": "Core value proposition of the epic"
+      },
+      {
+        "id": "F-CORE-003",
+        "title": "Validate natural language search parsing",
+        "rationale": "Key differentiator and user story US2"
+      },
+      {
+        "id": "F-SEC-001",
+        "title": "Test unauthorized access to personalization API",
+        "rationale": "Security and privacy compliance"
+      },
+      {
+        "id": "O-USER-002",
+        "title": "Validate opted-out user experience",
+        "rationale": "Privacy requirements and user story US4"
+      },
+      {
+        "id": "T-PEAK-001",
+        "title": "Test Black Friday scale capacity",
+        "rationale": "Business-critical event readiness"
+      },
+      {
+        "id": "O-ENV-002",
+        "title": "Test EU region data residency",
+        "rationale": "GDPR compliance requirement"
+      }
+    ]
+  },
+  "clarifyingQuestions": [
+    {
+      "id": "CQ-001",
+      "category": "FUNCTION",
+      "question": "What is the expected accuracy threshold for natural language search? (e.g., top-5 relevance score > 0.7)",
+      "impact": "Affects test pass/fail criteria for F-CORE-003",
+      "priority": "HIGH"
+    },
+    {
+      "id": "CQ-002",
+      "category": "DATA",
+      "question": "What is the maximum browsing history retention period for GDPR compliance?",
+      "impact": "Determines D-PERS-002 test parameters",
+      "priority": "HIGH"
+    },
+    {
+      "id": "CQ-003",
+      "category": "TIME",
+      "question": "What is the SLA for real-time recommendation updates after a browsing action?",
+      "impact": "Defines acceptance criteria for T-TIME-001",
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "CQ-004",
+      "category": "PLATFORM",
+      "question": "Which computer vision API provider will be used (Google Vision, AWS Rekognition, Azure CV)?",
+      "impact": "Affects P-EXT integration tests and error handling",
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "CQ-005",
+      "category": "OPERATIONS",
+      "question": "What fallback recommendations should be shown for opted-out users?",
+      "impact": "Determines O-USER-002 expected behavior",
+      "priority": "HIGH"
+    },
+    {
+      "id": "CQ-006",
+      "category": "INTERFACES",
+      "question": "What are the exact API rate limits for search and personalization endpoints?",
+      "impact": "Sets thresholds for I-API-002 rate limit tests",
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "CQ-007",
+      "category": "STRUCTURE",
+      "question": "What is the expected latency SLA for ML recommendation inference?",
+      "impact": "Defines P-EXT-002 performance test thresholds",
+      "priority": "HIGH"
+    },
+    {
+      "id": "CQ-008",
+      "category": "FUNCTION",
+      "question": "What image formats and sizes are supported for visual search?",
+      "impact": "Determines D-BOUND-002 test matrix",
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "CQ-009",
+      "category": "TIME",
+      "question": "What is the model retraining frequency and expected zero-downtime requirements?",
+      "impact": "Affects T-SCHED-001 test scheduling",
+      "priority": "LOW"
+    },
+    {
+      "id": "CQ-010",
+      "category": "DATA",
+      "question": "How should A/B test variant assignments be distributed (50/50, 90/10, multi-variant)?",
+      "impact": "Defines F-CALC-002 statistical validation criteria",
+      "priority": "MEDIUM"
+    }
+  ],
+  "riskAssessment": {
+    "highRiskAreas": [
+      {
+        "area": "ML Model Quality",
+        "description": "Recommendation relevance depends on model training quality",
+        "mitigations": [
+          "Implement offline model validation before deployment",
+          "A/B test new models against baseline",
+          "Monitor recommendation click-through rates"
+        ]
+      },
+      {
+        "area": "Privacy Compliance",
+        "description": "GDPR/privacy regulations require strict data handling",
+        "mitigations": [
+          "Implement comprehensive consent management",
+          "Regular privacy audits",
+          "Data residency enforcement"
+        ]
+      },
+      {
+        "area": "Search Service Availability",
+        "description": "Search is critical path for revenue",
+        "mitigations": [
+          "Multi-region deployment",
+          "Automatic failover",
+          "Graceful degradation fallbacks"
+        ]
+      },
+      {
+        "area": "Scale Performance",
+        "description": "Black Friday and sale events require massive scale",
+        "mitigations": [
+          "Load testing at 10x capacity",
+          "Auto-scaling configuration",
+          "Edge caching strategy"
+        ]
+      }
+    ],
+    "mediumRiskAreas": [
+      {
+        "area": "Visual Search Accuracy",
+        "description": "Computer vision matching quality varies by image",
+        "mitigations": [
+          "Define accuracy thresholds",
+          "User feedback loop",
+          "Fallback to text search"
+        ]
+      },
+      {
+        "area": "Natural Language Understanding",
+        "description": "NLU may misinterpret complex queries",
+        "mitigations": [
+          "Query clarification prompts",
+          "Search suggestions",
+          "Logging for improvement"
+        ]
+      }
+    ]
+  },
+  "automationStrategy": {
+    "apiLevel": {
+      "scope": "Core business logic, data validation, search ranking",
+      "tools": ["Jest", "Supertest", "Playwright API testing"],
+      "coverage": "60% of test ideas",
+      "priority": "Run on every PR"
+    },
+    "integrationLevel": {
+      "scope": "Service interactions, ML integration, search indexing",
+      "tools": ["Testcontainers", "Contract testing (Pact)", "Integration suites"],
+      "coverage": "25% of test ideas",
+      "priority": "Run on merge to main"
+    },
+    "e2eLevel": {
+      "scope": "User journeys, critical flows, cross-browser",
+      "tools": ["Playwright", "Cypress", "BrowserStack"],
+      "coverage": "20% of test ideas",
+      "priority": "Nightly and pre-release"
+    },
+    "performanceLevel": {
+      "scope": "Load testing, stress testing, scale validation",
+      "tools": ["k6", "Gatling", "Artillery"],
+      "coverage": "10% of test ideas",
+      "priority": "Weekly and pre-release"
+    },
+    "securityLevel": {
+      "scope": "Authentication, authorization, data protection",
+      "tools": ["OWASP ZAP", "Burp Suite", "Custom security tests"],
+      "coverage": "12% of test ideas",
+      "priority": "On security-impacting changes"
+    },
+    "humanExploration": {
+      "scope": "UX quality, edge cases, creative scenarios",
+      "approach": "Session-based exploratory testing",
+      "coverage": "3% of test ideas",
+      "priority": "Before major releases"
+    }
+  },
+  "dependencies": {
+    "upstream": [
+      {
+        "epic": "E2 - Performance",
+        "reason": "Performance infrastructure required for edge caching and real-time personalization"
+      }
+    ],
+    "downstream": [
+      {
+        "epic": "E5 - Social Proof",
+        "reason": "Personalization data feeds into social proof features"
+      }
+    ]
+  },
+  "metadata": {
+    "generatedBy": "qe-product-factors-assessor",
+    "framework": "SFDIPOT (James Bach HTSM)",
+    "version": "1.0.0",
+    "domain": "ecommerce",
+    "subdomain": "retail-fashion",
+    "learningEnabled": true
+  }
+}

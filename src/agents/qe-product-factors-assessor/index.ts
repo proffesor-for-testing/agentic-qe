@@ -17,7 +17,6 @@
 
 import { BaseAgent, BaseAgentConfig } from '../BaseAgent';
 import { QETask, AgentCapability, QEAgentType } from '../../types';
-import type { LLMCompletionOptions } from '../../providers/ILLMProvider';
 import {
   AssessmentInput,
   AssessmentOutput,
@@ -29,7 +28,6 @@ import {
   Priority,
   AutomationFitness,
   ProjectContext,
-  ProductFactorsTaskType,
   ProductFactorsTaskPayload,
   UserStory,
   Epic,
@@ -47,7 +45,10 @@ import { SkillIntegration } from './skills';
 
 // Import code intelligence integration - Phases 1-3
 import { CodebaseAnalyzer } from './code-intelligence';
-import type { CodeIntelligenceResult } from './types';
+import type { CodeIntelligenceResult, DetectedDomain } from './types';
+
+// Import domain pattern registry for enhanced context detection
+import { domainPatternRegistry, DomainDetectionResult } from './patterns/domain-registry';
 
 // =============================================================================
 // Agent Configuration
@@ -68,6 +69,18 @@ export interface QEProductFactorsAssessorConfig extends Omit<BaseAgentConfig, 't
 
   /** Maximum test ideas per subcategory */
   maxTestIdeasPerSubcategory?: number;
+
+  /** Enable brutal honesty validation (default: true) */
+  enableBrutalHonesty?: boolean;
+
+  /** Minimum quality score to include test ideas (0-100, default: 60) */
+  minQualityScore?: number;
+
+  /** Enable LLM-based question generation */
+  useLLM?: boolean;
+
+  /** Output directory for generated reports */
+  outputDir?: string;
 }
 
 // =============================================================================
@@ -84,6 +97,8 @@ export class QEProductFactorsAssessor extends BaseAgent {
   private readonly storeResults: boolean;
   private readonly defaultOutputFormat: 'html' | 'json' | 'markdown' | 'all';
   private readonly maxTestIdeasPerSubcategory: number;
+  private readonly enableBrutalHonesty: boolean;
+  private readonly minQualityScore: number;
 
   // Cached context from last assessment
   private lastContext?: ProjectContext;
@@ -111,14 +126,17 @@ export class QEProductFactorsAssessor extends BaseAgent {
     this.storeResults = config.storeResults ?? true;
     this.defaultOutputFormat = config.defaultOutputFormat ?? 'html';
     this.maxTestIdeasPerSubcategory = config.maxTestIdeasPerSubcategory ?? 10;
+    this.enableBrutalHonesty = config.enableBrutalHonesty ?? true;
+    this.minQualityScore = config.minQualityScore ?? 60;
 
     // Initialize modular components
     this.userStoryParser = new UserStoryParser();
     this.documentParser = new DocumentParser();
     this.architectureParser = new ArchitectureParser();
-    this.sfdipotAnalyzer = new SFDIPOTAnalyzer();
+    this.sfdipotAnalyzer = new SFDIPOTAnalyzer(this.enableBrutalHonesty);
     this.testIdeaGenerator = new TestIdeaGenerator({
-      maxIdeasPerSubcategory: this.maxTestIdeasPerSubcategory
+      maxIdeasPerSubcategory: this.maxTestIdeasPerSubcategory,
+      enableBrutalHonesty: this.enableBrutalHonesty,  // Enable Ramsay mode validation
     });
     this.questionGenerator = new QuestionGenerator({
       maxQuestionsPerCategory: 5
@@ -294,7 +312,42 @@ export class QEProductFactorsAssessor extends BaseAgent {
     const context = await this.detectContext(parsedInput);
     this.lastContext = context;
 
-    // Step 3: Analyze using SFDIPOT framework
+    // Step 2.5: Run Bach mode BS detection on requirements (if brutal honesty enabled)
+    // Now includes domain-specific BS detection for more accurate analysis
+    let requirementsQualityScore: number | undefined;
+    if (this.enableBrutalHonesty && parsedInput.rawContent.length > 100) {
+      console.log(`[${this.agentId.id}] Running Bach mode BS detection on requirements...`);
+
+      // Pass detected domains for domain-specific BS pattern detection
+      const reqAnalysis = this.sfdipotAnalyzer.getBrutalHonestyAnalyzer().analyzeRequirements(
+        parsedInput.rawContent,
+        context.detectedDomains
+      );
+      requirementsQualityScore = reqAnalysis.score;
+
+      // Log detected domains if any
+      if (context.detectedDomains.length > 0) {
+        const domainInfo = context.detectedDomains
+          .map(d => `${d.displayName} (${(d.confidence * 100).toFixed(0)}%)`)
+          .join(', ');
+        console.log(`[${this.agentId.id}] Detected domains: ${domainInfo}`);
+      }
+
+      if (reqAnalysis.findings.length > 0) {
+        console.log(`[${this.agentId.id}] Requirements quality: ${reqAnalysis.score}/100 - ${reqAnalysis.verdict}`);
+        console.log(`[${this.agentId.id}] Found ${reqAnalysis.findings.length} BS indicators in requirements`);
+
+        // Count domain-specific findings
+        const domainFindings = reqAnalysis.findings.filter(f =>
+          f.category === 'Domain-Specific Issue' || f.category === 'Missing Domain Coverage'
+        ).length;
+        if (domainFindings > 0) {
+          console.log(`[${this.agentId.id}]   - ${domainFindings} domain-specific issues detected`);
+        }
+      }
+    }
+
+    // Step 3: Analyze using SFDIPOT framework (with Ramsay mode validation)
     const categoryAnalysis = await this.performSFDIPOTAnalysis(parsedInput, context);
 
     // Step 3.5: Code Intelligence Integration (Phase 1-3)
@@ -353,8 +406,44 @@ export class QEProductFactorsAssessor extends BaseAgent {
     const testIdeas = this.flattenTestIdeas(categoryAnalysis);
     const allQuestions = this.flattenQuestions(categoryAnalysis, clarifyingQuestions);
 
-    // Step 6: Create summary
-    const summary = this.createSummary(testIdeas, allQuestions);
+    // Step 5.5: Validate domain coverage (Phase 3 enhancement)
+    let domainCoverageValidation: { missing: string[]; covered: string[]; score: number } | undefined;
+    if (this.enableBrutalHonesty && context.detectedDomains.length > 0) {
+      domainCoverageValidation = this.sfdipotAnalyzer.getBrutalHonestyAnalyzer().validateDomainCoverage(
+        testIdeas,
+        context.detectedDomains
+      );
+
+      if (domainCoverageValidation.missing.length > 0) {
+        console.log(`[${this.agentId.id}] Domain Coverage Validation:`);
+        console.log(`  - Coverage Score: ${domainCoverageValidation.score}%`);
+        console.log(`  - Missing Coverage: ${domainCoverageValidation.missing.join(', ')}`);
+
+        // Inject domain-specific test ideas for missing coverage
+        const injectedIdeas = this.injectMissingDomainCoverage(
+          domainCoverageValidation.missing,
+          context
+        );
+        if (injectedIdeas.length > 0) {
+          testIdeas.push(...injectedIdeas);
+          console.log(`[${this.agentId.id}]   - Injected ${injectedIdeas.length} domain-specific test ideas for missing coverage`);
+        }
+      }
+    }
+
+    // Step 6: Create summary with brutal honesty statistics
+    const summary = this.createSummary(testIdeas, allQuestions, categoryAnalysis, requirementsQualityScore, domainCoverageValidation);
+
+    // Log brutal honesty summary if enabled
+    if (summary.brutalHonesty) {
+      console.log(`[${this.agentId.id}] Brutal Honesty Summary:`);
+      console.log(`  - Quality Score: ${summary.brutalHonesty.overallQualityScore}/100`);
+      console.log(`  - Rejected Ideas: ${summary.brutalHonesty.totalRejected}`);
+      console.log(`  - Findings: ${summary.brutalHonesty.totalFindings} (${summary.brutalHonesty.bySeverity.CRITICAL} critical, ${summary.brutalHonesty.bySeverity.HIGH} high)`);
+      if (domainCoverageValidation) {
+        console.log(`  - Domain Coverage: ${domainCoverageValidation.score}%`);
+      }
+    }
 
     // Step 7: Generate outputs
     const outputFormat = input.outputFormat || this.defaultOutputFormat;
@@ -561,14 +650,18 @@ export class QEProductFactorsAssessor extends BaseAgent {
   private async detectContext(input: ParsedInput): Promise<ProjectContext> {
     const content = input.rawContent.toLowerCase();
 
-    // Detect domain
+    // Detect domain (legacy)
     const domain = this.detectDomain(content);
+
+    // Detect domains with confidence (enhanced)
+    const detectedDomains = this.detectDomainsWithConfidence(input.rawContent);
 
     // Extract entities
     const entities = this.extractEntities(input);
 
     return {
       domain,
+      detectedDomains,
       domainHints: this.getDomainHints(content),
       projectType: this.detectProjectType(content),
       constraints: this.detectConstraints(content),
@@ -577,9 +670,24 @@ export class QEProductFactorsAssessor extends BaseAgent {
   }
 
   /**
-   * Detect primary domain
+   * Detect primary domain (legacy method for backward compatibility)
+   * Maps detailed domain detection to high-level categories
    */
   private detectDomain(content: string): ProjectContext['domain'] {
+    // Use enhanced domain detection
+    const detectedDomains = this.detectDomainsWithConfidence(content);
+
+    // Map detailed domains to high-level ProjectDomain categories
+    const domainMapping: Record<string, ProjectContext['domain']> = {
+      'stripe-subscription': 'saas',
+      'gdpr-compliance': 'ecommerce', // GDPR often applies to e-commerce
+      'pci-dss': 'finance',
+      'hipaa': 'healthcare',
+      'oauth-oidc': 'saas',
+      'webhook-integration': 'infrastructure'
+    };
+
+    // Legacy keyword-based fallback for domains not in registry
     const domainKeywords: Record<ProjectContext['domain'], string[]> = {
       'ecommerce': ['cart', 'checkout', 'payment', 'product', 'order', 'shop', 'buy', 'price'],
       'healthcare': ['patient', 'medical', 'health', 'clinical', 'diagnosis', 'hipaa', 'prescription'],
@@ -593,6 +701,15 @@ export class QEProductFactorsAssessor extends BaseAgent {
       'generic': []
     };
 
+    // If we have high-confidence detected domains, use them
+    if (detectedDomains.length > 0 && detectedDomains[0].confidence >= 0.5) {
+      const mappedDomain = domainMapping[detectedDomains[0].domain];
+      if (mappedDomain) {
+        return mappedDomain;
+      }
+    }
+
+    // Legacy fallback: keyword counting
     let maxScore = 0;
     let detectedDomain: ProjectContext['domain'] = 'generic';
 
@@ -605,6 +722,25 @@ export class QEProductFactorsAssessor extends BaseAgent {
     }
 
     return detectedDomain;
+  }
+
+  /**
+   * Enhanced domain detection with confidence scoring
+   * Uses DomainPatternRegistry for precise, multi-domain detection
+   */
+  private detectDomainsWithConfidence(content: string): DetectedDomain[] {
+    // Use the domain pattern registry for detection
+    const registryResults = domainPatternRegistry.detectDomains(content);
+
+    // Convert to DetectedDomain format
+    return registryResults.map((result: DomainDetectionResult): DetectedDomain => ({
+      domain: result.domain,
+      displayName: result.displayName,
+      confidence: result.confidence,
+      matchedIndicators: result.matchedIndicators,
+      requiredCoverage: result.requiredCoverage,
+      complianceFrameworks: result.complianceFrameworks
+    }));
   }
 
   /**
@@ -722,27 +858,111 @@ export class QEProductFactorsAssessor extends BaseAgent {
   }
 
   /**
-   * Analyze a single SFDIPOT category
+   * Analyze a single SFDIPOT category with brutal honesty validation
    */
   private async analyzeCategory(category: HTSMCategory, input: ParsedInput, context: ProjectContext): Promise<CategoryAnalysis> {
     const subcategories = SFDIPOT_SUBCATEGORIES[category];
     const testIdeas: TestIdea[] = [];
+    const rejectedIdeas: TestIdea[] = [];
+    const allFindings: Array<{id: string; severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; category: string; title: string; description: string; evidence: string; recommendation: string; impactIfIgnored: string}> = [];
+    const coverageWarnings: Array<{id: string; severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; category: string; title: string; description: string; evidence: string; recommendation: string; impactIfIgnored: string}> = [];
     const subcategoriesCovered: string[] = [];
+    let totalQualityScore = 0;
+    let validatedCount = 0;
 
     for (const subcategory of subcategories) {
       const ideas = this.generateTestIdeasForSubcategory(category, subcategory, input, context);
       if (ideas.length > 0) {
         subcategoriesCovered.push(subcategory);
+      }
+
+      // Apply brutal honesty validation if enabled
+      // Now includes domain-specific quality calibration
+      if (this.enableBrutalHonesty && ideas.length > 0) {
+        const validations = this.testIdeaGenerator.getBrutalHonestyAnalyzer().validateTestIdeas(
+          ideas,
+          category,
+          context.detectedDomains
+        );
+
+        for (const validation of validations) {
+          validatedCount++;
+          totalQualityScore += validation.qualityScore;
+
+          // Collect all findings
+          for (const warning of validation.warnings) {
+            const finding = {
+              id: warning.id,
+              severity: warning.severity as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW',
+              category: warning.category,
+              title: warning.title,
+              description: warning.description,
+              evidence: warning.evidence,
+              recommendation: warning.recommendation,
+              impactIfIgnored: warning.impactIfIgnored,
+            };
+            allFindings.push(finding);
+
+            // Track coverage gaps separately
+            if (warning.category === 'Coverage Gap') {
+              coverageWarnings.push(finding);
+            }
+          }
+
+          // Quality gate: only include ideas that meet minimum score
+          if (validation.qualityScore >= this.minQualityScore) {
+            testIdeas.push(validation.originalIdea);
+          } else {
+            rejectedIdeas.push(validation.originalIdea);
+            console.warn(`[${this.agentId.id}] Rejected low-quality test idea (score: ${validation.qualityScore}): ${validation.originalIdea.description.substring(0, 60)}...`);
+          }
+        }
+      } else {
+        // No validation - include all ideas
         testIdeas.push(...ideas.slice(0, this.maxTestIdeasPerSubcategory));
       }
     }
 
     // Add skill-enhanced test ideas (Phase 6 integration)
     const skillEnhancedIdeas = this.skillIntegration.generateEnhancedTestIdeas(category, context);
-    testIdeas.push(...skillEnhancedIdeas);
+
+    // Also validate skill-enhanced ideas if brutal honesty is enabled
+    // Includes domain-specific quality calibration for enhanced ideas
+    if (this.enableBrutalHonesty && skillEnhancedIdeas.length > 0) {
+      const skillValidations = this.testIdeaGenerator.getBrutalHonestyAnalyzer().validateTestIdeas(
+        skillEnhancedIdeas,
+        category,
+        context.detectedDomains
+      );
+      for (const validation of skillValidations) {
+        validatedCount++;
+        totalQualityScore += validation.qualityScore;
+
+        if (validation.qualityScore >= this.minQualityScore) {
+          testIdeas.push(validation.originalIdea);
+        } else {
+          rejectedIdeas.push(validation.originalIdea);
+        }
+      }
+    } else {
+      testIdeas.push(...skillEnhancedIdeas);
+    }
 
     const subcategoriesMissing = subcategories.filter(s => !subcategoriesCovered.includes(s));
     const coveragePercentage = (subcategoriesCovered.length / subcategories.length) * 100;
+    const avgQualityScore = validatedCount > 0 ? Math.round(totalQualityScore / validatedCount) : 100;
+
+    // Build validation summary
+    const validation = this.enableBrutalHonesty ? {
+      qualityScore: avgQualityScore,
+      rejectedIdeas,
+      coverageWarnings,
+      findings: allFindings,
+    } : undefined;
+
+    if (rejectedIdeas.length > 0) {
+      console.log(`[${this.agentId.id}] ${category}: ${testIdeas.length} accepted, ${rejectedIdeas.length} rejected (quality threshold: ${this.minQualityScore})`);
+    }
 
     return {
       category,
@@ -752,7 +972,8 @@ export class QEProductFactorsAssessor extends BaseAgent {
         subcategoriesCovered,
         subcategoriesMissing,
         coveragePercentage
-      }
+      },
+      validation,
     };
   }
 
@@ -1050,9 +1271,9 @@ export class QEProductFactorsAssessor extends BaseAgent {
    * Get generic test ideas for a subcategory when no stories match
    */
   private getGenericIdeasForSubcategory(
-    category: HTSMCategory,
-    subcategory: string,
-    context: ProjectContext
+    _category: HTSMCategory,
+    _subcategory: string,
+    _context: ProjectContext
   ): TestIdea[] {
     // Return empty for now - will be populated based on context
     // This avoids generating low-value generic tests
@@ -1199,9 +1420,9 @@ Format your response as JSON:
    * Generate template-based questions
    */
   private generateTemplateQuestions(
-    category: HTSMCategory,
+    _category: HTSMCategory,
     subcategory: string,
-    context: ProjectContext
+    _context: ProjectContext
   ): ClarifyingQuestion[] {
     const templates: Record<string, { questions: string[]; rationale: string }> = {
       // STRUCTURE
@@ -1313,9 +1534,66 @@ Format your response as JSON:
   }
 
   /**
-   * Create assessment summary
+   * Inject domain-specific test ideas for missing coverage areas
+   * Uses the DomainPatternRegistry to generate test ideas that address gaps
    */
-  private createSummary(testIdeas: TestIdea[], questions: ClarifyingQuestion[]): AssessmentSummary {
+  private injectMissingDomainCoverage(
+    missingCoverage: string[],
+    context: ProjectContext
+  ): TestIdea[] {
+    const injectedIdeas: TestIdea[] = [];
+
+    // Get domain names from context
+    const domainNames = context.detectedDomains
+      .filter(d => d.confidence >= 0.5)
+      .map(d => d.domain);
+
+    if (domainNames.length === 0) {
+      return injectedIdeas;
+    }
+
+    // Get all domain test ideas
+    const domainTestIdeas = domainPatternRegistry.generateDomainTestIdeas(domainNames);
+
+    // Find ideas that address missing coverage
+    for (const missing of missingCoverage) {
+      const coverageKeywords = missing.toLowerCase().split('-');
+
+      // Find ideas that match the missing coverage
+      const matchingIdeas = domainTestIdeas.filter(idea => {
+        const desc = idea.description.toLowerCase();
+        const tags = (idea.tags || []).map(t => t.toLowerCase());
+        return coverageKeywords.some(kw => desc.includes(kw) || tags.includes(kw));
+      });
+
+      // Add up to 2 matching ideas per missing coverage
+      for (const idea of matchingIdeas.slice(0, 2)) {
+        // Avoid duplicates
+        if (!injectedIdeas.some(i => i.id === idea.id)) {
+          // Add a tag indicating this was injected for coverage
+          const enhancedIdea: TestIdea = {
+            ...idea,
+            tags: [...(idea.tags || []), 'coverage-injection', `covers-${missing}`],
+          };
+          injectedIdeas.push(enhancedIdea);
+        }
+      }
+    }
+
+    return injectedIdeas;
+  }
+
+  /**
+   * Create assessment summary with brutal honesty statistics
+   * Enhanced with domain coverage validation
+   */
+  private createSummary(
+    testIdeas: TestIdea[],
+    questions: ClarifyingQuestion[],
+    categoryAnalysis?: Map<HTSMCategory, CategoryAnalysis>,
+    requirementsQualityScore?: number,
+    domainCoverageValidation?: { missing: string[]; covered: string[]; score: number }
+  ): AssessmentSummary {
     const byCategory: Record<HTSMCategory, number> = {} as Record<HTSMCategory, number>;
     const byPriority: Record<Priority, number> = {} as Record<Priority, number>;
     const byAutomationFitness: Record<AutomationFitness, number> = {} as Record<AutomationFitness, number>;
@@ -1336,6 +1614,55 @@ Format your response as JSON:
     const categoriesWithTests = Object.values(byCategory).filter(c => c > 0).length;
     const overallCoverageScore = (categoriesWithTests / Object.keys(HTSMCategory).length) * 100;
 
+    // Build brutal honesty summary if validation data is available
+    let brutalHonesty: AssessmentSummary['brutalHonesty'] | undefined;
+
+    if (this.enableBrutalHonesty && categoryAnalysis) {
+      let totalQualityScore = 0;
+      let totalRejected = 0;
+      let totalFindings = 0;
+      const bySeverity: Record<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', number> = {
+        CRITICAL: 0,
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+      };
+      let categoryCount = 0;
+
+      for (const [, analysis] of Array.from(categoryAnalysis.entries())) {
+        if (analysis.validation) {
+          categoryCount++;
+          totalQualityScore += analysis.validation.qualityScore;
+          totalRejected += analysis.validation.rejectedIdeas.length;
+          totalFindings += analysis.validation.findings.length;
+
+          for (const finding of analysis.validation.findings) {
+            bySeverity[finding.severity]++;
+          }
+        }
+      }
+
+      // Factor in domain coverage score if available
+      let overallQualityScore = categoryCount > 0 ? Math.round(totalQualityScore / categoryCount) : 100;
+
+      if (domainCoverageValidation) {
+        // Weight domain coverage into the overall score (20% weight)
+        overallQualityScore = Math.round(
+          overallQualityScore * 0.8 + domainCoverageValidation.score * 0.2
+        );
+      }
+
+      brutalHonesty = {
+        overallQualityScore,
+        totalRejected,
+        totalFindings,
+        bySeverity,
+        requirementsQualityScore: requirementsQualityScore ?? 100,
+        domainCoverageScore: domainCoverageValidation?.score,
+        missingDomainCoverage: domainCoverageValidation?.missing,
+      };
+    }
+
     return {
       totalTestIdeas: testIdeas.length,
       byCategory,
@@ -1343,7 +1670,8 @@ Format your response as JSON:
       byAutomationFitness,
       totalClarifyingQuestions: questions.length,
       overallCoverageScore,
-      generatedAt: new Date()
+      generatedAt: new Date(),
+      brutalHonesty,
     };
   }
 

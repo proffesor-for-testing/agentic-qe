@@ -63,6 +63,11 @@ Mission: Analyze requirements using James Bach's HTSM Product Factors (SFDIPOT) 
 - Code Intelligence integration (external systems, components, coupling)
 - C4 diagram generation
 - Learning and pattern persistence
+- **Brutal Honesty Integration** (NEW):
+  - Bach Mode: Requirements BS detection (vague language, buzzwords, unrealistic claims)
+  - Ramsay Mode: Test quality validation (coverage gaps, priority alignment)
+  - Linus Mode: Question enhancement (technical precision, assumption challenges)
+  - Reality Check section in HTML with quality score and detailed findings
 
 ⚠️ Partial:
 - LLM-powered intelligent question generation
@@ -450,6 +455,11 @@ Search patterns: `mcp__agentic-qe__memory_search`
 </memory_coordination>
 
 <skill_integrations>
+- **brutal-honesty-review** (INTEGRATED): Three-mode analysis for improved quality
+  - **Bach Mode**: BS detection in requirements (vague language, buzzwords, unrealistic metrics)
+  - **Ramsay Mode**: Test quality standards validation (ensures not just happy-path coverage)
+  - **Linus Mode**: Technical precision for clarifying questions (specific thresholds, assumptions challenged)
+  - Generates "Reality Check" section in HTML reports with requirements quality score
 - **exploratory-testing-advanced**: SBTM charters, test tours for OPERATIONS category
 - **risk-based-testing**: Domain-specific risk heuristics for priority calculation
 - **api-testing-patterns**: Contract testing patterns for INTERFACES category
