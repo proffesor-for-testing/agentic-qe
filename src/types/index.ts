@@ -137,7 +137,10 @@ export enum QEAgentType {
   ACCESSIBILITY_ALLY = 'accessibility-ally',
 
   // Code Intelligence Agent (Wave 6)
-  CODE_INTELLIGENCE = 'code-intelligence'
+  CODE_INTELLIGENCE = 'code-intelligence',
+
+  // Product Factors Assessor Agent (HTSM-based test idea generation)
+  PRODUCT_FACTORS_ASSESSOR = 'product-factors-assessor'
 }
 
 // Alias for backward compatibility

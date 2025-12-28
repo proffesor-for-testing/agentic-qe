@@ -1,5 +1,6 @@
 /**
  * Test Case Generator - Generates comprehensive test cases from HTSM analysis
+ * Now with LLM-powered test idea generation based on SFDIPOT framework
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -23,35 +24,256 @@ import {
   CoverageGap,
 } from '../types/htsm.types';
 
+/**
+ * LLM interface for test generation - matches BaseAgent pattern
+ */
+interface LLMContext {
+  generateResponse: (prompt: string) => Promise<string>;
+  rawInputContent: string;
+}
+
+/**
+ * SFDIPOT subcategory definitions for LLM prompting
+ */
+const SFDIPOT_DEFINITIONS: Record<HTSMCategory, Record<string, string>> = {
+  STRUCTURE: {
+    Code: 'Source code modules, libraries, files, and their organization',
+    Hardware: 'Physical components the software runs on or interacts with',
+    Service: 'Services, microservices, and their health/startup behavior',
+    NonExecutableFiles: 'Configuration files, data files, documentation',
+    Collateral: 'Supporting materials like help files, licenses, installers',
+  },
+  FUNCTION: {
+    BusinessRules: 'Core business logic and domain rules the system enforces',
+    MultiUserSocial: 'Multi-user interactions, collaboration, social features',
+    Calculation: 'Mathematical operations, formulas, computational logic',
+    SecurityRelated: 'Authentication, authorization, encryption, data protection',
+    Transformations: 'Data format changes, conversions, mappings',
+    StateTransitions: 'Valid state changes, workflows, lifecycle transitions',
+    Multimedia: 'Audio, video, image processing and display',
+    ErrorHandling: 'Error detection, recovery, graceful degradation',
+    Interactions: 'Feature interactions and side effects',
+    Testability: 'Logging, diagnostics, test hooks, observability',
+  },
+  DATA: {
+    InputOutput: 'Valid input/output data formats, ranges, and processing',
+    Preset: 'Default values, configuration presets, initial states',
+    Persistent: 'Data that must survive across sessions/restarts',
+    Interdependent: 'Data with relationships, constraints, referential integrity',
+    SequencesCombinations: 'Order-dependent data, valid/invalid combinations',
+    Cardinality: 'Zero, one, many - collection sizes and edge cases',
+    BigLittle: 'Boundary values, min/max limits, size constraints',
+    InvalidNoise: 'Invalid inputs, noise, malformed data rejection',
+    Lifecycle: 'Data creation, modification, archival, deletion',
+  },
+  INTERFACES: {
+    UserInterfaces: 'UI components, forms, navigation, visual elements',
+    SystemInterfaces: 'Internal APIs, service-to-service communication',
+    ApiSdk: 'External APIs, SDKs, webhooks, integration points',
+    ImportExport: 'Data import/export, file formats, migration',
+  },
+  PLATFORM: {
+    ExternalHardware: 'External devices, peripherals, sensors',
+    ExternalSoftware: 'OS, browsers, dependencies, third-party services',
+    EmbeddedComponents: 'Built-in libraries, frameworks, runtimes',
+    ProductFootprint: 'Resource usage, memory, disk, network bandwidth',
+  },
+  OPERATIONS: {
+    Users: 'User roles, personas, permission levels, workflows',
+    Environment: 'Deployment environments, regions, configurations',
+    CommonUse: 'Happy path scenarios, typical user journeys',
+    UncommonUse: 'Edge cases, unusual but valid scenarios',
+    ExtremeUse: 'Stress conditions, high load, resource exhaustion',
+    DisfavoredUse: 'Misuse, abuse, malicious inputs, attack vectors',
+  },
+  TIME: {
+    TimeRelatedData: 'Timestamps, dates, timezones, scheduling',
+    InputOutputTiming: 'Response times, timeouts, latency',
+    Pacing: 'Rate limiting, burst traffic, slow/fast input',
+    Concurrency: 'Parallel access, race conditions, deadlocks',
+  },
+};
+
 export class TestCaseGenerator {
+  // LLM context for intelligent test generation
+  private llmContext: LLMContext | null = null;
+
+  /**
+   * Set LLM context for intelligent test generation
+   * Call this before generateFromAnalysis to enable LLM-powered test ideas
+   */
+  setLLMContext(context: LLMContext): void {
+    this.llmContext = context;
+  }
+
+  /**
+   * Check if LLM is available
+   */
+  private hasLLM(): boolean {
+    return this.llmContext !== null;
+  }
+
+  /**
+   * Generate test ideas using LLM with SFDIPOT category guidance
+   * Returns domain-specific test ideas based on document context
+   */
+  private async generateTestIdeasWithLLM(
+    opportunity: TestOpportunity
+  ): Promise<{
+    name: string;
+    steps: TestStep[];
+    expectedResults: string[];
+    testData: Record<string, unknown>;
+  } | null> {
+    if (!this.hasLLM() || !this.llmContext) {
+      return null;
+    }
+
+    const category = opportunity.htsmCategory;
+    const subcategory = opportunity.htsmSubcategory;
+    const subcategoryDef = SFDIPOT_DEFINITIONS[category]?.[subcategory] || 'General testing focus';
+
+    // Truncate document content to fit context window
+    const documentContext = this.llmContext.rawInputContent.slice(0, 3000);
+
+    const prompt = `You are a quality engineering expert using James Bach's HTSM (Heuristic Test Strategy Model) v6.3 framework.
+
+## Document Context:
+${documentContext}
+
+## Test Opportunity Details:
+- Original Description: ${opportunity.description}
+- HTSM Category: ${category} (SFDIPOT framework)
+- Subcategory: ${subcategory}
+- Subcategory Definition: ${subcategoryDef}
+- Test Technique: ${opportunity.technique}
+- Priority: ${opportunity.priority}
+
+## Your Task:
+Generate a SPECIFIC, DOMAIN-RELEVANT test idea that:
+1. Is grounded in the actual document content (use real feature names, endpoints, data types mentioned)
+2. Directly tests the ${subcategory} aspect as defined: "${subcategoryDef}"
+3. Uses the ${opportunity.technique} technique appropriately
+4. Is actionable and verifiable
+
+## Response Format (JSON only, no markdown):
+{
+  "testName": "Verify that [specific domain action based on document]",
+  "steps": [
+    {"type": "given", "text": "[specific precondition from document]"},
+    {"type": "when", "text": "[specific action using real feature/data names]"},
+    {"type": "then", "text": "[specific expected outcome]"},
+    {"type": "and", "text": "[additional verification if needed]"}
+  ],
+  "expectedResults": [
+    "[specific measurable outcome 1]",
+    "[specific measurable outcome 2]"
+  ],
+  "testData": {
+    "key": "domain-specific test data values"
+  }
+}
+
+IMPORTANT:
+- Use ACTUAL names from the document (features, APIs, data fields, user roles)
+- Do NOT use generic placeholders like "the system" or "the operation"
+- Make the test directly relevant to ${category}/${subcategory}
+- Response must be valid JSON only`;
+
+    try {
+      const response = await this.llmContext.generateResponse(prompt);
+
+      // Parse JSON response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return null;
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      // Validate required fields
+      if (!parsed.testName || !Array.isArray(parsed.steps) || parsed.steps.length === 0) {
+        return null;
+      }
+
+      return {
+        name: parsed.testName,
+        steps: parsed.steps.map((s: { type: string; text: string }) => ({
+          type: s.type as 'given' | 'when' | 'then' | 'and',
+          text: s.text,
+        })),
+        expectedResults: parsed.expectedResults || [],
+        testData: parsed.testData || {},
+      };
+    } catch {
+      // LLM failed, caller will use template fallback
+      return null;
+    }
+  }
+
   /**
    * Generate test cases from HTSM analysis results
+   * Uses LLM-first approach with template fallback for domain-specific test ideas
    */
-  generateFromAnalysis(
+  async generateFromAnalysis(
     htsmResults: Map<HTSMCategory, HTSMAnalysisResult>,
     userStories: UserStory[]
-  ): TestCase[] {
+  ): Promise<TestCase[]> {
     const testCases: TestCase[] = [];
 
-    htsmResults.forEach((result, category) => {
+    // Collect all opportunities for parallel processing
+    const opportunities: TestOpportunity[] = [];
+    htsmResults.forEach((result) => {
       result.testOpportunities.forEach((opportunity) => {
-        const testCase = this.generateTestCase(opportunity, userStories);
-        testCases.push(testCase);
+        opportunities.push(opportunity);
       });
     });
+
+    // Process opportunities - LLM calls are sequential to avoid rate limits
+    for (const opportunity of opportunities) {
+      const testCase = await this.generateTestCase(opportunity, userStories);
+      testCases.push(testCase);
+    }
 
     return this.prioritizeAndDeduplicate(testCases);
   }
 
   /**
    * Generate a single test case from a test opportunity
+   * Uses LLM-first approach: tries LLM for domain-specific test, falls back to templates
    */
-  private generateTestCase(opportunity: TestOpportunity, userStories: UserStory[]): TestCase {
+  private async generateTestCase(opportunity: TestOpportunity, userStories: UserStory[]): Promise<TestCase> {
     const id = `TC-${opportunity.htsmCategory.substring(0, 4)}-${uuidv4().substring(0, 8).toUpperCase()}`;
+
+    // Try LLM-first for domain-specific test ideas
+    let llmGenerated: {
+      name: string;
+      steps: TestStep[];
+      expectedResults: string[];
+      testData: Record<string, unknown>;
+    } | null = null;
+
+    if (this.hasLLM()) {
+      try {
+        llmGenerated = await this.generateTestIdeasWithLLM(opportunity);
+      } catch (error) {
+        console.warn(`[TestCaseGenerator] LLM generation error, using template fallback: ${error}`);
+      }
+    }
+
+    // Use LLM results if available, otherwise fall back to templates
+    const name = llmGenerated?.name || this.generateTestName(opportunity);
+    const steps = llmGenerated?.steps || this.generateTestSteps(opportunity);
+    const expectedResults = llmGenerated?.expectedResults?.length
+      ? llmGenerated.expectedResults
+      : this.generateExpectedResults(opportunity);
+    const testData = Object.keys(llmGenerated?.testData || {}).length > 0
+      ? llmGenerated!.testData
+      : this.generateTestData(opportunity);
 
     return {
       id,
-      name: this.generateTestName(opportunity),
+      name,
       description: opportunity.description,
       type: this.determineTestType(opportunity),
       htsm: this.createHTSMCoverage(opportunity),
@@ -59,9 +281,9 @@ export class TestCaseGenerator {
       risk: this.assessRisk(opportunity),
       traceability: this.createTraceability(opportunity, userStories),
       preconditions: this.generatePreconditions(opportunity),
-      steps: this.generateTestSteps(opportunity),
-      expectedResults: this.generateExpectedResults(opportunity),
-      testData: this.generateTestData(opportunity),
+      steps,
+      expectedResults,
+      testData,
       tags: this.generateTags(opportunity),
       estimatedDurationMs: this.estimateDuration(opportunity),
       automated: this.canBeAutomated(opportunity),
@@ -110,8 +332,25 @@ export class TestCaseGenerator {
       // Fix common capitalization issues first
       .replace(/\bcPU\b/g, 'CPU')
       .replace(/\bcpu\b/gi, 'CPU')
-      .replace(/\baPi\b/g, 'API')
+      .replace(/\baPi\b/gi, 'API')
       .replace(/\bApi\b/g, 'API')
+      .replace(/\baPI\b/g, 'API')
+      .replace(/\bcDN\b/g, 'CDN')
+      .replace(/\bCdn\b/g, 'CDN')
+      .replace(/\bsLA\b/g, 'SLA')
+      .replace(/\bSla\b/g, 'SLA')
+      .replace(/\bsSO\b/g, 'SSO')
+      .replace(/\bSso\b/g, 'SSO')
+      .replace(/\bsSL\b/g, 'SSL')
+      .replace(/\bSsl\b/g, 'SSL')
+      .replace(/\btLS\b/g, 'TLS')
+      .replace(/\bTls\b/g, 'TLS')
+      .replace(/\bgDPR\b/g, 'GDPR')
+      .replace(/\bGdpr\b/g, 'GDPR')
+      .replace(/\bjSON\b/g, 'JSON')
+      .replace(/\bJson\b/g, 'JSON')
+      .replace(/\bcORS\b/g, 'CORS')
+      .replace(/\bCors\b/g, 'CORS')
       .replace(/\bUrl\b/g, 'URL')
       .replace(/\bHtml\b/g, 'HTML')
       .replace(/\bCss\b/g, 'CSS')

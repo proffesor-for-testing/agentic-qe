@@ -27,10 +27,10 @@ export class HTSMAnalyzer {
   ): Map<HTSMCategory, HTSMAnalysisResult> {
     const results = new Map<HTSMCategory, HTSMAnalysisResult>();
 
-    results.set('STRUCTURE', this.analyzeStructure(elements, architecture));
+    results.set('STRUCTURE', this.analyzeStructure(elements, architecture, userStories));
     results.set('FUNCTION', this.analyzeFunction(elements, userStories, specs));
     results.set('DATA', this.analyzeData(elements, specs));
-    results.set('INTERFACES', this.analyzeInterfaces(elements, architecture));
+    results.set('INTERFACES', this.analyzeInterfaces(elements, architecture, userStories));
     results.set('PLATFORM', this.analyzePlatform(architecture));
     results.set('OPERATIONS', this.analyzeOperations(elements, userStories));
     results.set('TIME', this.analyzeTime(elements, specs));
@@ -43,7 +43,8 @@ export class HTSMAnalyzer {
    */
   analyzeStructure(
     elements: TestableElement[],
-    architecture?: TechnicalArchitecture
+    architecture?: TechnicalArchitecture,
+    userStories?: UserStory[]
   ): HTSMAnalysisResult {
     const structureElements = elements.filter(
       (e) => e.suggestedHTSM.includes('STRUCTURE') || e.type === 'interface'
@@ -51,9 +52,22 @@ export class HTSMAnalyzer {
 
     const opportunities: TestOpportunity[] = [];
 
+    // Use architecture components or infer from user stories
+    let components = architecture?.components || [];
+    if (components.length === 0 && userStories && userStories.length > 0) {
+      const inferredComponents = this.inferComponentsFromStories(userStories);
+      components = inferredComponents.map(c => ({
+        name: c.name,
+        type: c.type as 'service' | 'database' | 'ui' | 'api' | 'queue' | 'cache',
+        description: c.description,
+        dependencies: c.dependencies || [],
+        interfaces: [],
+      }));
+    }
+
     // Code structure tests
-    if (architecture?.components) {
-      architecture.components.forEach((comp) => {
+    if (components.length > 0) {
+      components.forEach((comp) => {
         opportunities.push({
           id: `STRUCT-CODE-${comp.name}`,
           htsmCategory: 'STRUCTURE',
@@ -80,7 +94,7 @@ export class HTSMAnalyzer {
     }
 
     // Service structure tests
-    const services = architecture?.components?.filter((c) => c.type === 'service') || [];
+    const services = components.filter((c) => c.type === 'service');
     services.forEach((service) => {
       opportunities.push({
         id: `STRUCT-SVC-${service.name}`,
@@ -128,6 +142,12 @@ export class HTSMAnalyzer {
           sourceElements: [story.id, ac.id],
         });
       });
+
+      // Generate tests from user story title/feature when ACs are limited
+      if (story.acceptanceCriteria.length < 3) {
+        const featureTests = this.generateFeatureTests(story);
+        opportunities.push(...featureTests);
+      }
     });
 
     // Error handling tests
@@ -193,40 +213,70 @@ export class HTSMAnalyzer {
 
     const opportunities: TestOpportunity[] = [];
 
-    // Input/Output validation
+    // Input/Output validation with semantic checks
+    // Only apply data tests to elements that actually involve input or numeric values
+    const isInputElement = (desc: string) =>
+      /\b(field|input|form|enter|provide|submit|upload|type|select|choose|fill)\b/i.test(desc);
+
+    const hasNumericConstraints = (desc: string) =>
+      /\b(max|min|limit|size|count|amount|number|value|threshold|rate|percentage|bytes|kb|mb|seconds?|ms|minutes?|hours?|days?|<|>|≤|≥|\d+)\b/i.test(desc);
+
+    const isPerformanceMetric = (desc: string) =>
+      /\b(LCP|FID|CLS|INP|TTFB|FCP|TBT|TTI|latency|load time|response time|throughput|vitals?)\b/i.test(desc);
+
     dataElements.forEach((elem) => {
-      // Valid input
-      opportunities.push({
-        id: `DATA-IO-VALID-${elem.id}`,
-        htsmCategory: 'DATA',
-        htsmSubcategory: 'InputOutput',
-        description: `Verify valid input processing for: ${elem.description}`,
-        technique: 'equivalence-partitioning',
-        priority: 'P1',
-        sourceElements: [elem.id],
-      });
+      const desc = elem.description;
 
-      // Invalid input
-      opportunities.push({
-        id: `DATA-IO-INVALID-${elem.id}`,
-        htsmCategory: 'DATA',
-        htsmSubcategory: 'InvalidNoise',
-        description: `Verify invalid input rejection for: ${elem.description}`,
-        technique: 'error-guessing',
-        priority: 'P1',
-        sourceElements: [elem.id],
-      });
+      // Only generate input validation tests for actual input elements
+      if (isInputElement(desc)) {
+        // Valid input
+        opportunities.push({
+          id: `DATA-IO-VALID-${elem.id}`,
+          htsmCategory: 'DATA',
+          htsmSubcategory: 'InputOutput',
+          description: `Verify valid input processing for: ${desc}`,
+          technique: 'equivalence-partitioning',
+          priority: 'P1',
+          sourceElements: [elem.id],
+        });
 
-      // Boundary values
-      opportunities.push({
-        id: `DATA-BV-${elem.id}`,
-        htsmCategory: 'DATA',
-        htsmSubcategory: 'BigLittle',
-        description: `Verify boundary values for: ${elem.description}`,
-        technique: 'boundary-value-analysis',
-        priority: 'P2',
-        sourceElements: [elem.id],
-      });
+        // Invalid input
+        opportunities.push({
+          id: `DATA-IO-INVALID-${elem.id}`,
+          htsmCategory: 'DATA',
+          htsmSubcategory: 'InvalidNoise',
+          description: `Verify invalid input rejection for: ${desc}`,
+          technique: 'error-guessing',
+          priority: 'P1',
+          sourceElements: [elem.id],
+        });
+      }
+
+      // Only generate boundary value tests for numeric/quantifiable elements
+      if (hasNumericConstraints(desc) && !isPerformanceMetric(desc)) {
+        opportunities.push({
+          id: `DATA-BV-${elem.id}`,
+          htsmCategory: 'DATA',
+          htsmSubcategory: 'BigLittle',
+          description: `Verify boundary values for: ${desc}`,
+          technique: 'boundary-value-analysis',
+          priority: 'P2',
+          sourceElements: [elem.id],
+        });
+      }
+
+      // For performance metrics, generate performance validation tests instead
+      if (isPerformanceMetric(desc)) {
+        opportunities.push({
+          id: `DATA-PERF-${elem.id}`,
+          htsmCategory: 'DATA',
+          htsmSubcategory: 'InputOutput',
+          description: `Verify performance metric measurement for: ${desc}`,
+          technique: 'risk-based', // Performance testing is risk-based
+          priority: 'P1',
+          sourceElements: [elem.id],
+        });
+      }
     });
 
     // Cardinality tests (zero, one, many)
@@ -304,7 +354,8 @@ export class HTSMAnalyzer {
    */
   analyzeInterfaces(
     elements: TestableElement[],
-    architecture?: TechnicalArchitecture
+    architecture?: TechnicalArchitecture,
+    userStories?: UserStory[]
   ): HTSMAnalysisResult {
     const interfaceElements = elements.filter(
       (e) => e.suggestedHTSM.includes('INTERFACES') || e.type === 'interface'
@@ -312,9 +363,15 @@ export class HTSMAnalyzer {
 
     const opportunities: TestOpportunity[] = [];
 
+    // Infer interfaces from user stories if no architecture
+    let interfaces = architecture?.interfaces || [];
+    if (interfaces.length === 0 && userStories && userStories.length > 0) {
+      interfaces = this.inferInterfacesFromStories(userStories);
+    }
+
     // API tests
-    if (architecture?.interfaces) {
-      architecture.interfaces.forEach((iface) => {
+    if (interfaces.length > 0) {
+      interfaces.forEach((iface) => {
         opportunities.push({
           id: `INTF-API-${iface.name}`,
           htsmCategory: 'INTERFACES',
@@ -717,6 +774,202 @@ export class HTSMAnalyzer {
   private calculateCoverage(opportunities: TestOpportunity[], subcategoryCount: number): number {
     const coveredSubcategories = new Set(opportunities.map((o) => o.htsmSubcategory));
     return Math.round((coveredSubcategories.size / subcategoryCount) * 100);
+  }
+
+  /**
+   * Generate comprehensive tests from a user story feature when acceptance criteria are limited
+   */
+  private generateFeatureTests(story: UserStory): TestOpportunity[] {
+    const opportunities: TestOpportunity[] = [];
+    const feature = story.title.toLowerCase();
+    const priority = story.priority || 'P2';
+
+    // Core functionality test for the feature
+    opportunities.push({
+      id: `FUNC-CORE-${story.id}`,
+      htsmCategory: 'FUNCTION',
+      htsmSubcategory: 'BusinessRules',
+      description: `Verify core functionality: ${story.title}`,
+      technique: 'scenario-based',
+      priority: priority,
+      sourceElements: [story.id],
+    });
+
+    // State transitions (if applicable)
+    if (feature.includes('submit') || feature.includes('approval') || feature.includes('moderation') ||
+        feature.includes('workflow') || feature.includes('status')) {
+      opportunities.push({
+        id: `FUNC-STATE-${story.id}`,
+        htsmCategory: 'FUNCTION',
+        htsmSubcategory: 'StateTransitions',
+        description: `Verify state transitions for: ${story.title}`,
+        technique: 'state-transition',
+        priority: priority,
+        sourceElements: [story.id],
+      });
+    }
+
+    // Error handling for the feature
+    opportunities.push({
+      id: `FUNC-ERR-${story.id}`,
+      htsmCategory: 'FUNCTION',
+      htsmSubcategory: 'ErrorHandling',
+      description: `Verify error handling for: ${story.title}`,
+      technique: 'error-guessing',
+      priority: 'P1',
+      sourceElements: [story.id],
+    });
+
+    // Security test if feature involves user data or authentication
+    if (feature.includes('profile') || feature.includes('login') || feature.includes('auth') ||
+        feature.includes('password') || feature.includes('user') || feature.includes('comment') ||
+        feature.includes('submission') || feature.includes('message') || feature.includes('follow')) {
+      opportunities.push({
+        id: `FUNC-SEC-${story.id}`,
+        htsmCategory: 'FUNCTION',
+        htsmSubcategory: 'SecurityRelated',
+        description: `Verify security controls for: ${story.title}`,
+        technique: 'risk-based',
+        priority: 'P0',
+        sourceElements: [story.id],
+      });
+    }
+
+    // UI test if feature has user-facing components
+    if (feature.includes('page') || feature.includes('display') || feature.includes('form') ||
+        feature.includes('profile') || feature.includes('list') || feature.includes('calendar') ||
+        feature.includes('dashboard') || feature.includes('portal')) {
+      opportunities.push({
+        id: `IFACE-UI-${story.id}`,
+        htsmCategory: 'INTERFACES',
+        htsmSubcategory: 'UserInterfaces',
+        description: `Verify UI for: ${story.title}`,
+        technique: 'scenario-based',
+        priority: 'P2',
+        sourceElements: [story.id],
+      });
+    }
+
+    // API test if feature involves data operations
+    if (feature.includes('api') || feature.includes('submit') || feature.includes('save') ||
+        feature.includes('update') || feature.includes('delete') || feature.includes('create') ||
+        feature.includes('comment') || feature.includes('bookmark') || feature.includes('follow') ||
+        feature.includes('newsletter') || feature.includes('notification')) {
+      opportunities.push({
+        id: `IFACE-API-${story.id}`,
+        htsmCategory: 'INTERFACES',
+        htsmSubcategory: 'ApiSdk',
+        description: `Verify API operations for: ${story.title}`,
+        technique: 'scenario-based',
+        priority: 'P1',
+        sourceElements: [story.id],
+      });
+    }
+
+    // Data validation test
+    opportunities.push({
+      id: `DATA-VALID-${story.id}`,
+      htsmCategory: 'DATA',
+      htsmSubcategory: 'InputOutput',
+      description: `Verify data validation for: ${story.title}`,
+      technique: 'boundary-value-analysis',
+      priority: 'P1',
+      sourceElements: [story.id],
+    });
+
+    return opportunities;
+  }
+
+  /**
+   * Infer interfaces from user stories when no architecture is provided
+   *
+   * REFACTORED: Removed 13 hardcoded interface mappings that guessed API structure
+   * based on keyword matching. This caused hallucinated APIs like "Auth API" to appear
+   * when the input was about performance optimization, not authentication.
+   *
+   * Now extracts only explicitly mentioned API/interface references from the document.
+   */
+  inferInterfacesFromStories(userStories: UserStory[]): { name: string; type: 'rest' | 'graphql' | 'grpc' | 'websocket' | 'event'; endpoints?: string[]; dataFormat: string }[] {
+    const interfaces: { name: string; type: 'rest' | 'graphql' | 'grpc' | 'websocket' | 'event'; endpoints?: string[]; dataFormat: string }[] = [];
+    const seen = new Set<string>();
+
+    // Only extract interfaces that are explicitly mentioned in the document
+    // Pattern matches: "REST API", "GraphQL endpoint", "WebSocket connection", etc.
+    const interfacePatterns = [
+      { pattern: /\b(REST\s*API|RESTful\s+API)\b/i, type: 'rest' as const },
+      { pattern: /\bGraphQL\s*(API|endpoint|server)?\b/i, type: 'graphql' as const },
+      { pattern: /\bgRPC\s*(service|API)?\b/i, type: 'grpc' as const },
+      { pattern: /\bWebSocket\s*(connection|API|server)?\b/i, type: 'websocket' as const },
+      { pattern: /\b(SSE|Server-Sent\s+Events?)\b/i, type: 'event' as const },
+      { pattern: /\bRUM\s*(data|monitoring|dashboard)\b/i, type: 'rest' as const },
+      { pattern: /\bCDN\s*(edge|caching|API)?\b/i, type: 'rest' as const },
+    ];
+
+    userStories.forEach((story) => {
+      const allText = `${story.title} ${story.iWant || ''} ${story.acceptanceCriteria.map(ac => ac.description).join(' ')}`;
+
+      interfacePatterns.forEach(({ pattern, type }) => {
+        const match = allText.match(pattern);
+        if (match && !seen.has(match[0])) {
+          seen.add(match[0]);
+          interfaces.push({
+            name: match[0],
+            type,
+            endpoints: [], // Don't guess endpoints - leave empty
+            dataFormat: 'json'
+          });
+        }
+      });
+    });
+
+    return interfaces;
+  }
+
+  inferComponentsFromStories(userStories: UserStory[]): { name: string; type: string; description: string; dependencies?: string[] }[] {
+    const components: { name: string; type: string; description: string; dependencies?: string[] }[] = [];
+    const seen = new Set<string>();
+
+    // REFACTORED: Removed 11 hardcoded component mappings that guessed services
+    // based on keyword matching. This caused hallucinated services like "Authentication Service"
+    // to appear when the input was about performance optimization.
+    //
+    // Now extracts only explicitly mentioned technical components from the document.
+    const componentPatterns = [
+      { pattern: /\b(SSR|server-side\s+rendering)\b/i, type: 'service', name: 'SSR Engine' },
+      { pattern: /\b(SSG|static\s+site\s+generation)\b/i, type: 'service', name: 'Static Generator' },
+      { pattern: /\bCDN\b/i, type: 'service', name: 'CDN' },
+      { pattern: /\b(image\s+optimization|WebP|AVIF)\b/i, type: 'service', name: 'Image Optimizer' },
+      { pattern: /\b(critical\s+CSS|above-the-fold)\b/i, type: 'module', name: 'Critical CSS Extractor' },
+      { pattern: /\b(RUM|real\s+user\s+monitoring)\b/i, type: 'service', name: 'RUM Dashboard' },
+      { pattern: /\b(resource\s+hints?|preload|prefetch|preconnect)\b/i, type: 'module', name: 'Resource Hints Manager' },
+      { pattern: /\b(edge\s+caching|edge\s+cache)\b/i, type: 'cache', name: 'Edge Cache' },
+      { pattern: /\bservice\s+worker\b/i, type: 'module', name: 'Service Worker' },
+      { pattern: /\b(lazy\s+load|lazyload)\b/i, type: 'module', name: 'Lazy Loader' },
+    ];
+
+    userStories.forEach((story) => {
+      const allText = `${story.title} ${story.iWant || ''} ${story.acceptanceCriteria.map(ac => ac.description).join(' ')}`;
+
+      componentPatterns.forEach(({ pattern, type, name }) => {
+        if (pattern.test(allText) && !seen.has(name)) {
+          seen.add(name);
+          components.push({
+            name,
+            type,
+            description: `Detected from document: "${allText.match(pattern)?.[0] || name}"`,
+            dependencies: []
+          });
+        }
+      });
+    });
+
+    // REMOVED: Do NOT unconditionally add coreComponents
+    // Components should only be derived from actual input document content
+    // The previous code was adding 11 hardcoded components (User Service, Article Database,
+    // Email Gateway, etc.) regardless of input, causing hallucinated architecture in output.
+    // Now only components that match keywords in the actual user stories are included.
+
+    return components;
   }
 }
 
