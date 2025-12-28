@@ -123,6 +123,24 @@
             "command": "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | head -1 | xargs -I {} node -e \"const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\\" + process.argv[1].replace(/'/g,\\\"''\\\")+\\\"%' ORDER BY confidence DESC LIMIT 3\\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}\" \"{}\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -157,6 +175,19 @@
           {
             "type": "command",
             "timeout": 2000,
+            "command": "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/capture-task-learning.js 2>/dev/null || true"
+          },
+          {
+            "type": "command",
             "command": "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
           }
         ]
@@ -200,6 +231,24 @@
             "type": "command",
             "timeout": 3000,
             "command": "/bin/bash -c 'echo \"🔄 PreCompact: 21 QE agents + 54 claude-flow agents. Review CLAUDE.md for skills and learning protocols\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash -c 'echo \"🔄 PreCompact: Review CLAUDE.md for 20 QE agents, skills, and learning protocols\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact: 20 QE agents available. Use: npx aqe learn status\"'"
           }
         ]
       }
@@ -275,6 +324,14 @@
             "type": "command",
             "timeout": 2000,
             "command": "npx ruvector@latest hooks track-notification 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📊 Session ended. Run: npx aqe learn status' 2>/dev/null || true"
           }
         ]
       }

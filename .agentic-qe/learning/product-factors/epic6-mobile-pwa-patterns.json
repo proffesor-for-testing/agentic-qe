@@ -1,0 +1,181 @@
+{
+  "assessment": {
+    "name": "Epic 6 - Mobile-First Experience & App Parity",
+    "domain": ["ecommerce", "mobile-first", "pwa"],
+    "timestamp": "2025-12-28T00:00:00.000Z",
+    "agent": "qe-product-factors-assessor"
+  },
+  "metrics": {
+    "totalTestIdeas": 87,
+    "priorityBreakdown": {
+      "P0": 18,
+      "P1": 32,
+      "P2": 24,
+      "P3": 13
+    },
+    "coverageCategories": 7,
+    "clarifyingQuestions": 32
+  },
+  "automationFitnessDistribution": {
+    "api-level": 8,
+    "integration-level": 20,
+    "e2e-level": 41,
+    "human-exploration": 2,
+    "security": 8,
+    "performance": 5,
+    "accessibility": 5,
+    "concurrency": 4
+  },
+  "learnedPatterns": {
+    "riskAreas": {
+      "description": "High-risk areas identified for mobile-first PWA domain",
+      "areas": [
+        "Service Worker lifecycle and cache management",
+        "Cross-platform payment integration (Apple Pay, Google Pay)",
+        "Biometric authentication security and fallback",
+        "Offline transaction handling and Background Sync",
+        "Browser and OS compatibility across mobile ecosystem"
+      ],
+      "criticalSubcategories": [
+        "Function/Security (8 P0/P1 test ideas)",
+        "Structure/Code (Service Worker critical)",
+        "Data/Persistence (cache management, cross-device sync)",
+        "Platform/Browser (compatibility matrix)",
+        "Platform/Network (offline/online transitions)"
+      ]
+    },
+    "automationFitnessPatterns": {
+      "description": "Learned automation fitness mappings for PWA features",
+      "mappings": {
+        "service-worker": "integration-level",
+        "pwa-install": "e2e-level",
+        "biometric-auth": "e2e-level",
+        "payment-api": "api-level",
+        "push-notifications": "integration-level",
+        "barcode-scanning": "e2e-level",
+        "offline-mode": "e2e-level",
+        "touch-gestures": "e2e-level",
+        "cross-device-sync": "integration-level",
+        "browser-compatibility": "e2e-level"
+      },
+      "insights": {
+        "e2eLevelDominance": "47% of test ideas require e2e-level testing due to browser API dependencies and complex user interactions (biometric, gestures, PWA install)",
+        "integrationLevelUsage": "23% for Service Worker lifecycle, API contracts, third-party integrations",
+        "securityTesting": "9% for payment security, credential management, permission handling",
+        "performanceTesting": "6% for network conditions (Slow 3G), low-end device testing",
+        "accessibilityTesting": "6% for WCAG compliance, screen reader support, alternative controls"
+      }
+    },
+    "priorityHeuristics": {
+      "description": "Heuristics for assigning priorities in mobile-first PWA context",
+      "P0Triggers": [
+        "Direct revenue impact (payment failures, checkout blocking)",
+        "Security vulnerabilities (credential theft, payment data exposure)",
+        "Accessibility compliance violations (WCAG 2.2 Level AAA for touch targets)",
+        "Core PWA functionality broken (offline mode, Service Worker registration)",
+        "Network reliability issues on Slow 3G (depends on Epic 2 performance)"
+      ],
+      "P1Triggers": [
+        "Significant UX degradation (biometric fallback, gesture failures)",
+        "Browser compatibility gaps for major versions (Chrome, Safari, Firefox)",
+        "Cross-platform parity issues (mobile-desktop-app sync broken)",
+        "Performance metrics at risk (mobile conversion rate, PWA install rate)"
+      ],
+      "P2Triggers": [
+        "Polish features (status bar theming, splash screens, pinch-to-zoom)",
+        "Edge case handling (extreme lighting for barcode, foldable device adaptation)",
+        "Nice-to-have features (store mode, Web Share API, Periodic Background Sync)"
+      ],
+      "P3Triggers": [
+        "Rare scenarios (multiple PWA installs on same device)",
+        "Non-critical polyfills for very old browsers",
+        "Legacy browser support (IE11, pre-2015 mobile browsers)"
+      ]
+    },
+    "clarifyingQuestionTemplates": {
+      "description": "Templates for generating clarifying questions by SFDIPOT category",
+      "templates": {
+        "Structure": "What is the technical implementation strategy for [feature]? Which specific libraries/frameworks? Fallback if unavailable?",
+        "Function": "What is the expected behavior when [feature] is unavailable or fails? What's the fallback strategy? How to handle graceful degradation?",
+        "Data": "What are the size/duration constraints for [data storage]? How to handle quota exceeded? Cache invalidation strategy?",
+        "Interfaces": "What is the exact integration flow with [third-party service]? Rate limits? Error handling and retry strategy?",
+        "Platform": "What is the minimum browser/OS version support? Strategy for handling unsupported platforms? Polyfills needed?",
+        "Operations": "What analytics/metrics should be tracked for [user workflow]? Accessibility requirements beyond WCAG? Privacy considerations?",
+        "Time": "What is the retry/timeout strategy for [background process]? Battery/performance constraints? How long to persist pending actions?"
+      },
+      "questionDistribution": {
+        "Function": 6,
+        "Platform": 4,
+        "Time": 4,
+        "Data": 4,
+        "Interfaces": 4,
+        "Operations": 4,
+        "Structure": 3,
+        "Metrics": 3
+      },
+      "insights": "Most clarifying questions (6) in Function category due to ambiguity around offline behavior and feature availability. Platform (4) and Time (4) also high due to browser/network variability and background process complexity."
+    },
+    "domainSpecificInsights": {
+      "ecommerceMobilePWA": {
+        "keyDependencies": [
+          "Epic 1 (Accessibility) - Touch target sizing, screen reader support",
+          "Epic 2 (Performance) - Slow 3G performance, Core Web Vitals",
+          "Service Worker API maturity across browsers",
+          "Payment provider integrations (Apple Pay, Google Pay)",
+          "Push notification service reliability (FCM, OneSignal)"
+        ],
+        "crossPlatformChallenges": [
+          "iOS PWA limitations (50MB cache, no Background Sync, limited push)",
+          "Android fragmentation (WebAPK vs browser-based PWA)",
+          "Browser API inconsistencies (Payment Request API not in Firefox)",
+          "Session sync complexity across mobile web, desktop, native app"
+        ],
+        "testingComplexity": {
+          "browserMatrix": "5 browsers × 3-5 versions × 2 platforms (iOS/Android) = 30-50 configurations",
+          "deviceFragmentation": "Small screens (320px), tablets (768-1024px), foldables, low-end devices",
+          "networkConditions": "Offline, Slow 3G, 4G, WiFi, transition scenarios",
+          "biometricVariety": "Face ID, Touch ID, Android fingerprint, Android face unlock, none"
+        },
+        "automationChallenges": [
+          "Biometric authentication requires physical device (cannot fully automate in CI)",
+          "PWA install flow varies by browser (Chrome A2HS vs Safari Add to Home Screen)",
+          "Camera API testing for barcode scanning requires mock camera input",
+          "Push notification testing requires integration with push service provider",
+          "Offline testing requires network throttling and Service Worker simulation"
+        ]
+      }
+    }
+  },
+  "recommendations": {
+    "forFutureAssessments": [
+      "Start with Function and Platform categories for PWA epics - highest question count",
+      "Pre-identify browser compatibility matrix early to estimate testing effort",
+      "Clarify offline behavior upfront - drives 20+ test ideas across categories",
+      "Map third-party integrations (payment, push, barcode) to separate workstreams",
+      "Estimate ~50% of PWA test ideas will require real device testing (not just browser automation)"
+    ],
+    "forTestStrategy": [
+      "Prioritize e2e testing on real devices for biometric, gestures, PWA install flows",
+      "Use BrowserStack/Sauce Labs for browser matrix coverage (30-50 configurations)",
+      "Implement Service Worker testing in integration test suite (cache strategies, lifecycle)",
+      "Create separate security test suite for payment, WebAuthn, permission handling",
+      "Build performance test suite for Slow 3G, low-end devices, network transitions"
+    ],
+    "forStakeholderConversations": [
+      "Schedule Product Coverage Session BEFORE development starts",
+      "Bring browser compatibility matrix to refinement - drives scope decisions",
+      "Discuss iOS PWA limitations upfront - may impact feature parity goals",
+      "Clarify success metrics (how to measure 10% PWA install rate, conversion rate)",
+      "Align on acceptable graceful degradation for unsupported browsers/devices"
+    ]
+  },
+  "metadata": {
+    "assessmentDuration": "~30 minutes",
+    "outputFormats": ["HTML", "JSON"],
+    "htmlReportSize": "~85KB",
+    "jsonDataSize": "~45KB",
+    "learningEnabled": true,
+    "persistenceEnabled": true,
+    "version": "2.7.0"
+  }
+}

@@ -179,3 +179,6 @@ tmp/*
 **/intelligence.json
 **/.ruvector/
 .env.supabase
+
+# Private/confidential folders - never push to repo
+docs/l2c-agentic-transformation/
