@@ -170,3 +170,6 @@ claude-flow
 hive-mind-prompt-*.txt
 tests/tmp/*
 tmp/*
+
+# Private/confidential folders - never push to repo
+docs/l2c-agentic-transformation/

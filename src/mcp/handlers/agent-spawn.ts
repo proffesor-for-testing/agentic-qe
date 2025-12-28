@@ -527,6 +527,18 @@ export class AgentSpawnHandler extends BaseHandler {
       defaultResources: { memory: 1024, cpu: 1, storage: 1024 },
       specializations: ['screenshot-comparison', 'responsive-testing', 'wcag-compliance'],
     });
+
+    this.agentTypeConfigs.set('product-factors-assessor', {
+      defaultCapabilities: [
+        'sfdipot-analysis',
+        'test-idea-generation',
+        'automation-fitness',
+        'clarifying-questions',
+        'multi-format-output',
+      ],
+      defaultResources: { memory: 512, cpu: 1, storage: 256 },
+      specializations: ['htsm-framework', 'domain-detection', 'code-intelligence', 'learning-integration'],
+    });
   }
 
   private validateAgentSpec(spec: AgentSpec): void {

@@ -1,0 +1,82 @@
+{
+  "domain": "social-proof-ugc",
+  "epicName": "Epic5-Social-Proof-UGC-Integration",
+  "learnedAt": "2025-12-28T16:10:00Z",
+  "features": [
+    "customer-favorites-ratings-section",
+    "instagram-social-feed-integration",
+    "shop-the-look-ugc",
+    "trustpilot-trust-signals",
+    "trending-now-algorithm",
+    "video-reviews-testimonials",
+    "staff-picks-curations",
+    "ugc-submission-moderation"
+  ],
+  "testPatterns": {
+    "total": 42,
+    "coverage": 88.5,
+    "byPriority": { "P0": 9, "P1": 25, "P2": 8, "P3": 0 },
+    "byCategory": {
+      "FUNCTION": 9,
+      "INTERFACES": 7,
+      "DATA": 6,
+      "OPERATIONS": 6,
+      "TIME": 6,
+      "STRUCTURE": 4,
+      "PLATFORM": 4
+    }
+  },
+  "domainSpecificPatterns": [
+    {
+      "pattern": "ugc-content-moderation",
+      "description": "AI-powered content moderation with human review fallback for user-submitted photos/videos",
+      "testFocus": ["malware scanning", "inappropriate content detection", "NSFW filtering", "brand safety"]
+    },
+    {
+      "pattern": "third-party-social-api",
+      "description": "Instagram Graph API and Trustpilot Business API integrations",
+      "testFocus": ["rate limiting", "authentication failures", "data sync", "webhook handling"]
+    },
+    {
+      "pattern": "real-time-trending-algorithm",
+      "description": "Trending products based on real-time purchase/view data",
+      "testFocus": ["data freshness", "algorithm accuracy", "cache invalidation", "concurrent updates"]
+    },
+    {
+      "pattern": "gdpr-ugc-compliance",
+      "description": "User consent management, right to deletion, data portability for submitted content",
+      "testFocus": ["consent capture", "deletion cascading", "data export", "audit logging"]
+    },
+    {
+      "pattern": "aggregated-ratings-display",
+      "description": "Star ratings and review counts aggregation from multiple sources",
+      "testFocus": ["calculation accuracy", "display formatting", "source attribution", "update frequency"]
+    },
+    {
+      "pattern": "ugc-submission-workflow",
+      "description": "Photo/video submission with moderation queue and approval workflow",
+      "testFocus": ["file upload limits", "format validation", "queue processing", "notification triggers"]
+    },
+    {
+      "pattern": "social-feed-performance",
+      "description": "Lazy loading and caching for social media content on homepage",
+      "testFocus": ["LCP impact", "CDN caching", "fallback content", "infinite scroll"]
+    }
+  ],
+  "criticalRiskAreas": [
+    "UGC moderation and content safety",
+    "Third-party API reliability (Instagram, Trustpilot)",
+    "Real-time data processing performance",
+    "Privacy/GDPR compliance",
+    "Homepage Core Web Vitals impact",
+    "Accessibility (WCAG 2.2 AA)"
+  ],
+  "automationStrategy": {
+    "integration-level": "31%",
+    "api-level": "26%",
+    "security": "14%",
+    "performance": "12%",
+    "accessibility": "10%",
+    "e2e-level": "7%"
+  }
+}

@@ -95,7 +95,7 @@
       "lastOptimized": "2025-12-02",
       "tags": ["agents", "pact", "core", "foundation", "autonomous-testing"],
       "dependencies": [],
-      "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity", "qx-partner"]
+      "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity", "qx-partner", "qe-product-factors-assessor"]
     },
     "holistic-testing-pact": {
       "id": "holistic-testing-pact",
@@ -622,7 +622,8 @@
       "qe-api-contract-validator": ["api-testing-patterns", "contract-testing"],
       "qe-flaky-test-hunter": ["exploratory-testing-advanced", "sherlock-review", "bug-reporting-excellence"],
       "qe-visual-tester": ["visual-testing-advanced"],
-      "qe-chaos-engineer": ["chaos-engineering-resilience"]
+      "qe-chaos-engineer": ["chaos-engineering-resilience"],
+      "qe-product-factors-assessor": ["context-driven-testing", "exploratory-testing-advanced", "risk-based-testing", "test-design-techniques", "security-testing", "performance-testing", "accessibility-testing", "brutal-honesty-review"]
     },
     "byTask": {
       "test-generation": ["tdd-london-chicago", "api-testing-patterns", "test-design-techniques"],
