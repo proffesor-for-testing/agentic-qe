@@ -9,4 +9,16 @@ export {
   AnalysisInput,
   SubcategoryAnalysis,
   CategoryAnalysisResult,
+  ExtendedAnalysisResult,
 } from './sfdipot-analyzer';
+
+export {
+  BrutalHonestyAnalyzer,
+  brutalHonestyAnalyzer,
+  BrutalHonestySeverity,
+  BrutalHonestyMode,
+  BrutalHonestyFinding,
+  RequirementsQualityScore,
+  TestIdeaValidation,
+  EnhancedQuestion,
+} from './brutal-honesty-analyzer';

@@ -24,6 +24,12 @@ import {
   ClarifyingQuestion,
 } from '../types';
 
+import {
+  BrutalHonestyAnalyzer,
+  RequirementsQualityScore,
+  BrutalHonestyFinding,
+} from './brutal-honesty-analyzer';
+
 export interface AnalysisInput {
   rawText: string;
   entities: ExtractedEntities;
@@ -47,6 +53,15 @@ export interface CategoryAnalysisResult {
 }
 
 /**
+ * Extended analysis result including brutal honesty findings
+ */
+export interface ExtendedAnalysisResult {
+  categoryResults: Map<HTSMCategory, CategoryAnalysisResult>;
+  requirementsQuality: RequirementsQualityScore;
+  brutalHonestyEnabled: boolean;
+}
+
+/**
  * SFDIPOT Analyzer
  *
  * Analyzes input documentation against the 7 HTSM Product Factors:
@@ -57,8 +72,21 @@ export interface CategoryAnalysisResult {
  * - Platform: What the product DEPENDS ON
  * - Operations: How the product is USED
  * - Time: WHEN things happen
+ *
+ * Integrates brutal-honesty-review skill for enhanced analysis:
+ * - Bach mode: BS detection for vague/unrealistic requirements
+ * - Ramsay mode: Quality standards for test coverage
+ * - Linus mode: Technical precision for clarifying questions
  */
 export class SFDIPOTAnalyzer {
+  private brutalHonestyAnalyzer: BrutalHonestyAnalyzer;
+  private brutalHonestyEnabled: boolean;
+
+  constructor(enableBrutalHonesty: boolean = true) {
+    this.brutalHonestyAnalyzer = new BrutalHonestyAnalyzer();
+    this.brutalHonestyEnabled = enableBrutalHonesty;
+  }
+
   /**
    * Analyze input against all SFDIPOT categories
    */
@@ -71,6 +99,48 @@ export class SFDIPOTAnalyzer {
     }
 
     return results;
+  }
+
+  /**
+   * Analyze with brutal honesty integration
+   * Runs Bach mode pre-analysis on requirements before SFDIPOT analysis
+   */
+  analyzeWithBrutalHonesty(input: AnalysisInput): ExtendedAnalysisResult {
+    // Clear previous findings
+    this.brutalHonestyAnalyzer.clearFindings();
+
+    // Phase 1: Bach mode - BS detection on requirements
+    const requirementsQuality = this.brutalHonestyAnalyzer.analyzeRequirements(input.rawText);
+
+    // Phase 2: Standard SFDIPOT analysis
+    const categoryResults = this.analyze(input);
+
+    return {
+      categoryResults,
+      requirementsQuality,
+      brutalHonestyEnabled: this.brutalHonestyEnabled,
+    };
+  }
+
+  /**
+   * Get the brutal honesty analyzer for external use (test validation, question enhancement)
+   */
+  getBrutalHonestyAnalyzer(): BrutalHonestyAnalyzer {
+    return this.brutalHonestyAnalyzer;
+  }
+
+  /**
+   * Check if brutal honesty is enabled
+   */
+  isBrutalHonestyEnabled(): boolean {
+    return this.brutalHonestyEnabled;
+  }
+
+  /**
+   * Enable or disable brutal honesty integration
+   */
+  setBrutalHonestyEnabled(enabled: boolean): void {
+    this.brutalHonestyEnabled = enabled;
   }
 
   /**

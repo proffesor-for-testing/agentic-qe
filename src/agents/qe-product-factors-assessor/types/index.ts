@@ -507,6 +507,31 @@ export interface ClarifyingQuestion {
 }
 
 /**
+ * Brutal Honesty validation finding
+ */
+export interface ValidationFinding {
+  id: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  category: string;
+  title: string;
+  description: string;
+  evidence: string;
+  recommendation: string;
+  impactIfIgnored: string;
+}
+
+/**
+ * Test idea validation result from brutal honesty analyzer
+ */
+export interface TestIdeaValidationResult {
+  originalIdea: TestIdea;
+  isValid: boolean;
+  qualityScore: number;
+  warnings: ValidationFinding[];
+  enhancements: string[];
+}
+
+/**
  * Category Analysis Result
  */
 export interface CategoryAnalysis {
@@ -517,6 +542,17 @@ export interface CategoryAnalysis {
     subcategoriesCovered: string[];
     subcategoriesMissing: string[];
     coveragePercentage: number;
+  };
+  /** Brutal honesty validation results (when enabled) */
+  validation?: {
+    /** Quality score for this category (0-100) */
+    qualityScore: number;
+    /** Test ideas that failed validation */
+    rejectedIdeas: TestIdea[];
+    /** Coverage warnings from Ramsay mode */
+    coverageWarnings: ValidationFinding[];
+    /** All validation findings */
+    findings: ValidationFinding[];
   };
 }
 
@@ -531,6 +567,23 @@ export interface AssessmentSummary {
   totalClarifyingQuestions: number;
   overallCoverageScore: number;
   generatedAt: Date;
+  /** Brutal honesty quality summary (when enabled) */
+  brutalHonesty?: {
+    /** Overall quality score (0-100) */
+    overallQualityScore: number;
+    /** Total rejected test ideas */
+    totalRejected: number;
+    /** Total validation findings */
+    totalFindings: number;
+    /** Findings by severity */
+    bySeverity: Record<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', number>;
+    /** Requirements quality score from Bach mode */
+    requirementsQualityScore: number;
+    /** Domain-specific coverage score (0-100, when domains detected) */
+    domainCoverageScore?: number;
+    /** Missing domain-specific coverage areas */
+    missingDomainCoverage?: string[];
+  };
 }
 
 /**
@@ -579,11 +632,32 @@ export interface AssessmentOutput {
 // =============================================================================
 
 /**
+ * Detected domain with confidence score and metadata
+ */
+export interface DetectedDomain {
+  /** Domain identifier (e.g., 'stripe-subscription', 'gdpr-compliance') */
+  domain: string;
+  /** Human-readable display name */
+  displayName: string;
+  /** Confidence score (0-1) */
+  confidence: number;
+  /** Indicators that matched */
+  matchedIndicators: string[];
+  /** Required test coverage for this domain */
+  requiredCoverage: string[];
+  /** Related compliance frameworks */
+  complianceFrameworks: string[];
+}
+
+/**
  * Detected project context/domain
  */
 export interface ProjectContext {
-  /** Primary domain */
+  /** Primary domain (legacy - for backward compatibility) */
   domain: ProjectDomain;
+
+  /** Detected domains with confidence scores (new - for domain-specific generation) */
+  detectedDomains: DetectedDomain[];
 
   /** Additional domain hints */
   domainHints: string[];

@@ -18,6 +18,13 @@ import {
   CategoryAnalysis,
 } from '../types';
 
+import {
+  BrutalHonestyFinding,
+  BrutalHonestySeverity,
+  BrutalHonestyMode,
+  RequirementsQualityScore,
+} from '../analyzers';
+
 /**
  * Category metadata for HTML display
  */
@@ -60,8 +67,13 @@ export class HTMLFormatter {
   /**
    * Generate complete HTML report
    */
-  format(output: AssessmentOutput): string {
+  format(output: AssessmentOutput, requirementsQuality?: RequirementsQualityScore, brutalHonestyFindings?: BrutalHonestyFinding[]): string {
     const generatedDate = new Date(output.summary.generatedAt).toISOString().split('T')[0];
+
+    // Include Reality Check section if brutal honesty data is provided
+    const realityCheckSection = (requirementsQuality || brutalHonestyFindings)
+      ? this.renderRealityCheck(requirementsQuality, brutalHonestyFindings)
+      : '';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -78,7 +90,8 @@ ${this.getInitScript()}
 </head>
 <body>
   <div class="container">
-    ${this.renderHeader(output, generatedDate)}
+    ${this.renderHeader(output, generatedDate, requirementsQuality)}
+    ${realityCheckSection}
     ${this.renderRiskBasedPrioritization(output)}
     ${this.renderChartsOverview(output)}
     ${this.renderTestIdeasByCategory(output)}
@@ -91,8 +104,19 @@ ${this.getInitScript()}
   /**
    * Render header section with meta info, TOC, and info sections
    */
-  private renderHeader(output: AssessmentOutput, generatedDate: string): string {
+  private renderHeader(output: AssessmentOutput, generatedDate: string, requirementsQuality?: RequirementsQualityScore): string {
     const categoryCounts = this.getCategoryCounts(output);
+
+    // Add quality score badge if available
+    const qualityBadge = requirementsQuality
+      ? `<span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Requirements Quality: <strong class="${this.getQualityScoreClass(requirementsQuality.score)}">${requirementsQuality.score}/100</strong></span>`
+      : '';
+
+    // Add Reality Check link if quality data exists
+    const realityCheckLink = requirementsQuality
+      ? '<a href="#reality-check" style="background: #fef3c7; border-color: #f59e0b; color: #92400e;">Reality Check</a>'
+      : '';
 
     return `
     <header>
@@ -103,10 +127,12 @@ ${this.getInitScript()}
         <span>Total Test Ideas: <strong>${output.summary.totalTestIdeas}</strong></span>
         <span style="margin: 0 15px; opacity: 0.5;">|</span>
         <span>Product Factors covered: <strong>${this.getCoveredFactorsCount(output)}/7</strong></span>
+        ${qualityBadge}
       </div>
       <nav class="toc" style="margin-top: 15px;">
         <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
         <div class="toc-nav">
+          ${realityCheckLink}
           <a href="#risk">Prioritization</a>
           <a href="#charts">Overview</a>
           <span class="toc-divider">|</span>
@@ -120,6 +146,16 @@ ${this.getInitScript()}
       </nav>
       ${this.renderInfoSections()}
     </header>`;
+  }
+
+  /**
+   * Get CSS class for quality score
+   */
+  private getQualityScoreClass(score: number): string {
+    if (score >= 80) return 'quality-good';
+    if (score >= 60) return 'quality-warning';
+    if (score >= 40) return 'quality-poor';
+    return 'quality-critical';
   }
 
   /**
@@ -165,6 +201,175 @@ ${this.getInitScript()}
           <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
           <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
         </div>
+      </div>`;
+  }
+
+  /**
+   * Render Reality Check section (Brutal Honesty analysis)
+   */
+  private renderRealityCheck(
+    requirementsQuality?: RequirementsQualityScore,
+    findings?: BrutalHonestyFinding[]
+  ): string {
+    if (!requirementsQuality && (!findings || findings.length === 0)) {
+      return '';
+    }
+
+    const allFindings = [
+      ...(requirementsQuality?.findings || []),
+      ...(findings || []),
+    ];
+
+    // Count findings by severity
+    const bySeverity = {
+      critical: allFindings.filter(f => f.severity === BrutalHonestySeverity.CRITICAL).length,
+      high: allFindings.filter(f => f.severity === BrutalHonestySeverity.HIGH).length,
+      medium: allFindings.filter(f => f.severity === BrutalHonestySeverity.MEDIUM).length,
+      low: allFindings.filter(f => f.severity === BrutalHonestySeverity.LOW).length,
+    };
+
+    // Count findings by mode
+    const byMode = {
+      bach: allFindings.filter(f => f.mode === BrutalHonestyMode.BACH).length,
+      ramsay: allFindings.filter(f => f.mode === BrutalHonestyMode.RAMSAY).length,
+      linus: allFindings.filter(f => f.mode === BrutalHonestyMode.LINUS).length,
+    };
+
+    return `
+    <section class="section reality-check" id="reality-check">
+      <h2>🎯 Reality Check: Brutal Honesty Analysis</h2>
+      <p style="margin-bottom: 15px; color: var(--text-muted);">
+        Powered by the <strong>brutal-honesty-review</strong> skill, this section surfaces issues that may be missed by conventional analysis.
+      </p>
+
+      ${this.renderQualityScorePanel(requirementsQuality)}
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+          <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 0.95rem;">Analysis Modes</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: var(--text-dark);">
+            <li><strong>Bach Mode:</strong> BS detection in requirements (${byMode.bach} findings)</li>
+            <li><strong>Ramsay Mode:</strong> Test quality standards (${byMode.ramsay} findings)</li>
+            <li><strong>Linus Mode:</strong> Technical precision (${byMode.linus} findings)</li>
+          </ul>
+        </div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+          <h4 style="margin: 0 0 10px 0; color: #f59e0b; font-size: 0.95rem;">Findings by Severity</h4>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            ${bySeverity.critical > 0 ? `<span class="severity-badge severity-critical">${bySeverity.critical} Critical</span>` : ''}
+            ${bySeverity.high > 0 ? `<span class="severity-badge severity-high">${bySeverity.high} High</span>` : ''}
+            ${bySeverity.medium > 0 ? `<span class="severity-badge severity-medium">${bySeverity.medium} Medium</span>` : ''}
+            ${bySeverity.low > 0 ? `<span class="severity-badge severity-low">${bySeverity.low} Low</span>` : ''}
+            ${allFindings.length === 0 ? '<span style="color: #10b981; font-weight: 600;">✓ No issues found</span>' : ''}
+          </div>
+        </div>
+      </div>
+
+      ${this.renderFindingsList(allFindings)}
+    </section>`;
+  }
+
+  /**
+   * Render quality score panel
+   */
+  private renderQualityScorePanel(quality?: RequirementsQualityScore): string {
+    if (!quality) return '';
+
+    const scoreClass = this.getQualityScoreClass(quality.score);
+    const scoreColor = quality.score >= 80 ? '#10b981' :
+                       quality.score >= 60 ? '#f59e0b' :
+                       quality.score >= 40 ? '#f97316' : '#ef4444';
+
+    return `
+      <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--border-light);">
+        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+          <div style="flex-shrink: 0;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(${scoreColor} ${quality.score}%, #e5e7eb ${quality.score}%); display: flex; align-items: center; justify-content: center;">
+              <div style="width: 60px; height: 60px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; color: ${scoreColor};">
+                ${quality.score}
+              </div>
+            </div>
+          </div>
+          <div style="flex: 1; min-width: 200px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 1.1rem; color: var(--text-dark);">Requirements Quality Score</h3>
+            <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">${quality.verdict}</p>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.8rem;">
+            ${Object.entries(quality.categoryScores).map(([cat, score]) => `
+              <div style="background: white; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-light);">
+                <span style="text-transform: capitalize; color: var(--text-muted);">${cat}:</span>
+                <strong style="color: ${score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'};">${Math.max(0, score)}</strong>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Render findings list
+   */
+  private renderFindingsList(findings: BrutalHonestyFinding[]): string {
+    if (findings.length === 0) return '';
+
+    // Sort by severity
+    const severityOrder = {
+      [BrutalHonestySeverity.CRITICAL]: 0,
+      [BrutalHonestySeverity.HIGH]: 1,
+      [BrutalHonestySeverity.MEDIUM]: 2,
+      [BrutalHonestySeverity.LOW]: 3,
+    };
+
+    const sortedFindings = [...findings].sort(
+      (a, b) => severityOrder[a.severity] - severityOrder[b.severity]
+    );
+
+    return `
+      <div class="findings-list">
+        <h3 style="margin: 20px 0 12px 0; font-size: 1rem; color: var(--text-dark);">
+          Detailed Findings <span class="badge" style="background: #6366f1; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">${findings.length}</span>
+        </h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${sortedFindings.map(finding => this.renderFinding(finding)).join('')}
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Render a single finding
+   */
+  private renderFinding(finding: BrutalHonestyFinding): string {
+    const severityColors = {
+      [BrutalHonestySeverity.CRITICAL]: { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
+      [BrutalHonestySeverity.HIGH]: { bg: '#fffbeb', border: '#f59e0b', text: '#92400e' },
+      [BrutalHonestySeverity.MEDIUM]: { bg: '#fff7ed', border: '#fb923c', text: '#9a3412' },
+      [BrutalHonestySeverity.LOW]: { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
+    };
+
+    const colors = severityColors[finding.severity];
+    const modeLabels = {
+      [BrutalHonestyMode.BACH]: '🎭 Bach',
+      [BrutalHonestyMode.RAMSAY]: '👨‍🍳 Ramsay',
+      [BrutalHonestyMode.LINUS]: '🐧 Linus',
+    };
+
+    return `
+      <div class="finding-card" style="background: ${colors.bg}; border: 1px solid ${colors.border}; border-radius: 8px; padding: 15px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+          <span class="severity-badge severity-${finding.severity.toLowerCase()}">${finding.severity}</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">${modeLabels[finding.mode]}</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${finding.id}</span>
+          <span style="margin-left: auto; font-size: 0.8rem; background: white; padding: 2px 8px; border-radius: 4px; color: var(--text-muted);">${finding.category}</span>
+        </div>
+        <h4 style="margin: 0 0 8px 0; color: ${colors.text}; font-size: 0.95rem;">${this.escapeHtml(finding.title)}</h4>
+        <p style="margin: 0 0 10px 0; color: var(--text-dark); font-size: 0.85rem;">${this.escapeHtml(finding.description)}</p>
+        <div style="background: rgba(255,255,255,0.7); border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+          <p style="margin: 0 0 5px 0; font-size: 0.8rem;"><strong>Evidence:</strong> <code style="background: white; padding: 1px 4px; border-radius: 2px;">${this.escapeHtml(finding.evidence)}</code></p>
+          <p style="margin: 0; font-size: 0.8rem;"><strong>Recommendation:</strong> ${this.escapeHtml(finding.recommendation)}</p>
+        </div>
+        <p style="margin: 0; font-size: 0.8rem; color: ${colors.text}; font-style: italic;">
+          <strong>Impact if ignored:</strong> ${this.escapeHtml(finding.impactIfIgnored)}
+        </p>
       </div>`;
   }
 
@@ -319,13 +524,24 @@ ${this.getInitScript()}
     const meta = CATEGORY_METADATA[category];
     const tableId = `table-${category.toLowerCase()}`;
 
+    // Render validation badge if validation data exists
+    const validationBadge = analysis.validation
+      ? `<span class="quality-badge quality-${analysis.validation.qualityScore >= 80 ? 'good' : analysis.validation.qualityScore >= 60 ? 'warning' : 'poor'}" style="margin-left: 10px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: ${analysis.validation.qualityScore >= 80 ? '#d1fae5' : analysis.validation.qualityScore >= 60 ? '#fef3c7' : '#fee2e2'}; color: ${analysis.validation.qualityScore >= 80 ? '#065f46' : analysis.validation.qualityScore >= 60 ? '#92400e' : '#991b1b'};">Quality: ${analysis.validation.qualityScore}/100</span>`
+      : '';
+
+    // Render rejected ideas count if any
+    const rejectedBadge = analysis.validation?.rejectedIdeas.length
+      ? `<span style="margin-left: 8px; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;">${analysis.validation.rejectedIdeas.length} rejected</span>`
+      : '';
+
     return `
         <div class="category-section ${meta.cssClass}" id="${category.toLowerCase()}">
           <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
-            <h3>${category}: ${meta.description} <span class="badge">${analysis.testIdeas.length}</span></h3>
+            <h3>${category}: ${meta.description} <span class="badge">${analysis.testIdeas.length}</span>${validationBadge}${rejectedBadge}</h3>
             <span class="collapse-icon">▼</span>
           </div>
           <div class="category-content collapsible-content">
+            ${this.renderValidationSummary(analysis)}
             <table class="filterable-table" id="${tableId}">
               <thead>
                 <tr>
@@ -349,8 +565,76 @@ ${this.getInitScript()}
             </table>
 
         ${this.renderCategoryClarifyingQuestions(analysis.clarifyingQuestions)}
+        ${this.renderRejectedIdeas(analysis)}
           </div>
         </div>`;
+  }
+
+  /**
+   * Render validation summary for a category
+   */
+  private renderValidationSummary(analysis: CategoryAnalysis): string {
+    if (!analysis.validation || analysis.validation.findings.length === 0) {
+      return '';
+    }
+
+    const criticalFindings = analysis.validation.findings.filter(f => f.severity === 'CRITICAL').length;
+    const highFindings = analysis.validation.findings.filter(f => f.severity === 'HIGH').length;
+
+    if (criticalFindings === 0 && highFindings === 0) {
+      return '';
+    }
+
+    return `
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <strong style="color: #991b1b; font-size: 0.9rem;">Brutal Honesty Validation Findings</strong>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem;">
+          ${criticalFindings > 0 ? `<span class="severity-badge severity-critical">${criticalFindings} Critical</span>` : ''}
+          ${highFindings > 0 ? `<span class="severity-badge severity-high">${highFindings} High</span>` : ''}
+        </div>
+        <ul style="margin: 10px 0 0 20px; font-size: 0.8rem; color: #7f1d1d;">
+          ${analysis.validation.findings
+            .filter(f => f.severity === 'CRITICAL' || f.severity === 'HIGH')
+            .slice(0, 3)
+            .map(f => `<li><strong>${f.title}</strong>: ${f.description}</li>`)
+            .join('')}
+        </ul>
+      </div>`;
+  }
+
+  /**
+   * Render rejected ideas section
+   */
+  private renderRejectedIdeas(analysis: CategoryAnalysis): string {
+    if (!analysis.validation?.rejectedIdeas.length) {
+      return '';
+    }
+
+    return `
+      <div class="info-section collapsed" style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; margin-top: 16px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h4 style="margin: 0; font-size: 0.9rem; color: #991b1b; display: flex; align-items: center; gap: 8px;">
+            <span>🚫</span>
+            Rejected Test Ideas (Quality &lt; 60)
+            <span class="badge" style="background: #991b1b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;">${analysis.validation.rejectedIdeas.length}</span>
+          </h4>
+          <span class="collapse-icon" style="transition: transform 0.2s; color: #991b1b;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 16px 16px 16px;">
+          <p style="font-size: 0.8rem; color: #7f1d1d; margin-bottom: 12px;">
+            These test ideas were rejected because they were too vague, duplicated, or lacked actionable specificity.
+            Consider enhancing them with preconditions, test data, and expected values.
+          </p>
+          <ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: #991b1b;">
+            ${analysis.validation.rejectedIdeas.map(idea =>
+              `<li style="margin-bottom: 6px;"><span style="color: #b91c1c;">${idea.description}</span> <span style="color: #ef4444; font-size: 0.75rem;">[${idea.subcategory}]</span></li>`
+            ).join('')}
+          </ul>
+        </div>
+      </div>`;
   }
 
   /**
@@ -701,6 +985,20 @@ ${this.getInitScript()}
     .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
     .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(30,58,95,0.1); }
     .filter-input::placeholder { color: #94a3b8; }
+    /* Reality Check / Brutal Honesty styles */
+    .reality-check { border-left: 4px solid #f59e0b; background: linear-gradient(135deg, #fffbeb 0%, #fff 100%); }
+    .reality-check h2 { border-bottom-color: #f59e0b; }
+    .severity-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .severity-critical { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .severity-high { background: #fffbeb; color: #92400e; border: 1px solid #fef08a; }
+    .severity-medium { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+    .severity-low { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .quality-good { color: #10b981; }
+    .quality-warning { color: #f59e0b; }
+    .quality-poor { color: #f97316; }
+    .quality-critical { color: #ef4444; }
+    .finding-card { transition: transform 0.15s, box-shadow 0.15s; }
+    .finding-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     @media (max-width: 768px) {
       header h1 { font-size: 1.4rem; }
       table { display: block; overflow-x: auto; }

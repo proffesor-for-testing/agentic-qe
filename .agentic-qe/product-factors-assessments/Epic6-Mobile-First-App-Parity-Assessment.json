@@ -1,0 +1,851 @@
+{
+  "assessment": {
+    "name": "Epic 6 - Mobile-First Experience & App Parity",
+    "domain": ["ecommerce", "mobile-first", "pwa"],
+    "timestamp": "2025-12-28T00:00:00.000Z",
+    "totalTestIdeas": 87,
+    "coverageCategories": 7,
+    "priorityBreakdown": {
+      "P0": 18,
+      "P1": 32,
+      "P2": 24,
+      "P3": 13
+    },
+    "automationFitness": {
+      "api-level": 8,
+      "integration-level": 20,
+      "e2e-level": 41,
+      "human-exploration": 2,
+      "security": 8,
+      "performance": 5,
+      "accessibility": 5,
+      "concurrency": 4
+    }
+  },
+  "sfdipot": {
+    "structure": {
+      "description": "What the product IS - code, libraries, dependencies, documentation, infrastructure",
+      "subcategories": {
+        "code": [
+          {
+            "id": "S001",
+            "testIdea": "Service Worker lifecycle management: Verify Service Worker installs, activates, and updates correctly without breaking active sessions or causing cache corruption",
+            "priority": "P0",
+            "automationFitness": "integration-level",
+            "rationale": "Critical for PWA functionality - Service Worker failures break offline mode"
+          },
+          {
+            "id": "S002",
+            "testIdea": "PWA manifest validation: Test manifest.json contains all required fields (name, short_name, icons, start_url, display, theme_color) and icons render correctly on home screen",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "Required for A2HS functionality - invalid manifest prevents installation"
+          },
+          {
+            "id": "S003",
+            "testIdea": "Service Worker registration failure: Verify graceful degradation when Service Worker fails to register (browser incompatibility, HTTPS requirement)",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical fallback - users must still access site if PWA features unavailable"
+          },
+          {
+            "id": "S004",
+            "testIdea": "WebAuthn credential storage: Test biometric credentials are stored securely in browser credential manager and synced across devices (for same browser profile)",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "Security and UX - credential loss requires re-registration"
+          },
+          {
+            "id": "S005",
+            "testIdea": "Touch gesture library integration: Verify swipe gesture library (e.g., Hammer.js) is correctly integrated and doesn't conflict with native browser gestures",
+            "priority": "P2",
+            "automationFitness": "integration-level",
+            "rationale": "Medium priority - gesture conflicts degrade UX but don't break core functions"
+          },
+          {
+            "id": "S006",
+            "testIdea": "Payment Request API implementation: Test Payment Request API correctly handles Apple Pay, Google Pay, and fallback to standard checkout",
+            "priority": "P1",
+            "automationFitness": "security",
+            "rationale": "High priority - payment failures directly impact revenue"
+          },
+          {
+            "id": "S007",
+            "testIdea": "Barcode scanning library: Verify barcode scanner library (ZXing, QuaggaJS) correctly decodes UPC, EAN, QR codes from camera feed",
+            "priority": "P2",
+            "automationFitness": "api-level",
+            "rationale": "Medium priority - in-store feature, not critical for online shopping"
+          },
+          {
+            "id": "S008",
+            "testIdea": "Dependency version compatibility: Test all third-party libraries (gesture, payment, barcode, WebAuthn) have compatible versions and no conflicting dependencies",
+            "priority": "P3",
+            "automationFitness": "integration-level",
+            "rationale": "Low priority - usually caught in build process"
+          }
+        ],
+        "dependencies": [
+          {
+            "id": "S009",
+            "testIdea": "Workbox library for Service Worker: If using Workbox for caching strategies, test precaching, runtime caching, and background sync work correctly",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - Workbox simplifies Service Worker management, failures impact offline mode"
+          },
+          {
+            "id": "S010",
+            "testIdea": "Third-party library security: Verify all dependencies are scanned for known vulnerabilities (npm audit, Snyk) before deployment",
+            "priority": "P2",
+            "automationFitness": "security",
+            "rationale": "Medium priority - security best practice, automated in CI/CD"
+          },
+          {
+            "id": "S011",
+            "testIdea": "Polyfill for older browsers: Test polyfills for Service Worker, Payment Request API, WebAuthn on older mobile browsers (if supported)",
+            "priority": "P3",
+            "automationFitness": "integration-level",
+            "rationale": "Low priority - progressive enhancement for edge cases"
+          }
+        ]
+      }
+    },
+    "function": {
+      "description": "What the product DOES - features, calculations, business logic, security, error handling",
+      "subcategories": {
+        "features": [
+          {
+            "id": "F001",
+            "testIdea": "Touch-optimized navigation: Verify all interactive elements meet 48x48px minimum tap target size on mobile devices (WCAG 2.2 Target Size Level AAA)",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical for accessibility and usability - small tap targets frustrate users"
+          },
+          {
+            "id": "F002",
+            "testIdea": "Thumb-friendly zone testing: Test critical actions (add to cart, checkout) are positioned in thumb-reachable zone (bottom third of screen) for one-handed use",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - ergonomics directly impact mobile conversion rate"
+          },
+          {
+            "id": "F003",
+            "testIdea": "Offline browsing functionality: Verify previously viewed products, categories, and pages are accessible offline via Service Worker cache",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical PWA feature - core value proposition for mobile users"
+          },
+          {
+            "id": "F004",
+            "testIdea": "Add to home screen (A2HS): Test A2HS prompt appears after engagement criteria (2 visits, 5 min apart) and correctly adds PWA to device home screen",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - drives PWA install rate metric"
+          },
+          {
+            "id": "F005",
+            "testIdea": "Swipe gestures for carousels: Verify swipe left/right works smoothly for product carousels, image galleries without page navigation interference",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - expected mobile UX pattern, frustration if missing"
+          },
+          {
+            "id": "F006",
+            "testIdea": "Pinch-to-zoom on product images: Test pinch-to-zoom gesture works on product images while respecting viewport meta tag settings",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - nice-to-have for detailed product examination"
+          },
+          {
+            "id": "F007",
+            "testIdea": "Barcode scanning for products: Verify in-store barcode scanning opens camera, scans UPC/EAN codes, and navigates to correct product page with reviews/availability",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - key differentiator for in-store experience"
+          },
+          {
+            "id": "F008",
+            "testIdea": "Store mode activation: Test 'store mode' quick action provides in-store specific features (scan, check stock, store map)",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - specialized use case, not critical for online shoppers"
+          },
+          {
+            "id": "F009",
+            "testIdea": "Biometric login (WebAuthn): Verify Face ID, Touch ID, fingerprint login works for returning users and falls back to password if biometric fails",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical for frictionless login - major UX improvement over password typing on mobile"
+          },
+          {
+            "id": "F010",
+            "testIdea": "Express checkout (Apple Pay/Google Pay): Test one-tap checkout from homepage using saved payment method completes transaction without additional steps",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical for conversion rate - key metric driver"
+          }
+        ],
+        "security": [
+          {
+            "id": "F011",
+            "testIdea": "HTTPS requirement for PWA features: Verify Service Worker, Payment Request API, WebAuthn only work on HTTPS connections (security requirement)",
+            "priority": "P0",
+            "automationFitness": "security",
+            "rationale": "Critical security requirement - PWA spec mandates HTTPS"
+          },
+          {
+            "id": "F012",
+            "testIdea": "WebAuthn credential security: Test biometric credentials cannot be exported, are tied to origin, and require user presence verification",
+            "priority": "P0",
+            "automationFitness": "security",
+            "rationale": "Critical security - credential theft could lead to account takeover"
+          },
+          {
+            "id": "F013",
+            "testIdea": "Payment Request API security: Verify payment data is transmitted securely (TLS 1.2+) and tokenized (no raw card numbers stored)",
+            "priority": "P1",
+            "automationFitness": "security",
+            "rationale": "High priority - PCI DSS compliance requirement"
+          },
+          {
+            "id": "F014",
+            "testIdea": "Push notification consent: Test push notifications require explicit user consent (not pre-granted) and can be revoked in settings",
+            "priority": "P1",
+            "automationFitness": "security",
+            "rationale": "High priority - privacy regulation compliance (GDPR)"
+          },
+          {
+            "id": "F015",
+            "testIdea": "Camera permission for barcode scanning: Verify camera access requires explicit permission and provides clear explanation of why it's needed",
+            "priority": "P2",
+            "automationFitness": "security",
+            "rationale": "Medium priority - browser enforces permission, but UX matters"
+          }
+        ],
+        "errorHandling": [
+          {
+            "id": "F016",
+            "testIdea": "Offline transaction handling: Test attempting checkout while offline queues transaction for retry when connection restored (background sync)",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical - prevents revenue loss from abandoned carts due to connectivity"
+          },
+          {
+            "id": "F017",
+            "testIdea": "Service Worker update failure: Verify failed Service Worker updates don't break existing functionality and retry update on next page load",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - update failures shouldn't degrade user experience"
+          },
+          {
+            "id": "F018",
+            "testIdea": "Biometric authentication failure: Test fallback to password login when biometric fails (sensor dirty, face not recognized, too many attempts)",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - users must be able to log in even when biometric fails"
+          },
+          {
+            "id": "F019",
+            "testIdea": "Payment method not supported: Verify clear error message when user's device doesn't support Apple Pay/Google Pay with fallback to standard checkout",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - must not block checkout on incompatible devices"
+          },
+          {
+            "id": "F020",
+            "testIdea": "Barcode scan failure: Test helpful error messages when barcode cannot be scanned (poor lighting, damaged barcode, unsupported format) with manual entry option",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - degraded UX acceptable if fallback provided"
+          },
+          {
+            "id": "F021",
+            "testIdea": "Cache storage quota exceeded: Verify graceful handling when cache storage quota is reached (evict old content, warn user, disable offline mode)",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - edge case on devices with low storage"
+          }
+        ]
+      }
+    },
+    "data": {
+      "description": "What the product PROCESSES - input validation, data boundaries, persistence, state management",
+      "subcategories": {
+        "input": [
+          {
+            "id": "D001",
+            "testIdea": "Barcode format validation: Test barcode scanner validates format (UPC-A: 12 digits, EAN-13: 13 digits, QR: variable) before lookup",
+            "priority": "P1",
+            "automationFitness": "api-level",
+            "rationale": "High priority - prevents unnecessary API calls with invalid barcodes"
+          },
+          {
+            "id": "D002",
+            "testIdea": "Touch coordinate validation: Verify touch gesture library correctly handles multi-touch events and filters accidental palm touches",
+            "priority": "P2",
+            "automationFitness": "api-level",
+            "rationale": "Medium priority - improves UX but not critical"
+          }
+        ],
+        "persistence": [
+          {
+            "id": "D003",
+            "testIdea": "Cache versioning strategy: Test cache versioning (v1, v2) correctly invalidates old content when new version deployed without losing critical data",
+            "priority": "P0",
+            "automationFitness": "integration-level",
+            "rationale": "Critical - cache corruption or stale content can break app"
+          },
+          {
+            "id": "D004",
+            "testIdea": "IndexedDB for offline data: Verify product data, user preferences, cart items persist in IndexedDB for offline access and sync when online",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - core offline functionality depends on persistent storage"
+          },
+          {
+            "id": "D005",
+            "testIdea": "Session continuity across install: Test user session, cart, browsing history persist when PWA is added to home screen and launched",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - UX expectation for seamless transition"
+          },
+          {
+            "id": "D006",
+            "testIdea": "LocalStorage vs IndexedDB choice: Verify appropriate storage mechanism used (IndexedDB for large datasets, LocalStorage for small config)",
+            "priority": "P2",
+            "automationFitness": "integration-level",
+            "rationale": "Medium priority - performance optimization, not functional requirement"
+          },
+          {
+            "id": "D007",
+            "testIdea": "Cross-device handoff data sync: Test browsing session, cart, favorites sync between mobile web, desktop, and native app (via backend sync, not local)",
+            "priority": "P0",
+            "automationFitness": "integration-level",
+            "rationale": "Critical for cross-platform parity - key acceptance criterion"
+          }
+        ],
+        "boundaries": [
+          {
+            "id": "D008",
+            "testIdea": "Cache size limits: Test cache storage respects browser quota limits (50MB Chrome, 10% disk Firefox) and evicts LRU content when full",
+            "priority": "P1",
+            "automationFitness": "api-level",
+            "rationale": "High priority - exceeding quota breaks offline mode"
+          },
+          {
+            "id": "D009",
+            "testIdea": "Push notification payload size: Verify push notification payload stays under 4KB limit for Web Push API",
+            "priority": "P2",
+            "automationFitness": "api-level",
+            "rationale": "Medium priority - spec limit, should be enforced in backend"
+          },
+          {
+            "id": "D010",
+            "testIdea": "Extreme product catalog size: Test offline cache handles large product catalogs (10,000+ products) without performance degradation",
+            "priority": "P3",
+            "automationFitness": "api-level",
+            "rationale": "Low priority - edge case for power users"
+          }
+        ]
+      }
+    },
+    "interfaces": {
+      "description": "How the product CONNECTS - UI/UX, APIs, third-party integrations, communication protocols",
+      "subcategories": {
+        "ui": [
+          {
+            "id": "I001",
+            "testIdea": "Touch target size compliance: Verify all buttons, links, form fields meet 48x48px minimum (WCAG 2.2 Level AAA) on mobile viewports",
+            "priority": "P0",
+            "automationFitness": "accessibility",
+            "rationale": "Critical for accessibility compliance and usability"
+          },
+          {
+            "id": "I002",
+            "testIdea": "Viewport meta tag configuration: Test viewport is correctly configured (width=device-width, initial-scale=1) for responsive layout",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - incorrect viewport breaks mobile layout"
+          },
+          {
+            "id": "I003",
+            "testIdea": "Mobile navigation patterns: Verify hamburger menu, bottom navigation, tab bar work smoothly with touch gestures",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - core navigation must be intuitive on mobile"
+          },
+          {
+            "id": "I004",
+            "testIdea": "Screen reader compatibility: Test Service Worker status, offline mode, biometric prompts are announced to screen readers",
+            "priority": "P2",
+            "automationFitness": "accessibility",
+            "rationale": "Medium priority - accessibility requirement, not all users affected"
+          },
+          {
+            "id": "I005",
+            "testIdea": "PWA splash screen: Verify splash screen displays correctly with brand colors and icons during PWA launch",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - first impression when launching PWA"
+          },
+          {
+            "id": "I006",
+            "testIdea": "Status bar theming: Test status bar (Android) and UI chrome (iOS) match PWA theme color from manifest",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - polish for native app feel"
+          }
+        ],
+        "apis": [
+          {
+            "id": "I007",
+            "testIdea": "Payment Request API contract: Test Payment Request API request/response format matches specification for Apple Pay, Google Pay",
+            "priority": "P0",
+            "automationFitness": "api-level",
+            "rationale": "Critical - payment failures directly impact revenue"
+          },
+          {
+            "id": "I008",
+            "testIdea": "WebAuthn API contract: Verify WebAuthn registration and authentication flows follow W3C spec (challenge-response, attestation)",
+            "priority": "P1",
+            "automationFitness": "api-level",
+            "rationale": "High priority - security specification compliance"
+          },
+          {
+            "id": "I009",
+            "testIdea": "Push Notification API integration: Test Web Push API integration with backend push service (Firebase, OneSignal) for price drop, back-in-stock notifications",
+            "priority": "P1",
+            "automationFitness": "api-level",
+            "rationale": "High priority - re-engagement feature for retention"
+          },
+          {
+            "id": "I010",
+            "testIdea": "Background Sync API: Verify Background Sync API queues failed requests (checkout, add to cart) and retries when connection restored",
+            "priority": "P1",
+            "automationFitness": "api-level",
+            "rationale": "High priority - prevents data loss during offline transactions"
+          },
+          {
+            "id": "I011",
+            "testIdea": "Camera API for barcode scanning: Test MediaDevices.getUserMedia API correctly accesses rear camera on mobile devices",
+            "priority": "P2",
+            "automationFitness": "api-level",
+            "rationale": "Medium priority - in-store feature, not core online shopping"
+          },
+          {
+            "id": "I012",
+            "testIdea": "Cross-platform session sync API: Verify API endpoint syncs session data (cart, favorites, browsing history) between mobile web, desktop, native app",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - cross-platform parity requirement"
+          }
+        ],
+        "thirdParty": [
+          {
+            "id": "I013",
+            "testIdea": "Apple Pay merchant integration: Test Apple Pay merchant setup, payment processing, and error handling (declined, timeout)",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - payment method reliability critical for revenue"
+          },
+          {
+            "id": "I014",
+            "testIdea": "Google Pay merchant integration: Verify Google Pay merchant configuration, tokenization, and 3DS authentication flow",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - second payment method for Android users"
+          },
+          {
+            "id": "I015",
+            "testIdea": "Push service provider integration: Test integration with push notification provider (Firebase Cloud Messaging, OneSignal) for Web Push",
+            "priority": "P2",
+            "automationFitness": "integration-level",
+            "rationale": "Medium priority - re-engagement feature, not core shopping flow"
+          }
+        ]
+      }
+    },
+    "platform": {
+      "description": "What the product DEPENDS ON - browser compatibility, OS, device characteristics, external dependencies",
+      "subcategories": {
+        "browser": [
+          {
+            "id": "P001",
+            "testIdea": "Service Worker browser support: Test Service Worker works on Chrome 40+, Firefox 44+, Safari 11.1+, Edge 17+ and gracefully degrades on older browsers",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical - must support minimum viable browser versions"
+          },
+          {
+            "id": "P002",
+            "testIdea": "WebAuthn browser compatibility: Verify WebAuthn works on Chrome 67+, Firefox 60+, Safari 13+, Edge 18+ with platform authenticators",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - biometric login feature requirement"
+          },
+          {
+            "id": "P003",
+            "testIdea": "Payment Request API browser support: Test Payment Request API on Chrome 61+, Safari 11.1+, Edge 79+ (not supported in Firefox)",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - express checkout feature, Firefox users need fallback"
+          },
+          {
+            "id": "P004",
+            "testIdea": "Web Share API for cross-platform sharing: Verify Web Share API works on mobile browsers for sharing products (not available on desktop)",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - social sharing feature, nice-to-have"
+          },
+          {
+            "id": "P005",
+            "testIdea": "Unsupported browser fallback: Test clear messaging on unsupported browsers (IE11, old Android browsers) with progressive enhancement",
+            "priority": "P3",
+            "automationFitness": "e2e-level",
+            "rationale": "Low priority - minimal user base on ancient browsers"
+          }
+        ],
+        "os": [
+          {
+            "id": "P006",
+            "testIdea": "iOS PWA support: Test PWA install, Service Worker, offline mode on iOS 11.3+ (Safari limitation: max 50MB cache)",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - iOS is 30-40% of mobile market"
+          },
+          {
+            "id": "P007",
+            "testIdea": "Android PWA support: Verify full PWA features on Android 5.0+ with Chrome (WebAPK installation)",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - Android is 60-70% of mobile market"
+          },
+          {
+            "id": "P008",
+            "testIdea": "iOS biometric authentication: Test Face ID (iPhone X+) and Touch ID (iPhone 5s+) integration via WebAuthn",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - key UX feature for iOS users"
+          },
+          {
+            "id": "P009",
+            "testIdea": "Android biometric authentication: Verify fingerprint sensor (Android 6.0+) and face unlock (Android 10+) work with WebAuthn",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - biometric login for Android users"
+          },
+          {
+            "id": "P010",
+            "testIdea": "Desktop PWA support: Test PWA install on Windows 10+ (Edge), macOS 11+ (Safari), ChromeOS (Chrome)",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - desktop PWA less common use case"
+          }
+        ],
+        "device": [
+          {
+            "id": "P011",
+            "testIdea": "Small screen devices (320px): Verify touch targets and navigation work on smallest devices (iPhone SE, Galaxy Fold folded)",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - must support small screen edge cases"
+          },
+          {
+            "id": "P012",
+            "testIdea": "Large screen devices (tablets): Test responsive layout adapts to tablets (768px-1024px) with optimal touch target sizing",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - tablet users exist but smaller segment"
+          },
+          {
+            "id": "P013",
+            "testIdea": "Foldable devices: Verify UI adapts correctly when device is folded/unfolded (Galaxy Fold, Surface Duo)",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - emerging device category, low adoption"
+          },
+          {
+            "id": "P014",
+            "testIdea": "Low-end device performance: Test PWA performance on low-end devices (1GB RAM, slow CPU) - Service Worker shouldn't degrade experience",
+            "priority": "P2",
+            "automationFitness": "performance",
+            "rationale": "Medium priority - emerging markets use low-end devices"
+          },
+          {
+            "id": "P015",
+            "testIdea": "Camera quality for barcode scanning: Verify barcode scanning works with low-resolution cameras (5MP) and poor lighting conditions",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - in-store feature must work in real-world conditions"
+          }
+        ],
+        "network": [
+          {
+            "id": "P016",
+            "testIdea": "Slow 3G performance: Test critical functionality (browse, search, checkout) works on Slow 3G (400kbps, 400ms RTT)",
+            "priority": "P0",
+            "automationFitness": "performance",
+            "rationale": "Critical - success metric depends on E2 performance foundation"
+          },
+          {
+            "id": "P017",
+            "testIdea": "Offline-to-online transition: Verify smooth transition from offline mode to online when network restored (sync pending actions, update stale content)",
+            "priority": "P1",
+            "automationFitness": "performance",
+            "rationale": "High priority - seamless reconnection is key UX expectation"
+          },
+          {
+            "id": "P018",
+            "testIdea": "Online-to-offline transition: Test immediate fallback to cached content when network lost during browsing",
+            "priority": "P1",
+            "automationFitness": "performance",
+            "rationale": "High priority - offline mode must activate transparently"
+          }
+        ]
+      }
+    },
+    "operations": {
+      "description": "How the product is USED - user workflows, common/extreme use cases, accessibility, real-world usage",
+      "subcategories": {
+        "common": [
+          {
+            "id": "O001",
+            "testIdea": "Mobile user journey (browse to checkout): Test complete mobile journey: browse → product detail → add to cart → express checkout with Apple Pay/Google Pay",
+            "priority": "P0",
+            "automationFitness": "e2e-level",
+            "rationale": "Critical - primary happy path for mobile conversion"
+          },
+          {
+            "id": "O002",
+            "testIdea": "Returning user with biometric login: Verify returning user flow: launch PWA → biometric login → personalized homepage → quick purchase",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - returning user experience drives retention"
+          },
+          {
+            "id": "O003",
+            "testIdea": "In-store product research: Test in-store flow: scan barcode → view reviews/availability → add to cart → reserve for pickup",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - key use case for 'store mode' feature"
+          },
+          {
+            "id": "O004",
+            "testIdea": "Cross-device shopping journey: Verify user can start browsing on mobile web, continue on desktop, complete purchase on native app with synced cart",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - cross-platform handoff acceptance criterion"
+          }
+        ],
+        "extreme": [
+          {
+            "id": "O005",
+            "testIdea": "Extended offline usage (days): Test PWA works after being offline for extended period (days) - cache doesn't expire, pending actions don't get lost",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - edge case for users with limited connectivity"
+          },
+          {
+            "id": "O006",
+            "testIdea": "Rapid gesture interactions: Verify rapid swipe gestures on carousels don't cause UI glitches or performance degradation",
+            "priority": "P2",
+            "automationFitness": "performance",
+            "rationale": "Medium priority - stress test for gesture library"
+          },
+          {
+            "id": "O007",
+            "testIdea": "Multiple PWA installs (different brands): Test user can install multiple PWAs (Next, competitors) on same device without conflict",
+            "priority": "P3",
+            "automationFitness": "e2e-level",
+            "rationale": "Low priority - unusual scenario, browser should handle isolation"
+          },
+          {
+            "id": "O008",
+            "testIdea": "Barcode scanning in extreme lighting: Verify barcode scanner adapts to very bright sunlight and very low indoor lighting",
+            "priority": "P3",
+            "automationFitness": "e2e-level",
+            "rationale": "Low priority - edge case for in-store feature"
+          }
+        ],
+        "users": [
+          {
+            "id": "O009",
+            "testIdea": "Screen reader user with PWA: Test VoiceOver (iOS) and TalkBack (Android) correctly announce PWA install prompt, offline status, biometric prompts",
+            "priority": "P1",
+            "automationFitness": "accessibility",
+            "rationale": "High priority - accessibility compliance, depends on E1"
+          },
+          {
+            "id": "O010",
+            "testIdea": "Motor impairment user with gestures: Verify swipe gestures have alternative button controls for users who cannot perform gestures",
+            "priority": "P2",
+            "automationFitness": "accessibility",
+            "rationale": "Medium priority - accessibility requirement, smaller user segment"
+          },
+          {
+            "id": "O011",
+            "testIdea": "Privacy-conscious user: Test user can opt out of push notifications, biometric login, location access while maintaining core functionality",
+            "priority": "P2",
+            "automationFitness": "human-exploration",
+            "rationale": "Medium priority - privacy UX, compliance requirement"
+          },
+          {
+            "id": "O012",
+            "testIdea": "Non-technical user PWA install: Verify A2HS prompt is clear enough for non-technical users to understand and install PWA",
+            "priority": "P3",
+            "automationFitness": "e2e-level",
+            "rationale": "Low priority - UX polish, drives install rate metric"
+          }
+        ]
+      }
+    },
+    "time": {
+      "description": "WHEN things happen - timing dependencies, concurrency, background processes, temporal behaviors",
+      "subcategories": {
+        "timing": [
+          {
+            "id": "T001",
+            "testIdea": "Service Worker activation race condition: Test race condition where page loads before new Service Worker activates - old content served until refresh",
+            "priority": "P1",
+            "automationFitness": "concurrency",
+            "rationale": "High priority - common PWA update pattern, can confuse users"
+          },
+          {
+            "id": "T002",
+            "testIdea": "Background Sync timing: Verify Background Sync retries failed requests at appropriate intervals (exponential backoff) without draining battery",
+            "priority": "P1",
+            "automationFitness": "concurrency",
+            "rationale": "High priority - battery life critical for mobile UX"
+          },
+          {
+            "id": "T003",
+            "testIdea": "Biometric timeout: Test biometric authentication prompt times out after 30s and falls back to password",
+            "priority": "P2",
+            "automationFitness": "concurrency",
+            "rationale": "Medium priority - UX expectation, prevents stuck prompts"
+          },
+          {
+            "id": "T004",
+            "testIdea": "Payment Request API timeout: Verify Payment Request API times out after 10 min of user inactivity and allows retry",
+            "priority": "P2",
+            "automationFitness": "concurrency",
+            "rationale": "Medium priority - prevents stuck payment flows"
+          }
+        ],
+        "background": [
+          {
+            "id": "T005",
+            "testIdea": "Push notification delivery timing: Test push notifications for price drops, back-in-stock arrive promptly (within 5 min) when user is offline",
+            "priority": "P1",
+            "automationFitness": "integration-level",
+            "rationale": "High priority - timely notifications drive re-engagement"
+          },
+          {
+            "id": "T006",
+            "testIdea": "Service Worker periodic sync: Verify Periodic Background Sync (if enabled) updates product prices, stock levels at appropriate intervals (daily)",
+            "priority": "P2",
+            "automationFitness": "integration-level",
+            "rationale": "Medium priority - nice-to-have for fresh offline content"
+          },
+          {
+            "id": "T007",
+            "testIdea": "Cache cleanup scheduling: Test old cache entries are evicted on schedule (weekly) to prevent storage quota exhaustion",
+            "priority": "P2",
+            "automationFitness": "integration-level",
+            "rationale": "Medium priority - housekeeping to prevent quota issues"
+          }
+        ],
+        "stateChanges": [
+          {
+            "id": "T008",
+            "testIdea": "Session expiry while offline: Verify session token expiry is handled gracefully when user is offline - re-auth required when back online",
+            "priority": "P1",
+            "automationFitness": "e2e-level",
+            "rationale": "High priority - security requirement, smooth UX needed"
+          },
+          {
+            "id": "T009",
+            "testIdea": "Stale content indicators: Test UI indicates when cached content is stale (e.g., 'Last updated 2 days ago') for offline browsing",
+            "priority": "P2",
+            "automationFitness": "e2e-level",
+            "rationale": "Medium priority - transparency for user decision-making"
+          },
+          {
+            "id": "T010",
+            "testIdea": "Long-running barcode scan session: Verify camera doesn't timeout or overheat during extended barcode scanning sessions (store employee use)",
+            "priority": "P3",
+            "automationFitness": "e2e-level",
+            "rationale": "Low priority - edge case for heavy in-store usage"
+          }
+        ]
+      }
+    }
+  },
+  "clarifyingQuestions": {
+    "structure": [
+      "What Service Worker caching strategy will be used (Cache First, Network First, Stale While Revalidate)? Different strategies for different content types?",
+      "Which specific barcode formats need to be supported (UPC-A, EAN-13, QR codes, others)? Any custom internal barcode formats?",
+      "Will Workbox library be used for Service Worker management, or custom implementation? If custom, what's the fallback strategy?"
+    ],
+    "function": [
+      "What is the minimum engagement criteria for A2HS prompt (2 visits? Time spent? Specific actions completed)?",
+      "Which specific features should work offline (browse products, view cart, search, checkout)? What's the priority order?",
+      "How should the system handle checkout attempts while offline (queue for Background Sync, block with error, save draft)?",
+      "What happens if biometric authentication is not available (device doesn't support, user disabled)? Mandatory fallback to password?",
+      "For 'store mode', what specific features are included (scan, check stock, store map, employee assistance request)?",
+      "What content should be pre-cached for offline (homepage, top 100 products, full catalog)? Size constraints?"
+    ],
+    "data": [
+      "What is the maximum cache size allowed per user (50MB iOS limit, 10% disk on Firefox)? How to handle quota exceeded?",
+      "How long should cached content remain valid before requiring refresh (24 hours, 7 days, until next online session)?",
+      "Should cart items be synced across devices in real-time or only on demand (user triggers sync)?",
+      "What data should persist in IndexedDB vs LocalStorage (products in IDB, preferences in LS)? Clear partitioning strategy?"
+    ],
+    "interfaces": [
+      "What is the exact integration flow with Apple Pay merchant account (payment processor, tokenization provider)?",
+      "Which push notification provider will be used (Firebase Cloud Messaging, OneSignal, custom)? Rate limits?",
+      "How should cross-device session sync work technically (backend API sync, cloud storage, peer-to-peer)?",
+      "Are there specific UI/UX requirements for the PWA install prompt (custom vs browser default)?"
+    ],
+    "platform": [
+      "What is the minimum browser version support (Chrome 80+, Safari 13+, Firefox 75+)? Polyfills for older versions?",
+      "Should PWA work on desktop browsers (Chrome, Edge, Safari) or mobile-only? Different UX for desktop PWA?",
+      "What's the strategy for iOS limitations (50MB cache, no Background Sync, limited push notifications)?",
+      "How should the app handle devices without biometric sensors (password-only login acceptable)?"
+    ],
+    "operations": [
+      "What user analytics should be tracked for PWA usage (install rate, offline sessions, express checkout conversion)?",
+      "How should the app handle users who uninstall PWA but keep using mobile web? Retain cache?",
+      "What accessibility support is required beyond WCAG 2.2 (screen reader testing on iOS/Android, voice control)?",
+      "Should barcode scanning work in both portrait and landscape orientations? Auto-rotate handling?"
+    ],
+    "time": [
+      "What's the retry strategy for Background Sync (exponential backoff, max retries, give up after how long)?",
+      "How frequently should push notifications be sent for price drops (immediate, daily digest, weekly)? User customizable?",
+      "What's the Service Worker update strategy (update on refresh, update in background, notify user)?",
+      "How long should pending offline actions be retained (7 days, 30 days, indefinitely until online)?"
+    ],
+    "metrics": [
+      "How is 'Mobile Conversion Rate' calculated (mobile web only, PWA only, combined)? Baseline measurement?",
+      "What constitutes a 'PWA install' for the 10% target (A2HS completion, first launch after install, 7-day retention)?",
+      "Are there specific performance budgets for PWA (First Contentful Paint < 2s, Time to Interactive < 5s on Slow 3G)?"
+    ]
+  },
+  "patterns": {
+    "domain": "ecommerce-mobile-pwa",
+    "riskAreas": [
+      "Service Worker lifecycle and cache management",
+      "Cross-platform payment integration (Apple Pay, Google Pay)",
+      "Biometric authentication security and fallback",
+      "Offline transaction handling and Background Sync",
+      "Browser and OS compatibility across mobile ecosystem"
+    ],
+    "automationRecommendations": {
+      "api": "Barcode validation, cache size limits, push notification payload, WebAuthn/Payment API contracts",
+      "integration": "Service Worker lifecycle, IndexedDB persistence, third-party service integration, cross-device sync",
+      "e2e": "Complete user journeys, PWA install flow, biometric login, express checkout, offline/online transitions",
+      "security": "HTTPS enforcement, credential security, payment tokenization, permission management",
+      "performance": "Slow 3G testing, low-end device performance, network transition smoothness",
+      "accessibility": "Touch target sizing, screen reader compatibility, alternative gesture controls"
+    }
+  }
+}

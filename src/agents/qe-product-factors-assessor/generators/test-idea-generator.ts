@@ -7,8 +7,6 @@
 
 import {
   HTSMCategory,
-  HTSMSubcategory,
-  SFDIPOT_SUBCATEGORIES,
   StructureSubcategory,
   FunctionSubcategory,
   DataSubcategory,
@@ -23,12 +21,32 @@ import {
   ExtractedEntities,
   generateTestId,
 } from '../types';
-import { CategoryAnalysisResult } from '../analyzers';
+import {
+  CategoryAnalysisResult,
+  BrutalHonestyAnalyzer,
+  TestIdeaValidation,
+  BrutalHonestyFinding,
+} from '../analyzers';
+import {
+  domainPatternRegistry,
+} from '../patterns/domain-registry';
+import { DetectedDomain } from '../types';
 
 export interface TestIdeaGeneratorConfig {
   maxIdeasPerSubcategory: number;
   minPriority?: Priority;
   includeRationale?: boolean;
+  enableBrutalHonesty?: boolean;  // Enable Ramsay-mode validation
+}
+
+/**
+ * Result of generating test ideas with validation
+ */
+export interface TestIdeaGenerationResult {
+  testIdeas: TestIdea[];
+  validations: TestIdeaValidation[];
+  coverageWarnings: BrutalHonestyFinding[];
+  qualityScore: number;  // Average quality across all ideas
 }
 
 /**
@@ -42,13 +60,16 @@ export interface TestIdeaGeneratorConfig {
  */
 export class TestIdeaGenerator {
   private config: TestIdeaGeneratorConfig;
+  private brutalHonestyAnalyzer: BrutalHonestyAnalyzer;
 
   constructor(config: Partial<TestIdeaGeneratorConfig> = {}) {
     this.config = {
       maxIdeasPerSubcategory: config.maxIdeasPerSubcategory || 5,
       minPriority: config.minPriority,
       includeRationale: config.includeRationale ?? true,
+      enableBrutalHonesty: config.enableBrutalHonesty ?? true,
     };
+    this.brutalHonestyAnalyzer = new BrutalHonestyAnalyzer();
   }
 
   /**
@@ -76,7 +97,84 @@ export class TestIdeaGenerator {
   }
 
   /**
+   * Generate test ideas with brutal honesty validation (Ramsay mode)
+   *
+   * This method generates ideas and validates them against quality standards:
+   * - Checks for vague test descriptions
+   * - Validates priority alignment
+   * - Identifies coverage gaps
+   */
+  generateWithValidation(
+    analysis: CategoryAnalysisResult,
+    context: ProjectContext,
+    entities: ExtractedEntities
+  ): TestIdeaGenerationResult {
+    // Generate the base test ideas
+    const testIdeas = this.generateForCategory(analysis, context, entities);
+
+    // Skip validation if brutal honesty is disabled
+    if (!this.config.enableBrutalHonesty) {
+      return {
+        testIdeas,
+        validations: [],
+        coverageWarnings: [],
+        qualityScore: 100,
+      };
+    }
+
+    // Validate test ideas using Ramsay mode
+    const validations = this.brutalHonestyAnalyzer.validateTestIdeas(
+      testIdeas,
+      analysis.category
+    );
+
+    // Extract coverage warnings (category-level findings)
+    const coverageWarnings: BrutalHonestyFinding[] = [];
+    for (const validation of validations) {
+      for (const warning of validation.warnings) {
+        if (warning.category === 'Coverage Gap') {
+          coverageWarnings.push(warning);
+        }
+      }
+    }
+
+    // Calculate average quality score
+    const totalScore = validations.reduce((sum, v) => sum + v.qualityScore, 0);
+    const qualityScore = validations.length > 0
+      ? Math.round(totalScore / validations.length)
+      : 100;
+
+    return {
+      testIdeas,
+      validations,
+      coverageWarnings,
+      qualityScore,
+    };
+  }
+
+  /**
+   * Get validation warnings for display
+   */
+  getValidationWarnings(validations: TestIdeaValidation[]): BrutalHonestyFinding[] {
+    const warnings: BrutalHonestyFinding[] = [];
+    for (const validation of validations) {
+      if (validation.warnings.length > 0) {
+        warnings.push(...validation.warnings);
+      }
+    }
+    return warnings;
+  }
+
+  /**
+   * Get the brutal honesty analyzer instance
+   */
+  getBrutalHonestyAnalyzer(): BrutalHonestyAnalyzer {
+    return this.brutalHonestyAnalyzer;
+  }
+
+  /**
    * Generate test ideas for a specific subcategory
+   * Enhanced with domain-specific template injection
    */
   generateForSubcategory(
     category: HTSMCategory,
@@ -85,32 +183,131 @@ export class TestIdeaGenerator {
     entities: ExtractedEntities,
     relevance: number
   ): TestIdea[] {
-    const templates = this.getTestTemplates(category, subcategory);
     const ideas: TestIdea[] = [];
 
-    // Generate ideas from templates
-    for (const template of templates.slice(0, this.config.maxIdeasPerSubcategory)) {
-      const idea = this.createTestIdea(
+    // First, inject domain-specific templates (highest priority)
+    // These are expert-crafted templates for specific domains like Stripe, GDPR, etc.
+    if (context.detectedDomains && context.detectedDomains.length > 0) {
+      const domainIdeas = this.generateDomainSpecificIdeas(
         category,
         subcategory,
-        template,
+        context.detectedDomains,
         context,
         entities,
         relevance
       );
+      ideas.push(...domainIdeas);
+    }
 
-      // Filter by minimum priority if configured
-      if (this.config.minPriority) {
-        const priorityOrder = [Priority.P0, Priority.P1, Priority.P2, Priority.P3];
-        const minIndex = priorityOrder.indexOf(this.config.minPriority);
-        const ideaIndex = priorityOrder.indexOf(idea.priority);
-        if (ideaIndex > minIndex) continue;
+    // Then add generic templates (up to max minus domain ideas)
+    const remainingSlots = this.config.maxIdeasPerSubcategory - ideas.length;
+    if (remainingSlots > 0) {
+      const templates = this.getTestTemplates(category, subcategory);
+
+      for (const template of templates.slice(0, remainingSlots)) {
+        const idea = this.createTestIdea(
+          category,
+          subcategory,
+          template,
+          context,
+          entities,
+          relevance
+        );
+
+        // Filter by minimum priority if configured
+        if (this.config.minPriority) {
+          const priorityOrder = [Priority.P0, Priority.P1, Priority.P2, Priority.P3];
+          const minIndex = priorityOrder.indexOf(this.config.minPriority);
+          const ideaIndex = priorityOrder.indexOf(idea.priority);
+          if (ideaIndex > minIndex) continue;
+        }
+
+        ideas.push(idea);
       }
+    }
+
+    return ideas;
+  }
+
+  /**
+   * Generate domain-specific test ideas from DomainPatternRegistry
+   * These are high-quality, expert-crafted test ideas for specific domains
+   */
+  private generateDomainSpecificIdeas(
+    category: HTSMCategory,
+    subcategory: string,
+    detectedDomains: DetectedDomain[],
+    _context: ProjectContext,
+    _entities: ExtractedEntities,
+    _relevance: number
+  ): TestIdea[] {
+    const ideas: TestIdea[] = [];
+
+    // Get domain names with sufficient confidence
+    const domainNames = detectedDomains
+      .filter(d => d.confidence >= 0.5)
+      .map(d => d.domain);
+
+    if (domainNames.length === 0) {
+      return ideas;
+    }
+
+    // Get domain-specific templates from the registry
+    const domainTemplates = domainPatternRegistry.getTestTemplates(domainNames);
+
+    // Filter templates relevant to this category/subcategory
+    const relevantTemplates = domainTemplates.filter(t =>
+      t.category === category &&
+      (t.subcategory === subcategory || this.isRelatedSubcategory(t.subcategory, subcategory))
+    );
+
+    // Convert domain templates to test ideas (limit to 3 per subcategory)
+    for (const template of relevantTemplates.slice(0, 3)) {
+      const idea: TestIdea = {
+        id: template.id,
+        description: template.description,
+        category: template.category,
+        subcategory: template.subcategory,
+        priority: template.priority,
+        automationFitness: template.automationFitness,
+        sourceRequirement: undefined,
+        tags: [...template.tags, 'domain-specific'],
+        rationale: template.rationale,
+      };
 
       ideas.push(idea);
     }
 
     return ideas;
+  }
+
+  /**
+   * Check if a template subcategory is related to the target subcategory
+   * Allows domain templates with similar focus to be included
+   */
+  private isRelatedSubcategory(templateSubcategory: string, targetSubcategory: string): boolean {
+    // Map of related subcategories for flexibility
+    const relatedGroups: Record<string, string[]> = {
+      'Security': ['Application', 'Authentication', 'Authorization', 'Encryption'],
+      'StateTransition': ['Workflow', 'Lifecycle', 'State'],
+      'Validation': ['InputOutput', 'Boundaries', 'Format'],
+      'Integration': ['SystemInterface', 'ApiSdk', 'ExternalSystem'],
+      'Calculation': ['InputOutput', 'Precision', 'Business Logic'],
+    };
+
+    for (const [group, subcategories] of Object.entries(relatedGroups)) {
+      if (subcategories.includes(templateSubcategory) && subcategories.includes(targetSubcategory)) {
+        return true;
+      }
+      if (group === templateSubcategory && subcategories.includes(targetSubcategory)) {
+        return true;
+      }
+      if (group === targetSubcategory && subcategories.includes(templateSubcategory)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

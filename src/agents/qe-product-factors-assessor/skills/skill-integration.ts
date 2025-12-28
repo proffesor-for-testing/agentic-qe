@@ -20,7 +20,7 @@ import {
 export interface SkillMapping {
   skillName: string;
   categories: HTSMCategory[];
-  enhancementType: 'test-ideas' | 'heuristics' | 'questions';
+  enhancementType: 'test-ideas' | 'heuristics' | 'questions' | 'validation';
 }
 
 /**
@@ -61,6 +61,11 @@ export const SKILL_MAPPINGS: SkillMapping[] = [
     skillName: 'accessibility-testing',
     categories: [HTSMCategory.INTERFACES, HTSMCategory.OPERATIONS],
     enhancementType: 'test-ideas',
+  },
+  {
+    skillName: 'brutal-honesty-review',
+    categories: Object.values(HTSMCategory), // Applies to ALL categories
+    enhancementType: 'validation',  // Changed from 'heuristics' to 'validation' - acts as quality gate
   },
 ];
 
