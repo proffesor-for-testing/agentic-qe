@@ -402,6 +402,26 @@ export class QEProductFactorsAssessor extends BaseAgent {
       }
     }
 
+    // Step 3.6: LLM-based test idea generation (when useLLM is enabled)
+    // Uses SFDIPOT checklist for comprehensive coverage
+    if (input.useLLM && this.llmConfig.enabled) {
+      console.log(`[${this.agentId.id}] Using LLM with SFDIPOT checklist for test idea generation...`);
+
+      try {
+        const llmTestIdeas = await this.generateTestIdeasWithLLM(context, parsedInput.rawContent);
+
+        if (llmTestIdeas.length > 0) {
+          // Merge LLM-generated ideas into category analysis
+          for (const idea of llmTestIdeas) {
+            this.addTestIdeaToCategory(categoryAnalysis, idea);
+          }
+          console.log(`[${this.agentId.id}] Added ${llmTestIdeas.length} LLM-generated test ideas using SFDIPOT checklist`);
+        }
+      } catch (error) {
+        console.warn(`[${this.agentId.id}] LLM test idea generation failed, using template-based generation:`, error);
+      }
+    }
+
     // Step 4: Generate clarifying questions for gaps
     const clarifyingQuestions = await this.generateClarifyingQuestions(categoryAnalysis, context, input.useLLM);
 
@@ -513,6 +533,16 @@ export class QEProductFactorsAssessor extends BaseAgent {
       existing.coverage.coveragePercentage =
         (existing.coverage.subcategoriesCovered.length / allSubcategories.length) * 100;
     }
+  }
+
+  /**
+   * Add a single test idea to the appropriate category
+   */
+  private addTestIdeaToCategory(
+    categoryAnalysis: Map<HTSMCategory, CategoryAnalysis>,
+    idea: TestIdea
+  ): void {
+    this.mergeTestIdeas(categoryAnalysis, idea.category, [idea]);
   }
 
   // ===========================================================================
@@ -1282,11 +1312,11 @@ export class QEProductFactorsAssessor extends BaseAgent {
     // Use TestIdeaGenerator's comprehensive templates
     // This provides coverage for all 37 SFDIPOT subcategories
     const entities: ExtractedEntities = {
-      actors: context.actors || [],
-      features: context.features || [],
-      dataTypes: context.dataTypes || [],
-      integrations: context.integrations || [],
-      environments: context.environments || [],
+      actors: context.entities?.actors || [],
+      features: context.entities?.features || [],
+      dataTypes: context.entities?.dataTypes || [],
+      integrations: context.entities?.integrations || [],
+      actions: context.entities?.actions || [],
     };
 
     // Generate ideas from templates (up to maxTestIdeasPerSubcategory)
@@ -1534,6 +1564,243 @@ Format your response as JSON:
       rationale: template.rationale,
       source: 'template' as const
     }));
+  }
+
+  // ===========================================================================
+  // LLM-Based Test Idea Generation
+  // ===========================================================================
+
+  /**
+   * Build the SFDIPOT checklist prompt for LLM-based test idea generation
+   */
+  private buildSFDIPOTChecklistPrompt(context: ProjectContext, requirements: string): string {
+    return `You are an expert QE engineer using James Bach's Heuristic Test Strategy Model (HTSM) Product Factors framework (SFDIPOT).
+
+REQUIREMENTS TO ANALYZE:
+${requirements}
+
+PROJECT CONTEXT:
+- Domain: ${context.domain || 'General'}
+- Project Type: ${context.projectType || 'Web Application'}
+- Key Actors: ${context.entities?.actors?.join(', ') || 'Users'}
+- Key Features: ${context.entities?.features?.slice(0, 10).join(', ') || 'Not specified'}
+- Data Types: ${context.entities?.dataTypes?.slice(0, 10).join(', ') || 'Not specified'}
+- Integrations: ${context.entities?.integrations?.join(', ') || 'None specified'}
+
+SFDIPOT CHECKLIST - Generate test ideas for EACH subcategory that is relevant to the requirements:
+
+## STRUCTURE (What the product IS)
+1. **Code** - Source code quality, modularity, error handling in code
+2. **Hardware** - Physical devices, sensors, peripherals the product uses
+3. **NonPhysical** - Configuration, environment variables, feature flags, licenses
+4. **Dependencies** - Third-party libraries, services, APIs the product depends on
+5. **Documentation** - API docs, user guides, inline comments, README files
+
+## FUNCTION (What the product DOES)
+6. **Application** - Core business logic, main features, workflows
+7. **Calculation** - Mathematical operations, formulas, aggregations
+8. **ErrorHandling** - Error messages, recovery, logging, graceful degradation
+9. **Security** - Authentication, authorization, encryption, input validation
+10. **StateTransition** - Workflows, status changes, state machines
+11. **Startup** - Initialization, boot sequence, first-run experience
+12. **Shutdown** - Graceful termination, cleanup, data persistence on exit
+
+## DATA (What the product PROCESSES)
+13. **InputOutput** - User inputs, system outputs, data formats
+14. **Lifecycle** - CRUD operations, data versioning, audit trails
+15. **Cardinality** - One-to-many, many-to-many relationships, constraints
+16. **Boundaries** - Min/max values, field lengths, limits
+17. **Persistence** - Database storage, caching, backup/restore
+18. **Types** - Data types, dates/times, currencies, localization
+19. **Selection** - Search, filtering, sorting, pagination
+
+## INTERFACES (How the product CONNECTS)
+20. **UserInterface** - UI components, forms, accessibility (WCAG)
+21. **ApiSdk** - REST/GraphQL APIs, SDK methods, rate limits
+22. **SystemInterface** - Service integrations, webhooks, event buses
+23. **ImportExport** - File imports (CSV, Excel), data exports, bulk operations
+24. **Messaging** - Queues, notifications, email, SMS, push notifications
+
+## PLATFORM (What the product DEPENDS ON)
+25. **Browser** - Chrome, Firefox, Safari, Edge compatibility
+26. **OperatingSystem** - Windows, macOS, Linux, iOS, Android
+27. **Hardware** - CPU, memory, disk space, network requirements
+28. **ExternalSoftware** - Databases, cache systems, container runtime
+29. **InternalComponents** - Shared libraries, microservices, internal APIs
+
+## OPERATIONS (How the product is USED)
+30. **CommonUse** - Happy path scenarios, typical user journeys
+31. **UncommonUse** - Edge cases, rare but valid scenarios
+32. **ExtremeUse** - Load testing, stress testing, volume testing
+33. **DisfavoredUse** - Abuse scenarios, malicious inputs, attack vectors
+34. **Users** - User roles, permissions, multi-tenancy
+35. **Environment** - Dev/staging/prod parity, deployment, configuration
+
+## TIME (WHEN things happen)
+36. **Timing** - Response times, SLAs, performance requirements
+37. **Concurrency** - Race conditions, parallel access, locking
+38. **Scheduling** - Cron jobs, scheduled tasks, batch processing
+39. **Timeout** - Request timeouts, session expiry, operation limits
+40. **Sequencing** - Operation order, event ordering, idempotency
+
+INSTRUCTIONS:
+1. For EACH relevant subcategory, generate 2-3 specific test ideas
+2. Each test idea must be:
+   - Specific to the requirements provided (not generic)
+   - Actionable and testable
+   - Include rationale for why this test matters
+3. Assign priority: P0 (Critical), P1 (High), P2 (Medium), P3 (Low)
+4. Suggest automation fitness: Unit, Integration, E2E, Performance, Security, Manual
+
+FORMAT YOUR RESPONSE AS JSON:
+{
+  "testIdeas": [
+    {
+      "category": "STRUCTURE|FUNCTION|DATA|INTERFACES|PLATFORM|OPERATIONS|TIME",
+      "subcategory": "Code|Hardware|...",
+      "description": "Specific test description",
+      "rationale": "Why this test is important",
+      "priority": "P0|P1|P2|P3",
+      "automationFitness": "Unit|Integration|E2E|Performance|Security|Manual",
+      "tags": ["tag1", "tag2"]
+    }
+  ]
+}
+
+Generate comprehensive test ideas covering as many relevant subcategories as possible. Focus on the most critical and impactful tests first.`;
+  }
+
+  /**
+   * Generate test ideas using LLM with SFDIPOT checklist
+   */
+  public async generateTestIdeasWithLLM(
+    context: ProjectContext,
+    requirements: string
+  ): Promise<TestIdea[]> {
+    if (!this.llmConfig.enabled) {
+      console.warn(`[${this.agentId.id}] LLM not enabled, falling back to template generation`);
+      return [];
+    }
+
+    const prompt = this.buildSFDIPOTChecklistPrompt(context, requirements);
+
+    try {
+      console.log(`[${this.agentId.id}] Generating test ideas using LLM with SFDIPOT checklist...`);
+
+      const response = await this.llmComplete(prompt, {
+        maxTokens: 4000,
+        temperature: 0.7
+      });
+
+      // Parse the JSON response
+      const parsed = this.parseLLMTestIdeasResponse(response);
+
+      console.log(`[${this.agentId.id}] LLM generated ${parsed.length} test ideas`);
+      return parsed;
+    } catch (error) {
+      console.error(`[${this.agentId.id}] LLM test idea generation failed:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Parse LLM response into TestIdea objects
+   */
+  private parseLLMTestIdeasResponse(response: string): TestIdea[] {
+    try {
+      // Extract JSON from response (handle markdown code blocks)
+      let jsonStr = response;
+      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1].trim();
+      }
+
+      const parsed = JSON.parse(jsonStr);
+      const testIdeas: TestIdea[] = [];
+
+      const ideas = parsed.testIdeas || parsed;
+
+      for (const idea of ideas) {
+        // Map category string to HTSMCategory enum
+        const category = this.mapCategoryString(idea.category);
+        if (!category) continue;
+
+        // Map priority string to Priority enum
+        const priority = this.mapPriorityString(idea.priority);
+
+        // Map automation fitness
+        const automationFitness = this.mapAutomationFitnessString(idea.automationFitness);
+
+        testIdeas.push({
+          id: generateTestId(category),
+          category,
+          subcategory: idea.subcategory,
+          description: idea.description,
+          rationale: idea.rationale || 'Generated by LLM',
+          priority,
+          automationFitness,
+          tags: idea.tags || []
+        });
+      }
+
+      return testIdeas;
+    } catch (error) {
+      console.error(`[${this.agentId.id}] Failed to parse LLM response:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Map category string to HTSMCategory enum
+   */
+  private mapCategoryString(categoryStr: string): HTSMCategory | null {
+    const mapping: Record<string, HTSMCategory> = {
+      'STRUCTURE': HTSMCategory.STRUCTURE,
+      'FUNCTION': HTSMCategory.FUNCTION,
+      'DATA': HTSMCategory.DATA,
+      'INTERFACES': HTSMCategory.INTERFACES,
+      'PLATFORM': HTSMCategory.PLATFORM,
+      'OPERATIONS': HTSMCategory.OPERATIONS,
+      'TIME': HTSMCategory.TIME
+    };
+    return mapping[categoryStr?.toUpperCase()] || null;
+  }
+
+  /**
+   * Map priority string to Priority enum
+   */
+  private mapPriorityString(priorityStr: string): Priority {
+    const mapping: Record<string, Priority> = {
+      'P0': Priority.P0,
+      'P1': Priority.P1,
+      'P2': Priority.P2,
+      'P3': Priority.P3,
+      'CRITICAL': Priority.P0,
+      'HIGH': Priority.P1,
+      'MEDIUM': Priority.P2,
+      'LOW': Priority.P3
+    };
+    return mapping[priorityStr?.toUpperCase()] || Priority.P2;
+  }
+
+  /**
+   * Map automation fitness string to AutomationFitness enum
+   */
+  private mapAutomationFitnessString(fitnessStr: string): AutomationFitness {
+    const mapping: Record<string, AutomationFitness> = {
+      'UNIT': AutomationFitness.API,
+      'API': AutomationFitness.API,
+      'INTEGRATION': AutomationFitness.Integration,
+      'E2E': AutomationFitness.E2E,
+      'PERFORMANCE': AutomationFitness.Performance,
+      'SECURITY': AutomationFitness.Security,
+      'MANUAL': AutomationFitness.Human,
+      'HUMAN': AutomationFitness.Human,
+      'VISUAL': AutomationFitness.Visual,
+      'ACCESSIBILITY': AutomationFitness.Accessibility,
+      'CONCURRENCY': AutomationFitness.Concurrency
+    };
+    return mapping[fitnessStr?.toUpperCase()] || AutomationFitness.Integration;
   }
 
   // ===========================================================================
