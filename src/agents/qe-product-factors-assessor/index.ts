@@ -31,6 +31,7 @@ import {
   ProductFactorsTaskPayload,
   UserStory,
   Epic,
+  ExtractedEntities,
   SFDIPOT_SUBCATEGORIES,
   CATEGORY_DESCRIPTIONS,
   generateTestId
@@ -1274,13 +1275,30 @@ export class QEProductFactorsAssessor extends BaseAgent {
    * Get generic test ideas for a subcategory when no stories match
    */
   private getGenericIdeasForSubcategory(
-    _category: HTSMCategory,
-    _subcategory: string,
-    _context: ProjectContext
+    category: HTSMCategory,
+    subcategory: string,
+    context: ProjectContext
   ): TestIdea[] {
-    // Return empty for now - will be populated based on context
-    // This avoids generating low-value generic tests
-    return [];
+    // Use TestIdeaGenerator's comprehensive templates
+    // This provides coverage for all 37 SFDIPOT subcategories
+    const entities: ExtractedEntities = {
+      actors: context.actors || [],
+      features: context.features || [],
+      dataTypes: context.dataTypes || [],
+      integrations: context.integrations || [],
+      environments: context.environments || [],
+    };
+
+    // Generate ideas from templates (up to maxTestIdeasPerSubcategory)
+    const ideas = this.testIdeaGenerator.generateForSubcategory(
+      category,
+      subcategory,
+      context,
+      entities,
+      0.7 // Default relevance for generic ideas
+    );
+
+    return ideas.slice(0, this.maxTestIdeasPerSubcategory);
   }
 
   // ===========================================================================
