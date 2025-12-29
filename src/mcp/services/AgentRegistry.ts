@@ -241,6 +241,9 @@ export class AgentRegistry {
 
       this.agents.set(agentId, registeredAgent);
 
+      // Persist agent to database for cross-session tracking
+      await this.persistAgentToDb(registeredAgent);
+
       // Phase 2: SONA lifecycle hook - onAgentSpawn
       if (this.sonaLifecycleManager) {
         try {
@@ -425,6 +428,10 @@ export class AgentRegistry {
       // The agent will handle cleanup internally
       await registered.agent.terminate();
       registered.status = 'terminated';
+
+      // Update status in database before deleting from memory
+      await this.updateAgentStatusInDb(agentId, 'terminated');
+
       this.agents.delete(agentId);
 
       this.logger.info(`Agent terminated: ${agentId}`);
@@ -603,6 +610,84 @@ export class AgentRegistry {
 
     this.agents.clear();
     this.logger.info('All agents cleared from registry');
+  }
+
+  /**
+   * Persist agent to database for cross-session tracking
+   *
+   * @param agent - Registered agent to persist
+   */
+  private async persistAgentToDb(agent: RegisteredAgent): Promise<void> {
+    try {
+      const db = (this.memoryStore as any).db;
+      if (!db) {
+        this.logger.debug('Database not available for agent persistence');
+        return;
+      }
+
+      // Get capabilities from agent
+      const capabilities = agent.agent.getCapabilities?.() || [];
+
+      db.prepare(`
+        INSERT OR REPLACE INTO agent_registry (
+          id, type, capabilities, status, performance, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        agent.id,
+        agent.mcpType,
+        JSON.stringify(capabilities),
+        agent.status,
+        JSON.stringify({
+          tasksCompleted: agent.tasksCompleted,
+          totalExecutionTime: agent.totalExecutionTime,
+          averageExecutionTime: agent.tasksCompleted > 0
+            ? agent.totalExecutionTime / agent.tasksCompleted
+            : 0
+        }),
+        agent.spawnedAt.getTime(),
+        Date.now()
+      );
+
+      this.logger.debug(`Agent persisted to database: ${agent.id}`);
+    } catch (error) {
+      this.logger.warn(`Failed to persist agent to database: ${agent.id}`, error);
+      // Don't throw - allow graceful degradation
+    }
+  }
+
+  /**
+   * Update agent status in database
+   *
+   * @param agentId - Agent ID
+   * @param status - New status
+   */
+  private async updateAgentStatusInDb(agentId: string, status: string): Promise<void> {
+    try {
+      const db = (this.memoryStore as any).db;
+      if (!db) return;
+
+      const agent = this.agents.get(agentId);
+      if (!agent) return;
+
+      db.prepare(`
+        UPDATE agent_registry
+        SET status = ?, performance = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        status,
+        JSON.stringify({
+          tasksCompleted: agent.tasksCompleted,
+          totalExecutionTime: agent.totalExecutionTime,
+          averageExecutionTime: agent.tasksCompleted > 0
+            ? agent.totalExecutionTime / agent.tasksCompleted
+            : 0
+        }),
+        Date.now(),
+        agentId
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to update agent status in database: ${agentId}`, error);
+    }
   }
 
   /**

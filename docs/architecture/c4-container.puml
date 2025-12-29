@@ -1,0 +1,32 @@
+@startuml C4_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Agentic QE Fleet - Container Diagram
+
+Person(developer, "Developer", "Uses CLI and MCP tools")
+
+System_Boundary(aqe, "Agentic QE Fleet") {
+    Container(cli, "CLI", "TypeScript/Node.js", "Command-line interface: aqe init, kg, learn, patterns")
+    Container(mcp, "MCP Server", "TypeScript", "Model Context Protocol server for Claude Code integration")
+    Container(agents, "QE Agents", "TypeScript", "21 specialized QE agents + 15 n8n agents + 11 subagents")
+    Container(codeIntel, "Code Intelligence", "TypeScript", "Semantic search, knowledge graph, hybrid routing")
+    Container(learning, "Learning Engine", "TypeScript", "9 RL algorithms, pattern recognition, experience replay")
+    Container(fleet, "Fleet Manager", "TypeScript", "Agent coordination, task orchestration, memory management")
+}
+
+System_Ext(ollama, "Ollama", "Local LLM embeddings")
+System_Ext(ruvector, "RuVector DB", "PostgreSQL with pgvector")
+
+Rel(developer, cli, "Uses", "CLI commands")
+Rel(developer, mcp, "Uses", "Via Claude Code")
+Rel(cli, agents, "Spawns")
+Rel(mcp, agents, "Spawns")
+Rel(mcp, fleet, "Coordinates")
+Rel(agents, codeIntel, "Queries", "Semantic search")
+Rel(agents, learning, "Trains/Uses", "Pattern recognition")
+Rel(fleet, agents, "Orchestrates")
+Rel(codeIntel, ollama, "Embeddings")
+Rel(codeIntel, ruvector, "Stores/Retrieves")
+Rel(learning, ruvector, "Persists patterns")
+
+@enduml

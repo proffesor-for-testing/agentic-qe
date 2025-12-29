@@ -93,6 +93,7 @@ import {
   VisualDetectRegressionArgs,
   QeSecurityScanComprehensiveArgs,
   QeQualitygateEvaluateArgs,
+  QeQualitygateEvaluateGoapArgs,
   QeQualitygateGenerateReportArgs
 } from './handlers/phase3/Phase3DomainTools.js';
 import { EventEmitter } from 'events';
@@ -101,6 +102,7 @@ import { LearningStoreQValueHandler } from './handlers/learning/learning-store-q
 import { LearningQueryHandler } from './handlers/learning/learning-query.js';
 import { LearningStorePatternHandler } from './handlers/learning/learning-store-pattern.js';
 import { LearningEventListener, initLearningEventListener } from './services/LearningEventListener.js';
+import { SleepScheduler } from '../learning/scheduler/SleepScheduler.js';
 
 // Phase 3: Domain-specific tool functions
 import {
@@ -169,6 +171,7 @@ export class AgenticQEMCPServer {
   private proposals: Map<string, any>;
   private eventBus: EventEmitter;
   private learningListener: LearningEventListener | null;
+  private sleepScheduler: SleepScheduler | null = null;
 
   constructor() {
     this.server = new Server(
@@ -359,8 +362,9 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.QE_TESTGEN_GENERATE_INTEGRATION, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_TESTGEN_OPTIMIZE_SUITE, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_TESTGEN_ANALYZE_QUALITY, phase3Handler);
-    // Quality-Gates Domain (4 tools)
+    // Quality-Gates Domain (5 tools - includes GOAP)
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_EVALUATE, phase3Handler);
+    this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_EVALUATE_GOAP, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_ASSESS_RISK, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_VALIDATE_METRICS, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_GENERATE_REPORT, phase3Handler);
@@ -841,9 +845,11 @@ export class AgenticQEMCPServer {
           } else if (name === TOOL_NAMES.QE_TESTGEN_ANALYZE_QUALITY) {
             result = await phase3Handler.handleQeTestgenAnalyzeQuality(safeArgs);
           }
-          // Quality-Gates Domain
+          // Quality-Gates Domain (5 tools - includes GOAP)
           else if (name === TOOL_NAMES.QE_QUALITYGATE_EVALUATE) {
             result = await phase3Handler.handleQeQualitygateEvaluate(safeArgs as unknown as QeQualitygateEvaluateArgs);
+          } else if (name === TOOL_NAMES.QE_QUALITYGATE_EVALUATE_GOAP) {
+            result = await phase3Handler.handleQeQualitygateEvaluateGoap(safeArgs as unknown as QeQualitygateEvaluateGoapArgs);
           } else if (name === TOOL_NAMES.QE_QUALITYGATE_ASSESS_RISK) {
             result = await phase3Handler.handleQeQualitygateAssessRisk(safeArgs);
           } else if (name === TOOL_NAMES.QE_QUALITYGATE_VALIDATE_METRICS) {
@@ -1028,15 +1034,71 @@ export class AgenticQEMCPServer {
     const serverTransport = transport || new StdioServerTransport();
     await this.server.connect(serverTransport);
 
+    // P1 Implementation: Auto-start SleepScheduler for background learning
+    await this.startSleepScheduler();
+
     // Log to stderr to not interfere with MCP stdio protocol
     console.error('Agentic QE MCP Server started successfully');
     console.error(`Available tools: ${agenticQETools.map(t => t.name).join(', ')}`);
   }
 
   /**
+   * Start the SleepScheduler for background learning
+   * P1 Implementation: Dream Scheduler Auto-Start
+   */
+  private async startSleepScheduler(): Promise<void> {
+    try {
+      // Check if learning is enabled via config file
+      const fs = await import('fs-extra');
+      const path = await import('path');
+      const configPath = path.join(process.cwd(), '.agentic-qe', 'learning-config.json');
+
+      if (!await fs.pathExists(configPath)) {
+        console.error('[SleepScheduler] Learning config not found, skipping scheduler start');
+        return;
+      }
+
+      const config = await fs.readJson(configPath);
+      if (!config.enabled) {
+        console.error('[SleepScheduler] Learning is disabled in config');
+        return;
+      }
+
+      // Create and start the scheduler
+      this.sleepScheduler = new SleepScheduler({
+        mode: config.scheduler?.mode || 'hybrid',
+        schedule: config.scheduler?.schedule,
+        learningBudget: config.scheduler?.learningBudget || {
+          maxPatternsPerCycle: 50,
+          maxAgentsPerCycle: 5,
+          maxDurationMs: 3600000
+        }
+      });
+
+      await this.sleepScheduler.start();
+      console.error('[SleepScheduler] Background learning scheduler started');
+    } catch (error) {
+      // Non-critical - log and continue
+      console.error('[SleepScheduler] Failed to start:', error instanceof Error ? error.message : String(error));
+      this.sleepScheduler = null;
+    }
+  }
+
+  /**
    * Stop the MCP server
    */
   async stop(): Promise<void> {
+    // Stop the SleepScheduler if running
+    if (this.sleepScheduler) {
+      try {
+        await this.sleepScheduler.stop();
+        console.error('[SleepScheduler] Background learning scheduler stopped');
+      } catch (error) {
+        console.error('[SleepScheduler] Error stopping scheduler:', error);
+      }
+      this.sleepScheduler = null;
+    }
+
     // Cleanup all agents
     await this.registry.clearAll();
 

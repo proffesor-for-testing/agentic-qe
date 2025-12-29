@@ -32,6 +32,20 @@
 - ❌ NEVER save working files to root folder
 - ✅ ALWAYS use: `/docs`, `/tests`, `/src`, `/scripts`, `/examples`
 
+### Data Protection (CRITICAL - Added after 2025-12-29 incident)
+- ❌ NEVER run `rm -f` on `.agentic-qe/` directory or `*.db` files without explicit user confirmation
+- ❌ NEVER delete database files during test debugging
+- ✅ ALWAYS run `npm run backup` before any database operations
+- ✅ ALWAYS ask user before running destructive commands on data directories
+- 📋 **Incident report:** [docs/incidents/2025-12-29-memory-db-deletion.md](docs/incidents/2025-12-29-memory-db-deletion.md)
+
+**Backup Commands:**
+```bash
+npm run backup          # Create backup before risky operations
+npm run backup:list     # List available backups
+npm run backup:restore  # Restore from backup
+```
+
 ### Release Process
 - ❌ NEVER commit directly to main - use feature branches with PRs
 - ❌ NEVER forget package-lock.json when updating versions

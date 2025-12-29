@@ -24,6 +24,14 @@ import {
   TestStatus
 } from '../shared/types.js';
 import { seededRandom } from '../../../../utils/SeededRandom.js';
+import {
+  GOAPQualityGateIntegration,
+  RemediationPlan,
+  QUALITY_GATE_GOALS
+} from '../../../../planning/integration/GOAPQualityGateIntegration.js';
+import Database from 'better-sqlite3';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // ==================== Types ====================
 
@@ -1186,4 +1194,263 @@ function createErrorResponse(
       version: '1.0.0'
     }
   };
+}
+
+// ==================== GOAP-Enhanced Evaluation ====================
+
+/**
+ * Quality gate evaluation with GOAP remediation plan
+ */
+export interface QualityGateEvaluationWithPlan extends QualityGateEvaluation {
+  /** GOAP-generated remediation plan (only on FAIL/ESCALATE) */
+  remediationPlan?: RemediationPlan;
+  /** Whether GOAP planning was used */
+  goapEnabled: boolean;
+}
+
+/**
+ * Parameters for GOAP-enhanced evaluation
+ */
+export interface EvaluateQualityGateWithGOAPParams extends EvaluateQualityGateParams {
+  /** Enable GOAP remediation planning (default: true) */
+  enableGOAP?: boolean;
+  /** Database path for GOAP (default: .agentic-qe/memory.db) */
+  dbPath?: string;
+  /** Available QE agents for planning */
+  availableAgents?: string[];
+  /** Time budget in seconds for remediation */
+  timeBudget?: number;
+}
+
+// GOAP integration singleton with database reference for cleanup
+let goapIntegration: GOAPQualityGateIntegration | null = null;
+let goapDb: Database.Database | null = null;
+
+/**
+ * Get or create GOAP integration instance
+ */
+function getGOAPIntegration(dbPath?: string): GOAPQualityGateIntegration | null {
+  try {
+    if (goapIntegration) return goapIntegration;
+
+    const resolvedPath = dbPath || path.join(process.cwd(), '.agentic-qe', 'memory.db');
+
+    // Ensure directory exists
+    const dir = path.dirname(resolvedPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    goapDb = new Database(resolvedPath);
+    goapIntegration = new GOAPQualityGateIntegration(goapDb);
+    return goapIntegration;
+  } catch (error) {
+    // GOAP integration is optional - fail gracefully
+    console.warn('[QualityGate] GOAP integration unavailable:', error);
+    return null;
+  }
+}
+
+/**
+ * Cleanup GOAP integration and close database connection
+ * Call this in test afterAll/afterEach to prevent memory leaks
+ */
+export function cleanupGOAPIntegration(): void {
+  if (goapDb) {
+    try {
+      goapDb.close();
+    } catch {
+      // Ignore close errors
+    }
+    goapDb = null;
+  }
+  goapIntegration = null;
+}
+
+/**
+ * Evaluate quality gate with GOAP-powered remediation planning
+ *
+ * Extends the standard quality gate evaluation with:
+ * - GOAP remediation plans on failure
+ * - Alternative action paths
+ * - Success probability estimation
+ * - Plan persistence for tracking
+ *
+ * @param params - Enhanced evaluation parameters
+ * @returns Quality gate evaluation with optional remediation plan
+ */
+export async function evaluateQualityGateWithGOAP(
+  params: EvaluateQualityGateWithGOAPParams
+): Promise<QEToolResponse<QualityGateEvaluationWithPlan>> {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+
+  try {
+    // Run standard evaluation first
+    const baseResult = await evaluateQualityGate(params);
+
+    if (!baseResult.success || !baseResult.data) {
+      return {
+        ...baseResult,
+        data: baseResult.data ? { ...baseResult.data, goapEnabled: false } : undefined
+      } as QEToolResponse<QualityGateEvaluationWithPlan>;
+    }
+
+    const evaluation = baseResult.data;
+
+    // If PASS, no remediation needed
+    if (evaluation.decision === 'PASS') {
+      return {
+        ...baseResult,
+        data: {
+          ...evaluation,
+          goapEnabled: params.enableGOAP !== false
+        }
+      };
+    }
+
+    // FAIL or ESCALATE - generate remediation plan if GOAP enabled
+    if (params.enableGOAP === false) {
+      return {
+        ...baseResult,
+        data: {
+          ...evaluation,
+          goapEnabled: false
+        }
+      };
+    }
+
+    const goap = getGOAPIntegration(params.dbPath);
+
+    if (!goap) {
+      return {
+        ...baseResult,
+        data: {
+          ...evaluation,
+          goapEnabled: false
+        }
+      };
+    }
+
+    // Generate GOAP remediation plan
+    const remediationPlan = await goap.generateRemediationPlan(
+      params.metrics,
+      {
+        projectId: params.projectId,
+        buildId: params.buildId,
+        environment: params.environment,
+        criticality: params.context?.criticality,
+        changedFiles: params.context?.changes?.map(c => c.file),
+        previousFailures: params.context?.previousDeployments?.filter(d => !d.success).length,
+        timeRemaining: params.timeBudget,
+        availableAgents: params.availableAgents
+      },
+      determineGOAPGoal(evaluation, params)
+    );
+
+    return {
+      success: true,
+      data: {
+        ...evaluation,
+        remediationPlan: remediationPlan ?? undefined,
+        goapEnabled: true
+      },
+      metadata: {
+        requestId,
+        timestamp: new Date().toISOString(),
+        executionTime: Date.now() - startTime,
+        agent: 'quality-gate-evaluator-goap',
+        version: '1.0.0'
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        code: 'GOAP_EVALUATION_ERROR',
+        message: error instanceof Error ? error.message : String(error)
+      },
+      metadata: {
+        requestId,
+        timestamp: new Date().toISOString(),
+        executionTime: Date.now() - startTime,
+        agent: 'quality-gate-evaluator-goap',
+        version: '1.0.0'
+      }
+    } as QEToolResponse<QualityGateEvaluationWithPlan>;
+  }
+}
+
+/**
+ * Determine the best GOAP goal based on evaluation results
+ */
+function determineGOAPGoal(
+  evaluation: QualityGateEvaluation,
+  params: EvaluateQualityGateWithGOAPParams
+): keyof typeof QUALITY_GATE_GOALS {
+  // Check for security issues first (highest priority)
+  const securityViolations = evaluation.policyCompliance.violations.filter(
+    v => v.ruleName.toLowerCase().includes('security')
+  );
+  if (securityViolations.length > 0) {
+    return 'SECURITY_CLEAR';
+  }
+
+  // Check for coverage issues
+  const coverageViolations = evaluation.policyCompliance.violations.filter(
+    v => v.ruleName.toLowerCase().includes('coverage')
+  );
+  if (coverageViolations.length > 0) {
+    return 'COVERAGE_TARGET';
+  }
+
+  // Check for performance issues
+  const perfViolations = evaluation.policyCompliance.violations.filter(
+    v => v.ruleName.toLowerCase().includes('performance')
+  );
+  if (perfViolations.length > 0) {
+    return 'PERFORMANCE_SLA';
+  }
+
+  // Check if this might be a hotfix scenario
+  if (params.context?.criticality === 'critical' &&
+      params.context?.changes &&
+      params.context.changes.length < 5) {
+    return 'HOTFIX_QUALITY';
+  }
+
+  // Default to full quality gate pass
+  return 'PASS_QUALITY_GATE';
+}
+
+/**
+ * Record the outcome of executing a remediation plan
+ *
+ * Call this after executing the remediation actions to update
+ * action success rates for future planning.
+ *
+ * @param planId - The remediation plan ID
+ * @param success - Whether the plan succeeded
+ * @param executedActions - Actions that were executed with their outcomes
+ */
+export async function recordRemediationOutcome(
+  planId: string,
+  success: boolean,
+  executedActions: Array<{ actionId: string; success: boolean }>,
+  dbPath?: string
+): Promise<void> {
+  const goap = getGOAPIntegration(dbPath);
+  if (!goap) return;
+
+  // Record individual action outcomes
+  for (const action of executedActions) {
+    await goap.recordActionOutcome(action.actionId, action.success);
+  }
+
+  // Mark plan as completed
+  await goap.completePlan(
+    planId,
+    success,
+    success ? undefined : 'Remediation actions did not achieve target goal'
+  );
 }

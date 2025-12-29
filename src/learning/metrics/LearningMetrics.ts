@@ -963,6 +963,121 @@ export class LearningMetrics {
     }
   }
 
+  // ============== WRITE METHODS (P0 Implementation) ==============
+
+  /**
+   * Record a learning metric to the database
+   *
+   * @param data - Metric data to record
+   */
+  recordMetric(data: {
+    agentId: string;
+    metricType: 'accuracy' | 'latency' | 'quality' | 'success_rate' | 'improvement' | 'q_value' | 'exploration_rate';
+    metricValue: number;
+    windowStart?: Date;
+    windowEnd?: Date;
+  }): void {
+    try {
+      this.db.prepare(`
+        INSERT INTO learning_metrics (
+          agent_id, metric_type, metric_value, window_start, window_end, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        data.agentId,
+        data.metricType,
+        data.metricValue,
+        data.windowStart?.toISOString() || null,
+        data.windowEnd?.toISOString() || null,
+        new Date().toISOString()
+      );
+
+      if (this.config.debug) {
+        this.logger.debug(`[LearningMetrics] Recorded ${data.metricType} for ${data.agentId}: ${data.metricValue}`);
+      }
+    } catch (error) {
+      this.logger.warn('[LearningMetrics] Failed to record metric:', error);
+      // Don't throw - metric recording is non-critical
+    }
+  }
+
+  /**
+   * Record learning history entry (for Q-value updates)
+   *
+   * @param data - Learning history data
+   */
+  recordLearningHistory(data: {
+    agentId: string;
+    patternId?: string;
+    stateRepresentation: string;
+    action: string;
+    reward: number;
+    nextStateRepresentation?: string;
+    qValue?: number;
+    episode?: number;
+  }): void {
+    try {
+      this.db.prepare(`
+        INSERT INTO learning_history (
+          agent_id, pattern_id, state_representation, action, reward,
+          next_state_representation, q_value, episode, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        data.agentId,
+        data.patternId || null,
+        data.stateRepresentation,
+        data.action,
+        data.reward,
+        data.nextStateRepresentation || null,
+        data.qValue || null,
+        data.episode || null,
+        new Date().toISOString()
+      );
+
+      if (this.config.debug) {
+        this.logger.debug(`[LearningMetrics] Recorded learning history for ${data.agentId}`);
+      }
+    } catch (error) {
+      this.logger.warn('[LearningMetrics] Failed to record learning history:', error);
+      // Don't throw - history recording is non-critical
+    }
+  }
+
+  /**
+   * Record batch metrics for efficiency
+   *
+   * @param metrics - Array of metrics to record
+   */
+  recordMetricsBatch(metrics: Array<{
+    agentId: string;
+    metricType: string;
+    metricValue: number;
+  }>): void {
+    if (metrics.length === 0) return;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO learning_metrics (
+          agent_id, metric_type, metric_value, timestamp
+        ) VALUES (?, ?, ?, ?)
+      `);
+
+      const now = new Date().toISOString();
+      const insertMany = this.db.transaction((items: typeof metrics) => {
+        for (const item of items) {
+          stmt.run(item.agentId, item.metricType, item.metricValue, now);
+        }
+      });
+
+      insertMany(metrics);
+
+      if (this.config.debug) {
+        this.logger.debug(`[LearningMetrics] Recorded ${metrics.length} metrics in batch`);
+      }
+    } catch (error) {
+      this.logger.warn('[LearningMetrics] Failed to record metrics batch:', error);
+    }
+  }
+
   /**
    * Close database connection
    */

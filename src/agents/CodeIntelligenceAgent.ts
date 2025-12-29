@@ -222,7 +222,7 @@ export class CodeIntelligenceAgent extends BaseAgent {
     // Check if index exists
     if (this.orchestrator) {
       try {
-        const stats = this.orchestrator.getStats();
+        const stats = await this.orchestrator.getStats();
         if (stats.indexer.totalChunks > 0) {
           this.isIndexed = true;
           this.logger.info(`Loaded existing index: ${stats.indexer.totalChunks} chunks`);
@@ -259,14 +259,15 @@ export class CodeIntelligenceAgent extends BaseAgent {
 
     this.isIndexed = true;
 
-    const graphStats = this.orchestrator.getStats().graph;
+    const stats = await this.orchestrator.getStats();
+    const graphStats = stats.graph;
 
     return {
       success: true,
       taskType: 'index',
       indexStats: {
         filesIndexed: result.stats.filesIndexed,
-        entitiesExtracted: graphStats.nodesByType?.class || 0 + (graphStats.nodesByType?.function || 0),
+        entitiesExtracted: (graphStats.nodesByType?.class || 0) + (graphStats.nodesByType?.function || 0),
         chunksCreated: result.stats.chunksCreated,
         embeddingsGenerated: result.stats.embeddingsGenerated,
         graphEdges: result.stats.edgesCreated,
@@ -445,7 +446,7 @@ export class CodeIntelligenceAgent extends BaseAgent {
       throw new Error('Orchestrator not initialized');
     }
 
-    const stats = this.orchestrator.getStats();
+    const stats = await this.orchestrator.getStats();
     const graphStats = stats.graph;
 
     // Calculate entities from graph
@@ -489,7 +490,8 @@ export class CodeIntelligenceAgent extends BaseAgent {
     }
 
     const result = await this.orchestrator.processChanges(changes);
-    const graphStats = this.orchestrator.getStats().graph;
+    const incrementalStats = await this.orchestrator.getStats();
+    const graphStats = incrementalStats.graph;
 
     return {
       success: true,

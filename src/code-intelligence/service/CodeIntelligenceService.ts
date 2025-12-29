@@ -287,7 +287,7 @@ export class CodeIntelligenceService {
     }
 
     try {
-      const stats = this.orchestrator.getStats();
+      const stats = await this.orchestrator.getStats();
       return {
         initialized: true,
         healthy: true,

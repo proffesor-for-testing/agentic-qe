@@ -3612,7 +3612,163 @@ export const agenticQETools: Tool[] = [
     }
   },
 
-  
+  // Category: quality | Domain: gates (GOAP-powered)
+
+  {
+    name: 'mcp__agentic_qe__qe_qualitygate_evaluate_goap',
+    description: 'Evaluate quality gate with GOAP-powered remediation planning. On failure, generates actionable remediation plans with alternative paths and success probability estimates.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'Project identifier'
+        },
+        buildId: {
+          type: 'string',
+          description: 'Build identifier'
+        },
+        environment: {
+          type: 'string',
+          enum: ['development', 'staging', 'production'],
+          description: 'Target deployment environment'
+        },
+        metrics: {
+          type: 'object',
+          description: 'Full QualityMetrics - provide real measured values, not fabricated data',
+          properties: {
+            coverage: {
+              type: 'object',
+              properties: {
+                totalLines: { type: 'number', description: 'Total lines in project' },
+                coveredLines: { type: 'number', description: 'Lines covered by tests' },
+                totalBranches: { type: 'number', description: 'Total branches' },
+                coveredBranches: { type: 'number', description: 'Branches covered' },
+                totalFunctions: { type: 'number', description: 'Total functions' },
+                coveredFunctions: { type: 'number', description: 'Functions covered' },
+                overallPercentage: { type: 'number', description: 'Overall coverage %' }
+              },
+              required: ['totalLines', 'coveredLines', 'totalBranches', 'coveredBranches', 'overallPercentage'],
+              description: 'Coverage with actual counts from coverage tool'
+            },
+            testResults: {
+              type: 'object',
+              properties: {
+                total: { type: 'number' },
+                passed: { type: 'number' },
+                failed: { type: 'number' },
+                skipped: { type: 'number' },
+                duration: { type: 'number', description: 'Duration in ms' },
+                failureRate: { type: 'number', description: '0-1' },
+                flakyTests: { type: 'number' }
+              },
+              required: ['total', 'passed', 'failed'],
+              description: 'Test results from test runner'
+            },
+            security: {
+              type: 'object',
+              properties: {
+                vulnerabilities: { type: 'array', items: { type: 'object' } },
+                summary: {
+                  type: 'object',
+                  properties: {
+                    critical: { type: 'number' },
+                    high: { type: 'number' },
+                    medium: { type: 'number' },
+                    low: { type: 'number' }
+                  },
+                  required: ['critical', 'high', 'medium', 'low']
+                },
+                scannedAt: { type: 'string' }
+              },
+              required: ['summary'],
+              description: 'Security scan results'
+            },
+            performance: {
+              type: 'object',
+              properties: {
+                responseTime: {
+                  type: 'object',
+                  properties: {
+                    p50: { type: 'number' },
+                    p95: { type: 'number' },
+                    p99: { type: 'number' },
+                    max: { type: 'number' }
+                  }
+                },
+                throughput: { type: 'number' },
+                errorRate: { type: 'number' },
+                resourceUsage: {
+                  type: 'object',
+                  properties: {
+                    cpu: { type: 'number' },
+                    memory: { type: 'number' },
+                    disk: { type: 'number' }
+                  }
+                }
+              },
+              description: 'Performance from benchmarks'
+            },
+            codeQuality: {
+              type: 'object',
+              properties: {
+                maintainabilityIndex: { type: 'number' },
+                cyclomaticComplexity: { type: 'number' },
+                technicalDebt: { type: 'number' },
+                codeSmells: { type: 'number' },
+                duplications: { type: 'number' }
+              },
+              description: 'Code quality from static analysis'
+            },
+            timestamp: { type: 'string', description: 'ISO timestamp' }
+          },
+          required: ['coverage', 'testResults', 'security']
+        },
+        context: {
+          type: 'object',
+          properties: {
+            criticality: {
+              type: 'string',
+              enum: ['low', 'medium', 'high', 'critical']
+            },
+            changes: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  file: { type: 'string' },
+                  type: { type: 'string' },
+                  complexity: { type: 'number' }
+                }
+              }
+            }
+          },
+          description: 'Deployment context for risk assessment'
+        },
+        enableGOAP: {
+          type: 'boolean',
+          default: true,
+          description: 'Enable GOAP remediation planning on failure'
+        },
+        dbPath: {
+          type: 'string',
+          description: 'Database path for GOAP persistence (optional)'
+        },
+        availableAgents: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Available QE agents for remediation planning'
+        },
+        timeBudget: {
+          type: 'number',
+          description: 'Time budget in seconds for remediation'
+        }
+      },
+      required: ['projectId', 'buildId', 'environment', 'metrics']
+    }
+  },
+
+
   // Category: quality | Domain: gates
 
 
@@ -4188,8 +4344,9 @@ export const TOOL_NAMES = {
   QE_TESTGEN_GENERATE_INTEGRATION: 'mcp__agentic_qe__qe_testgen_generate_integration',
   QE_TESTGEN_OPTIMIZE_SUITE: 'mcp__agentic_qe__qe_testgen_optimize_suite',
   QE_TESTGEN_ANALYZE_QUALITY: 'mcp__agentic_qe__qe_testgen_analyze_quality',
-  // Quality-Gates Domain (4 tools)
+  // Quality-Gates Domain (5 tools - includes GOAP)
   QE_QUALITYGATE_EVALUATE: 'mcp__agentic_qe__qe_qualitygate_evaluate',
+  QE_QUALITYGATE_EVALUATE_GOAP: 'mcp__agentic_qe__qe_qualitygate_evaluate_goap',
   QE_QUALITYGATE_ASSESS_RISK: 'mcp__agentic_qe__qe_qualitygate_assess_risk',
   QE_QUALITYGATE_VALIDATE_METRICS: 'mcp__agentic_qe__qe_qualitygate_validate_metrics',
   QE_QUALITYGATE_GENERATE_REPORT: 'mcp__agentic_qe__qe_qualitygate_generate_report',
