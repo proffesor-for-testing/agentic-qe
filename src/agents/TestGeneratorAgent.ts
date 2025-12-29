@@ -805,8 +805,9 @@ export class TestGeneratorAgent extends BaseAgent {
       if (this.reasoningBank && this.patternExtractor && finalTestSuite.tests.length > 0) {
         try {
           // Extract patterns from generated test suite for future reuse
+          // Cast tests to TestSuiteInput for pattern extraction
           const extractedPatterns = await this.patternExtractor.extractFromTestSuite(
-            finalTestSuite.tests,
+            finalTestSuite.tests as unknown as Parameters<typeof this.patternExtractor.extractFromTestSuite>[0],
             request.framework
           );
 

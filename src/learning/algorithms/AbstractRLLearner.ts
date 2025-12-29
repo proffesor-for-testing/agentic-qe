@@ -10,6 +10,7 @@
  */
 
 import { Logger } from '../../utils/Logger';
+import { seededRandom } from '../../utils/SeededRandom';
 import { TaskState, AgentAction, TaskExperience } from '../types';
 import { ExperienceReplayBuffer } from '../ExperienceReplayBuffer';
 
@@ -79,9 +80,8 @@ export abstract class AbstractRLLearner {
     }
 
     // Exploration: random action
-    if (Math.random() < this.config.explorationRate) {
-      const randomIndex = Math.floor(Math.random() * availableActions.length);
-      return availableActions[randomIndex];
+    if (seededRandom.random() < this.config.explorationRate) {
+      return seededRandom.randomElement(availableActions);
     }
 
     // Exploitation: best action based on Q-values
@@ -97,8 +97,7 @@ export abstract class AbstractRLLearner {
 
     if (!stateActions || stateActions.size === 0) {
       // No Q-values yet, return random action
-      const randomIndex = Math.floor(Math.random() * availableActions.length);
-      return availableActions[randomIndex];
+      return seededRandom.randomElement(availableActions);
     }
 
     // Find action with highest Q-value

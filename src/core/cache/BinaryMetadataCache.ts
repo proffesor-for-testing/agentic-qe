@@ -23,6 +23,7 @@
  */
 
 import type { TestPattern } from '../memory/IPatternStore';
+import { SecureRandom } from '../../utils/SecureRandom';
 
 /**
  * Binary cache format version
@@ -1036,7 +1037,7 @@ export function createTRMPatternEntry(
   metadata: Partial<TRMPatternMetadata>
 ): TRMPatternEntry {
   return {
-    id: `trm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `trm-${Date.now()}-${SecureRandom.generateId(9)}`,
     type: metadata.iterations && metadata.iterations > 1 ? 'refinement' : 'reasoning',
     inputText: input,
     outputText: output,

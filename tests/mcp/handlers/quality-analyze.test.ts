@@ -10,7 +10,13 @@ import { describe, it, expect, beforeEach } from '@jest/globals';
 // Handler not yet implemented - skip these tests
 type QualityAnalyzeHandler = any;
 
-describe.skip('QualityAnalyzeHandler', () => {
+/**
+ * SKIP REASON: Handler Not Implemented
+ * No QualityAnalyzeHandler exists in src/mcp/handlers/
+ * Related: quality-assessor-filtered.ts exists but has different API
+ * TODO: Implement QualityAnalyzeHandler or update tests for filtered version
+ */
+describe.skip('QualityAnalyzeHandler (handler not implemented)', () => {
   let handler: QualityAnalyzeHandler;
 
   beforeEach(() => {

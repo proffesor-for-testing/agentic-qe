@@ -13,6 +13,8 @@
 import { LearningEngine } from '../../../src/learning/LearningEngine';
 import { QEReasoningBank } from '../../../src/reasoning/QEReasoningBank';
 import { createAgentDBManager } from '../../../src/core/memory/AgentDBManager';
+import { AdapterType } from '../../../src/core/memory/AdapterConfig';
+import { SwarmMemoryManager } from '../../../src/core/memory/SwarmMemoryManager';
 import { LearnedPattern } from '../../../src/learning/types';
 import path from 'path';
 import fs from 'fs/promises';
@@ -21,6 +23,15 @@ describe('LearningEngine Persistence Integration', () => {
   let testDbPath: string;
   let agentDB: any;
   let reasoningBank: QEReasoningBank;
+  let memoryManager: SwarmMemoryManager;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   beforeAll(async () => {
     // Use a dedicated test database
@@ -36,12 +47,13 @@ describe('LearningEngine Persistence Integration', () => {
       // Database doesn't exist yet
     }
 
-    // Create AgentDB manager for testing
+    // Create AgentDB manager for testing with mock adapter
     agentDB = createAgentDBManager({
       dbPath: testDbPath,
       enableLearning: true,
       enableReasoning: true,
-      enableQUICSync: false
+      enableQUICSync: false,
+      adapter: { type: AdapterType.MOCK }
     });
 
     await agentDB.initialize();
@@ -49,10 +61,17 @@ describe('LearningEngine Persistence Integration', () => {
     // Create ReasoningBank with the database
     reasoningBank = new QEReasoningBank({ database: agentDB.adapter?.db });
     await reasoningBank.initialize();
+
+    // Create SwarmMemoryManager for LearningEngine
+    memoryManager = new SwarmMemoryManager(':memory:');
+    await memoryManager.initialize();
   });
 
   afterAll(async () => {
     // Cleanup
+    if (memoryManager) {
+      await memoryManager.close();
+    }
     if (agentDB) {
       await agentDB.close();
     }
@@ -79,7 +98,7 @@ describe('LearningEngine Persistence Integration', () => {
     };
 
     // First engine instance - store pattern
-    const engine1 = new LearningEngine('test-agent-1', reasoningBank);
+    const engine1 = new LearningEngine('test-agent-1', memoryManager);
     await engine1.initialize();
 
     // Store pattern through updatePatterns (internal method simulation)
@@ -113,14 +132,14 @@ describe('LearningEngine Persistence Integration', () => {
     engine1.dispose();
 
     // Wait a bit to ensure persistence completes
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await jest.advanceTimersByTimeAsync(100);
 
     // Second engine instance - retrieve pattern
-    const engine2 = new LearningEngine('test-agent-1', reasoningBank);
+    const engine2 = new LearningEngine('test-agent-1', memoryManager);
     await engine2.initialize();
 
     // Retrieve patterns
-    const retrieved = engine2.getPatterns();
+    const retrieved = await engine2.getPatterns();
 
     // Verify persistence
     expect(retrieved.length).toBeGreaterThan(0);
@@ -137,7 +156,8 @@ describe('LearningEngine Persistence Integration', () => {
       dbPath: path.join(process.cwd(), '.test-data', 'learning-engine-similarity-test.db'),
       enableLearning: true,
       enableReasoning: true,
-      enableQUICSync: false
+      enableQUICSync: false,
+      adapter: { type: AdapterType.MOCK }
     });
 
     await agentDB2.initialize();
@@ -145,7 +165,10 @@ describe('LearningEngine Persistence Integration', () => {
     const reasoningBank2 = new QEReasoningBank({ database: agentDB2.adapter?.db });
     await reasoningBank2.initialize();
 
-    const engine = new LearningEngine('test-agent-2', reasoningBank2);
+    const memoryManager2 = new SwarmMemoryManager(':memory:');
+    await memoryManager2.initialize();
+
+    const engine = new LearningEngine('test-agent-2', memoryManager2);
     await engine.initialize();
 
     // Store multiple related patterns
@@ -182,10 +205,10 @@ describe('LearningEngine Persistence Integration', () => {
     );
 
     // Wait for persistence
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await jest.advanceTimersByTimeAsync(100);
 
     // Retrieve by similarity
-    const retrieved = engine.getPatterns();
+    const retrieved = await engine.getPatterns();
 
     expect(retrieved.length).toBeGreaterThanOrEqual(1);
     expect(retrieved.some(p =>
@@ -210,7 +233,8 @@ describe('LearningEngine Persistence Integration', () => {
       dbPath: path.join(process.cwd(), '.test-data', 'learning-engine-confidence-test.db'),
       enableLearning: true,
       enableReasoning: true,
-      enableQUICSync: false
+      enableQUICSync: false,
+      adapter: { type: AdapterType.MOCK }
     });
 
     await agentDB3.initialize();
@@ -218,7 +242,10 @@ describe('LearningEngine Persistence Integration', () => {
     const reasoningBank3 = new QEReasoningBank({ database: agentDB3.adapter?.db });
     await reasoningBank3.initialize();
 
-    const engine = new LearningEngine('test-agent-3', reasoningBank3);
+    const memoryManager3 = new SwarmMemoryManager(':memory:');
+    await memoryManager3.initialize();
+
+    const engine = new LearningEngine('test-agent-3', memoryManager3);
     await engine.initialize();
 
     // Store initial pattern
@@ -261,10 +288,10 @@ describe('LearningEngine Persistence Integration', () => {
     }
 
     // Wait for persistence
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await jest.advanceTimersByTimeAsync(100);
 
     // Retrieve and verify confidence improved
-    const retrieved = engine.getPatterns();
+    const retrieved = await engine.getPatterns();
     const apiPattern = retrieved.find(p => p.pattern.includes('api-testing'));
 
     expect(apiPattern).toBeDefined();
@@ -290,7 +317,8 @@ describe('LearningEngine Persistence Integration', () => {
       dbPath: path.join(process.cwd(), '.test-data', 'learning-engine-verify-test.db'),
       enableLearning: true,
       enableReasoning: true,
-      enableQUICSync: false
+      enableQUICSync: false,
+      adapter: { type: AdapterType.MOCK }
     });
 
     await agentDB4.initialize();
@@ -298,7 +326,10 @@ describe('LearningEngine Persistence Integration', () => {
     const reasoningBank4 = new QEReasoningBank({ database: agentDB4.adapter?.db });
     await reasoningBank4.initialize();
 
-    const engine = new LearningEngine('test-agent-4', reasoningBank4);
+    const memoryManager4 = new SwarmMemoryManager(':memory:');
+    await memoryManager4.initialize();
+
+    const engine = new LearningEngine('test-agent-4', memoryManager4);
     await engine.initialize();
 
     // Store a pattern
@@ -319,11 +350,11 @@ describe('LearningEngine Persistence Integration', () => {
     );
 
     // Wait for persistence
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await jest.advanceTimersByTimeAsync(100);
 
     // Note: verifyPersistence() doesn't exist in current LearningEngine
     // We'll verify persistence by checking pattern retrieval works
-    const patterns = engine.getPatterns();
+    const patterns = await engine.getPatterns();
     const verified = patterns.length > 0;
 
     expect(verified).toBe(true);
@@ -345,7 +376,8 @@ describe('LearningEngine Persistence Integration', () => {
       dbPath: path.join(process.cwd(), '.test-data', 'learning-engine-concurrent-test.db'),
       enableLearning: true,
       enableReasoning: true,
-      enableQUICSync: false
+      enableQUICSync: false,
+      adapter: { type: AdapterType.MOCK }
     });
 
     await agentDB5.initialize();
@@ -353,7 +385,10 @@ describe('LearningEngine Persistence Integration', () => {
     const reasoningBank5 = new QEReasoningBank({ database: agentDB5.adapter?.db });
     await reasoningBank5.initialize();
 
-    const engine = new LearningEngine('test-agent-5', reasoningBank5);
+    const memoryManager5 = new SwarmMemoryManager(':memory:');
+    await memoryManager5.initialize();
+
+    const engine = new LearningEngine('test-agent-5', memoryManager5);
     await engine.initialize();
 
     // Store multiple patterns concurrently
@@ -381,10 +416,10 @@ describe('LearningEngine Persistence Integration', () => {
     await Promise.all(promises);
 
     // Wait for persistence
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await jest.advanceTimersByTimeAsync(200);
 
     // Retrieve patterns
-    const retrieved = engine.getPatterns();
+    const retrieved = await engine.getPatterns();
 
     // Verify all patterns were stored
     expect(retrieved.length).toBeGreaterThan(0);

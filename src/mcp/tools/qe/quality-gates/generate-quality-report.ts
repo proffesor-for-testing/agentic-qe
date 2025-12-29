@@ -18,6 +18,7 @@ import {
   QEToolResponse,
   ResponseMetadata
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Types ====================
 
@@ -1169,7 +1170,7 @@ function validateParameters(params: GenerateQualityReportParams): void {
  * Generate unique request ID
  */
 function generateRequestId(): string {
-  return `qr-gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `qr-gen-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`;
 }
 
 /**

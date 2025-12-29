@@ -23,6 +23,7 @@ import {
   Priority,
   CodeChange
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Response Types ====================
 
@@ -754,7 +755,7 @@ function getRiskLevelForArea(
  */
 function estimateAffectedTests(file: string): number {
   const base = file.includes('service') ? 10 : file.includes('controller') ? 8 : 3;
-  return base + Math.floor(Math.random() * 5);
+  return base + Math.floor(seededRandom.random() * 5);
 }
 
 /**

@@ -7,12 +7,15 @@
 
 import { ProviderHealthMonitor, ProviderHealthConfig } from '../../src/monitoring/ProviderHealthMonitor';
 import { LLMHealthStatus } from '../../src/providers/ILLMProvider';
+import { advanceAndFlush } from '../helpers/timerTestUtils';
 
 describe('ProviderHealthMonitor', () => {
   let monitor: ProviderHealthMonitor;
   let mockHealthCheckFn: jest.Mock<Promise<LLMHealthStatus>>;
 
   beforeEach(() => {
+    jest.useFakeTimers();
+
     // Use shorter intervals for faster tests
     const config: Partial<ProviderHealthConfig> = {
       checkIntervalMs: 100,
@@ -31,6 +34,7 @@ describe('ProviderHealthMonitor', () => {
   afterEach(() => {
     monitor.stopMonitoring();
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   describe('Provider Registration', () => {
@@ -117,7 +121,13 @@ describe('ProviderHealthMonitor', () => {
 
       monitor.registerProvider('test-provider', mockHealthCheckFn);
 
-      const result = await monitor.checkProviderHealth('test-provider');
+      // Start the health check (don't await yet)
+      const resultPromise = monitor.checkProviderHealth('test-provider');
+
+      // Advance time past the timeout (500ms) but before the mock resolves (1000ms)
+      await advanceAndFlush(600);
+
+      const result = await resultPromise;
 
       expect(result.healthy).toBe(false);
       expect(result.error).toContain('timeout');
@@ -216,8 +226,8 @@ describe('ProviderHealthMonitor', () => {
 
       expect(monitor.getCircuitState('test-provider')).toBe('open');
 
-      // Wait for recovery time
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance past recovery time (200ms)
+      await advanceAndFlush(250);
 
       // Mock successful response for recovery attempt
       mockHealthCheckFn.mockResolvedValue({
@@ -240,8 +250,8 @@ describe('ProviderHealthMonitor', () => {
       monitor.forceCircuitOpen('test-provider');
       expect(monitor.getCircuitState('test-provider')).toBe('open');
 
-      // Wait for recovery time
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Advance past recovery time (200ms)
+      await advanceAndFlush(250);
 
       // Mock successful health check
       mockHealthCheckFn.mockResolvedValue({
@@ -358,18 +368,27 @@ describe('ProviderHealthMonitor', () => {
     });
 
     it('should consider high latency as unhealthy', async () => {
-      mockHealthCheckFn.mockImplementation(async () => {
-        // Simulate slow response
-        await new Promise(resolve => setTimeout(resolve, 150));
-        return {
-          healthy: true,
-          timestamp: new Date()
-        };
+      mockHealthCheckFn.mockImplementation(() => {
+        // Simulate slow response with setTimeout
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              healthy: true,
+              timestamp: new Date()
+            });
+          }, 150);
+        });
       });
 
       monitor.registerProvider('test-provider', mockHealthCheckFn);
 
-      const result = await monitor.checkProviderHealth('test-provider');
+      // Start the health check (don't await yet)
+      const resultPromise = monitor.checkProviderHealth('test-provider');
+
+      // Advance time to allow the mock to resolve
+      await advanceAndFlush(150);
+
+      const result = await resultPromise;
 
       // Should be marked unhealthy due to latency > threshold (100ms)
       expect(result.healthy).toBe(false);
@@ -582,8 +601,8 @@ describe('ProviderHealthMonitor', () => {
 
       monitor.startMonitoring();
 
-      // Wait for multiple check intervals
-      await new Promise(resolve => setTimeout(resolve, 350));
+      // Advance time for multiple check intervals (checkIntervalMs = 100ms)
+      await advanceAndFlush(350);
 
       monitor.stopMonitoring();
 
@@ -626,22 +645,30 @@ describe('ProviderHealthMonitor', () => {
     });
 
     it('should handle concurrent health checks for same provider', async () => {
-      mockHealthCheckFn.mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        return {
-          healthy: true,
-          timestamp: new Date()
-        };
+      mockHealthCheckFn.mockImplementation(() => {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              healthy: true,
+              timestamp: new Date()
+            });
+          }, 50);
+        });
       });
 
       monitor.registerProvider('test-provider', mockHealthCheckFn);
 
-      // Execute multiple checks concurrently
-      const results = await Promise.all([
+      // Execute multiple checks concurrently (don't await yet)
+      const resultsPromise = Promise.all([
         monitor.checkProviderHealth('test-provider'),
         monitor.checkProviderHealth('test-provider'),
         monitor.checkProviderHealth('test-provider')
       ]);
+
+      // Advance time to allow all mocks to resolve
+      await advanceAndFlush(50);
+
+      const results = await resultsPromise;
 
       expect(results).toHaveLength(3);
       expect(results.every(r => r.healthy)).toBe(true);

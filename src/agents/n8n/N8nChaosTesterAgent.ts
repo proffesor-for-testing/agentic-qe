@@ -19,6 +19,7 @@ import {
 } from './types';
 import { QETask, AgentCapability } from '../../types';
 import { N8nTestHarness, FaultInjectionConfig } from './N8nTestHarness';
+import { seededRandom } from '../../utils/SeededRandom';
 
 export interface ChaosTestTask extends QETask {
   type: 'chaos-test';
@@ -822,7 +823,7 @@ export class N8nChaosTesterAgent extends N8nBaseAgent {
       const nonTriggerNodes = workflow.nodes.filter(
         n => !n.type.includes('trigger') && !n.type.includes('Trigger')
       );
-      return nonTriggerNodes[Math.floor(Math.random() * nonTriggerNodes.length)];
+      return seededRandom.randomElement(nonTriggerNodes);
     }
 
     if (target.includes('Request') || target.includes('http') || target === 'httpRequest') {

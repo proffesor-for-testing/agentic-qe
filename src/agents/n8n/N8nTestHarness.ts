@@ -16,6 +16,7 @@ import {
   N8nExecution,
   N8nAPIConfig,
 } from './types';
+import { seededRandom } from '../../utils/SeededRandom';
 
 // ============================================================================
 // Types
@@ -100,7 +101,8 @@ const FAULT_CODE_TEMPLATES = {
   error: (config: FaultInjectionConfig) => `
 // Fault Injection: Error
 const probability = ${config.probability ?? 1.0};
-if (Math.random() < probability) {
+const seededValue = ${seededRandom.random()};
+if (seededValue < probability) {
   throw new Error('${config.errorMessage || 'Injected fault: Simulated error'}');
 }
 return $input.all();
@@ -126,7 +128,8 @@ return [{ json: { _malformed: true, data: undefined, error: null } }];
   'rate-limit': (config: FaultInjectionConfig) => `
 // Fault Injection: Rate Limit
 const probability = ${config.probability ?? 1.0};
-if (Math.random() < probability) {
+const seededValue = ${seededRandom.random()};
+if (seededValue < probability) {
   const error = new Error('${config.errorMessage || 'Rate limit exceeded'}');
   error.statusCode = 429;
   throw error;
@@ -137,7 +140,8 @@ return $input.all();
   'network-error': (config: FaultInjectionConfig) => `
 // Fault Injection: Network Error
 const probability = ${config.probability ?? 1.0};
-if (Math.random() < probability) {
+const seededValue = ${seededRandom.random()};
+if (seededValue < probability) {
   const error = new Error('${config.errorMessage || 'Network error: Connection refused'}');
   error.code = 'ECONNREFUSED';
   throw error;

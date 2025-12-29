@@ -19,6 +19,7 @@ import { EventEmitter } from 'events';
 import { TaskExperience, TaskState, AgentAction } from './types';
 import { DistributedPatternLibrary, VectorClock } from '../memory/DistributedPatternLibrary';
 import { Logger } from '../utils/Logger';
+import { seededRandom } from '../utils/SeededRandom';
 
 /**
  * Shared experience with metadata for cross-agent transfer
@@ -530,7 +531,7 @@ export class ExperienceSharingProtocol extends EventEmitter {
    * Select random peers for gossip
    */
   private selectRandomPeers(peers: PeerConnection[], count: number): PeerConnection[] {
-    const shuffled = [...peers].sort(() => Math.random() - 0.5);
+    const shuffled = seededRandom.shuffle(peers);
     return shuffled.slice(0, Math.min(count, shuffled.length));
   }
 

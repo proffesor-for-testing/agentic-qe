@@ -5,6 +5,7 @@
 
 import { EventStore, EventQueryOptions, TimeRange } from '../../persistence/event-store';
 import { ReasoningStore, ChainQueryOptions } from '../../persistence/reasoning-store';
+import { createSeededRandom } from '../../utils/SeededRandom';
 import { EventRecord, ReasoningChain, ReasoningChainWithSteps } from '../../persistence/schema';
 import {
   VisualizationGraph,
@@ -457,11 +458,12 @@ export class DataTransformer {
     const repulsionStrength = spacing * 2;
     const attractionStrength = 0.1;
 
-    // Initialize random positions
+    // Initialize positions with seeded random for deterministic layouts
+    const rng = createSeededRandom(nodes.length * 1000 + edges.length);
     nodes.forEach((node, index) => {
       node.position = {
-        x: Math.random() * spacing * nodes.length,
-        y: Math.random() * spacing * nodes.length,
+        x: rng.random() * spacing * nodes.length,
+        y: rng.random() * spacing * nodes.length,
       };
     });
 

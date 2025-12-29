@@ -13,6 +13,14 @@ describe('Concurrent Operations Integration Tests', () => {
   const concurrencyNamespace = 'aqe-concurrent-test';
   let testWorkspace;
 
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeAll(async () => {
     testWorkspace = path.join(__dirname, '../../.test-concurrent-workspace');
     await fs.mkdir(testWorkspace, { recursive: true });
@@ -333,7 +341,8 @@ async function executeTestGenerator(generator) {
   const startTime = Date.now();
 
   // Simulate test generation work
-  await new Promise(resolve => setTimeout(resolve, testGeneratorRng.random() * 2000 + 1000));
+  const delay = testGeneratorRng.random() * 2000 + 1000;
+  await jest.advanceTimersByTimeAsync(delay);
 
   const endTime = Date.now();
 
@@ -366,7 +375,7 @@ async function executeCoverageAnalyzer(analyzer, namespace) {
         await execCommand(`npx claude-flow@alpha memory store "shared-coverage-data" '${JSON.stringify(parsedData)}' --namespace "${namespace}"`);
 
         // Simulate analysis work
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await jest.advanceTimersByTimeAsync(200);
 
         // Update shared data
         parsedData.totalLines += analyzer.sourceFiles.length * 100;
@@ -378,7 +387,7 @@ async function executeCoverageAnalyzer(analyzer, namespace) {
         break;
       } else {
         // Wait if locked
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await jest.advanceTimersByTimeAsync(50);
       }
     } catch (error) {
       // Retry on error
@@ -404,7 +413,8 @@ async function executeCoverageAnalyzer(analyzer, namespace) {
 
 async function executeQualityCheck(check) {
   // Simulate quality check work
-  await new Promise(resolve => setTimeout(resolve, qualityCheckDelayRng.random() * 1000 + 500));
+  const delay = qualityCheckDelayRng.random() * 1000 + 500;
+  await jest.advanceTimersByTimeAsync(delay);
 
   // Simulate different pass rates based on check type
   const passRates = {
@@ -443,7 +453,7 @@ async function executeCounterWriter(writerId, iterations, counterKey, namespace)
       incrementsPerformed++;
 
       // Small delay to increase contention
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await jest.advanceTimersByTimeAsync(10);
     } catch (error) {
       // Retry on error
       i--; // Retry this iteration
@@ -468,7 +478,7 @@ async function executeFileWriter(writerId, messageCount, logFile) {
       messagesWritten++;
 
       // Small delay
-      await new Promise(resolve => setTimeout(resolve, 5));
+      await jest.advanceTimersByTimeAsync(5);
     } catch (error) {
       // Retry on error
       i--;
@@ -510,17 +520,18 @@ async function executeResourceRequester(requesterId, poolKey, namespace) {
         break;
       } else {
         // Wait if no resources available
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await jest.advanceTimersByTimeAsync(50);
       }
     } catch (error) {
       // Retry on error
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await jest.advanceTimersByTimeAsync(10);
     }
   }
 
   if (resourceAcquired) {
     // Simulate work with resource
-    await new Promise(resolve => setTimeout(resolve, resourceRequesterRng.random() * 500 + 100));
+    const workDelay = resourceRequesterRng.random() * 500 + 100;
+    await jest.advanceTimersByTimeAsync(workDelay);
 
     // Release resource
     try {
@@ -558,7 +569,8 @@ async function executeAgentSpawn(agentIndex, agentType) {
   const startTime = Date.now();
 
   // Simulate agent spawning work
-  await new Promise(resolve => setTimeout(resolve, agentSpawnRng.random() * 1000 + 200));
+  const delay = agentSpawnRng.random() * 1000 + 200;
+  await jest.advanceTimersByTimeAsync(delay);
 
   const endTime = Date.now();
 
@@ -592,7 +604,7 @@ async function executeMemoryStressWorker(workerId, operationCount, namespace) {
 
       // Random delay (deterministic with seeded RNG)
       if (memoryStressRng.random() < 0.1) {
-        await new Promise(resolve => setTimeout(resolve, 5));
+        await jest.advanceTimersByTimeAsync(5);
       }
     } catch (error) {
       // Continue on error

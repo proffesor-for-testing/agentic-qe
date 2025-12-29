@@ -13,6 +13,7 @@
 
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
+import { seededRandom } from '../utils/SeededRandom';
 
 /**
  * Learned pattern from an agent
@@ -97,7 +98,7 @@ export class EphemeralAgent {
     this.id = id;
     this.dimension = dimension;
     this.learningRate = learningRate;
-    this.weights = new Array(dimension).fill(0).map(() => Math.random() * 0.01 - 0.005);
+    this.weights = new Array(dimension).fill(0).map(() => seededRandom.randomFloat(-0.005, 0.005));
     this.gradients = new Array(dimension).fill(0);
     this.patternCount = 0;
     this.version = 0;
@@ -213,7 +214,7 @@ export class FederatedCoordinator extends EventEmitter {
       dimension: config?.dimension ?? 768
     };
 
-    this.globalWeights = new Array(this.config.dimension).fill(0).map(() => Math.random() * 0.01 - 0.005);
+    this.globalWeights = new Array(this.config.dimension).fill(0).map(() => seededRandom.randomFloat(-0.005, 0.005));
     this.pendingUpdates = [];
     this.version = 0;
     this.patternCategories = new Set();
@@ -355,7 +356,7 @@ export class FederatedCoordinator extends EventEmitter {
         // Symmetric masks that cancel out
         const mask = new Array(this.config.dimension)
           .fill(0)
-          .map(() => Math.random() * 0.001 - 0.0005);
+          .map(() => seededRandom.randomFloat(-0.0005, 0.0005));
 
         for (let k = 0; k < this.config.dimension; k++) {
           masks[i][k] += mask[k];
@@ -388,7 +389,7 @@ export class FederatedCoordinator extends EventEmitter {
 
     for (let i = 0; i < this.config.dimension; i++) {
       // Laplacian noise
-      const u = Math.random() - 0.5;
+      const u = seededRandom.random() - 0.5;
       const noise = -scale * Math.sign(u) * Math.log(1 - 2 * Math.abs(u));
       this.globalWeights[i] += noise;
     }
@@ -439,7 +440,7 @@ export class FederatedCoordinator extends EventEmitter {
    * Reset coordinator state
    */
   reset(): void {
-    this.globalWeights = new Array(this.config.dimension).fill(0).map(() => Math.random() * 0.01 - 0.005);
+    this.globalWeights = new Array(this.config.dimension).fill(0).map(() => seededRandom.randomFloat(-0.005, 0.005));
     this.pendingUpdates = [];
     this.version = 0;
     this.metrics = {

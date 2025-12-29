@@ -111,6 +111,7 @@ export interface LoadTestResult {
   bottlenecks: Bottleneck[];
   slaViolations: SLAViolation[];
   recommendations: string[];
+  [key: string]: unknown;
 }
 
 export interface PerformanceMetrics {
@@ -172,6 +173,7 @@ export interface PerformanceBaseline {
   loadProfile: LoadProfile;
   version: string;
   environment: string;
+  [key: string]: unknown;
 }
 
 export interface RegressionAnalysis {
@@ -533,10 +535,10 @@ export class PerformanceTesterAgent extends BaseAgent {
     // Load performance testing baselines for comparison
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as { entries?: unknown[]; length?: number } | null;
 
-    if (history) {
-      console.log(`Loaded ${history.length} historical performance test entries`);
+    if (history && history.entries) {
+      console.log(`Loaded ${history.entries.length} historical performance test entries`);
     }
 
     console.log(`[${this.agentId.type}] Starting performance testing task`, {
@@ -1584,7 +1586,8 @@ class LoadTestSimulation extends Simulation {
     const { testId } = metadata;
 
     // Retrieve test results
-    const result = this.activeTests.get(testId) || await this.memoryStore.retrieve(`aqe/performance/results/${testId}`);
+    const storedResult = await this.memoryStore.retrieve(`aqe/performance/results/${testId}`) as LoadTestResult | null;
+    const result: LoadTestResult | undefined = this.activeTests.get(testId) || storedResult || undefined;
 
     if (!result) {
       throw new Error(`Test results not found for ${testId}`);

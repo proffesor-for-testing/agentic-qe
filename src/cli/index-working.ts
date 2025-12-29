@@ -5,7 +5,7 @@
  * Comprehensive CLI for Agentic Quality Engineering Fleet System
  */
 
-import { Command } from 'commander';
+import { Command, CommanderError } from 'commander';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
@@ -14,6 +14,57 @@ import * as path from 'path';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
 import type { KGIndexOptions, KGQueryOptions, KGGraphOptions, KGStatsOptions } from './commands/knowledge-graph.js';
+import { getErrorMessage } from '../utils/ErrorUtils.js';
+
+/** Fleet configuration from file */
+interface FleetConfiguration {
+  name: string;
+  topology: string;
+  maxAgents: number;
+  testingFocus: string[];
+  environments: string[];
+  frameworks: string[];
+  created: string;
+}
+
+/** Options for predict command */
+interface PredictOptions {
+  model: string;
+  confidence: string;
+  scope: string;
+  history: string;
+}
+
+/** Options for optimize command */
+interface OptimizeOptions {
+  algorithm: string;
+  targetTime: string;
+  coverageMin: string;
+}
+
+/** Options for learn command */
+interface LearnOptions {
+  fromHistory: string;
+  patterns: string;
+}
+
+/** Options for kg query with raw commander values */
+interface KGQueryRawOptions {
+  hybrid: boolean;
+  k: string;
+  lang?: string;
+  graphDepth: string;
+  json: boolean;
+  verbose: boolean;
+}
+
+/** Options for kg graph with raw commander values */
+interface KGGraphRawOptions {
+  type: string;
+  output?: string;
+  format: string;
+  json: boolean;
+}
 
 const program = new Command();
 
@@ -153,8 +204,8 @@ program
       console.log(chalk.gray('   agentic-qe run tests --parallel'));
       console.log(chalk.gray('   agentic-qe fleet status'));
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Initialization failed:'), error.message);
+    } catch (error: unknown) {
+      console.error(chalk.red('❌ Initialization failed:'), getErrorMessage(error));
       process.exit(1);
     }
   });
@@ -210,8 +261,8 @@ program
       console.log(chalk.gray(`   Output: ${options.output}`));
       console.log(chalk.gray(`   Coverage Target: ${coverageTarget}%`));
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Test generation failed:'), error.message);
+    } catch (error: unknown) {
+      console.error(chalk.red('❌ Test generation failed:'), getErrorMessage(error));
       process.exit(1);
     }
   });
@@ -266,8 +317,8 @@ program
         console.log(chalk.gray(`   Concurrency: ${options.concurrency} processes`));
       }
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Test execution failed:'), error.message);
+    } catch (error: unknown) {
+      console.error(chalk.red('❌ Test execution failed:'), getErrorMessage(error));
       process.exit(1);
     }
   });
@@ -328,8 +379,8 @@ program
         console.log(chalk.gray('   • Consider property-based testing'));
       }
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Analysis failed:'), error.message);
+    } catch (error: unknown) {
+      console.error(chalk.red('❌ Analysis failed:'), getErrorMessage(error));
       process.exit(1);
     }
   });
@@ -377,8 +428,8 @@ program
           await showFleetStatus(fleetConfig, options, spinner);
       }
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Fleet operation failed:'), error.message);
+    } catch (error: unknown) {
+      console.error(chalk.red('❌ Fleet operation failed:'), getErrorMessage(error));
       process.exit(1);
     }
   });
@@ -403,7 +454,7 @@ describe('${type.charAt(0).toUpperCase() + type.slice(1)} Tests', () => {
 `;
 }
 
-async function showFleetStatus(config: any, options: FleetOptions, spinner: ora.Ora): Promise<void> {
+async function showFleetStatus(config: FleetConfiguration, options: FleetOptions, spinner: ora.Ora): Promise<void> {
   spinner.text = 'Gathering fleet status...';
   await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -448,7 +499,7 @@ async function showFleetStatus(config: any, options: FleetOptions, spinner: ora.
   }
 }
 
-async function scaleFleet(config: any, options: FleetOptions, spinner: ora.Ora): Promise<void> {
+async function scaleFleet(config: FleetConfiguration, options: FleetOptions, spinner: ora.Ora): Promise<void> {
   if (!options.agents) {
     spinner.fail('Agent count required for scaling. Use --agents <number>');
     process.exit(1);
@@ -469,7 +520,7 @@ async function scaleFleet(config: any, options: FleetOptions, spinner: ora.Ora):
   spinner.succeed(`Fleet scaled to ${targetAgents} agents!`);
 }
 
-async function deployFleet(config: any, options: FleetOptions, spinner: ora.Ora): Promise<void> {
+async function deployFleet(config: FleetConfiguration, options: FleetOptions, spinner: ora.Ora): Promise<void> {
   spinner.text = `Deploying fleet to ${options.env} environment...`;
   await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -482,7 +533,7 @@ async function deployFleet(config: any, options: FleetOptions, spinner: ora.Ora)
   console.log(chalk.gray(`   Status: Active`));
 }
 
-async function destroyFleet(config: any, options: FleetOptions, spinner: ora.Ora): Promise<void> {
+async function destroyFleet(_config: FleetConfiguration, _options: FleetOptions, spinner: ora.Ora): Promise<void> {
   spinner.text = 'Destroying fleet...';
 
   const { confirm } = await inquirer.prompt([{
@@ -513,7 +564,7 @@ program
   .option('-c, --confidence <threshold>', 'Confidence threshold (0-1)', '0.8')
   .option('-s, --scope <area>', 'Prediction scope: code, tests, deployment', 'code')
   .option('-h, --history <period>', 'Historical data period', '30d')
-  .action(async (options: any) => {
+  .action(async (options: PredictOptions) => {
     console.log(chalk.yellow('🔮 Quality Prediction Analysis'));
     console.log(chalk.gray(`Model: ${options.model}, Confidence: ${options.confidence}`));
     console.log(chalk.blue('⚠️  Feature available in future release'));
@@ -525,7 +576,7 @@ program
   .option('-a, --algorithm <type>', 'Optimization algorithm: sublinear, genetic, greedy', 'sublinear')
   .option('-t, --target-time <duration>', 'Target execution time', '5m')
   .option('-c, --coverage-min <percentage>', 'Minimum coverage to maintain', '80')
-  .action(async (options: any) => {
+  .action(async (options: OptimizeOptions) => {
     console.log(chalk.yellow('⚡ Test Suite Optimization'));
     console.log(chalk.gray(`Algorithm: ${options.algorithm}, Target: ${options.targetTime}`));
     console.log(chalk.blue('⚠️  Feature available in future release'));
@@ -536,7 +587,7 @@ program
   .description('Learn patterns from historical data')
   .option('-h, --from-history <period>', 'Historical data period', '30d')
   .option('-p, --patterns <types>', 'Pattern types: defects, performance, flaky', 'defects')
-  .action(async (options: any) => {
+  .action(async (options: LearnOptions) => {
     console.log(chalk.yellow('🧠 Pattern Learning'));
     console.log(chalk.gray(`Period: ${options.fromHistory}, Patterns: ${options.patterns}`));
     console.log(chalk.blue('⚠️  Feature available in future release'));
@@ -572,7 +623,7 @@ kgCommand
   .option('--graph-depth <number>', 'Graph expansion depth', '2')
   .option('--json', 'JSON output format', false)
   .option('-v, --verbose', 'Verbose output with full details', false)
-  .action(async (query: string, options: any) => {
+  .action(async (query: string, options: KGQueryRawOptions) => {
     const queryOptions: KGQueryOptions = {
       hybrid: options.hybrid,
       k: parseInt(options.k),
@@ -592,7 +643,7 @@ kgCommand
   .option('-o, --output <path>', 'Output file path')
   .option('--format <format>', 'Output format: mermaid, dot', 'mermaid')
   .option('--json', 'JSON output format', false)
-  .action(async (filePath: string, options: any) => {
+  .action(async (filePath: string, options: KGGraphRawOptions) => {
     const graphOptions: KGGraphOptions = {
       type: options.type === 'class' ? 'class' : 'dependency',
       output: options.output,
@@ -659,8 +710,8 @@ kgCommand
   .description('Enable Code Intelligence for this project')
   .action(async () => {
     const { initializeCodeIntelligence } = await import('./init/code-intelligence-init.js');
-    const config = {} as any; // FleetConfig not needed for this operation
-    await initializeCodeIntelligence(config, true);
+    // Cast empty config - the function only uses name/projectRoot which have defaults
+    await initializeCodeIntelligence({} as Parameters<typeof initializeCodeIntelligence>[0], true);
   });
 
 // kg status - Show service status
@@ -699,15 +750,14 @@ program.exitOverride();
 
 try {
   program.parse();
-} catch (err: any) {
-  if (err.code === 'commander.help') {
-    process.exit(0);
-  } else if (err.code === 'commander.version') {
-    process.exit(0);
-  } else {
-    console.error(chalk.red('❌ CLI Error:'), err.message);
-    process.exit(1);
+} catch (err: unknown) {
+  if (err instanceof CommanderError) {
+    if (err.code === 'commander.help' || err.code === 'commander.version') {
+      process.exit(0);
+    }
   }
+  console.error(chalk.red('❌ CLI Error:'), getErrorMessage(err));
+  process.exit(1);
 }
 
 // If no command provided, show help

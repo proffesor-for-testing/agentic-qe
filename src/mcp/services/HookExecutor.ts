@@ -148,8 +148,8 @@ export class HookExecutor {
    */
   private async initializeFallback(): Promise<void> {
     if (!this.fallbackHookManager) {
-      this.memoryManager = new SwarmMemoryManager(':memory:');
-      this.fallbackHookManager = new VerificationHookManager(this.memoryManager);
+      this.memoryManager = new SwarmMemoryManager(':memory:') as unknown as ISwarmMemoryManager;
+      this.fallbackHookManager = new VerificationHookManager(this.memoryManager!);
       this.logger.info('AQE hooks fallback initialized');
     }
   }

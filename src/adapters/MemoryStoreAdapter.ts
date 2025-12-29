@@ -10,7 +10,14 @@
  */
 
 import { MemoryStore } from '../types';
-import { ISwarmMemoryManager } from '../types/memory-interfaces';
+import {
+  ISwarmMemoryManager,
+  ACLEntry,
+  AgentPerformanceData,
+  LearningMetrics,
+  OODAPhaseData,
+  OODAResult
+} from '../types/memory-interfaces';
 import {
   StoreOptions,
   RetrieveOptions,
@@ -34,7 +41,7 @@ import {
 
 // In-memory cache for sync operations
 interface CacheEntry {
-  value: any;
+  value: unknown;
   expiresAt?: number;
 }
 
@@ -63,7 +70,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     const missingMethods: string[] = [];
 
     for (const method of requiredMethods) {
-      if (typeof (this.memoryStore as any)[method] !== 'function') {
+      if (typeof (this.memoryStore as unknown as Record<string, unknown>)[method] !== 'function') {
         missingMethods.push(method);
       }
     }
@@ -80,7 +87,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.initialized = true;
   }
 
-  async store(key: string, value: any, options: StoreOptions = {}): Promise<void> {
+  async store(key: string, value: unknown, options: StoreOptions = {}): Promise<void> {
     const partition = options.partition || 'default';
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
 
@@ -94,7 +101,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.memoryStore.store(namespacedKey, value, options.ttl).catch(() => {});
   }
 
-  async retrieve(key: string, options: RetrieveOptions = {}): Promise<any> {
+  async retrieve(key: string, options: RetrieveOptions = {}): Promise<unknown> {
     const partition = options.partition || 'default';
     const namespacedKey = partition !== 'default' ? `${partition}:${key}` : key;
 
@@ -131,7 +138,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.memoryStore.clear(partition).catch(() => {});
   }
 
-  postHint(hint: { key: string; value: any; ttl?: number }): void {
+  postHint(hint: { key: string; value: unknown; ttl?: number }): void {
     const key = `hint:${hint.key}`;
     this.cache.set(key, { value: hint.value, expiresAt: hint.ttl ? Date.now() + hint.ttl * 1000 : undefined });
     this.memoryStore.store(key, hint.value, hint.ttl).catch(() => {});
@@ -387,7 +394,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     return [];
   }
 
-  updateAgentPerformance(agentId: string, performance: any): void {
+  updateAgentPerformance(agentId: string, performance: AgentPerformanceData): void {
     const agent = this.getAgent(agentId);
     agent.performance = performance;
     agent.updatedAt = Date.now();
@@ -444,7 +451,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     return entry.value as OODACycle;
   }
 
-  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): void {
+  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: OODAPhaseData): void {
     const cycle = this.getOODACycle(cycleId);
     cycle.phase = phase;
 
@@ -466,7 +473,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.storeOODACycle(cycle);
   }
 
-  completeOODACycle(cycleId: string, result: any): void {
+  completeOODACycle(cycleId: string, result: OODAResult): void {
     const cycle = this.getOODACycle(cycleId);
     cycle.completed = true;
     cycle.result = result;
@@ -478,16 +485,16 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
   }
 
   // ACL operations
-  storeACL(acl: any): void {
+  storeACL(acl: ACLEntry): void {
     this.cache.set(`acl:${acl.resourceId}`, { value: acl });
   }
 
-  getACL(resourceId: string): any | null {
+  getACL(resourceId: string): ACLEntry | null {
     const entry = this.cache.get(`acl:${resourceId}`);
-    return entry?.value || null;
+    return (entry?.value as ACLEntry) || null;
   }
 
-  updateACL(resourceId: string, updates: any): void {
+  updateACL(resourceId: string, updates: Partial<ACLEntry>): void {
     const existing = this.getACL(resourceId);
     if (!existing) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
@@ -495,7 +502,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.storeACL({ ...existing, ...updates });
   }
 
-  grantPermission(resourceId: string, agentId: string, permissions: any[]): void {
+  grantPermission(resourceId: string, agentId: string, permissions: string[]): void {
     const acl = this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
@@ -505,7 +512,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.storeACL(acl);
   }
 
-  revokePermission(resourceId: string, agentId: string, _permissions: any[]): void {
+  revokePermission(resourceId: string, agentId: string, _permissions: string[]): void {
     const acl = this.getACL(resourceId);
     if (!acl) {
       throw new Error(`ACL not found for resource: ${resourceId}`);
@@ -539,7 +546,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
     this.storeACL(acl);
   }
 
-  getAccessControl(): any {
+  getAccessControl(): ACLEntry | null {
     return null;
   }
 
@@ -582,7 +589,7 @@ export class MemoryStoreAdapter implements ISwarmMemoryManager {
   storeLearningSnapshot(_snapshot: {
     agentId: string;
     snapshotType: 'performance' | 'q_table' | 'pattern';
-    metrics: any;
+    metrics: LearningMetrics;
     improvementRate?: number;
     totalExperiences?: number;
     explorationRate?: number;

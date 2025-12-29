@@ -7,6 +7,7 @@
 
 import { TaskExperience } from './types';
 import { Logger } from '../utils/Logger';
+import { seededRandom } from '../utils/SeededRandom';
 
 /**
  * Configuration for experience replay buffer
@@ -112,7 +113,7 @@ export class ExperienceReplayBuffer {
 
     // Sample without replacement
     while (indices.size < batchSize) {
-      const randomIndex = Math.floor(Math.random() * this.buffer.length);
+      const randomIndex = seededRandom.randomInt(0, this.buffer.length - 1);
       if (!indices.has(randomIndex)) {
         indices.add(randomIndex);
         sampled.push(this.buffer[randomIndex].experience);
@@ -132,7 +133,7 @@ export class ExperienceReplayBuffer {
 
     // Sample with replacement based on priorities
     for (let i = 0; i < batchSize; i++) {
-      let random = Math.random() * totalPriority;
+      let random = seededRandom.random() * totalPriority;
       let cumulativePriority = 0;
 
       for (const exp of this.buffer) {

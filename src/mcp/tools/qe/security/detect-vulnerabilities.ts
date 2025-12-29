@@ -24,6 +24,7 @@ import type {
   ResponseMetadata,
   Vulnerability
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Extended Types ====================
 
@@ -376,15 +377,14 @@ export interface MLDetectionMetrics {
  * Lookup CVE details
  */
 async function lookupCVE(cveId: string): Promise<CVEDetails> {
-  // Simulate CVE database lookup
-  const cvssScore = 7.0 + Math.random() * 3;
+  const cvssScore = seededRandom.randomFloat(7.0, 10.0);
   const vector = `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H`;
 
   return {
     cveId,
     cvssV3Score: Math.round(cvssScore * 10) / 10,
     cvssV3Vector: vector,
-    publishedDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
+    publishedDate: new Date(Date.now() - seededRandom.random() * 365 * 24 * 60 * 60 * 1000).toISOString(),
     lastModifiedDate: new Date().toISOString(),
     description: `Security vulnerability allowing unauthorized access or code execution`,
     references: [
@@ -401,7 +401,7 @@ async function lookupCVE(cveId: string): Promise<CVEDetails> {
  * Check for exploit availability
  */
 async function checkExploitAvailability(cveId: string, cvssScore: number): Promise<ExploitInfo> {
-  const available = cvssScore > 7.0 && Math.random() > 0.4;
+  const available = cvssScore > 7.0 && seededRandom.randomBoolean(0.6);
 
   if (!available) {
     return {
@@ -414,19 +414,19 @@ async function checkExploitAvailability(cveId: string, cvssScore: number): Promi
   }
 
   const maturityLevels: ExploitInfo['maturity'][] = ['proof-of-concept', 'functional', 'high'];
-  const maturity = maturityLevels[Math.floor(Math.random() * maturityLevels.length)];
+  const maturity = seededRandom.randomElement(maturityLevels);
 
   return {
     available: true,
     maturity,
-    exploitUrl: `https://exploit-db.com/exploits/${Math.floor(Math.random() * 50000)}`,
+    exploitUrl: `https://exploit-db.com/exploits/${seededRandom.randomInt(0, 49999)}`,
     metasploitModule: maturity === 'high' ? `exploit/multi/http/${cveId.toLowerCase()}` : undefined,
     difficulty: maturity === 'high' ? 'easy' : maturity === 'functional' ? 'medium' : 'hard',
     prerequisites: maturity === 'high' ? [] : ['Network access', 'Valid credentials'],
-    activeExploits: maturity === 'high' && Math.random() > 0.6,
+    activeExploits: maturity === 'high' && seededRandom.randomBoolean(0.4),
     timeline: {
-      firstSeen: new Date(Date.now() - Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString(),
-      lastSeen: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
+      firstSeen: new Date(Date.now() - seededRandom.random() * 180 * 24 * 60 * 60 * 1000).toISOString(),
+      lastSeen: new Date(Date.now() - seededRandom.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
     }
   };
 }
@@ -485,10 +485,10 @@ async function detectWithML(
     'Command injection pattern'
   ];
 
-  const vulnCount = Math.floor(Math.random() * 8) + 3;
+  const vulnCount = seededRandom.randomInt(3, 10);
 
   for (let i = 0; i < vulnCount; i++) {
-    const confidence = 0.7 + Math.random() * 0.25;
+    const confidence = seededRandom.randomFloat(0.7, 0.95);
     const attackVector: DetectedVulnerability['attackVector'] = 'network';
     const attackComplexity: DetectedVulnerability['attackComplexity'] = 'low';
     const privilegesRequired: DetectedVulnerability['privilegesRequired'] = 'none';
@@ -514,7 +514,7 @@ async function detectWithML(
       severity,
       title: `ML-detected: ${patterns[i % patterns.length]}`,
       description: `Vulnerability detected using machine learning pattern recognition`,
-      cwe: `CWE-${Math.floor(Math.random() * 900) + 100}`,
+      cwe: `CWE-${seededRandom.randomInt(100, 999)}`,
       cvss: cvssScore,
       remediation: 'Review and patch detected vulnerability pattern',
       detectionMethod: 'ml',
@@ -561,11 +561,12 @@ async function detectCodeVulnerabilities(
   includeCVE: boolean
 ): Promise<DetectedVulnerability[]> {
   const vulnerabilities: DetectedVulnerability[] = [];
-  const vulnCount = Math.floor(Math.random() * 12) + 5;
+  const vulnCount = seededRandom.randomInt(5, 16);
 
   for (let i = 0; i < vulnCount; i++) {
     const cveId = `CVE-2024-${10000 + i}`;
-    const attackVector: DetectedVulnerability['attackVector'] = ['network', 'local'][Math.floor(Math.random() * 2)] as any;
+    const attackVectorOptions: DetectedVulnerability['attackVector'][] = ['network', 'local'];
+    const attackVector = seededRandom.randomElement(attackVectorOptions);
     const impact: DetectedVulnerability['impact'] = {
       confidentiality: 'high',
       integrity: 'high',
@@ -615,11 +616,11 @@ async function detectDependencyVulnerabilities(
   includeExploit: boolean
 ): Promise<DetectedVulnerability[]> {
   const vulnerabilities: DetectedVulnerability[] = [];
-  const vulnCount = Math.floor(Math.random() * 15) + 8;
+  const vulnCount = seededRandom.randomInt(8, 22);
 
   for (let i = 0; i < vulnCount; i++) {
     const cveId = `CVE-2024-${20000 + i}`;
-    const cvssScore = 6.0 + Math.random() * 4;
+    const cvssScore = seededRandom.randomFloat(6.0, 10.0);
     const severity: Priority = cvssScore >= 9 ? 'critical' : cvssScore >= 7 ? 'high' : cvssScore >= 4 ? 'medium' : 'low';
 
     const cveDetails = includeCVE ? await lookupCVE(cveId) : undefined;
@@ -870,9 +871,9 @@ export async function detectVulnerabilities(
       avgCVSSScore: Math.round((allVulnerabilities.reduce((sum, v) => sum + (v.cvss || 0), 0) / Math.max(allVulnerabilities.length, 1)) * 10) / 10,
       avgConfidence: Math.round((allVulnerabilities.reduce((sum, v) => sum + v.confidence, 0) / Math.max(allVulnerabilities.length, 1)) * 100) / 100,
       coverage: {
-        codeAnalyzed: Math.floor(Math.random() * 500) + 100,
-        dependenciesAnalyzed: Math.floor(Math.random() * 200) + 50,
-        infrastructureChecks: Math.floor(Math.random() * 50) + 10
+        codeAnalyzed: seededRandom.randomInt(100, 599),
+        dependenciesAnalyzed: seededRandom.randomInt(50, 249),
+        infrastructureChecks: seededRandom.randomInt(10, 59)
       }
     };
 

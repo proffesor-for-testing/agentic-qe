@@ -43,6 +43,7 @@ import {
   TaskFeatures
 } from '../routing/ComplexityClassifier';
 import { Logger } from '../utils/Logger';
+import { seededRandom } from '../utils/SeededRandom';
 
 /**
  * Classifier statistics for monitoring
@@ -386,7 +387,7 @@ export class HybridRouterWithComplexity extends HybridRouter {
    * Generate unique request ID for tracking
    */
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `req_${Date.now()}_${seededRandom.random().toString(36).substr(2, 9)}`;
   }
 
   /**

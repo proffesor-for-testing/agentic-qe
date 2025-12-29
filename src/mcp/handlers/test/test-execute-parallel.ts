@@ -333,7 +333,7 @@ export class TestExecuteParallelHandler extends BaseHandler {
       if (other !== testPath) {
         const otherDir = other.substring(0, other.lastIndexOf('/'));
         // Tests in same directory likely share fixtures/setup
-        if (dir === otherDir && Math.random() < 0.3) {
+        if (dir === otherDir && SecureRandom.randomFloat() < 0.3) {
           deps.push(other);
         }
       }

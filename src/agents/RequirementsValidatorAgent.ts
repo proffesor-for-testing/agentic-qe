@@ -136,6 +136,7 @@ export interface BddScenario {
     scenarioCount: number;
     testCaseProjection: number;
   };
+  [key: string]: unknown;
 }
 
 export interface RiskAssessment {
@@ -151,6 +152,7 @@ export interface RiskAssessment {
   };
   mitigation: string[];
   testingPriority: number;
+  [key: string]: unknown;
 }
 
 export interface TraceabilityMap {
@@ -163,6 +165,7 @@ export interface TraceabilityMap {
   testCases: string[];
   codeModules: string[];
   deployments: string[];
+  [key: string]: unknown;
 }
 
 export interface ValidationReport {
@@ -182,6 +185,7 @@ export interface ValidationReport {
     score: number;
   };
   timestamp: Date;
+  [key: string]: unknown;
 }
 
 // ============================================================================
@@ -264,10 +268,10 @@ export class RequirementsValidatorAgent extends BaseAgent {
     // Load historical validation patterns
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as { length?: number; entries?: unknown[] } | null;
 
-    if (history) {
-      console.log(`Loaded ${history.length} historical validation entries`);
+    if (history && history.entries) {
+      console.log(`Loaded ${history.entries.length} historical validation entries`);
     }
 
     console.log(`[${this.agentId.type}] Starting requirements validation task`, {
@@ -376,7 +380,8 @@ export class RequirementsValidatorAgent extends BaseAgent {
       eventType: 'requirements.updated',
       handler: async (event) => {
         console.log('Requirements updated, triggering revalidation');
-        const requirements = event.data.requirements;
+        const eventData = event.data as { requirements?: Requirement[] };
+        const requirements = eventData.requirements || [];
         for (const req of requirements) {
           await this.validateRequirement(req);
         }
@@ -405,10 +410,10 @@ export class RequirementsValidatorAgent extends BaseAgent {
     }
 
     // Load project-specific validation rules
-    const projectRules = await this.memoryStore.retrieve('aqe/requirements/validation-rules');
-    if (projectRules) {
+    const projectRules = await this.memoryStore.retrieve('aqe/requirements/validation-rules') as { rules?: string[] } | null;
+    if (projectRules && projectRules.rules) {
       console.log('Loaded project-specific validation rules');
-      this.config.validationRules = [...this.config.validationRules!, ...projectRules];
+      this.config.validationRules = [...this.config.validationRules!, ...projectRules.rules];
     }
 
     console.log('Requirements validator knowledge loaded successfully');
@@ -429,34 +434,34 @@ export class RequirementsValidatorAgent extends BaseAgent {
     console.log('RequirementsValidatorAgent cleanup completed');
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<unknown> {
     const taskType = task.type;
-    const taskData = task.payload;
+    const taskData = task.payload as { requirement?: Requirement; requirements?: Requirement[] };
 
     switch (taskType) {
       case 'validate-requirement':
-        return await this.validateRequirement(taskData.requirement);
+        return await this.validateRequirement(taskData.requirement!);
 
       case 'generate-bdd':
-        return await this.generateBddScenarios(taskData.requirement);
+        return await this.generateBddScenarios(taskData.requirement!);
 
       case 'assess-risk':
-        return await this.assessRisk(taskData.requirement);
+        return await this.assessRisk(taskData.requirement!);
 
       case 'validate-acceptance-criteria':
-        return await this.validateAcceptanceCriteria(taskData.requirement);
+        return await this.validateAcceptanceCriteria(taskData.requirement!);
 
       case 'create-traceability':
-        return await this.createTraceabilityMap(taskData.requirement);
+        return await this.createTraceabilityMap(taskData.requirement!);
 
       case 'batch-validate':
-        return await this.batchValidate(taskData.requirements);
+        return await this.batchValidate(taskData.requirements!);
 
       case 'generate-report':
-        return await this.generateValidationReport(taskData.requirement);
+        return await this.generateValidationReport(taskData.requirement!);
 
       case 'identify-edge-cases':
-        return await this.identifyEdgeCases(taskData.requirement);
+        return await this.identifyEdgeCases(taskData.requirement!);
 
       default:
         throw new Error(`Unsupported task type: ${taskType}`);
@@ -1209,8 +1214,8 @@ export class RequirementsValidatorAgent extends BaseAgent {
     };
 
     // Link to BDD scenarios
-    const bddScenarios = await this.memoryStore.retrieve(`aqe/bdd-scenarios/generated/${requirement.id}`);
-    if (bddScenarios) {
+    const bddScenarios = await this.memoryStore.retrieve(`aqe/bdd-scenarios/generated/${requirement.id}`) as { scenarios?: BDDScenarioRef[] } | null;
+    if (bddScenarios && bddScenarios.scenarios) {
       map.bddScenarios = bddScenarios.scenarios.map((s: BDDScenarioRef) => s.name);
     }
 

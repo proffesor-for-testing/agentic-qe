@@ -20,6 +20,7 @@
  */
 
 import type { QEToolResponse, Priority } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Types ====================
 
@@ -1018,7 +1019,7 @@ async function calculateTestability(requirement: RequirementInput): Promise<numb
  * Generate unique request ID
  */
 function generateRequestId(): string {
-  return `req-val-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `req-val-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`;
 }
 
 /**

@@ -11,6 +11,7 @@
  */
 
 import { QEAgentType } from '../../types';
+import { seededRandom } from '../../utils/SeededRandom';
 
 /**
  * Standard task definition
@@ -803,7 +804,7 @@ export class StandardTaskSuite {
     input: Record<string, any>
   ): StandardTask {
     return {
-      id: `${agentType}-${taskType}-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      id: `${agentType}-${taskType}-${Date.now()}-${seededRandom.randomInt(0, 9999)}`,
       agentType,
       taskType,
       name,

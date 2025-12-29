@@ -9,6 +9,7 @@
  */
 
 import type { PerformanceBenchmarkParams, BenchmarkConfig } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 /**
  * Benchmark execution result
@@ -194,9 +195,8 @@ async function simulateBenchmarkOperation(
   suite: string,
   config?: BenchmarkConfig
 ): Promise<void> {
-  // Simulate variable execution time (30-60ms)
   const baseTime = 30;
-  const variance = Math.random() * 30;
+  const variance = seededRandom.random() * 30;
   const executionTime = baseTime + variance;
 
   await new Promise(resolve => setTimeout(resolve, executionTime));

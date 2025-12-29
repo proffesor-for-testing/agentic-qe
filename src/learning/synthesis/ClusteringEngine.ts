@@ -12,6 +12,7 @@
 
 import { Logger } from '../../utils/Logger';
 import { SecureRandom } from '../../utils/SecureRandom';
+import { seededRandom } from '../../utils/SeededRandom';
 import { CapturedExperience } from '../capture/ExperienceCapture';
 
 /**
@@ -309,7 +310,7 @@ export class ClusteringEngine {
     const centroids: number[][] = [];
 
     // Choose first centroid randomly
-    const firstIdx = Math.floor(Math.random() * experiences.length);
+    const firstIdx = seededRandom.randomInt(0, experiences.length - 1);
     centroids.push([...experiences[firstIdx].embedding!]);
 
     // Choose remaining centroids
@@ -324,7 +325,7 @@ export class ClusteringEngine {
 
       // Choose next centroid with probability proportional to distance
       const totalDist = distances.reduce((sum, d) => sum + d, 0);
-      let threshold = Math.random() * totalDist;
+      let threshold = seededRandom.random() * totalDist;
 
       let chosenIdx = 0;
       for (let j = 0; j < distances.length; j++) {

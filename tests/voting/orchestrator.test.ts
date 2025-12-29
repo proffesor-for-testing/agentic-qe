@@ -3,7 +3,7 @@
  * Validates parallel coordination, timeout handling, and result aggregation
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createSeededRandom } from '../../src/utils/SeededRandom';
 import {
   VotingOrchestrator,
@@ -23,6 +23,10 @@ describe('VotingOrchestrator', () => {
   let pool: DefaultAgentPool;
   let strategy: DefaultVotingStrategy;
   let mockVoteExecutor: ReturnType<typeof vi.fn>;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   const createMockAgents = (): VotingAgent[] => [
     {
@@ -67,6 +71,8 @@ describe('VotingOrchestrator', () => {
   });
 
   beforeEach(() => {
+    vi.useFakeTimers();
+
     const agents = createMockAgents();
     pool = new DefaultAgentPool(agents);
     strategy = new DefaultVotingStrategy();
@@ -74,8 +80,8 @@ describe('VotingOrchestrator', () => {
 
     mockVoteExecutor = vi.fn().mockImplementation(
       async (agent: VotingAgent, task: VotingTask): Promise<Vote> => {
-        // Simulate voting delay
-        await new Promise(resolve => setTimeout(resolve, 10));
+        // Simulate voting delay using fake timers
+        await vi.advanceTimersByTimeAsync(10);
 
         return {
           agentId: agent.id,
@@ -173,14 +179,14 @@ describe('VotingOrchestrator', () => {
 
   describe('Timeout Handling', () => {
     it('should handle vote timeout gracefully', async () => {
-      // Create slow vote executor
+      // Create slow vote executor using fake timers
       const slowExecutor = vi.fn().mockImplementation(
         async (agent: VotingAgent, task: VotingTask): Promise<Vote> => {
           if (agent.id === 'agent-3') {
             // Simulate timeout for one agent
-            await new Promise(resolve => setTimeout(resolve, 6000));
+            await vi.advanceTimersByTimeAsync(6000);
           }
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await vi.advanceTimersByTimeAsync(10);
 
           return {
             agentId: agent.id,
@@ -227,7 +233,7 @@ describe('VotingOrchestrator', () => {
             throw new Error('ECONNRESET: Connection reset');
           }
 
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await vi.advanceTimersByTimeAsync(10);
 
           return {
             agentId: agent.id,

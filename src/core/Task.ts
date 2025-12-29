@@ -112,27 +112,53 @@ export interface TaskRequirements {
   /** Required capabilities an agent must have */
   capabilities?: string[];
   /** Required resources (memory, CPU, etc.) */
-  resources?: Record<string, any>;
+  resources?: Record<string, unknown>;
   /** Task IDs that must complete before this task */
   dependencies?: string[];
 }
 
-export class Task extends EventEmitter {
+/**
+ * Status change event data
+ */
+export interface StatusChangeEvent {
+  taskId: string;
+  previousStatus: TaskStatus;
+  newStatus: TaskStatus;
+  timestamp: Date;
+}
+
+/**
+ * JSON representation of a Task
+ */
+export interface TaskJSON<TData = unknown, TResult = unknown> {
+  id: string;
+  type: string;
+  name: string;
+  data: TData;
+  requirements: TaskRequirements;
+  status: TaskStatus;
+  priority: TaskPriority;
+  result: TResult | null;
+  error?: string;
+  metadata: TaskMetadata;
+}
+
+export class Task<TData = unknown, TResult = unknown> extends EventEmitter {
   private readonly id: string;
   private readonly type: string;
   private readonly name: string;
-  private readonly data: any;
+  private readonly data: TData;
   private readonly requirements: TaskRequirements;
   private status: TaskStatus;
   private priority: TaskPriority;
-  private result: any = null;
+  private result: TResult | null = null;
   private error: Error | null = null;
   private metadata: TaskMetadata;
 
   constructor(
     type: string,
     name: string,
-    data: any = {},
+    data: TData = {} as TData,
     requirements: TaskRequirements = {},
     priority: TaskPriority = TaskPriority.MEDIUM
   ) {
@@ -187,7 +213,7 @@ export class Task extends EventEmitter {
    * @returns The data payload for task execution
    * @public
    */
-  getData(): any {
+  getData(): TData {
     return this.data;
   }
 
@@ -258,14 +284,14 @@ export class Task extends EventEmitter {
   /**
    * Get task result
    */
-  getResult(): any {
+  getResult(): TResult | null {
     return this.result;
   }
 
   /**
    * Set task result
    */
-  setResult(result: any): void {
+  setResult(result: TResult): void {
     this.result = result;
     this.emit('result:set', {
       taskId: this.id,
@@ -399,7 +425,7 @@ export class Task extends EventEmitter {
    *
    * @public
    */
-  async waitForCompletion(): Promise<any> {
+  async waitForCompletion(): Promise<TResult | null> {
     return new Promise((resolve, reject) => {
       if (this.isComplete()) {
         if (this.status === TaskStatus.COMPLETED) {
@@ -410,7 +436,7 @@ export class Task extends EventEmitter {
         return;
       }
 
-      const onStatusChange = (data: any) => {
+      const onStatusChange = (data: StatusChangeEvent) => {
         if (data.taskId === this.id && this.isComplete()) {
           this.removeListener('status:changed', onStatusChange);
 
@@ -442,7 +468,7 @@ export class Task extends EventEmitter {
   /**
    * Convert task to JSON representation
    */
-  toJSON(): any {
+  toJSON(): TaskJSON<TData, TResult> {
     return {
       id: this.id,
       type: this.type,
@@ -460,8 +486,8 @@ export class Task extends EventEmitter {
   /**
    * Create task from JSON representation
    */
-  static fromJSON(json: any): Task {
-    const task = new Task(
+  static fromJSON<TData = unknown, TResult = unknown>(json: TaskJSON<TData, TResult>): Task<TData, TResult> {
+    const task = new Task<TData, TResult>(
       json.type,
       json.name,
       json.data,

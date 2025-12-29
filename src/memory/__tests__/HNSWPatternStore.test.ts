@@ -10,14 +10,15 @@ import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+import { seededRandom, createSeededRandom } from '../../utils/SeededRandom';
 
 /**
- * Generate a random embedding vector
+ * Generate a random embedding vector using seeded random for determinism
  */
 function generateRandomEmbedding(dimension: number): number[] {
   const embedding: number[] = [];
   for (let i = 0; i < dimension; i++) {
-    embedding.push(Math.random() * 2 - 1); // Range: [-1, 1]
+    embedding.push(seededRandom.randomFloat(-1, 1)); // Range: [-1, 1]
   }
 
   // Normalize to unit vector for cosine similarity
@@ -156,7 +157,7 @@ describe('HNSWPatternStore', () => {
     it('should find similar patterns using HNSW', async () => {
       // Create patterns with similar embeddings
       const baseEmbedding = generateRandomEmbedding(768);
-      const similarEmbedding = baseEmbedding.map(v => v + Math.random() * 0.1 - 0.05);
+      const similarEmbedding = baseEmbedding.map(v => v + seededRandom.randomFloat(-0.05, 0.05));
       const dissimilarEmbedding = generateRandomEmbedding(768);
 
       const pattern1: QEPattern = {

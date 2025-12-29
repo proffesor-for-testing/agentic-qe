@@ -10,7 +10,13 @@ import { describe, it, expect, beforeEach } from '@jest/globals';
 // Handler not yet implemented - skip these tests
 type PredictDefectsHandler = any;
 
-describe.skip('PredictDefectsHandler', () => {
+/**
+ * SKIP REASON: API Mismatch
+ * Handler exists: PredictDefectsAIHandler (src/mcp/handlers/prediction/predict-defects-ai.ts)
+ * Test was written for different API (PredictDefectsHandler)
+ * TODO: Rewrite tests to use PredictDefectsAIHandler API
+ */
+describe.skip('PredictDefectsHandler (API mismatch - needs rewrite for PredictDefectsAIHandler)', () => {
   let handler: PredictDefectsHandler;
 
   beforeEach(() => {

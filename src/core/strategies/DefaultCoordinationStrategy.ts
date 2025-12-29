@@ -374,7 +374,7 @@ export class DefaultCoordinationStrategy implements AgentCoordinationStrategy {
   }
 
   private generateMessageId(): string {
-    return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    return `msg-${Date.now()}-${SecureRandom.generateId(7)}`;
   }
 
   private updateLatency(latency: number): void {

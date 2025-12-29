@@ -19,6 +19,7 @@ export interface VulnerabilityFinding {
   cvss?: number;
   remediation?: string;
   references?: string[];
+  [key: string]: unknown;
 }
 
 export interface ScanResult {

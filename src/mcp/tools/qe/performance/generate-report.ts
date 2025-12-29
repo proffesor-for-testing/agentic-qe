@@ -10,6 +10,7 @@
 
 import type { PerformanceMetrics } from '../shared/types.js';
 import type { BottleneckAnalysis } from './analyze-bottlenecks.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 /**
  * Parameters for performance report generation
@@ -266,7 +267,7 @@ export async function generatePerformanceReport(
  */
 function generateReportId(): string {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8);
+  const random = seededRandom.random().toString(36).substring(2, 8);
   return `perf-${timestamp}-${random}`;
 }
 

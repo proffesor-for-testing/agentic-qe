@@ -10,6 +10,7 @@ import { DataTransformer } from '../core/DataTransformer';
 import { RealtimeEventMessage, SubscriptionOptions } from '../types';
 import * as http from 'http';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
+import { seededRandom } from '../../utils/SeededRandom';
 
 /**
  * WebSocket client connection
@@ -672,7 +673,7 @@ export class WebSocketServer extends EventEmitter {
    * Generate unique client ID
    */
   private generateClientId(): string {
-    return `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return `client-${Date.now()}-${seededRandom.random().toString(36).substring(2, 9)}`;
   }
 
   /**

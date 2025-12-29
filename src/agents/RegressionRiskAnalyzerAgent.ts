@@ -488,28 +488,28 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     console.log(`RegressionRiskAnalyzerAgent ${this.agentId.id} initialized successfully`);
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<unknown> {
     const { type, payload } = task;
 
     console.log(`RegressionRiskAnalyzerAgent executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'analyze-changes':
-        return await this.analyzeChanges(payload);
+        return await this.analyzeChanges(payload as { baseSha?: string; targetSha?: string; prNumber?: number });
       case 'select-tests':
-        return await this.selectTests(payload);
+        return await this.selectTests(payload as { changeAnalysis?: ChangeAnalysis; strategy?: 'smart' | 'full' | 'fast'; confidence?: number });
       case 'calculate-risk-score':
-        return await this.calculateRiskScore(payload);
+        return await this.calculateRiskScore(payload as RiskScoreParams);
       case 'generate-heat-map':
         return await this.generateRiskHeatMap();
       case 'calculate-blast-radius':
-        return await this.calculateBlastRadius(payload);
+        return await this.calculateBlastRadius(payload as { changedFiles: ChangedFile[]; directImpact: string[]; transitiveImpact: string[] });
       case 'optimize-ci':
-        return await this.optimizeCI(payload);
+        return await this.optimizeCI(payload as { testSelection: TestSelection; maxWorkers?: number });
       case 'analyze-release':
-        return await this.analyzeRelease(payload);
+        return await this.analyzeRelease(payload as { baseline: string; candidate: string });
       case 'train-ml-model':
-        return await this.trainMLModel(payload);
+        return await this.trainMLModel(payload as { dataWindow?: number });
       default:
         throw new Error(`Unsupported task type: ${type}`);
     }

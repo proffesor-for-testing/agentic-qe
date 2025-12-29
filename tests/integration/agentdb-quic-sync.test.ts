@@ -21,6 +21,7 @@ describe('AgentDB QUIC Synchronization', () => {
   let config: QUICConfig;
 
   beforeEach(() => {
+    jest.useFakeTimers();
     config = {
       ...createDefaultQUICConfig(),
       enabled: true,
@@ -33,6 +34,7 @@ describe('AgentDB QUIC Synchronization', () => {
 
   afterEach(async () => {
     await integration?.cleanup();
+    jest.useRealTimers();
   });
 
   describe('0-RTT Connection Establishment', () => {
@@ -110,7 +112,7 @@ describe('AgentDB QUIC Synchronization', () => {
 
       // AgentDB multiplexes automatically over single QUIC connection
       // Multiple sync operations happen on same connection
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await jest.advanceTimersByTimeAsync(100);
 
       // All operations on single connection
       expect(integration.getPeers()).toHaveLength(1);
@@ -121,7 +123,7 @@ describe('AgentDB QUIC Synchronization', () => {
       const peerId = await integration.addPeer('192.168.1.100', 9000);
 
       // Wait for connection to be established
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await jest.advanceTimersByTimeAsync(100);
 
       // AgentDB handles bidirectional communication automatically
       const peers = integration.getPeers();
@@ -134,7 +136,7 @@ describe('AgentDB QUIC Synchronization', () => {
 
       // AgentDB supports stream prioritization via QUIC
       // Verify connection is established
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await jest.advanceTimersByTimeAsync(100);
 
       const peers = integration.getPeers();
       expect(peers.find(p => p.id === peerId)?.status).toBe('connected');
@@ -154,18 +156,15 @@ describe('AgentDB QUIC Synchronization', () => {
       const failConfig: QUICConfig = {
         ...config,
         retryAttempts: 2,
-        retryDelay: 50
+        retryDelay: 0  // Skip delay for testing with fake timers
       };
 
       const failIntegration = new AgentDBIntegration(failConfig);
       await failIntegration.enable();
 
-      const transport = failIntegration.getTransport();
-
-      // Mock connection to always fail
-      (transport as any).connectToPeer = jest.fn().mockImplementation(
-        async (peer: any) => {
-          peer.errorCount++;
+      // Mock connection to always fail (on the integration, not transport)
+      (failIntegration as any).connectToPeer = jest.fn().mockImplementation(
+        async (_peer: any) => {
           throw new Error('Connection failed');
         }
       );
@@ -221,7 +220,7 @@ describe('AgentDB QUIC Synchronization', () => {
       await integration.addPeer('127.0.0.1', 9000);
 
       // Wait for sync cycle
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await jest.advanceTimersByTimeAsync(1500);
 
       const metrics = integration.getMetrics();
 
@@ -255,7 +254,7 @@ describe('AgentDB QUIC Synchronization', () => {
       await fastIntegration.addPeer('192.168.1.100', 9000);
 
       // Wait for multiple syncs
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await jest.advanceTimersByTimeAsync(500);
 
       const metrics = fastIntegration.getMetrics();
 
@@ -284,7 +283,7 @@ describe('AgentDB QUIC Synchronization', () => {
       const peerId = await integration.addPeer('192.168.1.100', 9000);
 
       // Wait for initial sync
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await jest.advanceTimersByTimeAsync(100);
 
       // Migrate connection
       await integration.removePeer(peerId);
@@ -326,7 +325,7 @@ describe('AgentDB QUIC Synchronization', () => {
       expect(integration.getPeers()).toHaveLength(10);
 
       // Wait for sync
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await jest.advanceTimersByTimeAsync(1500);
 
       const metrics = integration.getMetrics();
       expect(metrics.activePeers).toBe(10);
@@ -375,7 +374,7 @@ describe('AgentDB QUIC Synchronization', () => {
 
       // AgentDB syncs automatically at configured interval
       // Test sync throughput by waiting for sync cycle
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await jest.advanceTimersByTimeAsync(1500);
 
       const metrics = integration.getMetrics();
 
@@ -394,7 +393,7 @@ describe('AgentDB QUIC Synchronization', () => {
       }
 
       // Wait for sync cycles
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await jest.advanceTimersByTimeAsync(2000);
 
       const finalMemory = process.memoryUsage().heapUsed;
       const memoryIncrease = (finalMemory - initialMemory) / 1024 / 1024; // MB
@@ -420,7 +419,7 @@ describe('AgentDB QUIC Synchronization', () => {
       (transport as any).getModifiedEntries = jest.fn().mockResolvedValue(entries);
 
       // Wait for sync
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await jest.advanceTimersByTimeAsync(1500);
 
       const metrics = integration.getMetrics();
 

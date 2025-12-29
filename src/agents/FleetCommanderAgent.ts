@@ -311,6 +311,7 @@ export interface TopologyState {
   connections: number;
   efficiency: number;
   lastChanged: Date;
+  [key: string]: unknown;
 }
 
 export interface ConflictResolution {
@@ -320,6 +321,7 @@ export interface ConflictResolution {
   strategy: string;
   resolved: boolean;
   timestamp: Date;
+  [key: string]: unknown;
 }
 
 /**
@@ -384,6 +386,7 @@ export interface FleetMetrics {
   avgTaskCompletionTime: number;
   failureRate: number;
   throughput: number;
+  [key: string]: unknown;
 }
 
 export class FleetCommanderAgent extends BaseAgent {
@@ -535,7 +538,7 @@ export class FleetCommanderAgent extends BaseAgent {
     // Load fleet coordination state and resource allocations
     const fleetState = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/fleet-state`
-    );
+    ) as { activeAgents?: number } | null;
 
     if (fleetState) {
       console.log(`Loaded fleet state with ${fleetState.activeAgents || 0} active agents`);
@@ -635,35 +638,35 @@ export class FleetCommanderAgent extends BaseAgent {
     this.registerEventHandler({
       eventType: 'agent.spawned',
       handler: async (event) => {
-        await this.handleAgentSpawned(event.data);
+        await this.handleAgentSpawned(event.data as AgentSpawnedEventData);
       }
     });
 
     this.registerEventHandler({
       eventType: 'agent.terminated',
       handler: async (event) => {
-        await this.handleAgentTerminated(event.data);
+        await this.handleAgentTerminated(event.data as AgentTerminatedEventData);
       }
     });
 
     this.registerEventHandler({
       eventType: 'agent.error',
       handler: async (event) => {
-        await this.handleAgentError(event.data);
+        await this.handleAgentError(event.data as AgentErrorEventData);
       }
     });
 
     this.registerEventHandler({
       eventType: 'task:submitted',
       handler: async (event) => {
-        await this.handleTaskSubmitted(event.data);
+        await this.handleTaskSubmitted(event.data as TaskSubmittedEventData);
       }
     });
 
     this.registerEventHandler({
       eventType: 'task:completed',
       handler: async (event) => {
-        await this.handleTaskCompleted(event.data);
+        await this.handleTaskCompleted(event.data as TaskCompletedEventData);
       }
     });
 
@@ -686,25 +689,26 @@ export class FleetCommanderAgent extends BaseAgent {
 
   protected async performTask(task: QETask): Promise<FleetTaskResult> {
     console.log(`[FleetCommander] Performing task: ${task.type}`);
+    const payload = task.payload as Record<string, unknown>;
 
     switch (task.type) {
       case 'fleet-initialize':
-        return await this.initializeFleet(task.payload);
+        return await this.initializeFleet(payload as FleetInitConfig);
 
       case 'agent-spawn':
-        return await this.spawnAgents(task.payload);
+        return await this.spawnAgents(payload as unknown as SpawnPayload);
 
       case 'agent-terminate':
-        return await this.terminateAgent(task.payload);
+        return await this.terminateAgent(payload as { agentId: string });
 
       case 'topology-change':
-        return await this.changeTopology(task.payload);
+        return await this.changeTopology(payload as { mode: 'hierarchical' | 'mesh' | 'adaptive' | 'hybrid' });
 
       case 'rebalance-load':
-        return await this.rebalanceWorkload(task.payload);
+        return await this.rebalanceWorkload(payload as Record<string, unknown>);
 
       case 'resolve-conflict':
-        return await this.resolveConflict(task.payload);
+        return await this.resolveConflict(payload as { type: ConflictResolution['type']; agents: string[]; severity?: ConflictResolution['severity']; allocation?: ResourceAllocation });
 
       case 'fleet-status':
         return await this.getFleetStatus();
@@ -713,10 +717,10 @@ export class FleetCommanderAgent extends BaseAgent {
         return await this.getFleetMetrics();
 
       case 'scale-pool':
-        return await this.scaleAgentPool(task.payload);
+        return await this.scaleAgentPool(payload as { type: string; action: 'scale-up' | 'scale-down'; count?: number });
 
       case 'recover-agent':
-        return await this.recoverAgent(task.payload);
+        return await this.recoverAgent(payload as { agentId: string });
 
       case 'topology-analyze':
         return await this.analyzeTopologyResilience();
@@ -737,25 +741,25 @@ export class FleetCommanderAgent extends BaseAgent {
 
     try {
       // Restore topology state
-      const savedTopology = await this.memoryStore.retrieve('aqe/fleet/topology');
+      const savedTopology = await this.memoryStore.retrieve('aqe/fleet/topology') as TopologyState | null;
       if (savedTopology) {
         this.topologyState = savedTopology;
       }
 
       // Restore agent pool status
-      const savedPools = await this.memoryStore.retrieve('aqe/fleet/agents/pools');
+      const savedPools = await this.memoryStore.retrieve('aqe/fleet/agents/pools') as Record<string, AgentPoolStatus> | null;
       if (savedPools) {
         this.agentPools = new Map(Object.entries(savedPools));
       }
 
       // Restore resource allocations
-      const savedAllocations = await this.memoryStore.retrieve('aqe/fleet/resources/allocation');
+      const savedAllocations = await this.memoryStore.retrieve('aqe/fleet/resources/allocation') as Record<string, ResourceAllocation> | null;
       if (savedAllocations) {
         this.resourceAllocations = new Map(Object.entries(savedAllocations));
       }
 
       // Restore metrics
-      const savedMetrics = await this.memoryStore.retrieve('aqe/fleet/metrics/performance');
+      const savedMetrics = await this.memoryStore.retrieve('aqe/fleet/metrics/performance') as Partial<FleetMetrics> | null;
       if (savedMetrics) {
         this.fleetMetrics = { ...this.fleetMetrics, ...savedMetrics };
       }
@@ -933,8 +937,8 @@ export class FleetCommanderAgent extends BaseAgent {
     console.log(`[FleetCommander] Agent terminated: ${agentId}`);
 
     // Find agent type and update pool
-    const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`);
-    if (agentData) {
+    const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`) as { type?: string } | null;
+    if (agentData?.type) {
       const poolStatus = this.agentPools.get(agentData.type);
       if (poolStatus) {
         poolStatus.active = Math.max(0, poolStatus.active - 1);
@@ -1204,7 +1208,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
     // Build nodes from agent pools and allocations
     for (const [agentId, allocation] of this.resourceAllocations.entries()) {
-      const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`);
+      const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`) as { type?: string; status?: string } | null;
       if (!agentData) continue;
 
       // Determine role based on agent type
@@ -1215,9 +1219,9 @@ export class FleetCommanderAgent extends BaseAgent {
 
       nodes.push({
         id: agentId,
-        type: agentData.type,
+        type: agentData.type || 'unknown',
         role,
-        status: agentData.status || 'active',
+        status: (agentData.status || 'active') as TopologyNode['status'],
         priority: allocation.priority as TopologyNode['priority'],
       });
     }
@@ -1485,7 +1489,7 @@ export class FleetCommanderAgent extends BaseAgent {
     // Priority-weighted resource allocation
     const agentAllocations = await Promise.all(
       agents.map(async (agentId) => {
-        const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`);
+        const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`) as { allocation?: { priority?: string } } | null;
         return {
           agentId,
           priority: agentData?.allocation?.priority || 'medium'
@@ -1717,7 +1721,7 @@ export class FleetCommanderAgent extends BaseAgent {
     const { agentId } = payload;
     console.log(`[FleetCommander] Attempting to recover agent ${agentId}`);
 
-    const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`);
+    const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`) as { type?: string; allocation?: SpawnConfig } | null;
     if (!agentData) {
       return { agentId, recovered: false, reason: 'agent-not-found' };
     }
@@ -1729,7 +1733,7 @@ export class FleetCommanderAgent extends BaseAgent {
       try {
         // Try to respawn the agent
         const result = await this.spawnAgents({
-          type: agentData.type,
+          type: agentData.type || 'unknown',
           count: 1,
           config: agentData.allocation
         });

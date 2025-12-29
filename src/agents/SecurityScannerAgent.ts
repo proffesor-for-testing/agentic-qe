@@ -192,6 +192,7 @@ export interface VulnerabilityFinding {
   cvss?: number;
   remediation?: string;
   references?: string[];
+  [key: string]: unknown;
 }
 
 export interface SecurityScanResult {
@@ -210,6 +211,7 @@ export interface SecurityScanResult {
   securityScore: number; // 0-100
   passed: boolean;
   duration: number;
+  [key: string]: unknown;
 }
 
 export interface ComplianceReport {
@@ -222,6 +224,7 @@ export interface ComplianceReport {
   }[];
   overallCompliance: number; // percentage
   passed: boolean;
+  [key: string]: unknown;
 }
 
 export interface CVERecord {
@@ -432,7 +435,7 @@ export class SecurityScannerAgent extends BaseAgent {
       eventType: 'test.generated',
       handler: async (event) => {
         // Automatically scan newly generated tests for security issues
-        await this.handleTestGenerated(event.data);
+        await this.handleTestGenerated(event.data as TestGeneratedEventData);
       }
     });
 
@@ -440,7 +443,7 @@ export class SecurityScannerAgent extends BaseAgent {
       eventType: 'deployment.requested',
       handler: async (event) => {
         // Enforce security gate before deployment
-        await this.handleDeploymentRequest(event.data);
+        await this.handleDeploymentRequest(event.data as DeploymentRequestEventData);
       }
     });
 
@@ -448,7 +451,7 @@ export class SecurityScannerAgent extends BaseAgent {
       eventType: 'cve.published',
       handler: async (event) => {
         // Monitor new CVE publications
-        await this.handleNewCVE(event.data);
+        await this.handleNewCVE(event.data as CVEEventData);
       }
     });
 
@@ -468,30 +471,31 @@ export class SecurityScannerAgent extends BaseAgent {
     console.log('[SecurityScanner] Initialization complete');
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<unknown> {
     console.log(`[SecurityScanner] Performing task: ${task.type}`);
+    const taskPayload = task.payload as SecurityScanMetadata;
 
     switch (task.type) {
       case 'run-security-scan':
-        return await this.runSecurityScan(task.payload);
+        return await this.runSecurityScan(taskPayload);
 
       case 'scan-dependencies':
-        return await this.scanDependencies(task.payload);
+        return await this.scanDependencies(taskPayload);
 
       case 'scan-containers':
-        return await this.scanContainers(task.payload);
+        return await this.scanContainers(taskPayload);
 
       case 'check-compliance':
-        return await this.checkCompliance(task.payload);
+        return await this.checkCompliance(taskPayload);
 
       case 'enforce-security-gate':
-        return await this.enforceSecurityGate(task.payload);
+        return await this.enforceSecurityGate(taskPayload);
 
       case 'generate-security-report':
-        return await this.generateSecurityReport(task.payload);
+        return await this.generateSecurityReport(taskPayload);
 
       case 'update-baseline':
-        return await this.updateSecurityBaseline(task.payload);
+        return await this.updateSecurityBaseline(taskPayload);
 
       default:
         throw new Error(`Unknown task type: ${task.type}`);
@@ -503,15 +507,15 @@ export class SecurityScannerAgent extends BaseAgent {
 
     try {
       // Restore baseline findings
-      const savedBaseline = await this.memoryStore.retrieve('aqe/security/baselines');
+      const savedBaseline = await this.memoryStore.retrieve('aqe/security/baselines') as { findings?: Record<string, VulnerabilityFinding>; timestamp?: Date } | null;
       if (savedBaseline && savedBaseline.findings) {
         this.baselineFindings = new Map(Object.entries(savedBaseline.findings));
       }
 
       // Restore scan history
-      const savedHistory = await this.memoryStore.retrieve('aqe/security/scan-history');
-      if (savedHistory && Array.isArray(savedHistory)) {
-        this.scanHistory = savedHistory;
+      const savedHistory = await this.memoryStore.retrieve('aqe/security/scan-history') as { entries?: SecurityScanResult[] } | null;
+      if (savedHistory && savedHistory.entries) {
+        this.scanHistory = savedHistory.entries;
       }
 
       // Restore CVE database
@@ -535,7 +539,7 @@ export class SecurityScannerAgent extends BaseAgent {
     });
 
     // Save scan history (keep last 50 scans)
-    await this.memoryStore.store('aqe/security/scan-history', this.scanHistory.slice(-50));
+    await this.memoryStore.store('aqe/security/scan-history', { entries: this.scanHistory.slice(-50) });
 
     // Save CVE database
     await this.memoryStore.store('aqe/security/cve-database', Object.fromEntries(this.cveDatabase));

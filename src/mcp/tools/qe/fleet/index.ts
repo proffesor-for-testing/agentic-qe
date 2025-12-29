@@ -12,6 +12,7 @@ import type {
   QEError
 } from '../shared/types'
 import { SecureRandom } from '../../../../utils/SecureRandom'
+import { seededRandom } from '../../../../utils/SeededRandom'
 
 // ============================================================================
 // Fleet Coordination Types
@@ -701,7 +702,7 @@ function assignTasksOptimally(
     }
 
     if (!bestAgent) {
-      bestAgent = workerAgents[Math.floor(Math.random() * workerAgents.length)];
+      bestAgent = seededRandom.randomElement(workerAgents);
     }
 
     const taskLoad = task.estimatedDuration;
@@ -1060,7 +1061,7 @@ function generateAgentHealthStatus(
   const now = new Date();
   const statusOptions: Array<'healthy' | 'degraded' | 'unhealthy' | 'offline'> = ['healthy', 'degraded', 'unhealthy'];
 
-  const rand = Math.random();
+  const rand = seededRandom.random();
   let status: typeof statusOptions[number];
 
   if (rand < 0.70) status = 'healthy';
@@ -1068,13 +1069,13 @@ function generateAgentHealthStatus(
   else status = 'unhealthy';
 
   const statusScores = {
-    healthy: 90 + Math.floor(Math.random() * 10),
-    degraded: 60 + Math.floor(Math.random() * 20),
-    unhealthy: 20 + Math.floor(Math.random() * 30),
+    healthy: 90 + seededRandom.randomInt(0, 9),
+    degraded: 60 + seededRandom.randomInt(0, 19),
+    unhealthy: 20 + seededRandom.randomInt(0, 29),
     offline: 0
   };
 
-  const completedTasks = 100 + Math.floor(Math.random() * 400);
+  const completedTasks = 100 + seededRandom.randomInt(0, 399);
   const failedTasks = status === 'healthy' ? Math.floor(completedTasks * 0.02) :
                       status === 'degraded' ? Math.floor(completedTasks * 0.08) :
                       Math.floor(completedTasks * 0.15);
@@ -1086,14 +1087,14 @@ function generateAgentHealthStatus(
         timestamp: new Date(now.getTime() - i * 60000).toISOString(),
         message: `Task execution timeout on ${agentType}`,
         severity: status === 'unhealthy' ? 'critical' : 'warning',
-        taskId: `task-${Math.floor(Math.random() * 1000)}`,
+        taskId: `task-${seededRandom.randomInt(0, 999)}`,
         recoveryAction: 'Automatic restart initiated'
       });
     }
   }
 
   const lastHeartbeatTime = new Date(
-    now.getTime() - (status === 'healthy' ? Math.random() * 5000 : 30000 + Math.random() * 30000)
+    now.getTime() - (status === 'healthy' ? seededRandom.random() * 5000 : 30000 + seededRandom.random() * 30000)
   );
 
   return {
@@ -1103,17 +1104,17 @@ function generateAgentHealthStatus(
     statusScore: statusScores[status],
     uptimePercentage: status === 'healthy' ? 99.9 : status === 'degraded' ? 95 : 80,
     lastHeartbeat: lastHeartbeatTime.toISOString(),
-    currentTaskCount: status === 'healthy' ? Math.floor(Math.random() * 8) : Math.floor(Math.random() * 3),
+    currentTaskCount: status === 'healthy' ? seededRandom.randomInt(0, 7) : seededRandom.randomInt(0, 2),
     completedTasks,
     failedTasks,
-    avgTaskDuration: 2000 + Math.floor(Math.random() * 3000),
+    avgTaskDuration: 2000 + seededRandom.randomInt(0, 2999),
     resourceMetrics: {
-      cpuUsage: status === 'healthy' ? 30 + Math.random() * 40 : 70 + Math.random() * 30,
-      memoryUsage: 256 + Math.floor(Math.random() * 256),
-      memoryUsagePercent: status === 'healthy' ? 40 + Math.random() * 30 : 80 + Math.random() * 20,
-      taskQueueDepth: status === 'healthy' ? Math.floor(Math.random() * 5) : Math.floor(Math.random() * 10),
-      responseTime: status === 'healthy' ? 100 + Math.floor(Math.random() * 200) : 500 + Math.floor(Math.random() * 500),
-      throughput: status === 'healthy' ? 20 + Math.random() * 30 : 5 + Math.random() * 15
+      cpuUsage: status === 'healthy' ? 30 + seededRandom.random() * 40 : 70 + seededRandom.random() * 30,
+      memoryUsage: 256 + seededRandom.randomInt(0, 255),
+      memoryUsagePercent: status === 'healthy' ? 40 + seededRandom.random() * 30 : 80 + seededRandom.random() * 20,
+      taskQueueDepth: status === 'healthy' ? seededRandom.randomInt(0, 4) : seededRandom.randomInt(0, 9),
+      responseTime: status === 'healthy' ? 100 + seededRandom.randomInt(0, 199) : 500 + seededRandom.randomInt(0, 499),
+      throughput: status === 'healthy' ? 20 + seededRandom.random() * 30 : 5 + seededRandom.random() * 15
     },
     recentErrors
   };
@@ -1171,11 +1172,11 @@ function calculateFleetHealth(agentStatuses: AgentHealthStatus[]): FleetHealthSu
  */
 function generateHealthTrend(): HealthTrend {
   const scores: number[] = [];
-  let currentScore = 85 + Math.random() * 10;
+  let currentScore = 85 + seededRandom.random() * 10;
 
   for (let i = 0; i < 5; i++) {
     scores.push(Math.round(currentScore));
-    const change = (Math.random() - 0.4) * 5;
+    const change = (seededRandom.random() - 0.4) * 5;
     currentScore = Math.max(0, Math.min(100, currentScore + change));
   }
 
@@ -1189,7 +1190,7 @@ function generateHealthTrend(): HealthTrend {
     trendStrength: Math.abs(trend) / 100,
     historicalScores: scores,
     predictedScore: Math.round(Math.max(0, Math.min(100, scores[4] + trend * 0.5))),
-    predictionConfidence: 0.75 + Math.random() * 0.2
+    predictionConfidence: 0.75 + seededRandom.random() * 0.2
   };
 }
 

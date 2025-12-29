@@ -5,13 +5,18 @@
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 
-// Handler not yet implemented - skip these tests
+/**
+ * SKIP REASON: API Mismatch
+ * Handler exists: TestGenerateEnhancedHandler (src/mcp/handlers/test/test-generate-enhanced.ts)
+ * Test was written for different API (TestGenerateHandler with spec-based args)
+ * TODO: Rewrite tests to use TestGenerateEnhancedHandler API
+ */
 type TestGenerateHandler = any;
 type TestGenerateArgs = any;
 type TestSuite = any;
 type TestCase = any;
 
-describe.skip('TestGenerateHandler', () => {
+describe.skip('TestGenerateHandler (API mismatch - needs rewrite for TestGenerateEnhancedHandler)', () => {
   let handler: TestGenerateHandler;
 
   beforeEach(() => {

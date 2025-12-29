@@ -25,6 +25,7 @@
  */
 
 import { AbstractRLLearner, RLConfig, QValue } from './AbstractRLLearner';
+import { seededRandom } from '../../utils/SeededRandom';
 import { TaskExperience, AgentAction, TaskState } from '../types';
 
 /**
@@ -313,7 +314,7 @@ export class MAMLMetaLearner extends AbstractRLLearner {
       }
 
       // Shuffle experiences
-      const shuffled = [...experiences].sort(() => Math.random() - 0.5);
+      const shuffled = seededRandom.shuffle(experiences);
 
       // Split into support and query sets
       const supportSize = this.mamlConfig.minTaskExamples;

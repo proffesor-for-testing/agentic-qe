@@ -286,9 +286,14 @@ describe('PatternReplicationService', () => {
 
   describe('Health Monitoring', () => {
     beforeEach(async () => {
+      jest.useFakeTimers();
       await service.registerNode('agent-1', library1);
       await service.registerNode('agent-2', library2);
       await service.registerNode('agent-3', library3);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
     });
 
     it('should check health of all nodes', async () => {
@@ -334,7 +339,7 @@ describe('PatternReplicationService', () => {
       });
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await jest.advanceTimersByTimeAsync(100);
 
       const health = await service.checkHealth();
 
@@ -343,18 +348,28 @@ describe('PatternReplicationService', () => {
   });
 
   describe('Node Failure Handling', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it('should detect node failures', async () => {
       const failingLibrary = new DistributedPatternLibrary({ agentId: 'failing-agent', dimension: 128 });
       await failingLibrary.initialize();
 
-      // Mock getStats to throw error
+      // Register node first, then mock getStats to fail on subsequent health checks
+      await service.registerNode('failing-agent', failingLibrary);
+
+      // Mock getStats to throw error AFTER registration
       failingLibrary.getStats = jest.fn().mockRejectedValue(new Error('Node failure'));
 
-      await service.registerNode('failing-agent', failingLibrary);
       await service.start();
 
       // Wait for heartbeat to detect failure
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await jest.advanceTimersByTimeAsync(300);
 
       const nodes = service.getNodes();
       const failingNode = nodes.find(n => n.agentId === 'failing-agent');
@@ -373,14 +388,16 @@ describe('PatternReplicationService', () => {
       const failingLibrary = new DistributedPatternLibrary({ agentId: 'failing-agent', dimension: 128 });
       await failingLibrary.initialize();
 
-      // Mock getStats to throw error
+      // Register node first, then mock getStats to fail
+      await service.registerNode('failing-agent', failingLibrary);
+
+      // Mock getStats to throw error AFTER registration
       failingLibrary.getStats = jest.fn().mockRejectedValue(new Error('Critical failure'));
 
-      await service.registerNode('failing-agent', failingLibrary);
       await service.start();
 
       // Wait for failure threshold to be reached
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await jest.advanceTimersByTimeAsync(500);
 
       // Should have emitted failure event
       expect(events.length).toBeGreaterThan(0);
@@ -421,14 +438,25 @@ describe('PatternReplicationService', () => {
   });
 
   describe('Automatic Recovery', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it('should attempt recovery for failed nodes', async () => {
       const recoveringLibrary = new DistributedPatternLibrary({ agentId: 'recovering-agent', dimension: 128 });
       await recoveringLibrary.initialize();
 
+      // Register node first with real getStats
+      await service.registerNode('recovering-agent', recoveringLibrary);
+
       let failCount = 0;
       const maxFails = 3;
 
-      // Mock to fail initially, then succeed
+      // Mock to fail initially (on health checks), then succeed
       const originalGetStats = recoveringLibrary.getStats.bind(recoveringLibrary);
       recoveringLibrary.getStats = jest.fn().mockImplementation(async () => {
         failCount++;
@@ -438,11 +466,10 @@ describe('PatternReplicationService', () => {
         return originalGetStats();
       });
 
-      await service.registerNode('recovering-agent', recoveringLibrary);
       await service.start();
 
       // Wait for failure and recovery
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await jest.advanceTimersByTimeAsync(1000);
 
       const nodes = service.getNodes();
       const recoveringNode = nodes.find(n => n.agentId === 'recovering-agent');

@@ -94,7 +94,7 @@ export class ConfigurationChecker {
       try {
         const stored = await this.memory.retrieve(options.storedKey, {
           partition: 'configuration'
-        });
+        }) as Record<string, unknown> | null;
 
         if (stored) {
           const differences = this.compareConfigs(options.config, stored);

@@ -16,6 +16,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { seededRandom } from '../../utils/SeededRandom';
 
 import {
   ConstitutionLoader,
@@ -747,15 +748,15 @@ function createVotingStrategy(): VotingStrategy {
  */
 async function executeAgentVote(agent: VotingAgent, task: VotingTask): Promise<Vote> {
   // Simulate agent evaluation
-  await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 500));
+  await new Promise(resolve => setTimeout(resolve, 100 + seededRandom.random() * 500));
 
   // Generate score based on agent expertise match
   const expertiseMatch = task.requiredExpertise
     ? task.requiredExpertise.filter(e => agent.expertise.includes(e)).length / task.requiredExpertise.length
     : 1.0;
 
-  const score = 0.5 + (expertiseMatch * 0.3) + (Math.random() * 0.2);
-  const confidence = 0.7 + (Math.random() * 0.3);
+  const score = 0.5 + (expertiseMatch * 0.3) + (seededRandom.random() * 0.2);
+  const confidence = 0.7 + (seededRandom.random() * 0.3);
 
   return {
     agentId: agent.id,

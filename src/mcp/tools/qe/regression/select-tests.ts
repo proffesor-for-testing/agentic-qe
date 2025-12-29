@@ -24,6 +24,7 @@ import {
   Priority,
   CodeChange
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Response Types ====================
 
@@ -527,12 +528,12 @@ function predictCriticalTests(
         path: test.path,
         type: test.type,
         reason: 'ml-prediction',
-        failureProbability: 0.4 + Math.random() * 0.3,
+        failureProbability: 0.4 + seededRandom.random() * 0.3,
         priority: test.priority,
         estimatedTime: test.estimatedTime,
         coverageOverlap: 0.5,
         affectedCodePaths: 2,
-        mlConfidence: 0.75 + Math.random() * 0.15
+        mlConfidence: 0.75 + seededRandom.random() * 0.15
       });
     }
   }

@@ -3,6 +3,8 @@
  * Achieves 2-32x memory reduction with automatic tier management
  */
 
+import { createSeededRandom } from '../../utils/SeededRandom';
+
 export type CompressionTier = 'f32' | 'f16' | 'pq8' | 'pq4' | 'binary';
 
 export interface TierConfig {
@@ -97,6 +99,7 @@ export class ProductQuantizer {
   private subvectorSize: number;
   private numSubvectors: number;
   private numCentroids: number;
+  private rng = createSeededRandom(42); // Deterministic initialization
 
   constructor(dimension: number, bits: 8 | 4 = 8) {
     this.numCentroids = bits === 8 ? 256 : 16;
@@ -106,13 +109,13 @@ export class ProductQuantizer {
   }
 
   private initializeCodebooks(): void {
-    // Initialize with random centroids (would normally train on data)
+    // Initialize with seeded random centroids (deterministic for reproducibility)
     for (let i = 0; i < this.numSubvectors; i++) {
       this.codebooks[i] = [];
       for (let j = 0; j < this.numCentroids; j++) {
         const centroid = new Float32Array(this.subvectorSize);
         for (let k = 0; k < this.subvectorSize; k++) {
-          centroid[k] = (Math.random() - 0.5) * 2;
+          centroid[k] = (this.rng.random() - 0.5) * 2;
         }
         this.codebooks[i].push(centroid);
       }

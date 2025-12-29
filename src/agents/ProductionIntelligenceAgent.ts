@@ -504,35 +504,35 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     console.log(`ProductionIntelligenceAgent ${this.agentId.id} initialized successfully`);
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<unknown> {
     const { type, payload } = task;
 
     console.log(`ProductionIntelligenceAgent executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'incident-replay':
-        return await this.performIncidentReplay(payload);
+        return await this.performIncidentReplay(payload as { incident: ProductionIncident });
 
       case 'rum-analysis':
-        return await this.performRUMAnalysis(payload);
+        return await this.performRUMAnalysis(payload as { rumData?: RUMData; timeWindow?: string });
 
       case 'anomaly-detection':
-        return await this.performAnomalyDetection(payload);
+        return await this.performAnomalyDetection(payload as { currentMetrics: ProductionMetrics; lookbackPeriod?: string });
 
       case 'load-pattern-analysis':
-        return await this.performLoadPatternAnalysis(payload);
+        return await this.performLoadPatternAnalysis(payload as { timeWindow?: string });
 
       case 'feature-usage-analytics':
-        return await this.performFeatureUsageAnalytics(payload);
+        return await this.performFeatureUsageAnalytics(payload as { timeWindow?: string });
 
       case 'generate-tests-from-incidents':
-        return await this.generateTestsFromIncidents(payload);
+        return await this.generateTestsFromIncidents(payload as { incidentIds?: string[]; severityFilter?: string[]; limit?: number });
 
       case 'generate-tests-from-rum':
-        return await this.generateTestsFromRUM(payload);
+        return await this.generateTestsFromRUM(payload as { timeWindow?: string; minJourneyFrequency?: number });
 
       case 'analyze-production-vs-staging':
-        return await this.analyzeProductionVsStaging(payload);
+        return await this.analyzeProductionVsStaging(payload as { metrics: string[] });
 
       default:
         throw new Error(`Unsupported task type: ${type}`);

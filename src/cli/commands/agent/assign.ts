@@ -14,6 +14,55 @@ import { Logger } from '../../../utils/Logger';
 
 const logger = Logger.getInstance();
 
+/** Capability configuration */
+interface AgentCapability {
+  name: string;
+  enabled?: boolean;
+}
+
+/** Agent configuration within registry */
+interface AgentConfig {
+  capabilities?: AgentCapability[];
+  [key: string]: unknown;
+}
+
+/** Registered agent info */
+interface RegisteredAgentInfo {
+  id: string;
+  status: 'idle' | 'busy' | 'error' | 'terminated';
+  mcpType: string;
+  tasksCompleted: number;
+  totalExecutionTime: number;
+  agent?: {
+    config?: AgentConfig;
+  };
+}
+
+/** Agent registry interface */
+interface AgentRegistry {
+  getRegisteredAgent(id: string): RegisteredAgentInfo | undefined;
+  getAllAgents(): RegisteredAgentInfo[];
+}
+
+/** Task definition structure */
+interface TaskDefinition {
+  type: string;
+  [key: string]: unknown;
+}
+
+/** Queue entry structure */
+interface QueueEntry {
+  taskId: string;
+  task: TaskDefinition;
+  priority: string;
+  queuedAt: string;
+}
+
+/** Task queue structure */
+interface TaskQueue {
+  tasks: QueueEntry[];
+}
+
 export interface AssignOptions {
   agentId?: string;
   taskId: string;
@@ -66,21 +115,22 @@ export class AgentAssignCommand {
 
     try {
       // Get agent registry
-      const registry = getAgentRegistry();
+      const registry = getAgentRegistry() as unknown as AgentRegistry;
 
       // Read task definition
       const task = await this.readTask(taskId);
 
       // Determine target agent
       let targetAgentId: string;
-      let targetAgent: any;
+      let targetAgent: RegisteredAgentInfo;
 
       if (agentId) {
         // Manual assignment
-        targetAgent = registry.getRegisteredAgent(agentId);
-        if (!targetAgent) {
+        const foundAgent = registry.getRegisteredAgent(agentId);
+        if (!foundAgent) {
           throw new Error(`Agent not found: ${agentId}`);
         }
+        targetAgent = foundAgent;
         targetAgentId = agentId;
 
         // Validate capability if required
@@ -148,21 +198,21 @@ export class AgentAssignCommand {
   /**
    * Read task definition
    */
-  private static async readTask(taskId: string): Promise<any> {
+  private static async readTask(taskId: string): Promise<TaskDefinition> {
     const taskPath = path.join(this.TASKS_DIR, `${taskId}.json`);
 
     if (!await fs.pathExists(taskPath)) {
       throw new Error(`Task not found: ${taskId}`);
     }
 
-    return await fs.readJson(taskPath);
+    return await fs.readJson(taskPath) as TaskDefinition;
   }
 
   /**
    * Validate agent capability
    */
-  private static validateCapability(agent: any, capability: string): void {
-    const capabilities = agent.agent?.config?.capabilities?.map((c: any) => c.name) || [];
+  private static validateCapability(agent: RegisteredAgentInfo, capability: string): void {
+    const capabilities = agent.agent?.config?.capabilities?.map((c: AgentCapability) => c.name) || [];
 
     if (!capabilities.includes(capability)) {
       throw new Error(`Agent lacks required capability: ${capability}`);
@@ -173,10 +223,10 @@ export class AgentAssignCommand {
    * Select best agent using load balancing algorithm
    */
   private static async selectBestAgent(
-    registry: any,
+    registry: AgentRegistry,
     taskType: string,
     requireCapability?: string
-  ): Promise<{ id: string; agent: any }> {
+  ): Promise<{ id: string; agent: RegisteredAgentInfo }> {
     const allAgents = registry.getAllAgents();
 
     if (allAgents.length === 0) {
@@ -186,8 +236,8 @@ export class AgentAssignCommand {
     // Filter by capability if required
     let candidates = allAgents;
     if (requireCapability) {
-      candidates = allAgents.filter((agent: any) => {
-        const capabilities = agent.agent?.config?.capabilities?.map((c: any) => c.name) || [];
+      candidates = allAgents.filter((agent: RegisteredAgentInfo) => {
+        const capabilities = agent.agent?.config?.capabilities?.map((c: AgentCapability) => c.name) || [];
         return capabilities.includes(requireCapability);
       });
 
@@ -197,7 +247,7 @@ export class AgentAssignCommand {
     }
 
     // Score agents based on load, status, and performance
-    const scores = candidates.map((agent: any) => {
+    const scores = candidates.map((agent: RegisteredAgentInfo) => {
       let score = 100;
 
       // Penalize by current load
@@ -228,7 +278,7 @@ export class AgentAssignCommand {
     });
 
     // Sort by score descending
-    scores.sort((a: { agent: any; score: number }, b: { agent: any; score: number }) => b.score - a.score);
+    scores.sort((a, b) => b.score - a.score);
 
     const selected = scores[0].agent;
 
@@ -244,7 +294,7 @@ export class AgentAssignCommand {
   /**
    * Check agent availability
    */
-  private static async checkAgentAvailability(agent: any): Promise<{ available: boolean; reason?: string }> {
+  private static async checkAgentAvailability(agent: RegisteredAgentInfo): Promise<{ available: boolean; reason?: string }> {
     if (agent.status === 'error') {
       return { available: false, reason: 'Agent in error state' };
     }
@@ -283,15 +333,15 @@ export class AgentAssignCommand {
    */
   private static async assignToAgent(
     agentId: string,
-    agent: any,
+    agent: RegisteredAgentInfo,
     taskId: string,
-    task: any,
-    priority: string,
-    timeout: number
+    _task: TaskDefinition,
+    _priority: string,
+    _timeout: number
   ): Promise<AssignResult> {
     // Update agent config with assigned task
     const configPath = path.join(this.AGENT_DIR, `${agentId}.json`);
-    const config = await fs.readJson(configPath);
+    const config = await fs.readJson(configPath) as { assignedTasks?: string[] };
 
     config.assignedTasks = config.assignedTasks || [];
     config.assignedTasks.push(taskId);
@@ -311,7 +361,7 @@ export class AgentAssignCommand {
       status: 'assigned',
       assignedAt: new Date(),
       estimatedCompletion,
-      capabilities: agent.agent?.config?.capabilities?.map((c: any) => c.name) || []
+      capabilities: agent.agent?.config?.capabilities?.map((c: AgentCapability) => c.name) || []
     };
   }
 
@@ -320,22 +370,22 @@ export class AgentAssignCommand {
    */
   private static async queueTask(
     agentId: string,
-    agent: any,
+    agent: RegisteredAgentInfo,
     taskId: string,
-    task: any,
+    task: TaskDefinition,
     priority: string
   ): Promise<AssignResult> {
     const queuePath = path.join(this.QUEUE_DIR, `${agentId}.json`);
 
     await fs.ensureDir(this.QUEUE_DIR);
 
-    let queue: any = { tasks: [] };
+    let queue: TaskQueue = { tasks: [] };
     if (await fs.pathExists(queuePath)) {
-      queue = await fs.readJson(queuePath);
+      queue = await fs.readJson(queuePath) as TaskQueue;
     }
 
     // Add to queue with priority
-    const queueEntry = {
+    const queueEntry: QueueEntry = {
       taskId,
       task,
       priority,
@@ -347,14 +397,14 @@ export class AgentAssignCommand {
 
     // Sort by priority
     const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-    queue.tasks.sort((a: any, b: any) =>
+    queue.tasks.sort((a: QueueEntry, b: QueueEntry) =>
       priorityOrder[a.priority as keyof typeof priorityOrder] -
       priorityOrder[b.priority as keyof typeof priorityOrder]
     );
 
     await fs.writeJson(queuePath, queue, { spaces: 2 });
 
-    const queuePosition = queue.tasks.findIndex((t: any) => t.taskId === taskId);
+    const queuePosition = queue.tasks.findIndex((t: QueueEntry) => t.taskId === taskId);
 
     return {
       taskId,
@@ -363,7 +413,7 @@ export class AgentAssignCommand {
       status: 'queued',
       assignedAt: new Date(),
       queuePosition,
-      capabilities: agent.agent?.config?.capabilities?.map((c: any) => c.name) || []
+      capabilities: agent.agent?.config?.capabilities?.map((c: AgentCapability) => c.name) || []
     };
   }
 

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] - 2025-12-29
+
+### Fixed
+
+#### Type Safety Remediation (GOAP Issue #149 Phase 2 Complete)
+- **TypeScript Compilation**: 146 errors → 0 errors (100% fixed)
+- **Agent Type Safety**: Fixed 13 major agent files with proper typing
+  - `FleetCommanderAgent.ts`: 29 errors fixed (index signatures, event handlers)
+  - `RealAgentDBAdapter.ts`: 28 errors fixed (`getDb()` helper, SQL interface)
+  - `DeploymentReadinessAgent.ts`: 27 errors fixed (task payload typing)
+  - `RequirementsValidatorAgent.ts`: 16 errors fixed (memory retrieval casts)
+  - `SecurityScannerAgent.ts`: 15 errors fixed (3 interface index signatures)
+  - `PatternMemoryIntegration.ts`: 14 errors fixed (storage type interfaces)
+  - `AccessibilityAllyAgent.ts`: 11 errors fixed (event data casting)
+  - `PerformanceTesterAgent.ts`: 11 errors fixed (index signatures)
+  - `FlakyTestHunterAgent.ts`: 9 errors fixed (task payload typing)
+  - `ProductionIntelligenceAgent.ts`: 8 errors fixed (task payload casting)
+  - `RegressionRiskAnalyzerAgent.ts`: 7 errors fixed (task payload casting)
+  - `TestExecutorAgent.ts`: 6 errors fixed (history cast, config typing)
+  - Plus scattered fixes in CLI, MCP, and utility files
+
+### Changed
+
+- **`any` Type Count**: 568 → 538 (5.3% further reduction from v2.7.0)
+- **GOAP Plan Updated**: Phase 2 marked complete with detailed progress tracking
+- **Type Patterns Documented**: Index signatures, memory casts, task payload typing
+
 ## [2.7.0] - 2025-12-27
 
 ### Added

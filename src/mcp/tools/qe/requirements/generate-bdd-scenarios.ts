@@ -21,6 +21,7 @@
  */
 
 import type { QEToolResponse } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Types ====================
 
@@ -941,7 +942,7 @@ function buildGherkinContent(
  * Generate unique request ID
  */
 function generateRequestId(): string {
-  return `bdd-gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `bdd-gen-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`;
 }
 
 /**

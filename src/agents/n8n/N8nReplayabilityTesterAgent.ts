@@ -23,6 +23,7 @@ import {
   TimeSimulationConfig,
   TestWorkflowResult,
 } from './N8nTestHarness';
+import { seededRandom } from '../../utils/SeededRandom';
 
 // ============================================================================
 // Types
@@ -1255,7 +1256,7 @@ export class N8nReplayabilityTesterAgent extends N8nBaseAgent {
     }
 
     const fixture: ExecutionFixture = {
-      id: `fixture-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `fixture-${Date.now()}-${seededRandom.randomUUID().substring(0, 9)}`,
       name: `${workflow.name} - ${new Date().toISOString()}`,
       inputData,
       expectedOutput: nodeSnapshots[Object.keys(nodeSnapshots).pop() || '']?.outputData as Record<string, unknown> || {},

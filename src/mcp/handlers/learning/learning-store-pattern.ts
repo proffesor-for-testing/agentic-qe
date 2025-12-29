@@ -12,6 +12,7 @@ import { BaseHandler, HandlerResponse } from '../base-handler';
 import type { SwarmMemoryManager } from '../../../core/memory/SwarmMemoryManager';
 import type { AgentRegistry } from '../../services/AgentRegistry';
 import type { HookExecutor } from '../../services/HookExecutor';
+import { seededRandom } from '../../../utils/SeededRandom';
 
 export interface LearningPattern {
   agentId?: string;
@@ -71,7 +72,7 @@ export class LearningStorePatternHandler extends BaseHandler {
       // Note: patterns table should have agent_id, domain, success_rate columns (added via migration)
 
       // Generate unique pattern ID
-      const patternId = `pattern-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const patternId = `pattern-${Date.now()}-${seededRandom.random().toString(36).substring(2, 9)}`;
 
       // Check if pattern already exists (for the same agent + pattern text)
       const existing = agentId ? db.prepare(`
