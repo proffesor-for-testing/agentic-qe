@@ -13,7 +13,9 @@ import {
   CodeSignature,
   TestTemplate,
   PatternSimilarity,
-  PatternRecommendation
+  PatternRecommendation,
+  ExtractionStatistics as PatternExtractionStatistics,
+  ExtractionError
 } from '../types/pattern.types';
 import { Logger } from '../utils/Logger';
 
@@ -21,6 +23,40 @@ export interface PatternMemoryConfig {
   namespace: string;
   ttl: number;
   partition: string;
+}
+
+// Type definitions for stored data shapes
+interface StoredPatternData {
+  patterns?: TestPattern[];
+  signatures?: CodeSignature[];
+  statistics?: PatternExtractionStatistics;
+  errors?: ExtractionError[];
+  timestamp?: string | Date;
+}
+
+interface StoredSignatureData {
+  signatures?: CodeSignature[];
+  count?: number;
+  timestamp?: Date;
+}
+
+interface StoredTemplateData {
+  templates?: TestTemplate[];
+  count?: number;
+  timestamp?: Date;
+}
+
+interface StoredRecommendationData {
+  recommendations?: PatternRecommendation[];
+  timestamp?: Date;
+}
+
+interface ExtractionStatistics {
+  totalPatternsExtracted: number;
+  totalFilesProcessed: number;
+  totalProcessingTime: number;
+  lastExtraction?: Date;
+  avgProcessingTime?: number;
 }
 
 /**
@@ -84,19 +120,27 @@ export class PatternMemoryIntegration {
     const memoryKey = `${this.config.namespace}/${key}`;
 
     try {
-      const data = await this.memoryStore.get(memoryKey, this.config.partition);
+      const data = await this.memoryStore.get(memoryKey, this.config.partition) as StoredPatternData | null;
 
       if (!data) {
         this.logger.warn(`No patterns found at ${memoryKey}`);
         return null;
       }
 
+      const defaultStats: PatternExtractionStatistics = {
+        filesProcessed: 0,
+        testsAnalyzed: 0,
+        patternsExtracted: 0,
+        processingTime: 0,
+        avgPatternsPerFile: 0,
+        patternTypeDistribution: {} as Record<string, number>
+      };
       return {
         patterns: data.patterns || [],
         signatures: data.signatures || [],
-        statistics: data.statistics || {},
+        statistics: data.statistics || defaultStats,
         errors: data.errors || [],
-        timestamp: new Date(data.timestamp)
+        timestamp: data.timestamp ? new Date(data.timestamp) : new Date()
       };
     } catch (error) {
       this.logger.error('Failed to retrieve patterns:', error);
@@ -138,7 +182,7 @@ export class PatternMemoryIntegration {
     const memoryKey = `${this.config.namespace}/${key}`;
 
     try {
-      const data = await this.memoryStore.get(memoryKey, this.config.partition);
+      const data = await this.memoryStore.get(memoryKey, this.config.partition) as StoredSignatureData | null;
       return data?.signatures || [];
     } catch (error) {
       this.logger.error('Failed to retrieve signatures:', error);
@@ -180,7 +224,7 @@ export class PatternMemoryIntegration {
     const memoryKey = `${this.config.namespace}/${key}`;
 
     try {
-      const data = await this.memoryStore.get(memoryKey, this.config.partition);
+      const data = await this.memoryStore.get(memoryKey, this.config.partition) as StoredTemplateData | null;
       return data?.templates || [];
     } catch (error) {
       this.logger.error('Failed to retrieve templates:', error);
@@ -249,7 +293,7 @@ export class PatternMemoryIntegration {
     const memoryKey = `${this.config.namespace}/recommendations/${sourceCodeHash}`;
 
     try {
-      const data = await this.memoryStore.get(memoryKey, this.config.partition);
+      const data = await this.memoryStore.get(memoryKey, this.config.partition) as StoredRecommendationData | null;
       return data?.recommendations || [];
     } catch (error) {
       this.logger.error('Failed to retrieve recommendations:', error);
@@ -279,7 +323,7 @@ export class PatternMemoryIntegration {
     const memoryKey = `${this.config.namespace}/patterns/${patternId}`;
 
     try {
-      const pattern = await this.memoryStore.get(memoryKey, this.config.partition);
+      const pattern = await this.memoryStore.get(memoryKey, this.config.partition) as TestPattern | null;
       return pattern || null;
     } catch (error) {
       this.logger.error(`Failed to retrieve pattern ${patternId}:`, error);
@@ -299,13 +343,14 @@ export class PatternMemoryIntegration {
     const memoryKey = `${this.config.namespace}/statistics`;
 
     try {
-      const existing = await this.memoryStore.get(memoryKey, this.config.partition) || {
+      const existingData = await this.memoryStore.get(memoryKey, this.config.partition) as ExtractionStatistics | null;
+      const existing: ExtractionStatistics = existingData || {
         totalPatternsExtracted: 0,
         totalFilesProcessed: 0,
         totalProcessingTime: 0
       };
 
-      const updated = {
+      const updated: ExtractionStatistics = {
         totalPatternsExtracted: existing.totalPatternsExtracted + stats.totalPatternsExtracted,
         totalFilesProcessed: existing.totalFilesProcessed + stats.totalFilesProcessed,
         totalProcessingTime: existing.totalProcessingTime + stats.totalProcessingTime,

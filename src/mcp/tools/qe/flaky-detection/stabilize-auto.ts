@@ -22,6 +22,7 @@ import {
   ResponseMetadata,
   Priority
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 import {
   RootCauseAnalysis,
   FixRecommendation
@@ -560,8 +561,8 @@ async function validateFix(
     const result: TestResult = {
       testId: `run-${i}`,
       name: testName,
-      status: Math.random() > 0.1 ? 'passed' : 'failed', // 90% pass rate
-      duration: 1000 + Math.random() * 500,
+      status: seededRandom.random() > 0.1 ? 'passed' : 'failed',
+      duration: 1000 + seededRandom.random() * 500,
       timestamp: new Date().toISOString()
     };
 

@@ -15,6 +15,7 @@
 import { DistributedPatternLibrary, VersionedPattern } from './DistributedPatternLibrary';
 import { TestPattern } from '../core/memory/IPatternStore';
 import { EventEmitter } from 'events';
+import { performance } from 'perf_hooks';
 
 /**
  * Replication node status
@@ -233,7 +234,7 @@ export class PatternReplicationService extends EventEmitter {
    * Sync patterns across all nodes
    */
   async syncPatterns(): Promise<{ synced: number; duration: number }> {
-    const startTime = Date.now();
+    const startTime = performance.now();
     let totalSynced = 0;
 
     const healthyNodes = this.getHealthyNodes();
@@ -259,7 +260,8 @@ export class PatternReplicationService extends EventEmitter {
       }
     }
 
-    const duration = Date.now() - startTime;
+    // Use performance.now() for sub-millisecond precision
+    const duration = performance.now() - startTime;
 
     this.emit('sync_completed', {
       type: 'sync_completed',

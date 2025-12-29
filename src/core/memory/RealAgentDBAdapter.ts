@@ -7,9 +7,28 @@
 import type { Pattern, RetrievalOptions, RetrievalResult } from './ReasoningBankAdapter';
 import { generateEmbedding } from '../../utils/EmbeddingGenerator.js';
 import { createDatabase, WASMVectorSearch, HNSWIndex, ReasoningBank, EmbeddingService } from 'agentdb';
+import { getErrorMessage } from '../../utils/ErrorUtils';
+
+// Type for AgentDB's SqlJs prepared statement
+interface SqlJsStatement {
+  all(...params: unknown[]): unknown[];
+  run(...params: unknown[]): void;
+  get(...params: unknown[]): Record<string, unknown> | undefined;
+  finalize?(): void;
+  free?(): void;
+}
+
+// Type for AgentDB's SqlJs database interface
+interface SqlJsDatabase {
+  prepare(sql: string): SqlJsStatement;
+  exec(sql: string): Array<{ columns: string[]; values: unknown[][] }>;
+  run(sql: string, ...params: unknown[]): void;
+  get(sql: string, ...params: unknown[]): Record<string, unknown> | undefined;
+  close(): void;
+}
 
 export class RealAgentDBAdapter {
-  private db: any; // Database from createDatabase()
+  private db: SqlJsDatabase | null = null;
   private wasmSearch: WASMVectorSearch | null = null;
   private hnswIndex: HNSWIndex | null = null;
   private reasoningBank: ReasoningBank | null = null;
@@ -21,6 +40,16 @@ export class RealAgentDBAdapter {
   constructor(config: { dbPath: string; dimension?: number }) {
     this.dbPath = config.dbPath;
     this.dimension = config.dimension || 384;
+  }
+
+  /**
+   * Get database instance, throwing if not initialized
+   */
+  private getDb(): SqlJsDatabase {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+    return this.db;
   }
 
   /**
@@ -75,8 +104,8 @@ export class RealAgentDBAdapter {
 
       this.isInitialized = true;
       console.log('[RealAgentDBAdapter] Initialized with AgentDB v1.6.1 + ReasoningBank at', this.dbPath);
-    } catch (error: any) {
-      throw new Error(`Failed to initialize real AgentDB: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to initialize real AgentDB: ${getErrorMessage(error)}`);
     }
   }
 
@@ -97,9 +126,9 @@ export class RealAgentDBAdapter {
       )
     `;
 
-    await this.db.exec(sql);
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_type ON patterns(type)');
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_pattern_id ON patterns(pattern_id)');
+    this.getDb().exec(sql);
+    this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_patterns_type ON patterns(type)');
+    this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_patterns_pattern_id ON patterns(pattern_id)');
   }
 
   /**
@@ -127,8 +156,8 @@ export class RealAgentDBAdapter {
   private async createQELearningTables(): Promise<void> {
     try {
       // Enable WAL mode for better concurrent access
-      await this.db.exec('PRAGMA journal_mode = WAL');
-      await this.db.exec('PRAGMA synchronous = NORMAL');
+      this.getDb().exec('PRAGMA journal_mode = WAL');
+      this.getDb().exec('PRAGMA synchronous = NORMAL');
 
       // 1. Core Pattern Storage
       await this.createTestPatternsTable();
@@ -149,8 +178,8 @@ export class RealAgentDBAdapter {
       await this.createSchemaVersionTable();
 
       console.log('[RealAgentDBAdapter] QE Learning tables initialized successfully');
-    } catch (error: any) {
-      throw new Error(`Failed to create QE learning tables: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to create QE learning tables: ${getErrorMessage(error)}`);
     }
   }
 
@@ -179,12 +208,12 @@ export class RealAgentDBAdapter {
       )
     `;
 
-    await this.db.exec(sql);
+    this.getDb().exec(sql);
 
     // Create indexes for efficient querying
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_framework_type ON test_patterns(framework, pattern_type)');
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_patterns_signature_hash ON test_patterns(code_signature_hash)');
-    await this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_dedup ON test_patterns(code_signature_hash, framework)');
+    this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_patterns_framework_type ON test_patterns(framework, pattern_type)');
+    this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_patterns_signature_hash ON test_patterns(code_signature_hash)');
+    this.getDb().exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_dedup ON test_patterns(code_signature_hash, framework)');
   }
 
   /**
@@ -213,11 +242,11 @@ export class RealAgentDBAdapter {
       )
     `;
 
-    await this.db.exec(sql);
+    await this.getDb().exec(sql);
 
     // Create indexes for efficient querying
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_usage_pattern ON pattern_usage(pattern_id)');
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_usage_quality ON pattern_usage(quality_score DESC)');
+    await this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_usage_pattern ON pattern_usage(pattern_id)');
+    await this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_usage_quality ON pattern_usage(quality_score DESC)');
   }
 
   /**
@@ -244,7 +273,7 @@ export class RealAgentDBAdapter {
       )
     `;
 
-    await this.db.exec(sql);
+    await this.getDb().exec(sql);
   }
 
   /**
@@ -270,10 +299,10 @@ export class RealAgentDBAdapter {
       )
     `;
 
-    await this.db.exec(sql);
+    await this.getDb().exec(sql);
 
     // Create index for efficient similarity queries
-    await this.db.exec('CREATE INDEX IF NOT EXISTS idx_similarity_score ON pattern_similarity_index(similarity_score DESC)');
+    await this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_similarity_score ON pattern_similarity_index(similarity_score DESC)');
   }
 
   /**
@@ -300,12 +329,12 @@ export class RealAgentDBAdapter {
         )
       `;
 
-      await this.db.exec(sql);
+      await this.getDb().exec(sql);
       console.log('[RealAgentDBAdapter] FTS5 full-text search enabled');
-    } catch (error: any) {
+    } catch (error: unknown) {
       // FTS5 not available in this SQLite build (e.g., sql.js WASM)
       // Fall back to creating a regular table for pattern metadata
-      if (error.message?.includes('no such module: fts5')) {
+      if (getErrorMessage(error)?.includes('no such module: fts5')) {
         console.warn('[RealAgentDBAdapter] FTS5 not available, using regular table for pattern search');
 
         const fallbackSql = `
@@ -319,12 +348,12 @@ export class RealAgentDBAdapter {
           )
         `;
 
-        await this.db.exec(fallbackSql);
+        await this.getDb().exec(fallbackSql);
 
         // Create indexes for text search fallback
-        await this.db.exec('CREATE INDEX IF NOT EXISTS idx_fts_pattern_name ON pattern_fts(pattern_name)');
-        await this.db.exec('CREATE INDEX IF NOT EXISTS idx_fts_framework ON pattern_fts(framework)');
-        await this.db.exec('CREATE INDEX IF NOT EXISTS idx_fts_pattern_type ON pattern_fts(pattern_type)');
+        await this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_fts_pattern_name ON pattern_fts(pattern_name)');
+        await this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_fts_framework ON pattern_fts(framework)');
+        await this.getDb().exec('CREATE INDEX IF NOT EXISTS idx_fts_pattern_type ON pattern_fts(pattern_type)');
       } else {
         throw error;
       }
@@ -346,7 +375,7 @@ export class RealAgentDBAdapter {
       )
     `;
 
-    await this.db.exec(sql);
+    await this.getDb().exec(sql);
 
     // Insert initial schema version
     const insertVersion = `
@@ -354,7 +383,7 @@ export class RealAgentDBAdapter {
       VALUES ('1.1.0', 'Initial QE ReasoningBank schema')
     `;
 
-    await this.db.exec(insertVersion);
+    await this.getDb().exec(insertVersion);
   }
 
   /**
@@ -403,7 +432,7 @@ export class RealAgentDBAdapter {
       // Convert embedding to buffer for storage
       const embeddingBuffer = Buffer.from(embedding.buffer);
 
-      const stmt = this.db.prepare(`
+      const stmt = this.getDb().prepare(`
         INSERT OR REPLACE INTO patterns (id, type, confidence, embedding, metadata, created_at)
         VALUES (?, ?, ?, ?, ?, unixepoch())
       `);
@@ -422,7 +451,7 @@ export class RealAgentDBAdapter {
       // Add to HNSW index - use parameterized query
       // AgentDB's SqlJsDatabase uses get() with spread params
       if (this.hnswIndex && this.hnswIndex.isReady()) {
-        const stmtSelect = this.db.prepare('SELECT rowid FROM patterns WHERE id = ?');
+        const stmtSelect = this.getDb().prepare('SELECT rowid FROM patterns WHERE id = ?');
         const row = stmtSelect.get(pattern.id);
 
         if (row && row.rowid) {
@@ -432,8 +461,8 @@ export class RealAgentDBAdapter {
       }
 
       return pattern.id;
-    } catch (error: any) {
-      throw new Error(`Failed to store pattern: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to store pattern: ${getErrorMessage(error)}`);
     }
   }
 
@@ -446,7 +475,7 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      await this.db.exec('BEGIN TRANSACTION');
+      await this.getDb().exec('BEGIN TRANSACTION');
 
       const ids: string[] = [];
       for (const pattern of patterns) {
@@ -454,7 +483,7 @@ export class RealAgentDBAdapter {
         ids.push(id);
       }
 
-      await this.db.exec('COMMIT');
+      await this.getDb().exec('COMMIT');
 
       // Rebuild HNSW index if needed
       if (this.hnswIndex && this.hnswIndex.needsRebuild()) {
@@ -463,9 +492,9 @@ export class RealAgentDBAdapter {
 
       console.log(`[RealAgentDBAdapter] Inserted ${ids.length} patterns`);
       return ids;
-    } catch (error: any) {
-      await this.db.exec('ROLLBACK');
-      throw new Error(`Failed to store batch: ${error.message}`);
+    } catch (error: unknown) {
+      await this.getDb().exec('ROLLBACK');
+      throw new Error(`Failed to store batch: ${getErrorMessage(error)}`);
     }
   }
 
@@ -494,7 +523,7 @@ export class RealAgentDBAdapter {
       const threshold = options.threshold || 0.7;
 
       // Check if database has patterns before searching
-      const countResult = this.db.exec('SELECT COUNT(*) as count FROM patterns');
+      const countResult = this.getDb().exec('SELECT COUNT(*) as count FROM patterns');
 
       // P2 SAFETY: Explicit error handling instead of silent fallback
       if (!countResult || countResult.length === 0 || !countResult[0].values || countResult[0].values.length === 0) {
@@ -549,22 +578,28 @@ export class RealAgentDBAdapter {
       // Convert results to Pattern format
       const patterns: Pattern[] = [];
       for (const result of searchResults) {
-        const row = await this.db.get('SELECT * FROM patterns WHERE rowid = ?', [result.id]);
+        const row = this.getDb().get('SELECT * FROM patterns WHERE rowid = ?', result.id);
         if (row) {
           // Decode embedding from stored buffer if available
           let storedEmbedding = queryEmbedding;
-          if (row.embedding && row.embedding instanceof Uint8Array) {
-            storedEmbedding = Array.from(new Float32Array(row.embedding.buffer));
+          const embedding = row.embedding as Uint8Array | undefined;
+          if (embedding && embedding instanceof Uint8Array) {
+            storedEmbedding = Array.from(new Float32Array(embedding.buffer));
           }
 
+          const id = row.id as string;
+          const type = row.type as string;
+          const metadata = row.metadata as string | undefined;
+          const confidence = row.confidence as number | undefined;
+
           patterns.push({
-            id: row.id,
-            type: row.type,
-            data: row.metadata ? JSON.parse(row.metadata) : {},
+            id,
+            type,
+            data: metadata ? JSON.parse(metadata) : {},
             embedding: storedEmbedding,
-            confidence: row.confidence,
+            confidence,
             metadata: {
-              ...JSON.parse(row.metadata || '{}'),
+              ...JSON.parse(metadata || '{}'),
               similarity: result.similarity,
               distance: result.distance
             }
@@ -584,8 +619,8 @@ export class RealAgentDBAdapter {
           queryTime
         }
       };
-    } catch (error: any) {
-      throw new Error(`Failed to retrieve: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to retrieve: ${getErrorMessage(error)}`);
     }
   }
 
@@ -598,7 +633,7 @@ export class RealAgentDBAdapter {
     }
 
     try {
-      const result = this.db.exec('SELECT COUNT(*) as count FROM patterns');
+      const result = this.getDb().exec('SELECT COUNT(*) as count FROM patterns');
       const totalVectors = result && result.length > 0 && result[0].values.length > 0
         ? result[0].values[0][0]
         : 0;
@@ -610,8 +645,8 @@ export class RealAgentDBAdapter {
         hnswStats: this.hnswIndex?.getStats(),
         wasmStats: this.wasmSearch?.getStats()
       };
-    } catch (error: any) {
-      throw new Error(`Failed to get stats: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to get stats: ${getErrorMessage(error)}`);
     }
   }
 
@@ -655,7 +690,7 @@ export class RealAgentDBAdapter {
   /**
    * Insert a pattern (alias for store)
    */
-  async insertPattern(pattern: any): Promise<string> {
+  async insertPattern(pattern: Pattern): Promise<string> {
     return this.store(pattern);
   }
 
@@ -663,7 +698,7 @@ export class RealAgentDBAdapter {
    * Execute raw SQL query with parameterized values
    * WARNING: Only use with trusted SQL. This method validates SQL to prevent injection.
    */
-  async query(sql: string, params: any[] = []): Promise<any[]> {
+  async query(sql: string, params: unknown[] = []): Promise<Record<string, unknown>[]> {
     if (!this.isInitialized || !this.db) {
       throw new Error('Adapter not initialized');
     }
@@ -675,22 +710,22 @@ export class RealAgentDBAdapter {
       // Use parameterized queries via prepare() for safety
       // AgentDB's SqlJsDatabase uses all() with spread params
       if (params.length > 0) {
-        const stmt = this.db.prepare(sql);
-        const results = stmt.all(...params);
+        const stmt = this.getDb().prepare(sql);
+        const results = stmt.all(...params) as Record<string, unknown>[];
         if (typeof stmt.finalize === 'function') stmt.finalize();
         return results;
       }
 
       // For queries without parameters, use exec()
-      const execResults = this.db.exec(sql);
+      const execResults = this.getDb().exec(sql);
 
       // exec returns: [{ columns: [...], values: [[...], [...]] }]
       if (execResults && execResults.length > 0) {
         const { columns, values } = execResults[0];
 
         // Convert to array of objects
-        return values.map((row: any[]) => {
-          const obj: any = {};
+        return values.map((row: unknown[]) => {
+          const obj: Record<string, unknown> = {};
           columns.forEach((col: string, i: number) => {
             obj[col] = row[i];
           });
@@ -699,8 +734,8 @@ export class RealAgentDBAdapter {
       }
 
       return [];
-    } catch (error: any) {
-      throw new Error(`Query failed: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Query failed: ${getErrorMessage(error)}`);
     }
   }
 

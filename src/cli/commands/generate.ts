@@ -4,6 +4,92 @@ import ora from 'ora';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { GenerateOptions } from '../../types';
+import { getErrorMessage, getErrorStack } from '../../utils/ErrorUtils';
+
+/** Represents a function extracted from source code */
+interface FunctionInfo {
+  name: string;
+  line: number;
+  type: string;
+}
+
+/** Represents analysis of a single source file */
+interface FileAnalysis {
+  path: string;
+  extension: string;
+  lines: number;
+  functions: FunctionInfo[];
+  complexity: number;
+  imports: string[];
+  exports: string[];
+}
+
+/** Represents the overall source code analysis */
+interface SourceCodeAnalysis {
+  files: FileAnalysis[];
+  complexity: number;
+  testable_functions: FunctionInfo[];
+  dependencies: string[];
+  coverage_gaps: string[];
+  risk_areas: string[];
+}
+
+/** Represents a test case for a function */
+interface TestCase {
+  name: string;
+  type: string;
+  description: string;
+}
+
+/** Represents function test specification */
+interface FunctionTestSpec {
+  name: string;
+  tests: TestCase[];
+}
+
+/** Represents a file's test specification */
+interface FileTestSpec {
+  sourceFile: string;
+  testFile: string;
+  functions: FunctionTestSpec[];
+  coverage: {
+    target: number;
+    strategy: string;
+  };
+}
+
+/** Represents a testing strategy */
+interface TestingStrategy {
+  type: string;
+  target?: string | number;
+  method?: string;
+  focus?: string[];
+  framework?: string;
+  patterns?: string[];
+}
+
+/** Represents the complete test specification */
+interface TestSpecification {
+  target: string;
+  type: string;
+  framework: string;
+  coverageTarget: number;
+  files: FileTestSpec[];
+  strategies: TestingStrategy[];
+  metadata: {
+    generated: string;
+    sourceFiles: number;
+    functions: number;
+    complexity: number;
+  };
+}
+
+/** Represents a generated test file */
+interface GeneratedTest {
+  sourceFile: string;
+  testFile: string;
+  testsCount: number;
+}
 
 export class GenerateCommand {
   static async execute(target: string, options: GenerateOptions): Promise<void> {
@@ -43,10 +129,13 @@ export class GenerateCommand {
       // Store progress in coordination memory
       await this.storeGenerationProgress(generatedTests);
 
-    } catch (error: any) {
-      console.error(chalk.red('❌ Test generation failed:'), error.message);
+    } catch (error: unknown) {
+      console.error(chalk.red('❌ Test generation failed:'), getErrorMessage(error));
       if (options.verbose) {
-        console.error(chalk.gray(error.stack));
+        const stack = getErrorStack(error);
+        if (stack) {
+          console.error(chalk.gray(stack));
+        }
       }
       ProcessExit.exitIfNotTest(1);
     }
@@ -77,8 +166,8 @@ export class GenerateCommand {
     }
   }
 
-  private static async analyzeSourceCode(sourcePath: string): Promise<any> {
-    const analysis = {
+  private static async analyzeSourceCode(sourcePath: string): Promise<SourceCodeAnalysis> {
+    const analysis: SourceCodeAnalysis = {
       files: [],
       complexity: 0,
       testable_functions: [],
@@ -91,10 +180,10 @@ export class GenerateCommand {
     const files = await this.getSourceFiles(sourcePath);
 
     for (const file of files) {
-      const fileAnalysis: any = await this.analyzeFile(file);
-      (analysis.files as any[]).push(fileAnalysis);
+      const fileAnalysis = await this.analyzeFile(file);
+      analysis.files.push(fileAnalysis);
       analysis.complexity += fileAnalysis.complexity;
-      (analysis.testable_functions as any[]).push(...fileAnalysis.functions);
+      analysis.testable_functions.push(...fileAnalysis.functions);
     }
 
     return analysis;
@@ -123,7 +212,7 @@ export class GenerateCommand {
     return files;
   }
 
-  private static async analyzeFile(filePath: string): Promise<any> {
+  private static async analyzeFile(filePath: string): Promise<FileAnalysis> {
     const content = await fs.readFile(filePath, 'utf-8');
     const ext = path.extname(filePath);
 
@@ -143,8 +232,8 @@ export class GenerateCommand {
     };
   }
 
-  private static extractFunctions(content: string, extension: string): any[] {
-    const functions: any[] = [];
+  private static extractFunctions(content: string, extension: string): FunctionInfo[] {
+    const functions: FunctionInfo[] = [];
 
     // Simple regex patterns for different languages
     const patterns: Record<string, RegExp[]> = {
@@ -218,8 +307,8 @@ export class GenerateCommand {
     return exports;
   }
 
-  private static async generateTestSpecifications(target: string, options: GenerateOptions, analysis: any): Promise<any> {
-    const testSpecs = {
+  private static async generateTestSpecifications(target: string, options: GenerateOptions, analysis: SourceCodeAnalysis): Promise<TestSpecification> {
+    const testSpecs: TestSpecification = {
       target,
       type: options.type,
       framework: options.framework,
@@ -236,23 +325,23 @@ export class GenerateCommand {
 
     // Generate test specifications for each file
     for (const file of analysis.files) {
-      const fileTestSpec: any = this.generateFileTestSpec(file, options);
-      (testSpecs.files as any[]).push(fileTestSpec);
+      const fileTestSpec = this.generateFileTestSpec(file, options);
+      testSpecs.files.push(fileTestSpec);
     }
 
     // Generate testing strategies
-    (testSpecs as any).strategies = this.generateTestingStrategies(options, analysis);
+    testSpecs.strategies = this.generateTestingStrategies(options, analysis);
 
     return testSpecs;
   }
 
-  private static generateFileTestSpec(fileAnalysis: any, options: GenerateOptions): any {
+  private static generateFileTestSpec(fileAnalysis: FileAnalysis, options: GenerateOptions): FileTestSpec {
     const testFile = this.getTestFilePath(fileAnalysis.path, options);
 
     return {
       sourceFile: fileAnalysis.path,
       testFile,
-      functions: fileAnalysis.functions.map((func: any) => ({
+      functions: fileAnalysis.functions.map((func: FunctionInfo) => ({
         name: func.name,
         tests: this.generateFunctionTests(func, options)
       })),
@@ -270,8 +359,8 @@ export class GenerateCommand {
     return path.join(options.output, parsedPath.dir, testFileName);
   }
 
-  private static generateFunctionTests(func: any, options: GenerateOptions): any[] {
-    const tests = [];
+  private static generateFunctionTests(func: FunctionInfo, options: GenerateOptions): TestCase[] {
+    const tests: TestCase[] = [];
 
     // Basic test cases
     tests.push({
@@ -304,8 +393,8 @@ export class GenerateCommand {
     return tests;
   }
 
-  private static generateTestingStrategies(options: GenerateOptions, analysis: any): any[] {
-    const strategies = [];
+  private static generateTestingStrategies(options: GenerateOptions, analysis: SourceCodeAnalysis): TestingStrategy[] {
+    const strategies: TestingStrategy[] = [];
 
     // Coverage strategy
     strategies.push({
@@ -345,8 +434,8 @@ export class GenerateCommand {
     return patterns[framework] || patterns['jest'];
   }
 
-  private static async generateTestFiles(testSpecs: any, options: GenerateOptions): Promise<any[]> {
-    const generatedTests = [];
+  private static async generateTestFiles(testSpecs: TestSpecification, options: GenerateOptions): Promise<GeneratedTest[]> {
+    const generatedTests: GeneratedTest[] = [];
 
     // Ensure output directory exists
     await fs.ensureDir(options.output);
@@ -363,14 +452,14 @@ export class GenerateCommand {
       generatedTests.push({
         sourceFile: fileSpec.sourceFile,
         testFile: fileSpec.testFile,
-        testsCount: fileSpec.functions.reduce((sum: number, func: any) => sum + func.tests.length, 0)
+        testsCount: fileSpec.functions.reduce((sum: number, func: FunctionTestSpec) => sum + func.tests.length, 0)
       });
     }
 
     return generatedTests;
   }
 
-  private static async generateTestFileContent(fileSpec: any, options: GenerateOptions): Promise<string> {
+  private static async generateTestFileContent(fileSpec: FileTestSpec, options: GenerateOptions): Promise<string> {
     const framework = options.framework;
     const sourceFile = fileSpec.sourceFile;
     const relativePath = path.relative(path.dirname(fileSpec.testFile), sourceFile);
@@ -379,7 +468,7 @@ export class GenerateCommand {
 
     // Framework-specific imports and setup
     if (framework === 'jest') {
-      content += `import { ${fileSpec.functions.map((f: any) => f.name).join(', ')} } from '${relativePath}';\n\n`;
+      content += `import { ${fileSpec.functions.map((f: FunctionTestSpec) => f.name).join(', ')} } from '${relativePath}';\n\n`;
       content += `describe('${path.basename(sourceFile)}', () => {\n`;
 
       for (const func of fileSpec.functions) {
@@ -442,7 +531,7 @@ ${options.framework} --config .agentic-qe/config/${options.framework}.config.jso
     await fs.chmod(`${scriptsDir}/run-tests.sh`, '755');
   }
 
-  private static displayGenerationSummary(generatedTests: any[], options: GenerateOptions): void {
+  private static displayGenerationSummary(generatedTests: GeneratedTest[], options: GenerateOptions): void {
     console.log(chalk.yellow('\n📊 Test Generation Summary:'));
     console.log(chalk.gray(`  Framework: ${options.framework}`));
     console.log(chalk.gray(`  Coverage Target: ${options.coverageTarget}%`));
@@ -470,7 +559,7 @@ ${options.framework} --config .agentic-qe/config/${options.framework}.config.jso
     console.log(chalk.gray('  3. Analyze coverage: agentic-qe analyze coverage --gaps'));
   }
 
-  private static async storeGenerationProgress(generatedTests: any[]): Promise<void> {
+  private static async storeGenerationProgress(generatedTests: GeneratedTest[]): Promise<void> {
     const progress = {
       timestamp: new Date().toISOString(),
       files: generatedTests.length,

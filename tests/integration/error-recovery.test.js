@@ -12,6 +12,14 @@ describe('Error Recovery Integration Tests', () => {
   const recoveryNamespace = 'aqe-recovery-test';
   let testWorkspace;
 
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeAll(async () => {
     testWorkspace = path.join(__dirname, '../../.test-recovery-workspace');
     await fs.mkdir(testWorkspace, { recursive: true });
@@ -68,7 +76,7 @@ describe('Error Recovery Integration Tests', () => {
           await execCommand(`npx claude-flow@alpha memory store "failure-${agentConfig.id}-${attemptCount}" '${JSON.stringify(failureInfo)}' --namespace "${recoveryNamespace}"`);
 
           if (i < agentConfig.maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, agentConfig.retryDelay));
+            await jest.advanceTimersByTimeAsync(agentConfig.retryDelay);
           }
         }
       }
@@ -88,11 +96,13 @@ describe('Error Recovery Integration Tests', () => {
 
       try {
         // Simulate long-running operation that times out
-        await new Promise((resolve, reject) => {
+        const timeoutPromise = new Promise((resolve, reject) => {
           setTimeout(() => {
             reject(new Error('Coverage analysis timeout'));
           }, coverageConfig.timeout + 500);
         });
+        await jest.advanceTimersByTimeAsync(coverageConfig.timeout + 500);
+        await timeoutPromise;
       } catch (error) {
         const fallbackResult = await simulateFallbackCoverage(coverageConfig);
 
@@ -233,7 +243,7 @@ describe('Error Recovery Integration Tests', () => {
 
           if (retryCount <= maxRetries) {
             const delay = hookConfig.retryPolicy.initialDelay * Math.pow(hookConfig.retryPolicy.backoffMultiplier, retryCount - 1);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await jest.advanceTimersByTimeAsync(delay);
           } else {
             throw new Error('Hook execution failed after all retries');
           }
@@ -376,7 +386,7 @@ async function execCommand(command) {
 }
 
 async function simulateAgentRecovery(config, attemptCount) {
-  await new Promise(resolve => setTimeout(resolve, 100)); // Simulate work
+  await jest.advanceTimersByTimeAsync(100); // Simulate work
 
   return {
     agentId: config.id,
@@ -388,7 +398,7 @@ async function simulateAgentRecovery(config, attemptCount) {
 }
 
 async function simulateFallbackCoverage(config) {
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate fallback work
+  await jest.advanceTimersByTimeAsync(500); // Simulate fallback work
 
   return {
     agentId: config.id,
@@ -429,7 +439,7 @@ function calculateFailureImpact(agents, failedAgentId) {
 const rng = createSeededRandom(27000);
 
 async function simulateIndependentAgentExecution(agent) {
-  await new Promise(resolve => setTimeout(resolve, rng.random() * 500 + 100));
+  await jest.advanceTimersByTimeAsync(rng.random() * 500 + 100);
 
   return {
     agentId: agent.id,

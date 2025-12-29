@@ -20,6 +20,7 @@
  */
 
 import { AbstractRLLearner, RLConfig, QValue } from './AbstractRLLearner';
+import { seededRandom } from '../../utils/SeededRandom';
 import { TaskState, AgentAction, TaskExperience } from '../types';
 
 /**
@@ -127,9 +128,8 @@ export class ActorCriticLearner extends AbstractRLLearner {
     }
 
     // With probability ε, use random action (exploration fallback)
-    if (Math.random() < this.config.explorationRate) {
-      const randomIndex = Math.floor(Math.random() * availableActions.length);
-      return availableActions[randomIndex];
+    if (seededRandom.random() < this.config.explorationRate) {
+      return seededRandom.randomElement(availableActions);
     }
 
     // Use softmax policy
@@ -144,7 +144,7 @@ export class ActorCriticLearner extends AbstractRLLearner {
     const probabilities = this.getActionProbabilities(stateKey, availableActions);
 
     // Sample from categorical distribution
-    const random = Math.random();
+    const random = seededRandom.random();
     let cumulative = 0;
 
     for (let i = 0; i < availableActions.length; i++) {

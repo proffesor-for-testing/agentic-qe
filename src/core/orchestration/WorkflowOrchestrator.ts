@@ -9,6 +9,7 @@
  */
 
 import { Logger } from '../../utils/Logger';
+import { SecureRandom } from '../../utils/SecureRandom';
 import { SwarmMemoryManager } from '../memory/SwarmMemoryManager';
 import { QEEventBus } from '../events/QEEventBus';
 import { SwarmOptimizer, Task, Agent } from '../optimization/SwarmOptimizer';
@@ -1010,7 +1011,7 @@ export class WorkflowOrchestrator {
    * Generate unique execution ID
    */
   private generateExecutionId(): string {
-    return `exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `exec-${Date.now()}-${SecureRandom.generateId(9)}`;
   }
 
   /**

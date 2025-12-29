@@ -8,8 +8,13 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
-// Handler not yet implemented - skip these tests
-describe.skip('PerformanceBenchmarkRunHandler', () => {
+/**
+ * SKIP REASON: Handler Not Implemented
+ * No PerformanceBenchmarkRunHandler exists in src/mcp/handlers/analysis/
+ * This test defines the expected API for performance benchmark execution
+ * TODO: Implement PerformanceBenchmarkRunHandler to enable these tests
+ */
+describe.skip('PerformanceBenchmarkRunHandler (handler not implemented)', () => {
   // Placeholder types for when handler is implemented
   type PerformanceBenchmarkRunParams = any;
   type PerformanceBenchmarkRunHandler = any;

@@ -15,6 +15,7 @@ import {
   ValidationResult,
 } from './types';
 import { QETask, AgentCapability } from '../../types';
+import { seededRandom } from '../../utils/SeededRandom';
 
 export interface CITestTask extends QETask {
   type: 'ci-test';
@@ -166,7 +167,7 @@ export class N8nCIOrchestratorAgent extends N8nBaseAgent {
     workflowId: string,
     options?: CITestTask['options']
   ): Promise<CITestResult> {
-    const runId = `ci-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const runId = `ci-${Date.now()}-${seededRandom.randomUUID().substring(0, 9)}`;
     const startTime = new Date();
     const environment = options?.environment || 'development';
     const testTypes = options?.testTypes || ['validation', 'security'];

@@ -95,6 +95,7 @@ export interface QualitySignals {
     skipped: number;
     flakyCount: number;
   };
+  [key: string]: unknown;
 }
 
 export interface ReadinessCheckResult {
@@ -108,6 +109,7 @@ export interface ReadinessCheckResult {
   reasons: string[];
   recommendations: string[];
   timestamp: Date;
+  [key: string]: unknown;
 }
 
 export interface ChecklistResult {
@@ -116,6 +118,7 @@ export interface ChecklistResult {
   passedCount: number;
   failedCount: number;
   warningCount: number;
+  [key: string]: unknown;
 }
 
 export interface ChecklistItem {
@@ -144,6 +147,7 @@ export interface RollbackRiskAssessment {
     estimatedTime: number;
     automated: boolean;
   };
+  [key: string]: unknown;
 }
 
 export interface ConfidenceCalculation {
@@ -161,6 +165,7 @@ export interface ConfidenceCalculation {
   };
   basedOnDeployments: number;
   recommendation: string;
+  [key: string]: unknown;
 }
 
 export interface StakeholderReport {
@@ -178,6 +183,7 @@ export interface StakeholderReport {
   recommendation: string;
   format: 'markdown' | 'html' | 'json';
   timestamp: Date;
+  [key: string]: unknown;
 }
 
 // ============================================================================
@@ -315,9 +321,10 @@ export class DeploymentReadinessAgent extends BaseAgent {
     await super.onPreTask(data);
 
     // Load historical deployment data
-    const history = await this.memoryStore.retrieve(
+    const historyWrapper = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as { entries?: Array<Record<string, unknown>> } | null;
+    const history = historyWrapper?.entries;
 
     if (history) {
       console.log(`Loaded ${history.length} historical deployment checks`);
@@ -425,7 +432,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       eventType: 'quality-gate.evaluated',
       handler: async (event) => {
         console.log('Quality gate evaluation received:', event.data);
-        await this.handleQualityGateResult(event.data);
+        await this.handleQualityGateResult(event.data as QualityGateEventData);
       }
     });
 
@@ -433,7 +440,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       eventType: 'performance.test.complete',
       handler: async (event) => {
         console.log('Performance test results received:', event.data);
-        await this.handlePerformanceResults(event.data);
+        await this.handlePerformanceResults(event.data as PerformanceEventData);
       }
     });
 
@@ -441,7 +448,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       eventType: 'security.scan.complete',
       handler: async (event) => {
         console.log('Security scan results received:', event.data);
-        await this.handleSecurityResults(event.data);
+        await this.handleSecurityResults(event.data as SecurityEventData);
       }
     });
 
@@ -449,7 +456,7 @@ export class DeploymentReadinessAgent extends BaseAgent {
       eventType: 'deployment.request',
       handler: async (event) => {
         console.log('Deployment request received:', event.data);
-        await this.performReadinessCheck(event.data);
+        await this.performReadinessCheck(event.data as DeploymentMetadata);
       }
     });
 
@@ -487,8 +494,8 @@ export class DeploymentReadinessAgent extends BaseAgent {
   protected async cleanup(): Promise<void> {
     console.log(`DeploymentReadinessAgent ${this.agentId.id} cleaning up resources`);
 
-    // Save deployment history
-    await this.memoryStore.store('aqe/deployment/history', this.deploymentHistory);
+    // Save deployment history (wrap in object for SerializableValue compatibility)
+    await this.memoryStore.store('aqe/deployment/history', { entries: this.deploymentHistory } as Record<string, unknown>);
 
     // Cleanup monitoring clients
     for (const [tool, _client] of this.monitoringClients.entries()) {
@@ -507,31 +514,31 @@ export class DeploymentReadinessAgent extends BaseAgent {
     console.log('DeploymentReadinessAgent cleanup completed');
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<unknown> {
     const taskType = task.type;
-    const taskData = task.payload;
+    const taskData = task.payload as Record<string, unknown>;
 
     switch (taskType) {
       case 'deployment-readiness-check':
-        return await this.performReadinessCheck(taskData);
+        return await this.performReadinessCheck(taskData as unknown as DeploymentMetadata);
 
       case 'calculate-confidence-score':
-        return await this.calculateConfidenceScore(taskData);
+        return await this.calculateConfidenceScore(taskData as { signals: QualitySignals; metadata: DeploymentMetadata });
 
       case 'predict-rollback-risk':
-        return await this.predictRollbackRisk(taskData);
+        return await this.predictRollbackRisk(taskData as { signals: QualitySignals; metadata: DeploymentMetadata });
 
       case 'generate-readiness-report':
-        return await this.generateReadinessReport(taskData);
+        return await this.generateReadinessReport(taskData as { deploymentId: string; format?: 'markdown' | 'html' | 'json' });
 
       case 'validate-checklist':
-        return await this.validateChecklist(taskData);
+        return await this.validateChecklist(taskData as unknown as DeploymentMetadata);
 
       case 'aggregate-quality-signals':
-        return await this.aggregateQualitySignals(taskData);
+        return await this.aggregateQualitySignals(taskData as unknown as DeploymentMetadata);
 
       case 'monitor-deployment':
-        return await this.monitorDeployment(taskData);
+        return await this.monitorDeployment(taskData as { deploymentId: string; duration: number });
 
       default:
         throw new Error(`Unsupported task type: ${taskType}`);
@@ -1402,14 +1409,15 @@ export class DeploymentReadinessAgent extends BaseAgent {
     console.log(`Generating deployment readiness report for ${data.deploymentId}`);
 
     // Retrieve readiness check result
-    const readinessCheck = await this.memoryStore.retrieve(
+    const readinessCheckRaw = await this.memoryStore.retrieve(
       `aqe/deployment/reports/${data.deploymentId}`
     );
 
-    if (!readinessCheck) {
+    if (!readinessCheckRaw) {
       throw new Error(`No readiness check found for deployment ${data.deploymentId}`);
     }
 
+    const readinessCheck = readinessCheckRaw as ReadinessCheckResult;
     const format = data.format || 'markdown';
 
     const report: StakeholderReport = {

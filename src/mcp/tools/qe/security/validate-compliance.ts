@@ -24,6 +24,7 @@ import type {
   ResponseMetadata,
   SecurityScanResults
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Extended Types ====================
 
@@ -454,8 +455,7 @@ async function validateOWASP(
   let highFindings = 0;
 
   for (const category of owaspTop10) {
-    // Simulate control validation
-    const findingsCount = Math.floor(Math.random() * 5);
+    const findingsCount = Math.floor(seededRandom.random() * 5);
     const status: ControlResult['status'] = findingsCount === 0 ? 'pass' : findingsCount <= 2 ? 'partial' : 'fail';
 
     if (status === 'pass') {
@@ -536,7 +536,7 @@ async function validateCWE(
 
   for (let i = 0; i < checkCount; i++) {
     const cwe = cweTop25Sample[i % cweTop25Sample.length];
-    const findingsCount = Math.floor(Math.random() * 3);
+    const findingsCount = Math.floor(seededRandom.random() * 3);
     const status: ControlResult['status'] = findingsCount === 0 ? 'pass' : 'fail';
 
     if (status === 'pass') controlsPassed++;
@@ -601,7 +601,7 @@ async function validateSANS(
 
   for (let i = 0; i < checkCount; i++) {
     const category = sansCategories[i % sansCategories.length];
-    const findingsCount = Math.floor(Math.random() * 4);
+    const findingsCount = Math.floor(seededRandom.random() * 4);
     const status: ControlResult['status'] = findingsCount === 0 ? 'pass' : findingsCount <= 1 ? 'partial' : 'fail';
 
     if (status === 'pass') controlsPassed++;

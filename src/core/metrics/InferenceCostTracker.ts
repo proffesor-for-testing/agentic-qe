@@ -24,6 +24,7 @@
 
 import { PRICING_TABLE, type ProviderPricing, type TokenUsage } from '../../telemetry/metrics/collectors/cost.js';
 import { Logger } from '../../utils/Logger.js';
+import { SecureRandom } from '../../utils/SecureRandom.js';
 
 /**
  * Provider type classification
@@ -490,7 +491,7 @@ export class InferenceCostTracker {
    * Generate unique request ID
    */
   private generateRequestId(): string {
-    return `inf-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    return `inf-${Date.now()}-${SecureRandom.generateId(9)}`;
   }
 
   /**

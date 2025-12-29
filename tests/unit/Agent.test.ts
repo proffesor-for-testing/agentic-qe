@@ -7,6 +7,7 @@ import { Agent, AgentStatus, AgentCapability, AgentMetrics } from '@core/Agent';
 import { Task, TaskStatus } from '@core/Task';
 import { EventBus } from '@core/EventBus';
 import { Logger } from '@utils/Logger';
+import { advanceAndFlush } from '../helpers/timerTestUtils';
 
 // Mock Logger with inline implementation (manual mock wasn't being loaded properly)
 jest.mock('@utils/Logger', () => {
@@ -108,6 +109,7 @@ class TestAgent extends Agent {
 
   protected async executeTaskLogic(task: Task): Promise<any> {
     // Add a small delay to ensure execution time > 0
+    // Note: This delay works with both real and fake timers
     await new Promise(resolve => setTimeout(resolve, 1));
 
     if (this.taskExecutionError) {
@@ -135,6 +137,7 @@ describe('Agent', () => {
   let mockLogger: jest.Mocked<Logger>;
 
   beforeEach(() => {
+    jest.useFakeTimers();
     // Create mock logger instance
     mockLogger = {
       info: jest.fn(),
@@ -170,6 +173,10 @@ describe('Agent', () => {
 
     // Create test agent with injected mock logger
     agent = new TestAgent('agent-123', 'test-agent', { testConfig: true }, mockEventBus, mockLogger);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('Initialization', () => {
@@ -263,8 +270,8 @@ describe('Agent', () => {
       // Assign a task (don't await so it's still running)
       const assignPromise = agent.assignTask(mockTask);
 
-      // Give it a moment to start executing
-      await new Promise(resolve => setTimeout(resolve, 5));
+      // Give it a moment to start executing (using fake timers)
+      await advanceAndFlush(5);
 
       // Mock task as running (which it should be)
       mockTask.getStatus.mockReturnValue(TaskStatus.RUNNING);
@@ -345,8 +352,8 @@ describe('Agent', () => {
 
       await agent.assignTask(mockTask);
 
-      // Wait for task execution to complete
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Wait for task execution to complete (using fake timers)
+      await advanceAndFlush(10);
 
       expect(mockTask.setStatus).toHaveBeenCalledWith(TaskStatus.RUNNING);
       expect(mockTask.setResult).toHaveBeenCalledWith(taskResult);
@@ -361,8 +368,8 @@ describe('Agent', () => {
 
       await agent.assignTask(mockTask);
 
-      // Wait for task execution to complete
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Wait for task execution to complete (using fake timers)
+      await advanceAndFlush(10);
 
       expect(mockTask.setError).toHaveBeenCalledWith(taskError);
       expect(mockTask.setStatus).toHaveBeenCalledWith(TaskStatus.FAILED);
@@ -373,8 +380,8 @@ describe('Agent', () => {
     it('should emit task events during execution', async () => {
       await agent.assignTask(mockTask);
 
-      // Wait for task execution to complete
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Wait for task execution to complete (using fake timers)
+      await advanceAndFlush(10);
 
       expect(mockEventBus.emit).toHaveBeenCalledWith('task:started', {
         agentId: 'agent-123',
@@ -423,7 +430,7 @@ describe('Agent', () => {
 
       // Wait for task to complete execution (check that status returns to ACTIVE)
       await assignPromise;
-      await new Promise(resolve => setTimeout(resolve, 50)); // Longer wait to ensure async completion
+      await advanceAndFlush(50); // Longer wait to ensure async completion
 
       const metrics = agent.getMetrics();
       expect(metrics.tasksCompleted).toBe(1);
@@ -436,7 +443,7 @@ describe('Agent', () => {
       agent.setTaskExecutionError(new Error('Test failure'));
 
       await agent.assignTask(mockTask);
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await advanceAndFlush(10);
 
       const metrics = agent.getMetrics();
       expect(metrics.tasksCompleted).toBe(0);
@@ -453,8 +460,8 @@ describe('Agent', () => {
           waitForCompletion: jest.fn().mockResolvedValue(undefined)
         } as any;
         await agent.assignTask(task);
-        // Wait longer to ensure each task completes before next
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Wait longer to ensure each task completes before next (using fake timers)
+        await advanceAndFlush(50);
       }
 
       const metrics = agent.getMetrics();
@@ -534,8 +541,8 @@ describe('Agent', () => {
     it('should be available for new tasks after completion', async () => {
       await agent.assignTask(mockTask);
 
-      // Wait for task completion
-      await new Promise(resolve => setTimeout(resolve, 20));
+      // Wait for task completion (using fake timers)
+      await advanceAndFlush(20);
 
       expect(agent.getCurrentTask()).toBeNull();
       expect(agent.getStatus()).toBe(AgentStatus.ACTIVE);

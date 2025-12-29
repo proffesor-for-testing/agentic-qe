@@ -16,6 +16,71 @@ import {
   AggregatedResults
 } from '../types';
 
+/** Test result entry for JSON output */
+interface TestResultEntry {
+  testId: string;
+  name: string;
+  status: string;
+  duration: number;
+  error?: string;
+  retryCount?: number;
+}
+
+/** Test suite entry for JSON output */
+interface TestSuiteEntry {
+  name: string;
+  tests: number;
+  passed: number;
+  failed: number;
+  duration: number;
+}
+
+/** Coverage file entry */
+interface CoverageFileEntry {
+  path: string;
+  lines: number;
+  covered: number;
+  percentage: number;
+}
+
+/** Quality gate detail */
+interface QualityGateDetail {
+  name: string;
+  passed: boolean;
+  value: number;
+  threshold: number;
+}
+
+/** Security vulnerability entry */
+interface VulnerabilityEntry {
+  id: string;
+  severity: string;
+  title: string;
+  path?: string;
+}
+
+/** CI system info */
+interface CIInfo {
+  system?: string;
+  buildId?: string;
+  pipelineId?: string;
+  [key: string]: unknown;
+}
+
+/** Agent info */
+interface AgentInfo {
+  id?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
+/** Environment info */
+interface EnvironmentInfo {
+  os?: string;
+  nodeVersion?: string;
+  [key: string]: unknown;
+}
+
 /**
  * JSON output structure
  */
@@ -59,8 +124,8 @@ export interface JSONReportOutput {
     duration: number;
     passRate: number;
     failureRate: number;
-    results?: any[];
-    suites?: any[];
+    results?: TestResultEntry[];
+    suites?: TestSuiteEntry[];
   };
 
   /** Coverage data */
@@ -91,7 +156,7 @@ export interface JSONReportOutput {
       percentage: number;
     };
     trend?: string;
-    files?: any[];
+    files?: CoverageFileEntry[];
   };
 
   /** Quality metrics */
@@ -108,7 +173,7 @@ export interface JSONReportOutput {
     gates: {
       passed: number;
       failed: number;
-      details?: any[];
+      details?: QualityGateDetail[];
     };
   };
 
@@ -123,7 +188,7 @@ export interface JSONReportOutput {
       low: number;
       info: number;
     };
-    vulnerabilities?: any[];
+    vulnerabilities?: VulnerabilityEntry[];
   };
 
   /** Performance data */
@@ -150,9 +215,9 @@ export interface JSONReportOutput {
     startedAt: string;
     completedAt: string;
     duration: number;
-    ci?: any;
-    agent?: any;
-    environment?: any;
+    ci?: CIInfo;
+    agent?: AgentInfo;
+    environment?: EnvironmentInfo;
   };
 }
 
@@ -242,7 +307,8 @@ export class JSONReporter implements Reporter {
       }));
 
       if (results.testResults.suites) {
-        jsonOutput.tests.suites = results.testResults.suites;
+        // Cast suite results to expected format
+        jsonOutput.tests.suites = results.testResults.suites as unknown as typeof jsonOutput.tests.suites;
       }
     }
 
@@ -259,7 +325,8 @@ export class JSONReporter implements Reporter {
 
       // Add file-level coverage for detailed reports
       if (this.config.detailLevel === 'comprehensive' && results.coverage.files) {
-        jsonOutput.coverage.files = results.coverage.files;
+        // Cast coverage files to expected format
+        jsonOutput.coverage.files = results.coverage.files as unknown as typeof jsonOutput.coverage.files;
       }
     }
 
@@ -272,9 +339,8 @@ export class JSONReporter implements Reporter {
         gates: {
           passed: results.qualityMetrics.gatesPassed,
           failed: results.qualityMetrics.gatesFailed,
-          details: this.config.detailLevel !== 'summary'
-            ? results.qualityMetrics.gates
-            : undefined
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          details: (this.config.detailLevel !== 'summary' ? results.qualityMetrics.gates : undefined) as any
         }
       };
     }
@@ -333,13 +399,13 @@ export class JSONReporter implements Reporter {
    */
   reportFiltered(
     results: AggregatedResults,
-    filter: (key: string, value: any) => boolean
+    filter: (key: string, value: unknown) => boolean
   ): ReporterOutput {
     const startTime = Date.now();
     const output = this.report(results);
 
     // Parse and re-stringify with filter
-    const parsed = JSON.parse(output.content);
+    const parsed = JSON.parse(output.content) as Record<string, unknown>;
     const filtered = this.filterObject(parsed, filter);
     const content = this.config.prettyPrint
       ? JSON.stringify(filtered, null, 2)
@@ -360,15 +426,15 @@ export class JSONReporter implements Reporter {
    * Filter object recursively
    */
   private filterObject(
-    obj: any,
-    filter: (key: string, value: any) => boolean
-  ): any {
+    obj: unknown,
+    filter: (key: string, value: unknown) => boolean
+  ): unknown {
     if (Array.isArray(obj)) {
       return obj.map(item => this.filterObject(item, filter));
     }
 
     if (obj !== null && typeof obj === 'object') {
-      const filtered: any = {};
+      const filtered: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
         if (filter(key, value)) {
           filtered[key] = this.filterObject(value, filter);

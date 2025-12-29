@@ -17,6 +17,7 @@ import {
   PatternSearchOptions,
   IPatternStore,
 } from './IPatternStore';
+import { createSeededRandom, SeededRandom } from '../../utils/SeededRandom';
 
 /**
  * Neural layer configuration
@@ -119,19 +120,21 @@ class MultiHeadAttention {
   private readonly heads: number;
   private readonly dim: number;
   private readonly headDim: number;
+  private readonly rng: SeededRandom;
 
-  // Weight matrices (initialized randomly)
+  // Weight matrices (initialized with seeded random)
   private wq: number[][][]; // [heads][dim][headDim]
   private wk: number[][][];
   private wv: number[][][];
   private wo: number[][]; // [dim][dim]
 
-  constructor(heads: number, dim: number) {
+  constructor(heads: number, dim: number, seed: number = 12345) {
     this.heads = heads;
     this.dim = dim;
     this.headDim = Math.floor(dim / heads);
+    this.rng = createSeededRandom(seed);
 
-    // Initialize weight matrices
+    // Initialize weight matrices (deterministic with seed)
     this.wq = this.initWeights(heads, dim, this.headDim);
     this.wk = this.initWeights(heads, dim, this.headDim);
     this.wv = this.initWeights(heads, dim, this.headDim);
@@ -152,7 +155,7 @@ class MultiHeadAttention {
     for (let i = 0; i < rows; i++) {
       matrix[i] = [];
       for (let j = 0; j < cols; j++) {
-        matrix[i][j] = (Math.random() - 0.5) * 2 * scale;
+        matrix[i][j] = (this.rng.random() - 0.5) * 2 * scale;
       }
     }
     return matrix;
@@ -371,12 +374,14 @@ class QLearningNavigator {
   private readonly learningRate: number;
   private readonly gamma: number;
   private readonly epsilon: number;
+  private readonly rng: SeededRandom;
 
-  constructor(learningRate = 0.001, gamma = 0.95, epsilon = 0.1) {
+  constructor(learningRate = 0.001, gamma = 0.95, epsilon = 0.1, seed: number = 54321) {
     this.qTable = new Map();
     this.learningRate = learningRate;
     this.gamma = gamma;
     this.epsilon = epsilon;
+    this.rng = createSeededRandom(seed);
   }
 
   /**
@@ -429,10 +434,10 @@ class QLearningNavigator {
       throw new Error('No possible actions available');
     }
 
-    // Epsilon-greedy exploration
-    if (Math.random() < this.epsilon) {
-      // Explore: random action
-      return possibleActions[Math.floor(Math.random() * possibleActions.length)];
+    // Epsilon-greedy exploration (deterministic with seed)
+    if (this.rng.random() < this.epsilon) {
+      // Explore: seeded random action
+      return possibleActions[Math.floor(this.rng.random() * possibleActions.length)];
     }
 
     // Exploit: best action

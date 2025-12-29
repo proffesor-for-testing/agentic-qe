@@ -22,6 +22,7 @@ import {
   HealthCheckResponse,
   RuVectorError
 } from './RuVectorClient';
+import { seededRandom } from '../utils/SeededRandom';
 
 /**
  * PostgreSQL-specific configuration for RuVector
@@ -586,7 +587,7 @@ export class RuVectorPostgresAdapter {
   }
 
   private generateId(): string {
-    return `pat_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    return `pat_${Date.now()}_${seededRandom.random().toString(36).substring(2, 11)}`;
   }
 
   private handleError(

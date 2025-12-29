@@ -7,10 +7,15 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
-// Handler not yet implemented - skip these tests
+/**
+ * SKIP REASON: API Mismatch
+ * Handler exists: TestOptimizeSublinearHandler (src/mcp/handlers/test/test-optimize-sublinear.ts)
+ * Test was written for different API (OptimizeTestsHandler)
+ * TODO: Rewrite tests to use TestOptimizeSublinearHandler API
+ */
 type OptimizeTestsHandler = any;
 
-describe.skip('OptimizeTestsHandler', () => {
+describe.skip('OptimizeTestsHandler (API mismatch - needs rewrite for TestOptimizeSublinearHandler)', () => {
   let handler: OptimizeTestsHandler;
 
   beforeEach(() => {

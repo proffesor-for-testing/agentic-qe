@@ -73,6 +73,7 @@ export interface ComplexityAnalysisRequest {
     includeRecommendations?: boolean;
     severity?: 'low' | 'medium' | 'high' | 'all';
   };
+  [key: string]: unknown;
 }
 
 export interface ComplexityMetrics {
@@ -251,10 +252,14 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
         analysisTime: Date.now() - startTime
       };
 
-      // Store results in memory for other agents
+      // Store results in memory for other agents (convert Map to Object for serialization)
+      const serializableResult = {
+        ...result,
+        fileMetrics: Object.fromEntries(result.fileMetrics)
+      };
       await this.memoryStore.store(
         `aqe/complexity/${this.agentId.id}/latest-result`,
-        result,
+        serializableResult,
         86400 // 24 hours TTL
       );
 
@@ -527,9 +532,10 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
     });
 
     // Load historical analysis data for learning
-    const historicalData = await this.memoryStore.retrieve(
+    const historicalWrapper = await this.memoryStore.retrieve(
       `aqe/complexity/${this.agentId.id}/history`
-    );
+    ) as { entries?: Array<Record<string, unknown>> } | null;
+    const historicalData = historicalWrapper?.entries;
 
     if (historicalData) {
       this.logger.debug('Loaded historical complexity data', {
@@ -548,14 +554,15 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
     });
 
     // Store result in history for learning
-    const history = await this.memoryStore.retrieve(
+    const retrievedWrapper = await this.memoryStore.retrieve(
       `aqe/complexity/${this.agentId.id}/history`
-    ) || [];
+    ) as { entries?: Array<Record<string, unknown>> } | null;
+    const history: Array<Record<string, unknown>> = retrievedWrapper?.entries || [];
 
     history.push({
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       taskId: data.assignment.id,
-      result: data.result
+      result: data.result as Record<string, unknown>
     });
 
     // Keep last 100 results
@@ -565,7 +572,7 @@ export class CodeComplexityAnalyzerAgent extends BaseAgent {
 
     await this.memoryStore.store(
       `aqe/complexity/${this.agentId.id}/history`,
-      history,
+      { entries: history } as Record<string, unknown>,
       2592000 // 30 days
     );
 

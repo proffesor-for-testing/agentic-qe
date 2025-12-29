@@ -8,6 +8,8 @@
  * @version 1.0.0
  */
 
+import { seededRandom } from '../../../../utils/SeededRandom.js';
+
 /**
  * Anonymization strategies
  */
@@ -251,7 +253,7 @@ class MaskingUtil {
     let result = '';
 
     for (let i = 0; i < 12; i++) {
-      result += chars[Math.floor(Math.random() * chars.length)];
+      result += chars[Math.floor(seededRandom.random() * chars.length)];
     }
 
     return result;

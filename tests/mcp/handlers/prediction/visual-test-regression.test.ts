@@ -283,8 +283,13 @@ describe('VisualTestRegressionHandler', () => {
   });
 
   describe('Change Type Detection', () => {
-    // TODO: Flaky test - changeType detection varies based on mock response timing
-    it.skip('should detect layout changes', async () => {
+    /**
+     * SKIP REASON: Flaky Test - Non-Deterministic
+     * changeType detection varies based on mock response timing
+     * The test passes intermittently depending on execution order
+     * TODO: Add deterministic mocking for image analysis responses
+     */
+    it.skip('should detect layout changes (flaky - timing dependent)', async () => {
       const response = await handler.handle({
         testConfig: {
           baselineImages: ['https://layout.test/grid-original.png'],

@@ -3,6 +3,8 @@
  * Provides configurable retry logic for transient failures
  */
 
+import { createSeededRandom, SeededRandom } from '../../utils/SeededRandom';
+
 /**
  * Backoff strategy types
  */
@@ -103,8 +105,9 @@ const DEFAULT_NON_RETRYABLE_PATTERNS = [
 export class RetryStrategy {
   private config: RetryConfig;
   private fibonacciCache: number[] = [1, 1];
+  private rng: SeededRandom;
 
-  constructor(config: Partial<RetryConfig> = {}) {
+  constructor(config: Partial<RetryConfig> = {}, seed?: number) {
     this.config = {
       maxAttempts: 3,
       initialDelay: 1000,
@@ -117,6 +120,8 @@ export class RetryStrategy {
       nonRetryableErrors: DEFAULT_NON_RETRYABLE_PATTERNS,
       ...config,
     };
+    // Use provided seed or time-based seed for production randomness
+    this.rng = createSeededRandom(seed ?? Date.now());
   }
 
   /**
@@ -307,7 +312,7 @@ export class RetryStrategy {
    * Random number between min and max
    */
   private randomBetween(min: number, max: number): number {
-    return min + Math.random() * (max - min);
+    return min + this.rng.random() * (max - min);
   }
 
   /**

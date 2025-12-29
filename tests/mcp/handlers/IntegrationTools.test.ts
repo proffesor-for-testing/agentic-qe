@@ -523,9 +523,14 @@ describe('Integration Testing MCP Tools', () => {
     });
   });
 
-  // Skip: These tests make real HTTP health checks that timeout in CI
-  // TODO: Mock checkServiceHealth() to make tests deterministic
-  describe.skip('dependency_check - requires network access', () => {
+  /**
+   * SKIP REASON: Infrastructure Requirements
+   * These tests make real HTTP health checks to external services
+   * They timeout in CI environments without proper service mocking
+   * TODO: Mock checkServiceHealth() to make tests deterministic
+   * Alternative: Move to integration test suite with real service containers
+   */
+  describe.skip('dependency_check (requires network access)', () => {
     describe('Basic Health Checks', () => {
       it('should check health of a single dependency', async () => {
         const params: DependencyCheckParams = {

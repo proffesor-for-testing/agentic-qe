@@ -9,6 +9,7 @@
  */
 
 import type { RealtimeMonitorParams, MonitoringMetric } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 /**
  * Real-time monitoring result
@@ -205,25 +206,25 @@ async function collectDataPoint(
   for (const metric of metrics) {
     switch (metric) {
       case 'cpu':
-        dataPoint.cpu = Math.random() * 100;
+        dataPoint.cpu = seededRandom.randomFloat(0, 100);
         break;
       case 'memory':
-        dataPoint.memory = Math.random() * 2048;
+        dataPoint.memory = seededRandom.randomFloat(0, 2048);
         break;
       case 'network':
-        dataPoint.network = Math.random() * 100;
+        dataPoint.network = seededRandom.randomFloat(0, 100);
         break;
       case 'disk':
-        dataPoint.disk = Math.random() * 50;
+        dataPoint.disk = seededRandom.randomFloat(0, 50);
         break;
       case 'response-time':
-        dataPoint.responseTime = 50 + Math.random() * 450;
+        dataPoint.responseTime = seededRandom.randomFloat(50, 500);
         break;
       case 'throughput':
-        dataPoint.throughput = 50 + Math.random() * 950;
+        dataPoint.throughput = seededRandom.randomFloat(50, 1000);
         break;
       case 'error-rate':
-        dataPoint.errorRate = Math.random() * 0.05;
+        dataPoint.errorRate = seededRandom.randomFloat(0, 0.05);
         break;
     }
   }

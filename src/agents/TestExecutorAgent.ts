@@ -294,10 +294,10 @@ export class TestExecutorAgent extends BaseAgent {
     // Load test execution history for baseline comparison
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as { entries?: unknown[]; length?: number } | null;
 
-    if (history) {
-      console.log(`Loaded ${history.length} historical test execution entries`);
+    if (history && history.entries) {
+      console.log(`Loaded ${history.entries.length} historical test execution entries`);
     }
 
     console.log(`[${this.agentId.type}] Starting test execution task`, {
@@ -415,15 +415,15 @@ export class TestExecutorAgent extends BaseAgent {
 
     switch (type) {
       case 'parallel-test-execution':
-        return await this.executeTestsInParallel(payload);
+        return await this.executeTestsInParallel(payload as { testSuite: TestSuite; maxParallel?: number; optimizationLevel?: 'none' | 'basic' | 'sublinear' });
       case 'single-test-execution':
-        return await this.executeSingleTest(payload);
+        return await this.executeSingleTest(payload as SingleTestConfig);
       case 'test-discovery':
-        return await this.discoverTests(payload);
+        return await this.discoverTests(payload as TestDiscoveryConfig);
       case 'test-analysis':
-        return await this.analyzeTests(payload);
+        return await this.analyzeTests(payload as TestAnalysisConfig);
       case 'retry-failed-tests':
-        return await this.retryFailedTests(payload);
+        return await this.retryFailedTests(payload as RetryFailedTestsConfig);
       default:
         throw new Error(`Unsupported task type: ${type}`);
     }

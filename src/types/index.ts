@@ -11,7 +11,7 @@ export interface AgentId {
 export interface AgentConfig {
   type: string;
   count: number;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 export enum AgentStatus {
@@ -30,7 +30,7 @@ export interface AgentContext {
   id: string;
   type: string;
   status: AgentStatus;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface FleetConfig {
@@ -46,7 +46,7 @@ export interface FleetConfig {
   };
   topology?: 'hierarchical' | 'mesh' | 'ring' | 'adaptive';
   maxAgents?: number;
-  project?: any;
+  project?: Record<string, unknown>;
   testingFocus?: string[];
   environments?: string[];
   frameworks?: string[];
@@ -57,7 +57,7 @@ export interface FleetConfig {
     enableFallback?: boolean;
     maxRetries?: number;
     costThreshold?: number;
-    modelPreferences?: Record<string, any>;
+    modelPreferences?: Record<string, unknown>;
   };
   streaming?: {
     enabled?: boolean;
@@ -71,7 +71,7 @@ export interface TaskSpec {
   id: string;
   type: string;
   priority: number;
-  payload: any;
+  payload: unknown;
   timeout?: number;
   dependencies?: string[];
 }
@@ -80,7 +80,7 @@ export interface AgentCapability {
   name: string;
   version: string;
   description: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
 export interface TopologyNode {
@@ -94,16 +94,16 @@ export interface CoordinationEvent {
   type: string;
   source: string;
   target?: string;
-  payload: any;
+  payload: unknown;
   timestamp: number;
 }
 
 export interface MemoryRecord {
   key: string;
-  value: any;
+  value: unknown;
   namespace: string;
   ttl?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   timestamp: number;
 }
 
@@ -178,7 +178,7 @@ export interface QETestResult {
     functions: number;
   };
   errors?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface QualityMetrics {
@@ -210,23 +210,23 @@ export interface QEEvent {
   type: string;
   source: AgentId;
   target?: AgentId;
-  data: any;
+  data: unknown;
   timestamp: Date;
   priority: 'low' | 'medium' | 'high' | 'critical';
   scope: 'local' | 'global';
   category?: 'agent' | 'test' | 'quality' | 'system';
 }
 
-export interface EventHandler<T = any> {
+export interface EventHandler<T = unknown> {
   eventType: string;
   handler: (event: QEEvent) => void | Promise<void>;
 }
 
 export interface MemoryStore {
-  store(key: string, value: any, ttl?: number): Promise<void>;
-  retrieve(key: string): Promise<any>;
-  set(key: string, value: any, namespace?: string): Promise<void>;
-  get(key: string, namespace?: string): Promise<any>;
+  store(key: string, value: unknown, ttl?: number): Promise<void>;
+  retrieve(key: string): Promise<unknown>;
+  set(key: string, value: unknown, namespace?: string): Promise<void>;
+  get(key: string, namespace?: string): Promise<unknown>;
   delete(key: string, namespace?: string): Promise<boolean>;
   clear(namespace?: string): Promise<void>;
 }
@@ -234,16 +234,16 @@ export interface MemoryStore {
 export interface QETask {
   id: string;
   type: string;
-  payload: any;
+  payload: unknown;
   priority: number;
   status: string;
-  result?: any;
+  result?: unknown;
   error?: Error;
   description?: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
   requirements?: {
     capabilities?: string[];
-    resources?: Record<string, any>;
+    resources?: Record<string, unknown>;
   };
 }
 
@@ -260,7 +260,7 @@ export interface AgentMessage {
   type: MessageType;
   from: AgentId;
   to: AgentId;
-  payload: any;
+  payload: unknown;
   timestamp: Date;
   priority: 'low' | 'medium' | 'high' | 'critical';
 }
@@ -286,10 +286,10 @@ export interface Test {
   type: TestType;
   parameters: TestParameter[];
   assertions: string[];
-  expectedResult: any;
+  expectedResult: unknown;
   estimatedDuration?: number;
   code?: string; // Optional generated test code (from pattern templates)
-  metadata?: Record<string, any>; // Optional metadata for test tracking
+  metadata?: Record<string, unknown>; // Optional metadata for test tracking
 }
 
 export enum TestType {
@@ -302,7 +302,7 @@ export enum TestType {
 
 export interface TestParameter {
   name: string;
-  value: any;
+  value: unknown;
   type: string;
 }
 
@@ -315,7 +315,7 @@ export interface TestSuiteMetadata {
   coverageProjection?: number;
   optimizationMetrics?: {
     optimizationRatio: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -442,7 +442,7 @@ export interface ProductionIntelligenceConfig {
   rumSamplingRate?: number;
   loadPatternWindow?: number;
   replayGenerationEnabled?: boolean;
-  integrations?: Record<string, any>;
+  integrations?: Record<string, unknown>;
 }
 
 export interface FleetCommanderConfig {

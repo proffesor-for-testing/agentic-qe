@@ -1,4 +1,5 @@
 import { BaseDAO } from './BaseDAO';
+import { SecureRandom } from '../../../utils/SecureRandom';
 
 /**
  * Hint interface for blackboard pattern
@@ -274,7 +275,7 @@ export class BlackboardDAO extends BaseDAO {
    * Generate a unique hint ID
    */
   private generateHintId(): string {
-    return `hint_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    return `hint_${Date.now()}_${SecureRandom.generateId(13)}`;
   }
 
   /**

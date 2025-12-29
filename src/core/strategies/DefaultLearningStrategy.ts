@@ -18,6 +18,7 @@ import type {
   LearningStatus,
   LearningMetrics,
 } from './AgentLearningStrategy';
+import { SecureRandom } from '../../utils/SecureRandom';
 
 /**
  * DefaultLearningStrategy - Pattern-based learning with performance tracking
@@ -173,7 +174,7 @@ export class DefaultLearningStrategy implements AgentLearningStrategy {
     };
 
     // Track recommendation for outcome recording
-    const trackingId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const trackingId = `${Date.now()}-${SecureRandom.generateId(10)}`;
     this.recommendations.set(trackingId, { recommendation });
 
     return recommendation;

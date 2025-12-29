@@ -26,8 +26,26 @@ import {
   GOAPGoal,
   GOAPAction,
   GOAPPlan,
-  OODACycle
+  OODACycle,
+  OODAResult,
+  AgentPerformanceData,
+  LearningMetrics,
+  OODAPhaseData
 } from '../core/memory/SwarmMemoryManager';
+
+// Re-export types from SwarmMemoryManager for convenience
+export type { AgentPerformanceData, LearningMetrics, OODAPhaseData, OODAResult };
+
+/** Access Control List entry for memory resources */
+export interface ACLEntry {
+  resourceId: string;
+  ownerId: string;
+  accessLevel: 'read' | 'write' | 'admin';
+  grantedPermissions?: Record<string, string[]>;
+  blockedAgents?: string[];
+  createdAt?: number;
+  updatedAt?: number;
+}
 
 /**
  * Base memory operations interface
@@ -38,12 +56,12 @@ import {
  */
 export interface IMemoryStore {
   initialize(): Promise<void>;
-  store(key: string, value: any, options?: StoreOptions): Promise<void>;
-  retrieve(key: string, options?: RetrieveOptions): Promise<any>;
+  store(key: string, value: unknown, options?: StoreOptions): Promise<void>;
+  retrieve(key: string, options?: RetrieveOptions): Promise<unknown>;
   query(pattern: string, options?: RetrieveOptions): MemoryEntry[];
   delete(key: string, partition?: string, options?: DeleteOptions): void;
   clear(partition?: string): void;
-  postHint(hint: { key: string; value: any; ttl?: number }): void;
+  postHint(hint: { key: string; value: unknown; ttl?: number }): void;
   readHints(pattern: string): Hint[];
   cleanExpired(): number;
   close(): void;
@@ -122,7 +140,7 @@ export interface ISwarmMemoryManager extends IMemoryStore {
   getAgent(id: string): AgentRegistration;
   updateAgentStatus(agentId: string, status: 'active' | 'idle' | 'terminated'): void;
   queryAgentsByStatus(status: string): AgentRegistration[];
-  updateAgentPerformance(agentId: string, performance: any): void;
+  updateAgentPerformance(agentId: string, performance: AgentPerformanceData): void;
 
   // GOAP operations
   storeGOAPGoal(goal: GOAPGoal): void;
@@ -135,19 +153,19 @@ export interface ISwarmMemoryManager extends IMemoryStore {
   // OODA operations
   storeOODACycle(cycle: OODACycle): void;
   getOODACycle(id: string): OODACycle;
-  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: any): void;
-  completeOODACycle(cycleId: string, result: any): void;
+  updateOODAPhase(cycleId: string, phase: OODACycle['phase'], data: OODAPhaseData): void;
+  completeOODACycle(cycleId: string, result: OODAResult): void;
   queryOODACyclesByPhase(phase: string): OODACycle[];
 
   // ACL operations
-  storeACL(acl: any): void;
-  getACL(resourceId: string): any | null;
-  updateACL(resourceId: string, updates: any): void;
-  grantPermission(resourceId: string, agentId: string, permissions: any[]): void;
-  revokePermission(resourceId: string, agentId: string, permissions: any[]): void;
+  storeACL(acl: ACLEntry): void;
+  getACL(resourceId: string): ACLEntry | null;
+  updateACL(resourceId: string, updates: Partial<ACLEntry>): void;
+  grantPermission(resourceId: string, agentId: string, permissions: string[]): void;
+  revokePermission(resourceId: string, agentId: string, permissions: string[]): void;
   blockAgent(resourceId: string, agentId: string): void;
   unblockAgent(resourceId: string, agentId: string): void;
-  getAccessControl(): any;
+  getAccessControl(): ACLEntry | null;
 
   // Learning operations (Q-learning and experience storage)
   /**
@@ -207,7 +225,7 @@ export interface ISwarmMemoryManager extends IMemoryStore {
   storeLearningSnapshot(snapshot: {
     agentId: string;
     snapshotType: 'performance' | 'q_table' | 'pattern';
-    metrics: any;
+    metrics: LearningMetrics;
     improvementRate?: number;
     totalExperiences?: number;
     explorationRate?: number;

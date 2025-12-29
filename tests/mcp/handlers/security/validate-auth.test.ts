@@ -1,12 +1,24 @@
+/**
+ * Authentication Validation Test Suite
+ *
+ * Tests for validating authentication flows, token security, and session management.
+ * @version 1.0.0
+ */
+
 import { describe, it, expect, beforeEach } from '@jest/globals';
 
-// Handler not yet implemented - skip these tests
+/**
+ * SKIP REASON: Handler Not Implemented
+ * No ValidateAuthenticationFlowHandler exists in src/mcp/handlers/security/
+ * This test defines the expected API for authentication flow validation
+ * TODO: Implement ValidateAuthenticationFlowHandler to enable these tests
+ */
 type ValidateAuthenticationFlowParams = any;
 type ValidateAuthenticationFlowHandler = any;
 type AuthTestCase = any;
 const validateAuthenticationFlow = async (_: any) => ({ success: true, data: {} });
 
-describe.skip('Authentication Validation', () => {
+describe.skip('Authentication Validation (handler not implemented)', () => {
   describe('validateAuthenticationFlow', () => {
     it('should validate authentication endpoints with valid credentials', async () => {
       const params: ValidateAuthenticationFlowParams = {

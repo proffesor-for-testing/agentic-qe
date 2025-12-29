@@ -15,6 +15,7 @@ import {
   OWASPComplianceResult,
 } from './types';
 import { NodeValidationResult } from './N8nNodeValidatorAgent';
+import { seededRandom } from '../../utils/SeededRandom';
 
 // ============================================================================
 // Types
@@ -350,7 +351,7 @@ export class N8nAuditPersistence {
   }
 
   private generateId(): string {
-    return `audit_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    return `audit_${Date.now()}_${seededRandom.randomUUID().substring(0, 9)}`;
   }
 
   private async saveRecord(record: AuditRecord): Promise<void> {

@@ -1,11 +1,23 @@
+/**
+ * Authorization Rule Checking Test Suite
+ *
+ * Tests for validating RBAC, ABAC, and privilege escalation detection.
+ * @version 1.0.0
+ */
+
 import { describe, it, expect, beforeEach } from '@jest/globals';
 
-// Handler not yet implemented - skip these tests
+/**
+ * SKIP REASON: Handler Not Implemented
+ * No CheckAuthorizationRulesHandler exists in src/mcp/handlers/security/
+ * This test defines the expected API for authorization rule checking
+ * TODO: Implement CheckAuthorizationRulesHandler to enable these tests
+ */
 type CheckAuthorizationRulesParams = any;
 type CheckAuthorizationRulesHandler = any;
 const checkAuthorizationRules = async (_: any) => ({ success: true, data: {} });
 
-describe.skip('Authorization Rule Checking', () => {
+describe.skip('Authorization Rule Checking (handler not implemented)', () => {
   describe('checkAuthorizationRules', () => {
     it('should validate authorization rules for roles and resources', async () => {
       const params: CheckAuthorizationRulesParams = {

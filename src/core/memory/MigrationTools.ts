@@ -47,6 +47,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { createSeededRandom } from '../../utils/SeededRandom';
+import { getErrorMessage } from '../../utils/ErrorUtils';
 import type {
   IPatternStore,
   TestPattern,
@@ -83,7 +85,7 @@ export interface MigrationOptions {
   dimension?: number;
 
   /** Embedding generator function (if patterns lack embeddings) */
-  generateEmbedding?: (pattern: any) => Promise<number[]>;
+  generateEmbedding?: (pattern: TestPattern) => Promise<number[]>;
 }
 
 /**
@@ -239,15 +241,15 @@ export class PatternMigrator {
 
       return result;
 
-    } catch (error: any) {
-      result.errors.push(error.message);
+    } catch (error: unknown) {
+      result.errors.push(getErrorMessage(error));
       result.duration = Date.now() - startTime;
 
       if (verbose) {
-        console.error('[MigrationTools] ❌ Migration failed:', error.message);
+        console.error('[MigrationTools] ❌ Migration failed:', getErrorMessage(error));
       }
 
-      throw new Error(`Migration failed: ${error.message}`);
+      throw new Error(`Migration failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -272,8 +274,8 @@ export class PatternMigrator {
       }
 
       return true;
-    } catch (error: any) {
-      console.error('[MigrationTools] Source validation failed:', error.message);
+    } catch (error: unknown) {
+      console.error('[MigrationTools] Source validation failed:', getErrorMessage(error));
       return false;
     }
   }
@@ -289,8 +291,8 @@ export class PatternMigrator {
       await fs.copyFile(sourcePath, backupPath);
       this.backupPaths.push(backupPath);
       return backupPath;
-    } catch (error: any) {
-      throw new Error(`Backup creation failed: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Backup creation failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -299,7 +301,7 @@ export class PatternMigrator {
    */
   async exportFromAgentDB(
     sourcePath: string,
-    generateEmbedding?: (pattern: any) => Promise<number[]>,
+    generateEmbedding?: (pattern: TestPattern) => Promise<number[]>,
     dimension: number = 384
   ): Promise<TestPattern[]> {
     try {
@@ -316,16 +318,16 @@ export class PatternMigrator {
         try {
           const pattern = await this.transformLegacyPattern(row, generateEmbedding, dimension);
           patterns.push(pattern);
-        } catch (error: any) {
-          console.warn(`[MigrationTools] Failed to transform pattern ${row.id}: ${error.message}`);
+        } catch (error: unknown) {
+          console.warn(`[MigrationTools] Failed to transform pattern ${row.id}: ${getErrorMessage(error)}`);
         }
       }
 
       db.close();
       return patterns;
 
-    } catch (error: any) {
-      throw new Error(`AgentDB export failed: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`AgentDB export failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -334,16 +336,18 @@ export class PatternMigrator {
    */
   private async transformLegacyPattern(
     legacy: LegacyPattern,
-    generateEmbedding?: (pattern: any) => Promise<number[]>,
+    generateEmbedding?: (pattern: TestPattern) => Promise<number[]>,
     dimension: number = 384
   ): Promise<TestPattern> {
     // Generate or use placeholder embedding
     let embedding: number[];
     if (generateEmbedding) {
-      embedding = await generateEmbedding(legacy);
+      // Cast legacy to TestPattern for embedding generation - embedding only needs text content
+      embedding = await generateEmbedding(legacy as unknown as TestPattern);
     } else {
-      // Use normalized random embedding as placeholder
-      embedding = Array.from({ length: dimension }, () => Math.random() - 0.5);
+      // Use normalized seeded random embedding as placeholder (deterministic)
+      const rng = createSeededRandom(legacy.id?.charCodeAt(0) ?? 42);
+      embedding = Array.from({ length: dimension }, () => rng.random() - 0.5);
       const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
       embedding = embedding.map(val => val / norm);
     }
@@ -445,12 +449,12 @@ Examples: ${examples.join(', ')}
             const progress = ((end / patterns.length) * 100).toFixed(1);
             console.log(`[MigrationTools]   Progress: ${progress}% (${end}/${patterns.length})`);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           result.skipped += batch.length;
-          result.errors.push(`Batch ${i + 1} failed: ${error.message}`);
+          result.errors.push(`Batch ${i + 1} failed: ${getErrorMessage(error)}`);
 
           if (verbose) {
-            console.warn(`[MigrationTools]   Batch ${i + 1} failed: ${error.message}`);
+            console.warn(`[MigrationTools]   Batch ${i + 1} failed: ${getErrorMessage(error)}`);
           }
         }
       }
@@ -466,9 +470,9 @@ Examples: ${examples.join(', ')}
 
       await store.shutdown();
 
-    } catch (error: any) {
-      result.errors.push(`Import failed: ${error.message}`);
-      throw new Error(`RuVector import failed: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`Import failed: ${getErrorMessage(error)}`);
+      throw new Error(`RuVector import failed: ${getErrorMessage(error)}`);
     }
 
     return result;
@@ -528,8 +532,8 @@ Examples: ${examples.join(', ')}
     try {
       await fs.copyFile(latestBackup, originalPath);
       console.log(`[MigrationTools] ✅ Rollback completed: ${originalPath} restored from ${latestBackup}`);
-    } catch (error: any) {
-      throw new Error(`Rollback failed: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Rollback failed: ${getErrorMessage(error)}`);
     }
   }
 }
@@ -596,8 +600,8 @@ export class DualWriteProxy implements IPatternStore {
     // Read from primary (RuVector) with fallback to secondary
     try {
       return await this.primaryStore.searchSimilar(queryEmbedding, options);
-    } catch (error: any) {
-      console.warn('[MigrationTools] Primary search failed, falling back to secondary:', error.message);
+    } catch (error: unknown) {
+      console.warn('[MigrationTools] Primary search failed, falling back to secondary:', getErrorMessage(error));
       return await this.secondaryStore.searchSimilar(queryEmbedding, options);
     }
   }
@@ -606,8 +610,8 @@ export class DualWriteProxy implements IPatternStore {
     // Read from primary with fallback
     try {
       return await this.primaryStore.getPattern(id);
-    } catch (error: any) {
-      console.warn('[MigrationTools] Primary get failed, falling back to secondary:', error.message);
+    } catch (error: unknown) {
+      console.warn('[MigrationTools] Primary get failed, falling back to secondary:', getErrorMessage(error));
       return await this.secondaryStore.getPattern(id);
     }
   }
@@ -758,8 +762,8 @@ export async function checkMigrationStatus(
       migrationComplete,
       coverage,
     };
-  } catch (error: any) {
-    throw new Error(`Migration status check failed: ${error.message}`);
+  } catch (error: unknown) {
+    throw new Error(`Migration status check failed: ${getErrorMessage(error)}`);
   }
 }
 

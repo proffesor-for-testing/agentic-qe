@@ -10,6 +10,7 @@ import { EventStore } from '../../persistence/event-store';
 import { ReasoningStore } from '../../persistence/reasoning-store';
 import { DataTransformer } from '../core/DataTransformer';
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
+import { seededRandom } from '../../utils/SeededRandom';
 
 /**
  * API response wrapper
@@ -511,7 +512,7 @@ export class RestApiServer {
    * Generate unique request ID
    */
   private generateRequestId(): string {
-    return `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return `req-${Date.now()}-${seededRandom.random().toString(36).substring(2, 9)}`;
   }
 
   /**

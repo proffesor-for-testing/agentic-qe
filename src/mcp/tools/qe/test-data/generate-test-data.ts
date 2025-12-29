@@ -393,11 +393,13 @@ class DataGenerator {
  * console.log(`Generation rate: ${result.statistics.generationRate} records/sec`);
  * ```
  */
+import { seededRandom } from '../../../../utils/SeededRandom.js';
+
 export async function generateTestData(
   params: GenerateTestDataParams
 ): Promise<GenerateTestDataResult> {
   const startTime = Date.now();
-  const requestId = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `gen-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`;
   const batchSize = params.batchSize || 1000;
   const warnings: string[] = [];
 

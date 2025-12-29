@@ -11,6 +11,7 @@
  */
 
 import type { QEToolResponse } from '../shared/types'
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 const VERSION = '1.5.0';
 
@@ -19,7 +20,7 @@ function createResponse<T>(data: T, startTime: number): QEToolResponse<T> {
     success: true,
     data,
     metadata: {
-      requestId: `test-data-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      requestId: `test-data-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
       executionTime: Date.now() - startTime,
       version: VERSION

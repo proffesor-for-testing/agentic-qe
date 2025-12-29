@@ -43,13 +43,13 @@ async function measureMemoryUsage<T>(operation: () => Promise<T>): Promise<{
   finalMB: number;
 }> {
   forceGC();
-  await new Promise(resolve => setTimeout(resolve, 100)); // Wait for GC
+  await jest.advanceTimersByTimeAsync(100); // Wait for GC
 
   const initialMB = getMemoryUsageMB();
   const result = await operation();
 
   forceGC();
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await jest.advanceTimersByTimeAsync(100);
 
   const finalMB = getMemoryUsageMB();
   const memoryDeltaMB = finalMB - initialMB;
@@ -63,6 +63,7 @@ describe('Phase 2 Resource Usage Tests', () => {
   const rng = createSeededRandom(28200);
 
   beforeEach(async () => {
+    jest.useFakeTimers();
     memoryManager = new SwarmMemoryManager();
     await memoryManager.initialize();
     eventBus = new EventBus();
@@ -72,6 +73,7 @@ describe('Phase 2 Resource Usage Tests', () => {
   afterEach(async () => {
     eventBus.removeAllListeners();
     await memoryManager.close();
+    jest.useRealTimers();
   });
 
   // ===========================================================================
@@ -344,7 +346,7 @@ describe('Phase 2 Resource Usage Tests', () => {
       const memorySnapshots: number[] = [];
 
       forceGC();
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await jest.advanceTimersByTimeAsync(100);
 
       for (let i = 0; i < 10; i++) {
         const config = createAgentConfig({
@@ -370,7 +372,7 @@ describe('Phase 2 Resource Usage Tests', () => {
         await agent.terminate();
 
         forceGC();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await jest.advanceTimersByTimeAsync(100);
 
         memorySnapshots.push(getMemoryUsageMB());
       }
@@ -423,7 +425,7 @@ describe('Phase 2 Resource Usage Tests', () => {
         engine.clear();
 
         forceGC();
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await jest.advanceTimersByTimeAsync(50);
 
         memorySnapshots.push(getMemoryUsageMB());
       }
@@ -542,7 +544,7 @@ describe('Phase 2 Resource Usage Tests', () => {
         }
 
         forceGC();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await jest.advanceTimersByTimeAsync(100);
 
         memorySnapshots.push(getMemoryUsageMB());
 

@@ -29,6 +29,7 @@ import { validateRequirements } from './validate-requirements'
 import { generateBddScenarios } from './generate-bdd-scenarios'
 
 import type { QEToolResponse } from '../shared/types'
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 /**
  * Requirements Validation Tools API
@@ -86,7 +87,7 @@ function createResponse<T>(data: T, startTime: number): QEToolResponse<T> {
     success: true,
     data,
     metadata: {
-      requestId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      requestId: `req-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
       executionTime: Date.now() - startTime,
       version: VERSION,

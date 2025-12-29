@@ -14,6 +14,7 @@ import { EventEmitter } from 'events';
 import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'path';
 import { Logger } from '../../utils/Logger';
+import { seededRandom } from '../../utils/SeededRandom';
 
 export interface ValidationConfig {
   /** Database path. Default: .agentic-qe/memory.db */
@@ -406,7 +407,7 @@ export class TransferValidator extends EventEmitter {
    * Store validation result
    */
   private async storeValidation(report: ValidationReport): Promise<void> {
-    const id = `val-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    const id = `val-${Date.now()}-${seededRandom.randomInt(0, 99999999).toString(36).padStart(8, '0')}`;
 
     this.db.prepare(`
       INSERT INTO transfer_validations

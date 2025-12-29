@@ -18,6 +18,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import * as path from 'path';
 import { Logger } from '../../utils/Logger';
 import { SecureRandom } from '../../utils/SecureRandom';
+import { seededRandom } from '../../utils/SeededRandom';
 import { QEAgentType } from '../../types';
 import { StandardTaskSuite, StandardTask } from './StandardTaskSuite';
 
@@ -285,15 +286,15 @@ export class BaselineCollector {
 
     // Simulate task execution
     // In production, this would call the actual agent
-    const success = Math.random() > 0.2; // 80% success rate baseline
-    const coverage = 60 + Math.random() * 30; // 60-90% coverage
-    const patternsRecalled = Math.floor(Math.random() * 5);
+    const success = seededRandom.randomBoolean(0.8); // 80% success rate baseline
+    const coverage = seededRandom.randomFloat(60, 90); // 60-90% coverage
+    const patternsRecalled = seededRandom.randomInt(0, 4);
     const totalPatterns = 5;
 
     // Simulate variable completion time based on task complexity
     const baseTime = task.expectedDuration || 1000;
     const variance = baseTime * 0.2; // 20% variance
-    const completionTime = baseTime + (Math.random() * variance * 2 - variance);
+    const completionTime = baseTime + seededRandom.randomFloat(-variance, variance);
 
     // Wait for simulated execution time
     await new Promise(resolve => setTimeout(resolve, Math.min(100, completionTime / 10)));

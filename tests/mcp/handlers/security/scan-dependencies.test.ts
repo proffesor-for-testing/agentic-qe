@@ -1,11 +1,23 @@
+/**
+ * Dependency Vulnerability Scanning Test Suite
+ *
+ * Tests for scanning package dependencies for security vulnerabilities.
+ * @version 1.0.0
+ */
+
 import { describe, it, expect, beforeEach } from '@jest/globals';
 
-// Handler not yet implemented - skip these tests
+/**
+ * SKIP REASON: Handler Not Implemented
+ * No ScanDependenciesVulnerabilitiesHandler exists in src/mcp/handlers/security/
+ * This test defines the expected API for dependency vulnerability scanning
+ * TODO: Implement ScanDependenciesVulnerabilitiesHandler to enable these tests
+ */
 type ScanDependenciesVulnerabilitiesParams = any;
 type ScanDependenciesVulnerabilitiesHandler = any;
 const scanDependenciesVulnerabilities = async (_: any) => ({ success: true, data: {} });
 
-describe.skip('Dependency Vulnerability Scanning', () => {
+describe.skip('Dependency Vulnerability Scanning (handler not implemented)', () => {
   describe('scanDependenciesVulnerabilities', () => {
     it('should scan package.json for vulnerabilities', async () => {
       const params: ScanDependenciesVulnerabilitiesParams = {

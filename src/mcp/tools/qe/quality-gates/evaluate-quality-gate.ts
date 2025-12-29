@@ -23,6 +23,7 @@ import {
   ResponseMetadata,
   TestStatus
 } from '../shared/types.js';
+import { seededRandom } from '../../../../utils/SeededRandom.js';
 
 // ==================== Types ====================
 
@@ -1138,7 +1139,7 @@ function validateParameters(params: EvaluateQualityGateParams): void {
  * Generate unique request ID
  */
 function generateRequestId(): string {
-  return `qg-eval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `qg-eval-${Date.now()}-${seededRandom.random().toString(36).substr(2, 9)}`;
 }
 
 /**

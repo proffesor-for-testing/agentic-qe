@@ -17,6 +17,7 @@
 import { AgentExecutionEvent } from './ExperienceCapture';
 import { EmbeddingGenerator } from '../../core/embeddings/EmbeddingGenerator';
 import { Logger } from '../../utils/Logger';
+import { getErrorMessage } from '../../utils/ErrorUtils';
 
 /**
  * Extracted content from an execution event
@@ -207,9 +208,9 @@ export class ExperienceExtractor {
       }
 
       return extracted;
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('[ExperienceExtractor] Extraction failed', { error });
-      throw new Error(`Extraction failed: ${error.message}`);
+      throw new Error(`Extraction failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -230,10 +231,10 @@ export class ExperienceExtractor {
 
     // Direct pattern references
     if (output.patterns && Array.isArray(output.patterns)) {
-      patterns.push(...output.patterns.map((p: any) => {
+      patterns.push(...(output.patterns as unknown[]).map((p: unknown) => {
         if (typeof p === 'string') return p;
-        if (p && typeof p === 'object' && 'id' in p) return String(p.id);
-        if (p && typeof p === 'object' && 'name' in p) return String(p.name);
+        if (p && typeof p === 'object' && 'id' in p) return String((p as { id: unknown }).id);
+        if (p && typeof p === 'object' && 'name' in p) return String((p as { name: unknown }).name);
         return String(p);
       }));
     }
@@ -266,7 +267,7 @@ export class ExperienceExtractor {
 
     // Technique detection
     if (output.techniques && Array.isArray(output.techniques)) {
-      patterns.push(...output.techniques.map((t: any) => `technique:${t}`));
+      patterns.push(...(output.techniques as unknown[]).map((t: unknown) => `technique:${String(t)}`));
     }
 
     // Approach detection
@@ -276,12 +277,12 @@ export class ExperienceExtractor {
 
     // Method detection
     if (output.methods && Array.isArray(output.methods)) {
-      patterns.push(...output.methods.map((m: any) => `method:${m}`));
+      patterns.push(...(output.methods as unknown[]).map((m: unknown) => `method:${String(m)}`));
     }
 
     // Tool detection
     if (output.tools && Array.isArray(output.tools)) {
-      patterns.push(...output.tools.map((t: any) => `tool:${t}`));
+      patterns.push(...(output.tools as unknown[]).map((t: unknown) => `tool:${String(t)}`));
     }
 
     // Remove duplicates and empty strings
@@ -343,7 +344,7 @@ export class ExperienceExtractor {
     }
 
     if (output.testTypes && Array.isArray(output.testTypes)) {
-      decisions.push(...output.testTypes.map((t: any) => `test-type:${t}`));
+      decisions.push(...(output.testTypes as unknown[]).map((t: unknown) => `test-type:${String(t)}`));
     }
 
     // Assertion style decisions
@@ -387,9 +388,9 @@ export class ExperienceExtractor {
 
     // Errors in output
     if (event.output.errors && Array.isArray(event.output.errors)) {
-      errors.push(...event.output.errors.map((e: any) => {
+      errors.push(...(event.output.errors as unknown[]).map((e: unknown) => {
         if (typeof e === 'string') return e;
-        if (e && typeof e === 'object' && 'message' in e) return String(e.message);
+        if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message);
         return String(e);
       }));
     }
@@ -400,7 +401,7 @@ export class ExperienceExtractor {
 
     // Warnings as potential issues
     if (event.output.warnings && Array.isArray(event.output.warnings)) {
-      errors.push(...event.output.warnings.map((w: any) => `warning:${w}`));
+      errors.push(...(event.output.warnings as unknown[]).map((w: unknown) => `warning:${String(w)}`));
     }
 
     return [...new Set(errors)].filter(e => e && e.length > 0);
@@ -514,9 +515,9 @@ export class ExperienceExtractor {
         dimension: result.dimension,
         method: result.method,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Fallback to hash-based embedding
-      this.logger.warn('[ExperienceExtractor] ML embedding failed, using hash-based', { error: error.message });
+      this.logger.warn('[ExperienceExtractor] ML embedding failed, using hash-based', { error: getErrorMessage(error) });
 
       const embedding = this.embeddingGenerator.generateHashEmbedding(
         content,

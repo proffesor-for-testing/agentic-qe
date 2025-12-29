@@ -11,6 +11,7 @@ import * as path from 'path';
 import { Database } from '../../../utils/Database';
 import { TestPattern } from '../../../reasoning/QEReasoningBank';
 import { PatternQualityScorer } from '../../../reasoning/PatternQualityScorer';
+import { seededRandom } from '../../../utils/SeededRandom';
 
 export interface PatternExtractOptions {
   framework?: string;
@@ -206,7 +207,7 @@ function extractPatternsFromFile(content: string, framework: string): TestPatter
   let match;
 
   while ((match = describeRegex.exec(content)) !== null) {
-    const patternId = `pattern-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const patternId = `pattern-${Date.now()}-${seededRandom.random().toString(36).substring(7)}`;
 
     patterns.push({
       id: patternId,
@@ -234,7 +235,7 @@ function extractPatternsFromFile(content: string, framework: string): TestPatter
   const testRegex = /(?:test|it)\(['"`]([^'"`]+)['"`]/g;
 
   while ((match = testRegex.exec(content)) !== null) {
-    const patternId = `pattern-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const patternId = `pattern-${Date.now()}-${seededRandom.random().toString(36).substring(7)}`;
 
     patterns.push({
       id: patternId,

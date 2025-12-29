@@ -22,6 +22,7 @@
  */
 
 import { AbstractRLLearner, RLConfig, QValue } from './AbstractRLLearner';
+import { seededRandom } from '../../utils/SeededRandom';
 import { TaskState, AgentAction, TaskExperience } from '../types';
 
 /**
@@ -147,7 +148,7 @@ export class PPOLearner extends AbstractRLLearner {
     const probs = this.getActionProbabilities(stateKey, availableActions);
 
     // Sample from distribution
-    const random = Math.random();
+    const random = seededRandom.random();
     let cumulative = 0;
 
     for (let i = 0; i < availableActions.length; i++) {
@@ -381,7 +382,7 @@ export class PPOLearner extends AbstractRLLearner {
    */
   private trainEpoch(): void {
     // Shuffle trajectory
-    const shuffled = [...this.trajectory].sort(() => Math.random() - 0.5);
+    const shuffled = seededRandom.shuffle(this.trajectory);
 
     // Mini-batch updates
     for (let i = 0; i < shuffled.length; i += this.ppoConfig.miniBatchSize) {

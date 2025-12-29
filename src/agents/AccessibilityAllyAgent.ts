@@ -141,6 +141,49 @@ interface AccessibilityElement {
   issues?: string[];
 }
 
+/**
+ * Payload interfaces for different task types
+ */
+interface ScanPayload {
+  url?: string;
+  target?: string;
+  level?: 'A' | 'AA' | 'AAA';
+  options?: Record<string, unknown>;
+}
+
+interface RemediationsPayload {
+  violations?: AccessibilityViolation[];
+}
+
+interface VideoPayload {
+  url?: string;
+  videoUrl?: string;
+}
+
+interface WebVTTPayload {
+  frameDescriptions?: Array<{ timestamp: number; description: string }>;
+}
+
+interface CompliancePayload {
+  scanResult?: AccessibilityScanTaskResult;
+}
+
+interface KeyboardNavPayload {
+  url?: string;
+}
+
+interface AriaLabelsPayload {
+  elements?: AccessibilityElement[];
+}
+
+/** Type guard for payload types */
+function isPayloadWithProperty<K extends string>(
+  payload: unknown,
+  key: K
+): payload is Record<K, unknown> {
+  return typeof payload === 'object' && payload !== null && key in payload;
+}
+
 // Simple logger interface
 interface Logger {
   info(message: string, ...args: unknown[]): void;
@@ -352,7 +395,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Execute a comprehensive accessibility scan
    */
   private async executeScan(task: QETask): Promise<AccessibilityScanTaskResult> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as ScanPayload;
     const url = payload.url || payload.target;
 
     if (!url) {
@@ -427,7 +470,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Generate context-aware remediations for violations
    */
   private async generateRemediations(task: QETask): Promise<unknown> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as RemediationsPayload;
     const violations = payload.violations || [];
 
     this.logger.info(`Generating remediations for ${violations.length} violations`);
@@ -491,7 +534,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Analyze video content for accessibility
    */
   private async analyzeVideo(task: QETask): Promise<unknown> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as VideoPayload;
     const videoUrl = payload.url || payload.videoUrl;
 
     if (!videoUrl) {
@@ -519,7 +562,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Generate WebVTT caption file from video analysis
    */
   private async generateWebVTT(task: QETask): Promise<unknown> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as WebVTTPayload;
     const frameDescriptions = payload.frameDescriptions || [];
 
     this.logger.info(`Generating WebVTT for ${frameDescriptions.length} frames`);
@@ -529,7 +572,17 @@ export class AccessibilityAllyAgent extends BaseAgent {
       '../mcp/tools/qe/accessibility/webvtt-generator.js'
     );
 
-    const webvtt = generateWebVTT(frameDescriptions);
+    // Convert frame descriptions to WebVTTFile format with cues
+    const webvttFile = {
+      cues: frameDescriptions.map((frame, index) => ({
+        identifier: `cue-${index + 1}`,
+        startTime: frame.timestamp,
+        endTime: frame.timestamp + 5, // 5 second default duration
+        text: frame.description
+      }))
+    };
+
+    const webvtt = generateWebVTT(webvttFile);
 
     return {
       success: true,
@@ -542,7 +595,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Check compliance status against thresholds
    */
   private async checkCompliance(task: QETask): Promise<unknown> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as CompliancePayload;
     const scanResult = payload.scanResult;
 
     if (!scanResult) {
@@ -555,8 +608,8 @@ export class AccessibilityAllyAgent extends BaseAgent {
     const maxSerious = thresholds.maxSeriousViolations || 3;
 
     const score = scanResult.compliance?.score || 0;
-    const critical = scanResult.summary?.critical || 0;
-    const serious = scanResult.summary?.serious || 0;
+    const critical = scanResult.violations?.critical || 0;
+    const serious = scanResult.violations?.serious || 0;
 
     const passes =
       score >= minScore && critical <= maxCritical && serious <= maxSerious;
@@ -587,7 +640,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Analyze keyboard navigation paths
    */
   private async analyzeKeyboardNavigation(task: QETask): Promise<unknown> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as KeyboardNavPayload;
     const url = payload.url;
 
     if (!url) {
@@ -616,7 +669,7 @@ export class AccessibilityAllyAgent extends BaseAgent {
    * Generate intelligent ARIA labels for elements
    */
   private async generateAriaLabels(task: QETask): Promise<unknown> {
-    const payload = task.payload || {};
+    const payload = (task.payload || {}) as AriaLabelsPayload;
     const elements = payload.elements || [];
 
     this.logger.info(`Generating ARIA labels for ${elements.length} elements`);

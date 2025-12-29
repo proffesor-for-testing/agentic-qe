@@ -9,6 +9,7 @@
  */
 
 import crypto from 'crypto';
+import { seededRandom } from '../utils/SeededRandom';
 import {
   OutputFormatter,
   OutputMode,
@@ -650,7 +651,7 @@ export class OutputFormatterImpl implements OutputFormatter {
    */
   private generateExecutionId(type: string): string {
     const timestamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-    const hash = crypto.createHash('md5').update(`${type}-${timestamp}-${Math.random()}`).digest('hex').slice(0, 8);
+    const hash = crypto.createHash('md5').update(`${type}-${timestamp}-${seededRandom.random()}`).digest('hex').slice(0, 8);
     return `exec_${type}_${timestamp}_${hash}`;
   }
 }

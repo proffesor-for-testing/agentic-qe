@@ -288,10 +288,10 @@ export class FlakyTestHunterAgent extends BaseAgent {
     // Load historical test execution data for flakiness analysis
     const history = await this.memoryStore.retrieve(
       `aqe/${this.agentId.type}/history`
-    );
+    ) as { entries?: unknown[]; length?: number } | null;
 
-    if (history) {
-      console.log(`Loaded ${history.length} historical flakiness analysis entries`);
+    if (history && history.entries) {
+      console.log(`Loaded ${history.entries.length} historical flakiness analysis entries`);
     }
 
     console.log(`[${this.agentId.type}] Starting flaky test detection task`, {
@@ -911,29 +911,37 @@ export class FlakyTestHunterAgent extends BaseAgent {
     console.log(`FlakyTestHunterAgent initialized with ${this.testHistory.size} tests tracked`);
   }
 
-  protected async performTask(task: QETask): Promise<any> {
+  protected async performTask(task: QETask): Promise<unknown> {
+    const payload = task.payload as {
+      timeWindow?: number;
+      minRuns?: number;
+      testName?: string;
+      reason?: string;
+      assignedTo?: string;
+    };
+
     switch (task.type) {
       case 'detect-flaky':
         return await this.detectFlakyTests(
-          task.payload.timeWindow,
-          task.payload.minRuns
+          payload.timeWindow,
+          payload.minRuns
         );
 
       case 'quarantine':
         return await this.quarantineTest(
-          task.payload.testName,
-          task.payload.reason,
-          task.payload.assignedTo
+          payload.testName!,
+          payload.reason!,
+          payload.assignedTo
         );
 
       case 'stabilize':
-        return await this.stabilizeTest(task.payload.testName);
+        return await this.stabilizeTest(payload.testName!);
 
       case 'reliability-score':
-        return await this.calculateReliabilityScore(task.payload.testName);
+        return await this.calculateReliabilityScore(payload.testName!);
 
       case 'generate-report':
-        return await this.generateReport(task.payload.timeWindow);
+        return await this.generateReport(payload.timeWindow);
 
       case 'review-quarantine':
         return await this.reviewQuarantinedTests();
