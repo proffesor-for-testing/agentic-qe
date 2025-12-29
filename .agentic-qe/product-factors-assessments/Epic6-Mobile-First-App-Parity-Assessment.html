@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: Epic6 Mobile-First Experience & App Parity</title>
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    header .subtitle { font-size: 0.9rem; opacity: 0.9; line-height: 1.5; }
+    .meta-info { display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+    .meta-card { background: rgba(255,255,255,0.12); padding: 12px 20px; border-radius: 6px; min-width: 140px; }
+    .meta-card .label { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .meta-card .value { font-size: 1.5rem; font-weight: 700; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    .section h3 { color: var(--text-dark); font-size: 1rem; margin: 20px 0 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+    .section h3 .badge { background: var(--primary); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-visual { background: #fdf4ff; color: #86198f; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-compatibility { background: #ecfccb; color: #3f6212; }
+    .automation-accessibility { background: #e0f2fe; color: #075985; }
+    .automation-human { background: #f3e8ff; color: #7e22ce; font-weight: 600; }
+    .automation-other { background: #f1f5f9; color: #475569; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .clarifying-questions li:last-child { border-bottom: none; }
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.75rem; font-weight: 600; color: white; min-width: 35px; transition: width 0.3s ease; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-data { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .bar-interfaces { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-platform { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-operations { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-time { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .chart-total .total-label { color: var(--text-muted); }
+    .chart-total .total-value { font-weight: 700; color: var(--primary); }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .toc { background: var(--bg-white); padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .toc h2 { font-size: 0.85rem; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .toc-nav a:hover .count { background: rgba(255,255,255,0.3); }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    .collapsible-header { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+    .collapsible-header:hover { opacity: 0.8; }
+    .collapse-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+    .collapsed .collapse-icon { transform: rotate(-90deg); }
+    .collapsible-content { overflow: hidden; transition: max-height 0.3s ease-out; }
+    .collapsed .collapsible-content { max-height: 0 !important; padding-top: 0; padding-bottom: 0; }
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .info-header:hover { background: rgba(255,255,255,0.05); }
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header:hover { filter: brightness(0.97); }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    .category-section.cat-structure { border-left-color: #3b82f6; }
+    .category-section.cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .category-section.cat-structure .category-content { background: #f8faff; }
+    .category-section.cat-structure .badge { background: #3b82f6; color: white; }
+    .category-section.cat-function { border-left-color: #10b981; }
+    .category-section.cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .category-section.cat-function .category-content { background: #f8fdfb; }
+    .category-section.cat-function .badge { background: #10b981; color: white; }
+    .category-section.cat-data { border-left-color: #f59e0b; }
+    .category-section.cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .category-section.cat-data .category-content { background: #fffdf8; }
+    .category-section.cat-data .badge { background: #f59e0b; color: white; }
+    .category-section.cat-interfaces { border-left-color: #8b5cf6; }
+    .category-section.cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .category-section.cat-interfaces .category-content { background: #faf9ff; }
+    .category-section.cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .category-section.cat-platform { border-left-color: #14b8a6; }
+    .category-section.cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .category-section.cat-platform .category-content { background: #f8fefd; }
+    .category-section.cat-platform .badge { background: #14b8a6; color: white; }
+    .category-section.cat-operations { border-left-color: #6366f1; }
+    .category-section.cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .category-section.cat-operations .category-content { background: #f8f9ff; }
+    .category-section.cat-operations .badge { background: #6366f1; color: white; }
+    .category-section.cat-time { border-left-color: #ec4899; }
+    .category-section.cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .category-section.cat-time .category-content { background: #fefafc; }
+    .category-section.cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(30,58,95,0.1); }
+    .filter-input::placeholder { color: #94a3b8; }
+    @media (max-width: 768px) {
+      header h1 { font-size: 1.4rem; }
+      table { display: block; overflow-x: auto; }
+      .toc-nav { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+  <script>
+    function toggleSection(id) {
+      const section = document.getElementById(id);
+      if (section) {
+        section.classList.toggle('collapsed');
+      }
+    }
+    function expandAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.remove('collapsed'));
+    }
+    function collapseAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.add('collapsed'));
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors assessment of: Epic6 Mobile-First Experience & App Parity</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2025-12-28</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>87</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px;">
+        <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
+        <div class="toc-nav">
+          <a href="#risk">Prioritization</a>
+          <a href="#charts">Overview</a>
+          <span class="toc-divider">|</span>
+          <span style="color: var(--text-muted); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#structure">Structure <span class="count">11</span></a>
+          <a href="#function">Function <span class="count">18</span></a>
+          <a href="#data">Data <span class="count">12</span></a>
+          <a href="#interfaces">Interfaces <span class="count">15</span></a>
+          <a href="#platform">Platform <span class="count">13</span></a>
+          <a href="#operations">Operations <span class="count">10</span></a>
+          <a href="#time">Time <span class="count">8</span></a>
+        </div>
+      </nav>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> that considers:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>PWA install rates, mobile conversion, revenue impact from checkout abandonment</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Browser API compatibility, iOS limitations, Service Worker complexity, offline sync challenges</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>60%+ mobile traffic, payment processing, notification reliability, cross-device continuity</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Security &amp; Compliance</strong><br>Biometric authentication, payment credential storage, PCI-DSS compliance, data sync security</div>
+      </div>
+      <h3>Priority Legend</h3>
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Payment security, biometric authentication failures, or data loss that could cause immediate financial loss, security breach, or complete checkout failure. Must be tested before any release.</td><td>Apple Pay/Google Pay integration, biometric authentication, offline data sync, Service Worker registration</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core mobile experiences essential for conversion and user retention. Failures would significantly impact mobile revenue or user trust.</td><td>PWA install prompt, checkout flow optimization, push notifications, barcode scanning, cold start performance</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Important mobile features that enhance user experience. Failures would cause inconvenience but alternative flows exist.</td><td>Touch gesture optimization, cross-device session persistence, offline browsing, notification customization</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, platform-specific variations, or rarely used features. Failures have minimal business impact.</td><td>PWA install banner edge cases, gesture animation smoothness, notification icon variations</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">Structure</div>
+              <div class="bar-track"><div class="bar-fill bar-structure" style="width: 61.11%"></div></div>
+              <div class="bar-value">11</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Function</div>
+              <div class="bar-track"><div class="bar-fill bar-function" style="width: 100%"></div></div>
+              <div class="bar-value">18</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Data</div>
+              <div class="bar-track"><div class="bar-fill bar-data" style="width: 66.67%"></div></div>
+              <div class="bar-value">12</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Interfaces</div>
+              <div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 83.33%"></div></div>
+              <div class="bar-value">15</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Platform</div>
+              <div class="bar-track"><div class="bar-fill bar-platform" style="width: 72.22%"></div></div>
+              <div class="bar-value">13</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Operations</div>
+              <div class="bar-track"><div class="bar-fill bar-operations" style="width: 55.56%"></div></div>
+              <div class="bar-value">10</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Time</div>
+              <div class="bar-track"><div class="bar-fill bar-time" style="width: 44.44%"></div></div>
+              <div class="bar-value">8</div>
+            </div>
+          </div>
+          <div class="chart-total">
+            <span class="total-label">Total Test Ideas</span>
+            <span class="total-value">87</span>
+          </div>
+        </div>
+        <div class="chart-panel">
+          <h3>Priority Distribution</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">P0 Critical</div>
+              <div class="bar-track"><div class="bar-fill bar-p0" style="width: 100%"></div></div>
+              <div class="bar-value">24</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P1 High</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 79.17%"></div></div>
+              <div class="bar-value">19</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P2 Medium</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 87.50%"></div></div>
+              <div class="bar-value">21</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P3 Low</div>
+              <div class="bar-track"><div class="bar-fill bar-p3" style="width: 95.83%"></div></div>
+              <div class="bar-value">23</div>
+            </div>
+          </div>
+          <h3 style="margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border);">Automation Fitness</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">E2E</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 100%; background: linear-gradient(90deg, #fce7f3, #f9a8d4);"></div></div>
+              <div class="bar-value">32</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Integration</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 65.63%; background: linear-gradient(90deg, #d1fae5, #86efac);"></div></div>
+              <div class="bar-value">21</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Performance</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 46.88%; background: linear-gradient(90deg, #fef3c7, #fde68a);"></div></div>
+              <div class="bar-value">15</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Security</div>
+              <div class="bar-track"><div class="bar-fill bar-p0" style="width: 28.13%; background: linear-gradient(90deg, #fee2e2, #fca5a5);"></div></div>
+              <div class="bar-value">9</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Compatibility</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 25.00%; background: linear-gradient(90deg, #ecfccb, #d9f99d);"></div></div>
+              <div class="bar-value">8</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="category-section cat-structure" id="structure">
+      <div class="category-header" onclick="toggleSection('structure')">
+        <h3>Structure <span class="badge">11 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>ServiceWorker <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">S-SW-001</span></td>
+              <td>Verify Service Worker registration succeeds on HTTPS and fails gracefully on HTTP with clear error messaging</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-SW-002</span></td>
+              <td>Test Service Worker lifecycle: install → waiting → activate states with cache versioning and old cache cleanup</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-SW-003</span></td>
+              <td>Validate Service Worker update mechanism when new version deployed (skip waiting vs. manual activation)</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-SW-004</span></td>
+              <td>Test Service Worker scope and ensure correct path hierarchy for caching strategies</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>PWA Manifest <span class="badge">3 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">S-MAN-001</span></td>
+              <td>Verify manifest.json includes all required fields: name, short_name, icons (192x192, 512x512), start_url, display, theme_color</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-MAN-002</span></td>
+              <td>Test PWA install criteria met: manifest + Service Worker + HTTPS + engagement heuristics (time on site, interactions)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-MAN-003</span></td>
+              <td>Validate PWA icons display correctly in homescreen, splash screen, task switcher across densities (1x, 2x, 3x)</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-human">human-exploration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Dependencies <span class="badge">2 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">S-DEP-001</span></td>
+              <td>Test Payment Request API polyfill fallback for browsers without native support (Safari < 11.1)</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-DEP-002</span></td>
+              <td>Verify IndexedDB version migrations handle schema changes without data loss during app updates</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Architecture <span class="badge">2 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">S-ARC-001</span></td>
+              <td>Validate app shell architecture loads critical resources (HTML/CSS/JS skeleton) within 3.5s on 3G network</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">S-ARC-002</span></td>
+              <td>Test offline-first data sync architecture with conflict resolution (last-write-wins vs. custom merge logic)</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Structure</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">The following questions help identify gaps in structural requirements that could impact PWA implementation quality and maintainability.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Code Organization</h5>
+            <div class="rationale">Understanding code structure helps prevent bundle size bloat and ensures efficient lazy loading.</div>
+            <ul>
+              <li>How will Service Worker code be organized (monolithic vs. modular with importScripts)?</li>
+              <li>What lazy loading strategy for route-based code splitting (route chunks < 200KB)?</li>
+              <li>How will shared utilities be deduplicated to prevent code duplication across bundles?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Build Pipeline</h5>
+            <div class="rationale">Build configuration directly impacts cache invalidation and update reliability.</div>
+            <ul>
+              <li>How will Service Worker cache versioning be automated (content hash vs. build number)?</li>
+              <li>What strategy for precaching static assets (runtime caching vs. build-time manifest generation)?</li>
+              <li>How will critical CSS be inlined vs. deferred for optimal First Contentful Paint?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-section cat-function" id="function">
+      <div class="category-header" onclick="toggleSection('function')">
+        <h3>Function <span class="badge">18 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>Payment Integration <span class="badge">5 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">F-PAY-001</span></td>
+              <td>Test Apple Pay integration: verify payment sheet displays saved cards, billing/shipping address autofill, and Touch ID/Face ID authentication</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PAY-002</span></td>
+              <td>Test Google Pay integration: validate payment data encryption, tokenization, and 3DS challenge flow for high-risk transactions</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PAY-003</span></td>
+              <td>Verify Payment Request API fallback to traditional checkout form when Apple Pay/Google Pay unavailable</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PAY-004</span></td>
+              <td>Test payment error handling: declined cards, insufficient funds, network timeout with retry mechanism and user-friendly messaging</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PAY-005</span></td>
+              <td>Validate PCI-DSS compliance: ensure payment credentials never stored in IndexedDB, localStorage, or Service Worker cache</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-security">security</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Biometric Authentication <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">F-BIO-001</span></td>
+              <td>Test Web Authentication API (WebAuthn) for biometric login with fingerprint, Face ID, and Windows Hello</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-BIO-002</span></td>
+              <td>Verify biometric fallback to PIN/password when biometric hardware unavailable or enrollment missing</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-BIO-003</span></td>
+              <td>Test Credential Management API to store and retrieve biometric credentials securely in browser credential store</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-security">security</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-BIO-004</span></td>
+              <td>Validate biometric authentication timeout and re-authentication prompts after 15 minutes of inactivity</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Push Notifications <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">F-PUSH-001</span></td>
+              <td>Test Web Push API subscription: verify VAPID key exchange, push endpoint registration, and permission prompt timing</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PUSH-002</span></td>
+              <td>Validate push notification delivery for deal alerts and stock alerts with deep links to product pages</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PUSH-003</span></td>
+              <td>Test notification customization: user preferences for notification types, frequency limits (max 3/day), and quiet hours</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-PUSH-004</span></td>
+              <td>Verify notification action buttons (View Deal, Dismiss) trigger correct app behavior and analytics events</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Barcode Scanning <span class="badge">3 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">F-SCAN-001</span></td>
+              <td>Test barcode scanner using MediaStream API and ZXing library for UPC, EAN-13, QR code formats</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-SCAN-002</span></td>
+              <td>Verify in-store price check feature: scan product → fetch price from API → display comparison with online price</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-SCAN-003</span></td>
+              <td>Test camera permission handling and error messaging when camera access denied or unavailable</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Error Handling <span class="badge">2 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">F-ERR-001</span></td>
+              <td>Test offline error handling: display cached content with "You're offline" banner and queue sync operations</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">F-ERR-002</span></td>
+              <td>Verify background sync retry logic for failed API calls with exponential backoff (1s, 2s, 4s, 8s...)</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Function</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">These questions help uncover functional gaps that could impact user experience and business KPIs.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Payment Processing</h5>
+            <div class="rationale">Payment flow complexity requires clear failure handling and compliance requirements.</div>
+            <ul>
+              <li>What is the retry logic for failed Apple Pay/Google Pay transactions (immediate vs. delayed)?</li>
+              <li>How are partial payment failures handled (authorization succeeded but capture failed)?</li>
+              <li>What PCI-DSS SAQ (Self-Assessment Questionnaire) level applies to this implementation?</li>
+              <li>How are payment disputes and chargebacks tracked in mobile vs. desktop transactions?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Notification Strategy</h5>
+            <div class="rationale">Push notification abuse can lead to permission revocations and user churn.</div>
+            <ul>
+              <li>What is the opt-in strategy for push notifications (one-time vs. contextual prompts)?</li>
+              <li>How are notification click-through rates tracked to measure effectiveness?</li>
+              <li>What fallback exists if iOS Safari doesn't support Web Push (iOS < 16.4)?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-section cat-data" id="data">
+      <div class="category-header" onclick="toggleSection('data')">
+        <h3>Data <span class="badge">12 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>IndexedDB Storage <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">D-IDB-001</span></td>
+              <td>Test IndexedDB quota management: verify app requests persistent storage and handles QuotaExceededError gracefully</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-IDB-002</span></td>
+              <td>Validate offline product browsing: previously viewed products stored in IndexedDB with images, prices, availability</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-IDB-003</span></td>
+              <td>Test data eviction policy: LRU (Least Recently Used) eviction when storage quota reaches 80% capacity</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-IDB-004</span></td>
+              <td>Verify IndexedDB encryption for sensitive data (shopping cart, wishlist) using Web Crypto API</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-security">security</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Background Sync <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">D-SYNC-001</span></td>
+              <td>Test Background Sync API for queued cart additions, wishlist updates when user goes offline then returns online</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-SYNC-002</span></td>
+              <td>Validate conflict resolution: user adds same product offline and online → last-write-wins or merge cart quantities?</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-SYNC-003</span></td>
+              <td>Test sync queue persistence: verify queued operations survive browser crashes and tab closures</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-SYNC-004</span></td>
+              <td>Verify delta sync optimization: only sync changed fields (quantity, size) not entire cart object to minimize bandwidth</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Cache Management <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">D-CACHE-001</span></td>
+              <td>Test cache-first strategy for static assets (CSS, JS, fonts) and network-first for dynamic content (product prices, stock)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-CACHE-002</span></td>
+              <td>Validate stale-while-revalidate pattern: serve cached product images while fetching updates in background</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-CACHE-003</span></td>
+              <td>Test cache versioning and invalidation: old app shell removed when new Service Worker activates</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">D-CACHE-004</span></td>
+              <td>Verify Cache Storage API quota monitoring and automatic cleanup of least-used caches when storage pressure detected</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Data</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Data management questions to prevent storage issues and ensure data integrity.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Storage Strategy</h5>
+            <div class="rationale">Improper storage management can lead to data loss and poor offline experience.</div>
+            <ul>
+              <li>What is the maximum size of offline product catalog (50 products, 500 products, unlimited)?</li>
+              <li>How long should cached product data remain valid before forced refresh (24h, 7 days)?</li>
+              <li>What happens when user's device storage is full? Degrade gracefully or block offline features?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Data Synchronization</h5>
+            <div class="rationale">Sync conflicts can cause cart inconsistencies and lost sales.</div>
+            <ul>
+              <li>How are price changes handled for items in offline cart (honor old price or update to latest)?</li>
+              <li>What is the maximum age of offline data before forcing online sync (prevent 30-day-old cart issues)?</li>
+              <li>How are deleted products handled (user has product in offline cart, but product discontinued)?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-section cat-interfaces" id="interfaces">
+      <div class="category-header" onclick="toggleSection('interfaces')">
+        <h3>Interfaces <span class="badge">15 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>Touch Gestures <span class="badge">5 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">I-TOUCH-001</span></td>
+              <td>Test swipe gestures: left/right swipe for image gallery navigation, swipe-to-delete for cart items</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-TOUCH-002</span></td>
+              <td>Validate pull-to-refresh gesture with visual feedback (spinner, progress indicator) and debouncing to prevent accidental triggers</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-TOUCH-003</span></td>
+              <td>Test pinch-to-zoom on product images with smooth animation and maintain aspect ratio</td>
+              <td><span class="priority priority-p3">P3</span></td>
+              <td><span class="automation automation-human">human-exploration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-TOUCH-004</span></td>
+              <td>Verify touch target sizes meet accessibility standards (minimum 44x44px) for buttons, links, form inputs</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-TOUCH-005</span></td>
+              <td>Test double-tap zoom gesture disabled to prevent accidental zooming (use CSS touch-action: manipulation)</td>
+              <td><span class="priority priority-p3">P3</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>PWA Install Prompt <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">I-PWA-001</span></td>
+              <td>Test beforeinstallprompt event capture and defer install prompt to strategic moment (after 3 page views or cart addition)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-PWA-002</span></td>
+              <td>Validate install banner dismissal tracking: don't re-prompt users who dismissed banner within 30 days</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-PWA-003</span></td>
+              <td>Test A/B experiment: install prompt timing (immediate vs. delayed) to optimize 10% install rate goal</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-PWA-004</span></td>
+              <td>Verify install success analytics tracking: measure install funnel (prompt shown → user accepted → app installed)</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Mobile Navigation <span class="badge">3 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">I-NAV-001</span></td>
+              <td>Test hamburger menu accessibility: keyboard navigation, screen reader announcements, focus management</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-NAV-002</span></td>
+              <td>Validate bottom navigation bar (home, search, cart, account) fixed positioning and safe area insets for iPhone notch</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-NAV-003</span></td>
+              <td>Test deep linking from push notifications preserves navigation stack (user can back-navigate to home)</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Cross-Device Session <span class="badge">3 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">I-SESS-001</span></td>
+              <td>Test session token synchronization: user logs in on mobile → desktop session updated within 5 seconds via WebSocket</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-SESS-002</span></td>
+              <td>Validate cart sync across devices: add item on mobile → appears on desktop instantly with optimistic UI updates</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">I-SESS-003</span></td>
+              <td>Test session persistence after PWA install: user doesn't need to re-login after adding app to homescreen</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Interfaces</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Interface questions to ensure consistent UX across mobile platforms and input modalities.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Gesture Interactions</h5>
+            <div class="rationale">Gesture conflicts can frustrate users and reduce mobile conversion rates.</div>
+            <ul>
+              <li>How are gesture conflicts resolved (swipe-to-navigate vs. swipe-to-delete in same context)?</li>
+              <li>What is the swipe velocity threshold to trigger action vs. accidental touch?</li>
+              <li>How are gestures adapted for left-handed users or accessibility settings?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Install Experience</h5>
+            <div class="rationale">Poor install UX can prevent achieving 10% install rate goal.</div>
+            <ul>
+              <li>What value proposition is shown in install prompt ("Get faster checkout" vs. "Add to homescreen")?</li>
+              <li>How is install success communicated (toast notification, onboarding tour)?</li>
+              <li>What happens if user uninstalls PWA then visits site again (re-prompt or permanent opt-out)?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-section cat-platform" id="platform">
+      <div class="category-header" onclick="toggleSection('platform')">
+        <h3>Platform <span class="badge">13 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>Browser Compatibility <span class="badge">5 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">P-COMPAT-001</span></td>
+              <td>Test Service Worker support across Chrome 40+, Firefox 44+, Safari 11.1+, Edge 17+ with polyfill fallback</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-COMPAT-002</span></td>
+              <td>Validate iOS Safari limitations: Service Worker scope restrictions, IndexedDB quota (50MB), no background sync</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-COMPAT-003</span></td>
+              <td>Test Payment Request API browser support: Chrome 60+, Safari 11.1+, Edge 15+ with graceful degradation to forms</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-COMPAT-004</span></td>
+              <td>Verify Web Push API support: Chrome 42+, Firefox 44+, Safari 16.4+ (iOS) with fallback notification strategy</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-COMPAT-005</span></td>
+              <td>Test WebAuthn biometric API: Chrome 67+, Safari 14+, Firefox 60+ with PIN/password fallback for unsupported browsers</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Device Support <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">P-DEV-001</span></td>
+              <td>Test responsive breakpoints: 320px (iPhone SE), 375px (iPhone 12), 414px (iPhone 14 Pro Max), 768px (iPad), 1024px (iPad Pro)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-DEV-002</span></td>
+              <td>Validate safe area insets for iPhone notch, Dynamic Island, and Android camera cutouts using env(safe-area-inset-*)</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-compatibility">compatibility</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-DEV-003</span></td>
+              <td>Test orientation changes: portrait ↔ landscape without content reflow issues or layout breaks</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-DEV-004</span></td>
+              <td>Verify low-end Android device performance (< 2GB RAM): ensure 3.5s cold start on Samsung Galaxy A12</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Network Conditions <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">P-NET-001</span></td>
+              <td>Test app shell loads within 3.5s on simulated 3G network (750ms RTT, 1.6 Mbps down, 750 Kbps up)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-NET-002</span></td>
+              <td>Validate Network Information API usage: serve low-res images on 2G, high-res on 4G/WiFi to optimize bandwidth</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-NET-003</span></td>
+              <td>Test offline-to-online transition: sync queued operations when network restored, update stale content</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">P-NET-004</span></td>
+              <td>Verify request timeout configuration: 10s for API calls, 30s for image downloads with retry logic</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Platform</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Platform compatibility questions to prevent fragmentation and ensure broad device support.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Browser Support Matrix</h5>
+            <div class="rationale">Unclear browser support can lead to broken experiences for significant user segments.</div>
+            <ul>
+              <li>What is the minimum supported browser version (last 2 versions, 95% global usage, specific versions)?</li>
+              <li>How are iOS Safari PWA limitations communicated to users (no background sync, 50MB quota)?</li>
+              <li>What is the fallback strategy for browsers without Payment Request API (Samsung Internet, Opera Mini)?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Device Performance</h5>
+            <div class="rationale">Poor performance on low-end devices can exclude price-sensitive customer segments.</div>
+            <ul>
+              <li>What is the baseline device specification for performance testing (RAM, CPU, screen resolution)?</li>
+              <li>How are performance budgets enforced (max bundle size 200KB, Time to Interactive < 5s on 3G)?</li>
+              <li>What happens when device storage is full and IndexedDB writes fail?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-section cat-operations" id="operations">
+      <div class="category-header" onclick="toggleSection('operations')">
+        <h3>Operations <span class="badge">10 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>User Workflows <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">O-FLOW-001</span></td>
+              <td>Test happy path mobile checkout: browse → add to cart → Apple Pay → order confirmation in < 60 seconds</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-FLOW-002</span></td>
+              <td>Validate in-store shopping workflow: scan barcode → compare price → add to cart → save for later (continue on desktop)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-FLOW-003</span></td>
+              <td>Test abandoned cart recovery: user adds items offline → leaves → push notification 24h later with 10% discount</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-FLOW-004</span></td>
+              <td>Verify first-time user onboarding: PWA install → biometric setup → permission requests (camera, notifications) with clear value props</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Analytics & Monitoring <span class="badge">3 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">O-ANALYT-001</span></td>
+              <td>Test Core Web Vitals tracking: LCP < 2.5s, FID < 100ms, CLS < 0.1 with RUM (Real User Monitoring) data collection</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-ANALYT-002</span></td>
+              <td>Validate PWA engagement metrics: install rate 10%, mobile conversion 15% increase, checkout abandonment 20% reduction</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-ANALYT-003</span></td>
+              <td>Test error tracking: Service Worker errors, IndexedDB quota errors, payment failures logged to analytics with user context</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Deployment & Updates <span class="badge">3 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">O-DEPLOY-001</span></td>
+              <td>Test Service Worker update mechanism: new version detected → user prompted to refresh (or auto-reload after idle)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-e2e">e2e</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-DEPLOY-002</span></td>
+              <td>Validate canary deployment: 5% of users receive new Service Worker → monitor error rates before full rollout</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">O-DEPLOY-003</span></td>
+              <td>Test rollback procedure: critical bug detected → revert to previous Service Worker version within 5 minutes</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Operations</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Operational questions to ensure smooth deployment and maintenance of PWA features.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>User Adoption</h5>
+            <div class="rationale">Understanding user behavior helps optimize install prompts and engagement strategies.</div>
+            <ul>
+              <li>What is the target install rate by user segment (new users 5%, returning 15%, power users 30%)?</li>
+              <li>How is PWA install success communicated to stakeholders (dashboard, weekly reports)?</li>
+              <li>What incentives drive PWA install (exclusive deals, faster checkout, offline access)?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Deployment Strategy</h5>
+            <div class="rationale">Poor deployment practices can cause widespread Service Worker issues.</div>
+            <ul>
+              <li>What is the Service Worker update frequency (every deployment, weekly, on-demand)?</li>
+              <li>How are breaking changes communicated to users (force refresh, migration guide)?</li>
+              <li>What monitoring exists for Service Worker activation failures?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="category-section cat-time" id="time">
+      <div class="category-header" onclick="toggleSection('time')">
+        <h3>Time <span class="badge">8 ideas</span></h3>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="category-content">
+        <h3>Performance Timing <span class="badge">4 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">T-PERF-001</span></td>
+              <td>Test cold start performance: PWA loads and becomes interactive in < 3.5s on 3G network (success metric)</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">T-PERF-002</span></td>
+              <td>Validate warm start performance: returning user with cached app shell loads in < 1s on 4G network</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">T-PERF-003</span></td>
+              <td>Test Time to Interactive (TTI): main thread idle within 5s, no long tasks > 50ms blocking user input</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">T-PERF-004</span></td>
+              <td>Verify Largest Contentful Paint (LCP): hero image or product card renders within 2.5s on mobile</td>
+              <td><span class="priority priority-p1">P1</span></td>
+              <td><span class="automation automation-performance">performance</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Background Tasks <span class="badge">2 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">T-BG-001</span></td>
+              <td>Test Background Sync timing: queued operations sync when network restored (not immediate, respects battery state)</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">T-BG-002</span></td>
+              <td>Validate periodic background sync: update product prices, stock status every 12 hours when device charging + WiFi</td>
+              <td><span class="priority priority-p3">P3</span></td>
+              <td><span class="automation automation-integration">integration</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Session Management <span class="badge">2 ideas</span></h3>
+        <table>
+          <thead>
+            <tr><th style="width: 50px;">ID</th><th>Test Idea</th><th style="width: 100px;">Priority</th><th style="width: 150px;">Automation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="test-id">T-SESS-001</span></td>
+              <td>Test session timeout: biometric re-authentication required after 15 minutes of inactivity for security-sensitive actions</td>
+              <td><span class="priority priority-p2">P2</span></td>
+              <td><span class="automation automation-security">security</span></td>
+            </tr>
+            <tr>
+              <td><span class="test-id">T-SESS-002</span></td>
+              <td>Validate session token refresh: access token expires after 1 hour, refresh token rotated every 7 days to maintain security</td>
+              <td><span class="priority priority-p0">P0</span></td>
+              <td><span class="automation automation-security">security</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions for Time</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Timing questions to ensure performance budgets and background task strategies are well-defined.</p>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Performance Budgets</h5>
+            <div class="rationale">Unclear performance targets lead to slow apps that fail business KPIs.</div>
+            <ul>
+              <li>What are the performance budgets by network type (3G: 3.5s, 4G: 2s, WiFi: 1s)?</li>
+              <li>How are performance regressions caught (CI/CD performance tests, Lighthouse CI)?</li>
+              <li>What is the acceptable performance variance (±10%, ±500ms)?</li>
+            </ul>
+          </div>
+          <div class="subcategory-questions">
+            <h5>Background Synchronization</h5>
+            <div class="rationale">Aggressive background sync can drain battery and consume mobile data.</div>
+            <ul>
+              <li>What is the retry strategy for failed background syncs (exponential backoff, max 5 retries)?</li>
+              <li>How are background tasks prioritized (price updates vs. analytics vs. cart sync)?</li>
+              <li>What happens if user has data saver mode enabled (defer non-critical syncs)?</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

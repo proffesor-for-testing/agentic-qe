@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: Epic4 Sustainable Commerce</title>
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    header .subtitle { font-size: 0.9rem; opacity: 0.9; line-height: 1.5; }
+    .meta-info { display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+    .meta-card { background: rgba(255,255,255,0.12); padding: 12px 20px; border-radius: 6px; min-width: 140px; }
+    .meta-card .label { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .meta-card .value { font-size: 1.5rem; font-weight: 700; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    .section h3 { color: var(--text-dark); font-size: 1rem; margin: 20px 0 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+    .section h3 .badge { background: var(--primary); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-visual { background: #fdf4ff; color: #86198f; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-compatibility { background: #ecfccb; color: #3f6212; }
+    .automation-human { background: #f3e8ff; color: var(--purple); font-weight: 600; }
+    .automation-other { background: #f1f5f9; color: #475569; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .clarifying-questions li:last-child { border-bottom: none; }
+    /* Chart styles for compact visualization */
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.75rem; font-weight: 600; color: white; min-width: 35px; transition: width 0.3s ease; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-data { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .bar-interfaces { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-platform { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-operations { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-time { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .chart-total .total-label { color: var(--text-muted); }
+    .chart-total .total-value { font-weight: 700; color: var(--primary); }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    /* Compact TOC */
+    .toc { background: var(--bg-white); padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .toc h2 { font-size: 0.85rem; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .toc-nav a:hover .count { background: rgba(255,255,255,0.3); }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    /* Collapsible sections */
+    .collapsible-header { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+    .collapsible-header:hover { opacity: 0.8; }
+    .collapse-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+    .collapsed .collapse-icon { transform: rotate(-90deg); }
+    .collapsible-content { overflow: hidden; transition: max-height 0.3s ease-out; }
+    .collapsed .collapsible-content { max-height: 0 !important; padding-top: 0; padding-bottom: 0; }
+    /* Info section collapsible styling */
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .info-header:hover { background: rgba(255,255,255,0.05); }
+    /* Category section styling */
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header:hover { filter: brightness(0.97); }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    /* Product Factor Colors - SFDIPOT */
+    .category-section.cat-structure { border-left-color: #3b82f6; }
+    .category-section.cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .category-section.cat-structure .category-content { background: #f8faff; }
+    .category-section.cat-structure .badge { background: #3b82f6; color: white; }
+    .category-section.cat-function { border-left-color: #10b981; }
+    .category-section.cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .category-section.cat-function .category-content { background: #f8fdfb; }
+    .category-section.cat-function .badge { background: #10b981; color: white; }
+    .category-section.cat-data { border-left-color: #f59e0b; }
+    .category-section.cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .category-section.cat-data .category-content { background: #fffdf8; }
+    .category-section.cat-data .badge { background: #f59e0b; color: white; }
+    .category-section.cat-interfaces { border-left-color: #8b5cf6; }
+    .category-section.cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .category-section.cat-interfaces .category-content { background: #faf9ff; }
+    .category-section.cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .category-section.cat-platform { border-left-color: #14b8a6; }
+    .category-section.cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .category-section.cat-platform .category-content { background: #f8fefd; }
+    .category-section.cat-platform .badge { background: #14b8a6; color: white; }
+    .category-section.cat-operations { border-left-color: #6366f1; }
+    .category-section.cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .category-section.cat-operations .category-content { background: #f8f9ff; }
+    .category-section.cat-operations .badge { background: #6366f1; color: white; }
+    .category-section.cat-time { border-left-color: #ec4899; }
+    .category-section.cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .category-section.cat-time .category-content { background: #fefafc; }
+    .category-section.cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    /* Table filters */
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(30,58,95,0.1); }
+    .filter-input::placeholder { color: #94a3b8; }
+    @media (max-width: 768px) {
+      header h1 { font-size: 1.4rem; }
+      table { display: block; overflow-x: auto; }
+      .toc-nav { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+  <script>
+    function toggleSection(id) {
+      const section = document.getElementById(id);
+      if (section) {
+        section.classList.toggle('collapsed');
+      }
+    }
+    function expandAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.remove('collapsed'));
+    }
+    function collapseAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.add('collapsed'));
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors assessment of: Epic4 Sustainable Commerce</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2025-12-28</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>39</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px;">
+        <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
+        <div class="toc-nav">
+          <a href="#risk">Prioritization</a>
+          <a href="#charts">Overview</a>
+          <span class="toc-divider">|</span>
+          <span style="color: var(--text-muted); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#function">Function <span class="count">9</span></a>
+          <a href="#data">Data <span class="count">6</span></a>
+          <a href="#interfaces">Interfaces <span class="count">7</span></a>
+          <a href="#platform">Platform <span class="count">6</span></a>
+          <a href="#operations">Operations <span class="count">6</span></a>
+          <a href="#time">Time <span class="count">5</span></a>
+          <span class="toc-divider">|</span>
+          <a href="#traceability">Req. Traceability</a>
+        </div>
+      </nav>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> that considers:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>Potential revenue loss, customer trust damage, or regulatory penalties</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Complexity of implementation, external dependencies, new technology</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>Number of users affected and frequency of feature usage</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Security &amp; Compliance</strong><br>Data protection requirements, payment processing, legal obligations</div>
+      </div>
+      <h3>Priority Legend</h3>
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Security vulnerabilities or core functionality that could cause immediate financial loss, data breach, or complete service failure. Must be tested before any release.</td><td>XSS/injection protection</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core business flows and integrations essential for revenue generation. Failures would significantly impact user experience or business operations.</td><td>UI components, concurrency handling, form validation</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Important features that support the core experience. Failures would cause inconvenience but workarounds exist.</td><td>form validation, platform compatibility, UI components</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, cosmetic issues, or rarely used features. Failures have minimal business impact.</td><td>Edge cases, minor variations</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">Structure</div>
+              <div class="bar-track"><div class="bar-fill bar-structure" style="width: 0%"></div></div>
+              <div class="bar-value">0</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Function</div>
+              <div class="bar-track"><div class="bar-fill bar-function" style="width: 100%"></div></div>
+              <div class="bar-value">9</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Data</div>
+              <div class="bar-track"><div class="bar-fill bar-data" style="width: 66.66666666666666%"></div></div>
+              <div class="bar-value">6</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Interfaces</div>
+              <div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 77.77777777777779%"></div></div>
+              <div class="bar-value">7</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Platform</div>
+              <div class="bar-track"><div class="bar-fill bar-platform" style="width: 66.66666666666666%"></div></div>
+              <div class="bar-value">6</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Operations</div>
+              <div class="bar-track"><div class="bar-fill bar-operations" style="width: 66.66666666666666%"></div></div>
+              <div class="bar-value">6</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Time</div>
+              <div class="bar-track"><div class="bar-fill bar-time" style="width: 55.55555555555556%"></div></div>
+              <div class="bar-value">5</div>
+            </div>
+          </div>
+          <div class="chart-total">
+            <span class="total-label">Product Factors: 7/7</span>
+            <span class="total-value">39 Test Ideas</span>
+          </div>
+          <div style="margin-top: 10px; padding: 8px 12px; background: #fef9c3; border-radius: 4px; font-size: 0.8rem; color: #92400e;">
+            <strong>Clarifying Questions:</strong> Review each category for questions requiring stakeholder input
+          </div>
+        </div>
+        <div class="chart-panel">
+          <h3>Test Ideas by Priority</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">P0 - Critical</div>
+              <div class="bar-track"><div class="bar-fill bar-p0" style="width: 10.526315789473683%"></div></div>
+              <div class="bar-value">2</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P1 - High</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 94.73684210526315%"></div></div>
+              <div class="bar-value">18</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P2 - Medium</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 100%"></div></div>
+              <div class="bar-value">19</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P3 - Low</div>
+              <div class="bar-track"><div class="bar-fill bar-p3" style="width: 0%"></div></div>
+              <div class="bar-value">0</div>
+            </div>
+          </div>
+
+          <h4 style="font-size: 0.85rem; color: var(--text-dark); margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 600;">Test Ideas by Automation Fitness</h4>
+          <div class="bar-chart" style="font-size: 0.85rem;">
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">E2E level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">12</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">API level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 83.33333333333334%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">10</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Concurrency</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 41.66666666666667%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">5</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Performance</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 33.33333333333333%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">4</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Browser Compat</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 33.33333333333333%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">4</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Security</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 16.666666666666664%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="test-ideas">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary);">
+        <h2 style="margin: 0; border: none; padding: 0;">Test Ideas by Product Factor</h2>
+        <button onclick="toggleAllSections()" id="toggle-all-btn" style="background: var(--bg-light); border: 1px solid var(--border); padding: 6px 14px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 500; color: var(--text-dark);">Collapse All</button>
+      </div>
+      <script>
+        function toggleAllSections() {
+          var sections = document.querySelectorAll('.category-section');
+          var btn = document.getElementById('toggle-all-btn');
+          var shouldCollapse = btn.textContent === 'Collapse All';
+          sections.forEach(function(s) {
+            if (shouldCollapse) { s.classList.add('collapsed'); }
+            else { s.classList.remove('collapsed'); }
+          });
+          btn.textContent = shouldCollapse ? 'Expand All' : 'Collapse All';
+        }
+        function filterTable(tableId) {
+          var table = document.getElementById(tableId);
+          var filters = table.querySelectorAll('.filter-input, .filter-select');
+          var rows = table.querySelectorAll('tbody tr');
+          rows.forEach(function(row) {
+            var show = true;
+            filters.forEach(function(filter) {
+              var col = parseInt(filter.dataset.col);
+              var cell = row.cells[col];
+              if (cell) {
+                var text = cell.textContent.toLowerCase();
+                var val = filter.value.toLowerCase();
+                if (val && text.indexOf(val) === -1) { show = false; }
+              }
+            });
+            row.style.display = show ? '' : 'none';
+          });
+        }
+      </script>
+      
+
+        <div class="category-section cat-function" id="function">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>FUNCTION: Test ideas for everything that the product does <span class="badge">9</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            <table class="filterable-table" id="table-function">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-function')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-function')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-FUNC-9CC5A448</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that sustainable/eco-friendly product filter visible on homepage</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-12E37FA3</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that "Responsible Collection" featured section on homepage</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-719676B7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that carbon footprint estimates displayed for delivery OPTIONS</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-099F975B</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that "Pre-loved" / resale section prominently linked from homepage</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-65D144AA</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that sustainability badges/certifications visible on product cards</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-4C885611</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that link to CR report and ethical sourcing information in footer elevated</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-00C39791</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">BusinessRules</span></td>
+          <td>Verify that "Repair & Care" guides linked from homepage</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-E5639C9B</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Validate that material composition percentages</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-FUNC-56B95BC7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Calculation</span></td>
+          <td>Validate that warehouse energy consumption</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+              </tbody>
+            </table>
+            
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions to address potential coverage gaps</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Since the user stories focus on <strong>payment processing, inventory</strong>, the following subcategories have limited or no test coverage.</p>
+          </div>
+          
+          <div class="subcategory-questions">
+            <h5>[MultiUserSocial]</h5>
+            <p class="rationale"><em>Rationale: The user stories don't detail multi-user scenarios for payment processing.</em></p>
+            <ul>
+              <li>Can multiple end user access the same financial data simultaneously?</li>
+<li>How are conflicts resolved when multiple users modify the same data?</li>
+<li>Are there collaboration features that need testing (sharing, permissions, notifications)?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Calculation]</h5>
+            <p class="rationale"><em>Rationale: Pricing and billing don't specify exact rules. Incorrect calculations can cause issues.</em></p>
+            <ul>
+              <li>What are the exact calculation rules for pricing, proration, and taxes?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[SecurityRelated]</h5>
+            <p class="rationale"><em>Rationale: Security features require specific controls beyond what's in the user stories.</em></p>
+            <ul>
+              <li>What authentication requirements apply?</li>
+<li>What user data should be encrypted at rest and in transit?</li>
+<li>What data should be masked in logs?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Transformations]</h5>
+            <p class="rationale"><em>Rationale: Data transformation rules for financial data aren't specified.</em></p>
+            <ul>
+              <li>What transformations apply to financial data (formatting, normalization, sanitization)?</li>
+<li>How are data imports processed and validated?</li>
+<li>What happens during modifications - full replace or partial update?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[StateTransitions]</h5>
+            <p class="rationale"><em>Rationale: payment processing has multiple states with complex transitions.</em></p>
+            <ul>
+              <li>What are all valid states for transactions/orders? What transitions are allowed?</li>
+<li>Can a completed item be reactivated? Under what conditions?</li>
+<li>What happens to items in "pending" state for extended periods?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[ErrorHandling]</h5>
+            <p class="rationale"><em>Rationale: payment processing flows have many failure points. Clear error handling prevents user frustration.</em></p>
+            <ul>
+              <li>What should happen when email service is unavailable? Retry? Queue? Notify user?</li>
+<li>How should expired sessions be handled mid-operation?</li>
+<li>What specific error messages should end user see for different failure scenarios?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Interactions]</h5>
+            <p class="rationale"><em>Rationale: The user stories mention interactions but don't detail all system interactions.</em></p>
+            <ul>
+              <li>What triggers each system event?</li>
+<li>What analytics events should be captured for payment processing?</li>
+<li>How do payment processing and inventory interact?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Testability]</h5>
+            <p class="rationale"><em>Rationale: Testing payment processing requires specific testability features.</em></p>
+            <ul>
+              <li>Are there test/sandbox modes for email service?</li>
+<li>What logging is available to diagnose issues in payment processing?</li>
+<li>Can financial data states be easily set up for testing edge cases?</li>
+            </ul>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <div class="category-section cat-data" id="data">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>DATA: Test ideas for everything that the product processes <span class="badge">6</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            <table class="filterable-table" id="table-data">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-data')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-data')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-DATA-E66FBDB0</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Verify data can be created successfully</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-63CEFFE4</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Verify data can be modified successfully</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-374C3389</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Lifecycle</span></td>
+          <td>Verify data can be deleted successfully</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-877BEAD8</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Verify behavior with zero items (empty state)</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-3ED3D6BF</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Verify behavior with exactly one item</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-DATA-AA707A90</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Cardinality</span></td>
+          <td>Verify behavior with many items (bulk data)</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+              </tbody>
+            </table>
+            
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions to address potential coverage gaps</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Since the user stories focus on <strong>payment processing, inventory</strong>, the following subcategories have limited or no test coverage.</p>
+          </div>
+          
+          <div class="subcategory-questions">
+            <h5>[InputOutput]</h5>
+            <p class="rationale"><em>Rationale: Inputs accept financial data, but limits aren't specified. Missing limits create security and UX issues.</em></p>
+            <ul>
+              <li>What are maximum lengths for text fields?</li>
+<li>What input formats are accepted?</li>
+<li>What format should API responses use for monetary values (cents vs decimal, currency codes)?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Preset]</h5>
+            <p class="rationale"><em>Rationale: Default values for payment processing affect user experience but aren't specified.</em></p>
+            <ul>
+              <li>What are the default configuration values?</li>
+<li>What preset/seed data is required for payment processing to function?</li>
+<li>What default options are set for new end user?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Persistent]</h5>
+            <p class="rationale"><em>Rationale: Persistence requirements for financial data need clarification.</em></p>
+            <ul>
+              <li>What financial data must persist across sessions? Across system restarts?</li>
+<li>How is configuration data synchronized across instances?</li>
+<li>What is the backup and recovery strategy for transactional data?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[BigLittle]</h5>
+            <p class="rationale"><em>Rationale: payment processing doesn't specify limits. Undefined limits cause performance issues at scale.</em></p>
+            <ul>
+              <li>What are the limits for team size, users per account?</li>
+<li>Are there payment processing limits per end user type?</li>
+<li>What happens when a limit is exceeded? Soft limit with warning? Hard block?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[InvalidNoise]</h5>
+            <p class="rationale"><em>Rationale: Input forms are attack vectors. Security testing requires knowing expected behavior for malicious input.</em></p>
+            <ul>
+              <li>How should the system handle Unicode/emoji in text fields? Special characters?</li>
+<li>How are invalid inputs handled?</li>
+<li>How are SQL injection or XSS attempts in form fields handled? Silent rejection? Logged alert?</li>
+            </ul>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <div class="category-section cat-interfaces" id="interfaces">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>INTERFACES: Test ideas for every conduit by which the product is accessed or accesses other things <span class="badge">7</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            <table class="filterable-table" id="table-interfaces">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-INTE-F21AD00D</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that sustainable/eco-friendly product filter visible on homepage</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-F9241603</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that "Responsible Collection" featured section on homepage</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-D5B97F57</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that carbon footprint estimates displayed for delivery OPTIONS</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-595F95DB</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that "Pre-loved" / resale section prominently linked from homepage</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-CB883A8B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that link to CR report and ethical sourcing information in footer elevated</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-243B1617</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that "Repair & Care" guides linked from homepage</td>
+          <td><span class="automation automation-api">Automate on API level</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-INTE-C69B825F</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">UserInterfaces</span></td>
+          <td>Verify that resale platform synchronization</td>
+          <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+        </tr>
+              </tbody>
+            </table>
+            
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions to address potential coverage gaps</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Since the user stories focus on <strong>payment processing, inventory</strong>, the following subcategories have limited or no test coverage.</p>
+          </div>
+          
+          <div class="subcategory-questions">
+            <h5>[SystemInterfaces]</h5>
+            <p class="rationale"><em>Rationale: The architecture mentions email service and cloud storage but their interfaces need testing.</em></p>
+            <ul>
+              <li>What internal APIs connect payment processing and inventory?</li>
+<li>Are there message queues for async operations like background processing?</li>
+<li>How do services communicate failures? Circuit breaker patterns? Health checks?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[ApiSdk]</h5>
+            <p class="rationale"><em>Rationale: API access is mentioned but details aren't specified.</em></p>
+            <ul>
+              <li>What rate limits apply to the API? Per endpoint or global?</li>
+<li>What authentication methods does the API support? API keys? OAuth? JWT?</li>
+<li>What API versioning strategy is used? How are breaking changes communicated?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[ImportExport]</h5>
+            <p class="rationale"><em>Rationale: Data export/import but format and scope aren't defined.</em></p>
+            <ul>
+              <li>What formats should data export support? JSON? CSV? PDF?</li>
+<li>Can end user import financial data from other platforms?</li>
+<li>Can transaction history be exported in bulk?</li>
+            </ul>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <div class="category-section cat-platform" id="platform">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>PLATFORM: Test ideas for everything on which the product depends that is outside the project <span class="badge">6</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            <table class="filterable-table" id="table-platform">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-platform')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-platform')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-PLAT-55FDF20B</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ProductFootprint</span></td>
+          <td>Verify that memory usage is within acceptable limits</td>
+          <td><span class="automation automation-performance">Automated Performance Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-8F86B3ED</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ProductFootprint</span></td>
+          <td>Verify that CPU usage is within acceptable limits</td>
+          <td><span class="automation automation-performance">Automated Performance Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-EB64D1C2</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Verify compatibility with Chrome</td>
+          <td><span class="automation automation-compatibility">Automated Browser Compatibility Test</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-E320E059</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Verify compatibility with Firefox</td>
+          <td><span class="automation automation-compatibility">Automated Browser Compatibility Test</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-3525D42E</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Verify compatibility with Safari</td>
+          <td><span class="automation automation-compatibility">Automated Browser Compatibility Test</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-PLAT-487F59A7</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExternalSoftware</span></td>
+          <td>Verify compatibility with Edge</td>
+          <td><span class="automation automation-compatibility">Automated Browser Compatibility Test</span></td>
+        </tr>
+              </tbody>
+            </table>
+            
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions to address potential coverage gaps</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Since the user stories focus on <strong>payment processing, inventory</strong>, the following subcategories have limited or no test coverage.</p>
+          </div>
+          
+          <div class="subcategory-questions">
+            <h5>[ExternalHardware]</h5>
+            <p class="rationale"><em>Rationale: payment processing pages need to work on various devices, but requirements aren't specified.</em></p>
+            <ul>
+              <li>What are minimum device specifications? (memory, screen size, CPU)</li>
+<li>Are there network bandwidth requirements? Will payment processing work on slow connections?</li>
+<li>Should offline capabilities exist? Can end user access data without connectivity?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[EmbeddedComponents]</h5>
+            <p class="rationale"><em>Rationale: Third-party components used for payment processing need version tracking and security monitoring.</em></p>
+            <ul>
+              <li>What third-party UI component libraries are used? Version requirements?</li>
+<li>What email service SDKs are embedded? How are updates managed?</li>
+<li>Are there shared utility libraries across services?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[ProductFootprint]</h5>
+            <p class="rationale"><em>Rationale: Resource usage for payment processing isn't specified. This affects hosting and scaling decisions.</em></p>
+            <ul>
+              <li>What are the memory and CPU requirements for payment processing?</li>
+            </ul>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <div class="category-section cat-operations" id="operations">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>OPERATIONS: Test ideas for how the product will be used <span class="badge">6</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            <table class="filterable-table" id="table-operations">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-operations')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-operations')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-OPER-2E3AB1CE</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Verify protection against injection attacks</td>
+          <td><span class="automation automation-security">Automated Security Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-178A964A</td>
+          <td><span class="priority priority-p0">P0</span></td>
+          <td><span class="subcategory">DisfavoredUse</span></td>
+          <td>Verify protection against XSS attacks</td>
+          <td><span class="automation automation-security">Automated Security Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-2586BAC7</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Users</span></td>
+          <td>Verify functionality for user</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-ABF4AD17</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">CommonUse</span></td>
+          <td>Verify that sustainable Commerce & Transparency Features</td>
+          <td><span class="automation automation-human">Human testers must explore</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-34C3C7DE</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Verify behavior under high load conditions</td>
+          <td><span class="automation automation-performance">Automated Performance Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-OPER-8DDEDCAA</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">ExtremeUse</span></td>
+          <td>Verify behavior under maximum data volume</td>
+          <td><span class="automation automation-performance">Automated Performance Tests</span></td>
+        </tr>
+              </tbody>
+            </table>
+            
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions to address potential coverage gaps</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Since the user stories focus on <strong>payment processing, inventory</strong>, the following subcategories have limited or no test coverage.</p>
+          </div>
+          
+          <div class="subcategory-questions">
+            <h5>[Users]</h5>
+            <p class="rationale"><em>Rationale: User stories mention "end user" but don't detail user roles or accessibility.</em></p>
+            <ul>
+              <li>Are there admin/moderator roles beyond regular users? What permissions do they have?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Environment]</h5>
+            <p class="rationale"><em>Rationale: The operating environment for payment processing may affect usability.</em></p>
+            <ul>
+              <li>In what environments will end user use payment processing? (office, mobile, public)</li>
+<li>Are there environmental factors affecting usage? (lighting for cameras, noise for voice)</li>
+<li>How does payment processing perform in low-connectivity environments?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[CommonUse]</h5>
+            <p class="rationale"><em>Rationale: While individual features are specified, the complete end user journey isn't detailed.</em></p>
+            <ul>
+              <li>What is the typical end user journey for payment processing? What touchpoints exist?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[UncommonUse]</h5>
+            <p class="rationale"><em>Rationale: Edge cases in payment processing flows need specific handling.</em></p>
+            <ul>
+              <li>What happens if end user tries to create that's already been completed?</li>
+<li>How do end user recover from failed operations? Retry logic? Support escalation?</li>
+<li>Can end user modify critical data? What verification is required?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[ExtremeUse]</h5>
+            <p class="rationale"><em>Rationale: payment processing may experience load spikes during promotions or renewal cycles.</em></p>
+            <ul>
+              <li>What is expected peak concurrent end user? During promotions or renewal cycles?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[DisfavoredUse]</h5>
+            <p class="rationale"><em>Rationale: Payment and authentication systems are targets for fraud and abuse.</em></p>
+            <ul>
+              <li>What abuse scenarios should be prevented? Scraping? Automation?</li>
+            </ul>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <div class="category-section cat-time" id="time">
+          <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <h3>TIME: Test ideas for any relationship between the product and time <span class="badge">5</span></h3>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="category-content collapsible-content">
+            <table class="filterable-table" id="table-time">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">ID</th>
+                  <th style="width: 70px;">Priority</th>
+                  <th style="width: 120px;">Subcategory</th>
+                  <th>Test Idea</th>
+                  <th style="width: 210px;">Automation Fitness</th>
+                </tr>
+                <tr class="filter-row">
+                  <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                  <td><select class="filter-select" data-col="1" onchange="filterTable('table-time')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                  <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                  <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                  <td><select class="filter-select" data-col="4" onchange="filterTable('table-time')"><option value="">All</option><option value="Automate on API level">API level</option><option value="Automate on E2E level">E2E level</option><option value="Automate on Integration level">Integration level</option><option value="Human testers must explore">Human Exploration</option><option value="Performance testing recommended">Performance</option><option value="Security testing recommended">Security</option></select></td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+          <td class="test-id">TC-TIME-D7346313</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">InputOutputTiming</span></td>
+          <td>Verify that timeout handling works correctly</td>
+          <td><span class="automation automation-concurrency">Automated Concurrency Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-59F316BE</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Verify that concurrent user access is handled correctly</td>
+          <td><span class="automation automation-concurrency">Automated Concurrency Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-E72C947A</td>
+          <td><span class="priority priority-p1">P1</span></td>
+          <td><span class="subcategory">Concurrency</span></td>
+          <td>Verify that race conditions are prevented</td>
+          <td><span class="automation automation-concurrency">Automated Concurrency Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-22AFBA24</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Pacing</span></td>
+          <td>Check behavior with rapid input (burst traffic)</td>
+          <td><span class="automation automation-concurrency">Automated Concurrency Tests</span></td>
+        </tr>
+<tr>
+          <td class="test-id">TC-TIME-445D8FF5</td>
+          <td><span class="priority priority-p2">P2</span></td>
+          <td><span class="subcategory">Pacing</span></td>
+          <td>Check behavior with slow/delayed input</td>
+          <td><span class="automation automation-concurrency">Automated Concurrency Tests</span></td>
+        </tr>
+              </tbody>
+            </table>
+            
+        <div class="clarifying-questions">
+          <h4>Clarifying Questions to address potential coverage gaps</h4>
+          <div class="clarifying-intro">
+            <p class="preamble">Since the user stories focus on <strong>payment processing, inventory</strong>, the following subcategories have limited or no test coverage.</p>
+          </div>
+          
+          <div class="subcategory-questions">
+            <h5>[TimeRelatedData]</h5>
+            <p class="rationale"><em>Rationale: Billing dates and renewals are timezone-dependent.</em></p>
+            <ul>
+              <li>In what timezone are billing dates calculated? UTC? User's local timezone?</li>
+<li>How are payment processing handled across daylight saving time changes?</li>
+<li>What happens if a scheduled date falls on a weekend/holiday? Or Feb 29?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[InputOutputTiming]</h5>
+            <p class="rationale"><em>Rationale: email service have timeout and retry considerations.</em></p>
+            <ul>
+              <li>What is the timeout for email service responses? What happens on timeout?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Pacing]</h5>
+            <p class="rationale"><em>Rationale: payment processing operations have implicit timing requirements.</em></p>
+            <ul>
+              <li>What are expected response times for payment processing? Under 3 seconds?</li>
+            </ul>
+          </div>
+
+          <div class="subcategory-questions">
+            <h5>[Concurrency]</h5>
+            <p class="rationale"><em>Rationale: end user may access payment processing from multiple devices simultaneously.</em></p>
+            <ul>
+              <li>What happens if the same end user logs in from multiple devices? Single session? Multiple allowed?</li>
+            </ul>
+          </div>
+        </div>
+          </div>
+        </div>
+    </section>
+
+    <section class="section" id="traceability">
+      <h2>Requirement Traceability</h2>
+      <p style="margin-bottom: 15px;">Shows which Product Factors (SFDIPOT) have test ideas mapped to each requirement.</p>
+
+      <div style="display: flex; gap: 20px; margin-bottom: 15px; font-size: 0.85rem;">
+        <span><span style="display: inline-block; width: 12px; height: 12px; background: var(--success); border-radius: 2px; margin-right: 5px;"></span> Has test ideas</span>
+        <span><span style="display: inline-block; width: 12px; height: 12px; background: var(--border); border-radius: 2px; margin-right: 5px;"></span> Gap - needs review</span>
+      </div>
+
+      <table style="font-size: 0.85rem;">
+        <thead>
+          <tr>
+            <th style="min-width: 280px;">Requirement</th>
+            <th style="text-align: center; width: 45px;" title="Structure">S</th>
+            <th style="text-align: center; width: 45px;" title="Function">F</th>
+            <th style="text-align: center; width: 45px;" title="Data">D</th>
+            <th style="text-align: center; width: 45px;" title="Interfaces">I</th>
+            <th style="text-align: center; width: 45px;" title="Platform">P</th>
+            <th style="text-align: center; width: 45px;" title="Operations">O</th>
+            <th style="text-align: center; width: 45px;" title="Time">T</th>
+            <th style="text-align: center;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>US-401</code> Sustainable Commerce & Transparency Features</td>
+            <td style="text-align: center; background: #f1f5f9;">–</td>
+            <td style="text-align: center; background: #dcfce7;">✓</td>
+            <td style="text-align: center; background: #f1f5f9;">–</td>
+            <td style="text-align: center; background: #dcfce7;">✓</td>
+            <td style="text-align: center; background: #dcfce7;">✓</td>
+            <td style="text-align: center; background: #dcfce7;">✓</td>
+            <td style="text-align: center; background: #dcfce7;">✓</td>
+            <td style="text-align: center;"><span class="priority priority-p1">5/7</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      
+      <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+        <strong style="color: #1e40af;">ℹ️ Review Needed:</strong>
+        <p style="margin: 8px 0; color: #1e3a8a; font-size: 0.9rem;">The following product factors have limited coverage. This may indicate either: (a) requirements need review for applicability, or (b) the product factor is not relevant for those requirements.</p>
+        <ul style="margin: 10px 0 0 20px; color: #1e3a8a; font-size: 0.9rem;">
+          <li><strong>STRUCTURE (S)</strong> - 0 of 1 requirements linked. Review if applicable or confirm not relevant for remaining. Covers: code architecture, component integration, dependencies.</li>
+          <li><strong>DATA (D)</strong> - 0 of 1 requirements linked. Review if applicable or confirm not relevant for remaining. Covers: data validation, persistence, transformations.</li>
+        </ul>
+      </div>
+      
+    </section>
+
+    
+  </div>
+</body>
+</html>

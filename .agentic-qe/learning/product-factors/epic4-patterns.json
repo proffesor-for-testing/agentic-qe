@@ -1,0 +1,87 @@
+{
+  "domain": "sustainability-commerce",
+  "epicName": "Epic4-Sustainable-Commerce",
+  "learnedAt": "2025-12-28T07:55:00Z",
+  "features": [
+    "sustainability-tagging-system",
+    "carbon-footprint-calculator",
+    "responsible-collection-section",
+    "pre-loved-resale-integration",
+    "sustainability-badges-certifications",
+    "repair-care-guides"
+  ],
+  "testPatterns": {
+    "total": 39,
+    "coverage": 86.0,
+    "byPriority": { "P0": 2, "P1": 18, "P2": 19, "P3": 0 },
+    "byCategory": {
+      "FUNCTION": 9,
+      "DATA": 6,
+      "INTERFACES": 7,
+      "PLATFORM": 6,
+      "OPERATIONS": 6,
+      "TIME": 5,
+      "STRUCTURE": 0
+    }
+  },
+  "domainSpecificPatterns": [
+    {
+      "pattern": "environmental-impact-calculation",
+      "description": "CO2 emissions estimates for delivery methods, carbon offset options",
+      "testFocus": ["calculation accuracy", "data sources", "user-facing display"]
+    },
+    {
+      "pattern": "certification-verification",
+      "description": "Third-party sustainability certifications (Fair Trade, Organic, etc.)",
+      "testFocus": ["API integration", "badge display", "certification validity"]
+    },
+    {
+      "pattern": "resale-platform-integration",
+      "description": "Pre-loved/second-hand marketplace synchronization",
+      "testFocus": ["inventory sync", "quality grading", "price comparison"]
+    },
+    {
+      "pattern": "supply-chain-transparency",
+      "description": "Material composition, sourcing origin, ethical sourcing scores",
+      "testFocus": ["data accuracy", "traceability", "disclosure compliance"]
+    },
+    {
+      "pattern": "eco-conscious-filtering",
+      "description": "Product filtering by sustainability attributes",
+      "testFocus": ["filter accuracy", "tag coverage", "UX accessibility"]
+    },
+    {
+      "pattern": "lifecycle-extension",
+      "description": "Repair services, care guides, warranty information",
+      "testFocus": ["content accuracy", "service booking", "tutorial quality"]
+    }
+  ],
+  "thirdPartyIntegrations": [
+    "carbon-offset-providers",
+    "certification-verification-apis",
+    "resale-platform-synchronization"
+  ],
+  "dataRequirements": [
+    "sustainability-certification-data",
+    "material-composition-percentages",
+    "supply-chain-transparency-scores",
+    "environmental-impact-ratings",
+    "shipping-distance-calculations",
+    "vehicle-emission-factors"
+  ],
+  "automationRecommendations": {
+    "E2E_UI": { "count": 12, "tools": ["Playwright", "Cypress"] },
+    "API_Integration": { "count": 10, "tools": ["Postman", "REST Assured"] },
+    "Performance": { "count": 9, "tools": ["k6", "JMeter"] },
+    "Manual_Exploratory": { "count": 6, "approach": "Session-based testing" },
+    "Security": { "count": 2, "tools": ["OWASP ZAP", "Burp Suite"] }
+  },
+  "coverageGaps": [
+    {
+      "category": "STRUCTURE",
+      "status": "not-applicable",
+      "reason": "Sustainability features focus on data and interfaces, not system structure"
+    }
+  ],
+  "clarifyingQuestionsGenerated": 29
+}

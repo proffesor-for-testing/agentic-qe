@@ -34,6 +34,9 @@ export { AccessibilityAllyAgent, AccessibilityAllyConfig } from './Accessibility
 // Code Intelligence Agent (Wave 6)
 export { CodeIntelligenceAgent, CodeIntelligenceAgentConfig, createCodeIntelligenceAgent } from './CodeIntelligenceAgent';
 
+// Product Factors Assessor (SFDIPOT)
+export { QEProductFactorsAssessor, QEProductFactorsAssessorConfig } from './qe-product-factors-assessor';
+
 // Agent factory for creating agents by type
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { EventBus } from '../core/EventBus';
@@ -63,6 +66,7 @@ import { QXPartnerAgent } from './QXPartnerAgent';
 import { QXPartnerConfig } from '../types/qx';
 import { AccessibilityAllyAgent, AccessibilityAllyConfig } from './AccessibilityAllyAgent';
 import { CodeIntelligenceAgent, CodeIntelligenceAgentConfig } from './CodeIntelligenceAgent';
+import { QEProductFactorsAssessor, QEProductFactorsAssessorConfig } from './qe-product-factors-assessor';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import type {
   DeploymentReadinessConfig,
@@ -489,6 +493,16 @@ export class QEAgentFactory {
         return new CodeIntelligenceAgent(codeIntelConfig);
       }
 
+      case QEAgentType.PRODUCT_FACTORS_ASSESSOR: {
+        const pfConfig: QEProductFactorsAssessorConfig = {
+          ...baseConfig,
+          useLLM: agentConfig?.useLLM ?? true,
+          maxTestIdeasPerSubcategory: agentConfig?.maxTestIdeasPerSubcategory || 5,
+          outputDir: agentConfig?.outputDir,
+        };
+        return new QEProductFactorsAssessor(pfConfig);
+      }
+
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
@@ -523,7 +537,9 @@ export class QEAgentFactory {
       // Accessibility Testing Agent
       QEAgentType.ACCESSIBILITY_ALLY,
       // Code Intelligence Agent (Wave 6)
-      QEAgentType.CODE_INTELLIGENCE
+      QEAgentType.CODE_INTELLIGENCE,
+      // Product Factors Assessor (SFDIPOT)
+      QEAgentType.PRODUCT_FACTORS_ASSESSOR
     ];
   }
 
@@ -1021,6 +1037,33 @@ export class QEAgentFactory {
           name: 'incremental-indexing',
           version: '1.0.0',
           description: 'Git change detection for efficient incremental updates'
+        }
+      ],
+      [QEAgentType.PRODUCT_FACTORS_ASSESSOR]: [
+        {
+          name: 'sfdipot-analysis',
+          version: '1.0.0',
+          description: 'Analyze requirements using SFDIPOT framework (Structure, Function, Data, Interfaces, Platform, Operations, Time)'
+        },
+        {
+          name: 'test-idea-generation',
+          version: '1.0.0',
+          description: 'Generate comprehensive test ideas from requirements with HTSM v6.3'
+        },
+        {
+          name: 'automation-fitness',
+          version: '1.0.0',
+          description: 'Recommend automation level (API, Integration, E2E, Human) for each test idea'
+        },
+        {
+          name: 'clarifying-questions',
+          version: '1.0.0',
+          description: 'Generate context-aware questions for coverage gaps using LLM'
+        },
+        {
+          name: 'multi-format-output',
+          version: '1.0.0',
+          description: 'Generate reports in HTML, JSON, Markdown, Gherkin formats'
         }
       ]
     };

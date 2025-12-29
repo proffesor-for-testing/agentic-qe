@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors Assessment: Epic 6 - Mobile-First Experience & App Parity</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f7fa;
+      padding: 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    header { border-bottom: 3px solid #2563eb; padding-bottom: 30px; margin-bottom: 30px; }
+    h1 { color: #1e40af; font-size: 2.2em; margin-bottom: 15px; }
+    h2 { color: #1e3a8a; margin-top: 35px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e5e7eb; font-size: 1.8em; }
+    h3 { color: #1e40af; margin-top: 25px; margin-bottom: 15px; font-size: 1.4em; }
+    h4 { color: #374151; margin-top: 20px; margin-bottom: 10px; font-size: 1.1em; font-weight: 600; }
+    .meta-inline { color: #6b7280; font-size: 0.95em; margin-bottom: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; }
+    .toc { background: #eff6ff; padding: 20px; border-radius: 6px; margin-top: 20px; }
+    .toc h3 { margin-top: 0; color: #1e40af; }
+    .toc ul { list-style: none; margin-top: 15px; }
+    .toc li { margin: 8px 0; }
+    .toc a { color: #2563eb; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+    .toc a:hover { color: #1d4ed8; text-decoration: underline; }
+    .info-section { margin: 25px 0; border: 2px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: white; }
+    .info-header { background: #f9fafb; padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; transition: background 0.2s; }
+    .info-header:hover { background: #f3f4f6; }
+    .info-header h3 { margin: 0; color: #1e40af; font-size: 1.3em; }
+    .collapse-icon { font-size: 1.2em; color: #6b7280; transition: transform 0.3s; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .info-content { padding: 25px; display: block; }
+    .info-section.collapsed .info-content { display: none; }
+    blockquote { border-left: 4px solid #2563eb; padding-left: 20px; margin: 20px 0; font-style: italic; color: #4b5563; background: #f9fafb; padding: 15px 20px; border-radius: 4px; }
+    .checkbox-list { list-style: none; margin: 15px 0; }
+    .checkbox-list li { margin: 10px 0; padding-left: 30px; position: relative; }
+    .checkbox-list li:before { content: '☐'; position: absolute; left: 0; font-size: 1.3em; color: #2563eb; }
+    .external-link { color: #2563eb; text-decoration: none; font-weight: 500; border-bottom: 1px dotted #2563eb; }
+    .external-link:hover { color: #1d4ed8; border-bottom-style: solid; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #1e40af; color: white; padding: 14px; text-align: left; font-weight: 600; }
+    td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+    tr:hover { background: #f9fafb; }
+    .priority-P0 { background: #fef2f2; border-left: 4px solid #dc2626; }
+    .priority-P1 { background: #fff7ed; border-left: 4px solid #ea580c; }
+    .priority-P2 { background: #fffbeb; border-left: 4px solid #f59e0b; }
+    .priority-P3 { background: #f0fdf4; border-left: 4px solid #16a34a; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: 600; margin-right: 8px; }
+    .badge-P0 { background: #fee2e2; color: #991b1b; }
+    .badge-P1 { background: #fed7aa; color: #9a3412; }
+    .badge-P2 { background: #fef3c7; color: #92400e; }
+    .badge-P3 { background: #d1fae5; color: #065f46; }
+    .badge-automation { background: #dbeafe; color: #1e40af; margin-left: 5px; }
+    .category-section { background: #fafafa; padding: 25px; margin: 25px 0; border-radius: 8px; border-left: 5px solid #2563eb; }
+    .test-idea { margin: 15px 0; padding: 15px; background: white; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .question { margin: 12px 0; padding: 12px 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; }
+    .question strong { color: #92400e; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 25px 0; }
+    .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .stat-card h4 { color: white; margin: 0 0 10px 0; font-size: 0.95em; opacity: 0.9; }
+    .stat-card .stat-value { font-size: 2.5em; font-weight: bold; }
+    .filter-bar { background: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0; display: flex; gap: 15px; flex-wrap: wrap; }
+    .filter-bar button { padding: 8px 16px; border: 2px solid #d1d5db; background: white; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .filter-bar button:hover { border-color: #2563eb; color: #2563eb; }
+    .filter-bar button.active { background: #2563eb; color: white; border-color: #2563eb; }
+  </style>
+  <script>
+    function toggleSection(element) {
+      element.parentElement.classList.toggle('collapsed');
+    }
+
+    function filterTests(priority) {
+      const rows = document.querySelectorAll('tr[data-priority]');
+      const buttons = document.querySelectorAll('.filter-bar button');
+
+      buttons.forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (priority === 'ALL') {
+        rows.forEach(row => row.style.display = '');
+      } else {
+        rows.forEach(row => {
+          row.style.display = row.dataset.priority === priority ? '' : 'none';
+        });
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors Assessment of: Epic 6 - Mobile-First Experience & App Parity</h1>
+      <div class="meta-inline">
+        📊 Report generated on December 28, 2025 | 🧪 Total Test Ideas: 87 | 📋 Product Factors covered: 7/7 | 🎯 Domain: ecommerce, mobile-first, pwa
+      </div>
+
+      <nav class="toc">
+        <h3>📑 Quick Navigation</h3>
+        <ul>
+          <li><a href="#structure">Structure - What the product IS</a></li>
+          <li><a href="#function">Function - What the product DOES</a></li>
+          <li><a href="#data">Data - What the product PROCESSES</a></li>
+          <li><a href="#interfaces">Interfaces - How the product CONNECTS</a></li>
+          <li><a href="#platform">Platform - What the product DEPENDS ON</a></li>
+          <li><a href="#operations">Operations - How the product is USED</a></li>
+          <li><a href="#time">Time - WHEN things happen</a></li>
+          <li><a href="#questions">Clarifying Questions</a></li>
+          <li><a href="#summary">Summary Dashboard</a></li>
+        </ul>
+      </nav>
+
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="toggleSection(this)">
+          <h3>❓ How can this report help you?</h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="info-content">
+          <blockquote>
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)."
+            <br>— Jerry Weinberg
+          </blockquote>
+
+          <p style="margin: 20px 0;">
+            This Product Factors Assessment uses the <strong>HTSM (Heuristic Test Strategy Model)</strong> framework developed by
+            James Bach to systematically analyze your product from multiple dimensions. It's designed to help you discover
+            <strong>what you don't know you don't know</strong> about your testing requirements.
+          </p>
+
+          <h4>📚 Framework References:</h4>
+          <ul style="margin: 15px 0 15px 30px;">
+            <li><a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" class="external-link" target="_blank">Quality Conscious Software Delivery (QCSD) Framework</a></li>
+            <li><a href="https://www.satisfice.com/download/heuristic-test-strategy-model" class="external-link" target="_blank">Heuristic Test Strategy Model (HTSM)</a></li>
+          </ul>
+
+          <h4>🎯 Purpose of Product Coverage Sessions:</h4>
+          <p style="margin: 15px 0;">
+            This assessment supports <strong>Product Coverage Sessions</strong> where testers and stakeholders collaborate to:
+          </p>
+          <ul style="margin: 15px 0 15px 30px;">
+            <li><strong>Uncover hidden risks:</strong> Surface assumptions and edge cases not captured in user stories</li>
+            <li><strong>Assess completeness:</strong> Verify all dimensions (Structure, Function, Data, Interfaces, Platform, Operations, Time) are considered</li>
+            <li><strong>Create development plan:</strong> Prioritize test ideas based on risk and automation fitness</li>
+            <li><strong>Identify gaps:</strong> Generate clarifying questions to resolve ambiguities before development</li>
+            <li><strong>Improve estimation:</strong> Provide realistic effort estimates based on comprehensive test coverage</li>
+            <li><strong>Avoid rework:</strong> Catch issues in planning phase rather than during development or production</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="toggleSection(this)">
+          <h3>⏰ When to generate this report?</h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="info-content">
+          <p style="font-size: 1.2em; color: #1e40af; font-weight: 600; margin-bottom: 20px;">
+            📅 The sooner the better!
+          </p>
+          <p style="margin-bottom: 15px;">
+            Generate this assessment <strong>as soon as testers gain access to the Epic or User Stories</strong>, ideally during:
+          </p>
+          <ul style="margin: 15px 0 15px 30px;">
+            <li><strong>Sprint Planning:</strong> Before development starts, to inform story refinement</li>
+            <li><strong>Backlog Refinement:</strong> To identify missing acceptance criteria and dependencies</li>
+            <li><strong>Epic Decomposition:</strong> When breaking down large initiatives into stories</li>
+            <li><strong>Requirements Review:</strong> To validate completeness and testability</li>
+          </ul>
+          <p style="margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+            <strong>💡 Pro Tip:</strong> Organize a <strong>Product Coverage Session</strong> with developers, product owners,
+            designers, and testers to review this report together. The clarifying questions make excellent discussion starters!
+          </p>
+        </div>
+      </div>
+
+      <div class="info-section collapsed">
+        <div class="info-header" onclick="toggleSection(this)">
+          <h3>📖 How to use this report?</h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="info-content">
+          <h4>Step-by-step workflow:</h4>
+          <ul class="checkbox-list">
+            <li><strong>Review Test Ideas:</strong> Scan all test ideas for relevance to your context. Filter by priority (P0-P3) to focus on critical areas first.</li>
+            <li><strong>Assess Automation Fitness:</strong> Use automation recommendations to plan your test automation strategy (API, integration, E2E, manual exploration).</li>
+            <li><strong>Answer Clarifying Questions:</strong> Work through the questions to surface "unknown unknowns" and refine requirements with stakeholders.</li>
+            <li><strong>Prioritize Test Coverage:</strong> Use P0/P1 items for MVP, P2/P3 for progressive enhancement.</li>
+            <li><strong>Create Test Plan:</strong> Export test ideas to your test management tool or convert to executable test cases.</li>
+            <li><strong>Update Stories:</strong> Add missing acceptance criteria, edge cases, and non-functional requirements to user stories.</li>
+            <li><strong>Estimate Effort:</strong> Use test idea count and automation fitness to estimate testing effort more accurately.</li>
+            <li><strong>Track Coverage:</strong> Use SFDIPOT categories to ensure balanced test coverage across all product dimensions.</li>
+          </ul>
+
+          <p style="margin-top: 20px; padding: 15px; background: #dbeafe; border-left: 4px solid #2563eb; border-radius: 4px;">
+            <strong>🎯 Success Metric:</strong> A successful Product Coverage Session results in <strong>0 unanswered clarifying questions</strong>
+            and <strong>updated user stories with enhanced acceptance criteria</strong>.
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <div id="summary" class="stats-grid">
+      <div class="stat-card" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);">
+        <h4>P0 Critical</h4>
+        <div class="stat-value">18</div>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #ea580c 0%, #9a3412 100%);">
+        <h4>P1 High</h4>
+        <div class="stat-value">32</div>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b 0%, #92400e 100%);">
+        <h4>P2 Medium</h4>
+        <div class="stat-value">24</div>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #16a34a 0%, #065f46 100%);">
+        <h4>P3 Low</h4>
+        <div class="stat-value">13</div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <button class="active" onclick="filterTests('ALL')">Show All (87)</button>
+      <button onclick="filterTests('P0')">P0 Critical (18)</button>
+      <button onclick="filterTests('P1')">P1 High (32)</button>
+      <button onclick="filterTests('P2')">P2 Medium (24)</button>
+      <button onclick="filterTests('P3')">P3 Low (13)</button>
+    </div>
+
+    <section id="structure">
+      <h2>🏗️ Structure - What the product IS</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Examines the physical and architectural components: code, libraries, dependencies, documentation, and infrastructure.
+      </p>
+
+      <div class="category-section">
+        <h3>Code & Architecture</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Service Worker lifecycle management:</strong> Verify Service Worker installs, activates, and updates correctly without breaking active sessions or causing cache corruption
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>PWA manifest validation:</strong> Test manifest.json contains all required fields (name, short_name, icons, start_url, display, theme_color) and icons render correctly on home screen
+        </div>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Service Worker registration failure:</strong> Verify graceful degradation when Service Worker fails to register (browser incompatibility, HTTPS requirement)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>WebAuthn credential storage:</strong> Test biometric credentials are stored securely in browser credential manager and synced across devices (for same browser profile)
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Touch gesture library integration:</strong> Verify swipe gesture library (e.g., Hammer.js) is correctly integrated and doesn't conflict with native browser gestures
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">security</span>
+          <strong>Payment Request API implementation:</strong> Test Payment Request API correctly handles Apple Pay, Google Pay, and fallback to standard checkout
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Barcode scanning library:</strong> Verify barcode scanner library (ZXing, QuaggaJS) correctly decodes UPC, EAN, QR codes from camera feed
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Dependency version compatibility:</strong> Test all third-party libraries (gesture, payment, barcode, WebAuthn) have compatible versions and no conflicting dependencies
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Dependencies & Libraries</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Workbox library for Service Worker:</strong> If using Workbox for caching strategies, test precaching, runtime caching, and background sync work correctly
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">security</span>
+          <strong>Third-party library security:</strong> Verify all dependencies are scanned for known vulnerabilities (npm audit, Snyk) before deployment
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Polyfill for older browsers:</strong> Test polyfills for Service Worker, Payment Request API, WebAuthn on older mobile browsers (if supported)
+        </div>
+      </div>
+    </section>
+
+    <section id="function">
+      <h2>⚙️ Function - What the product DOES</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Analyzes features, calculations, business logic, security, and error handling.
+      </p>
+
+      <div class="category-section">
+        <h3>Features & Capabilities</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Touch-optimized navigation:</strong> Verify all interactive elements meet 48x48px minimum tap target size on mobile devices (WCAG 2.2 Target Size Level AAA)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Thumb-friendly zone testing:</strong> Test critical actions (add to cart, checkout) are positioned in thumb-reachable zone (bottom third of screen) for one-handed use
+        </div>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Offline browsing functionality:</strong> Verify previously viewed products, categories, and pages are accessible offline via Service Worker cache
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Add to home screen (A2HS):</strong> Test A2HS prompt appears after engagement criteria (2 visits, 5 min apart) and correctly adds PWA to device home screen
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Swipe gestures for carousels:</strong> Verify swipe left/right works smoothly for product carousels, image galleries without page navigation interference
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Pinch-to-zoom on product images:</strong> Test pinch-to-zoom gesture works on product images while respecting viewport meta tag settings
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Barcode scanning for products:</strong> Verify in-store barcode scanning opens camera, scans UPC/EAN codes, and navigates to correct product page with reviews/availability
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Store mode activation:</strong> Test "store mode" quick action provides in-store specific features (scan, check stock, store map)
+        </div>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Biometric login (WebAuthn):</strong> Verify Face ID, Touch ID, fingerprint login works for returning users and falls back to password if biometric fails
+        </div>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Express checkout (Apple Pay/Google Pay):</strong> Test one-tap checkout from homepage using saved payment method completes transaction without additional steps
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Security</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">security</span>
+          <strong>HTTPS requirement for PWA features:</strong> Verify Service Worker, Payment Request API, WebAuthn only work on HTTPS connections (security requirement)
+        </div>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">security</span>
+          <strong>WebAuthn credential security:</strong> Test biometric credentials cannot be exported, are tied to origin, and require user presence verification
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">security</span>
+          <strong>Payment Request API security:</strong> Verify payment data is transmitted securely (TLS 1.2+) and tokenized (no raw card numbers stored)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">security</span>
+          <strong>Push notification consent:</strong> Test push notifications require explicit user consent (not pre-granted) and can be revoked in settings
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">security</span>
+          <strong>Camera permission for barcode scanning:</strong> Verify camera access requires explicit permission and provides clear explanation of why it's needed
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Error Handling</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Offline transaction handling:</strong> Test attempting checkout while offline queues transaction for retry when connection restored (background sync)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Service Worker update failure:</strong> Verify failed Service Worker updates don't break existing functionality and retry update on next page load
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Biometric authentication failure:</strong> Test fallback to password login when biometric fails (sensor dirty, face not recognized, too many attempts)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Payment method not supported:</strong> Verify clear error message when user's device doesn't support Apple Pay/Google Pay with fallback to standard checkout
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Barcode scan failure:</strong> Test helpful error messages when barcode cannot be scanned (poor lighting, damaged barcode, unsupported format) with manual entry option
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Cache storage quota exceeded:</strong> Verify graceful handling when cache storage quota is reached (evict old content, warn user, disable offline mode)
+        </div>
+      </div>
+    </section>
+
+    <section id="data">
+      <h2>💾 Data - What the product PROCESSES</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Covers input validation, data boundaries, persistence, state management, and data flows.
+      </p>
+
+      <div class="category-section">
+        <h3>Input & Validation</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Barcode format validation:</strong> Test barcode scanner validates format (UPC-A: 12 digits, EAN-13: 13 digits, QR: variable) before lookup
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Touch coordinate validation:</strong> Verify touch gesture library correctly handles multi-touch events and filters accidental palm touches
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Persistence & State</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Cache versioning strategy:</strong> Test cache versioning (v1, v2) correctly invalidates old content when new version deployed without losing critical data
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>IndexedDB for offline data:</strong> Verify product data, user preferences, cart items persist in IndexedDB for offline access and sync when online
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Session continuity across install:</strong> Test user session, cart, browsing history persist when PWA is added to home screen and launched
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>LocalStorage vs IndexedDB choice:</strong> Verify appropriate storage mechanism used (IndexedDB for large datasets, LocalStorage for small config)
+        </div>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Cross-device handoff data sync:</strong> Test browsing session, cart, favorites sync between mobile web, desktop, and native app (via backend sync, not local)
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Data Boundaries</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Cache size limits:</strong> Test cache storage respects browser quota limits (50MB Chrome, 10% disk Firefox) and evicts LRU content when full
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Push notification payload size:</strong> Verify push notification payload stays under 4KB limit for Web Push API
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Extreme product catalog size:</strong> Test offline cache handles large product catalogs (10,000+ products) without performance degradation
+        </div>
+      </div>
+    </section>
+
+    <section id="interfaces">
+      <h2>🔌 Interfaces - How the product CONNECTS</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Examines UI/UX, APIs, third-party integrations, and communication protocols.
+      </p>
+
+      <div class="category-section">
+        <h3>User Interface</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">accessibility</span>
+          <strong>Touch target size compliance:</strong> Verify all buttons, links, form fields meet 48x48px minimum (WCAG 2.2 Level AAA) on mobile viewports
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Viewport meta tag configuration:</strong> Test viewport is correctly configured (width=device-width, initial-scale=1) for responsive layout
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Mobile navigation patterns:</strong> Verify hamburger menu, bottom navigation, tab bar work smoothly with touch gestures
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">accessibility</span>
+          <strong>Screen reader compatibility:</strong> Test Service Worker status, offline mode, biometric prompts are announced to screen readers
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>PWA splash screen:</strong> Verify splash screen displays correctly with brand colors and icons during PWA launch
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Status bar theming:</strong> Test status bar (Android) and UI chrome (iOS) match PWA theme color from manifest
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>APIs & Integration</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Payment Request API contract:</strong> Test Payment Request API request/response format matches specification for Apple Pay, Google Pay
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>WebAuthn API contract:</strong> Verify WebAuthn registration and authentication flows follow W3C spec (challenge-response, attestation)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Push Notification API integration:</strong> Test Web Push API integration with backend push service (Firebase, OneSignal) for price drop, back-in-stock notifications
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Background Sync API:</strong> Verify Background Sync API queues failed requests (checkout, add to cart) and retries when connection restored
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">api-level</span>
+          <strong>Camera API for barcode scanning:</strong> Test MediaDevices.getUserMedia API correctly accesses rear camera on mobile devices
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Cross-platform session sync API:</strong> Verify API endpoint syncs session data (cart, favorites, browsing history) between mobile web, desktop, native app
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Third-Party Services</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Apple Pay merchant integration:</strong> Test Apple Pay merchant setup, payment processing, and error handling (declined, timeout)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Google Pay merchant integration:</strong> Verify Google Pay merchant configuration, tokenization, and 3DS authentication flow
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Push service provider integration:</strong> Test integration with push notification provider (Firebase Cloud Messaging, OneSignal) for Web Push
+        </div>
+      </div>
+    </section>
+
+    <section id="platform">
+      <h2>🖥️ Platform - What the product DEPENDS ON</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Analyzes browser compatibility, operating systems, device characteristics, and external dependencies.
+      </p>
+
+      <div class="category-section">
+        <h3>Browser Compatibility</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Service Worker browser support:</strong> Test Service Worker works on Chrome 40+, Firefox 44+, Safari 11.1+, Edge 17+ and gracefully degrades on older browsers
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>WebAuthn browser compatibility:</strong> Verify WebAuthn works on Chrome 67+, Firefox 60+, Safari 13+, Edge 18+ with platform authenticators
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Payment Request API browser support:</strong> Test Payment Request API on Chrome 61+, Safari 11.1+, Edge 79+ (not supported in Firefox)
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Web Share API for cross-platform sharing:</strong> Verify Web Share API works on mobile browsers for sharing products (not available on desktop)
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Unsupported browser fallback:</strong> Test clear messaging on unsupported browsers (IE11, old Android browsers) with progressive enhancement
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Operating System</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>iOS PWA support:</strong> Test PWA install, Service Worker, offline mode on iOS 11.3+ (Safari limitation: max 50MB cache)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Android PWA support:</strong> Verify full PWA features on Android 5.0+ with Chrome (WebAPK installation)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>iOS biometric authentication:</strong> Test Face ID (iPhone X+) and Touch ID (iPhone 5s+) integration via WebAuthn
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Android biometric authentication:</strong> Verify fingerprint sensor (Android 6.0+) and face unlock (Android 10+) work with WebAuthn
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Desktop PWA support:</strong> Test PWA install on Windows 10+ (Edge), macOS 11+ (Safari), ChromeOS (Chrome)
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Device Characteristics</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Small screen devices (320px):</strong> Verify touch targets and navigation work on smallest devices (iPhone SE, Galaxy Fold folded)
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Large screen devices (tablets):</strong> Test responsive layout adapts to tablets (768px-1024px) with optimal touch target sizing
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Foldable devices:</strong> Verify UI adapts correctly when device is folded/unfolded (Galaxy Fold, Surface Duo)
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">performance</span>
+          <strong>Low-end device performance:</strong> Test PWA performance on low-end devices (1GB RAM, slow CPU) - Service Worker shouldn't degrade experience
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Camera quality for barcode scanning:</strong> Verify barcode scanning works with low-resolution cameras (5MP) and poor lighting conditions
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Network Conditions</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">performance</span>
+          <strong>Slow 3G performance:</strong> Test critical functionality (browse, search, checkout) works on Slow 3G (400kbps, 400ms RTT)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">performance</span>
+          <strong>Offline-to-online transition:</strong> Verify smooth transition from offline mode to online when network restored (sync pending actions, update stale content)
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">performance</span>
+          <strong>Online-to-offline transition:</strong> Test immediate fallback to cached content when network lost during browsing
+        </div>
+      </div>
+    </section>
+
+    <section id="operations">
+      <h2>👥 Operations - How the product is USED</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Covers user workflows, common/extreme use cases, accessibility, and real-world usage patterns.
+      </p>
+
+      <div class="category-section">
+        <h3>Common Use Cases</h3>
+
+        <div class="test-idea priority-P0">
+          <span class="badge badge-P0">P0</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Mobile user journey (browse to checkout):</strong> Test complete mobile journey: browse → product detail → add to cart → express checkout with Apple Pay/Google Pay
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Returning user with biometric login:</strong> Verify returning user flow: launch PWA → biometric login → personalized homepage → quick purchase
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>In-store product research:</strong> Test in-store flow: scan barcode → view reviews/availability → add to cart → reserve for pickup
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Cross-device shopping journey:</strong> Verify user can start browsing on mobile web, continue on desktop, complete purchase on native app with synced cart
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Extreme Use Cases</h3>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Extended offline usage (days):</strong> Test PWA works after being offline for extended period (days) - cache doesn't expire, pending actions don't get lost
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">performance</span>
+          <strong>Rapid gesture interactions:</strong> Verify rapid swipe gestures on carousels don't cause UI glitches or performance degradation
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Multiple PWA installs (different brands):</strong> Test user can install multiple PWAs (Next, competitors) on same device without conflict
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Barcode scanning in extreme lighting:</strong> Verify barcode scanner adapts to very bright sunlight and very low indoor lighting
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>User Types</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">accessibility</span>
+          <strong>Screen reader user with PWA:</strong> Test VoiceOver (iOS) and TalkBack (Android) correctly announce PWA install prompt, offline status, biometric prompts
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">accessibility</span>
+          <strong>Motor impairment user with gestures:</strong> Verify swipe gestures have alternative button controls for users who cannot perform gestures
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">human-exploration</span>
+          <strong>Privacy-conscious user:</strong> Test user can opt out of push notifications, biometric login, location access while maintaining core functionality
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Non-technical user PWA install:</strong> Verify A2HS prompt is clear enough for non-technical users to understand and install PWA
+        </div>
+      </div>
+    </section>
+
+    <section id="time">
+      <h2>⏱️ Time - WHEN things happen</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        Examines timing dependencies, concurrency, background processes, and temporal behaviors.
+      </p>
+
+      <div class="category-section">
+        <h3>Timing & Concurrency</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">concurrency</span>
+          <strong>Service Worker activation race condition:</strong> Test race condition where page loads before new Service Worker activates - old content served until refresh
+        </div>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">concurrency</span>
+          <strong>Background Sync timing:</strong> Verify Background Sync retries failed requests at appropriate intervals (exponential backoff) without draining battery
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">concurrency</span>
+          <strong>Biometric timeout:</strong> Test biometric authentication prompt times out after 30s and falls back to password
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">concurrency</span>
+          <strong>Payment Request API timeout:</strong> Verify Payment Request API times out after 10 min of user inactivity and allows retry
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>Background Processing</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Push notification delivery timing:</strong> Test push notifications for price drops, back-in-stock arrive promptly (within 5 min) when user is offline
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Service Worker periodic sync:</strong> Verify Periodic Background Sync (if enabled) updates product prices, stock levels at appropriate intervals (daily)
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">integration-level</span>
+          <strong>Cache cleanup scheduling:</strong> Test old cache entries are evicted on schedule (weekly) to prevent storage quota exhaustion
+        </div>
+      </div>
+
+      <div class="category-section">
+        <h3>State Changes Over Time</h3>
+
+        <div class="test-idea priority-P1">
+          <span class="badge badge-P1">P1</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Session expiry while offline:</strong> Verify session token expiry is handled gracefully when user is offline - re-auth required when back online
+        </div>
+
+        <div class="test-idea priority-P2">
+          <span class="badge badge-P2">P2</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Stale content indicators:</strong> Test UI indicates when cached content is stale (e.g., "Last updated 2 days ago") for offline browsing
+        </div>
+
+        <div class="test-idea priority-P3">
+          <span class="badge badge-P3">P3</span>
+          <span class="badge badge-automation">e2e-level</span>
+          <strong>Long-running barcode scan session:</strong> Verify camera doesn't timeout or overheat during extended barcode scanning sessions (store employee use)
+        </div>
+      </div>
+    </section>
+
+    <section id="questions">
+      <h2>❓ Clarifying Questions</h2>
+      <p style="margin-bottom: 20px; color: #6b7280;">
+        These questions help uncover "unknown unknowns" and refine requirements before development.
+      </p>
+
+      <h3>Structure</h3>
+      <div class="question"><strong>Q1:</strong> What Service Worker caching strategy will be used (Cache First, Network First, Stale While Revalidate)? Different strategies for different content types?</div>
+      <div class="question"><strong>Q2:</strong> Which specific barcode formats need to be supported (UPC-A, EAN-13, QR codes, others)? Any custom internal barcode formats?</div>
+      <div class="question"><strong>Q3:</strong> Will Workbox library be used for Service Worker management, or custom implementation? If custom, what's the fallback strategy?</div>
+
+      <h3>Function</h3>
+      <div class="question"><strong>Q4:</strong> What is the minimum engagement criteria for A2HS prompt (2 visits? Time spent? Specific actions completed)?</div>
+      <div class="question"><strong>Q5:</strong> Which specific features should work offline (browse products, view cart, search, checkout)? What's the priority order?</div>
+      <div class="question"><strong>Q6:</strong> How should the system handle checkout attempts while offline (queue for Background Sync, block with error, save draft)?</div>
+      <div class="question"><strong>Q7:</strong> What happens if biometric authentication is not available (device doesn't support, user disabled)? Mandatory fallback to password?</div>
+      <div class="question"><strong>Q8:</strong> For "store mode", what specific features are included (scan, check stock, store map, employee assistance request)?</div>
+      <div class="question"><strong>Q9:</strong> What content should be pre-cached for offline (homepage, top 100 products, full catalog)? Size constraints?</div>
+
+      <h3>Data</h3>
+      <div class="question"><strong>Q10:</strong> What is the maximum cache size allowed per user (50MB iOS limit, 10% disk on Firefox)? How to handle quota exceeded?</div>
+      <div class="question"><strong>Q11:</strong> How long should cached content remain valid before requiring refresh (24 hours, 7 days, until next online session)?</div>
+      <div class="question"><strong>Q12:</strong> Should cart items be synced across devices in real-time or only on demand (user triggers sync)?</div>
+      <div class="question"><strong>Q13:</strong> What data should persist in IndexedDB vs LocalStorage (products in IDB, preferences in LS)? Clear partitioning strategy?</div>
+
+      <h3>Interfaces</h3>
+      <div class="question"><strong>Q14:</strong> What is the exact integration flow with Apple Pay merchant account (payment processor, tokenization provider)?</div>
+      <div class="question"><strong>Q15:</strong> Which push notification provider will be used (Firebase Cloud Messaging, OneSignal, custom)? Rate limits?</div>
+      <div class="question"><strong>Q16:</strong> How should cross-device session sync work technically (backend API sync, cloud storage, peer-to-peer)?</div>
+      <div class="question"><strong>Q17:</strong> Are there specific UI/UX requirements for the PWA install prompt (custom vs browser default)?</div>
+
+      <h3>Platform</h3>
+      <div class="question"><strong>Q18:</strong> What is the minimum browser version support (Chrome 80+, Safari 13+, Firefox 75+)? Polyfills for older versions?</div>
+      <div class="question"><strong>Q19:</strong> Should PWA work on desktop browsers (Chrome, Edge, Safari) or mobile-only? Different UX for desktop PWA?</div>
+      <div class="question"><strong>Q20:</strong> What's the strategy for iOS limitations (50MB cache, no Background Sync, limited push notifications)?</div>
+      <div class="question"><strong>Q21:</strong> How should the app handle devices without biometric sensors (password-only login acceptable)?</div>
+
+      <h3>Operations</h3>
+      <div class="question"><strong>Q22:</strong> What user analytics should be tracked for PWA usage (install rate, offline sessions, express checkout conversion)?</div>
+      <div class="question"><strong>Q23:</strong> How should the app handle users who uninstall PWA but keep using mobile web? Retain cache?</div>
+      <div class="question"><strong>Q24:</strong> What accessibility support is required beyond WCAG 2.2 (screen reader testing on iOS/Android, voice control)?</div>
+      <div class="question"><strong>Q25:</strong> Should barcode scanning work in both portrait and landscape orientations? Auto-rotate handling?</div>
+
+      <h3>Time</h3>
+      <div class="question"><strong>Q26:</strong> What's the retry strategy for Background Sync (exponential backoff, max retries, give up after how long)?</div>
+      <div class="question"><strong>Q27:</strong> How frequently should push notifications be sent for price drops (immediate, daily digest, weekly)? User customizable?</div>
+      <div class="question"><strong>Q28:</strong> What's the Service Worker update strategy (update on refresh, update in background, notify user)?</div>
+      <div class="question"><strong>Q29:</strong> How long should pending offline actions be retained (7 days, 30 days, indefinitely until online)?</div>
+
+      <h3>Success Metrics</h3>
+      <div class="question"><strong>Q30:</strong> How is "Mobile Conversion Rate" calculated (mobile web only, PWA only, combined)? Baseline measurement?</div>
+      <div class="question"><strong>Q31:</strong> What constitutes a "PWA install" for the 10% target (A2HS completion, first launch after install, 7-day retention)?</div>
+      <div class="question"><strong>Q32:</strong> Are there specific performance budgets for PWA (First Contentful Paint < 2s, Time to Interactive < 5s on Slow 3G)?</div>
+    </section>
+
+    <footer style="margin-top: 50px; padding-top: 30px; border-top: 2px solid #e5e7eb; color: #6b7280; font-size: 0.9em;">
+      <p><strong>Assessment Framework:</strong> HTSM (Heuristic Test Strategy Model) - Product Factors (SFDIPOT)</p>
+      <p><strong>Generated by:</strong> Agentic QE Fleet - Product Factors Assessor Agent v2.7.0</p>
+      <p><strong>Domain Context:</strong> E-commerce, Mobile-First, Progressive Web App (PWA)</p>
+      <p style="margin-top: 15px;">
+        📚 Learn more:
+        <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" class="external-link" target="_blank">HTSM by James Bach</a> |
+        <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" class="external-link" target="_blank">QCSD Framework</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>

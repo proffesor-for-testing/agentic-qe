@@ -1,0 +1,2466 @@
+{
+  "id": "TS-84B7A322",
+  "name": "Product Factors (SFDIPOT) based Test Ideas - 2025-12-28",
+  "description": "HTSM-based test suite generated from 1 user stories",
+  "sourceRequirements": [
+    "US-401"
+  ],
+  "tests": [
+    {
+      "id": "TC-OPER-FEF46224",
+      "name": "Verify protection against injection attacks",
+      "description": "Verify protection against injection attacks",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "DisfavoredUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from error-guessing analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P0",
+      "risk": {
+        "score": 1,
+        "factors": [
+          "critical-priority",
+          "misuse-prevention"
+        ],
+        "businessImpact": "critical",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a malicious input is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the malicious input is submitted"
+        },
+        {
+          "type": "then",
+          "text": "the system blocks the attempt"
+        },
+        {
+          "type": "and",
+          "text": "no security breach occurs"
+        },
+        {
+          "type": "and",
+          "text": "the attempt is logged"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation",
+        "Malicious input is blocked",
+        "Security is not compromised"
+      ],
+      "testData": {
+        "errorCases": [
+          "empty_input",
+          "null_value",
+          "special_characters",
+          "sql_injection_attempt",
+          "xss_attempt"
+        ]
+      },
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "technique:error-guessing",
+        "priority:P0",
+        "security",
+        "critical",
+        "smoke"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-586970D4",
+      "name": "Verify protection against XSS attacks",
+      "description": "Verify protection against XSS attacks",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "DisfavoredUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from error-guessing analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P0",
+      "risk": {
+        "score": 1,
+        "factors": [
+          "critical-priority",
+          "misuse-prevention"
+        ],
+        "businessImpact": "critical",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a malicious input is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the malicious input is submitted"
+        },
+        {
+          "type": "then",
+          "text": "the system blocks the attempt"
+        },
+        {
+          "type": "and",
+          "text": "no security breach occurs"
+        },
+        {
+          "type": "and",
+          "text": "the attempt is logged"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation",
+        "Malicious input is blocked",
+        "Security is not compromised"
+      ],
+      "testData": {
+        "errorCases": [
+          "empty_input",
+          "null_value",
+          "special_characters",
+          "sql_injection_attempt",
+          "xss_attempt"
+        ]
+      },
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "technique:error-guessing",
+        "priority:P0",
+        "security",
+        "critical",
+        "smoke"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-0F61CAAB",
+      "name": "Verify that sustainable/eco-friendly product filter visible on homepage",
+      "description": "Verify: Sustainable/eco-friendly product filter visible on homepage",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: sustainable/eco-friendly product filter visible on homepage is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-43B7574E",
+      "name": "Verify that \"Responsible Collection\" featured section on homepage",
+      "description": "Verify: \"Responsible Collection\" featured section on homepage",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: \"responsible collection\" featured section on homepage is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-56AC2D35",
+      "name": "Verify that carbon footprint estimates displayed for delivery OPTIONS",
+      "description": "Verify: Carbon footprint estimates displayed for delivery options",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: carbon footprint estimates displayed for delivery options is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-D74FB44A",
+      "name": "Verify that \"Pre-loved\" / resale section prominently linked from homepage",
+      "description": "Verify: \"Pre-loved\" / resale section prominently linked from homepage",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: \"pre-loved\" / resale section prominently linked from homepage is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-52BE6D78",
+      "name": "Verify that sustainability badges/certifications visible on product cards",
+      "description": "Verify: Sustainability badges/certifications visible on product cards",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from decision-table analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: sustainability badges/certifications visible on product cards is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "conditions": [
+          "condition1",
+          "condition2"
+        ],
+        "combinations": [
+          {
+            "condition1": true,
+            "condition2": true,
+            "expectedResult": "result_A"
+          },
+          {
+            "condition1": true,
+            "condition2": false,
+            "expectedResult": "result_B"
+          },
+          {
+            "condition1": false,
+            "condition2": true,
+            "expectedResult": "result_C"
+          },
+          {
+            "condition1": false,
+            "condition2": false,
+            "expectedResult": "result_D"
+          }
+        ]
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:decision-table",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-CD58B61A",
+      "name": "Verify that link to CR report and ethical sourcing information in footer elevated",
+      "description": "Verify: Link to CR report and ethical sourcing information in footer elevated",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: link to cr report and ethical sourcing information in footer elevated is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:boundary-value-analysis",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-DA5E785E",
+      "name": "Verify that \"Repair & Care\" guides linked from homepage",
+      "description": "Verify: \"Repair & Care\" guides linked from homepage",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "BusinessRules",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from equivalence-partitioning analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify: \"repair & care\" guides linked from homepage is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "partitions": {
+          "valid": "representative_valid_value",
+          "invalid": "representative_invalid_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:BusinessRules",
+        "technique:equivalence-partitioning",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-5B15F50C",
+      "name": "Validate that material composition percentages",
+      "description": "Verify calculation: Material composition percentages",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "Calculation",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify calculation: material composition percentages is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:Calculation",
+        "technique:boundary-value-analysis",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-FUNC-46E77EF0",
+      "name": "Validate that warehouse energy consumption",
+      "description": "Verify calculation: Warehouse energy consumption",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "FUNCTION",
+          "subcategory": "Calculation",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System is in a known initial state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the system is ready to process requests"
+        },
+        {
+          "type": "when",
+          "text": "the verify calculation: warehouse energy consumption is executed"
+        },
+        {
+          "type": "then",
+          "text": "the operation completes successfully"
+        },
+        {
+          "type": "and",
+          "text": "the expected output is produced"
+        }
+      ],
+      "expectedResults": [
+        "Function executes successfully",
+        "Output matches specification"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:function",
+        "htsm:Calculation",
+        "technique:boundary-value-analysis",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-56484D69",
+      "name": "Verify data can be created successfully",
+      "description": "Verify data creation",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Lifecycle",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-0E011459",
+      "name": "Verify data can be modified successfully",
+      "description": "Verify data modification",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Lifecycle",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-F3295EE7",
+      "name": "Verify data can be deleted successfully",
+      "description": "Verify data deletion",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Lifecycle",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-339A34C1",
+      "name": "Verify functionality for user",
+      "description": "Verify functionality for user role: user",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "Users",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the users profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:operations",
+        "htsm:Users",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-71C147DC",
+      "name": "Verify that sustainable Commerce & Transparency Features",
+      "description": "Verify common use: Sustainable Commerce & Transparency Features",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "CommonUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "low"
+      },
+      "traceability": {
+        "userStoryId": "US-401",
+        "epicId": "EPIC-4"
+      },
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the commonuse profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:operations",
+        "htsm:CommonUse",
+        "technique:scenario-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-E8274A2D",
+      "name": "Verify behavior under high load conditions",
+      "description": "Verify behavior under high load",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "ExtremeUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from risk-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the extremeuse profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:operations",
+        "htsm:ExtremeUse",
+        "technique:risk-based",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-E3898A0E",
+      "name": "Verify that timeout handling works correctly",
+      "description": "Verify timeout handling",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "InputOutputTiming",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:time",
+        "htsm:InputOutputTiming",
+        "technique:boundary-value-analysis",
+        "priority:P1"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-762BC4F8",
+      "name": "Verify that concurrent user access is handled correctly",
+      "description": "Verify concurrent user access",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Concurrency",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "high"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized",
+        "Multiple test clients are ready"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "multiple concurrent users are ready"
+        },
+        {
+          "type": "when",
+          "text": "all users perform operations simultaneously"
+        },
+        {
+          "type": "then",
+          "text": "all operations complete without deadlock"
+        },
+        {
+          "type": "and",
+          "text": "data consistency is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit",
+        "No race conditions occur",
+        "Data consistency is preserved"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Concurrency",
+        "technique:scenario-based",
+        "priority:P1",
+        "concurrency"
+      ],
+      "estimatedDurationMs": 15000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-DC5FC77E",
+      "name": "Verify that race conditions are prevented",
+      "description": "Verify race condition handling",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Concurrency",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from risk-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P1",
+      "risk": {
+        "score": 0.7,
+        "factors": [
+          "high-priority"
+        ],
+        "businessImpact": "high",
+        "technicalComplexity": "high"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized",
+        "Multiple test clients are ready"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "multiple concurrent users are ready"
+        },
+        {
+          "type": "when",
+          "text": "all users perform operations simultaneously"
+        },
+        {
+          "type": "then",
+          "text": "all operations complete without deadlock"
+        },
+        {
+          "type": "and",
+          "text": "data consistency is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit",
+        "No race conditions occur",
+        "Data consistency is preserved"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Concurrency",
+        "technique:risk-based",
+        "priority:P1",
+        "concurrency"
+      ],
+      "estimatedDurationMs": 15000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-80276C3E",
+      "name": "Verify behavior with zero items (empty state)",
+      "description": "Verify behavior with zero items",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Cardinality",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:data",
+        "htsm:Cardinality",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-096E6AC6",
+      "name": "Verify behavior with exactly one item",
+      "description": "Verify behavior with exactly one item",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Cardinality",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:data",
+        "htsm:Cardinality",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-DATA-0B5C6A4A",
+      "name": "Verify behavior with many items (bulk data)",
+      "description": "Verify behavior with many items",
+      "type": "unit",
+      "htsm": {
+        "primary": {
+          "category": "DATA",
+          "subcategory": "Cardinality",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Test data is prepared",
+        "Database is in clean state"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "valid test data is prepared"
+        },
+        {
+          "type": "when",
+          "text": "the data is processed"
+        },
+        {
+          "type": "then",
+          "text": "the data is correctly transformed"
+        },
+        {
+          "type": "and",
+          "text": "data integrity is maintained"
+        }
+      ],
+      "expectedResults": [
+        "Data is correctly processed",
+        "Data integrity is maintained"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:data",
+        "htsm:Cardinality",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 2000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-4AEC6E7B",
+      "name": "Verify that sustainable/eco-friendly product filter visible on homepage",
+      "description": "Verify UI: Sustainable/eco-friendly product filter visible on homepage",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-E6105371",
+      "name": "Verify that \"Responsible Collection\" featured section on homepage",
+      "description": "Verify UI: \"Responsible Collection\" featured section on homepage",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-EF11C127",
+      "name": "Verify that carbon footprint estimates displayed for delivery OPTIONS",
+      "description": "Verify UI: Carbon footprint estimates displayed for delivery options",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-B02EB0E3",
+      "name": "Verify that \"Pre-loved\" / resale section prominently linked from homepage",
+      "description": "Verify UI: \"Pre-loved\" / resale section prominently linked from homepage",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-1DEC9336",
+      "name": "Verify that link to CR report and ethical sourcing information in footer elevated",
+      "description": "Verify UI: Link to CR report and ethical sourcing information in footer elevated",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-6CFE9203",
+      "name": "Verify that \"Repair & Care\" guides linked from homepage",
+      "description": "Verify UI: \"Repair & Care\" guides linked from homepage",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-INTE-EECD1EF2",
+      "name": "Verify that resale platform synchronization",
+      "description": "Verify UI: Resale platform synchronization",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "INTERFACES",
+          "subcategory": "UserInterfaces",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "low"
+      },
+      "traceability": {},
+      "preconditions": [],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the user is on the relevant page"
+        },
+        {
+          "type": "when",
+          "text": "the user interacts with the interface"
+        },
+        {
+          "type": "then",
+          "text": "the interface responds correctly"
+        }
+      ],
+      "expectedResults": [
+        "Interface responds correctly"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterfaces",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-E06CE92A",
+      "name": "Verify that memory usage is within acceptable limits",
+      "description": "Verify memory usage within acceptable limits",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ProductFootprint",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify memory usage within acceptable limits"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ProductFootprint",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-DED8A9CE",
+      "name": "Verify that CPU usage is within acceptable limits",
+      "description": "Verify CPU usage within acceptable limits",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ProductFootprint",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify cpu usage within acceptable limits"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ProductFootprint",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-3306E0AA",
+      "name": "Verify compatibility with Chrome",
+      "description": "Verify compatibility with Chrome",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with chrome"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-369ABA5E",
+      "name": "Verify compatibility with Firefox",
+      "description": "Verify compatibility with Firefox",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with firefox"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-D697B104",
+      "name": "Verify compatibility with Safari",
+      "description": "Verify compatibility with Safari",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with safari"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-PLAT-E5FC92C8",
+      "name": "Verify compatibility with Edge",
+      "description": "Verify compatibility with Edge",
+      "type": "e2e",
+      "htsm": {
+        "primary": {
+          "category": "PLATFORM",
+          "subcategory": "ExternalSoftware",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "Target platform is available"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "the preconditions are met"
+        },
+        {
+          "type": "when",
+          "text": "verify compatibility with edge"
+        },
+        {
+          "type": "then",
+          "text": "the expected result is achieved"
+        }
+      ],
+      "expectedResults": [
+        "Feature works on target platform",
+        "No platform-specific issues"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 10000,
+      "automated": true
+    },
+    {
+      "id": "TC-OPER-36BCF18A",
+      "name": "Verify behavior under maximum data volume",
+      "description": "Verify behavior with maximum data volume",
+      "type": "performance",
+      "htsm": {
+        "primary": {
+          "category": "OPERATIONS",
+          "subcategory": "ExtremeUse",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from boundary-value-analysis analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "User account exists with appropriate role"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "a user with the extremeuse profile"
+        },
+        {
+          "type": "when",
+          "text": "the user performs the workflow"
+        },
+        {
+          "type": "then",
+          "text": "the workflow completes as expected"
+        }
+      ],
+      "expectedResults": [
+        "User can complete the operation"
+      ],
+      "testData": {
+        "boundaryValues": {
+          "min": "minimum_value",
+          "justAboveMin": "min + 1",
+          "nominal": "typical_value",
+          "justBelowMax": "max - 1",
+          "max": "maximum_value"
+        }
+      },
+      "tags": [
+        "htsm:operations",
+        "htsm:ExtremeUse",
+        "technique:boundary-value-analysis",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 5000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-AEE3C0E6",
+      "name": "Check behavior with rapid input (burst traffic)",
+      "description": "Verify behavior with rapid input",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Pacing",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Pacing",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    },
+    {
+      "id": "TC-TIME-73077044",
+      "name": "Check behavior with slow/delayed input",
+      "description": "Verify behavior with slow/delayed input",
+      "type": "integration",
+      "htsm": {
+        "primary": {
+          "category": "TIME",
+          "subcategory": "Pacing",
+          "confidence": 0.9,
+          "rationale": "Direct mapping from scenario-based analysis"
+        },
+        "secondary": []
+      },
+      "priority": "P2",
+      "risk": {
+        "score": 0.5,
+        "factors": [],
+        "businessImpact": "medium",
+        "technicalComplexity": "medium"
+      },
+      "traceability": {},
+      "preconditions": [
+        "System clock is synchronized"
+      ],
+      "steps": [
+        {
+          "type": "given",
+          "text": "time-sensitive data is set up"
+        },
+        {
+          "type": "when",
+          "text": "the time condition is triggered"
+        },
+        {
+          "type": "then",
+          "text": "the system responds within the expected timeframe"
+        }
+      ],
+      "expectedResults": [
+        "Operation completes within time limit"
+      ],
+      "testData": {},
+      "tags": [
+        "htsm:time",
+        "htsm:Pacing",
+        "technique:scenario-based",
+        "priority:P2"
+      ],
+      "estimatedDurationMs": 3000,
+      "automated": true
+    }
+  ],
+  "htsmCoverage": {
+    "overall": 86,
+    "byCategory": {
+      "STRUCTURE": {
+        "category": "STRUCTURE",
+        "testCount": 0,
+        "subcategories": {},
+        "coverage": 0
+      },
+      "FUNCTION": {
+        "category": "FUNCTION",
+        "testCount": 9,
+        "subcategories": {
+          "BusinessRules": 7,
+          "Calculation": 2
+        },
+        "coverage": 100
+      },
+      "DATA": {
+        "category": "DATA",
+        "testCount": 6,
+        "subcategories": {
+          "Lifecycle": 3,
+          "Cardinality": 3
+        },
+        "coverage": 100
+      },
+      "INTERFACES": {
+        "category": "INTERFACES",
+        "testCount": 7,
+        "subcategories": {
+          "UserInterfaces": 7
+        },
+        "coverage": 100
+      },
+      "PLATFORM": {
+        "category": "PLATFORM",
+        "testCount": 6,
+        "subcategories": {
+          "ProductFootprint": 2,
+          "ExternalSoftware": 4
+        },
+        "coverage": 100
+      },
+      "OPERATIONS": {
+        "category": "OPERATIONS",
+        "testCount": 6,
+        "subcategories": {
+          "DisfavoredUse": 2,
+          "Users": 1,
+          "CommonUse": 1,
+          "ExtremeUse": 2
+        },
+        "coverage": 100
+      },
+      "TIME": {
+        "category": "TIME",
+        "testCount": 5,
+        "subcategories": {
+          "InputOutputTiming": 1,
+          "Concurrency": 2,
+          "Pacing": 2
+        },
+        "coverage": 100
+      }
+    },
+    "gaps": [
+      {
+        "category": "STRUCTURE",
+        "severity": "medium",
+        "recommendation": "Add tests for STRUCTURE category"
+      }
+    ]
+  },
+  "traceabilityMatrix": {
+    "requirements": [
+      {
+        "requirementId": "US-401",
+        "requirementDescription": "Sustainable Commerce & Transparency Features",
+        "testCaseIds": [
+          "TC-FUNC-0F61CAAB",
+          "TC-FUNC-43B7574E",
+          "TC-FUNC-56AC2D35",
+          "TC-FUNC-D74FB44A",
+          "TC-FUNC-52BE6D78",
+          "TC-FUNC-CD58B61A",
+          "TC-FUNC-DA5E785E",
+          "TC-OPER-71C147DC",
+          "TC-OPER-339A34C1",
+          "TC-INTE-4AEC6E7B",
+          "TC-TIME-E3898A0E",
+          "TC-TIME-762BC4F8",
+          "TC-TIME-DC5FC77E",
+          "TC-PLAT-E06CE92A",
+          "TC-PLAT-DED8A9CE",
+          "TC-PLAT-3306E0AA",
+          "TC-PLAT-369ABA5E",
+          "TC-PLAT-D697B104",
+          "TC-PLAT-E5FC92C8",
+          "TC-TIME-AEE3C0E6",
+          "TC-TIME-73077044"
+        ],
+        "htsmCategories": [
+          "FUNCTION",
+          "OPERATIONS",
+          "INTERFACES",
+          "TIME",
+          "PLATFORM"
+        ],
+        "coverage": "full"
+      }
+    ],
+    "coverage": 100
+  },
+  "generatedAt": "2025-12-28T09:23:40.960Z"
+}

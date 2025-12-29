@@ -1,0 +1,17 @@
+{
+  "enabled": false,
+  "ollamaUrl": "http://localhost:11434",
+  "embeddingModel": "nomic-embed-text",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "ruvector_db",
+    "user": "ruvector",
+    "password": "ruvector"
+  },
+  "indexPaths": [
+    "src"
+  ],
+  "autoIndex": false,
+  "watchEnabled": false
+}

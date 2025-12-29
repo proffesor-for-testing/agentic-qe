@@ -1,0 +1,1797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SFDIPOT Assessment: Epic 3 - AI-Powered Personalization & Search Enhancement</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --info: #0891b2;
+            --bg-light: #f8fafc;
+            --bg-white: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-light);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 40px 20px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        header .subtitle {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        header .meta {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        header .meta-item {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--bg-white);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-card .breakdown {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card .breakdown span {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: var(--bg-light);
+        }
+
+        .section {
+            background: var(--bg-white);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: var(--bg-light);
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-header .category-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: white;
+        }
+
+        .section-header .category-badge.S { background: #8b5cf6; }
+        .section-header .category-badge.F { background: #06b6d4; }
+        .section-header .category-badge.D { background: #10b981; }
+        .section-header .category-badge.I { background: #f59e0b; }
+        .section-header .category-badge.P { background: #ec4899; }
+        .section-header .category-badge.O { background: #6366f1; }
+        .section-header .category-badge.T { background: #ef4444; }
+
+        .section-header .toggle-icon {
+            font-size: 1.5rem;
+            transition: transform 0.3s;
+        }
+
+        .section-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .section-content {
+            padding: 24px;
+        }
+
+        .section-content.collapsed {
+            display: none;
+        }
+
+        .subcategory {
+            margin-bottom: 24px;
+        }
+
+        .subcategory:last-child {
+            margin-bottom: 0;
+        }
+
+        .subcategory h3 {
+            font-size: 1rem;
+            color: var(--primary);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .items-list {
+            background: var(--bg-light);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .items-list ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 8px;
+        }
+
+        .items-list li {
+            position: relative;
+            padding-left: 20px;
+            font-size: 0.9rem;
+        }
+
+        .items-list li::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+        }
+
+        .test-ideas-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .test-ideas-table th {
+            background: var(--bg-light);
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .test-ideas-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .test-ideas-table tr:hover {
+            background: var(--bg-light);
+        }
+
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .priority-badge.P0 { background: #fecaca; color: #991b1b; }
+        .priority-badge.P1 { background: #fed7aa; color: #9a3412; }
+        .priority-badge.P2 { background: #fef08a; color: #854d0e; }
+        .priority-badge.P3 { background: #d1fae5; color: #065f46; }
+
+        .automation-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            background: var(--bg-light);
+            color: var(--text);
+        }
+
+        .automation-badge.api-level { background: #dbeafe; color: #1e40af; }
+        .automation-badge.integration-level { background: #dcfce7; color: #166534; }
+        .automation-badge.e2e-level { background: #fae8ff; color: #86198f; }
+        .automation-badge.security { background: #fee2e2; color: #991b1b; }
+        .automation-badge.performance { background: #ffedd5; color: #9a3412; }
+        .automation-badge.accessibility { background: #cffafe; color: #155e75; }
+        .automation-badge.concurrency { background: #e0e7ff; color: #3730a3; }
+        .automation-badge.human-exploration { background: #fef3c7; color: #92400e; }
+
+        .risk-factors {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .risk-tag {
+            font-size: 0.7rem;
+            background: #fef2f2;
+            color: #991b1b;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .questions-section {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+        }
+
+        .questions-section .section-header {
+            background: #fef3c7;
+        }
+
+        .question-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--warning);
+        }
+
+        .question-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .question-card .question-id {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .question-card .question-text {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .question-card .question-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .critical-path-section {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+
+        .critical-path-section .section-header {
+            background: #fee2e2;
+        }
+
+        .critical-path-item {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .critical-path-item .number {
+            width: 32px;
+            height: 32px;
+            background: var(--danger);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .critical-path-item .content {
+            flex: 1;
+        }
+
+        .critical-path-item .title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .critical-path-item .rationale {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .risk-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .risk-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border-left: 4px solid var(--danger);
+        }
+
+        .risk-card.medium {
+            border-left-color: var(--warning);
+        }
+
+        .risk-card h4 {
+            margin-bottom: 8px;
+        }
+
+        .risk-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .risk-card ul {
+            font-size: 0.85rem;
+            padding-left: 20px;
+        }
+
+        .automation-strategy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .strategy-card {
+            background: var(--bg-light);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .strategy-card h4 {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .strategy-card .details {
+            font-size: 0.85rem;
+        }
+
+        .strategy-card .details p {
+            margin-bottom: 6px;
+        }
+
+        .strategy-card .details strong {
+            color: var(--text);
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.5rem;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .test-ideas-table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SFDIPOT Product Factors Assessment</h1>
+            <p class="subtitle">Epic 3: AI-Powered Personalization & Search Enhancement</p>
+            <div class="meta">
+                <span class="meta-item">Domain: Ecommerce (Retail Fashion)</span>
+                <span class="meta-item">Priority: HIGH</span>
+                <span class="meta-item">Timeline: February - April 2026</span>
+                <span class="meta-item">Risk Level: MEDIUM</span>
+                <span class="meta-item">Generated: 2025-12-28</span>
+            </div>
+        </header>
+
+        <!-- Dashboard -->
+        <div class="dashboard">
+            <div class="stat-card">
+                <h3>Total Test Ideas</h3>
+                <div class="value">63</div>
+                <div class="breakdown">
+                    <span class="priority-badge P0">P0: 16</span>
+                    <span class="priority-badge P1">P1: 30</span>
+                    <span class="priority-badge P2">P2: 15</span>
+                    <span class="priority-badge P3">P3: 2</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>SFDIPOT Categories</h3>
+                <div class="value">7</div>
+                <div class="breakdown">
+                    <span>35+ Subcategories</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Clarifying Questions</h3>
+                <div class="value">10</div>
+                <div class="breakdown">
+                    <span>HIGH: 4</span>
+                    <span>MEDIUM: 5</span>
+                    <span>LOW: 1</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Risk Areas</h3>
+                <div class="value">6</div>
+                <div class="breakdown">
+                    <span>High: 4</span>
+                    <span>Medium: 2</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Critical Path Section -->
+        <div class="section critical-path-section">
+            <div class="section-header">
+                <h2>Critical Test Path (Must-Pass Tests)</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <div class="critical-path-item">
+                    <div class="number">1</div>
+                    <div class="content">
+                        <div class="title">F-CORE-001: Verify personalized recommendations accuracy</div>
+                        <div class="rationale">Core value proposition of the epic - drives 10-15% revenue lift</div>
+                    </div>
+                </div>
+                <div class="critical-path-item">
+                    <div class="number">2</div>
+                    <div class="content">
+                        <div class="title">F-CORE-003: Validate natural language search parsing</div>
+                        <div class="rationale">Key differentiator and user story US2 - "blue dress for summer wedding"</div>
+                    </div>
+                </div>
+                <div class="critical-path-item">
+                    <div class="number">3</div>
+                    <div class="content">
+                        <div class="title">F-SEC-001: Test unauthorized access to personalization API</div>
+                        <div class="rationale">Security and privacy compliance - prevents data breach</div>
+                    </div>
+                </div>
+                <div class="critical-path-item">
+                    <div class="number">4</div>
+                    <div class="content">
+                        <div class="title">O-USER-002: Validate opted-out user experience</div>
+                        <div class="rationale">Privacy requirements and user story US4 - respects user choice</div>
+                    </div>
+                </div>
+                <div class="critical-path-item">
+                    <div class="number">5</div>
+                    <div class="content">
+                        <div class="title">T-PEAK-001: Test Black Friday scale capacity</div>
+                        <div class="rationale">Business-critical event readiness - 10x traffic handling</div>
+                    </div>
+                </div>
+                <div class="critical-path-item">
+                    <div class="number">6</div>
+                    <div class="content">
+                        <div class="title">O-ENV-002: Test EU region data residency</div>
+                        <div class="rationale">GDPR compliance requirement - legal liability prevention</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STRUCTURE Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge S">S</span> STRUCTURE - What the product IS</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Components, architecture, dependencies, and documentation that define the system structure.</p>
+
+                <div class="subcategory">
+                    <h3>Code Components</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>ML Recommendation Engine (collaborative + content-based filtering)</li>
+                            <li>Elasticsearch/Algolia semantic search integration</li>
+                            <li>Visual search computer vision module</li>
+                            <li>Real-time personalization API</li>
+                            <li>Edge caching layer</li>
+                            <li>Privacy controls and consent management system</li>
+                            <li>A/B testing framework for recommendation algorithms</li>
+                            <li>Dynamic section renderer for 'Shop by Occasion'</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>S-CODE-001</td>
+                                <td>
+                                    <strong>Verify ML recommendation engine initialization</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that the recommendation engine initializes correctly with required models and configurations</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">ML model availability</span>
+                                        <span class="risk-tag">Configuration errors</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>S-CODE-002</td>
+                                <td>
+                                    <strong>Validate search engine connection pooling</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify Elasticsearch/Algolia connection pool management under load</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Connection leaks</span>
+                                        <span class="risk-tag">Pool exhaustion</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>S-CODE-003</td>
+                                <td>
+                                    <strong>Test visual search module error boundaries</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify graceful degradation when computer vision API fails</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">API failures</span>
+                                        <span class="risk-tag">Image processing errors</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>S-CODE-004</td>
+                                <td>
+                                    <strong>Verify edge caching layer TTL configurations</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test cache invalidation and TTL behavior for personalized content</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Stale data</span>
+                                        <span class="risk-tag">Cache coherence</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Dependencies</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>ML recommendation model training pipeline</li>
+                            <li>Elasticsearch/Algolia cloud service</li>
+                            <li>Computer vision API (Google Vision, AWS Rekognition)</li>
+                            <li>User authentication service</li>
+                            <li>Product catalog service</li>
+                            <li>User behavior tracking service</li>
+                            <li>CDN for edge caching</li>
+                            <li>E2 Performance infrastructure (dependency)</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>S-DEP-001</td>
+                                <td>
+                                    <strong>Test fallback when ML service unavailable</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify system degrades gracefully to non-personalized recommendations</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Service outage</span>
+                                        <span class="risk-tag">User experience degradation</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>S-DEP-002</td>
+                                <td>
+                                    <strong>Validate search service failover</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test automatic failover when primary search service fails</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Search unavailability</span>
+                                        <span class="risk-tag">Revenue impact</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>S-DEP-003</td>
+                                <td>
+                                    <strong>Test behavior tracking service integration</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify browsing history and behavior events are captured correctly</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Data loss</span>
+                                        <span class="risk-tag">Incomplete tracking</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- FUNCTION Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge F">F</span> FUNCTION - What the product DOES</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Features, calculations, security controls, and error handling behaviors.</p>
+
+                <div class="subcategory">
+                    <h3>Core Features</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>Personalized product recommendations for logged-in users</li>
+                            <li>Continue Shopping section (recently viewed, abandoned cart)</li>
+                            <li>Autocomplete with images, categories, trending suggestions</li>
+                            <li>Natural language search</li>
+                            <li>Visual search (image upload)</li>
+                            <li>Privacy preferences and opt-out</li>
+                            <li>A/B testing for algorithms</li>
+                            <li>Shop by Occasion dynamic sections</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>F-CORE-001</td>
+                                <td>
+                                    <strong>Verify personalized recommendations accuracy</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that recommendations are relevant based on user purchase history and browsing</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Irrelevant recommendations</span>
+                                        <span class="risk-tag">User frustration</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-CORE-002</td>
+                                <td>
+                                    <strong>Test Continue Shopping section population</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify recently viewed items and abandoned cart items appear correctly</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Missing items</span>
+                                        <span class="risk-tag">Incorrect order</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-CORE-003</td>
+                                <td>
+                                    <strong>Validate natural language search parsing</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test various natural language queries like 'blue dress for summer wedding'</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Query misinterpretation</span>
+                                        <span class="risk-tag">Poor results</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-CORE-004</td>
+                                <td>
+                                    <strong>Test visual search accuracy</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify image uploads return visually similar products</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Poor matching</span>
+                                        <span class="risk-tag">Processing failures</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-CORE-005</td>
+                                <td>
+                                    <strong>Verify autocomplete suggestions relevance</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test autocomplete shows relevant products, categories, and trending items</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Irrelevant suggestions</span>
+                                        <span class="risk-tag">Slow response</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-CORE-006</td>
+                                <td>
+                                    <strong>Test Shop by Occasion dynamic content</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify occasion sections update based on calendar and trends</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Wrong occasion</span>
+                                        <span class="risk-tag">Stale content</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Security</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>User data protection for browsing history</li>
+                            <li>PII handling in recommendations</li>
+                            <li>Consent management compliance</li>
+                            <li>Image upload security (malware scanning)</li>
+                            <li>API authentication and authorization</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>F-SEC-001</td>
+                                <td>
+                                    <strong>Test unauthorized access to personalization API</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify personalization data cannot be accessed without proper authentication</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Data breach</span>
+                                        <span class="risk-tag">Privacy violation</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-SEC-002</td>
+                                <td>
+                                    <strong>Validate image upload security</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that malicious files are rejected during visual search upload</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Malware injection</span>
+                                        <span class="risk-tag">XSS attacks</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-SEC-003</td>
+                                <td>
+                                    <strong>Test cross-user data isolation</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify one user cannot see another user's browsing history or recommendations</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Data leakage</span>
+                                        <span class="risk-tag">Privacy breach</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-SEC-004</td>
+                                <td>
+                                    <strong>Validate consent token handling</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test consent tokens are properly validated before personalization</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">GDPR violation</span>
+                                        <span class="risk-tag">Compliance risk</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Error Handling</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>F-ERR-001</td>
+                                <td>
+                                    <strong>Test graceful degradation on ML failure</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify system shows generic recommendations when ML service fails</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Blank sections</span>
+                                        <span class="risk-tag">Error display</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>F-ERR-002</td>
+                                <td>
+                                    <strong>Validate search timeout handling</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test user-friendly message on search service timeout</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Poor UX</span>
+                                        <span class="risk-tag">User confusion</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- DATA Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge D">D</span> DATA - What the product PROCESSES</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Input/output data, boundaries, persistence, and data transformations.</p>
+
+                <div class="subcategory">
+                    <h3>Input Data</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>User browsing history events</li>
+                            <li>Purchase history data</li>
+                            <li>Search queries (text and natural language)</li>
+                            <li>Image uploads for visual search</li>
+                            <li>User preference settings</li>
+                            <li>Consent/opt-out selections</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>D-IN-001</td>
+                                <td>
+                                    <strong>Test search query boundary limits</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify system handles very long search queries gracefully</p>
+                                </td>
+                                <td><span class="priority-badge P2">P2</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>D-IN-002</td>
+                                <td>
+                                    <strong>Validate image upload size limits</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test system behavior with oversized image uploads</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">DoS vulnerability</span>
+                                        <span class="risk-tag">Memory exhaustion</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>D-IN-003</td>
+                                <td>
+                                    <strong>Test special characters in natural language queries</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify SQL injection and XSS prevention in search input</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">SQL injection</span>
+                                        <span class="risk-tag">XSS attack</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Persistence</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>D-PERS-001</td>
+                                <td>
+                                    <strong>Test preference persistence across sessions</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify user preferences are retained after logout/login</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>D-PERS-002</td>
+                                <td>
+                                    <strong>Validate browsing history retention policy</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that history is retained/purged according to policy</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">GDPR violation</span>
+                                        <span class="risk-tag">Storage issues</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>D-PERS-003</td>
+                                <td>
+                                    <strong>Test consent record immutability</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify consent records cannot be modified after creation</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Audit failure</span>
+                                        <span class="risk-tag">Legal liability</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                            <tr>
+                                <td>D-PERS-004</td>
+                                <td>
+                                    <strong>Validate A/B test assignment stickiness</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that users remain in same variant across sessions</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- INTERFACES Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge I">I</span> INTERFACES - How the product CONNECTS</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">User interfaces, APIs, integrations, and messaging systems.</p>
+
+                <div class="subcategory">
+                    <h3>User Interface</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>I-UI-001</td>
+                                <td>
+                                    <strong>Test search autocomplete responsiveness</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify autocomplete appears within 200ms of typing</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>I-UI-002</td>
+                                <td>
+                                    <strong>Validate image upload drag-and-drop</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test drag-and-drop functionality for visual search</p>
+                                </td>
+                                <td><span class="priority-badge P2">P2</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>I-UI-003</td>
+                                <td>
+                                    <strong>Test privacy toggle functionality</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify privacy opt-out toggles work immediately</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Privacy violation</span>
+                                        <span class="risk-tag">Legal risk</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>I-UI-004</td>
+                                <td>
+                                    <strong>Validate recommendation section accessibility</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test keyboard navigation and screen reader support</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge accessibility">accessibility</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>APIs</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>I-API-001</td>
+                                <td>
+                                    <strong>Test personalization API response format</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify API returns correct schema with all required fields</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>I-API-002</td>
+                                <td>
+                                    <strong>Validate search API rate limiting</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test API enforces rate limits to prevent abuse</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">DoS vulnerability</span>
+                                        <span class="risk-tag">Cost overrun</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>I-API-003</td>
+                                <td>
+                                    <strong>Test visual search API timeout handling</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify appropriate timeout for image processing</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge api-level">api-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Integrations</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>I-INT-001</td>
+                                <td>
+                                    <strong>Test ML engine integration health checks</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify health checks detect ML service degradation</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>I-INT-002</td>
+                                <td>
+                                    <strong>Validate search service index synchronization</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test product catalog changes sync to search index</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Stale search results</span>
+                                        <span class="risk-tag">Missing products</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- PLATFORM Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge P">P</span> PLATFORM - What the product DEPENDS ON</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Browser support, operating systems, devices, and external systems.</p>
+
+                <div class="subcategory">
+                    <h3>Browser & Device Compatibility</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>Chrome (desktop and mobile)</li>
+                            <li>Safari (desktop and iOS)</li>
+                            <li>Firefox (desktop)</li>
+                            <li>Edge (desktop)</li>
+                            <li>Desktop (1920x1080, 2560x1440)</li>
+                            <li>Tablet (iPad, Android tablets)</li>
+                            <li>Mobile (iPhone, Android phones)</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>P-BROW-001</td>
+                                <td>
+                                    <strong>Test visual search on Safari iOS</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify image upload works on Safari mobile</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>P-DEV-001</td>
+                                <td>
+                                    <strong>Test recommendation carousels on mobile</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify touch swipe works for product carousels</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>P-DEV-002</td>
+                                <td>
+                                    <strong>Validate image upload on low-memory devices</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test visual search doesn't crash low-memory devices</p>
+                                </td>
+                                <td><span class="priority-badge P2">P2</span></td>
+                                <td><span class="automation-badge performance">performance</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>External Systems</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>P-EXT-001</td>
+                                <td>
+                                    <strong>Test search service region failover</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify automatic failover to backup region</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>P-EXT-002</td>
+                                <td>
+                                    <strong>Validate ML service latency SLA</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that ML inference meets latency requirements</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge performance">performance</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- OPERATIONS Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge O">O</span> OPERATIONS - How the product is USED</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">User types, usage patterns, workflows, and operational environments.</p>
+
+                <div class="subcategory">
+                    <h3>User Types</h3>
+                    <div class="items-list">
+                        <ul>
+                            <li>Returning customers (logged in)</li>
+                            <li>New visitors (anonymous)</li>
+                            <li>Gift shoppers (occasion-based)</li>
+                            <li>Privacy-conscious users (opted out)</li>
+                            <li>Power users (heavy browsing history)</li>
+                        </ul>
+                    </div>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>O-USER-001</td>
+                                <td>
+                                    <strong>Test new visitor experience without history</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify appropriate fallback recommendations for new users</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>O-USER-002</td>
+                                <td>
+                                    <strong>Validate opted-out user experience</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test that opted-out users see generic content without tracking</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">Privacy violation</span>
+                                        <span class="risk-tag">Trust breach</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge e2e-level">e2e-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>O-USER-003</td>
+                                <td>
+                                    <strong>Test power user with extensive history</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify performance with users having 1000+ browsing events</p>
+                                </td>
+                                <td><span class="priority-badge P2">P2</span></td>
+                                <td><span class="automation-badge performance">performance</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Environments</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>O-ENV-002</td>
+                                <td>
+                                    <strong>Test EU region data residency</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify personalization data stays in EU for EU users</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">GDPR violation</span>
+                                        <span class="risk-tag">Legal liability</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge security">security</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TIME Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2><span class="category-badge T">T</span> TIME - WHEN things happen</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Timing, concurrency, scheduling, and peak load behaviors.</p>
+
+                <div class="subcategory">
+                    <h3>Timing & Concurrency</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>T-TIME-001</td>
+                                <td>
+                                    <strong>Test real-time recommendation updates</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify recommendations update within 30 seconds of browsing action</p>
+                                </td>
+                                <td><span class="priority-badge P2">P2</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>T-TIME-002</td>
+                                <td>
+                                    <strong>Validate search index freshness</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test new products appear in search within SLA</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge integration-level">integration-level</span></td>
+                            </tr>
+                            <tr>
+                                <td>T-CONC-001</td>
+                                <td>
+                                    <strong>Test concurrent preference updates</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify correct handling when user updates preferences simultaneously</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge concurrency">concurrency</span></td>
+                            </tr>
+                            <tr>
+                                <td>T-CONC-002</td>
+                                <td>
+                                    <strong>Validate high-concurrency search performance</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test search latency with 1000 concurrent requests</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge performance">performance</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="subcategory">
+                    <h3>Peak Load</h3>
+                    <table class="test-ideas-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Test Idea</th>
+                                <th>Priority</th>
+                                <th>Automation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>T-PEAK-001</td>
+                                <td>
+                                    <strong>Test Black Friday scale capacity</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Verify system handles 10x normal traffic</p>
+                                    <div class="risk-factors">
+                                        <span class="risk-tag">System crash</span>
+                                        <span class="risk-tag">Revenue loss</span>
+                                    </div>
+                                </td>
+                                <td><span class="priority-badge P0">P0</span></td>
+                                <td><span class="automation-badge performance">performance</span></td>
+                            </tr>
+                            <tr>
+                                <td>T-PEAK-002</td>
+                                <td>
+                                    <strong>Validate sale launch search performance</strong>
+                                    <p style="margin: 4px 0 0; font-size: 0.85rem; color: var(--text-muted);">Test search latency during flash sale events</p>
+                                </td>
+                                <td><span class="priority-badge P1">P1</span></td>
+                                <td><span class="automation-badge performance">performance</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clarifying Questions Section -->
+        <div class="section questions-section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2>Clarifying Questions (Coverage Gaps)</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <p style="margin-bottom: 20px; color: var(--text-muted);">Questions that need answers to ensure complete test coverage.</p>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-001 | FUNCTION | HIGH Priority</div>
+                    <div class="question-text">What is the expected accuracy threshold for natural language search? (e.g., top-5 relevance score > 0.7)</div>
+                    <div class="question-meta">
+                        <span>Impact: Affects test pass/fail criteria for F-CORE-003</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-002 | DATA | HIGH Priority</div>
+                    <div class="question-text">What is the maximum browsing history retention period for GDPR compliance?</div>
+                    <div class="question-meta">
+                        <span>Impact: Determines D-PERS-002 test parameters</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-003 | TIME | MEDIUM Priority</div>
+                    <div class="question-text">What is the SLA for real-time recommendation updates after a browsing action?</div>
+                    <div class="question-meta">
+                        <span>Impact: Defines acceptance criteria for T-TIME-001</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-004 | PLATFORM | MEDIUM Priority</div>
+                    <div class="question-text">Which computer vision API provider will be used (Google Vision, AWS Rekognition, Azure CV)?</div>
+                    <div class="question-meta">
+                        <span>Impact: Affects P-EXT integration tests and error handling</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-005 | OPERATIONS | HIGH Priority</div>
+                    <div class="question-text">What fallback recommendations should be shown for opted-out users?</div>
+                    <div class="question-meta">
+                        <span>Impact: Determines O-USER-002 expected behavior</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-006 | INTERFACES | MEDIUM Priority</div>
+                    <div class="question-text">What are the exact API rate limits for search and personalization endpoints?</div>
+                    <div class="question-meta">
+                        <span>Impact: Sets thresholds for I-API-002 rate limit tests</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-007 | STRUCTURE | HIGH Priority</div>
+                    <div class="question-text">What is the expected latency SLA for ML recommendation inference?</div>
+                    <div class="question-meta">
+                        <span>Impact: Defines P-EXT-002 performance test thresholds</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-008 | FUNCTION | MEDIUM Priority</div>
+                    <div class="question-text">What image formats and sizes are supported for visual search?</div>
+                    <div class="question-meta">
+                        <span>Impact: Determines D-BOUND-002 test matrix</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-009 | TIME | LOW Priority</div>
+                    <div class="question-text">What is the model retraining frequency and expected zero-downtime requirements?</div>
+                    <div class="question-meta">
+                        <span>Impact: Affects T-SCHED-001 test scheduling</span>
+                    </div>
+                </div>
+
+                <div class="question-card">
+                    <div class="question-id">CQ-010 | DATA | MEDIUM Priority</div>
+                    <div class="question-text">How should A/B test variant assignments be distributed (50/50, 90/10, multi-variant)?</div>
+                    <div class="question-meta">
+                        <span>Impact: Defines F-CALC-002 statistical validation criteria</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Risk Assessment Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2>Risk Assessment</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <h3 style="margin-bottom: 16px;">High Risk Areas</h3>
+                <div class="risk-section">
+                    <div class="risk-card">
+                        <h4>ML Model Quality</h4>
+                        <p>Recommendation relevance depends on model training quality</p>
+                        <ul>
+                            <li>Implement offline model validation before deployment</li>
+                            <li>A/B test new models against baseline</li>
+                            <li>Monitor recommendation click-through rates</li>
+                        </ul>
+                    </div>
+                    <div class="risk-card">
+                        <h4>Privacy Compliance</h4>
+                        <p>GDPR/privacy regulations require strict data handling</p>
+                        <ul>
+                            <li>Implement comprehensive consent management</li>
+                            <li>Regular privacy audits</li>
+                            <li>Data residency enforcement</li>
+                        </ul>
+                    </div>
+                    <div class="risk-card">
+                        <h4>Search Service Availability</h4>
+                        <p>Search is critical path for revenue</p>
+                        <ul>
+                            <li>Multi-region deployment</li>
+                            <li>Automatic failover</li>
+                            <li>Graceful degradation fallbacks</li>
+                        </ul>
+                    </div>
+                    <div class="risk-card">
+                        <h4>Scale Performance</h4>
+                        <p>Black Friday and sale events require massive scale</p>
+                        <ul>
+                            <li>Load testing at 10x capacity</li>
+                            <li>Auto-scaling configuration</li>
+                            <li>Edge caching strategy</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3 style="margin: 24px 0 16px;">Medium Risk Areas</h3>
+                <div class="risk-section">
+                    <div class="risk-card medium">
+                        <h4>Visual Search Accuracy</h4>
+                        <p>Computer vision matching quality varies by image</p>
+                        <ul>
+                            <li>Define accuracy thresholds</li>
+                            <li>User feedback loop</li>
+                            <li>Fallback to text search</li>
+                        </ul>
+                    </div>
+                    <div class="risk-card medium">
+                        <h4>Natural Language Understanding</h4>
+                        <p>NLU may misinterpret complex queries</p>
+                        <ul>
+                            <li>Query clarification prompts</li>
+                            <li>Search suggestions</li>
+                            <li>Logging for improvement</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Automation Strategy Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection(this)">
+                <h2>Automation Strategy</h2>
+                <span class="toggle-icon">-</span>
+            </div>
+            <div class="section-content">
+                <div class="automation-strategy-grid">
+                    <div class="strategy-card">
+                        <h4><span class="automation-badge api-level">api-level</span> API Testing</h4>
+                        <div class="details">
+                            <p><strong>Scope:</strong> Core business logic, data validation, search ranking</p>
+                            <p><strong>Tools:</strong> Jest, Supertest, Playwright API testing</p>
+                            <p><strong>Coverage:</strong> 60% of test ideas</p>
+                            <p><strong>Frequency:</strong> Run on every PR</p>
+                        </div>
+                    </div>
+                    <div class="strategy-card">
+                        <h4><span class="automation-badge integration-level">integration-level</span> Integration Testing</h4>
+                        <div class="details">
+                            <p><strong>Scope:</strong> Service interactions, ML integration, search indexing</p>
+                            <p><strong>Tools:</strong> Testcontainers, Contract testing (Pact)</p>
+                            <p><strong>Coverage:</strong> 25% of test ideas</p>
+                            <p><strong>Frequency:</strong> Run on merge to main</p>
+                        </div>
+                    </div>
+                    <div class="strategy-card">
+                        <h4><span class="automation-badge e2e-level">e2e-level</span> End-to-End Testing</h4>
+                        <div class="details">
+                            <p><strong>Scope:</strong> User journeys, critical flows, cross-browser</p>
+                            <p><strong>Tools:</strong> Playwright, Cypress, BrowserStack</p>
+                            <p><strong>Coverage:</strong> 20% of test ideas</p>
+                            <p><strong>Frequency:</strong> Nightly and pre-release</p>
+                        </div>
+                    </div>
+                    <div class="strategy-card">
+                        <h4><span class="automation-badge performance">performance</span> Performance Testing</h4>
+                        <div class="details">
+                            <p><strong>Scope:</strong> Load testing, stress testing, scale validation</p>
+                            <p><strong>Tools:</strong> k6, Gatling, Artillery</p>
+                            <p><strong>Coverage:</strong> 10% of test ideas</p>
+                            <p><strong>Frequency:</strong> Weekly and pre-release</p>
+                        </div>
+                    </div>
+                    <div class="strategy-card">
+                        <h4><span class="automation-badge security">security</span> Security Testing</h4>
+                        <div class="details">
+                            <p><strong>Scope:</strong> Authentication, authorization, data protection</p>
+                            <p><strong>Tools:</strong> OWASP ZAP, Burp Suite, Custom security tests</p>
+                            <p><strong>Coverage:</strong> 12% of test ideas</p>
+                            <p><strong>Frequency:</strong> On security-impacting changes</p>
+                        </div>
+                    </div>
+                    <div class="strategy-card">
+                        <h4><span class="automation-badge human-exploration">human-exploration</span> Exploratory Testing</h4>
+                        <div class="details">
+                            <p><strong>Scope:</strong> UX quality, edge cases, creative scenarios</p>
+                            <p><strong>Approach:</strong> Session-based exploratory testing</p>
+                            <p><strong>Coverage:</strong> 3% of test ideas</p>
+                            <p><strong>Frequency:</strong> Before major releases</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Generated by <strong>qe-product-factors-assessor</strong> | Framework: SFDIPOT (James Bach HTSM)</p>
+            <p>Agentic QE Fleet v2.7.0 | Domain: Ecommerce (Retail Fashion)</p>
+            <p>Assessment Date: 2025-12-28</p>
+        </footer>
+    </div>
+
+    <script>
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.toggle-icon');
+
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.textContent = '-';
+                header.classList.remove('collapsed');
+            } else {
+                content.classList.add('collapsed');
+                icon.textContent = '+';
+                header.classList.add('collapsed');
+            }
+        }
+    </script>
+</body>
+</html>

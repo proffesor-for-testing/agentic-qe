@@ -657,6 +657,9 @@ export class AgentRegistry {
       'accessibility-ally': QEAgentType.ACCESSIBILITY_ALLY,
       'a11y-ally': QEAgentType.ACCESSIBILITY_ALLY,
 
+      // Product Factors Assessor (SFDIPOT)
+      'product-factors-assessor': QEAgentType.PRODUCT_FACTORS_ASSESSOR,
+
       // Workflow step type mappings (for task orchestration)
       'code-analyzer': QEAgentType.QUALITY_ANALYZER,
       'metrics-collector': QEAgentType.QUALITY_ANALYZER,
@@ -693,7 +696,8 @@ export class AgentRegistry {
       'flaky-test-detector',
       'qx-partner',
       'accessibility-ally',
-      'a11y-ally'
+      'a11y-ally',
+      'product-factors-assessor'
     ];
   }
 

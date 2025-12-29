@@ -1,0 +1,664 @@
+{
+  "name": "Epic5-Social-Proof-UGC-Assessment",
+  "testIdeas": [
+    {
+      "id": "S-0001",
+      "category": "STRUCTURE",
+      "subcategory": "Code",
+      "description": "Verify UGC submission service code quality meets standards (code coverage >80%)",
+      "priority": "P2",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:structure",
+        "htsm:Code",
+        "priority:P2",
+        "code-quality"
+      ]
+    },
+    {
+      "id": "S-0002",
+      "category": "STRUCTURE",
+      "subcategory": "Dependencies",
+      "description": "Verify Instagram Graph API SDK integration handles rate limits correctly",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:structure",
+        "htsm:Dependencies",
+        "priority:P1",
+        "instagram-api"
+      ]
+    },
+    {
+      "id": "S-0003",
+      "category": "STRUCTURE",
+      "subcategory": "Dependencies",
+      "description": "Verify Trustpilot Business API client handles authentication failures gracefully",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:structure",
+        "htsm:Dependencies",
+        "priority:P1",
+        "trustpilot-api"
+      ]
+    },
+    {
+      "id": "S-0004",
+      "category": "STRUCTURE",
+      "subcategory": "Dependencies",
+      "description": "Verify AWS Rekognition SDK handles image analysis timeouts without blocking moderation queue",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:structure",
+        "htsm:Dependencies",
+        "priority:P1",
+        "aws-rekognition"
+      ]
+    },
+    {
+      "id": "F-0005",
+      "category": "FUNCTION",
+      "subcategory": "Security",
+      "description": "Verify uploaded images are scanned for malware before storage (all file types checked)",
+      "priority": "P0",
+      "automationFitness": "security",
+      "tags": [
+        "htsm:function",
+        "htsm:Security",
+        "priority:P0",
+        "malware-scanning"
+      ]
+    },
+    {
+      "id": "F-0006",
+      "category": "FUNCTION",
+      "subcategory": "Security",
+      "description": "Verify XSS prevention for user-submitted text (captions, names) in UGC components",
+      "priority": "P0",
+      "automationFitness": "security",
+      "tags": [
+        "htsm:function",
+        "htsm:Security",
+        "priority:P0",
+        "xss-prevention"
+      ]
+    },
+    {
+      "id": "F-0007",
+      "category": "FUNCTION",
+      "subcategory": "Security",
+      "description": "Verify CSRF protection on UGC submission forms prevents unauthorized posts",
+      "priority": "P0",
+      "automationFitness": "security",
+      "tags": [
+        "htsm:function",
+        "htsm:Security",
+        "priority:P0",
+        "csrf-protection"
+      ]
+    },
+    {
+      "id": "F-0008",
+      "category": "FUNCTION",
+      "subcategory": "Security",
+      "description": "Verify rate limiting prevents spam (10 uploads per user per day enforced)",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:function",
+        "htsm:Security",
+        "priority:P1",
+        "rate-limiting"
+      ]
+    },
+    {
+      "id": "F-0009",
+      "category": "FUNCTION",
+      "subcategory": "Security",
+      "description": "Verify API keys for Instagram/Trustpilot are not exposed in client-side code",
+      "priority": "P0",
+      "automationFitness": "security",
+      "tags": [
+        "htsm:function",
+        "htsm:Security",
+        "priority:P0",
+        "api-key-security"
+      ]
+    },
+    {
+      "id": "F-0010",
+      "category": "FUNCTION",
+      "subcategory": "ErrorHandling",
+      "description": "Verify Instagram API failure fallback displays cached content instead of error",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:function",
+        "htsm:ErrorHandling",
+        "priority:P1",
+        "error-handling"
+      ]
+    },
+    {
+      "id": "F-0011",
+      "category": "FUNCTION",
+      "subcategory": "ErrorHandling",
+      "description": "Verify Trustpilot API timeout (>3s) shows static trust score without blocking page load",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:function",
+        "htsm:ErrorHandling",
+        "priority:P1",
+        "timeout-handling"
+      ]
+    },
+    {
+      "id": "F-0012",
+      "category": "FUNCTION",
+      "subcategory": "Application",
+      "description": "Verify AI moderation (SafeSearch + Rekognition) correctly flags inappropriate content",
+      "priority": "P0",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:function",
+        "htsm:Application",
+        "priority:P0",
+        "content-moderation"
+      ]
+    },
+    {
+      "id": "F-0013",
+      "category": "FUNCTION",
+      "subcategory": "Application",
+      "description": "Verify trending algorithm correctly weights views (40%), carts (30%), purchases (30%)",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:function",
+        "htsm:Application",
+        "priority:P1",
+        "trending-algorithm"
+      ]
+    },
+    {
+      "id": "D-0014",
+      "category": "DATA",
+      "subcategory": "Persistence",
+      "description": "Verify UGC metadata persists correctly in PostgreSQL with all required fields",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:data",
+        "htsm:Persistence",
+        "priority:P1",
+        "database"
+      ]
+    },
+    {
+      "id": "D-0015",
+      "category": "DATA",
+      "subcategory": "Persistence",
+      "description": "Verify user consent records are stored with GDPR-compliant timestamps and audit trail",
+      "priority": "P0",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:data",
+        "htsm:Persistence",
+        "priority:P0",
+        "gdpr-compliance"
+      ]
+    },
+    {
+      "id": "D-0016",
+      "category": "DATA",
+      "subcategory": "Boundaries",
+      "description": "Verify file size validation rejects images larger than 10MB",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:data",
+        "htsm:Boundaries",
+        "priority:P1",
+        "file-validation"
+      ]
+    },
+    {
+      "id": "D-0017",
+      "category": "DATA",
+      "subcategory": "Boundaries",
+      "description": "Verify video uploads are limited to 60 seconds and 50MB maximum",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:data",
+        "htsm:Boundaries",
+        "priority:P1",
+        "video-validation"
+      ]
+    },
+    {
+      "id": "D-0018",
+      "category": "DATA",
+      "subcategory": "InputOutput",
+      "description": "Verify image format validation accepts only JPEG, PNG, WebP (magic bytes check)",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:data",
+        "htsm:InputOutput",
+        "priority:P1",
+        "format-validation"
+      ]
+    },
+    {
+      "id": "D-0019",
+      "category": "DATA",
+      "subcategory": "Lifecycle",
+      "description": "Verify GDPR right to deletion removes UGC within 30 days (soft delete + hard delete)",
+      "priority": "P0",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:data",
+        "htsm:Lifecycle",
+        "priority:P0",
+        "gdpr-deletion"
+      ]
+    },
+    {
+      "id": "I-0020",
+      "category": "INTERFACES",
+      "subcategory": "UserInterface",
+      "description": "Verify UGC carousel navigation works with keyboard (arrow keys, tab, enter)",
+      "priority": "P1",
+      "automationFitness": "accessibility",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterface",
+        "priority:P1",
+        "keyboard-nav"
+      ]
+    },
+    {
+      "id": "I-0021",
+      "category": "INTERFACES",
+      "subcategory": "UserInterface",
+      "description": "Verify screen reader announces UGC carousel updates correctly",
+      "priority": "P1",
+      "automationFitness": "accessibility",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterface",
+        "priority:P1",
+        "screen-reader"
+      ]
+    },
+    {
+      "id": "I-0022",
+      "category": "INTERFACES",
+      "subcategory": "UserInterface",
+      "description": "Verify alt text generation for UGC images (AI-generated fallback if user doesn't provide)",
+      "priority": "P1",
+      "automationFitness": "accessibility",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterface",
+        "priority:P1",
+        "alt-text"
+      ]
+    },
+    {
+      "id": "I-0023",
+      "category": "INTERFACES",
+      "subcategory": "UserInterface",
+      "description": "Verify color contrast ratio 4.5:1 minimum for all UGC component text",
+      "priority": "P2",
+      "automationFitness": "accessibility",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:UserInterface",
+        "priority:P2",
+        "color-contrast"
+      ]
+    },
+    {
+      "id": "I-0024",
+      "category": "INTERFACES",
+      "subcategory": "ApiSdk",
+      "description": "Verify POST /api/ugc/submit returns 400 for missing consent field",
+      "priority": "P1",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "priority:P1",
+        "api-validation"
+      ]
+    },
+    {
+      "id": "I-0025",
+      "category": "INTERFACES",
+      "subcategory": "ApiSdk",
+      "description": "Verify GET /api/trending/products caches results for 5 minutes",
+      "priority": "P2",
+      "automationFitness": "api-level",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:ApiSdk",
+        "priority:P2",
+        "api-caching"
+      ]
+    },
+    {
+      "id": "I-0026",
+      "category": "INTERFACES",
+      "subcategory": "SystemInterface",
+      "description": "Verify Instagram API integration handles OAuth 2.0 token refresh automatically",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:interfaces",
+        "htsm:SystemInterface",
+        "priority:P1",
+        "oauth-integration"
+      ]
+    },
+    {
+      "id": "P-0027",
+      "category": "PLATFORM",
+      "subcategory": "Browser",
+      "description": "Verify UGC components render correctly in Chrome, Firefox, Safari, Edge (cross-browser testing)",
+      "priority": "P2",
+      "automationFitness": "e2e-level",
+      "tags": [
+        "htsm:platform",
+        "htsm:Browser",
+        "priority:P2",
+        "cross-browser"
+      ]
+    },
+    {
+      "id": "P-0028",
+      "category": "PLATFORM",
+      "subcategory": "Browser",
+      "description": "Verify lazy loading (native loading=\"lazy\") works in supported browsers (fallback for unsupported)",
+      "priority": "P2",
+      "automationFitness": "e2e-level",
+      "tags": [
+        "htsm:platform",
+        "htsm:Browser",
+        "priority:P2",
+        "lazy-loading"
+      ]
+    },
+    {
+      "id": "P-0029",
+      "category": "PLATFORM",
+      "subcategory": "ExternalSoftware",
+      "description": "Verify Instagram Graph API version compatibility (v18.0 minimum)",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "priority:P1",
+        "api-version"
+      ]
+    },
+    {
+      "id": "P-0030",
+      "category": "PLATFORM",
+      "subcategory": "ExternalSoftware",
+      "description": "Verify CDN (Cloudflare) image optimization delivers WebP with JPEG fallback",
+      "priority": "P2",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:platform",
+        "htsm:ExternalSoftware",
+        "priority:P2",
+        "cdn-optimization"
+      ]
+    },
+    {
+      "id": "O-0031",
+      "category": "OPERATIONS",
+      "subcategory": "CommonUse",
+      "description": "Verify typical user can submit UGC photo with product tags in <2 minutes",
+      "priority": "P2",
+      "automationFitness": "e2e-level",
+      "tags": [
+        "htsm:operations",
+        "htsm:CommonUse",
+        "priority:P2",
+        "usability"
+      ]
+    },
+    {
+      "id": "O-0032",
+      "category": "OPERATIONS",
+      "subcategory": "DisfavoredUse",
+      "description": "Verify malicious file upload (e.g., .exe renamed to .jpg) is blocked at validation layer",
+      "priority": "P0",
+      "automationFitness": "security",
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "priority:P0",
+        "malicious-upload"
+      ]
+    },
+    {
+      "id": "O-0033",
+      "category": "OPERATIONS",
+      "subcategory": "DisfavoredUse",
+      "description": "Verify SQL injection attempts in UGC caption fields are sanitized",
+      "priority": "P0",
+      "automationFitness": "security",
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "priority:P0",
+        "sql-injection"
+      ]
+    },
+    {
+      "id": "O-0034",
+      "category": "OPERATIONS",
+      "subcategory": "DisfavoredUse",
+      "description": "Verify copyright infringement detection flags professional stock photos",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:operations",
+        "htsm:DisfavoredUse",
+        "priority:P1",
+        "copyright-detection"
+      ]
+    },
+    {
+      "id": "O-0035",
+      "category": "OPERATIONS",
+      "subcategory": "ExtremeUse",
+      "description": "Verify homepage handles 100k concurrent visitors without UGC component degradation",
+      "priority": "P1",
+      "automationFitness": "performance",
+      "tags": [
+        "htsm:operations",
+        "htsm:ExtremeUse",
+        "priority:P1",
+        "load-testing"
+      ]
+    },
+    {
+      "id": "O-0036",
+      "category": "OPERATIONS",
+      "subcategory": "ExtremeUse",
+      "description": "Verify moderation queue handles 1000 UGC submissions per hour without backlog",
+      "priority": "P1",
+      "automationFitness": "performance",
+      "tags": [
+        "htsm:operations",
+        "htsm:ExtremeUse",
+        "priority:P1",
+        "queue-performance"
+      ]
+    },
+    {
+      "id": "T-0037",
+      "category": "TIME",
+      "subcategory": "Timing",
+      "description": "Verify UGC components add <100ms to total page load time (LCP impact)",
+      "priority": "P1",
+      "automationFitness": "performance",
+      "tags": [
+        "htsm:time",
+        "htsm:Timing",
+        "priority:P1",
+        "page-load-performance"
+      ]
+    },
+    {
+      "id": "T-0038",
+      "category": "TIME",
+      "subcategory": "Timing",
+      "description": "Verify trending rankings update every 5 minutes via WebSocket push",
+      "priority": "P2",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:time",
+        "htsm:Timing",
+        "priority:P2",
+        "real-time-updates"
+      ]
+    },
+    {
+      "id": "T-0039",
+      "category": "TIME",
+      "subcategory": "Concurrency",
+      "description": "Verify multiple users can submit UGC simultaneously without race conditions in moderation queue",
+      "priority": "P1",
+      "automationFitness": "concurrency",
+      "tags": [
+        "htsm:time",
+        "htsm:Concurrency",
+        "priority:P1",
+        "race-conditions"
+      ]
+    },
+    {
+      "id": "T-0040",
+      "category": "TIME",
+      "subcategory": "Concurrency",
+      "description": "Verify trending algorithm handles concurrent view/cart/purchase events without data loss",
+      "priority": "P1",
+      "automationFitness": "concurrency",
+      "tags": [
+        "htsm:time",
+        "htsm:Concurrency",
+        "priority:P1",
+        "event-stream"
+      ]
+    },
+    {
+      "id": "T-0041",
+      "category": "TIME",
+      "subcategory": "Timeout",
+      "description": "Verify Instagram API timeout (3s) triggers fallback to cached feed",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:time",
+        "htsm:Timeout",
+        "priority:P1",
+        "timeout-handling"
+      ]
+    },
+    {
+      "id": "T-0042",
+      "category": "TIME",
+      "subcategory": "Timeout",
+      "description": "Verify AI moderation (Rekognition) timeout (5s) queues UGC for manual review",
+      "priority": "P1",
+      "automationFitness": "integration-level",
+      "tags": [
+        "htsm:time",
+        "htsm:Timeout",
+        "priority:P1",
+        "moderation-timeout"
+      ]
+    }
+  ],
+  "clarifyingQuestions": [
+    {
+      "category": "STRUCTURE",
+      "subcategory": "Documentation",
+      "question": "What API documentation format is required for UGC endpoints (OpenAPI/Swagger)?",
+      "rationale": "API documentation standards are not specified in the epic"
+    },
+    {
+      "category": "FUNCTION",
+      "subcategory": "StateTransition",
+      "question": "What are the valid state transitions for UGC moderation (pending → approved/rejected → featured)?",
+      "rationale": "Moderation workflow state machine is not fully defined"
+    },
+    {
+      "category": "DATA",
+      "subcategory": "Cardinality",
+      "question": "Can a single user photo be tagged with multiple products? What is the maximum?",
+      "rationale": "Product tagging cardinality rules are not specified"
+    },
+    {
+      "category": "INTERFACES",
+      "subcategory": "ImportExport",
+      "question": "Can users export their submitted UGC data (GDPR data portability)?",
+      "rationale": "GDPR Article 20 data portability requirements not addressed"
+    },
+    {
+      "category": "PLATFORM",
+      "subcategory": "OperatingSystem",
+      "question": "What mobile OS versions must be supported for UGC upload (iOS 14+, Android 10+)?",
+      "rationale": "Mobile platform requirements not specified"
+    },
+    {
+      "category": "OPERATIONS",
+      "subcategory": "UncommonUse",
+      "question": "How should the system handle UGC submissions from users in countries with restricted Instagram access?",
+      "rationale": "Geo-restriction edge cases not addressed"
+    },
+    {
+      "category": "TIME",
+      "subcategory": "Scheduling",
+      "question": "What is the staff picks rotation schedule (weekly on Sundays at 00:00 UTC confirmed)?",
+      "rationale": "Scheduling details mentioned but need confirmation of timezone handling"
+    }
+  ],
+  "summary": {
+    "totalTestIdeas": 42,
+    "totalQuestions": 7,
+    "byCategory": {
+      "STRUCTURE": 4,
+      "FUNCTION": 9,
+      "DATA": 6,
+      "INTERFACES": 7,
+      "PLATFORM": 4,
+      "OPERATIONS": 6,
+      "TIME": 6
+    },
+    "byPriority": {
+      "P2": 8,
+      "P1": 25,
+      "P0": 9
+    },
+    "byAutomationFitness": {
+      "api-level": 11,
+      "integration-level": 13,
+      "security": 6,
+      "accessibility": 4,
+      "e2e-level": 3,
+      "performance": 3,
+      "concurrency": 2
+    }
+  }
+}

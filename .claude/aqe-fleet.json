@@ -19,7 +19,8 @@
     "qe-regression-risk-analyzer",
     "qe-test-data-architect",
     "qe-api-contract-validator",
-    "qe-flaky-test-hunter"
+    "qe-flaky-test-hunter",
+    "qe-product-factors-assessor"
   ],
   "created": "2025-10-06T17:54:00.987Z",
   "status": "active",
