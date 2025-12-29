@@ -1,0 +1,23 @@
+@startuml C4_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Agentic QE Fleet - System Context Diagram
+
+Person(developer, "Developer", "Uses Claude Code CLI to interact with QE agents")
+Person(cicd, "CI/CD Pipeline", "Automated testing and quality gates")
+
+System(aqe, "Agentic QE Fleet", "AI-powered quality engineering platform with 21 QE agents, code intelligence, and learning capabilities")
+
+System_Ext(claudeCode, "Claude Code", "Anthropic's CLI tool for AI-assisted development")
+System_Ext(github, "GitHub", "Source control and CI/CD workflows")
+System_Ext(ollama, "Ollama", "Local LLM for embeddings (nomic-embed-text)")
+System_Ext(ruvector, "RuVector PostgreSQL", "Vector database for code intelligence storage")
+
+Rel(developer, claudeCode, "Uses", "CLI commands")
+Rel(cicd, aqe, "Triggers", "Quality gates, test execution")
+Rel(claudeCode, aqe, "Invokes", "MCP protocol")
+Rel(aqe, github, "Integrates", "PR reviews, issue tracking")
+Rel(aqe, ollama, "Generates", "Embeddings for semantic search")
+Rel(aqe, ruvector, "Stores", "Code chunks, entities, relationships")
+
+@enduml

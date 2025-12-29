@@ -4,14 +4,27 @@
  * Handles complex task orchestration across multiple agents.
  * Coordinates workflows and manages task dependencies.
  *
- * @version 1.0.0
+ * Phase 3 GOAP Integration:
+ * - Replaces hardcoded workflow templates with dynamic GOAP planning
+ * - Adapts to world state and available resources
+ * - Supports parallel execution based on dependency analysis
+ *
+ * @version 2.0.0
  * @author Agentic QE Team
  */
 
+import Database from 'better-sqlite3';
+import * as path from 'path';
+import * as fs from 'fs';
 import { BaseHandler, HandlerResponse } from './base-handler.js';
 import { AgentRegistry } from '../services/AgentRegistry.js';
 import { HookExecutor } from '../services/HookExecutor.js';
 import { SecureRandom } from '../../utils/SecureRandom.js';
+import {
+  GOAPTaskOrchestration,
+  GOAPWorkflowStep,
+  OrchestrationContext as GOAPContext
+} from '../../planning/integration/GOAPTaskOrchestration.js';
 
 export interface TaskOrchestrateArgs {
   task: {
@@ -143,13 +156,77 @@ export class TaskOrchestrateHandler extends BaseHandler {
   private registry: AgentRegistry;
   private hookExecutor: HookExecutor;
   private memory: unknown; // SwarmMemoryManager
+  private goapIntegration: GOAPTaskOrchestration | null = null;
+  private goapDb: Database.Database | null = null;
+  private useGOAP = true; // Enable GOAP by default
 
   constructor(registry: AgentRegistry, hookExecutor: HookExecutor, memory?: unknown) {
     super();
     this.registry = registry;
     this.hookExecutor = hookExecutor;
     this.memory = memory;
-    this.initializeWorkflowTemplates();
+    this.initializeWorkflowTemplates(); // Keep templates as fallback
+    this.initializeGOAP(); // Initialize GOAP integration
+  }
+
+  /**
+   * Initialize GOAP integration for dynamic workflow planning
+   *
+   * Passes AgentRegistry to GOAP for real fleet state population.
+   */
+  private async initializeGOAP(): Promise<void> {
+    try {
+      const dbPath = path.join(process.cwd(), '.agentic-qe', 'memory.db');
+
+      // Ensure directory exists
+      const dir = path.dirname(dbPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      this.goapDb = new Database(dbPath);
+
+      // Pass registry to GOAP for fleet state population
+      // Cast registry to interface to avoid circular dependency issues
+      const registryInterface = this.registry ? {
+        getSupportedMCPTypes: () => this.registry.getSupportedMCPTypes(),
+        getAllAgents: () => this.registry.getAllAgents().map(a => ({
+          id: a.id,
+          mcpType: a.mcpType,
+          status: a.status
+        })),
+        getAgentsByType: (type: string) => this.registry.getAgentsByType(type).map(a => ({
+          id: a.id,
+          status: a.status
+        }))
+      } : undefined;
+
+      this.goapIntegration = new GOAPTaskOrchestration(this.goapDb, registryInterface);
+      await this.goapIntegration.initialize();
+      this.log('info', 'GOAP integration initialized for task orchestration', {
+        registryConnected: !!registryInterface
+      });
+    } catch (error) {
+      this.log('warn', 'GOAP integration initialization failed, using templates', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      this.useGOAP = false;
+    }
+  }
+
+  /**
+   * Cleanup GOAP integration and close database
+   */
+  cleanup(): void {
+    if (this.goapDb) {
+      try {
+        this.goapDb.close();
+      } catch {
+        // Ignore close errors
+      }
+      this.goapDb = null;
+    }
+    this.goapIntegration = null;
   }
 
   async handle(args: TaskOrchestrateArgs): Promise<HandlerResponse> {
@@ -415,14 +492,61 @@ export class TaskOrchestrateHandler extends BaseHandler {
   private async orchestrateTask(args: TaskOrchestrateArgs): Promise<TaskOrchestration> {
     const orchestrationId = `orchestration-${Date.now()}-${SecureRandom.generateId(6)}`;
 
-    // Get workflow template
-    const workflowTemplate = this.workflowTemplates.get(args.task.type);
-    if (!workflowTemplate) {
-      throw new Error(`No workflow template found for task type: ${args.task.type}`);
-    }
+    // Try GOAP planning first
+    let workflow: WorkflowStep[];
+    let goapPlanId: string | undefined;
+    let usedGOAP = false;
 
-    // Create workflow steps
-    const workflow = this.createWorkflowSteps(workflowTemplate, args);
+    if (this.useGOAP && this.goapIntegration) {
+      try {
+        const goapContext: GOAPContext = {
+          project: args.context?.project,
+          branch: args.context?.branch,
+          environment: args.context?.environment as GOAPContext['environment'],
+          requirements: args.context?.requirements,
+          timeBudgetSeconds: args.task.timeoutMinutes ? args.task.timeoutMinutes * 60 : undefined,
+          maxAgents: args.task.maxAgents
+        };
+
+        const result = await this.goapIntegration.generateWorkflow(
+          {
+            type: args.task.type,
+            priority: args.task.priority,
+            strategy: args.task.strategy,
+            maxAgents: args.task.maxAgents,
+            timeoutMinutes: args.task.timeoutMinutes
+          },
+          goapContext
+        );
+
+        if (result.success && result.workflow.length > 0) {
+          // Convert GOAP workflow to handler workflow format
+          workflow = this.convertGOAPWorkflow(result.workflow);
+          goapPlanId = result.planId;
+          usedGOAP = true;
+
+          this.log('info', 'GOAP workflow generated', {
+            planId: result.planId,
+            steps: workflow.length,
+            totalCost: result.totalCost,
+            alternatives: result.alternativePaths
+          });
+        } else {
+          this.log('warn', 'GOAP planning failed, falling back to templates', {
+            error: result.error
+          });
+          workflow = this.createWorkflowFromTemplate(args);
+        }
+      } catch (error) {
+        this.log('warn', 'GOAP planning error, using template fallback', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        workflow = this.createWorkflowFromTemplate(args);
+      }
+    } else {
+      // GOAP not available, use templates
+      workflow = this.createWorkflowFromTemplate(args);
+    }
 
     // Create orchestration
     const orchestration: TaskOrchestration = {
@@ -489,6 +613,39 @@ export class TaskOrchestrateHandler extends BaseHandler {
       ...step,
       id: `${step.id}-${Date.now()}`,
       status: 'pending'
+    }));
+  }
+
+  /**
+   * Create workflow from hardcoded template (fallback)
+   */
+  private createWorkflowFromTemplate(args: TaskOrchestrateArgs): WorkflowStep[] {
+    const workflowTemplate = this.workflowTemplates.get(args.task.type);
+    if (!workflowTemplate) {
+      throw new Error(`No workflow template found for task type: ${args.task.type}`);
+    }
+    return this.createWorkflowSteps(workflowTemplate, args);
+  }
+
+  /**
+   * Convert GOAP workflow steps to handler workflow format
+   */
+  private convertGOAPWorkflow(goapSteps: GOAPWorkflowStep[]): WorkflowStep[] {
+    return goapSteps.map(step => ({
+      id: step.id,
+      name: step.name,
+      type: step.type,
+      dependencies: step.dependencies,
+      estimatedDuration: step.estimatedDuration,
+      status: step.status,
+      assignedAgent: step.assignedAgent,
+      // Preserve GOAP metadata for execution
+      results: {
+        goapActionId: step.goapActionId,
+        agentType: step.agentType,
+        category: step.category,
+        canRunParallel: step.canRunParallel
+      }
     }));
   }
 

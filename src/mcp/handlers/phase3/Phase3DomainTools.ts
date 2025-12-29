@@ -12,6 +12,7 @@
 import { BaseHandler, HandlerResponse } from '../base-handler.js';
 import { AgentRegistry } from '../../services/AgentRegistry.js';
 import { HookExecutor } from '../../services/HookExecutor.js';
+import { evaluateQualityGateWithGOAP } from '../../tools/qe/quality-gates/index.js';
 
 // ============================================================================
 // Type Definitions for Phase 3 Domain Tools
@@ -273,6 +274,82 @@ export interface QeQualitygateEvaluateArgs extends Phase3ToolArgs {
   buildId: string;
   environment?: string;
   criteria?: Record<string, unknown>;
+}
+
+/**
+ * Full QualityMetrics-compatible args for GOAP quality gate evaluation.
+ * Users must provide real measured data - no fabrication allowed.
+ */
+export interface QeQualitygateEvaluateGoapArgs extends Phase3ToolArgs {
+  projectId: string;
+  buildId: string;
+  environment: 'development' | 'staging' | 'production';
+  metrics: {
+    coverage: {
+      totalLines: number;
+      coveredLines: number;
+      totalBranches: number;
+      coveredBranches: number;
+      totalFunctions?: number;
+      coveredFunctions?: number;
+      overallPercentage: number;
+    };
+    testResults: {
+      total: number;
+      passed: number;
+      failed: number;
+      skipped?: number;
+      duration?: number;
+      failureRate?: number;
+      flakyTests?: number;
+    };
+    security: {
+      vulnerabilities?: Array<{
+        id?: string;
+        severity?: 'critical' | 'high' | 'medium' | 'low' | 'info';
+        title?: string;
+        description?: string;
+      }>;
+      summary: {
+        critical: number;
+        high: number;
+        medium: number;
+        low: number;
+      };
+      scannedAt?: string;
+    };
+    performance?: {
+      responseTime?: {
+        p50?: number;
+        p95?: number;
+        p99?: number;
+        max?: number;
+      };
+      throughput?: number;
+      errorRate?: number;
+      resourceUsage?: {
+        cpu?: number;
+        memory?: number;
+        disk?: number;
+      };
+    };
+    codeQuality?: {
+      maintainabilityIndex?: number;
+      cyclomaticComplexity?: number;
+      technicalDebt?: number;
+      codeSmells?: number;
+      duplications?: number;
+    };
+    timestamp?: string;
+  };
+  context?: {
+    criticality?: 'low' | 'medium' | 'high' | 'critical';
+    changes?: Array<{ file: string; type: string; complexity: number }>;
+  };
+  enableGOAP?: boolean;
+  dbPath?: string;
+  availableAgents?: string[];
+  timeBudget?: number;
 }
 
 export interface QeQualitygateAssessRiskArgs extends Phase3ToolArgs {
@@ -1163,7 +1240,7 @@ export class Phase3DomainToolsHandler extends BaseHandler {
     });
   }
 
-  // Quality-Gates Domain (4 tools)
+  // Quality-Gates Domain (5 tools - includes GOAP integration)
   async handleQeQualitygateEvaluate(args: QeQualitygateEvaluateArgs): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();
@@ -1179,6 +1256,124 @@ export class Phase3DomainToolsHandler extends BaseHandler {
           score: 0.85,
           criteriaResults: { coverage: 'pass', tests: 'pass', security: 'pass' }
         },
+        timestamp: new Date().toISOString()
+      };
+
+      return this.createSuccessResponse(result, requestId);
+    });
+  }
+
+  /**
+   * Evaluate quality gate with GOAP-powered remediation planning
+   *
+   * When quality gates fail, GOAP generates actionable remediation plans
+   * with alternative paths and success probability estimates.
+   *
+   * IMPORTANT: All metrics must be real measured values from your CI/CD tools.
+   * This handler does NOT fabricate or estimate values - users provide real data.
+   */
+  async handleQeQualitygateEvaluateGoap(args: QeQualitygateEvaluateGoapArgs): Promise<HandlerResponse> {
+    return this.safeHandle(async () => {
+      const requestId = this.generateRequestId();
+      this.log('info', 'Evaluating quality gate with GOAP remediation', { requestId });
+
+      // Direct passthrough - no data fabrication. User provides real metrics.
+      const response = await evaluateQualityGateWithGOAP({
+        projectId: args.projectId,
+        buildId: args.buildId,
+        environment: args.environment,
+        metrics: {
+          coverage: {
+            totalLines: args.metrics.coverage.totalLines,
+            coveredLines: args.metrics.coverage.coveredLines,
+            totalBranches: args.metrics.coverage.totalBranches,
+            coveredBranches: args.metrics.coverage.coveredBranches,
+            totalFunctions: args.metrics.coverage.totalFunctions ?? 0,
+            coveredFunctions: args.metrics.coverage.coveredFunctions ?? 0,
+            overallPercentage: args.metrics.coverage.overallPercentage
+          },
+          testResults: {
+            total: args.metrics.testResults.total,
+            passed: args.metrics.testResults.passed,
+            failed: args.metrics.testResults.failed,
+            skipped: args.metrics.testResults.skipped ?? 0,
+            duration: args.metrics.testResults.duration ?? 0,
+            failureRate: args.metrics.testResults.failureRate ??
+              (args.metrics.testResults.total > 0
+                ? args.metrics.testResults.failed / args.metrics.testResults.total
+                : 0),
+            flakyTests: args.metrics.testResults.flakyTests ?? 0
+          },
+          security: {
+            // Transform optional vulnerability inputs to required Vulnerability type
+            vulnerabilities: (args.metrics.security.vulnerabilities ?? [])
+              .filter((v): v is typeof v & { id: string; severity: NonNullable<typeof v.severity>; title: string; description: string } =>
+                v.id !== undefined && v.severity !== undefined && v.title !== undefined && v.description !== undefined
+              )
+              .map(v => ({
+                id: v.id,
+                severity: v.severity as 'critical' | 'high' | 'medium' | 'low',
+                title: v.title,
+                description: v.description
+              })),
+            summary: {
+              critical: args.metrics.security.summary.critical,
+              high: args.metrics.security.summary.high,
+              medium: args.metrics.security.summary.medium,
+              low: args.metrics.security.summary.low
+            },
+            scannedAt: args.metrics.security.scannedAt ?? new Date().toISOString()
+          },
+          performance: {
+            responseTime: {
+              p50: args.metrics.performance?.responseTime?.p50 ?? 0,
+              p95: args.metrics.performance?.responseTime?.p95 ?? 0,
+              p99: args.metrics.performance?.responseTime?.p99 ?? 0,
+              max: args.metrics.performance?.responseTime?.max ?? 0
+            },
+            throughput: args.metrics.performance?.throughput ?? 0,
+            errorRate: args.metrics.performance?.errorRate ?? 0,
+            resourceUsage: {
+              cpu: args.metrics.performance?.resourceUsage?.cpu ?? 0,
+              memory: args.metrics.performance?.resourceUsage?.memory ?? 0,
+              disk: args.metrics.performance?.resourceUsage?.disk ?? 0
+            }
+          },
+          codeQuality: {
+            maintainabilityIndex: args.metrics.codeQuality?.maintainabilityIndex ?? 0,
+            cyclomaticComplexity: args.metrics.codeQuality?.cyclomaticComplexity ?? 0,
+            technicalDebt: args.metrics.codeQuality?.technicalDebt ?? 0,
+            codeSmells: args.metrics.codeQuality?.codeSmells ?? 0,
+            duplications: args.metrics.codeQuality?.duplications ?? 0
+          },
+          timestamp: args.metrics.timestamp ?? new Date().toISOString()
+        },
+        context: args.context ? {
+          criticality: args.context.criticality,
+          changes: args.context.changes?.map(c => ({
+            file: c.file,
+            type: c.type as 'added' | 'modified' | 'deleted',
+            complexity: c.complexity
+          }))
+        } : undefined,
+        enableGOAP: args.enableGOAP ?? true,
+        dbPath: args.dbPath,
+        availableAgents: args.availableAgents,
+        timeBudget: args.timeBudget
+      });
+
+      if (!response.success) {
+        return this.createErrorResponse(
+          response.error?.message ?? 'Quality gate evaluation failed',
+          requestId
+        );
+      }
+
+      const result = {
+        requestId,
+        evaluation: response.data,
+        goapEnabled: response.data?.goapEnabled ?? false,
+        remediationPlan: response.data?.remediationPlan ?? null,
         timestamp: new Date().toISOString()
       };
 

@@ -34,6 +34,62 @@ export class LearningStorePatternHandler extends BaseHandler {
     super();
   }
 
+  /**
+   * Track pattern usage for effectiveness measurement
+   *
+   * @param patternId - Pattern ID being used
+   * @param context - Usage context (agentId, projectId, taskType)
+   * @param success - Whether the pattern application was successful
+   * @param executionTimeMs - How long the pattern execution took
+   */
+  async trackPatternUsage(
+    patternId: string,
+    context: { agentId?: string; projectId?: string; taskType?: string },
+    success: boolean,
+    executionTimeMs: number = 0
+  ): Promise<void> {
+    try {
+      if (!this.memoryManager) {
+        return;
+      }
+
+      const db = (this.memoryManager as any).db;
+      if (!db) {
+        return;
+      }
+
+      db.prepare(`
+        INSERT INTO pattern_usage (
+          pattern_id, project_id, agent_id, context, success,
+          execution_time_ms, used_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        patternId,
+        context.projectId || null,
+        context.agentId || null,
+        JSON.stringify(context),
+        success ? 1 : 0,
+        executionTimeMs,
+        new Date().toISOString()
+      );
+
+      this.log('info', `Pattern usage tracked: ${patternId}`, {
+        agentId: context.agentId,
+        success,
+        executionTimeMs
+      });
+
+      // Also increment usage_count in patterns table
+      db.prepare(`
+        UPDATE patterns SET usage_count = usage_count + 1 WHERE id = ?
+      `).run(patternId);
+
+    } catch (error) {
+      this.log('warn', `Failed to track pattern usage: ${patternId}`, { error });
+      // Don't throw - usage tracking is non-critical
+    }
+  }
+
   async handle(args: LearningPattern): Promise<HandlerResponse> {
     return this.safeHandle(async () => {
       const requestId = this.generateRequestId();

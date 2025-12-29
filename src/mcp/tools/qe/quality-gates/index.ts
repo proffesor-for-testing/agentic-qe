@@ -18,8 +18,13 @@
 // Quality Gate Evaluation
 export {
   evaluateQualityGate,
+  evaluateQualityGateWithGOAP,
+  recordRemediationOutcome,
+  cleanupGOAPIntegration,
   type EvaluateQualityGateParams,
+  type EvaluateQualityGateWithGOAPParams,
   type QualityGateEvaluation,
+  type QualityGateEvaluationWithPlan,
   type DeploymentContext,
   type CodeChange,
   type PreviousDeployment,
@@ -94,7 +99,7 @@ export {
 } from './generate-quality-report'
 
 // Import for internal use
-import { evaluateQualityGate } from './evaluate-quality-gate'
+import { evaluateQualityGate, evaluateQualityGateWithGOAP, recordRemediationOutcome, cleanupGOAPIntegration } from './evaluate-quality-gate'
 import { assessDeploymentRisk } from './assess-deployment-risk'
 import { validateQualityMetrics } from './validate-quality-metrics'
 import { generateQualityReport } from './generate-quality-report'
@@ -107,6 +112,15 @@ import { generateQualityReport } from './generate-quality-report'
 export const QualityGateTools = {
   // Quality Gate Evaluation
   evaluateGate: evaluateQualityGate,
+
+  // Quality Gate Evaluation with GOAP Remediation
+  evaluateGateWithGOAP: evaluateQualityGateWithGOAP,
+
+  // Record Remediation Outcome (for learning)
+  recordRemediationOutcome: recordRemediationOutcome,
+
+  // Cleanup GOAP integration (for tests)
+  cleanupGOAP: cleanupGOAPIntegration,
 
   // Deployment Risk Assessment
   assessRisk: assessDeploymentRisk,

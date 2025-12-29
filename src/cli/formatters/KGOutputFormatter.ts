@@ -124,18 +124,28 @@ export class KGOutputFormatter {
     const storageMode = usingDatabase ? 'Database (RuVector PostgreSQL)' : 'In-memory';
     console.log(chalk.blue(`${storageIcon} Storage: ${storageMode}\n`));
 
-    // Indexer stats
-    console.log(chalk.yellow('📚 Indexer:'));
+    // Database stats (primary source when using database)
+    if (stats.database) {
+      const healthIcon = stats.database.databaseHealthy ? chalk.green('✓') : chalk.red('✗');
+      console.log(chalk.yellow('🗄️  Database (Persisted):'));
+      console.log(chalk.gray(`  Status: ${healthIcon} ${stats.database.databaseHealthy ? 'Healthy' : 'Unhealthy'}`));
+      console.log(chalk.green(`  Code chunks: ${stats.database.chunkCount.toLocaleString()}`));
+      console.log(chalk.gray(`  Entities: ${stats.database.entityCount.toLocaleString()}`));
+      console.log(chalk.gray(`  Relationships: ${stats.database.relationshipCount.toLocaleString()}`));
+    }
+
+    // Indexer stats (in-memory cache)
+    console.log(chalk.yellow('\n📚 Indexer (Session Cache):'));
     if (stats.indexer) {
-      console.log(chalk.gray(`  Indexed files: ${stats.indexer.totalFiles || 0}`));
-      console.log(chalk.gray(`  Total chunks: ${stats.indexer.totalChunks || 0}`));
+      console.log(chalk.gray(`  Cached files: ${stats.indexer.totalFiles || 0}`));
+      console.log(chalk.gray(`  Cached chunks: ${stats.indexer.totalChunks || 0}`));
       console.log(chalk.gray(`  Cache size: ${stats.indexer.cacheSize || 0}`));
     } else {
       console.log(chalk.gray('  No indexer stats available'));
     }
 
-    // Graph stats
-    console.log(chalk.yellow('\n🕸️  Knowledge Graph:'));
+    // Graph stats (in-memory)
+    console.log(chalk.yellow('\n🕸️  Knowledge Graph (Session):'));
     if (stats.graph) {
       console.log(chalk.gray(`  Nodes: ${stats.graph.nodeCount || 0}`));
       console.log(chalk.gray(`  Edges: ${stats.graph.edgeCount || 0}`));

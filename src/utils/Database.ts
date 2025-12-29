@@ -555,13 +555,87 @@ export class Database {
       `CREATE TABLE IF NOT EXISTS learning_metrics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
-        metric_type TEXT NOT NULL CHECK(metric_type IN ('accuracy', 'latency', 'quality', 'success_rate', 'improvement')),
+        metric_type TEXT NOT NULL CHECK(metric_type IN ('accuracy', 'latency', 'quality', 'success_rate', 'improvement', 'q_value', 'exploration_rate')),
         metric_value REAL NOT NULL,
         baseline_value REAL,
         improvement_percentage REAL,
         pattern_count INTEGER,
         context TEXT,
+        window_start DATETIME,
+        window_end DATETIME,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // ========================================
+      // GOAP (Goal-Oriented Action Planning) Tables
+      // ========================================
+
+      // GOAP Goals - Target states to achieve
+      `CREATE TABLE IF NOT EXISTS goap_goals (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        conditions TEXT NOT NULL,
+        priority INTEGER DEFAULT 1,
+        cost_weight REAL DEFAULT 1.0,
+        deadline_seconds INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // GOAP Actions - Action library with preconditions and effects
+      `CREATE TABLE IF NOT EXISTS goap_actions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        agent_type TEXT NOT NULL,
+        preconditions TEXT NOT NULL,
+        effects TEXT NOT NULL,
+        cost REAL NOT NULL DEFAULT 1.0,
+        duration_estimate INTEGER,
+        success_rate REAL DEFAULT 1.0,
+        execution_count INTEGER DEFAULT 0,
+        category TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // GOAP Plans - Execution history and plan storage
+      `CREATE TABLE IF NOT EXISTS goap_plans (
+        id TEXT PRIMARY KEY,
+        goal_id TEXT,
+        initial_state TEXT NOT NULL,
+        goal_state TEXT NOT NULL,
+        action_sequence TEXT NOT NULL,
+        total_cost REAL NOT NULL,
+        estimated_duration INTEGER,
+        actual_duration INTEGER,
+        status TEXT DEFAULT 'pending',
+        success INTEGER,
+        failure_reason TEXT,
+        execution_trace TEXT,
+        replanned_from TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        executed_at DATETIME,
+        completed_at DATETIME,
+        FOREIGN KEY (goal_id) REFERENCES goap_goals (id)
+      )`,
+
+      // GOAP Execution Steps - Detailed action execution tracking
+      `CREATE TABLE IF NOT EXISTS goap_execution_steps (
+        id TEXT PRIMARY KEY,
+        plan_id TEXT NOT NULL,
+        action_id TEXT NOT NULL,
+        step_order INTEGER NOT NULL,
+        world_state_before TEXT,
+        world_state_after TEXT,
+        status TEXT DEFAULT 'pending',
+        started_at DATETIME,
+        completed_at DATETIME,
+        error_message TEXT,
+        agent_id TEXT,
+        FOREIGN KEY (plan_id) REFERENCES goap_plans (id),
+        FOREIGN KEY (action_id) REFERENCES goap_actions (id)
       )`
     ];
 
@@ -619,7 +693,18 @@ export class Database {
       // Learning metrics indexes
       'CREATE INDEX IF NOT EXISTS idx_learning_metrics_agent_id ON learning_metrics (agent_id)',
       'CREATE INDEX IF NOT EXISTS idx_learning_metrics_type ON learning_metrics (metric_type)',
-      'CREATE INDEX IF NOT EXISTS idx_learning_metrics_timestamp ON learning_metrics (timestamp)'
+      'CREATE INDEX IF NOT EXISTS idx_learning_metrics_timestamp ON learning_metrics (timestamp)',
+
+      // GOAP indexes
+      'CREATE INDEX IF NOT EXISTS idx_goap_goals_priority ON goap_goals (priority DESC)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_actions_type ON goap_actions (agent_type)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_actions_category ON goap_actions (category)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_actions_success_rate ON goap_actions (success_rate)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_plans_goal ON goap_plans (goal_id)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_plans_status ON goap_plans (status)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_plans_created ON goap_plans (created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_execution_plan ON goap_execution_steps (plan_id)',
+      'CREATE INDEX IF NOT EXISTS idx_goap_execution_action ON goap_execution_steps (action_id)'
     ];
 
     // Create indexes - skip if column doesn't exist (for schema compatibility)

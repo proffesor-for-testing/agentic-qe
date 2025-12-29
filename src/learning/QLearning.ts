@@ -11,6 +11,7 @@
 
 import { AbstractRLLearner, RLConfig } from './algorithms/AbstractRLLearner';
 import { TaskExperience, AgentAction } from './types';
+import { LearningMetrics } from './metrics/LearningMetrics';
 
 /**
  * Q-learning configuration (same as base RL config)
@@ -51,11 +52,23 @@ const DEFAULT_CONFIG: RLConfig = {
  */
 export class QLearning extends AbstractRLLearner {
   private readonly defaultConfig: RLConfig;
+  private metricsRecorder?: LearningMetrics;
+  private metricsRecordingInterval: number = 10; // Record every N updates
+  private agentId: string;
 
-  constructor(config: Partial<RLConfig> = {}) {
+  constructor(config: Partial<RLConfig> = {}, agentId?: string) {
     const fullConfig = { ...DEFAULT_CONFIG, ...config };
     super(fullConfig);
     this.defaultConfig = fullConfig;
+    this.agentId = agentId || `qlearning-${Date.now()}`;
+
+    // Initialize metrics recorder (optional - fails gracefully)
+    try {
+      this.metricsRecorder = new LearningMetrics();
+    } catch (error) {
+      this.logger.debug('LearningMetrics not available for QLearning', { error });
+    }
+
     this.logger.info('QLearning initialized with off-policy TD(0)', { config: fullConfig });
   }
 
@@ -97,6 +110,54 @@ export class QLearning extends AbstractRLLearner {
     }
 
     this.stepCount++;
+
+    // Record metrics periodically (every N updates) for database persistence
+    if (this.metricsRecorder && this.stepCount % this.metricsRecordingInterval === 0) {
+      this.recordMetricsToDb(stateKey, actionKey, experience.reward, newQ, tdError);
+    }
+  }
+
+  /**
+   * Record learning metrics and history to database
+   * Called periodically to avoid performance overhead
+   */
+  private recordMetricsToDb(
+    stateKey: string,
+    actionKey: string,
+    reward: number,
+    qValue: number,
+    tdError: number
+  ): void {
+    if (!this.metricsRecorder) return;
+
+    try {
+      // Record Q-value metric
+      this.metricsRecorder.recordMetric({
+        agentId: this.agentId,
+        metricType: 'q_value',
+        metricValue: qValue
+      });
+
+      // Record exploration rate metric
+      this.metricsRecorder.recordMetric({
+        agentId: this.agentId,
+        metricType: 'exploration_rate',
+        metricValue: this.config.explorationRate
+      });
+
+      // Record learning history
+      this.metricsRecorder.recordLearningHistory({
+        agentId: this.agentId,
+        stateRepresentation: stateKey,
+        action: actionKey,
+        reward: reward,
+        qValue: qValue,
+        episode: this.episodeCount
+      });
+    } catch (error) {
+      // Silently ignore metric recording errors
+      this.logger.debug('Failed to record learning metrics', { error });
+    }
   }
 
   /**

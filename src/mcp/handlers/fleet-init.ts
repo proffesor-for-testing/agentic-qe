@@ -15,6 +15,8 @@ import { HookExecutor } from '../services/HookExecutor.js';
 import { SecureRandom } from '../../utils/SecureRandom.js';
 import { AgentSpawnHandler } from './agent-spawn.js';
 import { QEAgentType } from '../../types/index.js';
+import { getSharedMemoryManager } from '../../core/memory/MemoryManagerFactory.js';
+import type { SwarmMemoryManager } from '../../core/memory/SwarmMemoryManager.js';
 
 export interface FleetInitArgs {
   config: FleetConfig;
@@ -55,6 +57,7 @@ export class FleetInitHandler extends BaseHandler {
   private registry: AgentRegistry;
   private hookExecutor: HookExecutor;
   private spawnHandler: AgentSpawnHandler | null = null;
+  private memoryManager: SwarmMemoryManager;
 
   /** Default types to warm up during fleet initialization */
   private static readonly DEFAULT_WARMUP_TYPES: QEAgentType[] = [
@@ -67,6 +70,7 @@ export class FleetInitHandler extends BaseHandler {
     super();
     this.registry = registry;
     this.hookExecutor = hookExecutor;
+    this.memoryManager = getSharedMemoryManager('.agentic-qe/memory.db');
   }
 
   /**
@@ -217,7 +221,51 @@ export class FleetInitHandler extends BaseHandler {
     // Mark as active
     fleetInstance.status = 'active';
 
+    // Persist to database for cross-session continuity
+    this.persistFleetToDb(fleetInstance);
+
     return fleetInstance;
+  }
+
+  /**
+   * Persist fleet to database for cross-session recovery
+   * P1 Implementation: Fleet Persistence
+   */
+  private persistFleetToDb(fleet: FleetInstance): void {
+    try {
+      const db = (this.memoryManager as any).db;
+      if (!db) {
+        this.log('warn', 'Database not available for fleet persistence');
+        return;
+      }
+
+      db.prepare(`
+        INSERT OR REPLACE INTO fleets (
+          id, name, config, status, updated_at
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(
+        fleet.id,
+        `Fleet ${fleet.id}`,
+        JSON.stringify({
+          topology: fleet.topology,
+          maxAgents: fleet.maxAgents,
+          coordinationChannels: fleet.coordinationChannels,
+          configuration: fleet.configuration,
+          poolWarmup: fleet.poolWarmup
+        }),
+        fleet.status
+      );
+
+      this.log('info', `Fleet persisted to database: ${fleet.id}`, {
+        topology: fleet.topology,
+        status: fleet.status
+      });
+    } catch (error) {
+      this.log('warn', `Failed to persist fleet to database: ${fleet.id}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Don't throw - persistence is non-critical
+    }
   }
 
   private createCoordinationChannels(topology: string, fleetId: string): string[] {
@@ -280,10 +328,35 @@ export class FleetInitHandler extends BaseHandler {
 
     this.log('info', 'Destroying fleet', { fleetId });
 
+    // Update fleet status in database
+    fleet.status = 'error'; // Mark as destroyed/inactive
+    this.updateFleetStatusInDb(fleetId, 'destroyed');
+
     // Clean up coordination channels
     // In a real implementation, this would properly close Claude Flow connections
 
     this.activeFleets.delete(fleetId);
     return true;
+  }
+
+  /**
+   * Update fleet status in database
+   */
+  private updateFleetStatusInDb(fleetId: string, status: string): void {
+    try {
+      const db = (this.memoryManager as any).db;
+      if (!db) return;
+
+      db.prepare(`
+        UPDATE fleets SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(status, fleetId);
+
+      this.log('info', `Fleet status updated in database: ${fleetId} -> ${status}`);
+    } catch (error) {
+      this.log('warn', `Failed to update fleet status: ${fleetId}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 }

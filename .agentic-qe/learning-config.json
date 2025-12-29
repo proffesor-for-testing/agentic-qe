@@ -1,39 +1,35 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "enabled": true,
+  "rebuildMode": true,
+  "rebuildModeNote": "ACCELERATED CONFIG - Set rebuildMode to false after learning data is rebuilt",
   "scheduler": {
-    "mode": "hybrid",
+    "mode": "continuous",
     "schedule": {
-      "startHour": 2,
-      "durationMinutes": 60,
-      "daysOfWeek": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ]
+      "startHour": 0,
+      "durationMinutes": 1440,
+      "daysOfWeek": [0, 1, 2, 3, 4, 5, 6]
     },
     "learningBudget": {
-      "maxPatternsPerCycle": 50,
-      "maxAgentsPerCycle": 5,
-      "maxDurationMs": 3600000
+      "maxPatternsPerCycle": 200,
+      "maxAgentsPerCycle": 10,
+      "maxDurationMs": 7200000
     }
   },
   "capture": {
-    "bufferSize": 100,
-    "flushInterval": 30000
+    "bufferSize": 500,
+    "flushInterval": 10000,
+    "immediateFlush": true
   },
   "metrics": {
-    "retentionDays": 30,
+    "retentionDays": 90,
     "alertThresholds": {
       "successRateDrop": 15,
       "completionTimeIncrease": 20,
       "coverageDrop": 15
     }
   },
-  "createdAt": "2025-12-14T10:55:08.636Z",
-  "updatedAt": "2025-12-14T10:55:08.636Z"
+  "createdAt": "2025-12-29T13:03:38.969Z",
+  "updatedAt": "2025-12-29T19:15:00.000Z",
+  "rebuildStartedAt": "2025-12-29T19:15:00.000Z"
 }

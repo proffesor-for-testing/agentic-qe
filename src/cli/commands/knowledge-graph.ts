@@ -263,9 +263,11 @@ export class KnowledgeGraphCommand {
       this.orchestrator = await this.initializeOrchestrator();
       spinner.succeed('Knowledge graph loaded');
 
-      // Get statistics
-      const stats = this.orchestrator.getStats();
+      // Get statistics (now async to include database stats)
+      spinner.start('Fetching statistics...');
+      const stats = await this.orchestrator.getStats();
       const usingDatabase = this.orchestrator.isUsingDatabase();
+      spinner.succeed('Statistics loaded');
 
       // Output statistics
       if (options.json) {

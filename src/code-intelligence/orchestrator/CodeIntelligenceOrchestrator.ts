@@ -410,18 +410,52 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
   }
 
   /**
-   * Get current statistics.
+   * Get current statistics (includes database stats when using database storage).
    */
-  getStats(): {
+  async getStats(): Promise<{
     indexer: ReturnType<typeof IncrementalIndexer.prototype.getStats>;
     graph: ReturnType<typeof GraphBuilder.prototype.getStats>;
     search: ReturnType<typeof HybridSearchEngine.prototype.getStats>;
-  } {
-    return {
+    database?: {
+      chunkCount: number;
+      entityCount: number;
+      relationshipCount: number;
+      databaseHealthy: boolean;
+    };
+  }> {
+    const stats: {
+      indexer: ReturnType<typeof IncrementalIndexer.prototype.getStats>;
+      graph: ReturnType<typeof GraphBuilder.prototype.getStats>;
+      search: ReturnType<typeof HybridSearchEngine.prototype.getStats>;
+      database?: {
+        chunkCount: number;
+        entityCount: number;
+        relationshipCount: number;
+        databaseHealthy: boolean;
+      };
+    } = {
       indexer: this.indexer.getStats(),
       graph: this.graphBuilder.getStats(),
       search: this.searchEngine.getStats(),
     };
+
+    // Add database stats if using database storage
+    if (this.codeRouter) {
+      try {
+        const dbStats = await this.codeRouter.getCodeRouterStats();
+        stats.database = {
+          chunkCount: dbStats.chunkCount,
+          entityCount: dbStats.entityCount,
+          relationshipCount: dbStats.relationshipCount,
+          databaseHealthy: dbStats.databaseHealthy,
+        };
+      } catch (error) {
+        // Database stats unavailable - leave undefined
+        console.warn('Failed to get database stats:', error);
+      }
+    }
+
+    return stats;
   }
 
   /**
@@ -627,6 +661,18 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
 
       // DEFINES relationship (file defines entity)
       this.graphBuilder.addEdge(fileNode.id, entityNode.id, 'defines');
+
+      // Store entity in database if using database storage
+      if (this.codeRouter) {
+        try {
+          await this.codeRouter.storeEntity(entity, filePath);
+          // Store DEFINES relationship
+          await this.codeRouter.storeRelationship(fileNode.id, entityNode.id, 'defines');
+        } catch (error) {
+          // Non-fatal: entity storage failure shouldn't block indexing
+          console.warn(`Failed to store entity ${entity.name}:`, error);
+        }
+      }
     }
 
     // Extract inheritance relationships from parsed entities
@@ -658,6 +704,15 @@ export class CodeIntelligenceOrchestrator extends EventEmitter {
         );
         this.graphBuilder.addEdge(fileNode.id, targetFileNode.id, 'imports');
         progress.relationshipsExtracted++;
+
+        // Store import relationship in database
+        if (this.codeRouter) {
+          try {
+            await this.codeRouter.storeRelationship(fileNode.id, targetFileNode.id, 'imports');
+          } catch {
+            // Non-fatal
+          }
+        }
       }
     }
 

@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.2] - 2025-12-29
+
+### Added
+
+#### GOAP Phase 3: Task Orchestration System (Major Feature)
+- **GOAPPlanner** (`src/planning/GOAPPlanner.ts`): AI-powered goal-oriented action planning
+  - Automated plan generation from high-level goals
+  - Cost-based action selection with precondition/effect modeling
+  - Supports quality gates, test strategies, fleet management workflows
+  - Configurable search strategies (A*, greedy, breadth-first)
+
+- **WorldStateBuilder** (`src/planning/WorldStateBuilder.ts`): Dynamic world state construction
+  - Builds state from current system context (fleet, agents, coverage, quality)
+  - Integrates with AgentDB for persistent state tracking
+  - Supports partial state updates and delta calculations
+
+- **PlanExecutor** (`src/planning/execution/PlanExecutor.ts`): Robust plan execution engine
+  - Sequential and parallel action execution modes
+  - Automatic rollback on failure with compensation actions
+  - Progress tracking and real-time status updates
+  - Retry logic with configurable backoff
+
+- **GOAP Action Libraries** (`src/planning/actions/`):
+  - `fleet-actions.ts`: Fleet initialization, agent spawning, topology optimization
+  - `orchestration-actions.ts`: Task distribution, load balancing, coordination
+  - `quality-gate-actions.ts`: Quality evaluation, threshold checks, deployment decisions
+  - `test-strategy-actions.ts`: Test generation, execution, coverage analysis
+
+- **GOAP Integration Modules** (`src/planning/integration/`):
+  - `GOAPQualityGateIntegration.ts`: Automated quality gate workflows
+  - `GOAPTaskOrchestration.ts`: Task orchestration with intelligent planning
+
+- **Task Workflow Goals** (`src/planning/goals/`): Pre-defined goal templates
+  - Quality gate evaluation goals
+  - Test coverage improvement goals
+  - Fleet optimization goals
+
+#### Database Migration System
+- **Migration Framework** (`src/persistence/migrations/`): Versioned schema migrations with rollback support
+  - `MigrationRunner` class for executing migrations in order
+  - Version tracking in `schema_migrations` table
+  - Helper functions: `tableExists()`, `columnExists()`, `safeAddColumn()`, `safeCreateIndex()`
+  - 7 migrations covering all core tables (learning, dream, transfer, GOAP, memory, agents)
+
+- **CLI Migrate Command** (`src/cli/commands/migrate/`):
+  - `aqe migrate status` - Show current migration status
+  - `aqe migrate run` - Run all pending migrations
+  - `aqe migrate rollback` - Rollback last migration
+  - `aqe migrate reset` - Reset and rerun all migrations (with backup)
+
+#### Backup System (Data Protection)
+- **Memory Backup Script** (`scripts/backup-memory.js`):
+  - `npm run backup` - Create timestamped backup of `.agentic-qe/` directory
+  - `npm run backup:list` - List available backups with sizes
+  - `npm run backup:restore` - Interactive restore from backup
+  - Backups stored in `.agentic-qe/backups/` with automatic cleanup
+
+- **Incident Documentation** (`docs/incidents/2025-12-29-memory-db-deletion.md`):
+  - Root cause analysis of accidental data loss
+  - Prevention measures and policy updates
+
+#### Architecture Documentation
+- **C4 Architecture Diagrams** (`docs/architecture/`):
+  - `c4-context.puml`: System context diagram
+  - `c4-container.puml`: Container-level architecture
+  - `c4-component.puml`: Component details
+
+#### Comprehensive Test Suite
+- **GOAP Unit Tests** (`tests/unit/planning/`):
+  - `GOAPPlanner.test.ts`: 1,524 lines covering all planner scenarios
+  - `WorldStateBuilder.test.ts`: 938 lines testing state construction
+  - `types.test.ts`: 627 lines validating type definitions
+
+- **GOAP Integration Tests** (`tests/integration/`):
+  - `goap-quality-gate.test.ts`: End-to-end quality gate workflows
+  - `goap-task-orchestration.test.ts`: Task orchestration scenarios
+
+#### Additional Enhancements
+- **Quality Gate Evaluation Tool** (`src/mcp/tools/qe/quality-gates/evaluate-quality-gate.ts`)
+- **Learning Metrics** (`src/learning/metrics/LearningMetrics.ts`)
+- **Agent Registry Service** (`src/mcp/services/AgentRegistry.ts`)
+- **Enhanced MCP Task Orchestration** with GOAP integration
+
+### Changed
+
+- **Database Initialization**: Migrations now run automatically during `aqe init`
+  - Ensures schema consistency across all installations
+  - Handles existing tables gracefully with defensive checks
+  - Adds missing columns to tables created by older versions
+
+- **CLAUDE.md**: Added data protection policies and backup commands
+- **MCP Server**: Enhanced with Phase 3 domain tools and fleet initialization
+
+### Fixed
+
+- **Schema Evolution**: Fixed incompatible table schemas from backup restoration
+  - `dream_cycles`, `dream_insights`, `concept_nodes`, `concept_edges` tables now have correct schemas
+  - Dream learning cycle now works with migrated data
+
+### Security
+
+- **Data Protection Policy**: Added safeguards against accidental database deletion
+  - Explicit user confirmation required for destructive operations
+  - Automatic backup before risky operations recommended
+
 ## [2.7.1] - 2025-12-29
 
 ### Fixed
