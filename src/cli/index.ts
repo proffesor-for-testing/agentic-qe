@@ -40,6 +40,7 @@ import { createRuVectorCommand } from './commands/ruvector';
 import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
 import * as telemetryCommands from './commands/telemetry';
 import * as mincutCommands from './commands/kg/mincut.js';
+import { createMigrateCommand } from './commands/migrate';
 import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -1624,6 +1625,9 @@ mincutCommand
       process.exit(1);
     }
   });
+
+// Add migrate command
+program.addCommand(createMigrateCommand());
 
 // Parse command line arguments
 program.parse();
