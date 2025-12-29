@@ -48,6 +48,18 @@ export interface BrutalHonestyFinding {
 }
 
 /**
+ * Acceptance Criteria testability analysis
+ */
+export interface ACTestabilityResult {
+  acId: string;
+  acText: string;
+  isTestable: boolean;
+  testabilityScore: number;  // 0-100
+  issues: string[];
+  suggestions: string[];
+}
+
+/**
  * Requirements quality assessment result
  */
 export interface RequirementsQualityScore {
@@ -55,6 +67,29 @@ export interface RequirementsQualityScore {
   verdict: string;         // Human-readable verdict
   findings: BrutalHonestyFinding[];
   categoryScores: Record<string, number>;
+  acAnalysis?: {
+    totalACs: number;
+    testableACs: number;
+    untestableACs: number;
+    averageTestability: number;
+    acResults: ACTestabilityResult[];
+  };
+  scoringRubric: ScoringRubricExplanation;
+}
+
+/**
+ * Scoring rubric explanation for transparency
+ */
+export interface ScoringRubricExplanation {
+  methodology: string;
+  categoryWeights: Record<string, number>;
+  deductions: Array<{ pattern: string; points: number; reason: string }>;
+  interpretation: {
+    excellent: string;
+    good: string;
+    needsWork: string;
+    poor: string;
+  };
 }
 
 /**
@@ -115,6 +150,88 @@ const BS_PATTERNS = {
     { pattern: /serverless/i, issue: 'Serverless without cold start or scaling considerations' },
   ],
 };
+
+/**
+ * DOCUMENTED SCORING RUBRIC
+ *
+ * This rubric ensures transparent, consistent quality scoring.
+ * Each category starts at 100 and deductions are applied based on detected issues.
+ */
+const SCORING_RUBRIC: ScoringRubricExplanation = {
+  methodology: `
+Quality scoring uses pattern-based detection across 5 categories:
+1. CLARITY (25%): Are requirements unambiguous and specific?
+2. COMPLETENESS (25%): Are all scenarios covered (happy path, errors, edge cases)?
+3. MEASURABILITY (20%): Can success be objectively measured?
+4. REALISM (15%): Are targets achievable?
+5. DOMAIN COVERAGE (15%): Are domain-specific requirements addressed?
+
+Each category starts at 100. Deductions are applied per issue found.
+Final score = weighted average of all categories.
+`,
+  categoryWeights: {
+    clarity: 0.25,
+    completeness: 0.25,
+    measurability: 0.20,
+    realism: 0.15,
+    domainCoverage: 0.15,
+  },
+  deductions: [
+    { pattern: 'Vague improvement (improve/enhance/better)', points: 10, reason: 'No measurable target' },
+    { pattern: 'Marketing speak (seamless/intuitive)', points: 10, reason: 'Subjective claim' },
+    { pattern: 'Missing SLA (real-time/scalable/HA)', points: 10, reason: 'No quantified target' },
+    { pattern: 'Undefined condition (as needed/if required)', points: 8, reason: 'Ambiguous trigger' },
+    { pattern: 'Open-ended scope (etc./and more)', points: 8, reason: 'Unbounded requirements' },
+    { pattern: 'Impossible target (100%/zero/unlimited)', points: 15, reason: 'Unrealistic expectation' },
+    { pattern: 'Buzzword without spec (AI/ML/blockchain)', points: 5, reason: 'Undefined technology' },
+    { pattern: 'Missing acceptance criteria', points: 20, reason: 'No testable definition of done' },
+    { pattern: 'Missing error handling requirements', points: 15, reason: 'Only happy path covered' },
+    { pattern: 'Domain-specific gap (CRITICAL)', points: 25, reason: 'Compliance/security risk' },
+    { pattern: 'Domain-specific gap (HIGH)', points: 15, reason: 'Integration risk' },
+    { pattern: 'Domain-specific gap (MEDIUM)', points: 10, reason: 'Quality risk' },
+  ],
+  interpretation: {
+    excellent: '80-100: Requirements are well-defined. Minor clarifications may help, but development can proceed.',
+    good: '60-79: Requirements need clarification before development. Schedule Product Coverage Session.',
+    needsWork: '40-59: Significant gaps detected. Development should NOT start without addressing findings.',
+    poor: '0-39: Requirements are NOT development-ready. Major rework needed.',
+  },
+};
+
+/**
+ * AC Testability Patterns - Issues that make an AC untestable
+ */
+const AC_TESTABILITY_ISSUES = [
+  { pattern: /should\s+be\s+(good|nice|better|proper|appropriate)/i, issue: 'Subjective quality - no measurable criteria', severity: 'HIGH' },
+  { pattern: /as\s+expected/i, issue: 'Expectation not defined - what is expected?', severity: 'HIGH' },
+  { pattern: /works\s+(correctly|properly|well)/i, issue: 'No observable outcome specified', severity: 'HIGH' },
+  { pattern: /user\s+friendly/i, issue: 'Subjective usability - no testable criteria', severity: 'MEDIUM' },
+  { pattern: /easy\s+to\s+use/i, issue: 'Subjective ease - no measurable definition', severity: 'MEDIUM' },
+  { pattern: /fast|quick|slow/i, issue: 'Performance not quantified - need ms/seconds target', severity: 'MEDIUM' },
+  { pattern: /secure/i, issue: 'Security not specified - which threats? which standards?', severity: 'HIGH' },
+  { pattern: /scalable/i, issue: 'Scale not quantified - how many users/requests?', severity: 'MEDIUM' },
+  { pattern: /reliable/i, issue: 'Reliability not quantified - what uptime SLA?', severity: 'MEDIUM' },
+  { pattern: /all\s+users|everyone/i, issue: 'User scope undefined - which user roles exactly?', severity: 'LOW' },
+  { pattern: /etc\.?|and\s+so\s+on|and\s+more/i, issue: 'Incomplete list - scope undefined', severity: 'HIGH' },
+  { pattern: /may|might|could|possibly/i, issue: 'Conditional behavior - when exactly?', severity: 'MEDIUM' },
+  { pattern: /if\s+needed|when\s+appropriate|as\s+applicable/i, issue: 'Undefined trigger condition', severity: 'HIGH' },
+];
+
+/**
+ * Patterns that indicate a testable AC
+ */
+const AC_TESTABILITY_POSITIVE = [
+  { pattern: /given\s+.+when\s+.+then/i, bonus: 15, reason: 'Has BDD structure' },
+  { pattern: /\d+\s*(ms|seconds?|minutes?|hours?)/i, bonus: 10, reason: 'Has quantified timing' },
+  { pattern: /\d+%/i, bonus: 10, reason: 'Has quantified percentage' },
+  { pattern: /returns?\s+(true|false|\d+|error|success)/i, bonus: 10, reason: 'Has specific return value' },
+  { pattern: /displays?\s+"[^"]+"/i, bonus: 10, reason: 'Has specific display text' },
+  { pattern: /status\s*code\s*\d{3}/i, bonus: 10, reason: 'Has specific HTTP status' },
+  { pattern: /error\s*(message|code):\s*"?[^"]+/i, bonus: 10, reason: 'Has specific error handling' },
+  { pattern: /validation\s*(rule|error):\s*/i, bonus: 5, reason: 'Has validation specification' },
+  { pattern: /must\s+(not\s+)?exceed\s+\d+/i, bonus: 10, reason: 'Has quantified boundary' },
+  { pattern: /(maximum|minimum|exactly)\s+\d+/i, bonus: 10, reason: 'Has quantified limit' },
+];
 
 /**
  * Quality standards for test ideas (Ramsay mode)
@@ -383,11 +500,145 @@ export class BrutalHonestyAnalyzer {
 
     this.findings.push(...findings);
 
+    // Perform AC-by-AC testability analysis if ACs are present
+    const acAnalysis = this.analyzeAcceptanceCriteria(requirements);
+
     return {
       score: overallScore,
       verdict,
       findings,
       categoryScores,
+      acAnalysis,
+      scoringRubric: SCORING_RUBRIC,
+    };
+  }
+
+  /**
+   * Extract and analyze Acceptance Criteria testability (Bach mode enhanced)
+   *
+   * This method extracts ACs from requirements and scores each one for testability.
+   * Returns detailed per-AC analysis showing exactly what's testable and what's not.
+   */
+  analyzeAcceptanceCriteria(requirements: string): {
+    totalACs: number;
+    testableACs: number;
+    untestableACs: number;
+    averageTestability: number;
+    acResults: ACTestabilityResult[];
+  } {
+    const acResults: ACTestabilityResult[] = [];
+
+    // Extract ACs using multiple patterns
+    const acPatterns = [
+      /(?:AC|Acceptance\s+Criteria?)[\s:-]*(\d+)[.:]\s*([^\n]+)/gi,
+      /(?:\d+)\.\s*([^\n]{20,})/g,  // Numbered list items (min 20 chars)
+      /[-•]\s*([^\n]{20,})/g,        // Bullet points (min 20 chars)
+      /Given\s+.+?When\s+.+?Then\s+[^\n]+/gi,  // BDD format
+    ];
+
+    const extractedACs: Array<{ id: string; text: string }> = [];
+    let acCounter = 0;
+
+    // Try AC-specific patterns first
+    const acSpecificMatches = requirements.matchAll(/(?:AC|Acceptance\s+Criteria?)[\s:-]*(\d+)?[.:]\s*([^\n]+)/gi);
+    for (const match of acSpecificMatches) {
+      acCounter++;
+      const id = match[1] ? `AC-${match[1]}` : `AC-${acCounter}`;
+      const text = match[2]?.trim() || '';
+      if (text.length > 10) {
+        extractedACs.push({ id, text });
+      }
+    }
+
+    // If no explicit ACs found, try numbered lists
+    if (extractedACs.length === 0) {
+      const numberedMatches = requirements.matchAll(/^\s*(\d+)\.\s+([^\n]+)/gm);
+      for (const match of numberedMatches) {
+        const text = match[2]?.trim() || '';
+        if (text.length > 15 && !text.match(/^(introduction|overview|description|summary)/i)) {
+          extractedACs.push({ id: `AC-${match[1]}`, text });
+        }
+      }
+    }
+
+    // Score each AC for testability
+    for (const ac of extractedACs) {
+      const result = this.scoreACTestability(ac.id, ac.text);
+      acResults.push(result);
+    }
+
+    // Calculate summary statistics
+    const totalACs = acResults.length;
+    const testableACs = acResults.filter(r => r.isTestable).length;
+    const untestableACs = totalACs - testableACs;
+    const averageTestability = totalACs > 0
+      ? Math.round(acResults.reduce((sum, r) => sum + r.testabilityScore, 0) / totalACs)
+      : 0;
+
+    return {
+      totalACs,
+      testableACs,
+      untestableACs,
+      averageTestability,
+      acResults,
+    };
+  }
+
+  /**
+   * Score a single Acceptance Criterion for testability
+   */
+  private scoreACTestability(acId: string, acText: string): ACTestabilityResult {
+    let score = 50; // Start at neutral
+    const issues: string[] = [];
+    const suggestions: string[] = [];
+
+    // Check for testability issues (deductions)
+    for (const check of AC_TESTABILITY_ISSUES) {
+      if (check.pattern.test(acText)) {
+        const deduction = check.severity === 'HIGH' ? 15 : check.severity === 'MEDIUM' ? 10 : 5;
+        score -= deduction;
+        issues.push(check.issue);
+
+        // Add specific suggestions based on issue
+        if (check.issue.includes('Subjective')) {
+          suggestions.push('Replace subjective terms with measurable criteria (e.g., "loads in <2s" instead of "loads quickly")');
+        } else if (check.issue.includes('not quantified')) {
+          suggestions.push('Add specific numeric targets or thresholds');
+        } else if (check.issue.includes('scope undefined')) {
+          suggestions.push('Enumerate all items explicitly instead of using "etc."');
+        } else if (check.issue.includes('trigger condition')) {
+          suggestions.push('Define explicit conditions that trigger this behavior');
+        }
+      }
+    }
+
+    // Check for testability positive patterns (bonuses)
+    for (const check of AC_TESTABILITY_POSITIVE) {
+      if (check.pattern.test(acText)) {
+        score += check.bonus;
+      }
+    }
+
+    // Clamp score to 0-100
+    score = Math.max(0, Math.min(100, score));
+
+    // Determine if testable (threshold: 50)
+    const isTestable = score >= 50;
+
+    // Add general suggestions if score is low
+    if (score < 50 && suggestions.length === 0) {
+      suggestions.push('Rewrite using Given/When/Then format');
+      suggestions.push('Include specific observable outcomes');
+      suggestions.push('Add measurable success criteria');
+    }
+
+    return {
+      acId,
+      acText: acText.length > 100 ? acText.substring(0, 97) + '...' : acText,
+      isTestable,
+      testabilityScore: score,
+      issues,
+      suggestions: [...new Set(suggestions)], // Remove duplicates
     };
   }
 

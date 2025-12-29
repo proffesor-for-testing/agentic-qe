@@ -21,4 +21,6 @@ export {
   RequirementsQualityScore,
   TestIdeaValidation,
   EnhancedQuestion,
+  ACTestabilityResult,
+  ScoringRubricExplanation,
 } from './brutal-honesty-analyzer';
