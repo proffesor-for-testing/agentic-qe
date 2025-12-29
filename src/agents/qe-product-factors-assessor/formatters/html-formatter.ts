@@ -270,15 +270,19 @@ ${this.getInitScript()}
   }
 
   /**
-   * Render quality score panel
+   * Render quality score panel with AC-by-AC analysis and documented rubric
    */
   private renderQualityScorePanel(quality?: RequirementsQualityScore): string {
     if (!quality) return '';
 
-    const scoreClass = this.getQualityScoreClass(quality.score);
     const scoreColor = quality.score >= 80 ? '#10b981' :
                        quality.score >= 60 ? '#f59e0b' :
                        quality.score >= 40 ? '#f97316' : '#ef4444';
+
+    const rubricSection = quality.scoringRubric ? this.renderScoringRubric(quality.scoringRubric) : '';
+    const acSection = quality.acAnalysis && quality.acAnalysis.totalACs > 0
+      ? this.renderACAnalysis(quality.acAnalysis)
+      : '';
 
     return `
       <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--border-light);">
@@ -303,6 +307,134 @@ ${this.getInitScript()}
             `).join('')}
           </div>
         </div>
+      </div>
+      ${rubricSection}
+      ${acSection}`;
+  }
+
+  /**
+   * Render the scoring rubric explanation
+   */
+  private renderScoringRubric(rubric: { methodology: string; interpretation: { excellent: string; good: string; needsWork: string; poor: string }; deductions: Array<{ pattern: string; points: number; reason: string }> }): string {
+    return `
+      <details style="background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+        <summary style="cursor: pointer; font-weight: 600; color: #854d0e; font-size: 0.95rem;">
+          📊 How is this score calculated? (Click to expand rubric)
+        </summary>
+        <div style="margin-top: 15px; font-size: 0.85rem; color: #713f12;">
+          <div style="white-space: pre-wrap; font-family: monospace; background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+${rubric.methodology.trim()}
+          </div>
+
+          <h5 style="margin: 15px 0 10px 0; color: #854d0e;">Score Interpretation:</h5>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+            <tr style="background: #dcfce7;">
+              <td style="padding: 6px 10px; border: 1px solid #bbf7d0; width: 80px;"><strong>80-100</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #bbf7d0;">${rubric.interpretation.excellent.split(':')[1]?.trim() || rubric.interpretation.excellent}</td>
+            </tr>
+            <tr style="background: #fef9c3;">
+              <td style="padding: 6px 10px; border: 1px solid #fde047;"><strong>60-79</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #fde047;">${rubric.interpretation.good.split(':')[1]?.trim() || rubric.interpretation.good}</td>
+            </tr>
+            <tr style="background: #fed7aa;">
+              <td style="padding: 6px 10px; border: 1px solid #fb923c;"><strong>40-59</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #fb923c;">${rubric.interpretation.needsWork.split(':')[1]?.trim() || rubric.interpretation.needsWork}</td>
+            </tr>
+            <tr style="background: #fecaca;">
+              <td style="padding: 6px 10px; border: 1px solid #f87171;"><strong>0-39</strong></td>
+              <td style="padding: 6px 10px; border: 1px solid #f87171;">${rubric.interpretation.poor.split(':')[1]?.trim() || rubric.interpretation.poor}</td>
+            </tr>
+          </table>
+
+          <h5 style="margin: 15px 0 10px 0; color: #854d0e;">Deduction Rules:</h5>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px;">
+            ${rubric.deductions.slice(0, 8).map(d => `
+              <div style="background: white; padding: 8px; border-radius: 4px; border-left: 3px solid #ef4444;">
+                <div style="font-weight: 500; font-size: 0.8rem;">${d.pattern}</div>
+                <div style="font-size: 0.75rem; color: #6b7280;">-${d.points} pts: ${d.reason}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </details>`;
+  }
+
+  /**
+   * Render AC-by-AC testability analysis
+   */
+  private renderACAnalysis(acAnalysis: { totalACs: number; testableACs: number; untestableACs: number; averageTestability: number; acResults: Array<{ acId: string; acText: string; isTestable: boolean; testabilityScore: number; issues: string[]; suggestions: string[] }> }): string {
+    const testablePercent = acAnalysis.totalACs > 0
+      ? Math.round((acAnalysis.testableACs / acAnalysis.totalACs) * 100)
+      : 0;
+
+    const avgColor = acAnalysis.averageTestability >= 70 ? '#10b981' :
+                     acAnalysis.averageTestability >= 50 ? '#f59e0b' : '#ef4444';
+
+    return `
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 15px 0; color: #1e40af; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+          📋 Acceptance Criteria Testability Analysis
+          <span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
+            ${acAnalysis.totalACs} ACs analyzed
+          </span>
+        </h4>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px;">
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: ${avgColor};">${acAnalysis.averageTestability}%</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Average Testability</div>
+          </div>
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #10b981;">${acAnalysis.testableACs}</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Testable ACs</div>
+          </div>
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #ef4444;">${acAnalysis.untestableACs}</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Need Rewriting</div>
+          </div>
+          <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.8rem; font-weight: 700; color: #6366f1;">${testablePercent}%</div>
+            <div style="font-size: 0.75rem; color: #6b7280;">Testable Rate</div>
+          </div>
+        </div>
+
+        ${acAnalysis.acResults.length > 0 ? `
+          <details style="background: white; border-radius: 8px; padding: 15px;">
+            <summary style="cursor: pointer; font-weight: 600; color: #1e40af; font-size: 0.9rem;">
+              View Per-AC Breakdown (${acAnalysis.acResults.length} criteria)
+            </summary>
+            <div style="margin-top: 15px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                <thead>
+                  <tr style="background: #f1f5f9;">
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">ID</th>
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">Acceptance Criteria</th>
+                    <th style="padding: 8px; text-align: center; border-bottom: 2px solid #e2e8f0;">Score</th>
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid #e2e8f0;">Issues</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${acAnalysis.acResults.map(ac => {
+                    const rowColor = ac.isTestable ? '#f0fdf4' : '#fef2f2';
+                    const scoreColor = ac.testabilityScore >= 70 ? '#10b981' :
+                                       ac.testabilityScore >= 50 ? '#f59e0b' : '#ef4444';
+                    return `
+                      <tr style="background: ${rowColor};">
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: 500;">${ac.acId}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; max-width: 300px;">${ac.acText}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                          <span style="font-weight: 700; color: ${scoreColor};">${ac.testabilityScore}</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 0.75rem; color: #6b7280;">
+                          ${ac.issues.length > 0 ? ac.issues.join('; ') : '<span style="color: #10b981;">✓ Well-defined</span>'}
+                        </td>
+                      </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        ` : ''}
       </div>`;
   }
 

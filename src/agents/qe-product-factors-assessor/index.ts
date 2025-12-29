@@ -38,7 +38,7 @@ import {
 
 // Import modular components - Phase 3-7 integration
 import { UserStoryParser, DocumentParser, ArchitectureParser } from './parsers';
-import { SFDIPOTAnalyzer } from './analyzers';
+import { SFDIPOTAnalyzer, RequirementsQualityScore } from './analyzers';
 import { TestIdeaGenerator, QuestionGenerator } from './generators';
 import { HTMLFormatter, JSONFormatter, MarkdownFormatter, GherkinFormatter } from './formatters';
 import { SkillIntegration } from './skills';
@@ -315,6 +315,7 @@ export class QEProductFactorsAssessor extends BaseAgent {
     // Step 2.5: Run Bach mode BS detection on requirements (if brutal honesty enabled)
     // Now includes domain-specific BS detection for more accurate analysis
     let requirementsQualityScore: number | undefined;
+    let requirementsQualityData: RequirementsQualityScore | undefined;
     if (this.enableBrutalHonesty && parsedInput.rawContent.length > 100) {
       console.log(`[${this.agentId.id}] Running Bach mode BS detection on requirements...`);
 
@@ -324,6 +325,7 @@ export class QEProductFactorsAssessor extends BaseAgent {
         context.detectedDomains
       );
       requirementsQualityScore = reqAnalysis.score;
+      requirementsQualityData = reqAnalysis; // Capture full analysis for formatter
 
       // Log detected domains if any
       if (context.detectedDomains.length > 0) {
@@ -453,7 +455,8 @@ export class QEProductFactorsAssessor extends BaseAgent {
       testIdeas,
       allQuestions,
       summary,
-      outputFormat
+      outputFormat,
+      requirementsQualityData  // Pass full quality data for HTML rubric/AC analysis
     );
 
     // Step 8: Build result
@@ -1364,7 +1367,18 @@ export class QEProductFactorsAssessor extends BaseAgent {
       }
     }
 
-    // Fall back to template-based questions
+    // Use QuestionGenerator's penetrating questions (Bach-inspired)
+    const penetratingQuestion = this.questionGenerator.getQuestionForSubcategory(
+      category,
+      subcategory,
+      context
+    );
+
+    if (penetratingQuestion) {
+      return [penetratingQuestion];
+    }
+
+    // Fall back to generic template questions only if no penetrating question available
     return this.generateTemplateQuestions(category, subcategory, context);
   }
 
@@ -1420,7 +1434,7 @@ Format your response as JSON:
    * Generate template-based questions
    */
   private generateTemplateQuestions(
-    _category: HTSMCategory,
+    category: HTSMCategory,
     subcategory: string,
     _context: ProjectContext
   ): ClarifyingQuestion[] {
@@ -1698,7 +1712,8 @@ Format your response as JSON:
     testIdeas: TestIdea[],
     questions: ClarifyingQuestion[],
     summary: AssessmentSummary,
-    format: AssessmentInput['outputFormat']
+    format: AssessmentInput['outputFormat'],
+    requirementsQualityData?: RequirementsQualityScore
   ): Promise<{ html?: string; json?: string; markdown?: string; gherkin?: Map<string, string> }> {
     const result: { html?: string; json?: string; markdown?: string; gherkin?: Map<string, string> } = {};
     const formats = Array.isArray(format) ? format : format === 'all' ? ['html', 'json', 'markdown', 'gherkin'] : [format];
@@ -1714,8 +1729,9 @@ Format your response as JSON:
     };
 
     // Use modular formatters (Phase 5 integration)
+    // Pass requirementsQualityData (includes scoringRubric and acAnalysis) for Reality Check section
     if (formats.includes('html')) {
-      result.html = this.htmlFormatter.format(assessmentOutput);
+      result.html = this.htmlFormatter.format(assessmentOutput, requirementsQualityData, requirementsQualityData?.findings);
     }
     if (formats.includes('json')) {
       result.json = this.jsonFormatter.format(assessmentOutput);
