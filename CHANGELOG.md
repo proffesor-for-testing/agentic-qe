@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.3] - 2025-12-30
+
+### Added
+
+#### GOAP Phase 5 & 6: Plan Learning & Live Agent Execution (Major Feature)
+
+- **PlanLearning** (`src/planning/PlanLearning.ts`): Learning from execution outcomes
+  - EMA-based action success rate tracking (α=0.1 for stability)
+  - Q-Learning integration for GOAP action selection
+  - Execution history persistence in `goap_learning_history` table
+  - Per-action statistics in `goap_action_stats` table
+  - `learnFromExecution()` called automatically after plan execution
+
+- **PlanSimilarity** (`src/planning/PlanSimilarity.ts`): Plan signature matching for reuse
+  - Feature vector extraction from goals and world states
+  - Cosine similarity for plan matching (<100ms lookup)
+  - Plan signatures stored in `goap_plan_signatures` table
+  - Configurable similarity threshold (default 0.75)
+  - `tryReuseSimilarPlan()` called before A* search
+
+- **Live Agent Execution** (`src/planning/execution/PlanExecutor.ts` v1.2.0):
+  - Real agent spawning via AgentRegistry (not just dry-run)
+  - Output parsing for real-time world state updates:
+    - `parseTestOutput()`: Coverage and test result extraction
+    - `parseCoverageOutput()`: Coverage metric parsing
+    - `parseSecurityOutput()`: Vulnerability score calculation
+    - `parsePerformanceOutput()`: Performance metric extraction
+    - `parseAnalysisOutput()`: Code quality metric parsing
+  - Plan signature storage after successful live execution
+  - Learning feedback loop integration
+
+- **GOAPPlanner Integration** (`src/planning/GOAPPlanner.ts`):
+  - `getPlanSimilarity()`: Access internal similarity matcher
+  - `setPlanReuseEnabled()`: Toggle plan reuse (default: enabled)
+  - `storePlanSignature()`: Persist plan for future reuse
+  - `recordPlanReuseOutcome()`: Track reuse success/failure
+  - `getPlanReuseStats()`: Reuse metrics
+
+- **GOAPQualityGateIntegration** (`src/planning/integration/`):
+  - `getPlanner()`: Access internal planner for Phase 5/6 integration
+
+### Changed
+
+- **Planning Module** (`src/planning/index.ts`): Version 1.6.0
+  - Added 'Live agent execution via AgentRegistry' capability
+  - Added 'Real-time world state updates from agent output' capability
+
+- **GOAPPlan Type** (`src/planning/types.ts`):
+  - Added `reusedFromPlanId?: string` for tracking plan reuse
+  - Added `similarityScore?: number` for reuse quality metrics
+
+### Tests
+
+- **New: Live Execution Tests** (`tests/integration/goap-live-execution.test.ts`): 17 tests
+  - 8 output parsing tests (all methods verified)
+  - 3 live execution tests (real agent spawning)
+  - 2 plan signature storage tests
+  - 2 agent type mapping tests
+  - 1 world state tracking test
+  - 1 live vs dry-run code path test
+
+- **New: Phase 5 Integration Tests** (`tests/integration/goap-phase5-real-integration.test.ts`): 15 tests
+  - PlanSimilarity integration with GOAPPlanner
+  - PlanLearning integration with PlanExecutor
+  - End-to-end plan→execute→learn→reuse flow
+  - Performance verification (<100ms similarity lookup)
+
+- **New: Plan Learning Tests** (`tests/integration/goap-plan-learning.test.ts`): 31 tests
+  - PlanLearning component tests
+  - PlanSimilarity component tests
+  - Q-Learning integration tests
+
+- **Total GOAP Tests**: 84 tests passing
+
 ## [2.7.2] - 2025-12-29
 
 ### Added

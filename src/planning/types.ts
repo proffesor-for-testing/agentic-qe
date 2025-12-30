@@ -158,6 +158,9 @@ export interface GOAPPlan {
   initialState?: WorldState;
   status?: 'pending' | 'executing' | 'completed' | 'failed' | 'replanned';
   alternativePaths?: GOAPPlan[];
+  // Phase 5: Plan reuse tracking
+  reusedFromPlanId?: string;     // Original plan ID if this was reused
+  similarityScore?: number;       // Similarity score when reused (0-1)
 }
 
 /**

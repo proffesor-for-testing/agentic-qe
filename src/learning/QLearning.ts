@@ -7,11 +7,49 @@
  * - Uses max Q-value for next state, not actual next action
  * - Update rule: Q(s,a) ← Q(s,a) + α[r + γ·max(Q(s',a')) - Q(s,a)]
  * - More aggressive than SARSA, finds optimal policy faster
+ *
+ * GOAP Integration (Phase 5):
+ * - Static methods for encoding WorldState to discrete state representation
+ * - GOAP action encoding for planning integration
+ * - Factory method for GOAP-configured learner
  */
 
 import { AbstractRLLearner, RLConfig } from './algorithms/AbstractRLLearner';
-import { TaskExperience, AgentAction } from './types';
+import { TaskExperience, AgentAction, TaskState } from './types';
 import { LearningMetrics } from './metrics/LearningMetrics';
+
+/**
+ * GOAP WorldState interface (imported type to avoid circular dependency)
+ */
+interface GOAPWorldState {
+  coverage: { line: number; branch: number; function: number; measured?: boolean };
+  quality: { testsPassing: number; securityScore: number; performanceScore: number };
+  fleet: { activeAgents: number; availableAgents: string[] };
+  resources: { timeRemaining: number; memoryAvailable: number; parallelSlots: number };
+  context: { environment: string; changeSize: string; riskLevel: string };
+}
+
+/**
+ * GOAP Action interface (imported type to avoid circular dependency)
+ */
+interface GOAPAction {
+  id: string;
+  category: string;
+  agentType: string;
+  cost: number;
+}
+
+/**
+ * Discretized GOAP state for Q-table
+ */
+export interface DiscreteGOAPState {
+  coverageLevel: 'low' | 'medium' | 'high';
+  qualityLevel: 'low' | 'medium' | 'high';
+  securityLevel: 'low' | 'medium' | 'high';
+  fleetCapacity: 'limited' | 'normal' | 'high';
+  timeConstraint: 'tight' | 'normal' | 'relaxed';
+  riskLevel: string;
+}
 
 /**
  * Q-learning configuration (same as base RL config)
@@ -194,5 +232,191 @@ export class QLearning extends AbstractRLLearner {
       type: this.getAlgorithmType(),
       stats: this.getStatistics()
     };
+  }
+
+  // ============================================================================
+  // GOAP Integration Methods (Phase 5)
+  // ============================================================================
+
+  /**
+   * Create a Q-Learner configured for GOAP planning
+   * Uses optimized hyperparameters for plan learning
+   */
+  static createForGOAP(agentId?: string): QLearning {
+    return new QLearning({
+      learningRate: 0.1,
+      discountFactor: 0.95,
+      explorationRate: 0.2,        // Lower exploration for planning
+      explorationDecay: 0.995,
+      minExplorationRate: 0.05,
+      useExperienceReplay: true,
+      replayBufferSize: 5000,      // Smaller buffer for plans
+      batchSize: 32
+    }, agentId || 'goap-qlearner');
+  }
+
+  /**
+   * Discretize WorldState for Q-table lookup
+   * Reduces continuous state space to discrete buckets
+   */
+  static discretizeWorldState(state: GOAPWorldState): DiscreteGOAPState {
+    return {
+      coverageLevel: QLearning.discretizeCoverage(state.coverage.line),
+      qualityLevel: QLearning.discretizeQuality(state.quality.testsPassing),
+      securityLevel: QLearning.discretizeSecurity(state.quality.securityScore),
+      fleetCapacity: QLearning.discretizeFleet(state.fleet.availableAgents.length),
+      timeConstraint: QLearning.discretizeTime(state.resources.timeRemaining),
+      riskLevel: state.context.riskLevel
+    };
+  }
+
+  /**
+   * Encode discretized GOAP state to string key
+   */
+  static encodeGOAPState(discrete: DiscreteGOAPState): string {
+    return `${discrete.coverageLevel}:${discrete.qualityLevel}:${discrete.securityLevel}:` +
+           `${discrete.fleetCapacity}:${discrete.timeConstraint}:${discrete.riskLevel}`;
+  }
+
+  /**
+   * Encode GOAP action to string key
+   */
+  static encodeGOAPAction(action: GOAPAction): string {
+    const costLevel = action.cost < 1.5 ? 'L' : action.cost < 3 ? 'M' : 'H';
+    return `${action.category}:${action.agentType}:${costLevel}`;
+  }
+
+  /**
+   * Convert WorldState to TaskState for Q-learning
+   */
+  static worldStateToTaskState(state: GOAPWorldState): TaskState {
+    const discrete = QLearning.discretizeWorldState(state);
+    const complexityMap: Record<string, number> = {
+      low: 0.3, medium: 0.5, high: 0.8, critical: 1.0
+    };
+    const resourceMap: Record<string, number> = {
+      limited: 0.3, normal: 0.6, high: 0.9
+    };
+
+    return {
+      taskComplexity: complexityMap[discrete.riskLevel] ?? 0.5,
+      requiredCapabilities: [discrete.coverageLevel, discrete.qualityLevel, discrete.securityLevel],
+      contextFeatures: {
+        coverageLevel: discrete.coverageLevel,
+        qualityLevel: discrete.qualityLevel,
+        securityLevel: discrete.securityLevel,
+        fleetCapacity: discrete.fleetCapacity,
+        timeConstraint: discrete.timeConstraint,
+        riskLevel: discrete.riskLevel
+      },
+      previousAttempts: 0,
+      availableResources: resourceMap[discrete.fleetCapacity] ?? 0.6,
+      timeConstraint: state.resources.timeRemaining * 1000 // Convert to ms
+    };
+  }
+
+  /**
+   * Convert GOAP action to AgentAction for Q-learning
+   */
+  static goapActionToAgentAction(action: GOAPAction): AgentAction {
+    const costLevel = action.cost < 1.5 ? 'low' : action.cost < 3 ? 'medium' : 'high';
+    return {
+      strategy: action.category,
+      toolsUsed: [action.agentType],
+      parallelization: costLevel === 'high' ? 0.3 : costLevel === 'medium' ? 0.5 : 0.8,
+      retryPolicy: 'exponential',
+      resourceAllocation: costLevel === 'low' ? 0.3 : costLevel === 'medium' ? 0.5 : 0.8
+    };
+  }
+
+  // Discretization helper methods
+
+  private static discretizeCoverage(coverage: number): 'low' | 'medium' | 'high' {
+    if (coverage < 50) return 'low';
+    if (coverage < 80) return 'medium';
+    return 'high';
+  }
+
+  private static discretizeQuality(quality: number): 'low' | 'medium' | 'high' {
+    if (quality < 70) return 'low';
+    if (quality < 90) return 'medium';
+    return 'high';
+  }
+
+  private static discretizeSecurity(score: number): 'low' | 'medium' | 'high' {
+    if (score < 60) return 'low';
+    if (score < 85) return 'medium';
+    return 'high';
+  }
+
+  private static discretizeFleet(agents: number): 'limited' | 'normal' | 'high' {
+    if (agents < 3) return 'limited';
+    if (agents < 7) return 'normal';
+    return 'high';
+  }
+
+  private static discretizeTime(seconds: number): 'tight' | 'normal' | 'relaxed' {
+    if (seconds < 300) return 'tight';      // < 5 min
+    if (seconds < 1800) return 'normal';    // < 30 min
+    return 'relaxed';
+  }
+
+  /**
+   * Calculate reward for GOAP action execution
+   * Used by PlanLearning for experience generation
+   */
+  static calculateGOAPReward(
+    success: boolean,
+    executionTimeMs: number,
+    expectedTimeMs: number,
+    actionCost: number,
+    coverageImprovement: number,
+    qualityImprovement: number
+  ): number {
+    let reward = 0;
+
+    // Base reward for success/failure
+    reward += success ? 1.0 : -0.5;
+
+    // Time efficiency bonus (faster = better)
+    const timeRatio = expectedTimeMs / Math.max(executionTimeMs, 1);
+    reward += Math.min(timeRatio - 1, 0.5) * 0.3;
+
+    // Cost efficiency (penalize high-cost actions)
+    reward -= actionCost * 0.1;
+
+    // Improvement bonuses
+    reward += coverageImprovement * 0.02;
+    reward += qualityImprovement * 0.02;
+
+    // Clamp to [-1, 1]
+    return Math.max(-1, Math.min(1, reward));
+  }
+
+  /**
+   * Get Q-value for a GOAP state-action pair
+   */
+  getGOAPQValue(state: GOAPWorldState, action: GOAPAction): number {
+    const taskState = QLearning.worldStateToTaskState(state);
+    const agentAction = QLearning.goapActionToAgentAction(action);
+    return this.getQValue(taskState, agentAction);
+  }
+
+  /**
+   * Get best GOAP action from available actions
+   */
+  getBestGOAPAction(state: GOAPWorldState, availableActions: GOAPAction[]): GOAPAction | null {
+    if (availableActions.length === 0) return null;
+
+    const taskState = QLearning.worldStateToTaskState(state);
+    const agentActions = availableActions.map(a => QLearning.goapActionToAgentAction(a));
+
+    const bestAgentAction = this.getBestAction(taskState, agentActions);
+    const bestIndex = agentActions.findIndex(
+      a => a.strategy === bestAgentAction.strategy &&
+           a.toolsUsed[0] === bestAgentAction.toolsUsed[0]
+    );
+
+    return bestIndex >= 0 ? availableActions[bestIndex] : availableActions[0];
   }
 }

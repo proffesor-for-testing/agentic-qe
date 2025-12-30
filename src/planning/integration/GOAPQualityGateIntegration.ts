@@ -247,6 +247,14 @@ export class GOAPQualityGateIntegration {
   }
 
   /**
+   * Get the internal GOAPPlanner instance
+   * Used by PlanExecutor for Phase 5/6 integration (plan signature storage)
+   */
+  getPlanner(): GOAPPlanner {
+    return this.planner;
+  }
+
+  /**
    * Convert quality gate metrics to GOAP WorldState
    */
   buildWorldState(

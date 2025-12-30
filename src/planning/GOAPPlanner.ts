@@ -26,6 +26,7 @@ import {
   GOAPActionRecord,
   DEFAULT_WORLD_STATE
 } from './types';
+import { PlanSimilarity, SimilarPlan, PlanReuseStats } from './PlanSimilarity';
 
 /**
  * GOAP Planner using A* search algorithm
@@ -35,10 +36,34 @@ export class GOAPPlanner {
   private db: Database.Database;
   private logger: Logger;
   private actionsLoaded = false;
+  private planSimilarity: PlanSimilarity;
+  private enablePlanReuse = true;  // Can be disabled for benchmarking A* directly
 
   constructor(db: Database.Database) {
     this.db = db;
     this.logger = Logger.getInstance();
+    this.planSimilarity = new PlanSimilarity(db);
+  }
+
+  /**
+   * Get PlanSimilarity instance for direct access
+   */
+  getPlanSimilarity(): PlanSimilarity {
+    return this.planSimilarity;
+  }
+
+  /**
+   * Enable or disable plan reuse (useful for benchmarking)
+   */
+  setPlanReuseEnabled(enabled: boolean): void {
+    this.enablePlanReuse = enabled;
+  }
+
+  /**
+   * Check if plan reuse is enabled
+   */
+  isPlanReuseEnabled(): boolean {
+    return this.enablePlanReuse;
   }
 
   /**
@@ -194,6 +219,7 @@ export class GOAPPlanner {
 
   /**
    * A* search to find optimal plan from current to goal state
+   * Phase 5: First checks for reusable similar plans before running A*
    */
   async findPlan(
     currentState: WorldState,
@@ -203,6 +229,21 @@ export class GOAPPlanner {
     await this.loadActionsFromDatabase();
 
     const startTime = Date.now();
+
+    // Phase 5: Check for reusable similar plans first (O(log n) vs O(n) A* search)
+    if (this.enablePlanReuse) {
+      const reusedPlan = await this.tryReuseSimilarPlan(currentState, goalConditions, constraints);
+      if (reusedPlan) {
+        this.logger.info('[GOAPPlanner] Reused similar plan', {
+          planId: reusedPlan.id,
+          actions: reusedPlan.actions.length,
+          totalCost: reusedPlan.totalCost,
+          elapsedMs: Date.now() - startTime
+        });
+        return reusedPlan;
+      }
+    }
+
     const openSet: PlanNode[] = [];
     const closedSet = new Set<string>();
 
@@ -304,6 +345,164 @@ export class GOAPPlanner {
       elapsedMs: Date.now() - startTime
     });
     return null;
+  }
+
+  /**
+   * Phase 5: Try to reuse a similar plan from the signature cache
+   * Returns null if no suitable plan found, otherwise returns reconstructed plan
+   */
+  private async tryReuseSimilarPlan(
+    currentState: WorldState,
+    goalConditions: StateConditions,
+    constraints?: PlanConstraints
+  ): Promise<GOAPPlan | null> {
+    try {
+      // Find similar plans (target: <100ms)
+      const similarPlans = await this.planSimilarity.findSimilarPlans(
+        goalConditions,
+        currentState,
+        { minSimilarity: 0.75, maxCandidates: 3 }
+      );
+
+      if (similarPlans.length === 0) {
+        return null;
+      }
+
+      // Try best match first (sorted by goal match, then similarity)
+      for (const similar of similarPlans) {
+        // Validate the action sequence is still valid
+        const actions = this.reconstructActionsFromSequence(
+          similar.signature.actionSequence,
+          constraints
+        );
+
+        if (actions.length === 0) {
+          this.logger.debug('[GOAPPlanner] Similar plan has no valid actions', {
+            planId: similar.planId
+          });
+          continue;
+        }
+
+        // Verify preconditions can be met from current state
+        if (!this.validateActionSequence(currentState, actions)) {
+          this.logger.debug('[GOAPPlanner] Similar plan action sequence invalid for current state', {
+            planId: similar.planId
+          });
+          continue;
+        }
+
+        // Create reused plan with new ID
+        const reusedPlanId = `plan-reuse-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        const plan: GOAPPlan = {
+          id: reusedPlanId,
+          actions,
+          totalCost: similar.signature.totalCost,
+          estimatedDuration: actions.reduce((sum, a) => sum + (a.durationEstimate ?? 0), 0),
+          goalConditions,
+          reusedFromPlanId: similar.planId,  // Track provenance
+          similarityScore: similar.similarityScore
+        };
+
+        this.logger.info('[GOAPPlanner] Found reusable plan', {
+          originalPlanId: similar.planId,
+          reusedPlanId,
+          similarity: similar.similarityScore.toFixed(3),
+          goalMatch: similar.goalMatch,
+          actions: actions.length
+        });
+
+        return plan;
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.warn('[GOAPPlanner] Error in plan reuse check, falling back to A*', { error });
+      return null;
+    }
+  }
+
+  /**
+   * Reconstruct action objects from action ID sequence
+   */
+  private reconstructActionsFromSequence(
+    actionSequence: string[],
+    constraints?: PlanConstraints
+  ): GOAPAction[] {
+    const actions: GOAPAction[] = [];
+    const excludedActions = new Set(constraints?.excludedActions || []);
+    const allowedCategories = constraints?.allowedCategories
+      ? new Set(constraints.allowedCategories)
+      : null;
+
+    for (const actionId of actionSequence) {
+      if (excludedActions.has(actionId)) continue;
+
+      const action = this.actionLibrary.find(a => a.id === actionId);
+      if (!action) continue;
+
+      if (allowedCategories && !allowedCategories.has(action.category)) continue;
+
+      actions.push(action);
+    }
+
+    return actions;
+  }
+
+  /**
+   * Validate that action sequence can be executed from current state
+   */
+  private validateActionSequence(
+    initialState: WorldState,
+    actions: GOAPAction[]
+  ): boolean {
+    let currentState = this.cloneState(initialState);
+
+    for (const action of actions) {
+      if (!this.preconditionsMet(currentState, action.preconditions)) {
+        return false;
+      }
+      currentState = this.applyAction(currentState, action);
+    }
+
+    return true;
+  }
+
+  /**
+   * Store plan signature for future reuse
+   * Call this after successful plan execution
+   */
+  storePlanSignature(
+    plan: GOAPPlan,
+    initialState: WorldState
+  ): void {
+    try {
+      this.planSimilarity.storePlanSignature(
+        plan.id,
+        plan.goalConditions,
+        initialState,
+        plan.actions,
+        plan.totalCost
+      );
+    } catch (error) {
+      this.logger.warn('[GOAPPlanner] Failed to store plan signature', {
+        planId: plan.id,
+        error
+      });
+    }
+  }
+
+  /**
+   * Record plan reuse outcome (for learning)
+   */
+  recordPlanReuseOutcome(planId: string, success: boolean): void {
+    this.planSimilarity.recordPlanReuse(planId, success);
+  }
+
+  /**
+   * Get plan reuse statistics
+   */
+  getPlanReuseStats(): PlanReuseStats {
+    return this.planSimilarity.getReuseStats();
   }
 
   /**
