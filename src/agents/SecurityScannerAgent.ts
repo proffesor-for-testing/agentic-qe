@@ -13,6 +13,7 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
+import { Logger } from '../utils/Logger';
 import { QEAgentType, QETask, TaskAssignment, PreTaskData, PostTaskData, TaskErrorData } from '../types';
 import { RealSecurityScanner } from '../utils/SecurityScanner';
 
@@ -342,10 +343,10 @@ export class SecurityScannerAgent extends BaseAgent {
     ) as SecurityScanResult[] | null;
 
     if (history && Array.isArray(history)) {
-      console.log(`Loaded ${history.length} historical security scan entries`);
+      this.logger.info(`Loaded ${history.length} historical security scan entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting security scan task`, {
+    this.logger.info(`[${this.agentId.type}] Starting security scan task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -386,7 +387,7 @@ export class SecurityScannerAgent extends BaseAgent {
       vulnerabilities
     });
 
-    console.log(`[${this.agentId.type}] Security scan completed`, {
+    this.logger.info(`[${this.agentId.type}] Security scan completed`, {
       taskId: data.assignment.id,
       vulnerabilitiesFound: vulnerabilities.length
     });
@@ -417,7 +418,7 @@ export class SecurityScannerAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Security scan failed`, {
+    this.logger.error(`[${this.agentId.type}] Security scan failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -428,7 +429,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`[SecurityScanner] Initializing security scanning tools`);
+    this.logger.info(`[SecurityScanner] Initializing security scanning tools`);
 
     // Register event handlers for security coordination
     this.registerEventHandler({
@@ -468,11 +469,11 @@ export class SecurityScannerAgent extends BaseAgent {
       thresholds: this.config.thresholds
     });
 
-    console.log('[SecurityScanner] Initialization complete');
+    this.logger.info('[SecurityScanner] Initialization complete');
   }
 
   protected async performTask(task: QETask): Promise<unknown> {
-    console.log(`[SecurityScanner] Performing task: ${task.type}`);
+    this.logger.info(`[SecurityScanner] Performing task: ${task.type}`);
     const taskPayload = task.payload as SecurityScanMetadata;
 
     switch (task.type) {
@@ -503,7 +504,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   protected async loadKnowledge(): Promise<void> {
-    console.log('[SecurityScanner] Loading security knowledge from memory');
+    this.logger.info('[SecurityScanner] Loading security knowledge from memory');
 
     try {
       // Restore baseline findings
@@ -525,12 +526,12 @@ export class SecurityScannerAgent extends BaseAgent {
       }
 
     } catch (error) {
-      console.warn('[SecurityScanner] Could not restore full state, using defaults:', error);
+      this.logger.warn('[SecurityScanner] Could not restore full state, using defaults:', error);
     }
   }
 
   protected async cleanup(): Promise<void> {
-    console.log('[SecurityScanner] Cleaning up security scanner resources');
+    this.logger.info('[SecurityScanner] Cleaning up security scanner resources');
 
     // Save baseline findings
     await this.memoryStore.store('aqe/security/baselines', {
@@ -558,7 +559,7 @@ export class SecurityScannerAgent extends BaseAgent {
     const startTime = Date.now();
     const scanId = `scan-${Date.now()}`;
 
-    console.log(`[SecurityScanner] Running comprehensive security scan: ${scanId}`);
+    this.logger.info(`[SecurityScanner] Running comprehensive security scan: ${scanId}`);
 
     const allFindings: VulnerabilityFinding[] = [];
 
@@ -627,7 +628,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async runSASTScan(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
-    console.log(`[SecurityScanner] Running SAST scan with ${this.config.tools?.sast}`);
+    this.logger.info(`[SecurityScanner] Running SAST scan with ${this.config.tools?.sast}`);
 
     const startTime = Date.now();
     const findings: VulnerabilityFinding[] = [];
@@ -637,26 +638,26 @@ export class SecurityScannerAgent extends BaseAgent {
       const target = metadata.path || metadata.target || 'src';
 
       // Run ESLint security scan
-      console.log(`[SecurityScanner] Running ESLint security scan on ${target}`);
+      this.logger.info(`[SecurityScanner] Running ESLint security scan on ${target}`);
       const eslintResult = await this.realScanner.runESLintScan(target);
       if (eslintResult.success) {
         findings.push(...eslintResult.findings);
-        console.log(`[SecurityScanner] ESLint found ${eslintResult.findings.length} issues`);
+        this.logger.info(`[SecurityScanner] ESLint found ${eslintResult.findings.length} issues`);
       } else {
-        console.warn(`[SecurityScanner] ESLint scan failed: ${eslintResult.error}`);
+        this.logger.warn(`[SecurityScanner] ESLint scan failed: ${eslintResult.error}`);
       }
 
       // Run Semgrep scan if available
-      console.log(`[SecurityScanner] Running Semgrep SAST scan on ${target}`);
+      this.logger.info(`[SecurityScanner] Running Semgrep SAST scan on ${target}`);
       const semgrepResult = await this.realScanner.runSemgrepScan(target);
       if (semgrepResult.success) {
         findings.push(...semgrepResult.findings);
-        console.log(`[SecurityScanner] Semgrep found ${semgrepResult.findings.length} issues`);
+        this.logger.info(`[SecurityScanner] Semgrep found ${semgrepResult.findings.length} issues`);
       } else if (semgrepResult.error) {
-        console.warn(`[SecurityScanner] Semgrep scan failed: ${semgrepResult.error}`);
+        this.logger.warn(`[SecurityScanner] Semgrep scan failed: ${semgrepResult.error}`);
       }
     } catch (error) {
-      console.error('[SecurityScanner] SAST scan error:', error);
+      this.logger.error('[SecurityScanner] SAST scan error:', error);
     }
 
     const summary = this.calculateSummary(findings);
@@ -674,7 +675,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async runDASTScan(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
-    console.log(`[SecurityScanner] Running DAST scan with ${this.config.tools?.dast}`);
+    this.logger.info(`[SecurityScanner] Running DAST scan with ${this.config.tools?.dast}`);
 
     // Mock DAST scan implementation
     const findings: VulnerabilityFinding[] = [];
@@ -708,24 +709,24 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async scanDependencies(_metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
-    console.log(`[SecurityScanner] Scanning dependencies with ${this.config.tools?.dependencies}`);
+    this.logger.info(`[SecurityScanner] Scanning dependencies with ${this.config.tools?.dependencies}`);
 
     const startTime = Date.now();
     const findings: VulnerabilityFinding[] = [];
 
     try {
       // Run NPM audit
-      console.log('[SecurityScanner] Running NPM audit scan');
+      this.logger.info('[SecurityScanner] Running NPM audit scan');
       const auditResult = await this.realScanner.runNPMAuditScan();
 
       if (auditResult.success) {
         findings.push(...auditResult.findings);
-        console.log(`[SecurityScanner] NPM audit found ${auditResult.findings.length} vulnerabilities`);
+        this.logger.info(`[SecurityScanner] NPM audit found ${auditResult.findings.length} vulnerabilities`);
       } else {
-        console.warn(`[SecurityScanner] NPM audit failed: ${auditResult.error}`);
+        this.logger.warn(`[SecurityScanner] NPM audit failed: ${auditResult.error}`);
       }
     } catch (error) {
-      console.error('[SecurityScanner] Dependency scan error:', error);
+      this.logger.error('[SecurityScanner] Dependency scan error:', error);
     }
 
     const summary = this.calculateSummary(findings);
@@ -750,7 +751,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async scanContainers(metadata: SecurityScanMetadata): Promise<SecurityScanResult> {
-    console.log(`[SecurityScanner] Scanning containers with ${this.config.tools?.containers}`);
+    this.logger.info(`[SecurityScanner] Scanning containers with ${this.config.tools?.containers}`);
 
     const findings: VulnerabilityFinding[] = [];
 
@@ -786,7 +787,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // ============================================================================
 
   private async checkCompliance(metadata: SecurityScanMetadata): Promise<ComplianceReport[]> {
-    console.log(`[SecurityScanner] Checking compliance for standards:`, this.config.compliance?.standards);
+    this.logger.info(`[SecurityScanner] Checking compliance for standards:`, this.config.compliance?.standards);
 
     const reports: ComplianceReport[] = [];
 
@@ -811,7 +812,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async checkStandardCompliance(standard: string, metadata: SecurityScanMetadata): Promise<ComplianceReport> {
-    console.log(`[SecurityScanner] Checking ${standard} compliance`);
+    this.logger.info(`[SecurityScanner] Checking ${standard} compliance`);
 
     const requirements = this.getStandardRequirements(standard);
     const report: ComplianceReport = {
@@ -878,7 +879,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // ============================================================================
 
   private async enforceSecurityGate(metadata: SecurityScanMetadata): Promise<SecurityGateResult> {
-    console.log(`[SecurityScanner] Enforcing security gate`);
+    this.logger.info(`[SecurityScanner] Enforcing security gate`);
 
     // Run security scan
     const scanResult = await this.runSecurityScan(metadata);
@@ -923,7 +924,7 @@ export class SecurityScannerAgent extends BaseAgent {
   // ============================================================================
 
   private async generateSecurityReport(_metadata: SecurityScanMetadata): Promise<SecurityReportResult> {
-    console.log(`[SecurityScanner] Generating security report`);
+    this.logger.info(`[SecurityScanner] Generating security report`);
 
     const recentScans = this.scanHistory.slice(-10);
     const latestScan = recentScans[recentScans.length - 1];
@@ -964,7 +965,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async updateSecurityBaseline(_metadata: SecurityScanMetadata): Promise<void> {
-    console.log(`[SecurityScanner] Updating security baseline`);
+    this.logger.info(`[SecurityScanner] Updating security baseline`);
 
     const latestScan = this.scanHistory[this.scanHistory.length - 1];
     if (!latestScan) {
@@ -1063,7 +1064,7 @@ export class SecurityScannerAgent extends BaseAgent {
   private async loadCVEDatabase(): Promise<void> {
     // Mock CVE database loading
     // In production, this would fetch from NVD or similar
-    console.log('[SecurityScanner] Loading CVE database');
+    this.logger.info('[SecurityScanner] Loading CVE database');
 
     const mockCVEs: CVERecord[] = [
       {
@@ -1084,17 +1085,17 @@ export class SecurityScannerAgent extends BaseAgent {
 
   private async initializeScanningTools(): Promise<void> {
     // Mock tool initialization
-    console.log('[SecurityScanner] Initializing scanning tools:', this.config.tools);
+    this.logger.info('[SecurityScanner] Initializing scanning tools:', this.config.tools);
     // In production, this would set up connections to actual scanning tools
   }
 
   private async handleTestGenerated(_data: TestGeneratedEventData): Promise<void> {
-    console.log('[SecurityScanner] Auto-scanning newly generated tests');
+    this.logger.info('[SecurityScanner] Auto-scanning newly generated tests');
     // Automatically scan new test code for security issues
   }
 
   private async handleDeploymentRequest(data: DeploymentRequestEventData): Promise<void> {
-    console.log('[SecurityScanner] Enforcing security gate for deployment');
+    this.logger.info('[SecurityScanner] Enforcing security gate for deployment');
     const metadata: SecurityScanMetadata = {
       path: data.path,
       target: data.target
@@ -1110,7 +1111,7 @@ export class SecurityScannerAgent extends BaseAgent {
   }
 
   private async handleNewCVE(data: CVEEventData): Promise<void> {
-    console.log('[SecurityScanner] Processing new CVE:', data.cve?.cve);
+    this.logger.info('[SecurityScanner] Processing new CVE:', data.cve?.cve);
 
     if (data.cve) {
       this.cveDatabase.set(data.cve.id, data.cve);
@@ -1258,9 +1259,9 @@ export class SecurityScannerAgent extends BaseAgent {
         };
 
         await this.qePatternStore.storePattern(pattern);
-        console.log(`[SecurityScanner] Stored vulnerability pattern: ${finding.id}`);
+        this.logger.info(`[SecurityScanner] Stored vulnerability pattern: ${finding.id}`);
       } catch (error) {
-        console.warn(`[SecurityScanner] Failed to store security pattern: ${(error as Error).message}`);
+        this.logger.warn(`[SecurityScanner] Failed to store security pattern: ${(error as Error).message}`);
       }
     }
   }

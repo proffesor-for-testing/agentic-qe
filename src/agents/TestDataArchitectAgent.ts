@@ -10,6 +10,7 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
+import { Logger } from '../utils/Logger';
 import {
   QEAgentType,
   QETask,
@@ -545,10 +546,10 @@ export class TestDataArchitectAgent extends BaseAgent {
     );
 
     if (history && Array.isArray(history)) {
-      console.log(`Loaded ${history.length} historical test data generation entries`);
+      this.logger.info(`Loaded ${history.length} historical test data generation entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting test data generation task`, {
+    this.logger.info(`[${this.agentId.type}] Starting test data generation task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -583,7 +584,7 @@ export class TestDataArchitectAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.log(`[${this.agentId.type}] Test data generation completed`, {
+    this.logger.info(`[${this.agentId.type}] Test data generation completed`, {
       taskId: data.assignment.id,
       recordsGenerated: recordCount
     });
@@ -614,7 +615,7 @@ export class TestDataArchitectAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Test data generation failed`, {
+    this.logger.error(`[${this.agentId.type}] Test data generation failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -625,7 +626,7 @@ export class TestDataArchitectAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`TestDataArchitectAgent ${this.agentId.id} initializing...`);
+    this.logger.info(`TestDataArchitectAgent ${this.agentId.id} initializing...`);
 
     // Initialize Faker.js for realistic data generation
     await this.initializeFaker();
@@ -636,7 +637,7 @@ export class TestDataArchitectAgent extends BaseAgent {
     // Initialize anonymization token map
     this.tokenMap.clear();
 
-    console.log('TestDataArchitectAgent initialized successfully');
+    this.logger.info('TestDataArchitectAgent initialized successfully');
   }
 
   protected async performTask(task: QETask): Promise<
@@ -644,7 +645,7 @@ export class TestDataArchitectAgent extends BaseAgent {
     ValidationResult | DataRecord[] | ProductionPatternResult |
     DataVersion | DatabaseSeedResult
   > {
-    console.log(`TestDataArchitectAgent executing task: ${task.type}`);
+    this.logger.info(`TestDataArchitectAgent executing task: ${task.type}`);
 
     switch (task.type) {
       case 'introspect-schema':
@@ -687,7 +688,7 @@ export class TestDataArchitectAgent extends BaseAgent {
       for (const [name, schema] of Object.entries(cachedSchemas)) {
         this.schemaCache.set(name, schema as DatabaseSchema);
       }
-      console.log(`Loaded ${this.schemaCache.size} cached schemas`);
+      this.logger.info(`Loaded ${this.schemaCache.size} cached schemas`);
     }
 
     // Load data generation patterns
@@ -697,12 +698,12 @@ export class TestDataArchitectAgent extends BaseAgent {
     );
 
     if (patterns) {
-      console.log('Loaded data generation patterns');
+      this.logger.info('Loaded data generation patterns');
     }
   }
 
   protected async cleanup(): Promise<void> {
-    console.log('TestDataArchitectAgent cleaning up...');
+    this.logger.info('TestDataArchitectAgent cleaning up...');
 
     // Save schemas to shared memory
     const schemasObject = Object.fromEntries(this.schemaCache.entries());
@@ -713,7 +714,7 @@ export class TestDataArchitectAgent extends BaseAgent {
     this.generatedDatasets.clear();
     this.tokenMap.clear();
 
-    console.log('TestDataArchitectAgent cleanup complete');
+    this.logger.info('TestDataArchitectAgent cleanup complete');
   }
 
   // ============================================================================
@@ -724,7 +725,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Introspect database schema from various sources
    */
   public async introspectSchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
-    console.log(`Introspecting schema from ${config.source}`);
+    this.logger.info(`Introspecting schema from ${config.source}`);
 
     let schema: DatabaseSchema;
 
@@ -777,7 +778,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private async introspectSQLDatabase(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation - in production, would connect to actual database
-    console.log(`Introspecting SQL database: ${config.source}`);
+    this.logger.info(`Introspecting SQL database: ${config.source}`);
 
     // Simulate schema introspection
     const mockSchema: DatabaseSchema = {
@@ -960,7 +961,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private async introspectMongoDatabase(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
-    console.log('Introspecting MongoDB schema');
+    this.logger.info('Introspecting MongoDB schema');
 
     // In production, would analyze MongoDB collections and documents
     return {
@@ -977,7 +978,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private async introspectOpenAPISchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
-    console.log('Introspecting OpenAPI schema');
+    this.logger.info('Introspecting OpenAPI schema');
 
     return {
       name: 'api_schema',
@@ -993,7 +994,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private async introspectGraphQLSchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
-    console.log('Introspecting GraphQL schema');
+    this.logger.info('Introspecting GraphQL schema');
 
     return {
       name: 'graphql_schema',
@@ -1009,7 +1010,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private async introspectTypeScriptSchema(config: SchemaIntrospectionConfig): Promise<DatabaseSchema> {
     // Mock implementation
-    console.log('Introspecting TypeScript schema');
+    this.logger.info('Introspecting TypeScript schema');
 
     return {
       name: 'typescript_schema',
@@ -1029,7 +1030,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   public async generateData(request: DataGenerationRequest): Promise<DataGenerationResult> {
     const startTime = Date.now();
-    console.log(`Generating ${request.count} records`);
+    this.logger.info(`Generating ${request.count} records`);
 
     let schema: DatabaseSchema;
 
@@ -1099,7 +1100,7 @@ export class TestDataArchitectAgent extends BaseAgent {
       duration
     }, 'high');
 
-    console.log(`Generated ${request.count} records in ${duration}ms (${generationRate.toFixed(0)} records/sec)`);
+    this.logger.info(`Generated ${request.count} records in ${duration}ms (${generationRate.toFixed(0)} records/sec)`);
 
     return result;
   }
@@ -1230,7 +1231,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Generate edge case data
    */
   public async generateEdgeCases(config: EdgeCaseConfig): Promise<DataRecord[]> {
-    console.log('Generating edge case data');
+    this.logger.info('Generating edge case data');
 
     let schema: DatabaseSchema;
     if ('tables' in config.schema) {
@@ -1393,7 +1394,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Anonymize PII data
    */
   public async anonymizeData(config: AnonymizeDataConfig): Promise<AnonymizationResult> {
-    console.log('Anonymizing PII data');
+    this.logger.info('Anonymizing PII data');
 
     const strategy = config.strategy || AnonymizationStrategy.TOKENIZE;
     const originalRecords = config.data.length;
@@ -1570,7 +1571,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Validate generated data
    */
   public async validateData(config: ValidateDataConfig): Promise<ValidationResult> {
-    console.log('Validating generated data');
+    this.logger.info('Validating generated data');
 
     let schema: DatabaseSchema;
     if ('tables' in config.schema) {
@@ -1725,7 +1726,7 @@ export class TestDataArchitectAgent extends BaseAgent {
       // Safe expression evaluation (replaces eval() - Security Fix v1.3.7)
       return this.safeEvaluateExpression(expression);
     } catch (error) {
-      console.error(`Error evaluating constraint: ${constraint.expression}`, error);
+      this.logger.error(`Error evaluating constraint: ${constraint.expression}`, error);
       return false;
     }
   }
@@ -1801,10 +1802,10 @@ export class TestDataArchitectAgent extends BaseAgent {
       }
 
       // If we can't safely evaluate, return false
-      console.warn(`Cannot safely evaluate expression: ${expression}`);
+      this.logger.warn(`Cannot safely evaluate expression: ${expression}`);
       return false;
     } catch (error) {
-      console.error(`Error in safe evaluation: ${error}`);
+      this.logger.error(`Error in safe evaluation: ${error}`);
       return false;
     }
   }
@@ -1836,7 +1837,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Analyze production data patterns
    */
   public async analyzeProductionPatterns(config: ProductionPatternConfig): Promise<ProductionPatternResult> {
-    console.log('Analyzing production data patterns');
+    this.logger.info('Analyzing production data patterns');
 
     const patterns: ProductionPatternResult = {
       distributions: {},
@@ -1884,7 +1885,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Create a data version
    */
   public async createDataVersion(config: DataVersionConfig): Promise<DataVersion> {
-    console.log(`Creating data version: ${config.version}`);
+    this.logger.info(`Creating data version: ${config.version}`);
 
     const dataset = this.generatedDatasets.get(config.datasetId);
     if (!dataset) {
@@ -1924,7 +1925,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    * Seed database with generated data
    */
   public async seedDatabase(config: DatabaseSeedConfig): Promise<DatabaseSeedResult> {
-    console.log(`Seeding ${config.database} database`);
+    this.logger.info(`Seeding ${config.database} database`);
 
     const dataset = this.generatedDatasets.get(config.datasetId);
     if (!dataset) {
@@ -1959,7 +1960,7 @@ export class TestDataArchitectAgent extends BaseAgent {
    */
   private async loadSchemaTemplates(): Promise<void> {
     // Load common schema templates from memory
-    console.log('Loading schema templates...');
+    this.logger.info('Loading schema templates...');
   }
 
   /**

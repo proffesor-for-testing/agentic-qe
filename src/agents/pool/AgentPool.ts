@@ -17,6 +17,7 @@
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
 import { QEAgentType } from '../../types';
+import { Logger } from '../../utils/Logger';
 import {
   AgentPoolConfig,
   AgentTypePoolConfig,
@@ -718,7 +719,7 @@ export class AgentPool<T extends IResettableAgent> extends EventEmitter {
 
   private log(message: string, data?: unknown): void {
     if (this.config.debug) {
-      console.log(`[AgentPool] ${message}`, data ?? '');
+      Logger.getInstance().info(`[AgentPool] ${message}`, data ?? '');
     }
   }
 }

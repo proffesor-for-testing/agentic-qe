@@ -50,30 +50,6 @@ export interface TestExecutorConfig extends BaseAgentConfig {
   workingDir?: string;
 }
 
-// Create a simple logger interface
-interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-  debug(message: string, ...args: unknown[]): void;
-}
-
-// Simple console logger implementation
-class ConsoleLogger implements Logger {
-  info(message: string, ...args: unknown[]): void {
-    console.log(`[INFO] ${message}`, ...args);
-  }
-  warn(message: string, ...args: unknown[]): void {
-    console.warn(`[WARN] ${message}`, ...args);
-  }
-  error(message: string, ...args: unknown[]): void {
-    console.error(`[ERROR] ${message}`, ...args);
-  }
-  debug(message: string, ...args: unknown[]): void {
-    console.debug(`[DEBUG] ${message}`, ...args);
-  }
-}
-
 // ============================================================================
 // Type definitions for test execution
 // ============================================================================
@@ -217,7 +193,6 @@ interface TestExecutionResult {
 
 export class TestExecutorAgent extends BaseAgent {
   private readonly config: TestExecutorConfig;
-  protected readonly logger: Logger = new ConsoleLogger();
   private activeExecutions: Map<string, Promise<QETestResult>> = new Map();
   private retryStrategies: Map<string, (error: Error) => boolean> = new Map();
   private testFrameworkExecutor?: TestFrameworkExecutorType;
@@ -274,9 +249,9 @@ export class TestExecutorAgent extends BaseAgent {
 
     // Log execution mode on initialization
     if (this.config.simulationMode) {
-      console.warn('[TestExecutor] ⚠️  SIMULATION MODE ENABLED - Tests will NOT be executed for real');
+      this.logger.warn('[TestExecutor] ⚠️  SIMULATION MODE ENABLED - Tests will NOT be executed for real');
     } else {
-      console.log('[TestExecutor] ✅ REAL EXECUTION MODE - Tests will be executed via test frameworks');
+      this.logger.info('[TestExecutor] ✅ REAL EXECUTION MODE - Tests will be executed via test frameworks');
     }
   }
 
@@ -297,10 +272,10 @@ export class TestExecutorAgent extends BaseAgent {
     ) as { entries?: unknown[]; length?: number } | null;
 
     if (history && history.entries) {
-      console.log(`Loaded ${history.entries.length} historical test execution entries`);
+      this.logger.info(`Loaded ${history.entries.length} historical test execution entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting test execution task`, {
+    this.logger.info(`[${this.agentId.type}] Starting test execution task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -342,7 +317,7 @@ export class TestExecutorAgent extends BaseAgent {
       testResults: result?.testResults ?? []
     });
 
-    console.log(`[${this.agentId.type}] Test execution completed`, {
+    this.logger.info(`[${this.agentId.type}] Test execution completed`, {
       taskId: data.assignment.id,
       testsRun: result?.totalTests ?? 0
     });
@@ -376,7 +351,7 @@ export class TestExecutorAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Test execution failed`, {
+    this.logger.error(`[${this.agentId.type}] Test execution failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -388,7 +363,7 @@ export class TestExecutorAgent extends BaseAgent {
 
   protected async initializeComponents(): Promise<void> {
     const mode = this.config.simulationMode ? 'SIMULATION' : 'REAL';
-    console.log(`TestExecutorAgent ${this.agentId.id} initializing in ${mode} mode with frameworks: ${this.config.frameworks.join(', ')}`);
+    this.logger.info(`TestExecutorAgent ${this.agentId.id} initializing in ${mode} mode with frameworks: ${this.config.frameworks.join(', ')}`);
 
     // Validate test frameworks are available (only in real mode)
     if (!this.config.simulationMode) {
@@ -405,13 +380,13 @@ export class TestExecutorAgent extends BaseAgent {
       await this.initializeSublinearOptimization();
     }
 
-    console.log(`TestExecutorAgent ${this.agentId.id} initialized successfully in ${mode} mode`);
+    this.logger.info(`TestExecutorAgent ${this.agentId.id} initialized successfully in ${mode} mode`);
   }
 
   protected async performTask(task: QETask): Promise<QETestResult | QETestResult[] | TestDiscoveryResult | TestAnalysisResult | { results: QETestResult[]; totalTime: number; parallelEfficiency: number; optimizationApplied: boolean }> {
     const { type, payload } = task;
 
-    console.log(`Executing ${type} task: ${task.id}`);
+    this.logger.info(`Executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'parallel-test-execution':
@@ -433,14 +408,14 @@ export class TestExecutorAgent extends BaseAgent {
     // Load test execution patterns and optimization strategies
     const patterns = await this.retrieveMemory('execution-patterns');
     if (patterns) {
-      console.log('Loaded test execution patterns from memory');
+      this.logger.info('Loaded test execution patterns from memory');
     }
 
     // Load framework-specific configurations
     for (const framework of this.config.frameworks) {
       const frameworkConfig = await this.retrieveMemory(`framework-config:${framework}`);
       if (frameworkConfig) {
-        console.log(`Loaded configuration for ${framework}`);
+        this.logger.info(`Loaded configuration for ${framework}`);
       }
     }
   }
@@ -448,12 +423,12 @@ export class TestExecutorAgent extends BaseAgent {
   protected async cleanup(): Promise<void> {
     // Wait for all active executions to complete
     if (this.activeExecutions.size > 0) {
-      console.log(`Waiting for ${this.activeExecutions.size} active executions to complete`);
+      this.logger.info(`Waiting for ${this.activeExecutions.size} active executions to complete`);
       await Promise.allSettled(Array.from(this.activeExecutions.values()));
     }
 
     this.activeExecutions.clear();
-    console.log(`TestExecutorAgent ${this.agentId.id} cleaned up`);
+    this.logger.info(`TestExecutorAgent ${this.agentId.id} cleaned up`);
   }
 
   // ============================================================================
@@ -536,7 +511,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('Parallel test execution failed:', error);
+      this.logger.error('Parallel test execution failed:', error);
       throw error;
     }
   }
@@ -664,7 +639,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('[TestExecutor] Real test execution failed:', error);
+      this.logger.error('[TestExecutor] Real test execution failed:', error);
 
       return {
         id: test.id,
@@ -695,7 +670,7 @@ export class TestExecutorAgent extends BaseAgent {
       );
     }
 
-    console.warn(
+    this.logger.warn(
       `[TestExecutorAgent] ⚠️  USING SIMULATED TEST EXECUTION (not real tests) for test ${test.id}. ` +
       'This is for demo/testing purposes only. Use simulationMode=false for production.'
     );
@@ -782,7 +757,7 @@ export class TestExecutorAgent extends BaseAgent {
   }> {
     const { testPath, framework = 'jest', environment = 'test' } = data;
 
-    console.log(`Executing integration tests in ${environment} environment`);
+    this.logger.info(`Executing integration tests in ${environment} environment`);
 
     const startTime = Date.now();
 
@@ -813,7 +788,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('Integration test execution failed:', error);
+      this.logger.error('Integration test execution failed:', error);
       throw error;
     }
   }
@@ -833,7 +808,7 @@ export class TestExecutorAgent extends BaseAgent {
   }> {
     const { testPath, framework = 'cypress', baseUrl, browser = 'chrome' } = data;
 
-    console.log(`Executing E2E tests with ${framework} on ${browser}`);
+    this.logger.info(`Executing E2E tests with ${framework} on ${browser}`);
 
     const startTime = Date.now();
 
@@ -866,7 +841,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('E2E test execution failed:', error);
+      this.logger.error('E2E test execution failed:', error);
       throw error;
     }
   }
@@ -885,7 +860,7 @@ export class TestExecutorAgent extends BaseAgent {
   }> {
     const { testPath, baseUrl, framework = 'jest' } = data;
 
-    console.log(`Executing API tests against ${baseUrl}`);
+    this.logger.info(`Executing API tests against ${baseUrl}`);
 
     const startTime = Date.now();
 
@@ -916,7 +891,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('API test execution failed:', error);
+      this.logger.error('API test execution failed:', error);
       throw error;
     }
   }
@@ -935,7 +910,7 @@ export class TestExecutorAgent extends BaseAgent {
   }> {
     const { testSuite, baseline, framework = 'jest' } = data;
 
-    console.log(`Executing regression tests against baseline: ${baseline}`);
+    this.logger.info(`Executing regression tests against baseline: ${baseline}`);
 
     const startTime = Date.now();
 
@@ -966,7 +941,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('Regression test execution failed:', error);
+      this.logger.error('Regression test execution failed:', error);
       throw error;
     }
   }
@@ -977,7 +952,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async discoverTests(data: TestDiscoveryConfig): Promise<TestDiscoveryResult> {
     const { searchPath = './tests', frameworks = this.config.frameworks } = data;
 
-    console.log(`Discovering tests in ${searchPath}`);
+    this.logger.info(`Discovering tests in ${searchPath}`);
 
     // Check if simulation mode is enabled
     if (this.config.simulationMode) {
@@ -1055,7 +1030,7 @@ export class TestExecutorAgent extends BaseAgent {
       };
 
     } catch (error) {
-      console.error('[TestExecutor] Test discovery failed:', error);
+      this.logger.error('[TestExecutor] Test discovery failed:', error);
       throw error;
     }
   }
@@ -1066,7 +1041,7 @@ export class TestExecutorAgent extends BaseAgent {
   private async analyzeTests(data: TestAnalysisConfig): Promise<TestAnalysisResult> {
     const { testPath, _includeMetrics = true } = data;
 
-    console.log(`Analyzing tests in ${testPath}`);
+    this.logger.info(`Analyzing tests in ${testPath}`);
 
     // Simulate test analysis
     const analysis = {
@@ -1115,7 +1090,7 @@ export class TestExecutorAgent extends BaseAgent {
       // Reorder tests based on optimization results
       const optimizedTests = optimizedOrder.map(index => tests[index]).filter(Boolean);
 
-      console.log(`Applied sublinear optimization: ${tests.length} tests -> ${reducedDimension}D optimization`);
+      this.logger.info(`Applied sublinear optimization: ${tests.length} tests -> ${reducedDimension}D optimization`);
 
       // Store optimization results for learning
       await this.storeMemory('last-optimization', {
@@ -1128,7 +1103,7 @@ export class TestExecutorAgent extends BaseAgent {
       return optimizedTests;
 
     } catch (error) {
-      console.warn('Sublinear optimization failed, using original order:', error);
+      this.logger.warn('Sublinear optimization failed, using original order:', error);
       return tests;
     }
   }
@@ -1324,12 +1299,12 @@ export class TestExecutorAgent extends BaseAgent {
 
   private async initializeExecutionPools(): Promise<void> {
     // Initialize thread/worker pools for parallel execution
-    console.log(`Initialized execution pools with ${this.config.maxParallelTests} max parallel tests`);
+    this.logger.info(`Initialized execution pools with ${this.config.maxParallelTests} max parallel tests`);
   }
 
   private async initializeSublinearOptimization(): Promise<void> {
     // Initialize sublinear optimization components
-    console.log('Initialized sublinear optimization for test execution');
+    this.logger.info('Initialized sublinear optimization for test execution');
   }
 
   private calculateParallelEfficiency(results: QETestResult[], totalTime: number, maxParallel: number): number {
@@ -1396,7 +1371,7 @@ export class TestExecutorAgent extends BaseAgent {
    * Run tests using a specific framework - REAL IMPLEMENTATION
    */
   private async runTestFramework(framework: string, options: FrameworkRunOptions): Promise<FrameworkRunResult> {
-    console.log(`Running tests with ${framework}`, options);
+    this.logger.info(`Running tests with ${framework}`, options);
 
     // Import TestFrameworkExecutor dynamically
     const { TestFrameworkExecutor } = await import('../utils/TestFrameworkExecutor.js');
@@ -1426,7 +1401,7 @@ export class TestExecutorAgent extends BaseAgent {
         config: options.config
       });
 
-      console.log(`Test execution completed: ${result.passedTests}/${result.totalTests} passed`);
+      this.logger.info(`Test execution completed: ${result.passedTests}/${result.totalTests} passed`);
 
       return {
         total: result.totalTests,
@@ -1440,7 +1415,7 @@ export class TestExecutorAgent extends BaseAgent {
         status: result.status
       };
     } catch (error) {
-      console.error('Test execution failed:', error);
+      this.logger.error('Test execution failed:', error);
       throw error;
     }
   }
@@ -1452,7 +1427,7 @@ export class TestExecutorAgent extends BaseAgent {
       throw new Error(`Unsupported test framework: ${framework}`);
     }
 
-    console.log(`Framework ${framework} validated`);
+    this.logger.info(`Framework ${framework} validated`);
   }
 
   /**

@@ -903,7 +903,7 @@ export class N8nMonitoringValidatorAgent extends N8nBaseAgent {
     }
 
     if (issues.length > 0) {
-      console.warn(`Execution ${execution.id} (iteration ${iteration}) has monitoring issues:`, issues);
+      this.logger.warn(`Execution ${execution.id} (iteration ${iteration}) has monitoring issues:`, issues);
     }
   }
 

@@ -28,6 +28,7 @@ import type {
   AgentUsageStats,
   AgentModelInfo,
 } from '../interfaces/IAgentLLM';
+import { Logger } from '../../utils/Logger';
 import { AgentLLMError } from '../interfaces/IAgentLLM';
 
 /**
@@ -182,7 +183,7 @@ export class AgentLLMAdapter implements IAgentLLM {
       this.stats.totalLatency += Date.now() - startTime;
 
       if (this.config.debug) {
-        console.log(`[${this.agentId}] Stream completed: ${totalTokens} tokens, ${Date.now() - startTime}ms`);
+        Logger.getInstance().info(`[${this.agentId}] Stream completed: ${totalTokens} tokens, ${Date.now() - startTime}ms`);
       }
     } catch (error) {
       throw this.translateError(error);
@@ -252,7 +253,7 @@ export class AgentLLMAdapter implements IAgentLLM {
     this.currentModel = model;
 
     if (this.config.debug) {
-      console.log(`[${this.agentId}] Switched to model: ${model}`);
+      Logger.getInstance().info(`[${this.agentId}] Switched to model: ${model}`);
     }
   }
 
@@ -311,7 +312,7 @@ export class AgentLLMAdapter implements IAgentLLM {
     };
 
     if (this.config.debug) {
-      console.log(`[${this.agentId}] Stats reset`);
+      Logger.getInstance().info(`[${this.agentId}] Stats reset`);
     }
   }
 
@@ -405,7 +406,7 @@ export class AgentLLMAdapter implements IAgentLLM {
     }
 
     if (this.config.debug) {
-      console.log(`[${this.agentId}] Request completed: ${tokens} tokens, ${latency}ms, cost: $${this.stats.costIncurred.toFixed(6)}`);
+      Logger.getInstance().info(`[${this.agentId}] Request completed: ${tokens} tokens, ${latency}ms, cost: $${this.stats.costIncurred.toFixed(6)}`);
     }
   }
 

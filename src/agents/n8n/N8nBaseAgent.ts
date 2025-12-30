@@ -666,7 +666,7 @@ Test suggestions:`;
     // Test n8n connection
     const connected = await this.testConnection();
     if (!connected) {
-      console.warn(`[${this.getAgentId().id}] Warning: Could not connect to n8n API at ${this.n8nConfig.baseUrl}`);
+      this.logger.warn(`[${this.getAgentId().id}] Warning: Could not connect to n8n API at ${this.n8nConfig.baseUrl}`);
     }
   }
 

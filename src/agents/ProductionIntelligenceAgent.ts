@@ -9,6 +9,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { Logger } from '../utils/Logger';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentType as _AgentType,
@@ -411,10 +412,10 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     );
 
     if (history && Array.isArray(history)) {
-      console.log(`Loaded ${history.length} historical production intelligence entries`);
+      this.logger.info(`Loaded ${history.length} historical production intelligence entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting production intelligence task`, {
+    this.logger.info(`[${this.agentId.type}] Starting production intelligence task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -448,7 +449,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
       testScenarios: result?.testScenarios || []
     });
 
-    console.log(`[${this.agentId.type}] Production intelligence analysis completed`, {
+    this.logger.info(`[${this.agentId.type}] Production intelligence analysis completed`, {
       taskId: data.assignment.id,
       scenariosGenerated: result?.testScenarios?.length || 0
     });
@@ -479,7 +480,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Production intelligence task failed`, {
+    this.logger.error(`[${this.agentId.type}] Production intelligence task failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -490,7 +491,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`ProductionIntelligenceAgent ${this.agentId.id} initializing...`);
+    this.logger.info(`ProductionIntelligenceAgent ${this.agentId.id} initializing...`);
 
     // Initialize monitoring platform clients
     await this.initializeMonitoringClients();
@@ -501,13 +502,13 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     // Register event handlers for production events
     this.registerProductionEventHandlers();
 
-    console.log(`ProductionIntelligenceAgent ${this.agentId.id} initialized successfully`);
+    this.logger.info(`ProductionIntelligenceAgent ${this.agentId.id} initialized successfully`);
   }
 
   protected async performTask(task: QETask): Promise<unknown> {
     const { type, payload } = task;
 
-    console.log(`ProductionIntelligenceAgent executing ${type} task: ${task.id}`);
+    this.logger.info(`ProductionIntelligenceAgent executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'incident-replay':
@@ -543,19 +544,19 @@ export class ProductionIntelligenceAgent extends BaseAgent {
     // Load production intelligence patterns and insights
     const storedPatterns = await this.retrieveMemory('production-patterns');
     if (storedPatterns) {
-      console.log('Loaded production intelligence patterns from memory');
+      this.logger.info('Loaded production intelligence patterns from memory');
     }
 
     // Load incident history
     const incidentHistory = await this.memoryStore.retrieve('aqe/production/incidents');
     if (incidentHistory) {
-      console.log('Loaded incident history from memory');
+      this.logger.info('Loaded incident history from memory');
     }
 
     // Load RUM data
     const rumData = await this.memoryStore.retrieve('aqe/production/rum-data');
     if (rumData) {
-      console.log('Loaded RUM data from memory');
+      this.logger.info('Loaded RUM data from memory');
     }
   }
 
@@ -568,12 +569,12 @@ export class ProductionIntelligenceAgent extends BaseAgent {
 
     // Close monitoring client connections
     for (const [platform, _client] of this.monitoringClients.entries()) {
-      console.log(`Closing connection to ${platform}`);
+      this.logger.info(`Closing connection to ${platform}`);
       // In real implementation, properly close connections
     }
 
     this.monitoringClients.clear();
-    console.log(`ProductionIntelligenceAgent ${this.agentId.id} cleaned up`);
+    this.logger.info(`ProductionIntelligenceAgent ${this.agentId.id} cleaned up`);
   }
 
   // ============================================================================
@@ -589,7 +590,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   }> {
     const { incident } = data;
 
-    console.log(`Analyzing incident ${incident.id} for replay testing`);
+    this.logger.info(`Analyzing incident ${incident.id} for replay testing`);
 
     // Generate test scenario from incident
     const testScenario = await this.generateIncidentTestScenario(incident);
@@ -683,7 +684,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   }> {
     const { rumData, timeWindow = 'last_7_days' } = data;
 
-    console.log(`Analyzing RUM data for ${timeWindow}`);
+    this.logger.info(`Analyzing RUM data for ${timeWindow}`);
 
     // Fetch RUM data from monitoring platform or use provided data
     const analysisData = rumData || await this.fetchRUMData(timeWindow);
@@ -833,7 +834,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   }> {
     const { currentMetrics, lookbackPeriod = '24h' } = data;
 
-    console.log(`Detecting anomalies in production metrics (lookback: ${lookbackPeriod})`);
+    this.logger.info(`Detecting anomalies in production metrics (lookback: ${lookbackPeriod})`);
 
     const anomalies: AnomalyDetection[] = [];
     const recommendations: string[] = [];
@@ -978,7 +979,7 @@ export class ProductionIntelligenceAgent extends BaseAgent {
   }> {
     const { timeWindow = '30d' } = data;
 
-    console.log(`Analyzing load patterns for ${timeWindow}`);
+    this.logger.info(`Analyzing load patterns for ${timeWindow}`);
 
     // Fetch production traffic data
     const loadPattern = await this.extractLoadPattern(timeWindow);
@@ -1116,7 +1117,7 @@ export default function() {
   }> {
     const { timeWindow = '30d' } = data;
 
-    console.log(`Analyzing feature usage for ${timeWindow}`);
+    this.logger.info(`Analyzing feature usage for ${timeWindow}`);
 
     // Fetch feature usage data
     const usageData = await this.fetchFeatureUsageData(timeWindow);
@@ -1320,19 +1321,19 @@ export default function() {
     const { monitoringPlatforms } = this.config;
 
     if (monitoringPlatforms?.datadog) {
-      console.log('Initializing Datadog client');
+      this.logger.info('Initializing Datadog client');
       // In real implementation: initialize Datadog API client
       this.monitoringClients.set('datadog', { initialized: true });
     }
 
     if (monitoringPlatforms?.newRelic) {
-      console.log('Initializing New Relic client');
+      this.logger.info('Initializing New Relic client');
       // In real implementation: initialize New Relic API client
       this.monitoringClients.set('newrelic', { initialized: true });
     }
 
     if (monitoringPlatforms?.grafana) {
-      console.log('Initializing Grafana client');
+      this.logger.info('Initializing Grafana client');
       // In real implementation: initialize Grafana API client
       this.monitoringClients.set('grafana', { initialized: true });
     }

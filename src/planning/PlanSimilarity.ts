@@ -17,6 +17,7 @@
 
 import Database from 'better-sqlite3';
 import { Logger } from '../utils/Logger';
+import { SecureRandom } from '../utils/SecureRandom';
 import { WorldState, StateConditions, GOAPPlan, GOAPAction } from './types';
 import crypto from 'crypto';
 
@@ -270,7 +271,7 @@ export class PlanSimilarity {
   ): PlanSignature {
     this.ensureSchema();
 
-    const id = `sig-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `sig-${Date.now()}-${SecureRandom.randomString(9)}`;
     const goalSignature = this.createGoalSignature(goalConditions);
     const stateVector = this.extractStateVector(initialState);
     const actionSequence = actions.map(a => a.id);

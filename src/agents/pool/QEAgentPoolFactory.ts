@@ -10,6 +10,7 @@ import { QEAgentType, AgentStatus } from '../../types';
 import { BaseAgent } from '../BaseAgent';
 import { AgentFactory, AgentPool } from './AgentPool';
 import { IResettableAgent, AgentPoolConfig, AgentTypePoolConfig } from './types';
+import { Logger } from '../../utils/Logger';
 
 /**
  * Wrapper that makes BaseAgent poolable
@@ -141,7 +142,7 @@ export class QEAgentPoolFactory implements AgentFactory<PoolableAgent> {
       await agent.getBaseAgent().terminate();
     } catch (error) {
       if (this.config.debug) {
-        console.warn(`Error disposing agent ${agent.getId()}:`, error);
+        Logger.getInstance().warn(`Error disposing agent ${agent.getId()}:`, error);
       }
     }
   }

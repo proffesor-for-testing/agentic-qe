@@ -13,6 +13,7 @@
 
 import Database from 'better-sqlite3';
 import { Logger } from '../utils/Logger';
+import { SecureRandom } from '../utils/SecureRandom';
 import {
   WorldState,
   StateConditions,
@@ -392,7 +393,7 @@ export class GOAPPlanner {
         }
 
         // Create reused plan with new ID
-        const reusedPlanId = `plan-reuse-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        const reusedPlanId = `plan-reuse-${Date.now()}-${SecureRandom.randomString(6)}`;
         const plan: GOAPPlan = {
           id: reusedPlanId,
           actions,
@@ -853,7 +854,7 @@ export class GOAPPlanner {
       current = current.parent;
     }
 
-    const planId = `plan-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const planId = `plan-${Date.now()}-${SecureRandom.randomString(6)}`;
 
     return {
       id: planId,

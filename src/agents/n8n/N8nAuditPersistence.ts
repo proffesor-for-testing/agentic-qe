@@ -16,6 +16,7 @@ import {
 } from './types';
 import { NodeValidationResult } from './N8nNodeValidatorAgent';
 import { seededRandom } from '../../utils/SeededRandom';
+import { Logger } from '../../utils/Logger';
 
 // ============================================================================
 // Types
@@ -363,7 +364,7 @@ export class N8nAuditPersistence {
   private async createTables(): Promise<void> {
     // Placeholder for actual database table creation
     // In production, this would execute SQL to create the audit_results table
-    console.log(`Creating ${this.config.tableName} table for ${this.config.type}`);
+    Logger.getInstance().info(`Creating ${this.config.tableName} table for ${this.config.type}`);
   }
 
   private generateJsonReport(

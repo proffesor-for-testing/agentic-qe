@@ -902,7 +902,7 @@ export class N8nSecurityAuditorAgent extends N8nBaseAgent {
       }
     } catch (error) {
       // Log but don't fail the entire audit
-      console.error('Runtime security check failed:', error);
+      this.logger.error('Runtime security check failed:', error);
     }
 
     return findings;
