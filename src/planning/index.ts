@@ -86,6 +86,25 @@ export {
   type PlanExecutionConfig
 } from './execution';
 
+// Plan Learning Module (Phase 5)
+export {
+  PlanLearning,
+  type PlanLearningConfig,
+  type ActionStats,
+  type PlanLearningOutcome,
+  type GOAPState,
+  type GOAPQLearningAction
+} from './PlanLearning';
+
+// Plan Similarity Module (Phase 5)
+export {
+  PlanSimilarity,
+  type PlanSignature,
+  type SimilarPlan,
+  type PlanReuseStats,
+  type SimilarityConfig
+} from './PlanSimilarity';
+
 // Action Library
 export {
   // All actions
@@ -180,7 +199,7 @@ export async function createPlanner(dbPath?: string): Promise<GOAPPlannerType> {
  * Planning module metadata
  */
 export const planningInfo = {
-  version: '1.0.0',
+  version: '1.6.0',  // Phase 6: Live Agent Execution
   actionCount: 31,  // 10 QG + 10 TS + 11 Fleet
   categories: ['test', 'security', 'performance', 'process', 'fleet', 'analysis'],
   capabilities: [
@@ -189,6 +208,11 @@ export const planningInfo = {
     'Test strategy generation',
     'Fleet orchestration',
     'Adaptive replanning',
-    'Plan persistence and learning'
+    'Plan persistence and learning',
+    'Plan similarity matching (<100ms)',
+    'Q-Learning GOAP integration',
+    'Action success rate learning',
+    'Live agent execution via AgentRegistry',
+    'Real-time world state updates from agent output'
   ]
 };
