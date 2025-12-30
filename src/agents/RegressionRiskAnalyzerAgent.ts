@@ -14,6 +14,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { Logger } from '../utils/Logger';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import {
   AgentType,
@@ -378,10 +379,10 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
 
     if (history) {
       const historyArray = Array.isArray(history) ? history : [];
-      console.log(`Loaded ${historyArray.length} historical regression analysis entries`);
+      this.logger.info(`Loaded ${historyArray.length} historical regression analysis entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting regression risk analysis task`, {
+    this.logger.info(`[${this.agentId.type}] Starting regression risk analysis task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -415,7 +416,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       riskAssessment: result?.riskAssessment
     });
 
-    console.log(`[${this.agentId.type}] Regression risk analysis completed`, {
+    this.logger.info(`[${this.agentId.type}] Regression risk analysis completed`, {
       taskId: data.assignment.id,
       riskLevel: result?.riskLevel
     });
@@ -446,7 +447,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Regression risk analysis failed`, {
+    this.logger.error(`[${this.agentId.type}] Regression risk analysis failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -457,7 +458,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`RegressionRiskAnalyzerAgent ${this.agentId.id} initializing...`);
+    this.logger.info(`RegressionRiskAnalyzerAgent ${this.agentId.id} initializing...`);
 
     // Initialize git integration
     if (this.config.gitIntegration) {
@@ -485,13 +486,13 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       await this.generateRiskHeatMap();
     }
 
-    console.log(`RegressionRiskAnalyzerAgent ${this.agentId.id} initialized successfully`);
+    this.logger.info(`RegressionRiskAnalyzerAgent ${this.agentId.id} initialized successfully`);
   }
 
   protected async performTask(task: QETask): Promise<unknown> {
     const { type, payload } = task;
 
-    console.log(`RegressionRiskAnalyzerAgent executing ${type} task: ${task.id}`);
+    this.logger.info(`RegressionRiskAnalyzerAgent executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'analyze-changes':
@@ -523,7 +524,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
         'history'
       ) as { analyses?: unknown[] } | null;
       if (history) {
-        console.log(`Loaded ${history.analyses?.length || 0} historical analyses`);
+        this.logger.info(`Loaded ${history.analyses?.length || 0} historical analyses`);
       }
 
       // Load code change patterns
@@ -532,10 +533,10 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
         'patterns'
       ) as unknown[] | null;
       if (patterns) {
-        console.log(`Loaded ${patterns.length || 0} learned patterns`);
+        this.logger.info(`Loaded ${patterns.length || 0} learned patterns`);
       }
     } catch (error) {
-      console.warn('Could not load knowledge:', error);
+      this.logger.warn('Could not load knowledge:', error);
     }
   }
 
@@ -623,12 +624,12 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
         duration: Date.now() - startTime
       }, 'high');
 
-      console.log(`Change analysis complete: ${riskLevel} risk, ${testImpact.requiredTests.length} tests required`);
+      this.logger.info(`Change analysis complete: ${riskLevel} risk, ${testImpact.requiredTests.length} tests required`);
 
       return analysis;
 
     } catch (error) {
-      console.error('Change analysis failed:', error);
+      this.logger.error('Change analysis failed:', error);
       throw error;
     }
   }
@@ -703,7 +704,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       reductionRate: selection.reductionRate
     }, 'high');
 
-    console.log(`Test selection complete: ${selectedTests.length}/${allTests.length} tests (${(selection.reductionRate * 100).toFixed(1)}% reduction)`);
+    this.logger.info(`Test selection complete: ${selectedTests.length}/${allTests.length} tests (${(selection.reductionRate * 100).toFixed(1)}% reduction)`);
 
     return selection;
   }
@@ -910,7 +911,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
     // Load historical data
     const historicalData = await this.loadHistoricalTestResults(dataWindow);
 
-    console.log(`Training ML model on ${historicalData.length} historical data points`);
+    this.logger.info(`Training ML model on ${historicalData.length} historical data points`);
 
     // Simplified ML model simulation
     // In production, this would use a real ML library like TensorFlow.js or brain.js
@@ -942,9 +943,9 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       const { stdout } = await execAsync('git --version', {
         cwd: this.config.gitRepository
       });
-      console.log(`Git integration enabled: ${stdout.trim()}`);
+      this.logger.info(`Git integration enabled: ${stdout.trim()}`);
     } catch (error) {
-      console.warn('Git not available, git integration disabled');
+      this.logger.warn('Git not available, git integration disabled');
       this.config.gitIntegration = false;
     }
   }
@@ -960,7 +961,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
       });
       return stdout;
     } catch (error) {
-      console.error('Git diff failed:', error);
+      this.logger.error('Git diff failed:', error);
       return '';
     }
   }
@@ -1322,7 +1323,7 @@ export class RegressionRiskAnalyzerAgent extends BaseAgent {
 
   private async initializeMLModel(): Promise<void> {
     // In production, load trained ML model
-    console.log('ML model initialized (mock)');
+    this.logger.info('ML model initialized (mock)');
   }
 
   private async getAllTests(): Promise<string[]> {

@@ -190,22 +190,6 @@ export interface FlakyTestReport {
 // ============================================================================
 
 export class FlakyTestHunterAgent extends BaseAgent {
-  /**
-   * Logger for diagnostic output
-   * Initialized with console-based implementation for compatibility with BaseAgent lifecycle
-   */
-  protected readonly logger: {
-    info: (message: string, ...args: unknown[]) => void;
-    warn: (message: string, ...args: unknown[]) => void;
-    error: (message: string, ...args: unknown[]) => void;
-    debug: (message: string, ...args: unknown[]) => void;
-  } = {
-    info: (message: string, ...args: unknown[]) => console.log(`[INFO] ${message}`, ...args),
-    warn: (message: string, ...args: unknown[]) => console.warn(`[WARN] ${message}`, ...args),
-    error: (message: string, ...args: unknown[]) => console.error(`[ERROR] ${message}`, ...args),
-    debug: (message: string, ...args: unknown[]) => console.debug(`[DEBUG] ${message}`, ...args)
-  };
-
   private config: FlakyTestHunterConfig;
   private flakyTests: Map<string, FlakyTestResult> = new Map();
   private quarantineRegistry: Map<string, QuarantineRecord> = new Map();
@@ -291,10 +275,10 @@ export class FlakyTestHunterAgent extends BaseAgent {
     ) as { entries?: unknown[]; length?: number } | null;
 
     if (history && history.entries) {
-      console.log(`Loaded ${history.entries.length} historical flakiness analysis entries`);
+      this.logger.info(`Loaded ${history.entries.length} historical flakiness analysis entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting flaky test detection task`, {
+    this.logger.info(`[${this.agentId.type}] Starting flaky test detection task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -337,7 +321,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       flakyTests: result?.flakyTests || []
     });
 
-    console.log(`[${this.agentId.type}] Flaky test detection completed`, {
+    this.logger.info(`[${this.agentId.type}] Flaky test detection completed`, {
       taskId: data.assignment.id,
       flakyTestsFound: result?.flakyTests?.length || 0
     });
@@ -468,7 +452,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Flaky test detection failed`, {
+    this.logger.error(`[${this.agentId.type}] Flaky test detection failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -647,7 +631,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
 
       return flakyTests;
     } catch (error) {
-      console.error('Error detecting flaky tests:', error);
+      this.logger.error('Error detecting flaky tests:', error);
       throw error;
     }
   }
@@ -908,7 +892,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
     // Load quarantine registry
     await this.loadQuarantineRegistry();
 
-    console.log(`FlakyTestHunterAgent initialized with ${this.testHistory.size} tests tracked`);
+    this.logger.info(`FlakyTestHunterAgent initialized with ${this.testHistory.size} tests tracked`);
   }
 
   protected async performTask(task: QETask): Promise<unknown> {
@@ -1636,7 +1620,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         }
       }
     } catch (error) {
-      console.warn('Could not load test history:', error);
+      this.logger.warn('Could not load test history:', error);
     }
   }
 
@@ -1649,7 +1633,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         }
       }
     } catch (error) {
-      console.warn('Could not load known flaky tests:', error);
+      this.logger.warn('Could not load known flaky tests:', error);
     }
   }
 
@@ -1662,7 +1646,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
         }
       }
     } catch (error) {
-      console.warn('Could not load quarantine registry:', error);
+      this.logger.warn('Could not load quarantine registry:', error);
     }
   }
 
@@ -1672,7 +1656,7 @@ export class FlakyTestHunterAgent extends BaseAgent {
       await this.storeMemory('quarantine/active', Array.from(this.quarantineRegistry.values()));
       await this.storeMemory('reliability-scores', Array.from(this.reliabilityScores.values()));
     } catch (error) {
-      console.error('Could not save flakiness state:', error);
+      this.logger.error('Could not save flakiness state:', error);
     }
   }
 

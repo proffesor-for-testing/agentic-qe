@@ -18,6 +18,7 @@
 
 import Database from 'better-sqlite3';
 import { Logger } from '../utils/Logger';
+import { SecureRandom } from '../utils/SecureRandom';
 import { WorldState, GOAPAction, GOAPPlan, ExecutedAction, StateConditions } from './types';
 import { PlanSimilarity, SimilarPlan } from './PlanSimilarity';
 import { QLearning } from '../learning/QLearning';
@@ -523,7 +524,7 @@ export class PlanLearning {
     executed: ExecutedAction,
     reward: number
   ): void {
-    const id = `lh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = `lh-${Date.now()}-${SecureRandom.randomString(9)}`;
 
     this.db.prepare(`
       INSERT INTO goap_learning_history (

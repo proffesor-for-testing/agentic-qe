@@ -28,30 +28,6 @@ import { LearningEngine } from '../learning/LearningEngine';
 import { PerformanceTracker } from '../learning/PerformanceTracker';
 import { SwarmMemoryManager } from '../core/memory/SwarmMemoryManager';
 
-// Create a simple logger interface
-interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-  debug(message: string, ...args: unknown[]): void;
-}
-
-// Simple console logger implementation
-class ConsoleLogger implements Logger {
-  info(message: string, ...args: unknown[]): void {
-    console.log(`[INFO] ${message}`, ...args);
-  }
-  warn(message: string, ...args: unknown[]): void {
-    console.warn(`[WARN] ${message}`, ...args);
-  }
-  error(message: string, ...args: unknown[]): void {
-    console.error(`[ERROR] ${message}`, ...args);
-  }
-  debug(message: string, ...args: unknown[]): void {
-    console.debug(`[DEBUG] ${message}`, ...args);
-  }
-}
-
 // ============================================================================
 // Local Type Definitions for Test Generation
 // ============================================================================
@@ -294,7 +270,6 @@ interface SublinearCore {
 }
 
 export class TestGeneratorAgent extends BaseAgent {
-  protected readonly logger: Logger = new ConsoleLogger();
   private neuralCore?: NeuralCore;
   private consciousnessEngine?: ConsciousnessEngine;
   private psychoSymbolicReasoner?: PsychoSymbolicReasoner;

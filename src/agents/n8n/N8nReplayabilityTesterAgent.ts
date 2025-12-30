@@ -736,7 +736,7 @@ export class N8nReplayabilityTesterAgent extends N8nBaseAgent {
         },
       });
     } catch (error) {
-      console.warn('Failed to record fixture:', error);
+      this.logger.warn('Failed to record fixture:', error);
     }
 
     return fixtures;

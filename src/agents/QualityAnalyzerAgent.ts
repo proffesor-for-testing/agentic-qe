@@ -10,30 +10,6 @@ import { SecureRandom } from '../utils/SecureRandom.js';
 import { QETask, AgentCapability as _AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { EventEmitter } from 'events';
 
-// Create a simple logger interface
-interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-  debug(message: string, ...args: unknown[]): void;
-}
-
-// Simple console logger implementation
-class ConsoleLogger implements Logger {
-  info(message: string, ...args: unknown[]): void {
-    console.log(`[INFO] ${message}`, ...args);
-  }
-  warn(message: string, ...args: unknown[]): void {
-    console.warn(`[WARN] ${message}`, ...args);
-  }
-  error(message: string, ...args: unknown[]): void {
-    console.error(`[ERROR] ${message}`, ...args);
-  }
-  debug(message: string, ...args: unknown[]): void {
-    console.debug(`[DEBUG] ${message}`, ...args);
-  }
-}
-
 // Type definitions for quality analysis
 interface CodeAnalysisInput {
   sourcePath: string;
@@ -225,7 +201,6 @@ export interface QualityAnalyzerConfig {
 
 export class QualityAnalyzerAgent extends BaseAgent {
   private readonly config: QualityAnalyzerConfig;
-  protected readonly logger: Logger = new ConsoleLogger();
 
   constructor(config: QualityAnalyzerConfig & { context?: AgentContext; memoryStore: MemoryStore; eventBus?: EventEmitter }) {
     const baseConfig: BaseAgentConfig = {

@@ -284,10 +284,10 @@ export class ApiContractValidatorAgent extends BaseAgent {
     ) as unknown[] | null;
 
     if (history) {
-      console.log(`Loaded ${history.length} historical validation entries`);
+      this.logger.info(`Loaded ${history.length} historical validation entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting API contract validation task`, {
+    this.logger.info(`[${this.agentId.type}] Starting API contract validation task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -323,7 +323,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.log(`[${this.agentId.type}] API contract validation task completed`, {
+    this.logger.info(`[${this.agentId.type}] API contract validation task completed`, {
       taskId: data.assignment.id,
       breakingChanges: taskResult?.breakingChanges?.length || 0
     });
@@ -353,7 +353,7 @@ export class ApiContractValidatorAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] API contract validation task failed`, {
+    this.logger.error(`[${this.agentId.type}] API contract validation task failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });

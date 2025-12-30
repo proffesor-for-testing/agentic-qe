@@ -10,6 +10,7 @@
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
 import { SecureRandom } from '../utils/SecureRandom.js';
+import { Logger } from '../utils/Logger';
 import {
   AgentType as _AgentType,
   QEAgentType,
@@ -538,10 +539,10 @@ export class PerformanceTesterAgent extends BaseAgent {
     ) as { entries?: unknown[]; length?: number } | null;
 
     if (history && history.entries) {
-      console.log(`Loaded ${history.entries.length} historical performance test entries`);
+      this.logger.info(`Loaded ${history.entries.length} historical performance test entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting performance testing task`, {
+    this.logger.info(`[${this.agentId.type}] Starting performance testing task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -584,7 +585,7 @@ export class PerformanceTesterAgent extends BaseAgent {
       regressions: taskResult?.regressions || []
     });
 
-    console.log(`[${this.agentId.type}] Performance testing completed`, {
+    this.logger.info(`[${this.agentId.type}] Performance testing completed`, {
       taskId: data.assignment.id,
       performanceMet: taskResult?.success
     });
@@ -618,7 +619,7 @@ export class PerformanceTesterAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Performance testing failed`, {
+    this.logger.error(`[${this.agentId.type}] Performance testing failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -629,7 +630,7 @@ export class PerformanceTesterAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`PerformanceTesterAgent ${this.agentId.id} initializing...`);
+    this.logger.info(`PerformanceTesterAgent ${this.agentId.id} initializing...`);
 
     // Initialize load testing client
     await this.initializeLoadTestingClient();
@@ -643,13 +644,13 @@ export class PerformanceTesterAgent extends BaseAgent {
     // Register event handlers
     this.registerPerformanceEventHandlers();
 
-    console.log(`PerformanceTesterAgent ${this.agentId.id} initialized successfully`);
+    this.logger.info(`PerformanceTesterAgent ${this.agentId.id} initialized successfully`);
   }
 
   protected async performTask(task: QETask): Promise<PerformanceTaskResult> {
     const { type, payload } = task;
 
-    console.log(`PerformanceTesterAgent executing ${type} task: ${task.id}`);
+    this.logger.info(`PerformanceTesterAgent executing ${type} task: ${task.id}`);
 
     switch (type) {
       case 'run-load-test':
@@ -682,13 +683,13 @@ export class PerformanceTesterAgent extends BaseAgent {
     // Load performance testing knowledge from memory
     const storedKnowledge = await this.retrieveMemory('performance-knowledge');
     if (storedKnowledge) {
-      console.log('Loaded performance testing knowledge from memory');
+      this.logger.info('Loaded performance testing knowledge from memory');
     }
 
     // Load test results history
     const resultsHistory = await this.memoryStore.retrieve('aqe/performance/results/history');
     if (resultsHistory) {
-      console.log('Loaded test results history from memory');
+      this.logger.info('Loaded test results history from memory');
     }
   }
 
@@ -702,20 +703,20 @@ export class PerformanceTesterAgent extends BaseAgent {
 
     // Cleanup load testing client
     if (this.loadTestingClient) {
-      console.log('Cleaning up load testing client');
+      this.logger.info('Cleaning up load testing client');
       // In real implementation, close connections
       this.loadTestingClient = undefined;
     }
 
     // Cleanup monitoring client
     if (this.monitoringClient) {
-      console.log('Cleaning up monitoring client');
+      this.logger.info('Cleaning up monitoring client');
       // In real implementation, close connections
       this.monitoringClient = undefined;
     }
 
     this.activeTests.clear();
-    console.log(`PerformanceTesterAgent ${this.agentId.id} cleaned up`);
+    this.logger.info(`PerformanceTesterAgent ${this.agentId.id} cleaned up`);
   }
 
   // ============================================================================
@@ -726,7 +727,7 @@ export class PerformanceTesterAgent extends BaseAgent {
     const testConfig: LoadTestConfig = this.parseTestConfig(metadata);
     const testId = `loadtest-${Date.now()}`;
 
-    console.log(`Starting load test ${testId} with ${testConfig.loadProfile.virtualUsers} VUs`);
+    this.logger.info(`Starting load test ${testId} with ${testConfig.loadProfile.virtualUsers} VUs`);
 
     // Emit test started event
     this.emitEvent('performance.test.started', {
@@ -783,7 +784,7 @@ export class PerformanceTesterAgent extends BaseAgent {
       return result;
 
     } catch (error) {
-      console.error(`Load test ${testId} failed:`, error);
+      this.logger.error(`Load test ${testId} failed:`, error);
       this.emitEvent('performance.test.failed', {
         testId,
         error: error instanceof Error ? error.message : String(error)
@@ -985,7 +986,7 @@ class LoadTestSimulation extends Simulation {
   private async executeLoadTest(_script: string, config: LoadTestConfig): Promise<RawLoadTestResults> {
     // Simulate load test execution
     // In real implementation, execute the actual tool
-    console.log(`Executing load test with ${config.loadProfile.virtualUsers} VUs for ${config.loadProfile.duration}s`);
+    this.logger.info(`Executing load test with ${config.loadProfile.virtualUsers} VUs for ${config.loadProfile.duration}s`);
 
     // Simulate test duration
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1076,7 +1077,7 @@ class LoadTestSimulation extends Simulation {
   private async detectBottlenecks(metadata: DetectBottlenecksMetadata): Promise<Bottleneck[]> {
     const { metrics, testId } = metadata;
 
-    console.log(`Detecting bottlenecks for test ${testId}`);
+    this.logger.info(`Detecting bottlenecks for test ${testId}`);
 
     const bottlenecks: Bottleneck[] = [];
 
@@ -1196,7 +1197,7 @@ class LoadTestSimulation extends Simulation {
   private async validateSLA(metadata: ValidateSLAMetadata): Promise<{ passed: boolean; violations: SLAViolation[] }> {
     const { metrics, thresholds } = metadata;
 
-    console.log('Validating SLA thresholds');
+    this.logger.info('Validating SLA thresholds');
 
     const violations: SLAViolation[] = [];
 
@@ -1333,7 +1334,7 @@ class LoadTestSimulation extends Simulation {
   private async detectRegressions(metadata: DetectRegressionsMetadata): Promise<RegressionAnalysis> {
     const { currentMetrics, baselineId } = metadata;
 
-    console.log(`Detecting performance regressions against baseline ${baselineId}`);
+    this.logger.info(`Detecting performance regressions against baseline ${baselineId}`);
 
     // Retrieve baseline
     const baseline = this.baselines.get(baselineId);
@@ -1453,7 +1454,7 @@ class LoadTestSimulation extends Simulation {
     // Store baseline
     await this.memoryStore.store(`aqe/performance/baselines/${baselineId}`, baseline);
 
-    console.log(`Established performance baseline ${baselineId}`);
+    this.logger.info(`Established performance baseline ${baselineId}`);
 
     return baseline;
   }
@@ -1466,10 +1467,10 @@ class LoadTestSimulation extends Simulation {
         for (const [id, baseline] of Object.entries(storedBaselines)) {
           this.baselines.set(id, baseline as PerformanceBaseline);
         }
-        console.log(`Loaded ${this.baselines.size} performance baselines`);
+        this.logger.info(`Loaded ${this.baselines.size} performance baselines`);
       }
     } catch (error) {
-      console.warn('Could not load baselines:', error);
+      this.logger.warn('Could not load baselines:', error);
     }
   }
 
@@ -1487,7 +1488,7 @@ class LoadTestSimulation extends Simulation {
       pattern: pattern || this.config.loadProfile!.pattern
     };
 
-    console.log(`Generated ${pattern} load pattern with ${virtualUsers} VUs`);
+    this.logger.info(`Generated ${pattern} load pattern with ${virtualUsers} VUs`);
 
     return loadProfile;
   }
@@ -1498,14 +1499,14 @@ class LoadTestSimulation extends Simulation {
 
   private async initializeLoadTestingClient(): Promise<void> {
     const tool = this.config.tools!.loadTesting!;
-    console.log(`Initializing ${tool} load testing client`);
+    this.logger.info(`Initializing ${tool} load testing client`);
     // In real implementation, initialize actual client
     this.loadTestingClient = { tool, initialized: true };
   }
 
   private async initializeMonitoringClient(): Promise<void> {
     const monitoring = this.config.tools!.monitoring!;
-    console.log(`Initializing monitoring clients: ${monitoring.join(', ')}`);
+    this.logger.info(`Initializing monitoring clients: ${monitoring.join(', ')}`);
     // In real implementation, initialize actual monitoring clients
     this.monitoringClient = { platforms: monitoring, initialized: true };
   }
@@ -1518,7 +1519,7 @@ class LoadTestSimulation extends Simulation {
         // Extract test execution data from the event
         const eventData = event.data as TestExecutionCompleteEvent | undefined;
         // Automatically run performance tests after functional tests
-        console.log('Functional tests completed, considering performance test run', {
+        this.logger.info('Functional tests completed, considering performance test run', {
           testId: eventData?.testId,
           passed: eventData?.passed
         });

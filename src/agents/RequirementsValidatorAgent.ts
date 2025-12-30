@@ -18,6 +18,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { Logger } from '../utils/Logger';
 import { QETask, AgentCapability, QEAgentType, AgentContext, MemoryStore } from '../types';
 import { PostTaskData, TaskErrorData, FlexibleTaskResult, PreTaskData } from '../types/hook.types';
 import { EventEmitter } from 'events';
@@ -271,10 +272,10 @@ export class RequirementsValidatorAgent extends BaseAgent {
     ) as { length?: number; entries?: unknown[] } | null;
 
     if (history && history.entries) {
-      console.log(`Loaded ${history.entries.length} historical validation entries`);
+      this.logger.info(`Loaded ${history.entries.length} historical validation entries`);
     }
 
-    console.log(`[${this.agentId.type}] Starting requirements validation task`, {
+    this.logger.info(`[${this.agentId.type}] Starting requirements validation task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -308,7 +309,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.log(`[${this.agentId.type}] Requirements validation task completed`, {
+    this.logger.info(`[${this.agentId.type}] Requirements validation task completed`, {
       taskId: data.assignment.id,
       issuesFound: result?.issues?.length || 0
     });
@@ -338,7 +339,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Requirements validation task failed`, {
+    this.logger.error(`[${this.agentId.type}] Requirements validation task failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -349,7 +350,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`RequirementsValidatorAgent ${this.agentId.id} initializing components`);
+    this.logger.info(`RequirementsValidatorAgent ${this.agentId.id} initializing components`);
 
     // Initialize validation patterns for detecting ambiguous language
     this.validationPatterns.set('vague', /\b(fast|slow|good|bad|nice|easy|hard|better|worse)\b/gi);
@@ -372,14 +373,14 @@ export class RequirementsValidatorAgent extends BaseAgent {
     this.registerEventHandler({
       eventType: 'test-generator.ready',
       handler: async (_event) => {
-        console.log('Test generator is ready, can start generating tests from BDD scenarios');
+        this.logger.info('Test generator is ready, can start generating tests from BDD scenarios');
       }
     });
 
     this.registerEventHandler({
       eventType: 'requirements.updated',
       handler: async (event) => {
-        console.log('Requirements updated, triggering revalidation');
+        this.logger.info('Requirements updated, triggering revalidation');
         const eventData = event.data as { requirements?: Requirement[] };
         const requirements = eventData.requirements || [];
         for (const req of requirements) {
@@ -388,16 +389,16 @@ export class RequirementsValidatorAgent extends BaseAgent {
       }
     });
 
-    console.log('RequirementsValidatorAgent components initialized successfully');
+    this.logger.info('RequirementsValidatorAgent components initialized successfully');
   }
 
   protected async loadKnowledge(): Promise<void> {
-    console.log('Loading requirements validator knowledge base');
+    this.logger.info('Loading requirements validator knowledge base');
 
     // Load historical validation patterns
     const historicalPatterns = await this.retrieveMemory('validation-patterns');
     if (historicalPatterns) {
-      console.log('Loaded historical validation patterns');
+      this.logger.info('Loaded historical validation patterns');
     }
 
     // Load defect correlation data
@@ -406,21 +407,21 @@ export class RequirementsValidatorAgent extends BaseAgent {
       'defect-correlations'
     );
     if (defectCorrelations) {
-      console.log('Loaded defect correlation data for risk assessment');
+      this.logger.info('Loaded defect correlation data for risk assessment');
     }
 
     // Load project-specific validation rules
     const projectRules = await this.memoryStore.retrieve('aqe/requirements/validation-rules') as { rules?: string[] } | null;
     if (projectRules && projectRules.rules) {
-      console.log('Loaded project-specific validation rules');
+      this.logger.info('Loaded project-specific validation rules');
       this.config.validationRules = [...this.config.validationRules!, ...projectRules.rules];
     }
 
-    console.log('Requirements validator knowledge loaded successfully');
+    this.logger.info('Requirements validator knowledge loaded successfully');
   }
 
   protected async cleanup(): Promise<void> {
-    console.log(`RequirementsValidatorAgent ${this.agentId.id} cleaning up resources`);
+    this.logger.info(`RequirementsValidatorAgent ${this.agentId.id} cleaning up resources`);
 
     // Save validation patterns learned during session
     await this.storeMemory('validation-patterns', Array.from(this.validationPatterns.entries()));
@@ -431,7 +432,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
     // Clear temporary validation cache
     await this.memoryStore.delete('aqe/requirements/temp-validation', 'aqe');
 
-    console.log('RequirementsValidatorAgent cleanup completed');
+    this.logger.info('RequirementsValidatorAgent cleanup completed');
   }
 
   protected async performTask(task: QETask): Promise<unknown> {
@@ -476,7 +477,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
    * Validate a requirement for testability using SMART/INVEST criteria
    */
   private async validateRequirement(requirement: Requirement): Promise<ValidationReport> {
-    console.log(`Validating requirement: ${requirement.id}`);
+    this.logger.info(`Validating requirement: ${requirement.id}`);
 
     // Run all validation checks in parallel
     const [
@@ -517,7 +518,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
       bddScenarioCount: bddScenarios.scenarios.length
     }, 'high');
 
-    console.log(`Requirement ${requirement.id} validated. Score: ${testabilityScore.overall}/10`);
+    this.logger.info(`Requirement ${requirement.id} validated. Score: ${testabilityScore.overall}/10`);
 
     return report;
   }
@@ -696,7 +697,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
    * Generate BDD scenarios in Gherkin format
    */
   private async generateBddScenarios(requirement: Requirement): Promise<BddScenario> {
-    console.log(`Generating BDD scenarios for requirement: ${requirement.id}`);
+    this.logger.info(`Generating BDD scenarios for requirement: ${requirement.id}`);
 
     const feature = this.extractFeatureName(requirement);
     const background = this.generateBackground(requirement);
@@ -955,7 +956,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
    * Assess risk level of a requirement
    */
   private async assessRisk(requirement: Requirement): Promise<RiskAssessment> {
-    console.log(`Assessing risk for requirement: ${requirement.id}`);
+    this.logger.info(`Assessing risk for requirement: ${requirement.id}`);
 
     const text = `${requirement.title} ${requirement.description}`.toLowerCase();
 
@@ -1012,7 +1013,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
     // Store risk assessment in memory
     await this.memoryStore.store(`aqe/risk-scores/requirements/${requirement.id}`, assessment);
 
-    console.log(`Risk assessment complete. Level: ${overallRisk}, Score: ${riskScore}`);
+    this.logger.info(`Risk assessment complete. Level: ${overallRisk}, Score: ${riskScore}`);
 
     return assessment;
   }
@@ -1346,7 +1347,7 @@ export class RequirementsValidatorAgent extends BaseAgent {
       totalBddScenarios: number;
     };
   }> {
-    console.log(`Batch validating ${requirements.length} requirements`);
+    this.logger.info(`Batch validating ${requirements.length} requirements`);
 
     const reports = await Promise.all(
       requirements.map(req => this.validateRequirement(req))

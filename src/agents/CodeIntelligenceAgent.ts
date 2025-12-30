@@ -128,7 +128,6 @@ export interface CodeIntelligenceResult {
 export class CodeIntelligenceAgent extends BaseAgent {
   private orchestrator: CodeIntelligenceOrchestrator | null = null;
   private agentConfig: CodeIntelligenceAgentConfig;
-  private logger: Logger;
   private isIndexed: boolean = false;
 
   constructor(config: CodeIntelligenceAgentConfig) {
@@ -146,7 +145,6 @@ export class CodeIntelligenceAgent extends BaseAgent {
     });
 
     this.agentConfig = config;
-    this.logger = Logger.getInstance();
   }
 
   // ============================================================================

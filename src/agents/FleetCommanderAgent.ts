@@ -13,6 +13,7 @@
  */
 
 import { BaseAgent, BaseAgentConfig } from './BaseAgent';
+import { Logger } from '../utils/Logger';
 import { SecureRandom } from '../utils/SecureRandom.js';
 import { AgentType as _AgentType, QEAgentType, QETask, AgentStatus } from '../types';
 import {
@@ -541,10 +542,10 @@ export class FleetCommanderAgent extends BaseAgent {
     ) as { activeAgents?: number } | null;
 
     if (fleetState) {
-      console.log(`Loaded fleet state with ${fleetState.activeAgents || 0} active agents`);
+      this.logger.info(`Loaded fleet state with ${fleetState.activeAgents || 0} active agents`);
     }
 
-    console.log(`[${this.agentId.type}] Starting fleet coordination task`, {
+    this.logger.info(`[${this.agentId.type}] Starting fleet coordination task`, {
       taskId: data.assignment.id,
       taskType: data.assignment.task.type
     });
@@ -583,7 +584,7 @@ export class FleetCommanderAgent extends BaseAgent {
       fleetMetrics: this.fleetMetrics
     });
 
-    console.log(`[${this.agentId.type}] Fleet coordination task completed`, {
+    this.logger.info(`[${this.agentId.type}] Fleet coordination task completed`, {
       taskId: data.assignment.id,
       agentsManaged: this.fleetMetrics.totalAgents
     });
@@ -621,7 +622,7 @@ export class FleetCommanderAgent extends BaseAgent {
       timestamp: new Date()
     });
 
-    console.error(`[${this.agentId.type}] Fleet coordination task failed`, {
+    this.logger.error(`[${this.agentId.type}] Fleet coordination task failed`, {
       taskId: data.assignment.id,
       error: data.error.message
     });
@@ -632,7 +633,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // ============================================================================
 
   protected async initializeComponents(): Promise<void> {
-    console.log(`[FleetCommander] Initializing fleet coordination for ${this.config.maxAgents} agents`);
+    this.logger.info(`[FleetCommander] Initializing fleet coordination for ${this.config.maxAgents} agents`);
 
     // Register event handlers for fleet coordination
     this.registerEventHandler({
@@ -684,11 +685,11 @@ export class FleetCommanderAgent extends BaseAgent {
     await this.storeSharedMemory('topology', this.topologyState);
     await this.memoryStore.store('aqe/fleet/topology', this.topologyState);
 
-    console.log('[FleetCommander] Initialization complete');
+    this.logger.info('[FleetCommander] Initialization complete');
   }
 
   protected async performTask(task: QETask): Promise<FleetTaskResult> {
-    console.log(`[FleetCommander] Performing task: ${task.type}`);
+    this.logger.info(`[FleetCommander] Performing task: ${task.type}`);
     const payload = task.payload as Record<string, unknown>;
 
     switch (task.type) {
@@ -737,7 +738,7 @@ export class FleetCommanderAgent extends BaseAgent {
   }
 
   protected async loadKnowledge(): Promise<void> {
-    console.log('[FleetCommander] Loading fleet knowledge from memory');
+    this.logger.info('[FleetCommander] Loading fleet knowledge from memory');
 
     try {
       // Restore topology state
@@ -765,12 +766,12 @@ export class FleetCommanderAgent extends BaseAgent {
       }
 
     } catch (error) {
-      console.warn('[FleetCommander] Could not restore full state, using defaults:', error);
+      this.logger.warn('[FleetCommander] Could not restore full state, using defaults:', error);
     }
   }
 
   protected async cleanup(): Promise<void> {
-    console.log('[FleetCommander] Cleaning up fleet resources');
+    this.logger.info('[FleetCommander] Cleaning up fleet resources');
 
     // REFACTORED: No longer need to clear intervals
     // Async loops will terminate when status !== ACTIVE
@@ -793,7 +794,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // ============================================================================
 
   private async initializeFleet(_config: FleetInitConfig): Promise<FleetInitResult> {
-    console.log('[FleetCommander] Initializing fleet with config:', _config);
+    this.logger.info('[FleetCommander] Initializing fleet with config:', _config);
 
     const results: FleetInitResult = {
       topology: this.topologyState.mode,
@@ -847,7 +848,7 @@ export class FleetCommanderAgent extends BaseAgent {
     const { type, count = 1, config = {} } = payload;
     const spawnedAgents: string[] = [];
 
-    console.log(`[FleetCommander] Spawning ${count} agent(s) of type ${type}`);
+    this.logger.info(`[FleetCommander] Spawning ${count} agent(s) of type ${type}`);
 
     const poolStatus = this.agentPools.get(type);
     if (!poolStatus) {
@@ -890,7 +891,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async terminateAgent(payload: { agentId: string }): Promise<TerminateAgentResult> {
     const { agentId } = payload;
-    console.log(`[FleetCommander] Terminating agent ${agentId}`);
+    this.logger.info(`[FleetCommander] Terminating agent ${agentId}`);
 
     // Remove resource allocation
     const allocation = this.resourceAllocations.get(agentId);
@@ -909,7 +910,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async handleAgentSpawned(data: AgentSpawnedEventData): Promise<void> {
     const { agentId, type } = data;
-    console.log(`[FleetCommander] Agent spawned: ${agentId} (${type})`);
+    this.logger.info(`[FleetCommander] Agent spawned: ${agentId} (${type})`);
 
     // Initialize health check
     this.agentHealthChecks.set(agentId, new Date());
@@ -934,7 +935,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async handleAgentTerminated(data: AgentTerminatedEventData): Promise<void> {
     const { agentId } = data;
-    console.log(`[FleetCommander] Agent terminated: ${agentId}`);
+    this.logger.info(`[FleetCommander] Agent terminated: ${agentId}`);
 
     // Find agent type and update pool
     const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`) as { type?: string } | null;
@@ -960,7 +961,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async handleAgentError(data: AgentErrorEventData): Promise<void> {
     const { agentId, error } = data;
-    console.error(`[FleetCommander] Agent error: ${agentId}`, error);
+    this.logger.error(`[FleetCommander] Agent error: ${agentId}`, error);
 
     // Update fleet metrics
     this.fleetMetrics.failedAgents++;
@@ -1032,7 +1033,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async changeTopology(payload: { mode: 'hierarchical' | 'mesh' | 'hybrid' | 'adaptive' }): Promise<TopologyChangeResult> {
     const { mode } = payload;
-    console.log(`[FleetCommander] Changing topology from ${this.topologyState.mode} to ${mode}`);
+    this.logger.info(`[FleetCommander] Changing topology from ${this.topologyState.mode} to ${mode}`);
 
     const oldMode = this.topologyState.mode;
     this.topologyState.mode = mode;
@@ -1130,11 +1131,11 @@ export class FleetCommanderAgent extends BaseAgent {
    */
   private async analyzeTopologyResilience(): Promise<ResilienceResult | null> {
     if (!this.topologyAnalyzer) {
-      console.warn('[FleetCommander] SPOF analysis disabled');
+      this.logger.warn('[FleetCommander] SPOF analysis disabled');
       return null;
     }
 
-    console.log('[FleetCommander] Analyzing topology resilience...');
+    this.logger.info('[FleetCommander] Analyzing topology resilience...');
 
     const fleetTopology = await this.buildFleetTopology();
     const result = await this.topologyAnalyzer.analyzeResilience(fleetTopology);
@@ -1157,7 +1158,7 @@ export class FleetCommanderAgent extends BaseAgent {
         recommendations: result.recommendations,
       }, 'critical');
 
-      console.warn(
+      this.logger.warn(
         `[FleetCommander] WARNING: ${result.criticalSpofs.length} critical SPOF(s) detected. ` +
         `Resilience score: ${(result.score * 100).toFixed(1)}% (Grade: ${result.grade})`
       );
@@ -1358,7 +1359,7 @@ export class FleetCommanderAgent extends BaseAgent {
   // ============================================================================
 
   private async rebalanceWorkload(_payload: Record<string, unknown>): Promise<RebalanceResult> {
-    console.log('[FleetCommander] Rebalancing workload across fleet');
+    this.logger.info('[FleetCommander] Rebalancing workload across fleet');
 
     const rebalancingStrategy = await this.calculateRebalancingStrategy();
 
@@ -1425,7 +1426,7 @@ export class FleetCommanderAgent extends BaseAgent {
     allocation?: ResourceAllocation;
   }): Promise<ConflictResolutionResult> {
     const { type, agents, severity = 'medium', allocation } = payload;
-    console.log(`[FleetCommander] Resolving ${type} conflict involving ${agents.length} agent(s)`);
+    this.logger.info(`[FleetCommander] Resolving ${type} conflict involving ${agents.length} agent(s)`);
 
     const conflictId = `conflict-${Date.now()}`;
     const conflict: ConflictResolution = {
@@ -1518,7 +1519,7 @@ export class FleetCommanderAgent extends BaseAgent {
     // Select victim (lowest priority agent) and abort
     const victim = agents[0]; // Simplified: select first agent
 
-    console.log(`[FleetCommander] Breaking deadlock by aborting agent ${victim}`);
+    this.logger.info(`[FleetCommander] Breaking deadlock by aborting agent ${victim}`);
 
     // Terminate victim agent
     await this.terminateAgent({ agentId: victim });
@@ -1547,7 +1548,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async scaleAgentPool(payload: { type: string; action: 'scale-up' | 'scale-down'; count?: number }): Promise<ScalePoolResult> {
     const { type, action, count = 1 } = payload;
-    console.log(`[FleetCommander] ${action} agent pool ${type} by ${count}`);
+    this.logger.info(`[FleetCommander] ${action} agent pool ${type} by ${count}`);
 
     if (action === 'scale-up') {
       return await this.spawnAgents({ type, count });
@@ -1697,7 +1698,7 @@ export class FleetCommanderAgent extends BaseAgent {
         const elapsed = now.getTime() - lastHeartbeat.getTime();
 
         if (elapsed > timeout) {
-          console.warn(`[FleetCommander] Agent ${agentId} heartbeat timeout`);
+          this.logger.warn(`[FleetCommander] Agent ${agentId} heartbeat timeout`);
           await this.handleAgentFailure(agentId);
         }
       }
@@ -1708,7 +1709,7 @@ export class FleetCommanderAgent extends BaseAgent {
   }
 
   private async handleAgentFailure(agentId: string): Promise<void> {
-    console.error(`[FleetCommander] Agent failure detected: ${agentId}`);
+    this.logger.error(`[FleetCommander] Agent failure detected: ${agentId}`);
 
     // Update metrics
     this.fleetMetrics.failedAgents++;
@@ -1719,7 +1720,7 @@ export class FleetCommanderAgent extends BaseAgent {
 
   private async recoverAgent(payload: { agentId: string }): Promise<RecoverAgentResult> {
     const { agentId } = payload;
-    console.log(`[FleetCommander] Attempting to recover agent ${agentId}`);
+    this.logger.info(`[FleetCommander] Attempting to recover agent ${agentId}`);
 
     const agentData = await this.memoryStore.retrieve(`aqe/fleet/agents/${agentId}`) as { type?: string; allocation?: SpawnConfig } | null;
     if (!agentData) {
@@ -1746,7 +1747,7 @@ export class FleetCommanderAgent extends BaseAgent {
         };
       } catch (error) {
         attempt++;
-        console.error(`[FleetCommander] Recovery attempt ${attempt} failed:`, error);
+        this.logger.error(`[FleetCommander] Recovery attempt ${attempt} failed:`, error);
       }
     }
 

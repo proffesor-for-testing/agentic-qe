@@ -184,35 +184,11 @@ function isPayloadWithProperty<K extends string>(
   return typeof payload === 'object' && payload !== null && key in payload;
 }
 
-// Simple logger interface
-interface Logger {
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-  debug(message: string, ...args: unknown[]): void;
-}
-
-class ConsoleLogger implements Logger {
-  info(message: string, ...args: unknown[]): void {
-    console.log(`[A11Y-ALLY] [INFO] ${message}`, ...args);
-  }
-  warn(message: string, ...args: unknown[]): void {
-    console.warn(`[A11Y-ALLY] [WARN] ${message}`, ...args);
-  }
-  error(message: string, ...args: unknown[]): void {
-    console.error(`[A11Y-ALLY] [ERROR] ${message}`, ...args);
-  }
-  debug(message: string, ...args: unknown[]): void {
-    console.debug(`[A11Y-ALLY] [DEBUG] ${message}`, ...args);
-  }
-}
-
 /**
  * AccessibilityAllyAgent - Intelligent accessibility testing with context-aware remediation
  */
 export class AccessibilityAllyAgent extends BaseAgent {
   private readonly agentConfig: AccessibilityAllyConfig;
-  protected readonly logger: Logger = new ConsoleLogger();
 
   constructor(
     config: AccessibilityAllyConfig & {

@@ -10,6 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
+import { Logger } from '../../utils/Logger';
 import type {
   AgentCoordinationStrategy,
   CoordinationEventHandler,
@@ -321,7 +322,7 @@ export class CoordinatorAdapter implements AgentCoordinationStrategy {
         handler(message);
       } catch (error) {
         // Log but don't propagate handler errors
-        console.error('Message handler error:', error);
+        Logger.getInstance().error('Message handler error:', error);
       }
     }
   };

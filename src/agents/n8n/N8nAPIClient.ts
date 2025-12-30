@@ -11,6 +11,7 @@ import {
   N8nExecution,
   N8nCredential,
 } from './types';
+import { Logger } from '../../utils/Logger';
 
 export class N8nAPIClient {
   private readonly config: Required<Omit<N8nAPIConfig, 'sessionAuth'>> & { sessionAuth?: N8nAPIConfig['sessionAuth'] };
@@ -50,7 +51,7 @@ export class N8nAPIClient {
       });
 
       if (!response.ok) {
-        console.warn('Session login failed:', response.status);
+        Logger.getInstance().warn('Session login failed:', response.status);
         this.sessionInitialized = true;
         return false;
       }
@@ -69,7 +70,7 @@ export class N8nAPIClient {
       this.sessionInitialized = true;
       return false;
     } catch (error) {
-      console.warn('Session initialization failed:', error);
+      Logger.getInstance().warn('Session initialization failed:', error);
       this.sessionInitialized = true;
       return false;
     }

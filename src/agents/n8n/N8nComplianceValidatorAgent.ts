@@ -1179,7 +1179,7 @@ export class N8nComplianceValidatorAgent extends N8nBaseAgent {
       }
     } catch (error) {
       // Log but don't fail the entire compliance check
-      console.error('Runtime PII tracing failed:', error);
+      this.logger.error('Runtime PII tracing failed:', error);
     }
 
     return findings;

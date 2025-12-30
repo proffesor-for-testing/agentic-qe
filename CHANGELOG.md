@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.4] - 2025-12-30
+
+### Fixed
+
+- **Database Schema Migration** (`src/persistence/migrations/all-migrations.ts`):
+  - Added Migration 008 to fix `captured_experiences` table schema mismatch
+  - Added missing columns: `agent_type`, `task_type`, `execution`, `embedding`, `created_at`
+  - Fixes "no such column: agent_type" error during ExperienceCapture initialization
+  - Migrates existing data from `captured_at` to `created_at` column
+
+### Changed
+
+- **Logger Standardization** (33 files refactored):
+  - Migrated all agents from `console.log/error/warn` to centralized `Logger` utility
+  - Added `protected logger` to `BaseAgent` for inheritance by all child agents
+  - Removed duplicate local `Logger` interfaces and `ConsoleLogger` classes from 8 agents
+  - Migrated 19 main QE agents, 7 n8n workflow agents, 4 utility/adapter files
+  - Reduced console calls in `src/agents/` from 90 to 25 (72% reduction)
+  - Remaining calls are in interface defaults, example scripts, and string literals
+
+- **Security Improvements** (GOAP Planning):
+  - Migrated remaining `Math.random()` calls to `SecureRandom.randomString()` in:
+    - `src/planning/PlanSimilarity.ts`
+    - `src/planning/GOAPPlanner.ts` (2 locations)
+    - `src/planning/PlanLearning.ts`
+
 ## [2.7.3] - 2025-12-30
 
 ### Added

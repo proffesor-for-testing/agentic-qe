@@ -5,6 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { Logger } from '../utils/Logger';
 import {
   AgentId,
   QEAgentType as AgentType,
@@ -208,6 +209,7 @@ export interface BaseAgentConfig {
 }
 
 export abstract class BaseAgent extends EventEmitter {
+  protected readonly logger = Logger.getInstance();
   protected readonly agentId: AgentId;
   protected readonly capabilities: Map<string, AgentCapability>;
   protected readonly context?: AgentContext;
@@ -297,7 +299,7 @@ export abstract class BaseAgent extends EventEmitter {
     // Early validation (Issue #137)
     const validation = validateLearningConfig(config);
     if (!validation.valid && validation.warning) {
-      console.warn(`[${this.agentId.id}] CONFIG WARNING: ${validation.warning}`);
+      this.logger.warn(`[${this.agentId.id}] CONFIG WARNING: ${validation.warning}`);
     }
 
     // Initialize services
@@ -359,7 +361,7 @@ export abstract class BaseAgent extends EventEmitter {
               this.strategies.learning = createLearningAdapter(this.learningEngine);
             }
           } else if (this.enableLearning) {
-            console.warn(`[${this.agentId.id}] Learning disabled: memoryStore is ${this.memoryStore.constructor.name}`);
+            this.logger.warn(`[${this.agentId.id}] Learning disabled: memoryStore is ${this.memoryStore.constructor.name}`);
           }
 
           // Initialize LLM Provider (Phase 0 - RuvLLM Integration)
@@ -558,7 +560,7 @@ export abstract class BaseAgent extends EventEmitter {
 
   /** @deprecated v2.2.0 - AgentDB removed. Use SwarmMemoryManager. */
   public async initializeAgentDB(_config: Partial<AgentDBConfig>): Promise<void> {
-    console.warn(`[${this.agentId.id}] AgentDB is DEPRECATED`);
+    this.logger.warn(`[${this.agentId.id}] AgentDB is DEPRECATED`);
   }
   /** @deprecated v2.2.0 */
   public async getAgentDBStatus(): Promise<null> { return null; }
@@ -660,7 +662,7 @@ export abstract class BaseAgent extends EventEmitter {
     const result = await this.hookManager.executePostTaskValidation({ task: data.assignment.task.type, result: taskResult });
 
     if (!result.valid) {
-      console.warn(`Post-task validation warning: accuracy ${result.accuracy}`);
+      this.logger.warn(`Post-task validation warning: accuracy ${result.accuracy}`);
     }
 
     if (this.strategies.lifecycle.onPostTask) await this.strategies.lifecycle.onPostTask(data);
@@ -719,7 +721,7 @@ export abstract class BaseAgent extends EventEmitter {
       if (typeof (this as any)[method] === 'function') await (this as any)[method](data);
     } catch (error) {
       // Use warn - hooks are optional and failures shouldn't break agent operation
-      console.warn(`Hook ${hookName} failed:`, error);
+      this.logger.warn(`Hook ${hookName} failed:`, error);
     }
   }
 
@@ -786,7 +788,7 @@ export abstract class BaseAgent extends EventEmitter {
    */
   private async initializeLLMProvider(): Promise<void> {
     if (!this.llmConfig.enabled) {
-      console.log(`[${this.agentId.id}] LLM disabled by configuration`);
+      this.logger.info(`[${this.agentId.id}] LLM disabled by configuration`);
       return;
     }
 
@@ -794,7 +796,7 @@ export abstract class BaseAgent extends EventEmitter {
       // If a provider was injected, use it directly
       if (this.llmConfig.provider) {
         this.llmProvider = this.llmConfig.provider;
-        console.log(`[${this.agentId.id}] Using injected LLM provider`);
+        this.logger.info(`[${this.agentId.id}] Using injected LLM provider`);
 
         // Phase 1.2.2: Create agentLLM wrapper for simplified API
         this.agentLLM = createAgentLLM(this.llmProvider, {
@@ -835,7 +837,7 @@ export abstract class BaseAgent extends EventEmitter {
         await this.hybridRouter.initialize();
         this.llmProvider = this.hybridRouter;
 
-        console.log(`[${this.agentId.id}] HybridRouter initialized with RuVector GNN cache`);
+        this.logger.info(`[${this.agentId.id}] HybridRouter initialized with RuVector GNN cache`);
 
         // Phase 1.2.2: Create agentLLM wrapper for simplified API
         this.agentLLM = createAgentLLM(this.llmProvider, {
@@ -865,10 +867,10 @@ export abstract class BaseAgent extends EventEmitter {
           const ruvllm = this.llmProvider as RuvllmProvider;
           const session = ruvllm.createSession();
           this.llmSessionId = session.id;
-          console.log(`[${this.agentId.id}] LLM session created: ${this.llmSessionId}`);
+          this.logger.info(`[${this.agentId.id}] LLM session created: ${this.llmSessionId}`);
         }
 
-        console.log(`[${this.agentId.id}] RuvLLM provider initialized`);
+        this.logger.info(`[${this.agentId.id}] RuvLLM provider initialized`);
 
         // Phase 1.2.2: Create agentLLM wrapper for simplified API
         this.agentLLM = createAgentLLM(this.llmProvider, {
@@ -885,12 +887,12 @@ export abstract class BaseAgent extends EventEmitter {
       this.llmProvider = this.llmFactory.getProvider(this.llmConfig.preferredProvider as ProviderType);
 
       if (!this.llmProvider) {
-        console.warn(`[${this.agentId.id}] Preferred provider ${this.llmConfig.preferredProvider} not available, trying auto-select`);
+        this.logger.warn(`[${this.agentId.id}] Preferred provider ${this.llmConfig.preferredProvider} not available, trying auto-select`);
         this.llmProvider = this.llmFactory.selectBestProvider();
       }
 
       if (this.llmProvider) {
-        console.log(`[${this.agentId.id}] LLM provider initialized: ${this.llmConfig.preferredProvider}`);
+        this.logger.info(`[${this.agentId.id}] LLM provider initialized: ${this.llmConfig.preferredProvider}`);
 
         // Phase 1.2.2: Create agentLLM wrapper for simplified API
         this.agentLLM = createAgentLLM(this.llmProvider, {
@@ -898,11 +900,11 @@ export abstract class BaseAgent extends EventEmitter {
           defaultModel: this.llmConfig.ruvllm?.defaultModel,
         });
       } else {
-        console.warn(`[${this.agentId.id}] No LLM provider available`);
+        this.logger.warn(`[${this.agentId.id}] No LLM provider available`);
       }
     } catch (error) {
       // Use warn instead of error - this is expected fallback behavior, not a failure
-      console.warn(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] LLM initialization failed:`, (error as Error).message);
       // Don't throw - agent can still work without LLM (algorithmic fallback)
     }
   }
@@ -929,18 +931,18 @@ export abstract class BaseAgent extends EventEmitter {
       this.ephemeralAgent = this.federatedManager.registerAgent(this.agentId.id);
       this.federatedInitialized = true;
 
-      console.log(`[${this.agentId.id}] Federated learning initialized`);
+      this.logger.info(`[${this.agentId.id}] Federated learning initialized`);
 
       // Sync with existing team knowledge on startup
       try {
         await this.federatedManager.syncFromTeam(this.agentId.id);
-        console.log(`[${this.agentId.id}] Synced with team knowledge`);
+        this.logger.info(`[${this.agentId.id}] Synced with team knowledge`);
       } catch {
         // First agent or no prior knowledge - expected
       }
     } catch (error) {
       // Use warn instead of error - this is expected fallback behavior
-      console.warn(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Federated learning initialization failed:`, (error as Error).message);
       // Don't throw - agent can work without federated learning
     }
   }
@@ -1120,7 +1122,7 @@ export abstract class BaseAgent extends EventEmitter {
     }
 
     // Fallback: sequential processing for non-batch providers
-    console.warn(`[${this.agentId.id}] Provider doesn't support batch, using sequential`);
+    this.logger.warn(`[${this.agentId.id}] Provider doesn't support batch, using sequential`);
     const results: string[] = [];
     for (const prompt of prompts) {
       results.push(await this.llmComplete(prompt, options));
@@ -1392,7 +1394,7 @@ export abstract class BaseAgent extends EventEmitter {
    */
   private async initializePatternStore(): Promise<void> {
     if (!this.qePatternConfig.enabled) {
-      console.log(`[${this.agentId.id}] QE Pattern Store disabled by configuration`);
+      this.logger.info(`[${this.agentId.id}] QE Pattern Store disabled by configuration`);
       return;
     }
 
@@ -1434,10 +1436,10 @@ export abstract class BaseAgent extends EventEmitter {
           await this.qePatternStore!.initialize();
           this.patternStoreInitialized = true;
 
-          console.log(`[${this.agentId.id}] QE Pattern Store initialized (RuVector PostgreSQL: enabled)`);
+          this.logger.info(`[${this.agentId.id}] QE Pattern Store initialized (RuVector PostgreSQL: enabled)`);
           return;
         } catch (postgresError) {
-          console.warn(`[${this.agentId.id}] RuVector PostgreSQL unavailable, falling back to HNSW:`, (postgresError as Error).message);
+          this.logger.warn(`[${this.agentId.id}] RuVector PostgreSQL unavailable, falling back to HNSW:`, (postgresError as Error).message);
           // Fall through to HNSW fallback
         }
       }
@@ -1476,9 +1478,9 @@ export abstract class BaseAgent extends EventEmitter {
       await this.qePatternStore!.initialize();
       this.patternStoreInitialized = true;
 
-      console.log(`[${this.agentId.id}] QE Pattern Store initialized (HNSW fallback)`);
+      this.logger.info(`[${this.agentId.id}] QE Pattern Store initialized (HNSW fallback)`);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Pattern Store initialization failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Pattern Store initialization failed:`, (error as Error).message);
       // Don't throw - agent can work without pattern store
     }
   }
@@ -1539,7 +1541,7 @@ export abstract class BaseAgent extends EventEmitter {
       await this.qePatternStore!.storePattern(testPattern);
       return { success: true };
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Failed to store QE pattern:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Failed to store QE pattern:`, (error as Error).message);
       return { success: false };
     }
   }
@@ -1583,7 +1585,7 @@ export abstract class BaseAgent extends EventEmitter {
 
       return results;
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Pattern search failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Pattern search failed:`, (error as Error).message);
       return [];
     }
   }
@@ -1660,7 +1662,7 @@ export abstract class BaseAgent extends EventEmitter {
 
       return metrics;
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Failed to get pattern metrics:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Failed to get pattern metrics:`, (error as Error).message);
       return null;
     }
   }
@@ -1680,10 +1682,10 @@ export abstract class BaseAgent extends EventEmitter {
 
     try {
       const result = await this.qePatternStore!.syncToRemote(options);
-      console.log(`[${this.agentId.id}] Synced ${result.synced} patterns to remote (${result.duration}ms)`);
+      this.logger.info(`[${this.agentId.id}] Synced ${result.synced} patterns to remote (${result.duration}ms)`);
       return result;
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Pattern sync failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Pattern sync failed:`, (error as Error).message);
       return { synced: 0, failed: 0, duration: 0 };
     }
   }
@@ -1711,7 +1713,7 @@ export abstract class BaseAgent extends EventEmitter {
         duration: result.duration,
       };
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Force learning failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Force learning failed:`, (error as Error).message);
       return { success: false, patternsConsolidated: 0, duration: 0 };
     }
   }
@@ -1735,9 +1737,9 @@ export abstract class BaseAgent extends EventEmitter {
         await this.qePatternStore.shutdown();
       }
 
-      console.log(`[${this.agentId.id}] Pattern Store cleanup complete`);
+      this.logger.info(`[${this.agentId.id}] Pattern Store cleanup complete`);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Pattern Store cleanup error:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Pattern Store cleanup error:`, (error as Error).message);
     }
 
     this.patternStoreInitialized = false;
@@ -1752,7 +1754,7 @@ export abstract class BaseAgent extends EventEmitter {
       const ruvllm = this.llmProvider as RuvllmProvider;
       if (typeof ruvllm.endSession === 'function') {
         ruvllm.endSession(this.llmSessionId);
-        console.log(`[${this.agentId.id}] LLM session ended: ${this.llmSessionId}`);
+        this.logger.info(`[${this.agentId.id}] LLM session ended: ${this.llmSessionId}`);
       }
     }
 
@@ -1781,7 +1783,7 @@ export abstract class BaseAgent extends EventEmitter {
 
     // Require both searchEngine and graphBuilder
     if (!this.codeIntelligenceConfig.searchEngine || !this.codeIntelligenceConfig.graphBuilder) {
-      console.warn(`[${this.agentId.id}] Code Intelligence requires both searchEngine and graphBuilder`);
+      this.logger.warn(`[${this.agentId.id}] Code Intelligence requires both searchEngine and graphBuilder`);
       return;
     }
 
@@ -1794,9 +1796,9 @@ export abstract class BaseAgent extends EventEmitter {
         defaultCacheTTL: 5 * 60 * 1000, // 5 minutes
       });
 
-      console.log(`[${this.agentId.id}] Code Intelligence context builder initialized`);
+      this.logger.info(`[${this.agentId.id}] Code Intelligence context builder initialized`);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Code Intelligence initialization failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Code Intelligence initialization failed:`, (error as Error).message);
       // Don't throw - agent can work without code intelligence
     }
   }
@@ -1833,7 +1835,7 @@ export abstract class BaseAgent extends EventEmitter {
 
       return await this.codeIntelligenceContextBuilder.buildContext(queryWithAgent, options);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Context retrieval failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Context retrieval failed:`, (error as Error).message);
       return null;
     }
   }
@@ -1852,7 +1854,7 @@ export abstract class BaseAgent extends EventEmitter {
     try {
       return await this.codeIntelligenceContextBuilder.buildFileContext(filePath, options);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] File context retrieval failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] File context retrieval failed:`, (error as Error).message);
       return null;
     }
   }
@@ -1876,7 +1878,7 @@ export abstract class BaseAgent extends EventEmitter {
         options
       );
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Entity context retrieval failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Entity context retrieval failed:`, (error as Error).message);
       return null;
     }
   }
@@ -1895,7 +1897,7 @@ export abstract class BaseAgent extends EventEmitter {
     try {
       return await this.codeIntelligenceContextBuilder.buildTestContext(sourceFilePath, options);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Test context retrieval failed:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Test context retrieval failed:`, (error as Error).message);
       return null;
     }
   }
@@ -1932,9 +1934,9 @@ export abstract class BaseAgent extends EventEmitter {
 
       // Unregister this agent from federated learning
       this.federatedManager.unregisterAgent(this.agentId.id);
-      console.log(`[${this.agentId.id}] Federated learning cleanup complete`);
+      this.logger.info(`[${this.agentId.id}] Federated learning cleanup complete`);
     } catch (error) {
-      console.warn(`[${this.agentId.id}] Federated cleanup error:`, (error as Error).message);
+      this.logger.warn(`[${this.agentId.id}] Federated cleanup error:`, (error as Error).message);
     }
 
     this.federatedInitialized = false;

@@ -157,7 +157,7 @@ export class LearningAgent extends BaseAgent {
         patterns: learning.patterns.length
       });
     } catch (error) {
-      console.error('Learning failed:', error);
+      this.logger.error('Learning failed:', error);
       // Don't throw - allow task to complete even if learning fails
     }
   }

@@ -638,6 +638,50 @@ const migration007LearningHistory: Migration = {
 };
 
 /**
+ * Migration 008: Fix captured_experiences schema
+ *
+ * Adds missing columns to captured_experiences table for ExperienceCapture compatibility.
+ * The original Migration 003 created this table with an incomplete schema.
+ * ExperienceCapture expects: agent_type, task_type, execution, embedding, created_at
+ *
+ * This migration safely adds the missing columns without data loss.
+ */
+const migration008FixCapturedExperiences: Migration = {
+  version: 8,
+  name: 'fix_captured_experiences_schema',
+  description: 'Add missing columns to captured_experiences for ExperienceCapture compatibility',
+  up: (db: Database.Database) => {
+    if (tableExists(db, 'captured_experiences')) {
+      // Add missing columns required by ExperienceCapture
+      safeAddColumn(db, 'captured_experiences', 'agent_type', "TEXT DEFAULT 'unknown'");
+      safeAddColumn(db, 'captured_experiences', 'task_type', "TEXT DEFAULT 'unknown'");
+      safeAddColumn(db, 'captured_experiences', 'execution', "TEXT DEFAULT '{}'");
+      safeAddColumn(db, 'captured_experiences', 'embedding', 'BLOB');
+      safeAddColumn(db, 'captured_experiences', 'created_at', 'INTEGER');
+
+      // Migrate data from old column names if they exist
+      // captured_at -> created_at (if captured_at exists and created_at is null)
+      if (columnExists(db, 'captured_experiences', 'captured_at')) {
+        try {
+          db.exec(`
+            UPDATE captured_experiences
+            SET created_at = captured_at
+            WHERE created_at IS NULL AND captured_at IS NOT NULL
+          `);
+        } catch {
+          // Ignore errors - data migration is best effort
+        }
+      }
+
+      // Create indexes for new columns
+      safeCreateIndex(db, 'CREATE INDEX IF NOT EXISTS idx_captured_exp_agent_type ON captured_experiences(agent_type)');
+      safeCreateIndex(db, 'CREATE INDEX IF NOT EXISTS idx_captured_exp_task_type ON captured_experiences(task_type)');
+      safeCreateIndex(db, 'CREATE INDEX IF NOT EXISTS idx_captured_exp_created_at ON captured_experiences(created_at)');
+    }
+  }
+};
+
+/**
  * All migrations in order
  */
 export const allMigrations: Migration[] = [
@@ -647,7 +691,8 @@ export const allMigrations: Migration[] = [
   migration004GOAPPlanning,
   migration005MemoryEvents,
   migration006AgentSystem,
-  migration007LearningHistory
+  migration007LearningHistory,
+  migration008FixCapturedExperiences
 ];
 
 export default allMigrations;
