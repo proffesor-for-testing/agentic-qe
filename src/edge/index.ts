@@ -72,6 +72,37 @@ export interface EdgeCapabilities {
   hasAtomics: boolean;
 }
 
+// P2P Module (Phase 2)
+export * as p2p from './p2p';
+export {
+  IdentityManager,
+  KeyManager,
+  Signer,
+  CryptoError,
+  CryptoErrorCode,
+  base64Utils,
+  createEnvelope,
+  verifyEnvelope,
+  createIdentityWithStorage,
+  quickSign,
+  CRYPTO_VERSION,
+  CRYPTO_CAPABILITIES,
+  type KeyPair,
+  type EncryptedKeyPair,
+  type AgentIdentity,
+  type StoredIdentity,
+  type SignedMessage,
+  type IdentityProof,
+  type KeyRotationEvent,
+  type IdentityExport,
+  type SeedPhrase,
+  type IdentityConfig,
+  type KeyStorageConfig,
+  type VerificationResult,
+  type BatchVerificationResult,
+  type MessageEnvelope,
+} from './p2p';
+
 // Version information
-export const EDGE_VERSION = '0.1.0';
-export const EDGE_PHASE = 'P0-POC';
+export const EDGE_VERSION = '0.2.0';
+export const EDGE_PHASE = 'P2-Foundation';
