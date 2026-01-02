@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+  <title>Agentic QE Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>
+        <svg class="logo" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        Agentic QE
+      </h1>
+      <button class="btn-icon" id="refreshBtn" title="Refresh">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M13.451 5.609l-.579-.939-1.068.812-.076.094c-.335.415-.927 1.341-.927 2.424 0 2.206-1.794 4-4 4a3.99 3.99 0 01-2.957-1.302l1.109-1.109-3.1-.5.5 3.1 1.062-1.062A5.48 5.48 0 006.8 12.5c2.757 0 5-2.243 5-5 0-.994-.288-1.951-.849-2.891z"/>
+          <path d="M2.549 10.391l.579.939 1.068-.812.076-.094c.335-.415.927-1.341.927-2.424 0-2.206 1.794-4 4-4a3.99 3.99 0 012.957 1.302l-1.109 1.109 3.1.5-.5-3.1-1.062 1.062A5.48 5.48 0 009.2 3.5c-2.757 0-5 2.243-5 5 0 .994.288 1.951.849 2.891z"/>
+        </svg>
+      </button>
+    </header>
+
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+      <div class="spinner"></div>
+      <span>Analyzing...</span>
+    </div>
+
+    <main class="content">
+      <!-- Current File Section -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M13 4H3V2h10v2zm0 4H3V6h10v2zm0 4H3v-2h10v2z"/>
+          </svg>
+          Current File
+        </h2>
+        <div id="currentFile" class="file-info">
+          <span class="file-name">No file open</span>
+        </div>
+      </section>
+
+      <!-- Coverage Section -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14A6 6 0 118 2a6 6 0 010 12z"/>
+            <path d="M8 4v4l3 2"/>
+          </svg>
+          Coverage
+        </h2>
+        <div class="coverage-display">
+          <div class="coverage-circle" id="coverageCircle">
+            <span class="coverage-value" id="coverageValue">0%</span>
+          </div>
+          <div class="coverage-stats">
+            <div class="stat-row">
+              <span class="stat-label">Functions</span>
+              <span class="stat-value" id="functionCount">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Tested</span>
+              <span class="stat-value" id="testedCount">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Untested</span>
+              <span class="stat-value" id="untestedCount">0</span>
+            </div>
+          </div>
+        </div>
+        <div class="coverage-bar">
+          <div class="coverage-fill" id="coverageFill" style="width: 0%"></div>
+        </div>
+      </section>
+
+      <!-- Functions Section -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.5 3A1.5 1.5 0 003 4.5v7A1.5 1.5 0 004.5 13h7a1.5 1.5 0 001.5-1.5v-7A1.5 1.5 0 0011.5 3h-7zM6 6h4v1H6V6zm0 3h4v1H6V9z"/>
+          </svg>
+          Functions
+          <span class="badge" id="functionBadge">0</span>
+        </h2>
+        <div class="function-list" id="functionList">
+          <div class="empty-state">
+            <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" opacity="0.5">
+              <path d="M14 4.5V14a2 2 0 01-2 2H4a2 2 0 01-2-2V2a2 2 0 012-2h5.5L14 4.5zM9.5 3.5v-2L13 5h-2.5A1 1 0 019.5 3.5z"/>
+            </svg>
+            <p>Open a TypeScript or JavaScript file</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Test Suggestions Section -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M14.5 3h-1.172a2 2 0 01-1.414-.586l-.828-.828A2 2 0 009.672 1H6.328a2 2 0 00-1.414.586l-.828.828A2 2 0 012.672 3H1.5a.5.5 0 00-.5.5v10a.5.5 0 00.5.5h13a.5.5 0 00.5-.5v-10a.5.5 0 00-.5-.5z"/>
+          </svg>
+          Test Suggestions
+          <span class="badge" id="suggestionBadge">0</span>
+        </h2>
+        <div class="suggestion-list" id="suggestionList">
+          <div class="empty-state">
+            <svg width="32" height="32" viewBox="0 0 16 16" fill="currentColor" opacity="0.5">
+              <path d="M8 15A7 7 0 108 1a7 7 0 000 14zm0 1A8 8 0 118 0a8 8 0 010 16z"/>
+              <path d="M5.255 5.786a.237.237 0 00.241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 00.25.246h.811a.25.25 0 00.25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/>
+            </svg>
+            <p>No suggestions available</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pattern Store Section -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2.5 0A2.5 2.5 0 000 2.5v11A2.5 2.5 0 002.5 16h11a2.5 2.5 0 002.5-2.5v-11A2.5 2.5 0 0013.5 0h-11zM8 4a.5.5 0 01.5.5v3h3a.5.5 0 010 1h-3v3a.5.5 0 01-1 0v-3h-3a.5.5 0 010-1h3v-3A.5.5 0 018 4z"/>
+          </svg>
+          Pattern Store
+        </h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-card-value" id="patternCount">0</span>
+            <span class="stat-card-label">Patterns</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card-value" id="qpsValue">0</span>
+            <span class="stat-card-label">QPS</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card-value" id="p50Value">0</span>
+            <span class="stat-card-label">P50 (ms)</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card-value" id="p99Value">0</span>
+            <span class="stat-card-label">P99 (ms)</span>
+          </div>
+        </div>
+        <div class="button-row">
+          <button class="btn btn-secondary" id="searchPatternsBtn">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85a1.007 1.007 0 00-.115-.1zM12 6.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z"/>
+            </svg>
+            Search
+          </button>
+          <button class="btn btn-danger" id="clearPatternsBtn">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M5.5 5.5A.5.5 0 016 6v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm2.5 0a.5.5 0 01.5.5v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm3 .5a.5.5 0 00-1 0v6a.5.5 0 001 0V6z"/>
+              <path fill-rule="evenodd" d="M14.5 3a1 1 0 01-1 1H13v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h-.5a1 1 0 01-1-1V2a1 1 0 011-1H6a1 1 0 011-1h2a1 1 0 011 1h3.5a1 1 0 011 1v1zM4.118 4L4 4.059V13a1 1 0 001 1h6a1 1 0 001-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+            </svg>
+            Clear
+          </button>
+        </div>
+      </section>
+
+      <!-- Implementation Info -->
+      <section class="card card-muted">
+        <div class="impl-info">
+          <span class="impl-badge">@ruvector/edge</span>
+          <span class="impl-version" id="implVersion">v0.1.0</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
