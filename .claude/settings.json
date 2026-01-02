@@ -8,7 +8,20 @@
     "CLAUDE_FLOW_CHECKPOINTS_ENABLED": "true",
     "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
     "AQE_MEMORY_ENABLED": "true",
-    "AQE_LEARNING_ENABLED": "true"
+    "AQE_LEARNING_ENABLED": "true",
+    "RUVECTOR_INTELLIGENCE_ENABLED": "true",
+    "RUVECTOR_LEARNING_RATE": "0.1",
+    "RUVECTOR_MEMORY_BACKEND": "rvlite",
+    "INTELLIGENCE_MODE": "treatment",
+    "RUVECTOR_AST_ENABLED": "true",
+    "RUVECTOR_DIFF_EMBEDDINGS": "true",
+    "RUVECTOR_COVERAGE_ROUTING": "true",
+    "RUVECTOR_GRAPH_ALGORITHMS": "true",
+    "RUVECTOR_SECURITY_SCAN": "true",
+    "RUVECTOR_MULTI_ALGORITHM": "true",
+    "RUVECTOR_DEFAULT_ALGORITHM": "double-q",
+    "RUVECTOR_TENSOR_COMPRESS": "true",
+    "RUVECTOR_AUTO_COMPRESS": "true"
   },
   "permissions": {
     "allow": [
@@ -47,68 +60,66 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks pre-edit \"$TOOL_INPUT_file_path\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks coedit-suggest --file \"$TOOL_INPUT_file_path\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 3000,
+            "command": "node -e \"const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\\" + process.argv[1].replace(/'/g,\\\"''\\\")+\\\"%' ORDER BY confidence DESC LIMIT 3\\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}\" \"$TOOL_INPUT_file_path\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "cat | jq -r '.tool_input.command // empty' | tr '\\n' '\\0' | xargs -0 -I {} claude-flow hooks pre-command --command '{}' --validate-safety true --prepare-resources true"
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks pre-command \"$TOOL_INPUT_command\" 2>/dev/null || true"
           }
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Read",
         "hooks": [
           {
             "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} claude-flow hooks pre-edit --file '{}' --auto-assign-agents true --load-context true"
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks remember \"Reading: $TOOL_INPUT_file_path\" -t file_access 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Glob|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks remember \"Search: $TOOL_INPUT_pattern\" -t search_pattern 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks remember \"Agent: $TOOL_INPUT_subagent_type\" -t agent_spawn 2>/dev/null || true"
           },
           {
             "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | head -1 | xargs -I {} node -e \"const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\\" + process.argv[1].replace(/'/g,\\\"''\\\")+\\\"%' ORDER BY confidence DESC LIMIT 3\\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}\" \"{}\" 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | head -1 | xargs -I {} node -e \"const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\\" + process.argv[1].replace(/'/g,\\\"''\\\")+\\\"%' ORDER BY confidence DESC LIMIT 3\\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}\" \"{}\" 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | head -1 | xargs -I {} node -e \"const db=require('better-sqlite3')('.agentic-qe/memory.db',{readonly:true});try{const r=db.prepare(\\\"SELECT pattern,confidence FROM patterns WHERE domain='code-edits' AND pattern LIKE '%\\\" + process.argv[1].replace(/'/g,\\\"''\\\")+\\\"%' ORDER BY confidence DESC LIMIT 3\\\").all();r.forEach(p=>console.log('💡 Pattern:',p.pattern.substring(0,80),'('+Math.round(p.confidence*100)+'%)'));db.close()}catch(e){}\" \"{}\" 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
+            "timeout": 2000,
             "command": "bash scripts/hooks/emit-task-spawn.sh 2>/dev/null || true"
           }
         ]
@@ -116,20 +127,22 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks post-edit \"$TOOL_INPUT_file_path\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "cat | jq -r '.tool_input.command // empty' | tr '\\n' '\\0' | xargs -0 -I {} claude-flow hooks post-command --command '{}' --track-metrics true --store-results true"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat | jq -r '.tool_input.file_path // .tool_input.path // empty' | tr '\\n' '\\0' | xargs -0 -I {} claude-flow hooks post-edit --file '{}' --format true --update-memory true"
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks post-command \"$TOOL_INPUT_command\" 2>/dev/null || true"
           }
         ]
       },
@@ -138,36 +151,12 @@
         "hooks": [
           {
             "type": "command",
+            "timeout": 3000,
             "command": "node scripts/hooks/capture-task-learning.js 2>/dev/null || true"
           },
           {
             "type": "command",
-            "command": "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node scripts/hooks/capture-task-learning.js 2>/dev/null || true"
-          },
-          {
-            "type": "command",
-            "command": "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node scripts/hooks/capture-task-learning.js 2>/dev/null || true"
-          },
-          {
-            "type": "command",
+            "timeout": 2000,
             "command": "bash scripts/hooks/emit-task-complete.sh 2>/dev/null || true"
           }
         ]
@@ -175,38 +164,22 @@
     ],
     "PreCompact": [
       {
-        "matcher": "manual",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/bin/bash -c 'INPUT=$(cat); CUSTOM=$(echo \"$INPUT\" | jq -r \".custom_instructions // \\\"\\\"\"); echo \"🔄 PreCompact Guidance:\"; echo \"📋 IMPORTANT: Review CLAUDE.md in project root for:\"; echo \"   • 20 QE agents + 54 claude-flow agents available\"; echo \"   • Learning protocols and pattern intelligence\"; echo \"   • Swarm coordination strategies (hierarchical, mesh, adaptive)\"; echo \"   • SPARC methodology workflows with batchtools optimization\"; if [ -n \"$CUSTOM\" ]; then echo \"🎯 Custom compact instructions: $CUSTOM\"; fi; echo \"✅ Ready for compact operation\"'"
-          }
-        ]
-      },
-      {
         "matcher": "auto",
         "hooks": [
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact: 20 QE agents + 54 claude-flow agents. Use: aqe learn status\"'"
-          }
-        ]
-      },
-      {
-        "matcher": "manual",
-        "hooks": [
+            "timeout": 5000,
+            "command": "npx ruvector@latest hooks pre-compact --auto 2>/dev/null || true"
+          },
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 PreCompact: Review CLAUDE.md for 20 QE agents, skills, and learning protocols\"'"
-          }
-        ]
-      },
-      {
-        "matcher": "auto",
-        "hooks": [
+            "timeout": 5000,
+            "command": "npx ruvector@latest hooks compress 2>/dev/null || true"
+          },
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact: 20 QE agents available. Use: npx aqe learn status\"'"
+            "timeout": 5000,
+            "command": "node scripts/workers/sync-intelligence.js 2>/dev/null || true"
           }
         ]
       },
@@ -215,16 +188,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 PreCompact: Review CLAUDE.md for 20 QE agents, skills, and learning protocols\"'"
-          }
-        ]
-      },
-      {
-        "matcher": "auto",
-        "hooks": [
+            "timeout": 5000,
+            "command": "npx ruvector@latest hooks pre-compact 2>/dev/null || true"
+          },
           {
             "type": "command",
-            "command": "/bin/bash -c 'echo \"🔄 Auto-Compact: 20 QE agents available. Use: npx aqe learn status\"'"
+            "timeout": 5000,
+            "command": "node scripts/workers/sync-intelligence.js 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 3000,
+            "command": "/bin/bash -c 'echo \"🔄 PreCompact: 21 QE agents + 54 claude-flow agents. Review CLAUDE.md for skills and learning protocols\"'"
           }
         ]
       }
@@ -234,27 +209,72 @@
         "hooks": [
           {
             "type": "command",
-            "command": "claude-flow hooks session-end --generate-summary true --persist-state true --export-metrics true"
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks trajectory-end --success --quality 0.8 2>/dev/null || true"
           },
           {
             "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks session-end 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 5000,
+            "command": "node scripts/workers/sync-intelligence.js 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 2000,
             "command": "echo '📊 Session ended. Run: aqe learn status' 2>/dev/null || true"
           }
         ]
-      },
+      }
+    ],
+    "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "echo '📊 Session ended. Run: npx aqe learn status' 2>/dev/null || true"
+            "timeout": 5000,
+            "command": "npx ruvector@latest hooks session-start 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks trajectory-begin -c \"claude-session\" -a \"claude\" 2>/dev/null || true"
           }
         ]
-      },
+      }
+    ],
+    "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "echo '📊 Session ended. Run: npx aqe learn status' 2>/dev/null || true"
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks suggest-context 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx agentic-flow@alpha workers dispatch-prompt \"$CLAUDE_USER_PROMPT\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 1000,
+            "command": "npx agentic-flow@alpha workers inject-context \"$CLAUDE_USER_PROMPT\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 2000,
+            "command": "npx ruvector@latest hooks track-notification 2>/dev/null || true"
           }
         ]
       }
@@ -269,5 +289,172 @@
   "statusLine": {
     "type": "command",
     "command": ".claude/statusline-command.sh"
+  },
+  "workers": {
+    "enabled": true,
+    "parallel": true,
+    "maxConcurrent": 10,
+    "native": {
+      "enabled": true,
+      "types": [
+        "security",
+        "analysis",
+        "learning"
+      ],
+      "defaultTimeout": 120000
+    },
+    "triggers": {
+      "ultralearn": {
+        "priority": "high",
+        "agents": ["researcher", "coder"]
+      },
+      "optimize": {
+        "priority": "high",
+        "agents": ["performance-analyzer"]
+      },
+      "audit": {
+        "priority": "critical",
+        "agents": ["security-analyst", "tester"]
+      },
+      "map": {
+        "priority": "medium",
+        "agents": ["architect"]
+      },
+      "security": {
+        "priority": "critical",
+        "agents": ["security-analyst"]
+      },
+      "benchmark": {
+        "priority": "low",
+        "agents": ["performance-analyzer"]
+      },
+      "document": {
+        "priority": "medium",
+        "agents": ["documenter"]
+      },
+      "refactor": {
+        "priority": "medium",
+        "agents": ["coder", "reviewer"]
+      },
+      "testgaps": {
+        "priority": "high",
+        "agents": ["tester"]
+      },
+      "deepdive": {
+        "priority": "low",
+        "agents": ["researcher"]
+      },
+      "predict": {
+        "priority": "medium",
+        "agents": ["analyst"]
+      },
+      "consolidate": {
+        "priority": "low",
+        "agents": ["architect"]
+      },
+      "qe-sync": {
+        "priority": "high",
+        "description": "Sync AQE memory with RuVector intelligence",
+        "command": "node scripts/workers/sync-intelligence.js",
+        "agents": ["qe-coordinator"]
+      },
+      "qe-learn": {
+        "priority": "medium",
+        "description": "Run QE self-learning cycle",
+        "command": "node scripts/workers/qe-self-learning.js full",
+        "agents": ["qe-test-generator", "qe-coverage-analyzer"]
+      },
+      "qe-analyze": {
+        "priority": "medium",
+        "description": "Analyze agent performance patterns",
+        "command": "node scripts/workers/qe-self-learning.js analyze",
+        "agents": ["qe-quality-analyzer"]
+      },
+      "qe-dream": {
+        "priority": "low",
+        "description": "Trigger dream synthesis for pattern discovery",
+        "command": "node scripts/workers/qe-self-learning.js dream",
+        "agents": ["qe-dream-synthesizer"]
+      },
+      "qe-replay": {
+        "priority": "medium",
+        "description": "Experience replay for Q-learning optimization",
+        "command": "node scripts/workers/qe-self-learning.js replay",
+        "agents": ["qe-learning-agent"]
+      }
+    }
+  },
+  "performance": {
+    "modelCache": {
+      "enabled": true,
+      "maxSizeMB": 512,
+      "ttlMinutes": 60
+    },
+    "benchmarkThresholds": {
+      "triggerDetection": { "p95": 5 },
+      "workerRegistry": { "p95": 10 },
+      "agentSelection": { "p95": 1 },
+      "memoryKeyGen": { "p95": 0.1 },
+      "concurrent10": { "p95": 1000 },
+      "singleEmbedding": { "p95": 500 },
+      "batchEmbedding16": { "p95": 8000 }
+    },
+    "optimizations": {
+      "parallelDispatch": true,
+      "batchEmbeddings": true,
+      "cacheEmbeddings": true,
+      "simd": true
+    }
+  },
+  "agents": {
+    "presets": {
+      "quick-scan": {
+        "phases": ["file-discovery", "summarization"],
+        "timeout": 30000
+      },
+      "deep-analysis": {
+        "phases": ["file-discovery", "pattern-extraction", "embedding-generation", "complexity-analysis", "summarization"],
+        "timeout": 120000,
+        "capabilities": {
+          "onnxEmbeddings": true,
+          "vectorDb": true
+        }
+      },
+      "security-scan": {
+        "phases": ["file-discovery", "security-scan", "summarization"],
+        "timeout": 60000
+      },
+      "learning": {
+        "phases": ["file-discovery", "pattern-extraction", "embedding-generation", "vector-storage", "summarization"],
+        "timeout": 180000,
+        "capabilities": {
+          "onnxEmbeddings": true,
+          "vectorDb": true,
+          "intelligenceMemory": true
+        }
+      }
+    },
+    "capabilities": {
+      "onnxEmbeddings": true,
+      "vectorDb": true,
+      "intelligenceMemory": true,
+      "parallelProcessing": true
+    }
+  },
+  "mcpServers": {},
+  "agentConfig": {
+    "directory": ".claude/agents",
+    "focus": "testing",
+    "agents": [
+      "rust-specialist",
+      "typescript-specialist",
+      "python-specialist",
+      "go-specialist",
+      "react-specialist",
+      "database-specialist",
+      "test-architect",
+      "project-coordinator"
+    ],
+    "generated": "2026-01-02T15:15:21.897Z"
   }
 }

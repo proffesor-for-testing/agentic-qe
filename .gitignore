@@ -170,3 +170,7 @@ claude-flow
 hive-mind-prompt-*.txt
 tests/tmp/*
 tmp/*
+
+# RuVector intelligence data
+#.ruvector/
+#.claude/statusline.sh
