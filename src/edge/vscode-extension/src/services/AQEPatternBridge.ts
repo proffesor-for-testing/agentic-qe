@@ -79,17 +79,17 @@ const PatternConverter = {
    * Convert VS Code CodePattern to AQE QEPattern
    */
   toQEPattern(pattern: CodePattern): QEPattern {
-    const typeMap: Record<string, QEPattern['type']> = {
-      'function': 'unit',
-      'async-function': 'api',
-      'method': 'unit',
-      'constructor': 'unit',
-      'factory': 'unit',
-      'handler': 'api',
-      'validator': 'unit',
-      'transformer': 'unit',
-      'accessor': 'unit',
-      'callback': 'unit',
+    const typeMap: { [key: string]: QEPattern['type'] } = {
+      'function': 'unit' as const,
+      'async-function': 'api' as const,
+      'method': 'unit' as const,
+      'constructor': 'unit' as const,
+      'factory': 'unit' as const,
+      'handler': 'api' as const,
+      'validator': 'unit' as const,
+      'transformer': 'unit' as const,
+      'accessor': 'unit' as const,
+      'callback': 'unit' as const,
     };
 
     const domainMap: Record<string, QEPattern['domain']> = {
@@ -117,7 +117,7 @@ const PatternConverter = {
 
     return {
       id: pattern.id,
-      type: typeMap[pattern.type] || 'unit',
+      type: (typeMap[pattern.type] || 'unit') as QEPattern['type'],
       domain,
       content: pattern.sourceCode,
       embedding: pattern.embedding,
@@ -252,7 +252,7 @@ export class AQEPatternBridge {
           const codePattern = PatternConverter.toCodePattern(qePattern);
 
           // Check if pattern exists locally
-          const existingPattern = await this.config.store.getPattern(codePattern.id);
+          const existingPattern = await this.config.store.getPattern<CodePattern>(codePattern.id);
 
           if (existingPattern) {
             // Check for conflicts

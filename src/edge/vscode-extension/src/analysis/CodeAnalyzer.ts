@@ -693,7 +693,7 @@ export class CodeAnalyzer {
   /**
    * Get language from file path
    */
-  private getLanguage(filePath: string): string {
+  private getLanguage(filePath: string): 'typescript' | 'javascript' {
     if (filePath.endsWith('.ts') || filePath.endsWith('.tsx')) {
       return 'typescript';
     }

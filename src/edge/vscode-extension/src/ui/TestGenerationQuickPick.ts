@@ -194,7 +194,7 @@ export class TestGenerationQuickPick implements vscode.Disposable {
     ];
 
     this.quickPick.onDidAccept(() => {
-      const selection = this.quickPick?.selectedItems[0];
+      const selection = this.quickPick?.selectedItems[0] as ExtendedQuickPickItem<TestType> | undefined;
       if (selection) {
         this.selectedOptions.testType = selection.value;
         this.quickPick?.dispose();
@@ -239,7 +239,7 @@ export class TestGenerationQuickPick implements vscode.Disposable {
     });
 
     this.quickPick.onDidAccept(() => {
-      const selection = this.quickPick?.selectedItems[0];
+      const selection = this.quickPick?.selectedItems[0] as ExtendedQuickPickItem<TestFramework> | undefined;
       if (selection) {
         this.selectedOptions.framework = selection.value;
         this.quickPick?.dispose();
@@ -289,7 +289,7 @@ export class TestGenerationQuickPick implements vscode.Disposable {
     });
 
     this.quickPick.onDidAccept(() => {
-      const selections = this.quickPick?.selectedItems || [];
+      const selections = (this.quickPick?.selectedItems || []) as ExtendedQuickPickItem<string>[];
       this.selectedOptions.coverageTargets = selections.map((s) => s.value);
       this.quickPick?.dispose();
       this.showStep4Options();

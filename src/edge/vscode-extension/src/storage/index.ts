@@ -10,6 +10,12 @@
  * @version 0.1.0
  */
 
+// Import classes for use in factory function
+import { VSCodeStorageAdapter as VSCodeStorageAdapterClass } from './VSCodeStorageAdapter';
+import { OfflineStore as OfflineStoreClass } from './OfflineStore';
+import { SyncManager as SyncManagerClass } from './SyncManager';
+import { ConflictResolver as ConflictResolverClass } from './ConflictResolver';
+
 // Storage Adapter - Abstract interface and utilities
 export {
   type IStorageAdapter,
@@ -97,34 +103,34 @@ export function createStorageSystem(
     defaultResolutionStrategy?: 'local-wins' | 'remote-wins' | 'merge' | 'newest-wins' | 'manual';
   }
 ): {
-  adapter: VSCodeStorageAdapter;
-  store: OfflineStore;
-  syncManager: SyncManager;
-  conflictResolver: ConflictResolver;
+  adapter: VSCodeStorageAdapterClass;
+  store: OfflineStoreClass;
+  syncManager: SyncManagerClass;
+  conflictResolver: ConflictResolverClass;
   initialize: () => Promise<void>;
   shutdown: () => Promise<void>;
 } {
   // Create adapter
-  const adapter = new VSCodeStorageAdapter({
+  const adapter = new VSCodeStorageAdapterClass({
     context,
     storageType: options?.storageType ?? 'global',
     debugMode: options?.debugMode ?? false,
   });
 
   // Create conflict resolver
-  const conflictResolver = new ConflictResolver({
+  const conflictResolver = new ConflictResolverClass({
     defaultStrategy: options?.defaultResolutionStrategy ?? 'newest-wins',
     debugMode: options?.debugMode ?? false,
   });
 
   // Create store
-  const store = new OfflineStore({
+  const store = new OfflineStoreClass({
     adapter,
     debugMode: options?.debugMode ?? false,
   });
 
   // Create sync manager
-  const syncManager = new SyncManager({
+  const syncManager = new SyncManagerClass({
     store,
     conflictResolver,
     autoSync: options?.autoSync ?? true,
