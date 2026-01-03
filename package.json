@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc && node scripts/copy-json-files.js",
-    "dev": "ts-node src/cli/index.ts",
+    "dev": "tsx src/cli/index.ts",
     "start": "node dist/cli/index.js",
     "backup": "node scripts/backup-memory.js",
     "backup:list": "node scripts/backup-memory.js --list",
