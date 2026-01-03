@@ -138,7 +138,17 @@ export class EdgeAgentService {
   }
 
   /**
-   * Initialize the service with @ruvector/edge WASM
+   * Whether using fallback mode (no WASM)
+   */
+  private fallbackMode: boolean = false;
+
+  /**
+   * Fallback in-memory index for when @ruvector/edge is not available
+   */
+  private fallbackPatterns: Array<{ id: string; embedding: number[] }> = [];
+
+  /**
+   * Initialize the service with @ruvector/edge WASM or fallback mode
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -159,13 +169,15 @@ export class EdgeAgentService {
       );
 
       this.initialized = true;
-      this.log('EdgeAgentService initialized with @ruvector/edge');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Failed to initialize @ruvector/edge: ${message}. ` +
-        'Ensure @ruvector/edge is installed: npm install @ruvector/edge'
-      );
+      this.fallbackMode = false;
+      this.log('EdgeAgentService initialized with @ruvector/edge WASM');
+    } catch {
+      // Fallback to in-memory mode without WASM acceleration
+      this.log('Warning: @ruvector/edge not available, using fallback mode');
+      this.log('Install @ruvector/edge for WASM-accelerated vector search');
+      this.initialized = true;
+      this.fallbackMode = true;
+      this.log('EdgeAgentService initialized in fallback mode (no WASM)');
     }
   }
 
@@ -225,12 +237,25 @@ export class EdgeAgentService {
     // Convert to Float32Array for WASM
     const queryVector = new Float32Array(queryEmbedding);
 
-    // Search HNSW index
-    const searchResultsJson = this.index!.search(queryVector, k * 2);
-    const searchResults: Array<{ id: string; distance: number }> =
-      typeof searchResultsJson === 'string'
-        ? JSON.parse(searchResultsJson)
-        : searchResultsJson;
+    // Search HNSW index or use fallback
+    let searchResults: Array<{ id: string; distance: number }> = [];
+
+    if (this.fallbackMode) {
+      // Fallback: brute-force cosine similarity search
+      searchResults = this.fallbackPatterns
+        .map((p) => ({
+          id: p.id,
+          distance: this.cosineDistance(queryEmbedding, p.embedding),
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, k * 2);
+    } else {
+      const searchResultsJson = this.index!.search(queryVector, k * 2);
+      searchResults =
+        typeof searchResultsJson === 'string'
+          ? JSON.parse(searchResultsJson)
+          : searchResultsJson;
+    }
 
     // Map results to patterns
     const matches: PatternMatch[] = [];
@@ -284,9 +309,13 @@ export class EdgeAgentService {
     // Store in memory
     this.patterns.set(id, fullPattern);
 
-    // Add to HNSW index
-    const vector = new Float32Array(pattern.embedding);
-    this.index!.insert(id, vector);
+    // Add to HNSW index or fallback storage
+    if (this.fallbackMode) {
+      this.fallbackPatterns.push({ id, embedding: pattern.embedding });
+    } else {
+      const vector = new Float32Array(pattern.embedding);
+      this.index!.insert(id, vector);
+    }
 
     this.log(`Stored pattern ${id}`);
 
@@ -332,12 +361,16 @@ export class EdgeAgentService {
 
     this.patterns.clear();
 
-    // Recreate the index
-    this.index?.free();
-    this.index = this.wasmModule!.WasmHnswIndex.withParams(
-      this.config.hnswM,
-      this.config.hnswEfConstruction
-    );
+    if (this.fallbackMode) {
+      this.fallbackPatterns = [];
+    } else {
+      // Recreate the index
+      this.index?.free();
+      this.index = this.wasmModule!.WasmHnswIndex.withParams(
+        this.config.hnswM,
+        this.config.hnswEfConstruction
+      );
+    }
 
     this.log('Cleared all patterns');
   }
@@ -347,12 +380,15 @@ export class EdgeAgentService {
    */
   async getStats(): Promise<EdgeAgentStats> {
     const metrics = this.getSearchMetrics();
+    const count = this.fallbackMode
+      ? this.fallbackPatterns.length
+      : (this.index?.len() ?? 0);
 
     return {
-      count: this.index?.len() ?? 0,
+      count,
       dimension: this.config.vectorDimension,
       metric: 'cosine',
-      implementation: 'ruvector-edge',
+      implementation: this.fallbackMode ? 'fallback-brute-force' : 'ruvector-edge',
       qps: metrics.avgLatency > 0 ? 1000 / metrics.avgLatency : 0,
       p50Latency: metrics.p50Latency,
       p99Latency: metrics.p99Latency,
@@ -386,6 +422,18 @@ export class EdgeAgentService {
     version: string;
     features: string[];
   } {
+    if (this.fallbackMode) {
+      return {
+        type: 'fallback-brute-force',
+        version: '0.1.0',
+        features: [
+          'brute-force-search',
+          'vscode-extension',
+          'fallback-mode',
+        ],
+      };
+    }
+
     return {
       type: 'ruvector-edge',
       version: this.wasmModule?.version() ?? '0.1.0',
@@ -437,6 +485,24 @@ export class EdgeAgentService {
     }
 
     return embedding;
+  }
+
+  /**
+   * Compute cosine distance between two vectors (fallback mode)
+   */
+  private cosineDistance(a: number[], b: number[]): number {
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
+    return 1 - similarity; // Convert to distance
   }
 
   /**

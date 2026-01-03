@@ -9,6 +9,11 @@
     "type": "git",
     "url": "https://github.com/proffesor-for-testing/agentic-qe"
   },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
