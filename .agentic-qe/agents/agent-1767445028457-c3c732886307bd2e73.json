@@ -1,0 +1,16 @@
+{
+  "id": "agent-1767445028457-c3c732886307bd2e73",
+  "type": "security-scanner",
+  "task": "Scan for vulnerabilities",
+  "status": "completed",
+  "capabilities": [],
+  "output": [
+    "[security-scanner] Starting agent...",
+    "[security-scanner] Project: /workspaces/agentic-qe",
+    "[security-scanner] Task: Scan for vulnerabilities",
+    "[security-scanner] Scanning for security vulnerabilities...",
+    "[security-scanner] Checking OWASP Top 10...",
+    "[security-scanner] Security scan complete"
+  ],
+  "exitCode": 0
+}

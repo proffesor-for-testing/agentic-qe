@@ -50,6 +50,7 @@
     "**/__mocks__/**",
     "src/edge/devtools/**",
     "src/edge/vscode-extension/**",
-    "src/edge/wasm/**"
+    "src/edge/wasm/**",
+    "src/edge/webapp/**"
   ]
 }
