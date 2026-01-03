@@ -19,6 +19,10 @@ import React, {
   type ReactNode,
 } from 'react';
 
+// Import P2P Service singleton
+import { getP2PService, P2PServiceImpl } from '../services/P2PService';
+import type { WebAppEvent, P2PServiceConfig } from '../types';
+
 // ============================================
 // Types
 // ============================================
@@ -507,6 +511,7 @@ export function P2PProvider({
   const eventEmitterRef = useRef<P2PEventEmitter>(new P2PEventEmitter());
   const initializingRef = useRef(false);
   const startTimeRef = useRef<number>(Date.now());
+  const p2pServiceRef = useRef<P2PServiceImpl | null>(null);
 
   // Update config when props change
   useEffect(() => {
@@ -576,6 +581,72 @@ export function P2PProvider({
         throw new Error('WebRTC not available');
       }
 
+      // Initialize the P2PService singleton with signaling config
+      const serviceConfig: Partial<P2PServiceConfig> = {
+        signaling: {
+          serverUrl: finalConfig.signalingServer || 'ws://localhost:3002',
+          roomId: 'agentic-qe-default',
+          autoReconnect: true,
+        },
+        agentApi: {
+          baseUrl: finalConfig.agentApiUrl || 'http://localhost:3001',
+        },
+      };
+
+      const service = getP2PService(serviceConfig);
+      p2pServiceRef.current = service;
+
+      // Subscribe to P2PService events
+      const handleServiceEvent = (event: WebAppEvent) => {
+        switch (event.type) {
+          case 'peer:discovered':
+            if (event.peer) {
+              const peerState: PeerState = {
+                id: event.peer.id,
+                publicKey: event.peer.publicKey || '',
+                connectionState: 'connecting',
+                dataChannelState: 'connecting',
+                quality: DEFAULT_CONNECTION_QUALITY,
+                lastSeen: Date.now(),
+                patternsShared: 0,
+              };
+              dispatch({ type: 'ADD_PEER', peer: peerState });
+              eventEmitterRef.current.emit(P2PEventType.PEER_DISCOVERED, { peer: peerState });
+            }
+            break;
+          case 'peer:connected':
+            if (event.peer) {
+              dispatch({
+                type: 'UPDATE_PEER',
+                peerId: event.peer.id,
+                updates: { connectionState: 'connected', dataChannelState: 'open' },
+              });
+              eventEmitterRef.current.emit(P2PEventType.PEER_CONNECTED, { peerId: event.peer.id });
+            }
+            break;
+          case 'peer:disconnected':
+            if (event.peer) {
+              dispatch({ type: 'REMOVE_PEER', peerId: event.peer.id });
+              eventEmitterRef.current.emit(P2PEventType.PEER_DISCONNECTED, { peerId: event.peer.id });
+            }
+            break;
+          case 'pattern:received':
+            eventEmitterRef.current.emit(P2PEventType.PATTERN_RECEIVED, {
+              patternId: event.patternId,
+              from: event.from,
+            });
+            break;
+          case 'error':
+            log('error', 'P2PService error:', event.message);
+            break;
+        }
+      };
+
+      service.on(handleServiceEvent);
+
+      // Initialize the service (connects to signaling server)
+      await service.initialize();
+
       // Generate or load identity
       let identity: AgentIdentity;
 
@@ -588,20 +659,13 @@ export function P2PProvider({
         identity = storedIdentity;
         log('info', 'Loaded existing identity:', identity.agentId);
       } else if (finalConfig.autoCreateIdentity) {
-        // Generate new Ed25519 keypair using Web Crypto
-        // Note: Web Crypto doesn't support Ed25519 natively in all browsers
-        // For production, use @noble/ed25519 library
-        // Here we simulate with a random identity for demonstration
-        const keyData = new Uint8Array(32);
-        crypto.getRandomValues(keyData);
-        const agentId = await generateAgentId(keyData);
-        const publicKeyBase64 = btoa(String.fromCharCode.apply(null, Array.from(keyData)));
-
+        // Use the agent ID from P2PService
+        const serviceState = service.getState();
         identity = {
-          agentId,
-          publicKey: publicKeyBase64,
+          agentId: serviceState.agentInfo?.id || await generateAgentId(new Uint8Array(32)),
+          publicKey: serviceState.agentInfo?.publicKey || '',
           createdAt: new Date().toISOString(),
-          displayName: `Agent-${agentId.substring(0, 8)}`,
+          displayName: `Agent-${(serviceState.agentInfo?.id || '').substring(0, 8)}`,
         };
 
         // Store identity
@@ -634,6 +698,12 @@ export function P2PProvider({
   const shutdown = useCallback(async (): Promise<void> => {
     log('info', 'Shutting down P2P service...');
 
+    // Destroy the P2PService instance
+    if (p2pServiceRef.current) {
+      p2pServiceRef.current.destroy();
+      p2pServiceRef.current = null;
+    }
+
     // Close all peer connections
     state.peers.forEach((peer) => {
       log('debug', 'Closing connection to peer:', peer.id);
@@ -653,6 +723,10 @@ export function P2PProvider({
         throw new Error('P2P service not initialized');
       }
 
+      if (!p2pServiceRef.current) {
+        throw new Error('P2P service not available');
+      }
+
       log('info', 'Connecting to peer:', peerId);
 
       // Create new peer state
@@ -669,10 +743,9 @@ export function P2PProvider({
       dispatch({ type: 'ADD_PEER', peer });
       eventEmitterRef.current.emit(P2PEventType.PEER_DISCOVERED, { peer });
 
-      // Connect via P2PService (delegates to WebRTC signaling)
+      // Connect via P2PService (uses SignalingClient for WebRTC signaling)
       try {
-        // Connection handled by P2PService.connect() which uses SignalingClient
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await p2pServiceRef.current.connect(peerId);
 
         dispatch({
           type: 'UPDATE_PEER',
@@ -716,7 +789,11 @@ export function P2PProvider({
 
       log('info', 'Disconnecting from peer:', peerId);
 
-      // Disconnection handled by P2PService.disconnect()
+      // Disconnect via P2PService
+      if (p2pServiceRef.current) {
+        p2pServiceRef.current.disconnect(peerId);
+      }
+
       dispatch({ type: 'REMOVE_PEER', peerId });
       eventEmitterRef.current.emit(P2PEventType.PEER_DISCONNECTED, { peerId });
     },
@@ -730,10 +807,16 @@ export function P2PProvider({
         throw new Error('P2P service not initialized');
       }
 
+      if (!p2pServiceRef.current) {
+        throw new Error('P2P service not available');
+      }
+
       const targetPeers = peerIds || Array.from(state.peers.keys());
       log('info', 'Sharing pattern:', patternId, 'with peers:', targetPeers);
 
-      // Pattern sharing via P2PService data channels (see P2PService.sharePattern)
+      // Share pattern via P2PService data channels
+      await p2pServiceRef.current.sharePattern(patternId);
+
       eventEmitterRef.current.emit(P2PEventType.PATTERN_SHARED, {
         patternId,
         peerIds: targetPeers,
@@ -747,6 +830,10 @@ export function P2PProvider({
     async (peerId: PeerId): Promise<void> => {
       if (!state.isInitialized) {
         throw new Error('P2P service not initialized');
+      }
+
+      if (!p2pServiceRef.current) {
+        throw new Error('P2P service not available');
       }
 
       const peer = state.peers.get(peerId);
@@ -767,8 +854,8 @@ export function P2PProvider({
       eventEmitterRef.current.emit(P2PEventType.SYNC_STARTED, { peerId });
 
       try {
-        // Sync via PatternSyncManager integrated in P2PService
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Sync patterns via P2PService
+        await p2pServiceRef.current.syncPatterns();
 
         dispatch({
           type: 'UPDATE_PATTERN_SYNC',

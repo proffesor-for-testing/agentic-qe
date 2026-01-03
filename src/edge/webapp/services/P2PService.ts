@@ -130,6 +130,7 @@ export class P2PServiceImpl implements IP2PService {
   private healthMonitors: Map<string, HealthMonitor> = new Map();
   private signalingClient: SignalingClient | null = null;
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
+  private dataChannels: Map<string, RTCDataChannel> = new Map();
 
   // Internal state
   private startTime: number = 0;
@@ -420,12 +421,16 @@ export class P2PServiceImpl implements IP2PService {
   }
 
   private setupDataChannel(peerId: PeerId, channel: RTCDataChannel): void {
+    // Store reference to data channel for later use
+    this.dataChannels.set(peerId, channel);
+
     channel.onopen = () => {
       console.log(`[P2P] Data channel open with ${peerId}`);
     };
 
     channel.onclose = () => {
       console.log(`[P2P] Data channel closed with ${peerId}`);
+      this.dataChannels.delete(peerId);
     };
 
     channel.onmessage = (event) => {
@@ -441,17 +446,78 @@ export class P2PServiceImpl implements IP2PService {
 
   private handleDataChannelMessage(peerId: PeerId, message: { type: string; payload: unknown }): void {
     switch (message.type) {
-      case 'pattern':
-        this.emit({ type: 'pattern:received', patternId: (message.payload as { id: string }).id, from: peerId });
+      case 'pattern': {
+        const patternData = message.payload as {
+          id: string;
+          category: string;
+          content: string;
+          embedding: number[];
+          metadata: Record<string, unknown>;
+        };
+
+        console.log(`[P2P] Received pattern ${patternData.id} from ${peerId}`);
+
+        // Add pattern to local index if it doesn't exist
+        if (this.patternIndex && this.patternSerializer) {
+          const existing = this.patternIndex.get(patternData.id);
+          if (!existing) {
+            const pattern = this.patternSerializer.createPattern(
+              patternData.id,
+              patternData.category as PatternCategory,
+              'qe-pattern',
+              peerId,
+              patternData.content,
+              patternData.embedding,
+              patternData.metadata
+            );
+            this.patternIndex.add(pattern);
+            console.log(`[P2P] Added pattern ${patternData.id} to local index`);
+          }
+        }
+
+        this.emit({ type: 'pattern:received', patternId: patternData.id, from: peerId });
         break;
+      }
       case 'crdt-delta':
         this.emit({ type: 'crdt:updated', storeId: (message.payload as { storeId: string }).storeId });
         break;
       case 'ping':
         // Handle ping for latency measurement
         break;
+      case 'sync-request':
+        // Handle sync request from peer
+        this.handleSyncRequest(peerId);
+        break;
       default:
         console.log(`[P2P] Unknown message type: ${message.type}`);
+    }
+  }
+
+  private handleSyncRequest(peerId: PeerId): void {
+    const channel = this.dataChannels.get(peerId);
+    if (!channel || channel.readyState !== 'open') {
+      console.warn(`[P2P] Cannot respond to sync request - no open channel to ${peerId}`);
+      return;
+    }
+
+    // Send all patterns to the requesting peer
+    if (this.patternIndex) {
+      const patterns = this.patternIndex.search('*', 100);
+      for (const pattern of patterns) {
+        const message = JSON.stringify({
+          type: 'pattern',
+          payload: {
+            id: pattern.id,
+            category: pattern.category,
+            content: pattern.content,
+            embedding: pattern.embedding,
+            metadata: pattern.metadata,
+          },
+        });
+        channel.send(message);
+        this.messageCount++;
+      }
+      console.log(`[P2P] Sent ${patterns.length} patterns to ${peerId} in response to sync request`);
     }
   }
 
@@ -633,12 +699,37 @@ export class P2PServiceImpl implements IP2PService {
     const targetPeers = peerIds || this.state.peers.map(p => p.id);
 
     for (const peerId of targetPeers) {
-      // Simulate pattern sharing
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const channel = this.dataChannels.get(peerId);
+      if (!channel || channel.readyState !== 'open') {
+        console.warn(`[P2P] No open data channel to peer ${peerId}, skipping pattern share`);
+        continue;
+      }
 
-      this.updatePeer(peerId, {
-        patternsShared: (this.state.peers.find(p => p.id === peerId)?.patternsShared || 0) + 1,
-      });
+      try {
+        const message = JSON.stringify({
+          type: 'pattern',
+          payload: {
+            id: pattern.id,
+            category: pattern.category,
+            content: pattern.content,
+            embedding: pattern.embedding,
+            metadata: pattern.metadata,
+          },
+        });
+
+        // Send pattern over data channel
+        channel.send(message);
+        this.messageCount++;
+
+        this.emit({ type: 'pattern:shared', patternId, peerId });
+        console.log(`[P2P] Pattern ${patternId} sent to peer ${peerId}`);
+
+        this.updatePeer(peerId, {
+          patternsShared: (this.state.peers.find(p => p.id === peerId)?.patternsShared || 0) + 1,
+        });
+      } catch (error) {
+        console.error(`[P2P] Failed to share pattern with ${peerId}:`, error);
+      }
     }
 
     // Update pattern counter
@@ -648,6 +739,35 @@ export class P2PServiceImpl implements IP2PService {
     }
 
     this.updatePatternStats();
+  }
+
+  async syncPatterns(peerIds?: string[]): Promise<number> {
+    const targetPeers = peerIds || this.state.peers.map(p => p.id);
+    let patternsReceived = 0;
+
+    for (const peerId of targetPeers) {
+      const channel = this.dataChannels.get(peerId);
+      if (!channel || channel.readyState !== 'open') {
+        console.warn(`[P2P] No open data channel to peer ${peerId}, skipping sync`);
+        continue;
+      }
+
+      try {
+        // Send sync request to peer
+        const message = JSON.stringify({
+          type: 'sync-request',
+          payload: { timestamp: Date.now() },
+        });
+        channel.send(message);
+        this.messageCount++;
+
+        console.log(`[P2P] Sent sync request to peer ${peerId}`);
+      } catch (error) {
+        console.error(`[P2P] Failed to sync with ${peerId}:`, error);
+      }
+    }
+
+    return patternsReceived;
   }
 
   async addPattern(name: string, category: string, embedding: number[]): Promise<string> {

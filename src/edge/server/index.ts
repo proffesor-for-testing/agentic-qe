@@ -132,6 +132,17 @@ export class EdgeServer {
     // Agent API Routes
     // ==========================================
 
+    // API Health check
+    this.app.get('/api/health', (_req: Request, res: Response) => {
+      res.json({
+        status: 'ok',
+        uptime: this.startTime > 0 ? Date.now() - this.startTime : 0,
+        version: '1.0.0',
+        agents: this.agentService.list().length,
+        signalingPeers: this.signalingServer.getStats().totalPeers,
+      });
+    });
+
     // List available agent types
     this.app.get('/api/agents/types', (_req: Request, res: Response) => {
       const types = this.agentService.getAvailableTypes();
