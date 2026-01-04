@@ -197,6 +197,7 @@ function renderAnalysis(analysis: FileAnalysis): void {
       </div>
     `;
   } else {
+    // lgtm[js/xss] - All user-controlled data in renderFunctionItem is escaped via escapeHtml()
     elements.functionList.innerHTML = analysis.functions
       .map((f) => renderFunctionItem(f))
       .join('');

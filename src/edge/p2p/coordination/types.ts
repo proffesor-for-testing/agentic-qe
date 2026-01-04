@@ -829,11 +829,13 @@ export function createDefaultHealthStatus(): HealthStatus {
 }
 
 /**
- * Generate unique message ID
+ * Generate unique message ID using cryptographically secure random
  */
 export function generateMessageId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
+  const randomBytes = new Uint8Array(5);
+  crypto.getRandomValues(randomBytes);
+  const random = Array.from(randomBytes).map(b => b.toString(36)).join('').substring(0, 8);
   return `coord-${timestamp}-${random}`;
 }
 
