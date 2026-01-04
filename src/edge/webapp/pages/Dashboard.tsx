@@ -263,11 +263,21 @@ export const Dashboard: React.FC = () => {
   const [isSyncingPatterns, setIsSyncingPatterns] = React.useState(false);
   const [agentError, setAgentError] = React.useState<string | null>(null);
 
-  // Handle peer connection
+  // Handle peer connection - connect to first discovered peer
   const handleConnect = async () => {
+    // Get peers from room that we haven't connected to yet
+    const availablePeers = state.peers.filter(p => p.connectionState !== 'connected');
+    if (availablePeers.length === 0) {
+      console.log('[Dashboard] No available peers to connect to');
+      return;
+    }
+
     setIsConnecting(true);
     try {
-      await connect(`peer-${Date.now()}`);
+      // Connect to first available peer
+      const targetPeer = availablePeers[0];
+      console.log(`[Dashboard] Connecting to peer: ${targetPeer.id}`);
+      await connect(targetPeer.id);
     } finally {
       setIsConnecting(false);
     }
@@ -486,7 +496,7 @@ export const Dashboard: React.FC = () => {
                 Add Demo Pattern
               </button>
               <button
-                onClick={() => connect(`peer-${Date.now()}`)}
+                onClick={handleConnect}
                 style={{ ...styles.actionButton, ...styles.successAction }}
               >
                 <svg
