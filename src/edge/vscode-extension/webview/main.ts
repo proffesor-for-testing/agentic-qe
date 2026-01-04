@@ -197,23 +197,56 @@ function renderAnalysis(analysis: FileAnalysis): void {
       </div>
     `;
   } else {
-    // Safe: All user-controlled data in renderFunctionItem is escaped via escapeHtml()
-    // before being inserted. The func.name and func.type values are sanitized.
-    const safeHtml = analysis.functions
-      .map((f) => renderFunctionItem(f))
-      .join('');
-    elements.functionList.innerHTML = safeHtml; // codeql[js/xss-through-dom]
+    // Clear and rebuild using DOM methods for security
+    elements.functionList.textContent = '';
 
-    // Add click handlers
-    document.querySelectorAll('.function-item').forEach((item, index) => {
+    analysis.functions.forEach((func, index) => {
+      const item = document.createElement('div');
+      item.className = 'function-item';
+
+      const coverage = func.coverage ?? 0;
+      const coverageClass = getCoverageClass(coverage);
+      const iconSvg = func.hasTests
+        ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="icon-success"><path d="M12.736 3.97a.733.733 0 011.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 01-1.065.02L3.217 8.384a.757.757 0 010-1.06.733.733 0 011.047 0l3.052 3.093 5.4-6.425a.247.247 0 01.02-.022z"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="icon-warning"><path d="M8.982 1.566a1.13 1.13 0 00-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 01-1.1 0L7.1 5.995A.905.905 0 018 5zm.002 6a1 1 0 110 2 1 1 0 010-2z"/></svg>';
+
+      // Build structure with textContent for user data (safe)
+      const iconDiv = document.createElement('div');
+      iconDiv.className = 'function-icon';
+      iconDiv.innerHTML = iconSvg; // Safe: static SVG, no user data
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'function-info';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'function-name';
+      nameSpan.textContent = func.name; // Safe: textContent escapes automatically
+
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'function-type';
+      typeSpan.textContent = (func.isAsync ? 'async ' : '') + func.type; // Safe: textContent
+
+      infoDiv.appendChild(nameSpan);
+      infoDiv.appendChild(typeSpan);
+
+      const coverageDiv = document.createElement('div');
+      coverageDiv.className = `function-coverage ${coverageClass}`;
+      coverageDiv.textContent = `${coverage}%`;
+
+      item.appendChild(iconDiv);
+      item.appendChild(infoDiv);
+      item.appendChild(coverageDiv);
+
+      // Add click handler directly
       item.addEventListener('click', () => {
-        const func = analysis.functions[index];
         vscode.postMessage({
           type: 'openFile',
           uri: `file://${analysis.filePath}`,
           line: func.startLine,
         });
       });
+
+      elements.functionList.appendChild(item);
     });
   }
 
@@ -222,27 +255,6 @@ function renderAnalysis(analysis: FileAnalysis): void {
 
   // Render suggestions
   renderSuggestions(analysis.suggestions);
-}
-
-function renderFunctionItem(func: FunctionInfo): string {
-  const coverage = func.coverage ?? 0;
-  const coverageClass = getCoverageClass(coverage);
-  const icon = func.hasTests
-    ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="icon-success"><path d="M12.736 3.97a.733.733 0 011.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 01-1.065.02L3.217 8.384a.757.757 0 010-1.06.733.733 0 011.047 0l3.052 3.093 5.4-6.425a.247.247 0 01.02-.022z"/></svg>'
-    : '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="icon-warning"><path d="M8.982 1.566a1.13 1.13 0 00-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 01-1.1 0L7.1 5.995A.905.905 0 018 5zm.002 6a1 1 0 110 2 1 1 0 010-2z"/></svg>';
-
-  return `
-    <div class="function-item">
-      <div class="function-icon">${icon}</div>
-      <div class="function-info">
-        <span class="function-name">${escapeHtml(func.name)}</span>
-        <span class="function-type">${func.isAsync ? 'async ' : ''}${escapeHtml(func.type)}</span>
-      </div>
-      <div class="function-coverage ${coverageClass}">
-        ${coverage}%
-      </div>
-    </div>
-  `;
 }
 
 function renderSuggestions(suggestions: TestSuggestion[]): void {
