@@ -61,8 +61,9 @@ module.exports = {
     '^@streaming/(.*)$': '<rootDir>/src/streaming/$1',
     '^@routing/(.*)$': '<rootDir>/src/core/routing/$1',
     '^@memory/(.*)$': '<rootDir>/src/memory/$1',
-    // Mock agentdb ESM module to avoid "Unexpected token 'export'" errors
+    // Mock ESM modules to avoid "Unexpected token 'export'" errors
     '^agentdb$': '<rootDir>/__mocks__/agentdb.ts',
+    '^@ruvector/nervous-system-wasm$': '<rootDir>/__mocks__/@ruvector/nervous-system-wasm.ts',
     // Map .js imports to .ts source files for Jest
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },

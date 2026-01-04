@@ -130,9 +130,11 @@ data/
 test-projects/
 
 
-# Mock files - allow agentdb mock for CI
+# Mock files - allow ESM module mocks for CI
 __mocks__/*
 !__mocks__/agentdb.ts
+!__mocks__/@ruvector/
+!__mocks__/@ruvector/**
 
 # Test artifacts that should not be committed
 test-learning-persistence
