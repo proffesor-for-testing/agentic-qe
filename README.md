@@ -365,7 +365,7 @@ mcp__agentic_qe__coverage_analyze({
 })
 ```
 
-**All 92 MCP Tools Available:**
+**All 100 MCP Tools Available:**
 - Fleet Management (9 tools): init, spawn, status, coordinate, orchestrate
 - Test Generation (2 tools): generate enhanced, execute
 - Test Execution (3 tools): execute, parallel, stream
