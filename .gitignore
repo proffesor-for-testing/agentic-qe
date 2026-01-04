@@ -151,6 +151,7 @@ memory/
 !src/core/memory/
 !tests/memory/
 coordination/
+!src/edge/p2p/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
