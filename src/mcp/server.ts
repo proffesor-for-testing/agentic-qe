@@ -103,6 +103,7 @@ import { LearningQueryHandler } from './handlers/learning/learning-query.js';
 import { LearningStorePatternHandler } from './handlers/learning/learning-store-pattern.js';
 import { LearningEventListener, initLearningEventListener } from './services/LearningEventListener.js';
 import { SleepScheduler } from '../learning/scheduler/SleepScheduler.js';
+import { NewDomainToolsHandler } from './handlers/NewDomainToolsHandler.js';
 
 // Phase 3: Domain-specific tool functions
 import {
@@ -368,6 +369,20 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_ASSESS_RISK, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_VALIDATE_METRICS, phase3Handler);
     this.handlers.set(TOOL_NAMES.QE_QUALITYGATE_GENERATE_REPORT, phase3Handler);
+
+    // New Domain Tools Handler (Chaos, Integration, Token-Optimized)
+    const newDomainHandler = new NewDomainToolsHandler(this.registry, this.hookExecutor);
+    // Chaos Engineering Domain (3 tools)
+    this.handlers.set(TOOL_NAMES.CHAOS_INJECT_LATENCY, newDomainHandler);
+    this.handlers.set(TOOL_NAMES.CHAOS_INJECT_FAILURE, newDomainHandler);
+    this.handlers.set(TOOL_NAMES.CHAOS_RESILIENCE_TEST, newDomainHandler);
+    // Integration Testing Domain (2 tools)
+    this.handlers.set(TOOL_NAMES.INTEGRATION_DEPENDENCY_CHECK, newDomainHandler);
+    this.handlers.set(TOOL_NAMES.INTEGRATION_TEST_ORCHESTRATE, newDomainHandler);
+    // Token-Optimized Domain (3 tools)
+    this.handlers.set(TOOL_NAMES.TEST_EXECUTE_FILTERED, newDomainHandler);
+    this.handlers.set(TOOL_NAMES.PERFORMANCE_TEST_FILTERED, newDomainHandler);
+    this.handlers.set(TOOL_NAMES.QUALITY_ASSESS_FILTERED, newDomainHandler);
   }
 
   /**

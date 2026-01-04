@@ -1,0 +1,14 @@
+{
+  "id": "agent-1767445182612-07612d17111cd44b9a",
+  "type": "test-generator",
+  "task": "Generate unit tests",
+  "status": "completed",
+  "capabilities": [],
+  "output": [
+    "[DRY RUN] Would spawn agent: test-generator",
+    "[DRY RUN] Task: Generate unit tests",
+    "[DRY RUN] Project: /workspaces/agentic-qe",
+    "[DRY RUN] Priority: medium"
+  ],
+  "exitCode": 0
+}

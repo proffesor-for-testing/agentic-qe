@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-01-03
+
+### Added
+
+#### @ruvector/edge Integration - Phases 0-4 Complete (Major Feature)
+
+- **Phase 0: Browser Runtime**
+  - WASM shims and browser compatibility layer (`src/edge/wasm/shims.ts`)
+  - BrowserAgent with offline execution (`src/edge/browser/BrowserAgent.ts`)
+  - BrowserHNSWAdapter for vector search in browser (`src/edge/adapters/BrowserHNSWAdapter.ts`)
+  - IndexedDBStorage for persistent patterns (`src/edge/adapters/IndexedDBStorage.ts`)
+  - Chrome DevTools panel integration (`src/edge/devtools/panel.ts`)
+
+- **Phase 1: VS Code Extension MVP**
+  - Full VS Code extension with activation (`src/edge/vscode-extension/`)
+  - Real-time code analysis (FunctionExtractor, ComplexityCalculator, TestabilityScorer)
+  - Inline test suggestions (InlineTestHint, TestPreviewHover)
+  - Coverage visualization (CoverageDecorationProvider, CoverageGapVisualization)
+  - Offline-first storage (OfflineStore, SyncManager, ConflictResolver)
+  - Pattern matching engine
+
+- **Phase 2: P2P Foundation**
+  - Ed25519 cryptographic identity for secure peer verification
+  - WebRTC connection manager with ICE/STUN/TURN support
+  - SignalingServer with WebSocket for peer discovery (`src/edge/server/SignalingServer.ts`)
+  - AgentSpawnAPI with REST endpoints (`src/edge/server/AgentSpawnAPI.ts`)
+  - EdgeServer combining HTTP + WebSocket (`src/edge/server/index.ts`)
+  - P2PService with real WebRTC data channels (`src/edge/webapp/services/P2PService.ts`)
+  - Agent-to-agent communication protocol
+  - Pattern sharing via data channels
+  - CRDT-based conflict resolution
+  - NAT traversal with TURN fallback
+  - Federated learning infrastructure
+
+- **Phase 3: Web Dashboard (Browser Integration)**
+  - Full React web application with Vite build (`src/edge/webapp/`)
+  - Dashboard with dark theme (App.tsx, Dashboard.tsx)
+  - P2P connection management UI
+  - Pattern sync controls and visualization
+  - CRDT state visualizer (CRDTVisualizer)
+  - Network stats and metrics display
+  - Peer list management (PeerList, PeerListDark)
+  - Connection controls (ConnectionStatus, ConnectionControls)
+  - QE Agent Launcher - spawn agents from web UI (QEAgentLauncher)
+  - React hooks (useP2P, usePatternSync, usePeers, useConnection, useP2PService)
+  - Redux-style state management (dashboardReducer)
+
+- **Phase 4: P2P Integration with Real WebRTC Data Channels**
+  - Real WebRTC data channel communication (not mocked)
+  - P2PService with full ICE candidate exchange
+  - Pattern sync over data channels between peers
+  - Room-based peer discovery via signaling server
+  - Automatic peer connection on room join
+  - P2P connection bug fix - connect to discovered peers, not random IDs
+
+- **Edge Server REST API**
+  - `POST /api/agents/spawn` - Spawn QE agents via HTTP
+  - `GET /api/agents` - List running agents
+  - `GET /api/agents/:id` - Get agent status
+  - `GET /api/agents/:id/output` - Get agent output
+  - `DELETE /api/agents/:id` - Cancel agent
+  - `GET /api/agents/types` - List available agent types
+  - `GET /api/signaling/stats` - WebSocket signaling stats
+
+- **VS Code Extension Marketplace Preparation**
+  - Added @ruvector/edge to extension VSIX bundle
+  - EdgeAgentService with fallback mode when WASM unavailable
+  - VS Code Extension Publishing Guide (`docs/guides/vscode-extension-publishing.md`)
+  - PAT generation, publisher setup, and CI/CD integration instructions
+
+- **New Documentation**
+  - Edge Server Guide (`docs/guides/edge-server.md`)
+  - P2P Pattern Sharing Guide (`docs/guides/p2p-pattern-sharing.md`)
+  - Web Dashboard Use Cases Guide (`docs/guides/web-dashboard-use-cases.md`)
+  - Edge Dashboard Improvements Plan (`docs/plans/edge-dashboard-improvements.md`)
+  - Updated CLI agent-commands.md with spawn command
+
+- **Webapp Infrastructure**
+  - Standalone package.json for webapp (`src/edge/webapp/package.json`)
+  - Independent `npm run dev` for webapp development
+
+### Changed
+
+- **Dead Code Cleanup** (~22,000 lines removed):
+  - Integrated 8 previously unregistered MCP handlers (chaos, integration, filtered)
+  - Removed unused directories: `src/alerting/`, `src/reporting/`, `src/transport/`
+  - Removed 42 unregistered CLI command files
+  - Archived 10+ one-time verification scripts
+  - Removed unused dependencies: `jose`, `@types/chrome`, `gpt-tokenizer`
+
+- **Test Organization**:
+  - 143 new Phase 2 P2P integration tests
+  - Consolidated duplicate tests
+  - Moved misplaced tests to proper directories
+
+### Fixed
+
+- **CLI dev command** - Use `tsx` instead of `ts-node` for ESM compatibility with `.js` extension imports
+- TypeScript compilation errors in VS Code extension
+- Express/cors import issues in Edge Server
+- PatternCategory enum mismatches
+- SignalingServerStats property naming
+- P2P connection bug in Dashboard - now connects to discovered peers instead of random IDs
+
 ## [2.7.4] - 2025-12-30
 
 ### Fixed

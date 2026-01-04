@@ -4229,6 +4229,417 @@ export const agenticQETools: Tool[] = [
         }
       }
     }
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           CHAOS ENGINEERING DOMAIN
+  //                    Latency injection, failure injection, resilience testing
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  {
+    name: 'mcp__agentic_qe__chaos_inject_latency',
+    description: 'Inject network latency for chaos testing. Supports fixed, uniform, normal, and pareto distributions with blast radius control.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target service URL or endpoint'
+        },
+        latencyMs: {
+          type: 'number',
+          minimum: 0,
+          maximum: 60000,
+          default: 500,
+          description: 'Base latency to inject in milliseconds'
+        },
+        distribution: {
+          type: 'string',
+          enum: ['fixed', 'uniform', 'normal', 'pareto'],
+          default: 'fixed',
+          description: 'Latency distribution type'
+        },
+        blastRadius: {
+          type: 'object',
+          properties: {
+            percentage: { type: 'number', minimum: 0, maximum: 100 },
+            targetServices: { type: 'array', items: { type: 'string' } }
+          },
+          description: 'Blast radius control for safe testing'
+        },
+        duration: {
+          type: 'number',
+          minimum: 1000,
+          maximum: 300000,
+          default: 30000,
+          description: 'Duration of injection in milliseconds'
+        },
+        rollback: {
+          type: 'boolean',
+          default: false,
+          description: 'Rollback existing injection'
+        },
+        injectionId: {
+          type: 'string',
+          description: 'ID of injection to rollback'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__chaos_inject_failure',
+    description: 'Inject failures for chaos testing. Supports HTTP errors, connection refused, timeout, and DNS failures.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target service URL or endpoint'
+        },
+        failureType: {
+          type: 'string',
+          enum: ['http_error', 'connection_refused', 'timeout', 'dns_failure'],
+          default: 'http_error',
+          description: 'Type of failure to inject'
+        },
+        httpErrorCode: {
+          type: 'number',
+          minimum: 400,
+          maximum: 599,
+          default: 500,
+          description: 'HTTP error code (for http_error type)'
+        },
+        timeoutMs: {
+          type: 'number',
+          minimum: 1000,
+          maximum: 60000,
+          default: 5000,
+          description: 'Timeout duration for timeout failures'
+        },
+        blastRadius: {
+          type: 'object',
+          properties: {
+            percentage: { type: 'number', minimum: 0, maximum: 100 },
+            targetServices: { type: 'array', items: { type: 'string' } }
+          },
+          description: 'Blast radius control for safe testing'
+        },
+        duration: {
+          type: 'number',
+          minimum: 1000,
+          maximum: 300000,
+          default: 30000,
+          description: 'Duration of injection in milliseconds'
+        },
+        rollback: {
+          type: 'boolean',
+          default: false,
+          description: 'Rollback existing injection'
+        },
+        injectionId: {
+          type: 'string',
+          description: 'ID of injection to rollback'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__chaos_resilience_test',
+    description: 'Comprehensive resilience testing with multiple chaos scenarios. Includes templates for network-partition, high-latency, and cascading-failure.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target service URL or endpoint'
+        },
+        template: {
+          type: 'string',
+          enum: ['network-partition', 'high-latency', 'cascading-failure'],
+          description: 'Pre-defined chaos template to use'
+        },
+        scenarios: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['latency', 'failure'] },
+              config: { type: 'object' },
+              weight: { type: 'number', minimum: 0, maximum: 1 }
+            }
+          },
+          description: 'Custom scenarios (alternative to template)'
+        },
+        blastRadius: {
+          type: 'object',
+          properties: {
+            percentage: { type: 'number', minimum: 0, maximum: 100, default: 50 },
+            targetServices: { type: 'array', items: { type: 'string' } }
+          },
+          description: 'Blast radius control'
+        },
+        duration: {
+          type: 'number',
+          minimum: 5000,
+          maximum: 600000,
+          default: 60000,
+          description: 'Total test duration in milliseconds'
+        },
+        resilience: {
+          type: 'object',
+          properties: {
+            retryPolicy: {
+              type: 'object',
+              properties: {
+                maxRetries: { type: 'number', default: 3 },
+                backoffMs: { type: 'number', default: 1000 },
+                exponential: { type: 'boolean', default: true }
+              }
+            }
+          },
+          description: 'Resilience behavior configuration'
+        },
+        autoRollback: {
+          type: 'boolean',
+          default: true,
+          description: 'Automatically rollback injections after test'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           INTEGRATION TESTING DOMAIN
+  //                    Dependency checks, multi-service orchestration
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  {
+    name: 'mcp__agentic_qe__integration_dependency_check',
+    description: 'Check health of service dependencies with parallel/sequential execution, retry logic, and critical service identification.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        services: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of service names to check'
+        },
+        timeout: {
+          type: 'number',
+          minimum: 1000,
+          maximum: 60000,
+          default: 5000,
+          description: 'Timeout per service in milliseconds'
+        },
+        detailed: {
+          type: 'boolean',
+          default: false,
+          description: 'Include detailed service metrics (memory, CPU, connections)'
+        },
+        retryCount: {
+          type: 'number',
+          minimum: 0,
+          maximum: 5,
+          default: 1,
+          description: 'Number of retry attempts'
+        },
+        parallel: {
+          type: 'boolean',
+          default: true,
+          description: 'Execute health checks in parallel'
+        },
+        criticalServices: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Services that must be healthy for overall success'
+        }
+      },
+      required: ['services']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__integration_test_orchestrate',
+    description: 'Orchestrate integration tests across multiple services with parallel/sequential execution, retry, and environment awareness.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        services: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Services to include in integration test'
+        },
+        scenario: {
+          type: 'string',
+          description: 'Test scenario name (e.g., user-login-flow, user-registration)'
+        },
+        executionMode: {
+          type: 'string',
+          enum: ['parallel', 'sequential'],
+          default: 'parallel',
+          description: 'Test execution mode'
+        },
+        environment: {
+          type: 'string',
+          enum: ['development', 'staging', 'production'],
+          default: 'development',
+          description: 'Target environment'
+        },
+        timeout: {
+          type: 'number',
+          minimum: 5000,
+          maximum: 300000,
+          default: 30000,
+          description: 'Total timeout in milliseconds'
+        },
+        retryCount: {
+          type: 'number',
+          minimum: 0,
+          maximum: 5,
+          default: 0,
+          description: 'Number of retry attempts for failed tests'
+        },
+        testData: {
+          type: 'object',
+          description: 'Test data to inject (auto-generated if not provided)'
+        }
+      },
+      required: ['services', 'scenario']
+    }
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  //                           TOKEN-OPTIMIZED TOOLS
+  //                    Client-side filtering for 95%+ token reduction
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  {
+    name: 'mcp__agentic_qe__test_execute_filtered',
+    description: 'Execute tests with client-side filtering for 97.3% token reduction. Returns only critical results and summary.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        testPath: {
+          type: 'string',
+          description: 'Path to test files or directory'
+        },
+        framework: {
+          type: 'string',
+          enum: ['jest', 'vitest', 'mocha', 'pytest'],
+          default: 'jest',
+          description: 'Test framework to use'
+        },
+        topN: {
+          type: 'number',
+          minimum: 1,
+          maximum: 50,
+          default: 10,
+          description: 'Number of top results to return'
+        },
+        priorities: {
+          type: 'array',
+          items: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+          default: ['critical', 'high'],
+          description: 'Priority levels to include in results'
+        },
+        includeMetrics: {
+          type: 'boolean',
+          default: true,
+          description: 'Include summary metrics'
+        }
+      },
+      required: ['testPath']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__performance_test_filtered',
+    description: 'Run performance benchmarks with client-side filtering for 98.3% token reduction. Returns only bottlenecks and recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target to benchmark (file, function, or endpoint)'
+        },
+        iterations: {
+          type: 'number',
+          minimum: 1,
+          maximum: 1000,
+          default: 100,
+          description: 'Number of benchmark iterations'
+        },
+        topN: {
+          type: 'number',
+          minimum: 1,
+          maximum: 50,
+          default: 10,
+          description: 'Number of top bottlenecks to return'
+        },
+        thresholds: {
+          type: 'object',
+          properties: {
+            responseTimeMs: { type: 'number', default: 1000 },
+            memoryMB: { type: 'number', default: 100 },
+            cpuPercent: { type: 'number', default: 80 }
+          },
+          description: 'Performance thresholds for flagging issues'
+        },
+        includeRecommendations: {
+          type: 'boolean',
+          default: true,
+          description: 'Include optimization recommendations'
+        }
+      },
+      required: ['target']
+    }
+  },
+
+  {
+    name: 'mcp__agentic_qe__quality_assess_filtered',
+    description: 'Assess code quality with client-side filtering for 97.5% token reduction. Returns only critical issues and summary.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Target file or directory to assess'
+        },
+        aspects: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['complexity', 'duplication', 'maintainability', 'testability', 'security']
+          },
+          default: ['complexity', 'maintainability'],
+          description: 'Quality aspects to assess'
+        },
+        topN: {
+          type: 'number',
+          minimum: 1,
+          maximum: 50,
+          default: 10,
+          description: 'Number of top issues to return'
+        },
+        severityThreshold: {
+          type: 'string',
+          enum: ['critical', 'high', 'medium', 'low'],
+          default: 'medium',
+          description: 'Minimum severity to include'
+        },
+        includeMetrics: {
+          type: 'boolean',
+          default: true,
+          description: 'Include summary metrics'
+        }
+      },
+      required: ['target']
+    }
   }
 ];
 
@@ -4372,7 +4783,18 @@ export const TOOL_NAMES = {
   QE_FLEET_STATUS: 'mcp__agentic_qe__qe_fleet_status',
   // Meta Tools (Phase 2 - Hierarchical Lazy Loading)
   TOOLS_DISCOVER: 'mcp__agentic_qe__tools_discover',
-  TOOLS_LOAD_DOMAIN: 'mcp__agentic_qe__tools_load_domain'
+  TOOLS_LOAD_DOMAIN: 'mcp__agentic_qe__tools_load_domain',
+  // Chaos Engineering Domain (3 tools)
+  CHAOS_INJECT_LATENCY: 'mcp__agentic_qe__chaos_inject_latency',
+  CHAOS_INJECT_FAILURE: 'mcp__agentic_qe__chaos_inject_failure',
+  CHAOS_RESILIENCE_TEST: 'mcp__agentic_qe__chaos_resilience_test',
+  // Integration Testing Domain (2 tools)
+  INTEGRATION_DEPENDENCY_CHECK: 'mcp__agentic_qe__integration_dependency_check',
+  INTEGRATION_TEST_ORCHESTRATE: 'mcp__agentic_qe__integration_test_orchestrate',
+  // Filtered/Token-Optimized Tools (3 tools)
+  TEST_EXECUTE_FILTERED: 'mcp__agentic_qe__test_execute_filtered',
+  PERFORMANCE_TEST_FILTERED: 'mcp__agentic_qe__performance_test_filtered',
+  QUALITY_ASSESS_FILTERED: 'mcp__agentic_qe__quality_assess_filtered'
 } as const;
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];

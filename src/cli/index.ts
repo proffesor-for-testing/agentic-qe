@@ -41,6 +41,7 @@ import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
 import * as telemetryCommands from './commands/telemetry';
 import * as mincutCommands from './commands/kg/mincut.js';
 import { createMigrateCommand } from './commands/migrate';
+import { AgentSpawnCommand, SpawnOptions } from './commands/agent/spawn';
 import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -115,6 +116,106 @@ program
 
     } catch (error) {
       console.error(chalk.red('❌ Failed to start fleet:'), error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Agent commands
+ */
+const agentCommand = program
+  .command('agent')
+  .alias('spawn')
+  .description('Manage QE agents');
+
+agentCommand
+  .command('spawn <type>')
+  .description('Spawn a new QE agent')
+  .option('-t, --task <task>', 'Task for the agent to execute')
+  .option('-p, --project <path>', 'Project path', process.cwd())
+  .option('--priority <priority>', 'Task priority (low, medium, high, critical)', 'medium')
+  .option('-n, --name <name>', 'Agent name')
+  .option('--dry-run', 'Simulate without executing')
+  .action(async (type, options) => {
+    try {
+      const spawnOptions: SpawnOptions = {
+        type,
+        task: options.task,
+        project: options.project,
+        priority: options.priority,
+        name: options.name,
+        dryRun: options.dryRun,
+      };
+
+      console.log(chalk.blue(`🚀 Spawning agent: ${type}`));
+      if (options.task) {
+        console.log(chalk.gray(`   Task: ${options.task}`));
+      }
+      if (options.dryRun) {
+        console.log(chalk.yellow('   [DRY RUN MODE]'));
+      }
+
+      const result = await AgentSpawnCommand.execute(spawnOptions);
+
+      console.log(chalk.green(`\n✅ Agent spawned successfully`));
+      console.log(chalk.cyan(`   ID: ${result.id}`));
+      console.log(chalk.cyan(`   Type: ${result.type}`));
+      console.log(chalk.cyan(`   Status: ${result.status}`));
+
+      if (result.output && result.output.length > 0) {
+        console.log(chalk.gray('\n📝 Output:'));
+        result.output.forEach(line => console.log(chalk.gray(`   ${line}`)));
+      }
+
+    } catch (error) {
+      console.error(chalk.red('❌ Failed to spawn agent:'), error);
+      process.exit(1);
+    }
+  });
+
+agentCommand
+  .command('list')
+  .description('List all agents')
+  .option('-s, --status <status>', 'Filter by status')
+  .action(async (options) => {
+    try {
+      const agentDir = '.agentic-qe/agents';
+      if (!await fs.pathExists(agentDir)) {
+        console.log(chalk.yellow('No agents found'));
+        return;
+      }
+
+      const files = await fs.readdir(agentDir);
+      const agents = [];
+
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const agent = await fs.readJson(path.join(agentDir, file));
+          if (!options.status || agent.status === options.status) {
+            agents.push(agent);
+          }
+        }
+      }
+
+      if (agents.length === 0) {
+        console.log(chalk.yellow('No agents found'));
+        return;
+      }
+
+      console.log(chalk.blue(`\n📋 Agents (${agents.length}):\n`));
+      for (const agent of agents) {
+        const statusColor = agent.status === 'completed' ? chalk.green :
+                           agent.status === 'error' ? chalk.red :
+                           agent.status === 'running' ? chalk.yellow : chalk.gray;
+        console.log(`  ${chalk.cyan(agent.id)}`);
+        console.log(`    Type: ${agent.type}`);
+        console.log(`    Status: ${statusColor(agent.status)}`);
+        if (agent.task) console.log(`    Task: ${agent.task}`);
+        console.log('');
+      }
+
+    } catch (error) {
+      console.error(chalk.red('❌ Failed to list agents:'), error);
       process.exit(1);
     }
   });

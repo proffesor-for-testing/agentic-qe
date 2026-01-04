@@ -1,0 +1,23 @@
+# Build output
+dist/
+out/
+*.vsix
+
+# Dependencies
+node_modules/
+
+# Test output
+.vscode-test/
+coverage/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

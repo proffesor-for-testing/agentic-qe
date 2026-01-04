@@ -11,7 +11,7 @@
 [![Run in Smithery](https://smithery.ai/badge/skills/proffesor-for-testing)](https://smithery.ai/skills?ns=proffesor-for-testing&utm_source=github&utm_medium=badge)
 
 
-**Version 2.7.4** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
+**Version 2.8.0** | [Changelog](CHANGELOG.md) | [Contributors](CONTRIBUTORS.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
 > AI-powered test automation that learns from every task, switches between 300+ AI models on-the-fly, scores code testability, visualizes agent activity in real-time, and improves autonomously overnight — with built-in safety guardrails and full observability.
 
@@ -365,7 +365,7 @@ mcp__agentic_qe__coverage_analyze({
 })
 ```
 
-**All 92 MCP Tools Available:**
+**All 100 MCP Tools Available:**
 - Fleet Management (9 tools): init, spawn, status, coordinate, orchestrate
 - Test Generation (2 tools): generate enhanced, execute
 - Test Execution (3 tools): execute, parallel, stream
@@ -501,6 +501,71 @@ Model Usage:
 3. **Enable learning**: Add `--enable-learning` to agent commands for continuous improvement
 4. **Check agent status**: Use `aqe status` to see active agents and coordination
 5. **Review agent output**: Agents store detailed results in `.agentic-qe/logs/`
+
+---
+
+## 🌐 Edge Server & P2P (Optional)
+
+For CI/CD integration, web dashboards, or team collaboration, AQE includes an optional Edge Server with REST API and P2P pattern sharing.
+
+### Quick Start
+
+```bash
+# Start Edge Server (HTTP API + WebSocket signaling)
+node dist/edge/server/index.js
+
+# Or with custom ports
+HTTP_PORT=3001 WS_PORT=3002 node dist/edge/server/index.js
+```
+
+### Spawn Agents via REST API
+
+```bash
+# Spawn a test generator agent
+curl -X POST http://localhost:3001/api/agents/spawn \
+  -H "Content-Type: application/json" \
+  -d '{"agentType": "test-generator", "task": "Create unit tests for UserService"}'
+
+# List running agents
+curl http://localhost:3001/api/agents
+
+# Get agent output
+curl http://localhost:3001/api/agents/<agentId>/output
+```
+
+### P2P Pattern Sharing (Web Dashboard)
+
+Teams can share test patterns in real-time via WebRTC:
+
+```typescript
+// In React application
+import { useP2P, usePatternSync } from '@agentic-qe/edge/webapp';
+
+function PatternDashboard() {
+  const { connectToPeer, peers } = useP2P();
+  const { syncAll, pendingCount } = usePatternSync({ autoSync: true });
+
+  return (
+    <div>
+      <p>Connected peers: {peers.size}</p>
+      <p>Pending patterns: {pendingCount}</p>
+      <button onClick={syncAll}>Sync Patterns</button>
+    </div>
+  );
+}
+```
+
+### When to Use
+
+| Use Case | Recommended Approach |
+|----------|---------------------|
+| CLI / Terminal usage | `aqe agent spawn` command |
+| Claude Code integration | Task tool with QE agents |
+| CI/CD pipelines | Edge Server REST API |
+| Web applications | Edge Server + React hooks |
+| Team pattern sharing | P2P WebRTC dashboard |
+
+**Full documentation:** [Edge Server Guide](docs/guides/edge-server.md)
 
 ---
 

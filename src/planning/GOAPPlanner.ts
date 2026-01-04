@@ -791,19 +791,33 @@ export class GOAPPlanner {
 
   /**
    * Set value in nested state using dot notation
+   * Protected against prototype pollution attacks
    */
   private setStateValue(state: WorldState, key: string, value: any): void {
     const parts = key.split('.');
+
+    // Prevent prototype pollution by rejecting dangerous property names
+    const dangerousProps = ['__proto__', 'constructor', 'prototype'];
+    for (const part of parts) {
+      if (dangerousProps.includes(part)) {
+        this.logger.warn('Attempted prototype pollution blocked', { key, part });
+        return;
+      }
+    }
+
+    // All parts have been validated against prototype pollution above
     let current: any = state;
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
+      // lgtm[js/prototype-pollution-utility] - part validated against dangerousProps
       if (current[part] === undefined) {
         current[part] = {};
       }
       current = current[part];
     }
 
+    // lgtm[js/prototype-pollution-utility] - all parts validated against dangerousProps
     current[parts[parts.length - 1]] = value;
   }
 

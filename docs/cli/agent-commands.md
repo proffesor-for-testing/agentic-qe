@@ -15,6 +15,115 @@ The AQE Fleet provides comprehensive agent management through CLI commands organ
 
 ## Lifecycle Commands
 
+### `agent spawn`
+
+Spawn a new QE agent with the specified type and task.
+
+**Usage:**
+```bash
+aqe agent spawn <agentType> --task "<task description>" [options]
+```
+
+**Agent Types:**
+| Type | Description |
+|------|-------------|
+| `test-generator` | AI-powered test generation |
+| `coverage-analyzer` | Coverage gap detection (O(log n)) |
+| `quality-gate` | Quality gate decisions |
+| `performance-tester` | Performance and load testing |
+| `security-scanner` | Security vulnerability detection |
+| `flaky-test-hunter` | Flaky test detection and fixes |
+| `chaos-engineer` | Chaos engineering experiments |
+| `visual-tester` | Visual regression testing |
+| `code-reviewer` | Code quality review |
+| `integration-tester` | Integration test execution |
+
+**Options:**
+- `--task <description>` - Task for the agent to execute (required)
+- `--model <model>` - Model to use: claude-sonnet, claude-opus (default: claude-sonnet)
+- `--max-tokens <n>` - Maximum tokens (default: 8192)
+- `--wait` - Wait for completion and show output
+- `--json` - Output in JSON format
+
+**Examples:**
+```bash
+# Generate tests for a service
+aqe agent spawn test-generator --task "Create unit tests for UserService"
+
+# Analyze coverage gaps
+aqe agent spawn coverage-analyzer --task "Find untested code paths in auth module"
+
+# Security scan with opus model
+aqe agent spawn security-scanner --task "Audit API endpoints" --model claude-opus
+
+# Wait for completion
+aqe agent spawn test-generator --task "Generate tests" --wait
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "agentId": "agent-550e8400-e29b-41d4-a716-446655440000",
+  "agentType": "test-generator",
+  "status": "running",
+  "startedAt": "2025-01-03T10:30:00.000Z"
+}
+```
+
+---
+
+### Alternative: Edge Server REST API
+
+For external integrations, CI/CD pipelines, or web applications, you can spawn agents via the Edge Server REST API instead of CLI.
+
+**Start Edge Server:**
+```bash
+# Start combined HTTP + WebSocket server
+node dist/edge/server/index.js
+
+# Or with custom ports
+HTTP_PORT=3001 WS_PORT=3002 node dist/edge/server/index.js
+```
+
+**REST API Endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/agents/spawn` | POST | Spawn new agent |
+| `GET /api/agents` | GET | List all agents |
+| `GET /api/agents/:id` | GET | Get agent status |
+| `GET /api/agents/:id/output` | GET | Get agent output |
+| `DELETE /api/agents/:id` | DELETE | Cancel agent |
+| `GET /api/agents/types` | GET | List available types |
+| `GET /api/health` | GET | Health check |
+
+**Spawn Agent via REST:**
+```bash
+curl -X POST http://localhost:3001/api/agents/spawn \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentType": "test-generator",
+    "task": "Create unit tests for UserService",
+    "model": "claude-sonnet-4-20250514"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "agentId": "agent-550e8400-e29b-41d4-a716-446655440000",
+  "status": "running"
+}
+```
+
+**When to Use:**
+- **CLI (`aqe agent spawn`)**: Direct terminal usage, scripting
+- **REST API**: CI/CD integration, web apps, external tools
+
+---
+
 ### `agent restart`
 
 Gracefully restart an agent while preserving configuration and state.

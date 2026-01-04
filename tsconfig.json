@@ -47,6 +47,10 @@
     "tests",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "**/__mocks__/**"
+    "**/__mocks__/**",
+    "src/edge/devtools/**",
+    "src/edge/vscode-extension/**",
+    "src/edge/wasm/**",
+    "src/edge/webapp/**"
   ]
 }

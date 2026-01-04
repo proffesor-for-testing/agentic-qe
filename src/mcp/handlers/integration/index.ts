@@ -1,17 +1,16 @@
 /**
  * Integration Testing MCP Tool Handlers
  * Exports all integration testing handlers
+ *
+ * @version 2.0.0 - Cleanup: Removed contract-validate (overlaps with qe_api_contract_validate)
  */
 
-export { integrationTestOrchestrate } from './integration-test-orchestrate';
-export { contractValidate } from './contract-validate';
-export { dependencyCheck } from './dependency-check';
+export { integrationTestOrchestrate } from './integration-test-orchestrate.js';
+export { dependencyCheck } from './dependency-check.js';
 
 export type {
   IntegrationTestOrchestrateParams,
   IntegrationTestOrchestrateResult,
-  ContractValidateParams,
-  ContractValidateResult,
   DependencyCheckParams,
   DependencyCheckResult,
-} from '../../types/integration';
+} from '../../types/integration.js';
