@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-01-04
+
+### Added
+
+#### Nervous System Integration (Major Feature)
+
+- **BTSP Learning Engine** - Behavioral Timescale Synaptic Plasticity for rapid pattern learning
+  - `BTSPLearningEngine` with spike timing detection and synaptic weight updates
+  - `BTSPAdapter` for integration with QE agent learning systems
+  - `BTSPSerializer` for persistent state management
+
+- **HDC Memory System** - Hyperdimensional Computing for pattern representation
+  - `HdcMemoryAdapter` with 10,000-dimensional hypervectors
+  - Similarity-based pattern matching with cosine distance
+  - `HdcSerializer` for state persistence
+
+- **Circadian Controller** - Time-aware agent behavior optimization
+  - `CircadianController` with 24-hour activity cycles
+  - Peak/low activity period detection for scheduling
+  - `CircadianSerializer` for rhythm persistence
+  - `CircadianAgent` wrapper for time-aware agents
+
+- **Global Workspace** - Attention-based pattern integration
+  - `GlobalWorkspaceAdapter` for multi-source attention
+  - Working memory with attention thresholds
+  - Cross-domain pattern integration
+  - `WorkspaceAgent` for workspace-aware agents
+
+- **Reflex Layer** - Immediate response patterns
+  - `ReflexLayer` with configurable thresholds
+  - Fast pattern-action mappings
+  - Priority-based response selection
+
+- **Hybrid Pattern Store** - Unified pattern management
+  - `HybridPatternStore` combining local and cloud patterns
+  - Automatic sync with Supabase
+  - Privacy-aware pattern sharing
+
+- **BaseAgent Nervous System Integration**
+  - All QE agents now benefit from nervous system components
+  - Automatic initialization via `initNervousSystem()`
+  - Pattern learning through BTSP during task execution
+  - Working memory via HDC for context retention
+  - Circadian optimization for peak performance scheduling
+
+#### Supabase Cloud Persistence
+
+- **HybridPersistenceProvider** - Local-first with cloud sync
+  - Immediate local writes with background sync
+  - Conflict resolution strategies (local/remote/newest)
+  - Offline support with sync on reconnect
+  - Queue-based sync for reliability
+
+- **SupabasePersistenceProvider** - Direct cloud storage
+  - Full CRUD for learning experiences, patterns, memory entries, events
+  - pgvector integration for semantic search
+  - HNSW indexes for fast similarity queries
+  - Row Level Security (RLS) policies
+
+- **Supabase CLI Commands** (`aqe supabase`)
+  - `aqe supabase setup` - Interactive configuration wizard
+  - `aqe supabase test` - Test connection and permissions
+  - `aqe supabase status` - Show sync status
+  - `aqe supabase sync` - Sync local data to cloud
+  - `aqe supabase sync --migrate` - One-time migration from SQLite
+  - `aqe supabase schema` - Display SQL schema for manual setup
+
+- **Migration Support**
+  - Migrate learning experiences from local SQLite to Supabase
+  - Migrate memory entries with TTL preservation
+  - Migrate patterns with original ID preservation
+  - Migrate events with timestamp conversion
+  - Handles non-UUID IDs by generating new UUIDs
+
+#### MCP Tool Handlers (Issue #188)
+
+- **RuVector GNN Cache Tools** - 6 new MCP handlers
+  - `mcp__agentic_qe__ruvector_health` - Check RuVector GNN cache health
+  - `mcp__agentic_qe__ruvector_metrics` - Get RuVector metrics
+  - `mcp__agentic_qe__ruvector_force_learn` - Force learning trigger
+  - `mcp__agentic_qe__ruvector_store_pattern` - Store patterns in cache
+  - `mcp__agentic_qe__ruvector_query_similar` - Query similar patterns
+  - `mcp__agentic_qe__ruvector_clear_cache` - Clear cache
+
+- **Additional MCP Handlers** - 6 more domain tools
+  - RuVectorHandler with full implementation
+  - NewDomainToolsHandler fixes
+
+#### GOAP Plans
+
+- **Rust Migration GOAP Plan** - Comprehensive plan for migrating core components to Rust
+- **Nervous System Integration Plan** - GOAP plan for RuVector nervous system integration
+
+### Changed
+
+- **BaseAgent** now automatically initializes nervous system components
+- Persistence layer refactored for hybrid local/cloud support
+- Improved CLI with Supabase subcommands
+
+### Fixed
+
+- RLS policy consolidation to eliminate multiple_permissive_policies warnings
+- UUID validation for pattern and event IDs during migration
+- Timestamp parsing for various date formats in migration
+
 ## [2.8.0] - 2026-01-03
 
 ### Added

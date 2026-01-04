@@ -299,3 +299,118 @@ export default {
   cleanupOldData,
   runAggregation,
 };
+
+// ============================================
+// Unified Persistence Provider Interface
+// ============================================
+
+// Core interface
+export {
+  type IPersistenceProvider,
+  type ProviderType,
+  type ProviderInfo,
+  type PersistenceProviderConfig,
+  type PersistenceProviderFactory,
+} from './IPersistenceProvider.js';
+
+// Privacy and sharing types
+export {
+  type PrivacyLevel,
+  type SharingConfig,
+} from './IPersistenceProvider.js';
+
+// Learning experience types
+export {
+  type LearningExperience,
+  type LearningOutcome,
+  type ExperienceQuery,
+  type SharedExperienceQuery,
+} from './IPersistenceProvider.js';
+
+// Pattern types
+export {
+  type StoredPattern,
+  type PatternQuery,
+} from './IPersistenceProvider.js';
+
+// Nervous system types
+export {
+  type NervousSystemComponent,
+  type NervousSystemStateRecord,
+} from './IPersistenceProvider.js';
+
+// Memory entry types
+export {
+  type MemoryEntry,
+  type MemoryQuery,
+  type MemoryAccessLevel,
+} from './IPersistenceProvider.js';
+
+// Event types
+export {
+  type EventRecord as PersistenceEventRecord,
+  type EventQuery as PersistenceEventQuery,
+} from './IPersistenceProvider.js';
+
+// Code intelligence types
+export {
+  type CodeChunk,
+  type CodeChunkQuery,
+  type CodeSearchResult,
+  type CodeLanguage,
+  type CodeChunkType,
+} from './IPersistenceProvider.js';
+
+// Re-export nervous system persistence for convenience
+export {
+  createSQLiteNervousSystemStore,
+  SQLiteNervousSystemStore,
+} from '../nervous-system/persistence/SQLiteNervousSystemStore.js';
+
+export {
+  createNervousSystemPersistenceManager,
+  NervousSystemPersistenceManager,
+  getSharedPersistenceManager,
+} from '../nervous-system/persistence/NervousSystemPersistenceManager.js';
+
+// Supabase configuration
+export {
+  type SupabaseConfig,
+  type SupabaseConnectionConfig,
+  type ProjectConfig,
+  type SyncConfig,
+  SUPABASE_ENV_VARS,
+  SUPABASE_TABLES,
+  DEFAULT_SHARING_CONFIG,
+  DEFAULT_SYNC_CONFIG,
+  DEFAULT_SUPABASE_CONFIG,
+  loadSupabaseConfigFromEnv,
+  isSupabaseConfigured,
+  getConfiguredProvider,
+  validateSupabaseConfig,
+  buildSupabaseConfig,
+  getTableName,
+} from './SupabaseConfig.js';
+
+// Supabase provider
+export {
+  SupabasePersistenceProvider,
+  createSupabasePersistenceProvider,
+} from './SupabasePersistenceProvider.js';
+
+// Hybrid provider (local-first with cloud sync)
+export {
+  HybridPersistenceProvider,
+  createHybridPersistenceProvider,
+  type HybridProviderConfig,
+} from './HybridPersistenceProvider.js';
+
+// Sync Adapters
+export {
+  MemorySyncAdapter,
+  createMemorySyncAdapter,
+  type MemorySyncAdapterConfig,
+  CodeIntelligenceSyncAdapter,
+  createCodeIntelligenceSyncAdapter,
+  type CodeIntelligenceSyncAdapterConfig,
+} from './adapters/index.js';

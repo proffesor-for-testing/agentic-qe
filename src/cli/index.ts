@@ -41,6 +41,7 @@ import { KnowledgeGraphCommand } from './commands/knowledge-graph.js';
 import * as telemetryCommands from './commands/telemetry';
 import * as mincutCommands from './commands/kg/mincut.js';
 import { createMigrateCommand } from './commands/migrate';
+import { createSupabaseCommand } from './commands/supabase';
 import { AgentSpawnCommand, SpawnOptions } from './commands/agent/spawn';
 import { SleepScheduler, SleepSchedulerConfig } from '../learning/scheduler/SleepScheduler';
 import * as fs from 'fs-extra';
@@ -1729,6 +1730,9 @@ mincutCommand
 
 // Add migrate command
 program.addCommand(createMigrateCommand());
+
+// Add supabase command for cloud persistence
+program.addCommand(createSupabaseCommand());
 
 // Parse command line arguments
 program.parse();
