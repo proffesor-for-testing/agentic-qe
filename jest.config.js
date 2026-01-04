@@ -83,9 +83,9 @@ module.exports = {
   detectOpenHandles: true, // Find unclosed resources
   forceExit: false, // Allow graceful exit
 
-  // Transform faker-js/faker, uuid, and agentdb ESM modules
+  // Transform ESM modules (faker-js, uuid, agentdb, ruvector WASM)
   transformIgnorePatterns: [
-    'node_modules/(?!(@faker-js|inquirer|cli-cursor|cli-spinners|ora|chalk|strip-ansi|ansi-regex|is-fullwidth-code-point|string-width|wrap-ansi|cliui|uuid|agentdb)/)'
+    'node_modules/(?!(@faker-js|@ruvector/nervous-system-wasm|inquirer|cli-cursor|cli-spinners|ora|chalk|strip-ansi|ansi-regex|is-fullwidth-code-point|string-width|wrap-ansi|cliui|uuid|agentdb)/)'
   ],
 
   // Module handling - reduce loading overhead
