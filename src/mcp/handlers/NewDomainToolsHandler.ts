@@ -82,7 +82,7 @@ export class NewDomainToolsHandler extends BaseHandler {
   //                           CHAOS ENGINEERING HANDLERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private async handleChaosInjectLatency(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleChaosInjectLatency(params: Record<string, unknown>): Promise<HandlerResponse> {
     const target = params.target as string;
     if (!target) {
       throw new Error('Target is required for chaos latency injection');
@@ -112,7 +112,7 @@ export class NewDomainToolsHandler extends BaseHandler {
     };
   }
 
-  private async handleChaosInjectFailure(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleChaosInjectFailure(params: Record<string, unknown>): Promise<HandlerResponse> {
     const target = params.target as string;
     if (!target) {
       throw new Error('Target is required for chaos failure injection');
@@ -143,7 +143,7 @@ export class NewDomainToolsHandler extends BaseHandler {
     };
   }
 
-  private async handleChaosResilienceTest(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleChaosResilienceTest(params: Record<string, unknown>): Promise<HandlerResponse> {
     const target = params.target as string;
     if (!target) {
       throw new Error('Target is required for chaos resilience test');
@@ -181,7 +181,7 @@ export class NewDomainToolsHandler extends BaseHandler {
   //                           INTEGRATION TESTING HANDLERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private async handleDependencyCheck(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleDependencyCheck(params: Record<string, unknown>): Promise<HandlerResponse> {
     const services = params.services as string[];
     if (!services || services.length === 0) {
       throw new Error('Services array is required for dependency check');
@@ -209,7 +209,7 @@ export class NewDomainToolsHandler extends BaseHandler {
     };
   }
 
-  private async handleIntegrationTestOrchestrate(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleIntegrationTestOrchestrate(params: Record<string, unknown>): Promise<HandlerResponse> {
     const services = params.services as string[];
     const scenario = params.scenario as string;
 
@@ -247,7 +247,7 @@ export class NewDomainToolsHandler extends BaseHandler {
   //                           TOKEN-OPTIMIZED HANDLERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private async handleTestExecuteFiltered(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleTestExecuteFiltered(params: Record<string, unknown>): Promise<HandlerResponse> {
     const testPath = params.testPath as string;
     if (!testPath) {
       throw new Error('testPath is required for filtered test execution');
@@ -285,7 +285,7 @@ export class NewDomainToolsHandler extends BaseHandler {
     };
   }
 
-  private async handlePerformanceTestFiltered(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handlePerformanceTestFiltered(params: Record<string, unknown>): Promise<HandlerResponse> {
     const target = params.target as string;
     if (!target) {
       throw new Error('target is required for filtered performance testing');
@@ -323,7 +323,7 @@ export class NewDomainToolsHandler extends BaseHandler {
     };
   }
 
-  private async handleQualityAssessFiltered(params: Record<string, unknown>): Promise<HandlerResponse> {
+  async handleQualityAssessFiltered(params: Record<string, unknown>): Promise<HandlerResponse> {
     const target = params.target as string;
     if (!target) {
       throw new Error('target is required for filtered quality assessment');
