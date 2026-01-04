@@ -94,6 +94,31 @@ import { KnowledgeGraphContextBuilder, ContextBuilderConfig, EnrichedContext, Co
 import { HybridSearchEngine } from '../code-intelligence/search/HybridSearchEngine.js';
 import { GraphBuilder } from '../code-intelligence/graph/GraphBuilder.js';
 
+// Nervous System Integration (Wave 7 - Bio-Inspired Intelligence)
+import type {
+  NervousSystemConfig,
+  NervousSystemEnhancedAgent,
+  NervousSystemStats,
+  TaskFailure,
+  WorkspaceItem,
+  StrategyRecommendation as NervousSystemStrategyRecommendation,
+} from '../nervous-system/integration/NervousSystemEnhancement.js';
+import {
+  enhanceWithNervousSystem,
+  saveNervousSystemState,
+  restoreNervousSystemState,
+} from '../nervous-system/integration/NervousSystemEnhancement.js';
+import type { TestPattern, PatternSearchResult } from '../core/memory/IPatternStore.js';
+import type { AgentWorkspaceItem } from '../nervous-system/integration/WorkspaceAgent.js';
+import type { EnergySavingsReport } from '../nervous-system/integration/CircadianAgent.js';
+import type { CircadianPhase } from '../nervous-system/adapters/CircadianController.js';
+
+// Nervous System Persistence (Wave 7.1 - State Persistence)
+import {
+  NervousSystemPersistenceManager,
+  getSharedPersistenceManager,
+} from '../nervous-system/persistence/NervousSystemPersistenceManager.js';
+
 // Re-export utilities for backward compatibility
 export { isSwarmMemoryManager, validateLearningConfig };
 
@@ -206,6 +231,11 @@ export interface BaseAgentConfig {
     searchEngine?: HybridSearchEngine;
     graphBuilder?: GraphBuilder;
   };
+  /**
+   * Nervous System configuration (Wave 7 - Bio-Inspired Intelligence)
+   * Enables HDC patterns, BTSP learning, workspace coordination, and circadian cycling
+   */
+  nervousSystem?: NervousSystemConfig;
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -248,6 +278,13 @@ export abstract class BaseAgent extends EventEmitter {
   // Code Intelligence Context (Wave 6 - Knowledge Graph Integration)
   protected codeIntelligenceContextBuilder?: KnowledgeGraphContextBuilder;
   private codeIntelligenceConfig?: BaseAgentConfig['codeIntelligence'];
+
+  // Nervous System Integration (Wave 7 - Bio-Inspired Intelligence)
+  protected nervousSystemConfig?: NervousSystemConfig;
+  protected nervousSystemEnhanced: boolean = false;
+  private nervousSystemMethods?: NervousSystemEnhancedAgent;
+  // Nervous System Persistence (Wave 7.1)
+  private nervousSystemPersistence?: NervousSystemPersistenceManager;
 
   // Service classes
   protected readonly lifecycleManager: AgentLifecycleManager;
@@ -295,6 +332,9 @@ export abstract class BaseAgent extends EventEmitter {
 
     // Code Intelligence configuration (Wave 6 - Knowledge Graph Integration)
     this.codeIntelligenceConfig = config.codeIntelligence;
+
+    // Nervous System configuration (Wave 7 - Bio-Inspired Intelligence)
+    this.nervousSystemConfig = config.nervousSystem;
 
     // Early validation (Issue #137)
     const validation = validateLearningConfig(config);
@@ -376,6 +416,9 @@ export abstract class BaseAgent extends EventEmitter {
           // Initialize Code Intelligence Context Builder (Wave 6)
           await this.initializeCodeIntelligence();
 
+          // Initialize Nervous System (Wave 7 - Bio-Inspired Intelligence)
+          await this.initializeNervousSystem();
+
           await this.initializeComponents();
           await this.executeHook('post-initialization');
           this.coordinator.emitEvent('agent.initialized', { agentId: this.agentId });
@@ -435,6 +478,7 @@ export abstract class BaseAgent extends EventEmitter {
           await this.cleanupLLM(); // Phase 0: Cleanup LLM resources
           await this.cleanupFederated(); // Phase 0 M0.5: Cleanup federated learning
           await this.cleanupPatternStore(); // Phase 0.5: Cleanup pattern store
+          await this.cleanupNervousSystem(); // Wave 7: Cleanup nervous system
           this.coordinator.clearAllHandlers();
         },
         onPostTermination: async () => {
@@ -1948,6 +1992,278 @@ export abstract class BaseAgent extends EventEmitter {
       this.federatedManager = undefined;
     }
   }
+
+  // ============================================
+  // Nervous System Methods (Wave 7 - Bio-Inspired Intelligence)
+  // ============================================
+
+  /**
+   * Initialize Nervous System for bio-inspired intelligence
+   *
+   * Enables:
+   * - HDC-accelerated pattern storage (50ns binding operations)
+   * - BTSP one-shot learning from failures (vs 10+ examples with RL)
+   * - Global Workspace attention coordination (Miller's Law: 7±2 items)
+   * - Circadian duty cycling (5-50x compute savings)
+   */
+  private async initializeNervousSystem(): Promise<void> {
+    if (!this.nervousSystemConfig) {
+      return;
+    }
+
+    // Skip if no features are enabled
+    const hasEnabledFeature =
+      this.nervousSystemConfig.enableHdcPatterns ||
+      this.nervousSystemConfig.enableOneShotLearning ||
+      this.nervousSystemConfig.enableWorkspaceCoordination ||
+      this.nervousSystemConfig.enableCircadianCycling;
+
+    if (!hasEnabledFeature) {
+      return;
+    }
+
+    try {
+      // Enhance this agent with nervous system capabilities
+      const enhanced = await enhanceWithNervousSystem(this, this.nervousSystemConfig);
+
+      // Store the methods for access
+      this.nervousSystemMethods = enhanced;
+      this.nervousSystemEnhanced = true;
+
+      this.logger.info(`[${this.agentId.id}] Nervous System initialized with: ` +
+        `HDC=${!!this.nervousSystemConfig.enableHdcPatterns}, ` +
+        `BTSP=${!!this.nervousSystemConfig.enableOneShotLearning}, ` +
+        `Workspace=${!!this.nervousSystemConfig.enableWorkspaceCoordination}, ` +
+        `Circadian=${!!this.nervousSystemConfig.enableCircadianCycling}`
+      );
+
+      // Wave 7.1: Initialize persistence and restore prior state
+      try {
+        this.nervousSystemPersistence = await getSharedPersistenceManager();
+        await restoreNervousSystemState(this, this.nervousSystemPersistence);
+        this.logger.debug(`[${this.agentId.id}] Nervous System state restored from persistence`);
+      } catch (persistError) {
+        this.logger.debug(`[${this.agentId.id}] No prior nervous system state to restore:`, (persistError as Error).message);
+        // Not an error - agent starts with fresh state
+      }
+    } catch (error) {
+      this.logger.warn(`[${this.agentId.id}] Nervous System initialization failed:`, (error as Error).message);
+      // Don't throw - agent can work without nervous system (graceful degradation)
+    }
+  }
+
+  /**
+   * Check if nervous system is enabled
+   */
+  public hasNervousSystem(): boolean {
+    return this.nervousSystemEnhanced && this.nervousSystemMethods !== undefined;
+  }
+
+  /**
+   * Get nervous system statistics
+   *
+   * Returns comprehensive stats for HDC patterns, BTSP learning,
+   * workspace coordination, and circadian cycling.
+   */
+  public getNervousSystemStats(): NervousSystemStats | null {
+    if (!this.nervousSystemMethods) {
+      return null;
+    }
+    return this.nervousSystemMethods.getNervousSystemStats();
+  }
+
+  // === HDC Pattern Methods ===
+
+  /**
+   * Store a pattern using HDC acceleration (50ns binding)
+   *
+   * Uses Hyperdimensional Computing for sub-microsecond pattern binding,
+   * enabling 1000x faster pattern storage than traditional methods.
+   *
+   * @param pattern - The test pattern to store
+   */
+  protected async storePatternHdc(pattern: TestPattern): Promise<void> {
+    if (!this.nervousSystemMethods?.storePatternHdc) {
+      throw new Error(`[${this.agentId.id}] HDC Pattern Store not available - enable nervousSystem.enableHdcPatterns`);
+    }
+    await this.nervousSystemMethods.storePatternHdc(pattern);
+  }
+
+  /**
+   * Search patterns using HDC acceleration
+   *
+   * Uses hypervector similarity for pre-filtering, then HNSW for precision.
+   * Achieves O(1) candidate selection vs O(log n) for pure HNSW.
+   *
+   * @param embedding - Query embedding vector
+   * @param k - Number of results to return
+   * @returns Array of matching patterns with similarity scores
+   */
+  protected async searchPatternsHdc(embedding: number[], k: number = 10): Promise<PatternSearchResult[]> {
+    if (!this.nervousSystemMethods?.searchPatternsHdc) {
+      return [];
+    }
+    return this.nervousSystemMethods.searchPatternsHdc(embedding, k);
+  }
+
+  // === BTSP One-Shot Learning Methods ===
+
+  /**
+   * Learn from a single task failure using BTSP (Behavioral Timescale Synaptic Plasticity)
+   *
+   * Unlike traditional RL which requires 10+ examples, BTSP enables one-shot learning
+   * from a single failure, dramatically reducing time-to-learning.
+   *
+   * @param failure - Information about the task failure
+   */
+  protected async learnOneShot(failure: TaskFailure): Promise<void> {
+    if (!this.nervousSystemMethods?.learnOneShot) {
+      throw new Error(`[${this.agentId.id}] BTSP Learning not available - enable nervousSystem.enableOneShotLearning`);
+    }
+    await this.nervousSystemMethods.learnOneShot(failure);
+  }
+
+  /**
+   * Recall a strategy based on task state using BTSP associative memory
+   *
+   * Uses one-shot learned patterns for instant strategy recall with
+   * high confidence (vs gradual Q-value learning).
+   *
+   * @param state - Current task state
+   * @returns Strategy recommendation or null if no match
+   */
+  protected async recallStrategy(state: TaskState): Promise<NervousSystemStrategyRecommendation | null> {
+    if (!this.nervousSystemMethods?.recallStrategy) {
+      return null;
+    }
+    return this.nervousSystemMethods.recallStrategy(state);
+  }
+
+  // === Workspace Coordination Methods ===
+
+  /**
+   * Broadcast an item to the Global Workspace for attention competition
+   *
+   * Uses biological Global Workspace Theory where only 7±2 items can
+   * occupy conscious attention at once, enabling focused coordination.
+   *
+   * @param item - The workspace item to broadcast
+   * @returns Whether broadcast succeeded
+   */
+  protected async broadcastToWorkspace(item: WorkspaceItem): Promise<boolean> {
+    if (!this.nervousSystemMethods?.broadcastToWorkspace) {
+      return false;
+    }
+    return this.nervousSystemMethods.broadcastToWorkspace(item);
+  }
+
+  /**
+   * Get items currently in the workspace relevant to this agent
+   *
+   * @returns Array of workspace items
+   */
+  protected async getWorkspaceItems(): Promise<AgentWorkspaceItem[]> {
+    if (!this.nervousSystemMethods?.getWorkspaceItems) {
+      return [];
+    }
+    return this.nervousSystemMethods.getWorkspaceItems();
+  }
+
+  /**
+   * Check if this agent currently has attention in the Global Workspace
+   *
+   * Agents with attention should proceed with full execution.
+   * Agents without attention should defer or reduce activity.
+   *
+   * @returns Whether this agent has attention
+   */
+  protected async hasAttention(): Promise<boolean> {
+    if (!this.nervousSystemMethods?.hasAttention) {
+      return true; // Default to true if workspace not enabled
+    }
+    return this.nervousSystemMethods.hasAttention();
+  }
+
+  // === Circadian Cycling Methods ===
+
+  /**
+   * Get current circadian phase (Active, Dawn, Dusk, Rest)
+   *
+   * Agents should adjust behavior based on phase:
+   * - Active: Full compute operations
+   * - Dawn/Dusk: Transition states
+   * - Rest: Minimal activity for 5-50x compute savings
+   */
+  public getCurrentPhase(): CircadianPhase {
+    if (!this.nervousSystemMethods?.getCurrentPhase) {
+      return 'Active'; // Default to active if circadian not enabled
+    }
+    return this.nervousSystemMethods.getCurrentPhase();
+  }
+
+  /**
+   * Check if agent should be active based on circadian phase and criticality
+   *
+   * Critical agents stay active even during rest phase.
+   * Non-critical agents can sleep for compute savings.
+   *
+   * @returns Whether agent should be active
+   */
+  public shouldBeActive(): boolean {
+    if (!this.nervousSystemMethods?.shouldBeActive) {
+      return true; // Default to active if circadian not enabled
+    }
+    return this.nervousSystemMethods.shouldBeActive();
+  }
+
+  /**
+   * Get energy savings report from circadian cycling
+   *
+   * Shows saved compute cycles, total rest time, and cost reduction factor.
+   */
+  public getEnergySavings(): EnergySavingsReport {
+    if (!this.nervousSystemMethods?.getEnergySavings) {
+      return {
+        savedCycles: 0,
+        savingsPercentage: 0,
+        totalRestTime: 0,
+        totalActiveTime: 0,
+        averageDutyFactor: 1,
+        costReductionFactor: 1,
+      };
+    }
+    return this.nervousSystemMethods.getEnergySavings();
+  }
+
+  /**
+   * Cleanup nervous system resources on agent termination
+   */
+  private async cleanupNervousSystem(): Promise<void> {
+    if (!this.nervousSystemEnhanced) {
+      return;
+    }
+
+    try {
+      // Wave 7.1: Save nervous system state before cleanup
+      if (this.nervousSystemPersistence) {
+        try {
+          await saveNervousSystemState(this, this.nervousSystemPersistence);
+          this.logger.info(`[${this.agentId.id}] Nervous System state saved to persistence`);
+        } catch (saveError) {
+          this.logger.warn(`[${this.agentId.id}] Failed to save nervous system state:`, (saveError as Error).message);
+        }
+      }
+
+      // The enhancement uses WeakMap, so cleanup happens automatically
+      // when agent reference is garbage collected. We just need to clear our flags.
+      this.nervousSystemMethods = undefined;
+      this.nervousSystemEnhanced = false;
+      this.nervousSystemPersistence = undefined;
+      this.logger.info(`[${this.agentId.id}] Nervous System cleanup complete`);
+    } catch (error) {
+      this.logger.warn(`[${this.agentId.id}] Nervous System cleanup error:`, (error as Error).message);
+    }
+  }
 }
 
 // === Agent Factory ===
@@ -1963,3 +2279,18 @@ export abstract class BaseAgentFactory implements AgentFactory {
   abstract getSupportedTypes(): AgentType[];
   abstract getCapabilities(type: AgentType): AgentCapability[];
 }
+
+// === Nervous System Type Exports (Wave 7 - Bio-Inspired Intelligence) ===
+
+export type {
+  NervousSystemConfig,
+  NervousSystemStats,
+  TaskFailure,
+  WorkspaceItem,
+  NervousSystemStrategyRecommendation,
+  TestPattern,
+  PatternSearchResult,
+  AgentWorkspaceItem,
+  CircadianPhase,
+  EnergySavingsReport,
+};

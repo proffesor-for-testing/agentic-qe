@@ -104,6 +104,7 @@ import { LearningStorePatternHandler } from './handlers/learning/learning-store-
 import { LearningEventListener, initLearningEventListener } from './services/LearningEventListener.js';
 import { SleepScheduler } from '../learning/scheduler/SleepScheduler.js';
 import { NewDomainToolsHandler } from './handlers/NewDomainToolsHandler.js';
+import { RuVectorHandler } from './handlers/ruvector/index.js';
 
 // Phase 3: Domain-specific tool functions
 import {
@@ -383,6 +384,15 @@ export class AgenticQEMCPServer {
     this.handlers.set(TOOL_NAMES.TEST_EXECUTE_FILTERED, newDomainHandler);
     this.handlers.set(TOOL_NAMES.PERFORMANCE_TEST_FILTERED, newDomainHandler);
     this.handlers.set(TOOL_NAMES.QUALITY_ASSESS_FILTERED, newDomainHandler);
+
+    // Phase 0.5: RuVector GNN Self-Learning Cache Tools (6 tools)
+    const ruvectorHandler = new RuVectorHandler(this.registry, this.hookExecutor);
+    this.handlers.set(TOOL_NAMES.RUVECTOR_HEALTH, ruvectorHandler);
+    this.handlers.set(TOOL_NAMES.RUVECTOR_METRICS, ruvectorHandler);
+    this.handlers.set(TOOL_NAMES.RUVECTOR_FORCE_LEARN, ruvectorHandler);
+    this.handlers.set(TOOL_NAMES.RUVECTOR_STORE_PATTERN, ruvectorHandler);
+    this.handlers.set(TOOL_NAMES.RUVECTOR_SEARCH, ruvectorHandler);
+    this.handlers.set(TOOL_NAMES.RUVECTOR_COST_SAVINGS, ruvectorHandler);
   }
 
   /**
@@ -917,6 +927,69 @@ export class AgenticQEMCPServer {
             result = await getAgentStatus(safeArgs as unknown as AgentStatusParams);
           } else {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown Phase 3 tool: ${name}`);
+          }
+
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        // New Domain Tools routing (Chaos, Integration, Token-Optimized)
+        if (name.startsWith('mcp__agentic_qe__chaos_') ||
+            name.startsWith('mcp__agentic_qe__integration_') ||
+            name === TOOL_NAMES.TEST_EXECUTE_FILTERED ||
+            name === TOOL_NAMES.PERFORMANCE_TEST_FILTERED ||
+            name === TOOL_NAMES.QUALITY_ASSESS_FILTERED) {
+          const newDomainHandler = handler as NewDomainToolsHandler;
+          const safeArgs = args || {};
+          let result;
+
+          // Chaos Engineering Tools
+          if (name === TOOL_NAMES.CHAOS_INJECT_LATENCY) {
+            result = await newDomainHandler.handleChaosInjectLatency(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.CHAOS_INJECT_FAILURE) {
+            result = await newDomainHandler.handleChaosInjectFailure(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.CHAOS_RESILIENCE_TEST) {
+            result = await newDomainHandler.handleChaosResilienceTest(safeArgs as Record<string, unknown>);
+          }
+          // Integration Testing Tools
+          else if (name === TOOL_NAMES.INTEGRATION_DEPENDENCY_CHECK) {
+            result = await newDomainHandler.handleDependencyCheck(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.INTEGRATION_TEST_ORCHESTRATE) {
+            result = await newDomainHandler.handleIntegrationTestOrchestrate(safeArgs as Record<string, unknown>);
+          }
+          // Token-Optimized Tools
+          else if (name === TOOL_NAMES.TEST_EXECUTE_FILTERED) {
+            result = await newDomainHandler.handleTestExecuteFiltered(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.PERFORMANCE_TEST_FILTERED) {
+            result = await newDomainHandler.handlePerformanceTestFiltered(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.QUALITY_ASSESS_FILTERED) {
+            result = await newDomainHandler.handleQualityAssessFiltered(safeArgs as Record<string, unknown>);
+          } else {
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown New Domain tool: ${name}`);
+          }
+
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        // RuVector GNN Cache Tools routing (Phase 0.5)
+        if (name.startsWith('mcp__agentic_qe__ruvector_')) {
+          const ruvectorHandler = handler as RuVectorHandler;
+          const safeArgs = args || {};
+          let result;
+
+          if (name === TOOL_NAMES.RUVECTOR_HEALTH) {
+            result = await ruvectorHandler.handleRuvectorHealth(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.RUVECTOR_METRICS) {
+            result = await ruvectorHandler.handleRuvectorMetrics(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.RUVECTOR_FORCE_LEARN) {
+            result = await ruvectorHandler.handleRuvectorForceLearn(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.RUVECTOR_STORE_PATTERN) {
+            result = await ruvectorHandler.handleRuvectorStorePattern(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.RUVECTOR_SEARCH) {
+            result = await ruvectorHandler.handleRuvectorSearch(safeArgs as Record<string, unknown>);
+          } else if (name === TOOL_NAMES.RUVECTOR_COST_SAVINGS) {
+            result = await ruvectorHandler.handleRuvectorCostSavings(safeArgs as Record<string, unknown>);
+          } else {
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown RuVector tool: ${name}`);
           }
 
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };

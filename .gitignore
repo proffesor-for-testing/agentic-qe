@@ -176,3 +176,4 @@ tmp/*
 .ruvector/
 **/intelligence.json
 **/.ruvector/
+.env.supabase
