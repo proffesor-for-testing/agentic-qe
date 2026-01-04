@@ -378,8 +378,16 @@ export const QEAgentLauncher: React.FC<QEAgentLauncherProps> = ({
         await onLaunch(selectedAgent.id, taskDescription);
       }
 
-      // Generate CLI command for reference
-      const command = `npx aqe spawn ${selectedAgent.id} --task "${taskDescription.replace(/"/g, '\\"')}"`;
+      // Generate CLI command for reference (properly escape for shell)
+      // Escape all shell-dangerous characters: " ' ` $ \ ! and newlines
+      const safeTask = taskDescription
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/`/g, '\\`')
+        .replace(/\$/g, '\\$')
+        .replace(/!/g, '\\!')
+        .replace(/\n/g, '\\n');
+      const command = `npx aqe spawn ${selectedAgent.id} --task "${safeTask}"`;
       setLastCommand(command);
 
       console.log(`[QE Agent] Launching ${selectedAgent.name}:`, taskDescription);

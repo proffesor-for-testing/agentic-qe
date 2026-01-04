@@ -872,11 +872,16 @@ export function generateMessageId(): string {
 }
 
 /**
- * Generate session ID
+ * Generate session ID using cryptographically secure random values
  */
 export function generateSessionId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 11);
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  const random = Array.from(bytes)
+    .map((b) => b.toString(36).padStart(2, '0'))
+    .join('')
+    .substring(0, 9);
   return `sess-${timestamp}-${random}`;
 }
 

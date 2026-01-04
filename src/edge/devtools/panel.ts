@@ -270,7 +270,7 @@ function updateAgents(agentData: AgentInfo[]): void {
           <span class="agent-name">${escapeHtml(agent.name || agent.id)}</span>
           <span class="agent-type">${escapeHtml(agent.type)}</span>
         </div>
-        <span class="agent-status ${agent.status}">${agent.status}</span>
+        <span class="agent-status ${escapeHtml(agent.status)}">${escapeHtml(agent.status)}</span>
       </div>
     `
     )

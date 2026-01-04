@@ -637,8 +637,11 @@ export class CoordinationManager {
     peerState.info.capabilities = payload.capabilities;
     peerState.info.isAuthenticated = true;
 
-    // Generate session ID
-    const sessionId = `session-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+    // Generate session ID using cryptographically secure random
+    const randomBytes = new Uint8Array(4);
+    crypto.getRandomValues(randomBytes);
+    const randomPart = Array.from(randomBytes).map(b => b.toString(36)).join('').substring(0, 6);
+    const sessionId = `session-${Date.now().toString(36)}-${randomPart}`;
     peerState.sessionId = sessionId;
 
     // Send success result

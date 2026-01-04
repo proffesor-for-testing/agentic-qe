@@ -1084,11 +1084,13 @@ export class PatternSyncManager {
   }
 
   /**
-   * Generate unique request ID
+   * Generate unique request ID using cryptographically secure random
    */
   private generateRequestId(): string {
     const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 8);
+    const randomBytes = new Uint8Array(4);
+    crypto.getRandomValues(randomBytes);
+    const random = Array.from(randomBytes).map(b => b.toString(36)).join('').substring(0, 6);
     return `sync-${timestamp}-${random}`;
   }
 

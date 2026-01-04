@@ -1161,7 +1161,8 @@ export class BrowserSignalingClient {
       try {
         handler(data);
       } catch (error) {
-        console.error(`Event handler error for ${event}:`, error);
+        // Use separate args to avoid format string injection
+        console.error('Event handler error for %s:', event, error);
       }
     });
   }

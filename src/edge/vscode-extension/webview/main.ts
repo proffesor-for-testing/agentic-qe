@@ -73,6 +73,15 @@ interface PanelState {
 // Initialize VS Code API
 const vscode = acquireVsCodeApi();
 
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str: string): string {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // DOM Elements
 const elements = {
   loadingOverlay: document.getElementById('loadingOverlay') as HTMLElement,
@@ -155,8 +164,8 @@ function renderAnalysis(analysis: FileAnalysis): void {
   // Update current file
   const fileName = analysis.filePath.split('/').pop() ?? 'Unknown';
   elements.currentFile.innerHTML = `
-    <span class="file-name" title="${analysis.filePath}">${fileName}</span>
-    <span class="file-language">${analysis.language}</span>
+    <span class="file-name" title="${escapeHtml(analysis.filePath)}">${escapeHtml(fileName)}</span>
+    <span class="file-language">${escapeHtml(analysis.language)}</span>
   `;
 
   // Calculate coverage stats
@@ -223,8 +232,8 @@ function renderFunctionItem(func: FunctionInfo): string {
     <div class="function-item">
       <div class="function-icon">${icon}</div>
       <div class="function-info">
-        <span class="function-name">${func.name}</span>
-        <span class="function-type">${func.isAsync ? 'async ' : ''}${func.type}</span>
+        <span class="function-name">${escapeHtml(func.name)}</span>
+        <span class="function-type">${func.isAsync ? 'async ' : ''}${escapeHtml(func.type)}</span>
       </div>
       <div class="function-coverage ${coverageClass}">
         ${coverage}%
@@ -273,13 +282,13 @@ function renderSuggestionItem(suggestion: TestSuggestion, index: number): string
   return `
     <div class="suggestion-item" data-index="${index}">
       <div class="suggestion-header">
-        <span class="suggestion-title">${suggestion.title}</span>
+        <span class="suggestion-title">${escapeHtml(suggestion.title)}</span>
         <span class="suggestion-confidence ${confidenceClass}">${confidence}%</span>
       </div>
-      <div class="suggestion-description">${suggestion.description}</div>
+      <div class="suggestion-description">${escapeHtml(suggestion.description)}</div>
       ${
         suggestion.targetFunction
-          ? `<div class="suggestion-target">Target: ${suggestion.targetFunction}</div>`
+          ? `<div class="suggestion-target">Target: ${escapeHtml(suggestion.targetFunction)}</div>`
           : ''
       }
     </div>
