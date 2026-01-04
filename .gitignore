@@ -171,6 +171,7 @@ hive-mind-prompt-*.txt
 tests/tmp/*
 tmp/*
 
-# RuVector intelligence data
-#.ruvector/
-#.claude/statusline.sh
+# RuVector intelligence data (local learning, not for git)
+.ruvector/
+**/intelligence.json
+**/.ruvector/

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### @ruvector/edge Integration - Phases 0-3 Complete (Major Feature)
+#### @ruvector/edge Integration - Phases 0-4 Complete (Major Feature)
 
 - **Phase 0: Browser Runtime**
   - WASM shims and browser compatibility layer (`src/edge/wasm/shims.ts`)
@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - React hooks (useP2P, usePatternSync, usePeers, useConnection, useP2PService)
   - Redux-style state management (dashboardReducer)
 
+- **Phase 4: P2P Integration with Real WebRTC Data Channels**
+  - Real WebRTC data channel communication (not mocked)
+  - P2PService with full ICE candidate exchange
+  - Pattern sync over data channels between peers
+  - Room-based peer discovery via signaling server
+  - Automatic peer connection on room join
+  - P2P connection bug fix - connect to discovered peers, not random IDs
+
 - **Edge Server REST API**
   - `POST /api/agents/spawn` - Spawn QE agents via HTTP
   - `GET /api/agents` - List running agents
@@ -63,10 +71,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /api/agents/types` - List available agent types
   - `GET /api/signaling/stats` - WebSocket signaling stats
 
+- **VS Code Extension Marketplace Preparation**
+  - Added @ruvector/edge to extension VSIX bundle
+  - EdgeAgentService with fallback mode when WASM unavailable
+  - VS Code Extension Publishing Guide (`docs/guides/vscode-extension-publishing.md`)
+  - PAT generation, publisher setup, and CI/CD integration instructions
+
 - **New Documentation**
   - Edge Server Guide (`docs/guides/edge-server.md`)
   - P2P Pattern Sharing Guide (`docs/guides/p2p-pattern-sharing.md`)
+  - Web Dashboard Use Cases Guide (`docs/guides/web-dashboard-use-cases.md`)
+  - Edge Dashboard Improvements Plan (`docs/plans/edge-dashboard-improvements.md`)
   - Updated CLI agent-commands.md with spawn command
+
+- **Webapp Infrastructure**
+  - Standalone package.json for webapp (`src/edge/webapp/package.json`)
+  - Independent `npm run dev` for webapp development
 
 ### Changed
 
@@ -84,10 +104,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CLI dev command** - Use `tsx` instead of `ts-node` for ESM compatibility with `.js` extension imports
 - TypeScript compilation errors in VS Code extension
 - Express/cors import issues in Edge Server
 - PatternCategory enum mismatches
 - SignalingServerStats property naming
+- P2P connection bug in Dashboard - now connects to discovered peers instead of random IDs
 
 ## [2.7.4] - 2025-12-30
 
