@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { integrationTestOrchestrate } from '@mcp/handlers/integration/integration-test-orchestrate';
-import { contractValidate } from '@mcp/handlers/integration/contract-validate';
+// contract-validate was removed in v2.0.0 - overlaps with qe_api_contract_validate
+// import { contractValidate } from '@mcp/handlers/integration/contract-validate';
 import { dependencyCheck } from '@mcp/handlers/integration/dependency-check';
 import type {
   IntegrationTestOrchestrateParams,
-  ContractValidateParams,
+  // any /* ContractValidateParams removed */, // Removed with contract-validate
   DependencyCheckParams,
 } from '@mcp/types/integration';
 
@@ -210,10 +211,11 @@ describe('Integration Testing MCP Tools', () => {
     });
   });
 
-  describe('contract_validate', () => {
+  // Skipped: contract_validate was removed in v2.0.0 - overlaps with qe_api_contract_validate
+  describe.skip('contract_validate', () => {
     describe('OpenAPI Contract Validation', () => {
       it('should validate valid OpenAPI contract', async () => {
-        const params: ContractValidateParams = {
+        const params: any = { // any /* ContractValidateParams removed */ removed
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
@@ -239,7 +241,7 @@ describe('Integration Testing MCP Tools', () => {
       });
 
       it('should detect invalid OpenAPI contract', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
@@ -257,7 +259,7 @@ describe('Integration Testing MCP Tools', () => {
       });
 
       it('should validate response schema', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
@@ -297,7 +299,7 @@ describe('Integration Testing MCP Tools', () => {
 
     describe('GraphQL Contract Validation', () => {
       it('should validate GraphQL schema', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'graphql-service',
           consumer: 'frontend-app',
           contractType: 'graphql',
@@ -321,7 +323,7 @@ describe('Integration Testing MCP Tools', () => {
       });
 
       it('should detect invalid GraphQL schema', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'graphql-service',
           consumer: 'frontend-app',
           contractType: 'graphql',
@@ -339,7 +341,7 @@ describe('Integration Testing MCP Tools', () => {
 
     describe('Message Queue Contract Validation', () => {
       it('should validate message queue contract', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'order-service',
           consumer: 'notification-service',
           contractType: 'message-queue',
@@ -364,7 +366,7 @@ describe('Integration Testing MCP Tools', () => {
       });
 
       it('should detect missing required fields in message schema', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'order-service',
           consumer: 'notification-service',
           contractType: 'message-queue',
@@ -387,7 +389,7 @@ describe('Integration Testing MCP Tools', () => {
 
     describe('Contract Breaking Changes', () => {
       it('should detect breaking changes', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
@@ -431,7 +433,7 @@ describe('Integration Testing MCP Tools', () => {
       });
 
       it('should allow backward compatible changes', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
@@ -477,7 +479,7 @@ describe('Integration Testing MCP Tools', () => {
 
     describe('Version Compatibility', () => {
       it('should check version compatibility', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
@@ -497,7 +499,7 @@ describe('Integration Testing MCP Tools', () => {
 
     describe('Strict Mode Validation', () => {
       it('should enforce strict validation when enabled', async () => {
-        const params: ContractValidateParams = {
+        const params: any /* ContractValidateParams removed */ = {
           provider: 'user-service',
           consumer: 'api-gateway',
           contractType: 'openapi',
