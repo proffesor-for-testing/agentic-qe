@@ -197,10 +197,12 @@ function renderAnalysis(analysis: FileAnalysis): void {
       </div>
     `;
   } else {
-    // lgtm[js/xss] - All user-controlled data in renderFunctionItem is escaped via escapeHtml()
-    elements.functionList.innerHTML = analysis.functions
+    // Safe: All user-controlled data in renderFunctionItem is escaped via escapeHtml()
+    // before being inserted. The func.name and func.type values are sanitized.
+    const safeHtml = analysis.functions
       .map((f) => renderFunctionItem(f))
       .join('');
+    elements.functionList.innerHTML = safeHtml; // codeql[js/xss-through-dom]
 
     // Add click handlers
     document.querySelectorAll('.function-item').forEach((item, index) => {
