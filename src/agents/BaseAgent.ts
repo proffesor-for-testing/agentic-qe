@@ -119,6 +119,36 @@ import {
   getSharedPersistenceManager,
 } from '../nervous-system/persistence/NervousSystemPersistenceManager.js';
 
+// Network Policy Enforcement (SP-3 - Issue #146)
+import type {
+  NetworkPolicy,
+  PolicyCheckResult,
+  NetworkPolicyManagerConfig,
+  AuditStats,
+  RateLimitStatus,
+} from '../infrastructure/network/types.js';
+import {
+  NetworkPolicyManager,
+  createNetworkPolicyManager,
+} from '../infrastructure/network/NetworkPolicyManager.js';
+import { getNetworkPolicy } from '../infrastructure/network/policies/default-policies.js';
+
+// Sandbox Infrastructure (SP-1 - Issue #146)
+import type {
+  SandboxConfig,
+  ContainerInfo,
+  ResourceStats,
+  SandboxCreateResult,
+  HealthCheckResult,
+  SandboxEvent,
+  SandboxEventHandler,
+} from '../infrastructure/sandbox/types.js';
+import {
+  SandboxManager,
+  createSandboxManager,
+} from '../infrastructure/sandbox/SandboxManager.js';
+import { getAgentSandboxConfig } from '../infrastructure/sandbox/profiles/agent-profiles.js';
+
 // Re-export utilities for backward compatibility
 export { isSwarmMemoryManager, validateLearningConfig };
 
@@ -203,6 +233,42 @@ interface IQEPatternStore {
   getImplementationInfo?(): { type: string } | undefined;
 }
 
+/**
+ * Network Policy configuration for agents (SP-3 - Issue #146)
+ * Enables domain whitelisting, rate limiting, and audit logging
+ */
+export interface AgentNetworkPolicyConfig {
+  /** Enable network policy enforcement (default: true) */
+  enabled?: boolean;
+  /** Use shared NetworkPolicyManager instance */
+  sharedManager?: NetworkPolicyManager;
+  /** Custom policy overrides for this agent */
+  policyOverrides?: Partial<NetworkPolicy>;
+  /** Enable audit logging (default: true) */
+  enableAuditLogging?: boolean;
+  /** Debug mode for network policy */
+  debug?: boolean;
+}
+
+/**
+ * Sandbox configuration for agents (SP-1 - Issue #146)
+ * Enables Docker-based agent isolation with resource limits
+ */
+export interface AgentSandboxConfig {
+  /** Enable sandbox isolation (default: false - opt-in) */
+  enabled?: boolean;
+  /** Use shared SandboxManager instance (for fleet coordination) */
+  sharedManager?: SandboxManager;
+  /** Custom sandbox config overrides for this agent */
+  sandboxOverrides?: Partial<SandboxConfig>;
+  /** Enable resource monitoring (default: true when sandbox enabled) */
+  enableResourceMonitoring?: boolean;
+  /** Auto-create sandbox container on agent initialize (default: true) */
+  autoCreateSandbox?: boolean;
+  /** Debug mode for sandbox operations */
+  debug?: boolean;
+}
+
 export interface BaseAgentConfig {
   id?: string;
   type: AgentType;
@@ -236,6 +302,16 @@ export interface BaseAgentConfig {
    * Enables HDC patterns, BTSP learning, workspace coordination, and circadian cycling
    */
   nervousSystem?: NervousSystemConfig;
+  /**
+   * Network Policy configuration (SP-3 - Issue #146)
+   * Enables domain whitelisting, rate limiting, and audit logging for network requests
+   */
+  networkPolicy?: AgentNetworkPolicyConfig;
+  /**
+   * Sandbox configuration (SP-1 - Issue #146)
+   * Enables Docker-based agent isolation with resource limits
+   */
+  sandbox?: AgentSandboxConfig;
 }
 
 export abstract class BaseAgent extends EventEmitter {
@@ -286,6 +362,19 @@ export abstract class BaseAgent extends EventEmitter {
   // Nervous System Persistence (Wave 7.1)
   private nervousSystemPersistence?: NervousSystemPersistenceManager;
 
+  // Network Policy Enforcement (SP-3 - Issue #146)
+  protected networkPolicyManager?: NetworkPolicyManager;
+  protected networkPolicyConfig: AgentNetworkPolicyConfig;
+  private networkPolicyInitialized: boolean = false;
+  private networkPolicyOwned: boolean = false; // true if we created the manager (not shared)
+
+  // Sandbox Infrastructure (SP-1 - Issue #146)
+  protected sandboxManager?: SandboxManager;
+  protected sandboxConfig: AgentSandboxConfig;
+  private sandboxInitialized: boolean = false;
+  private sandboxOwned: boolean = false; // true if we created the manager (not shared)
+  private containerId?: string; // Container ID if running in sandbox
+
   // Service classes
   protected readonly lifecycleManager: AgentLifecycleManager;
   protected readonly coordinator: AgentCoordinator;
@@ -335,6 +424,14 @@ export abstract class BaseAgent extends EventEmitter {
 
     // Nervous System configuration (Wave 7 - Bio-Inspired Intelligence)
     this.nervousSystemConfig = config.nervousSystem;
+
+    // Network Policy configuration (SP-3 - Issue #146)
+    // Default enabled for security, opt-out available
+    this.networkPolicyConfig = config.networkPolicy ?? { enabled: true };
+
+    // Sandbox configuration (SP-1 - Issue #146)
+    // Default disabled (opt-in) - requires Docker infrastructure
+    this.sandboxConfig = config.sandbox ?? { enabled: false };
 
     // Early validation (Issue #137)
     const validation = validateLearningConfig(config);
@@ -419,6 +516,12 @@ export abstract class BaseAgent extends EventEmitter {
           // Initialize Nervous System (Wave 7 - Bio-Inspired Intelligence)
           await this.initializeNervousSystem();
 
+          // Initialize Network Policy (SP-3 - Issue #146)
+          await this.initializeNetworkPolicy();
+
+          // Initialize Sandbox (SP-1 - Issue #146)
+          await this.initializeSandbox();
+
           await this.initializeComponents();
           await this.executeHook('post-initialization');
           this.coordinator.emitEvent('agent.initialized', { agentId: this.agentId });
@@ -479,6 +582,8 @@ export abstract class BaseAgent extends EventEmitter {
           await this.cleanupFederated(); // Phase 0 M0.5: Cleanup federated learning
           await this.cleanupPatternStore(); // Phase 0.5: Cleanup pattern store
           await this.cleanupNervousSystem(); // Wave 7: Cleanup nervous system
+          await this.cleanupNetworkPolicy(); // SP-3: Cleanup network policy
+          await this.cleanupSandbox(); // SP-1: Cleanup sandbox container
           this.coordinator.clearAllHandlers();
         },
         onPostTermination: async () => {
@@ -2264,6 +2369,464 @@ export abstract class BaseAgent extends EventEmitter {
       this.logger.warn(`[${this.agentId.id}] Nervous System cleanup error:`, (error as Error).message);
     }
   }
+
+  // ============================================
+  // Network Policy Methods (SP-3 - Issue #146)
+  // ============================================
+
+  /**
+   * Initialize Network Policy Manager for domain whitelisting and rate limiting
+   * Provides security hardening for agent network access
+   */
+  private async initializeNetworkPolicy(): Promise<void> {
+    if (this.networkPolicyConfig.enabled === false) {
+      this.logger.info(`[${this.agentId.id}] Network Policy disabled by configuration`);
+      return;
+    }
+
+    try {
+      // Use shared manager if provided, otherwise create a new one
+      if (this.networkPolicyConfig.sharedManager) {
+        this.networkPolicyManager = this.networkPolicyConfig.sharedManager;
+        this.networkPolicyOwned = false;
+      } else {
+        this.networkPolicyManager = createNetworkPolicyManager({
+          enableAuditLogging: this.networkPolicyConfig.enableAuditLogging ?? true,
+          debug: this.networkPolicyConfig.debug ?? false,
+        });
+        await this.networkPolicyManager.initialize();
+        this.networkPolicyOwned = true;
+      }
+
+      // Apply any policy overrides for this agent type
+      if (this.networkPolicyConfig.policyOverrides) {
+        this.networkPolicyManager.updatePolicy(
+          this.agentId.type,
+          this.networkPolicyConfig.policyOverrides
+        );
+      }
+
+      this.networkPolicyInitialized = true;
+      this.logger.info(`[${this.agentId.id}] Network Policy initialized (owned: ${this.networkPolicyOwned})`);
+    } catch (error) {
+      this.logger.warn(`[${this.agentId.id}] Network Policy initialization failed:`, (error as Error).message);
+      // Don't throw - agent can work without network policy (graceful degradation)
+    }
+  }
+
+  /**
+   * Check if network policy enforcement is available
+   */
+  public hasNetworkPolicy(): boolean {
+    return this.networkPolicyInitialized && this.networkPolicyManager !== undefined;
+  }
+
+  /**
+   * Get the network policy for this agent type
+   */
+  public getNetworkPolicy(): NetworkPolicy {
+    if (!this.networkPolicyManager) {
+      return getNetworkPolicy(this.agentId.type);
+    }
+    return this.networkPolicyManager.getPolicy(this.agentId.type);
+  }
+
+  /**
+   * Check if a network request to a domain is allowed
+   * Does NOT consume rate limit tokens - use for pre-flight checks
+   *
+   * @param domain - The target domain (e.g., "api.anthropic.com")
+   * @returns PolicyCheckResult with allowed status and details
+   */
+  protected async checkNetworkRequest(domain: string): Promise<PolicyCheckResult> {
+    if (!this.networkPolicyManager) {
+      // No policy enforcement - allow all
+      return {
+        allowed: true,
+        policy: getNetworkPolicy(this.agentId.type),
+      };
+    }
+
+    return this.networkPolicyManager.checkRequest(
+      this.agentId.id,
+      this.agentId.type,
+      domain
+    );
+  }
+
+  /**
+   * Record a network request (consumes rate limit token)
+   * Call this after making an actual network request
+   *
+   * @param domain - The target domain
+   * @param allowed - Whether the request was allowed
+   * @param responseTimeMs - Response time in milliseconds (optional)
+   */
+  protected async recordNetworkRequest(
+    domain: string,
+    allowed: boolean,
+    responseTimeMs?: number
+  ): Promise<void> {
+    if (!this.networkPolicyManager) {
+      return;
+    }
+
+    await this.networkPolicyManager.recordRequest(
+      this.agentId.id,
+      this.agentId.type,
+      domain,
+      allowed,
+      responseTimeMs
+    );
+  }
+
+  /**
+   * Make a policy-enforced network request
+   * Checks domain whitelist and rate limits before allowing the request
+   *
+   * @param url - The full URL to request
+   * @param requestFn - Function that performs the actual request
+   * @returns The result of requestFn if allowed
+   * @throws Error if request is blocked by policy
+   *
+   * @example
+   * ```typescript
+   * const response = await this.makeNetworkRequest(
+   *   'https://api.anthropic.com/v1/messages',
+   *   async () => fetch('https://api.anthropic.com/v1/messages', { method: 'POST', ... })
+   * );
+   * ```
+   */
+  protected async makeNetworkRequest<T>(
+    url: string,
+    requestFn: () => Promise<T>
+  ): Promise<T> {
+    // Extract domain from URL
+    let domain: string;
+    try {
+      const parsedUrl = new URL(url);
+      domain = parsedUrl.hostname;
+    } catch {
+      throw new Error(`Invalid URL: ${url}`);
+    }
+
+    // Check if request is allowed
+    const check = await this.checkNetworkRequest(domain);
+    if (!check.allowed) {
+      const error = new Error(
+        `Network request blocked: ${check.reason} - ${check.details || domain}`
+      );
+      (error as any).policyCheckResult = check;
+      throw error;
+    }
+
+    // Make the actual request
+    const startTime = Date.now();
+    try {
+      const result = await requestFn();
+      const responseTime = Date.now() - startTime;
+      await this.recordNetworkRequest(domain, true, responseTime);
+      return result;
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      await this.recordNetworkRequest(domain, false, responseTime);
+      throw error;
+    }
+  }
+
+  /**
+   * Get rate limit status for this agent
+   */
+  public getNetworkRateLimitStatus(): RateLimitStatus | null {
+    if (!this.networkPolicyManager) {
+      return null;
+    }
+    return this.networkPolicyManager.getRateLimitStatus(this.agentId.id, this.agentId.type);
+  }
+
+  /**
+   * Get network audit statistics
+   * @param since - Optional start date for stats
+   */
+  public async getNetworkAuditStats(since?: Date): Promise<AuditStats | null> {
+    if (!this.networkPolicyManager) {
+      return null;
+    }
+    return this.networkPolicyManager.getAuditStats(since);
+  }
+
+  /**
+   * Get network policy statistics for this agent
+   */
+  public getNetworkPolicyStats(): {
+    enabled: boolean;
+    policy?: NetworkPolicy;
+    rateLimitStatus?: RateLimitStatus | null;
+  } {
+    if (!this.hasNetworkPolicy()) {
+      return { enabled: false };
+    }
+
+    return {
+      enabled: true,
+      policy: this.getNetworkPolicy(),
+      rateLimitStatus: this.getNetworkRateLimitStatus(),
+    };
+  }
+
+  /**
+   * Cleanup network policy resources on agent termination
+   */
+  private async cleanupNetworkPolicy(): Promise<void> {
+    if (!this.networkPolicyInitialized) {
+      return;
+    }
+
+    try {
+      // Only shutdown if we own the manager (not shared)
+      if (this.networkPolicyOwned && this.networkPolicyManager) {
+        await this.networkPolicyManager.shutdown();
+        this.logger.info(`[${this.agentId.id}] Network Policy cleanup complete`);
+      }
+    } catch (error) {
+      this.logger.warn(`[${this.agentId.id}] Network Policy cleanup error:`, (error as Error).message);
+    }
+
+    this.networkPolicyInitialized = false;
+    this.networkPolicyManager = undefined;
+  }
+
+  // ============================================
+  // Sandbox Infrastructure Methods (SP-1 - Issue #146)
+  // ============================================
+
+  /**
+   * Initialize Sandbox Manager for Docker-based agent isolation
+   * Provides secure, isolated execution environments with resource limits
+   */
+  private async initializeSandbox(): Promise<void> {
+    if (this.sandboxConfig.enabled === false) {
+      this.logger.debug(`[${this.agentId.id}] Sandbox disabled by configuration`);
+      return;
+    }
+
+    try {
+      // Use shared manager if provided, otherwise create a new one
+      if (this.sandboxConfig.sharedManager) {
+        this.sandboxManager = this.sandboxConfig.sharedManager;
+        this.sandboxOwned = false;
+      } else {
+        this.sandboxManager = createSandboxManager({
+          agentImage: process.env.AQE_SANDBOX_IMAGE || 'agentic-qe-agent',
+          imageTag: process.env.AQE_SANDBOX_TAG || 'latest',
+          cleanupOnShutdown: true,
+        });
+        await this.sandboxManager.initialize();
+        this.sandboxOwned = true;
+      }
+
+      // Auto-create sandbox container if configured
+      if (this.sandboxConfig.autoCreateSandbox !== false) {
+        const result = await this.createSandboxContainer();
+        if (result.success && result.container) {
+          this.containerId = result.container.containerId;
+        } else if (!result.success) {
+          // Docker not available - graceful degradation
+          this.logger.info(`[${this.agentId.id}] Sandbox container creation skipped: ${result.error}`);
+        }
+      }
+
+      this.sandboxInitialized = true;
+      this.logger.info(`[${this.agentId.id}] Sandbox initialized (owned: ${this.sandboxOwned}, container: ${this.containerId || 'none'})`);
+    } catch (error) {
+      this.logger.warn(`[${this.agentId.id}] Sandbox initialization failed:`, (error as Error).message);
+      // Don't throw - agent can work without sandbox (graceful degradation)
+    }
+  }
+
+  /**
+   * Check if sandbox isolation is available
+   */
+  public hasSandbox(): boolean {
+    return this.sandboxInitialized && this.sandboxManager !== undefined;
+  }
+
+  /**
+   * Check if agent is running in a sandbox container
+   */
+  public isInSandbox(): boolean {
+    return this.containerId !== undefined;
+  }
+
+  /**
+   * Get the container ID if running in sandbox
+   */
+  public getContainerId(): string | undefined {
+    return this.containerId;
+  }
+
+  /**
+   * Get sandbox configuration for this agent type
+   */
+  public getSandboxConfig(): Partial<SandboxConfig> {
+    return getAgentSandboxConfig(this.agentId.type);
+  }
+
+  /**
+   * Create a sandbox container for this agent
+   * @param customConfig - Optional custom sandbox configuration
+   */
+  protected async createSandboxContainer(
+    customConfig?: Partial<SandboxConfig>
+  ): Promise<SandboxCreateResult> {
+    if (!this.sandboxManager) {
+      return {
+        success: false,
+        error: 'Sandbox manager not initialized',
+      };
+    }
+
+    // Check if Docker is available
+    const dockerAvailable = await this.sandboxManager.isDockerAvailable();
+    if (!dockerAvailable) {
+      return {
+        success: false,
+        error: 'Docker not available',
+      };
+    }
+
+    // Merge profile config with any overrides
+    const mergedConfig = {
+      ...this.sandboxConfig.sandboxOverrides,
+      ...customConfig,
+    };
+
+    return this.sandboxManager.createSandbox(
+      this.agentId.id,
+      this.agentId.type,
+      mergedConfig
+    );
+  }
+
+  /**
+   * Get resource usage for the sandbox container
+   */
+  public async getSandboxResourceUsage(): Promise<ResourceStats | null> {
+    if (!this.sandboxManager || !this.containerId) {
+      return null;
+    }
+    return this.sandboxManager.getResourceUsage(this.containerId);
+  }
+
+  /**
+   * Check sandbox container health
+   */
+  public async checkSandboxHealth(): Promise<HealthCheckResult | null> {
+    if (!this.sandboxManager || !this.containerId) {
+      return null;
+    }
+    return this.sandboxManager.healthCheck(this.containerId);
+  }
+
+  /**
+   * Execute a command in the sandbox container
+   * @param command - Command to execute as array of strings
+   */
+  protected async execInSandbox(
+    command: string[]
+  ): Promise<{ exitCode: number; output: string } | null> {
+    if (!this.sandboxManager || !this.containerId) {
+      return null;
+    }
+    return this.sandboxManager.exec(this.containerId, command);
+  }
+
+  /**
+   * Get sandbox container logs
+   * @param options - Log retrieval options
+   */
+  protected async getSandboxLogs(
+    options?: { tail?: number; since?: number }
+  ): Promise<string | null> {
+    if (!this.sandboxManager || !this.containerId) {
+      return null;
+    }
+    return this.sandboxManager.getLogs(this.containerId, options);
+  }
+
+  /**
+   * Subscribe to sandbox events
+   * @param handler - Event handler function
+   */
+  public onSandboxEvent(handler: SandboxEventHandler): void {
+    if (this.sandboxManager) {
+      this.sandboxManager.on(handler);
+    }
+  }
+
+  /**
+   * Unsubscribe from sandbox events
+   * @param handler - Event handler to remove
+   */
+  public offSandboxEvent(handler: SandboxEventHandler): void {
+    if (this.sandboxManager) {
+      this.sandboxManager.off(handler);
+    }
+  }
+
+  /**
+   * Get sandbox statistics for this agent
+   */
+  public getSandboxStats(): {
+    enabled: boolean;
+    inSandbox: boolean;
+    containerId?: string;
+    sandboxConfig?: Partial<SandboxConfig>;
+  } {
+    if (!this.hasSandbox()) {
+      return { enabled: false, inSandbox: false };
+    }
+
+    return {
+      enabled: true,
+      inSandbox: this.isInSandbox(),
+      containerId: this.containerId,
+      sandboxConfig: this.getSandboxConfig(),
+    };
+  }
+
+  /**
+   * Cleanup sandbox resources on agent termination
+   */
+  private async cleanupSandbox(): Promise<void> {
+    if (!this.sandboxInitialized) {
+      return;
+    }
+
+    try {
+      // Destroy our container if we have one
+      if (this.containerId && this.sandboxManager) {
+        const result = await this.sandboxManager.destroySandbox(this.containerId, true);
+        if (result.success) {
+          this.logger.info(`[${this.agentId.id}] Sandbox container ${this.containerId} destroyed`);
+        } else {
+          this.logger.warn(`[${this.agentId.id}] Sandbox container destruction failed: ${result.error}`);
+        }
+      }
+
+      // Only shutdown manager if we own it (not shared)
+      if (this.sandboxOwned && this.sandboxManager) {
+        await this.sandboxManager.shutdown();
+        this.logger.info(`[${this.agentId.id}] Sandbox manager shutdown complete`);
+      }
+    } catch (error) {
+      this.logger.warn(`[${this.agentId.id}] Sandbox cleanup error:`, (error as Error).message);
+    }
+
+    this.sandboxInitialized = false;
+    this.sandboxManager = undefined;
+    this.containerId = undefined;
+  }
 }
 
 // === Agent Factory ===
@@ -2293,4 +2856,25 @@ export type {
   AgentWorkspaceItem,
   CircadianPhase,
   EnergySavingsReport,
+};
+
+// === Network Policy Type Exports (SP-3 - Issue #146) ===
+
+export type {
+  NetworkPolicy,
+  PolicyCheckResult,
+  RateLimitStatus,
+  AuditStats,
+};
+
+// === Sandbox Infrastructure Type Exports (SP-1 - Issue #146) ===
+
+export type {
+  SandboxConfig,
+  ContainerInfo,
+  ResourceStats,
+  SandboxCreateResult,
+  HealthCheckResult,
+  SandboxEvent,
+  SandboxEventHandler,
 };

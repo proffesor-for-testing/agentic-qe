@@ -27,8 +27,37 @@
  */
 
 export { NomicEmbedder } from './NomicEmbedder';
+export type { NomicEmbedderConfig } from './NomicEmbedder';
 export { OllamaClient } from './OllamaClient';
 export { EmbeddingCache } from './EmbeddingCache';
+
+// Storage Backends (SP-2 - Issue #146)
+export {
+  EnhancedEmbeddingCache,
+  createEmbeddingCache,
+  createBackend,
+  createMemoryCache,
+  createRedisCache,
+  createSQLiteCache,
+  DEFAULT_CACHE_CONFIG,
+} from './EmbeddingCacheFactory.js';
+
+export type {
+  EmbeddingCacheConfig,
+} from './EmbeddingCacheFactory.js';
+
+export type {
+  EmbeddingStorageBackend,
+  BackendType,
+  BackendConfig,
+  MemoryBackendConfig,
+  RedisBackendConfig,
+  SQLiteBackendConfig,
+} from './backends/types.js';
+
+export { MemoryStorageBackend } from './backends/MemoryBackend.js';
+export { RedisStorageBackend } from './backends/RedisBackend.js';
+export { SQLiteStorageBackend } from './backends/SQLiteBackend.js';
 
 export type {
   CodeChunk,
