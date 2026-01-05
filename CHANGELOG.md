@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-01-05
+
+### Added
+
+#### Security Hardening Integration (Issue #146)
+
+- **Sandbox Infrastructure (SP-1)** - Docker-based agent sandboxing
+  - `SandboxManager` for creating isolated execution environments
+  - Per-agent resource profiles (CPU, memory, network)
+  - `ResourceMonitor` for real-time container monitoring
+  - Agent profiles for all 21 QE agent types
+
+- **Embedding Cache Backends (SP-2)** - Pluggable storage for embeddings
+  - `EnhancedEmbeddingCache` with backend abstraction
+  - Memory backend (default, backward compatible)
+  - Redis backend for distributed caching
+  - SQLite backend for persistent local storage
+  - `NomicEmbedder` updated to support all backends
+
+- **Network Policy Enforcement (SP-3)** - Opt-in network controls
+  - `NetworkPolicyManager` for domain whitelisting
+  - `AgentRateLimiter` with token bucket algorithm
+  - `AuditLogger` for request tracking
+  - `DomainWhitelist` with wildcard support
+  - Permissive by default (supports multi-model router)
+  - `createRestrictivePolicy()` for opt-in security
+
+### Fixed
+
+- **Network policies now opt-in** - Default is permissive to support:
+  - Multi-model router with 15+ LLM providers
+  - QE agents testing arbitrary websites
+  - Use `createRestrictivePolicy()` for security-sensitive deployments
+
+- **CodeQL security alerts** - Fixed 4 HIGH severity issues
+  - `js/incomplete-sanitization` in SupabasePersistenceProvider
+  - Changed `.replace('*', '%')` to `.replace(/\*/g, '%')`
+  - Ensures all wildcard occurrences are replaced
+
+- **SandboxManager tests** - Converted from vitest to jest
+  - Docker-dependent tests skipped (need real Docker)
+  - Profile and utility tests all pass (22 tests)
+
 ## [2.8.1] - 2026-01-04
 
 ### Added

@@ -8,40 +8,188 @@
  * - Embedding caching with content hashing
  * - Progress tracking for large batches
  * - Error handling and retries
+ * - Pluggable storage backends (SP-2 - Issue #146)
  */
 
 import { OllamaClient } from './OllamaClient';
 import { EmbeddingCache } from './EmbeddingCache';
+import {
+  EnhancedEmbeddingCache,
+  createEmbeddingCache,
+  type EmbeddingCacheConfig,
+} from './EmbeddingCacheFactory.js';
+import type { BackendType } from './backends/types.js';
 import {
   CodeChunk,
   EmbeddingResult,
   EmbeddingBatchResult,
   BatchProgress,
   ProgressCallback,
+  CacheStats,
   EMBEDDING_CONFIG
 } from './types';
 
+/**
+ * Cache interface that both EmbeddingCache and EnhancedEmbeddingCache implement
+ */
+interface IEmbeddingCache {
+  get(content: string, model: string): number[] | null | Promise<number[] | null>;
+  set(content: string, model: string, embedding: number[]): void | Promise<void>;
+  getStats(): CacheStats | Promise<CacheStats & { backendType?: BackendType }>;
+  clear(): void | Promise<void>;
+}
+
+/**
+ * Configuration for NomicEmbedder
+ */
+export interface NomicEmbedderConfig {
+  /** Ollama base URL (default: http://localhost:11434) */
+  ollamaBaseUrl?: string;
+  /** Batch size for processing (default: 100) */
+  batchSize?: number;
+  /** Maximum cache size for memory backend (default: 10000) */
+  maxCacheSize?: number;
+  /**
+   * Storage backend type (SP-2 - Issue #146)
+   * - 'memory': In-memory with LRU (default, backward compatible)
+   * - 'redis': Distributed caching (requires Redis config)
+   * - 'sqlite': Persistent local storage
+   */
+  cacheBackend?: BackendType;
+  /** Full cache configuration for advanced setups */
+  cacheConfig?: Partial<EmbeddingCacheConfig>;
+  /** Pre-configured cache instance (for dependency injection) */
+  cache?: EmbeddingCache | EnhancedEmbeddingCache;
+}
+
 export class NomicEmbedder {
   private client: OllamaClient;
-  private cache: EmbeddingCache;
+  private cache: IEmbeddingCache;
+  private enhancedCache?: EnhancedEmbeddingCache;
   private batchSize: number;
+  private cacheInitialized: boolean = false;
 
+  /**
+   * Create a NomicEmbedder instance
+   *
+   * @example Basic usage (backward compatible):
+   * ```typescript
+   * const embedder = new NomicEmbedder();
+   * ```
+   *
+   * @example With configuration object:
+   * ```typescript
+   * const embedder = new NomicEmbedder({
+   *   ollamaBaseUrl: 'http://localhost:11434',
+   *   cacheBackend: 'sqlite',
+   *   cacheConfig: { sqlite: { dbPath: './data/embeddings.db' } }
+   * });
+   * await embedder.initializeCache();
+   * ```
+   *
+   * @example Legacy constructor (deprecated but supported):
+   * ```typescript
+   * const embedder = new NomicEmbedder('http://localhost:11434', 5000, 50);
+   * ```
+   */
   constructor(
-    ollamaBaseUrl?: string,
+    configOrUrl?: NomicEmbedderConfig | string,
     maxCacheSize?: number,
     batchSize: number = EMBEDDING_CONFIG.BATCH_SIZE
   ) {
-    this.client = new OllamaClient(ollamaBaseUrl);
-    this.cache = new EmbeddingCache(maxCacheSize);
-    this.batchSize = batchSize;
+    // Handle both legacy and new constructor signatures
+    if (typeof configOrUrl === 'string' || configOrUrl === undefined) {
+      // Legacy constructor: (ollamaBaseUrl?, maxCacheSize?, batchSize?)
+      this.client = new OllamaClient(configOrUrl);
+      this.cache = new EmbeddingCache(maxCacheSize);
+      this.batchSize = batchSize;
+      this.cacheInitialized = true; // Simple cache is immediately ready
+    } else {
+      // New constructor with config object
+      const config = configOrUrl;
+      this.client = new OllamaClient(config.ollamaBaseUrl);
+      this.batchSize = config.batchSize ?? EMBEDDING_CONFIG.BATCH_SIZE;
+
+      if (config.cache) {
+        // Use pre-configured cache
+        this.cache = config.cache;
+        if (config.cache instanceof EnhancedEmbeddingCache) {
+          this.enhancedCache = config.cache;
+        }
+        this.cacheInitialized = true;
+      } else if (config.cacheBackend && config.cacheBackend !== 'memory') {
+        // Create enhanced cache with specified backend
+        this.enhancedCache = createEmbeddingCache({
+          backend: config.cacheBackend,
+          maxSize: config.maxCacheSize ?? config.cacheConfig?.maxSize,
+          ...config.cacheConfig,
+        });
+        this.cache = this.enhancedCache;
+        // Enhanced cache needs initialization
+        this.cacheInitialized = false;
+      } else {
+        // Default: Simple in-memory cache (backward compatible)
+        this.cache = new EmbeddingCache(config.maxCacheSize);
+        this.cacheInitialized = true;
+      }
+    }
+  }
+
+  /**
+   * Initialize the cache backend (required for Redis/SQLite)
+   * No-op for simple in-memory cache
+   */
+  async initializeCache(): Promise<void> {
+    if (this.cacheInitialized) {
+      return;
+    }
+
+    if (this.enhancedCache) {
+      await this.enhancedCache.initialize();
+    }
+
+    this.cacheInitialized = true;
+  }
+
+  /**
+   * Close the cache backend and release resources
+   */
+  async closeCache(): Promise<void> {
+    if (this.enhancedCache) {
+      await this.enhancedCache.close();
+    }
+    this.cacheInitialized = false;
+  }
+
+  /**
+   * Check if using enhanced cache with pluggable backend
+   */
+  isUsingEnhancedCache(): boolean {
+    return this.enhancedCache !== undefined;
+  }
+
+  /**
+   * Get the cache backend type
+   */
+  getCacheBackendType(): string {
+    if (this.enhancedCache) {
+      return this.enhancedCache.getBackendName();
+    }
+    return 'memory';
   }
 
   /**
    * Generate embedding for a single text string
    */
   async embed(text: string): Promise<number[]> {
-    // Check cache first
-    const cached = this.cache.get(text, EMBEDDING_CONFIG.MODEL);
+    // Ensure cache is initialized
+    if (!this.cacheInitialized) {
+      await this.initializeCache();
+    }
+
+    // Check cache first (handle both sync and async)
+    const cachedResult = this.cache.get(text, EMBEDDING_CONFIG.MODEL);
+    const cached = cachedResult instanceof Promise ? await cachedResult : cachedResult;
     if (cached) {
       return cached;
     }
@@ -49,8 +197,11 @@ export class NomicEmbedder {
     // Generate new embedding
     const embedding = await this.client.generateEmbedding(text);
 
-    // Cache result
-    this.cache.set(text, EMBEDDING_CONFIG.MODEL, embedding);
+    // Cache result (handle both sync and async)
+    const setResult = this.cache.set(text, EMBEDDING_CONFIG.MODEL, embedding);
+    if (setResult instanceof Promise) {
+      await setResult;
+    }
 
     return embedding;
   }
@@ -100,6 +251,11 @@ export class NomicEmbedder {
     chunks: CodeChunk[],
     progressCallback?: ProgressCallback
   ): Promise<EmbeddingBatchResult> {
+    // Ensure cache is initialized
+    if (!this.cacheInitialized) {
+      await this.initializeCache();
+    }
+
     const startTime = Date.now();
     const results: EmbeddingResult[] = [];
     let cachedHits = 0;
@@ -167,8 +323,9 @@ export class NomicEmbedder {
       const formattedText = this.formatForEmbedding(chunk);
       const chunkStartTime = Date.now();
 
-      // Check cache
-      const cachedEmbedding = this.cache.get(formattedText, EMBEDDING_CONFIG.MODEL);
+      // Check cache (handle both sync and async)
+      const cacheResult = this.cache.get(formattedText, EMBEDDING_CONFIG.MODEL);
+      const cachedEmbedding = cacheResult instanceof Promise ? await cacheResult : cacheResult;
 
       if (cachedEmbedding) {
         return {
@@ -184,8 +341,11 @@ export class NomicEmbedder {
       try {
         const embedding = await this.client.generateEmbedding(formattedText);
 
-        // Cache the result
-        this.cache.set(formattedText, EMBEDDING_CONFIG.MODEL, embedding);
+        // Cache the result (handle both sync and async)
+        const setResult = this.cache.set(formattedText, EMBEDDING_CONFIG.MODEL, embedding);
+        if (setResult instanceof Promise) {
+          await setResult;
+        }
 
         return {
           chunkId: chunk.id,
@@ -210,22 +370,40 @@ export class NomicEmbedder {
   /**
    * Clear the embedding cache
    */
-  clearCache(): void {
-    this.cache.clear();
+  async clearCache(): Promise<void> {
+    const result = this.cache.clear();
+    if (result instanceof Promise) {
+      await result;
+    }
   }
 
   /**
    * Get cache statistics
    */
-  getCacheStats() {
-    return this.cache.getStats();
+  async getCacheStats(): Promise<CacheStats & { backendType?: BackendType }> {
+    const result = this.cache.getStats();
+    if (result instanceof Promise) {
+      return await result;
+    }
+    return result;
   }
 
   /**
    * Get cache memory usage estimate
+   * Note: Only available for simple in-memory cache
    */
   getCacheMemoryUsage(): number {
-    return this.cache.getMemoryUsageEstimate();
+    // Only simple EmbeddingCache has this method
+    if (this.cache instanceof EmbeddingCache) {
+      return this.cache.getMemoryUsageEstimate();
+    }
+    // For enhanced cache, estimate based on stats
+    const stats = (this.cache as EmbeddingCache).getStats?.();
+    if (stats && typeof stats === 'object' && 'size' in stats) {
+      // Rough estimate: 768 floats * 8 bytes + 100 bytes overhead per entry
+      return (stats as CacheStats).size * (768 * 8 + 100);
+    }
+    return 0;
   }
 
   /**
@@ -244,9 +422,18 @@ export class NomicEmbedder {
 
   /**
    * Evict old cache entries
+   * Note: For enhanced cache with Redis/SQLite, TTL-based expiration is automatic
    */
-  evictOldCacheEntries(ageMs: number): number {
-    return this.cache.evictOlderThan(ageMs);
+  async evictOldCacheEntries(ageMs: number): Promise<number> {
+    // Simple EmbeddingCache has evictOlderThan
+    if (this.cache instanceof EmbeddingCache) {
+      return this.cache.evictOlderThan(ageMs);
+    }
+    // Enhanced cache uses prune method
+    if (this.enhancedCache) {
+      return this.enhancedCache.prune();
+    }
+    return 0;
   }
 
   /**
@@ -266,11 +453,11 @@ export class NomicEmbedder {
   /**
    * Estimate total time for embedding batch
    */
-  estimateBatchTime(
+  async estimateBatchTime(
     chunkCount: number,
     assumedTimePerEmbeddingMs: number = 100
-  ): number {
-    const cacheStats = this.getCacheStats();
+  ): Promise<number> {
+    const cacheStats = await this.getCacheStats();
     const expectedCacheHitRate = cacheStats.hitRate || 0;
     const expectedCacheMisses = chunkCount * (1 - expectedCacheHitRate);
 
