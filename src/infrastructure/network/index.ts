@@ -61,4 +61,9 @@ export {
   getNetworkPolicy,
   listPolicyAgentTypes,
   mergePolicy,
+  createRestrictivePolicy,
+  enableRestrictiveModeGlobally,
+  LLM_PROVIDER_DOMAINS,
+  DEVELOPMENT_DOMAINS,
+  RESTRICTIVE_POLICY_TEMPLATE,
 } from './policies/default-policies.js';

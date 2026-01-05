@@ -14,7 +14,11 @@ import type {
   NetworkPolicyEvent,
   PolicyCheckResult,
 } from '../../../../src/infrastructure/network/types.js';
-import { DEFAULT_NETWORK_POLICIES } from '../../../../src/infrastructure/network/policies/default-policies.js';
+import {
+  DEFAULT_NETWORK_POLICIES,
+  createRestrictivePolicy,
+  LLM_PROVIDER_DOMAINS,
+} from '../../../../src/infrastructure/network/policies/default-policies.js';
 
 describe('NetworkPolicyManager', () => {
   let manager: NetworkPolicyManager;
@@ -98,7 +102,9 @@ describe('NetworkPolicyManager', () => {
     it('should return policy for known agent type', () => {
       const policy = manager.getPolicy('qe-test-generator');
       expect(policy.agentType).toBe('qe-test-generator');
-      expect(policy.allowedDomains).toContain('api.anthropic.com');
+      // Default policies are permissive - allowedDomains is empty (allow all)
+      expect(policy.blockUnknownDomains).toBe(false);
+      expect(policy.auditLogging).toBe(true);
     });
 
     it('should return default policy for unknown agent type', () => {
@@ -108,21 +114,36 @@ describe('NetworkPolicyManager', () => {
   });
 
   describe('checkRequest', () => {
-    it('should allow request to whitelisted domain', async () => {
+    it('should allow request to any domain with permissive policy (default)', async () => {
+      // Default policies are permissive (blockUnknownDomains: false)
       const result = await manager.checkRequest(
         'agent-123',
         'qe-test-generator',
-        'api.anthropic.com'
+        'arbitrary.example.com'
       );
 
       expect(result.allowed).toBe(true);
       expect(result.policy.agentType).toBe('qe-test-generator');
     });
 
-    it('should block request to non-whitelisted domain', async () => {
+    it('should block request to non-whitelisted domain when restrictive policy is enabled', async () => {
+      // Register a restrictive policy (opt-in)
+      const restrictivePolicy: NetworkPolicy = {
+        agentType: 'restrictive-agent',
+        allowedDomains: ['api.anthropic.com'],
+        rateLimit: {
+          requestsPerMinute: 60,
+          requestsPerHour: 1000,
+          burstSize: 10,
+        },
+        auditLogging: true,
+        blockUnknownDomains: true, // OPT-IN restrictive mode
+      };
+      manager.registerPolicy(restrictivePolicy);
+
       const result = await manager.checkRequest(
         'agent-123',
-        'qe-test-generator',
+        'restrictive-agent',
         'blocked.example.com'
       );
 
@@ -142,7 +163,7 @@ describe('NetworkPolicyManager', () => {
           burstSize: 2,
         },
         auditLogging: true,
-        blockUnknownDomains: true,
+        blockUnknownDomains: false, // Permissive but rate limited
       };
       manager.registerPolicy(limitedPolicy);
 
@@ -159,10 +180,11 @@ describe('NetworkPolicyManager', () => {
     });
 
     it('should use default policy for unknown agent type', async () => {
+      // Default policy is permissive, so arbitrary domains are allowed
       const result = await manager.checkRequest(
         'agent-unknown',
         'unknown-agent-type',
-        'api.anthropic.com'
+        'any-domain.example.com'
       );
 
       expect(result.allowed).toBe(true);
@@ -252,11 +274,25 @@ describe('NetworkPolicyManager', () => {
   });
 
   describe('event handling', () => {
-    it('should emit events on blocked request', async () => {
+    it('should emit events on blocked request with restrictive policy', async () => {
+      // Register a restrictive policy to test blocking events
+      const restrictivePolicy: NetworkPolicy = {
+        agentType: 'event-test-agent',
+        allowedDomains: ['api.anthropic.com'],
+        rateLimit: {
+          requestsPerMinute: 60,
+          requestsPerHour: 1000,
+          burstSize: 10,
+        },
+        auditLogging: true,
+        blockUnknownDomains: true, // OPT-IN restrictive mode
+      };
+      manager.registerPolicy(restrictivePolicy);
+
       const events: NetworkPolicyEvent[] = [];
       manager.on((event) => events.push(event));
 
-      await manager.checkRequest('agent-1', 'qe-test-generator', 'blocked.example.com');
+      await manager.checkRequest('agent-1', 'event-test-agent', 'blocked.example.com');
 
       expect(events.length).toBeGreaterThan(0);
       expect(events.some((e) => e.type === 'request_blocked')).toBe(true);
@@ -275,6 +311,20 @@ describe('NetworkPolicyManager', () => {
     });
 
     it('should handle errors in event handlers gracefully', async () => {
+      // Register a restrictive policy to trigger blocking
+      const restrictivePolicy: NetworkPolicy = {
+        agentType: 'error-test-agent',
+        allowedDomains: ['api.anthropic.com'],
+        rateLimit: {
+          requestsPerMinute: 60,
+          requestsPerHour: 1000,
+          burstSize: 10,
+        },
+        auditLogging: true,
+        blockUnknownDomains: true,
+      };
+      manager.registerPolicy(restrictivePolicy);
+
       const errorHandler = () => {
         throw new Error('Handler error');
       };
@@ -282,7 +332,7 @@ describe('NetworkPolicyManager', () => {
 
       // Should not throw
       await expect(
-        manager.checkRequest('agent-1', 'qe-test-generator', 'blocked.example.com')
+        manager.checkRequest('agent-1', 'error-test-agent', 'blocked.example.com')
       ).resolves.toBeDefined();
     });
   });
@@ -356,15 +406,35 @@ describe('DEFAULT_NETWORK_POLICIES', () => {
     expect(DEFAULT_NETWORK_POLICIES.default.agentType).toBe('default');
   });
 
-  it('should have restrictive default policy', () => {
+  it('should have permissive default policy (opt-in restrictive)', () => {
+    // Default policies are PERMISSIVE - restrictive mode is opt-in
     const defaultPolicy = DEFAULT_NETWORK_POLICIES.default;
-    expect(defaultPolicy.blockUnknownDomains).toBe(true);
-    expect(defaultPolicy.rateLimit.requestsPerMinute).toBeLessThanOrEqual(60);
+    expect(defaultPolicy.blockUnknownDomains).toBe(false);
+    expect(defaultPolicy.auditLogging).toBe(true);
   });
 
-  it('should include security domains for security scanner', () => {
-    const securityPolicy = DEFAULT_NETWORK_POLICIES['qe-security-scanner'];
-    expect(securityPolicy.allowedDomains).toContain('nvd.nist.gov');
-    expect(securityPolicy.allowedDomains).toContain('cve.mitre.org');
+  it('should have reasonable rate limits', () => {
+    // Rate limiting still applies even with permissive domain policy
+    const defaultPolicy = DEFAULT_NETWORK_POLICIES.default;
+    expect(defaultPolicy.rateLimit.requestsPerMinute).toBeGreaterThan(0);
+    expect(defaultPolicy.rateLimit.requestsPerHour).toBeGreaterThan(0);
+  });
+
+  it('should provide createRestrictivePolicy for opt-in security', () => {
+    // For security-sensitive deployments, use createRestrictivePolicy
+    const restrictive = createRestrictivePolicy('qe-test-generator', ['custom.example.com']);
+    expect(restrictive.blockUnknownDomains).toBe(true);
+    expect(restrictive.allowedDomains).toContain('api.anthropic.com');
+    expect(restrictive.allowedDomains).toContain('custom.example.com');
+  });
+
+  it('should include all LLM provider domains in restrictive policy', () => {
+    const restrictive = createRestrictivePolicy('qe-test-generator');
+    // Multi-model router domains
+    expect(restrictive.allowedDomains).toContain('api.anthropic.com');
+    expect(restrictive.allowedDomains).toContain('api.openai.com');
+    expect(restrictive.allowedDomains).toContain('openrouter.ai');
+    expect(restrictive.allowedDomains).toContain('api.groq.com');
+    expect(restrictive.allowedDomains).toContain('localhost');
   });
 });
