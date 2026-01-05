@@ -745,7 +745,8 @@ export class SupabasePersistenceProvider implements IPersistenceProvider {
       queryBuilder = queryBuilder.eq('owner', query.owner);
     }
     if (query.keyPattern) {
-      queryBuilder = queryBuilder.ilike('key', query.keyPattern.replace('*', '%'));
+      // Use regex with global flag to replace ALL occurrences of * with %
+      queryBuilder = queryBuilder.ilike('key', query.keyPattern.replace(/\*/g, '%'));
     }
     if (query.accessLevel) {
       queryBuilder = queryBuilder.eq('access_level', query.accessLevel);
@@ -776,7 +777,8 @@ export class SupabasePersistenceProvider implements IPersistenceProvider {
       .from(SUPABASE_TABLES.MEMORY_ENTRIES)
       .delete()
       .eq('project_id', this.projectId!)
-      .ilike('key', keyPattern.replace('*', '%'));
+      // Use regex with global flag to replace ALL occurrences of * with %
+      .ilike('key', keyPattern.replace(/\*/g, '%'));
 
     if (partition) {
       queryBuilder = queryBuilder.eq('partition', partition);
@@ -967,7 +969,8 @@ export class SupabasePersistenceProvider implements IPersistenceProvider {
       .eq('project_id', query.projectId ?? this.projectId!);
 
     if (query.filePattern) {
-      queryBuilder = queryBuilder.ilike('file_path', query.filePattern.replace('*', '%'));
+      // Use regex with global flag to replace ALL occurrences of * with %
+      queryBuilder = queryBuilder.ilike('file_path', query.filePattern.replace(/\*/g, '%'));
     }
     if (query.chunkType) {
       queryBuilder = queryBuilder.eq('chunk_type', query.chunkType);
@@ -976,7 +979,8 @@ export class SupabasePersistenceProvider implements IPersistenceProvider {
       queryBuilder = queryBuilder.eq('language', query.language);
     }
     if (query.namePattern) {
-      queryBuilder = queryBuilder.ilike('name', query.namePattern.replace('*', '%'));
+      // Use regex with global flag to replace ALL occurrences of * with %
+      queryBuilder = queryBuilder.ilike('name', query.namePattern.replace(/\*/g, '%'));
     }
 
     if (query.offset) {
