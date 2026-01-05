@@ -191,7 +191,7 @@ describe('NomicEmbedder', () => {
       await embedder.embed(text);
       await embedder.embed(text);
 
-      const stats = embedder.getCacheStats();
+      const stats = await embedder.getCacheStats();
 
       expect(stats.hits).toBe(2);
       expect(stats.misses).toBe(1);
@@ -202,18 +202,20 @@ describe('NomicEmbedder', () => {
       await embedder.embed('version 1');
       await embedder.embed('version 2'); // Different content
 
-      const stats = embedder.getCacheStats();
+      const stats = await embedder.getCacheStats();
 
       expect(stats.misses).toBe(2); // Both should be cache misses
     });
 
     it('should clear cache on demand', async () => {
       await embedder.embed('some content');
-      expect(embedder.getCacheStats().size).toBeGreaterThan(0);
+      const statsBefore = await embedder.getCacheStats();
+      expect(statsBefore.size).toBeGreaterThan(0);
 
-      embedder.clearCache();
+      await embedder.clearCache();
 
-      expect(embedder.getCacheStats().size).toBe(0);
+      const statsAfter = await embedder.getCacheStats();
+      expect(statsAfter.size).toBe(0);
     });
 
     it('should estimate memory usage', async () => {
@@ -454,8 +456,8 @@ describe('NomicEmbedder', () => {
       expect(config.batchSize).toBe(50);
     });
 
-    it('should estimate batch time', () => {
-      const estimate = embedder.estimateBatchTime(100, 50);
+    it('should estimate batch time', async () => {
+      const estimate = await embedder.estimateBatchTime(100, 50);
 
       // With empty cache, should estimate 100 * 50ms = 5000ms
       expect(estimate).toBeGreaterThan(0);
@@ -470,7 +472,7 @@ describe('NomicEmbedder', () => {
       await new Promise((r) => setTimeout(r, 10));
 
       // Evict entries older than 5ms
-      const evicted = embedder.evictOldCacheEntries(5);
+      const evicted = await embedder.evictOldCacheEntries(5);
 
       expect(evicted).toBeGreaterThanOrEqual(0);
     });
@@ -484,7 +486,7 @@ describe('NomicEmbedder', () => {
       await embedder.warmupCache(chunks);
 
       // Cache should now contain these entries
-      const stats = embedder.getCacheStats();
+      const stats = await embedder.getCacheStats();
       expect(stats.size).toBeGreaterThan(0);
     });
 
