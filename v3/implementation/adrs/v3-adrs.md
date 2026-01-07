@@ -1,0 +1,991 @@
+# Agentic QE v3 - Architecture Decision Records
+
+**Project:** Agentic QE v3 Reimagining
+**Date Range:** 2026-01-07 onwards
+**Status:** Proposed
+**Decision Authority:** Architecture Team
+
+---
+
+## ADR Index
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| ADR-001 | Adopt DDD for QE Bounded Contexts | Proposed | 2026-01-07 |
+| ADR-002 | Event-Driven Domain Communication | Proposed | 2026-01-07 |
+| ADR-003 | Sublinear Algorithms for Coverage Analysis | Proposed | 2026-01-07 |
+| ADR-004 | Plugin Architecture for QE Extensions | Proposed | 2026-01-07 |
+| ADR-005 | AI-First Test Generation | Proposed | 2026-01-07 |
+| ADR-006 | Unified Learning System | Proposed | 2026-01-07 |
+| ADR-007 | Quality Gate Decision Engine | Proposed | 2026-01-07 |
+| ADR-008 | Multi-Agent Hierarchical Coordination | Proposed | 2026-01-07 |
+| ADR-009 | AgentDB as Primary Memory Backend | Proposed | 2026-01-07 |
+| ADR-010 | MCP-First Tool Design | Proposed | 2026-01-07 |
+| ADR-011 | LLM Provider System for QE | Proposed | 2026-01-07 |
+| ADR-012 | MCP Security Features for QE | Proposed | 2026-01-07 |
+| ADR-013 | Core Security Module for QE | Proposed | 2026-01-07 |
+| ADR-014 | Background Workers for QE Monitoring | Proposed | 2026-01-07 |
+| ADR-015 | Unified Plugin System for QE Extensions | Proposed | 2026-01-07 |
+| ADR-016 | Collaborative Test Task Claims | Proposed | 2026-01-07 |
+| ADR-017 | RuVector Integration for QE Intelligence | Proposed | 2026-01-07 |
+| ADR-018 | Expanded 12-Domain Architecture | Proposed | 2026-01-07 |
+
+---
+
+## ADR-001: Adopt DDD for QE Bounded Contexts
+
+**Status:** Proposed
+**Date:** 2026-01-07
+**Decision Makers:** Architecture Team
+**Context Owner:** Lead Architect
+
+### Context
+
+Current Agentic QE v2.x implements quality engineering as monolithic services in `src/mcp/tools/` and `src/core/agents/`. This creates:
+- Tight coupling between test generation and execution
+- Difficulty in scaling individual QE capabilities
+- Complex testing due to interdependencies
+- Limited ability to evolve domains independently
+
+**Current State:**
+- All MCP tools in single directory (40+ tools)
+- Agents mixed with different responsibilities
+- Memory implementations scattered
+- No clear domain boundaries
+
+**Analysis:**
+```
+Current Structure:
+├── src/mcp/tools/       # 40+ MCP tool implementations
+├── src/core/agents/     # Mixed agent responsibilities
+├── src/core/memory/     # Multiple memory implementations
+└── High coupling, difficult to test
+
+v3 Target Structure:
+├── src/domains/
+│   ├── test-generation/       # Bounded Context 1
+│   ├── test-execution/        # Bounded Context 2
+│   ├── coverage-analysis/     # Bounded Context 3
+│   ├── quality-assessment/    # Bounded Context 4
+│   ├── defect-intelligence/   # Bounded Context 5
+│   └── learning-optimization/ # Bounded Context 6
+└── Clear boundaries, independent evolution
+```
+
+### Decision
+
+**We will restructure Agentic QE v3 using Domain-Driven Design with 6 bounded contexts focused on quality engineering capabilities.**
+
+Bounded Contexts:
+1. **Test Generation** - AI-powered test creation, pattern learning
+2. **Test Execution** - Parallel execution, retry, flaky detection
+3. **Coverage Analysis** - Sublinear gap detection, risk scoring
+4. **Quality Assessment** - Quality gates, deployment decisions
+5. **Defect Intelligence** - Prediction, root cause, pattern learning
+6. **Learning Optimization** - Cross-domain learning, transfer
+
+### Rationale
+
+**Pros:**
+- Independent evolution of QE capabilities
+- Clearer testing boundaries
+- Team specialization possible
+- Better scalability per domain
+- Aligned with QE workflow stages
+
+**Cons:**
+- Migration effort from v2
+- Cross-domain coordination complexity
+- Learning curve for DDD concepts
+
+**Alternatives Considered:**
+
+1. **Status Quo (Keep Flat Structure)**
+   - Rejected: Scaling issues, tight coupling
+
+2. **Layer-Based Architecture**
+   - Rejected: Doesn't align with QE workflow stages
+
+3. **Feature-Based Modules**
+   - Rejected: Less clear boundaries than DDD
+
+### Implementation Plan
+
+**Phase 1: Foundation (Week 1-2)**
+- Define domain interfaces
+- Create shared kernel
+- Set up event bus
+
+**Phase 2: Core Domains (Week 3-6)**
+- Extract test-generation domain
+- Extract test-execution domain
+- Extract coverage-analysis domain
+
+**Phase 3: Supporting Domains (Week 7-10)**
+- Extract quality-assessment domain
+- Extract defect-intelligence domain
+- Extract learning-optimization domain
+
+### Success Metrics
+
+- [ ] 6 clearly defined bounded contexts
+- [ ] No circular dependencies between domains
+- [ ] Each domain testable in isolation
+- [ ] Domain events for cross-domain communication
+- [ ] <300 lines per domain service
+
+---
+
+## ADR-002: Event-Driven Domain Communication
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+With DDD bounded contexts, we need a communication mechanism that maintains loose coupling while enabling reactive workflows (e.g., automatically generate tests when coverage gaps detected).
+
+### Decision
+
+**Use domain events for all cross-domain communication, enabling reactive QE workflows.**
+
+Key Events:
+- `TestCaseGeneratedEvent` - Triggers coverage analysis
+- `CoverageGapDetectedEvent` - Triggers test generation
+- `TestRunCompletedEvent` - Triggers quality gate evaluation
+- `QualityGateEvaluatedEvent` - Triggers deployment decisions
+- `DefectPredictedEvent` - Triggers targeted testing
+
+### Implementation
+
+```typescript
+// Event Bus Interface
+interface IDomainEventBus {
+  publish(event: DomainEvent): Promise<void>;
+  subscribe<T extends DomainEvent>(
+    eventType: new (...args: any[]) => T,
+    handler: (event: T) => Promise<void>
+  ): void;
+}
+
+// Event Handler Example
+@EventHandler(CoverageGapDetectedEvent)
+class AutoTestGenerationHandler {
+  async handle(event: CoverageGapDetectedEvent): Promise<void> {
+    if (event.riskScore > 0.7) {
+      await this.testGenerator.generateForGap(event);
+    }
+  }
+}
+```
+
+### Success Metrics
+
+- [ ] All cross-domain communication via events
+- [ ] Event handlers are idempotent
+- [ ] Event replay for debugging
+- [ ] <100ms event propagation latency
+
+---
+
+## ADR-003: Sublinear Algorithms for Coverage Analysis
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Coverage analysis in large codebases (100k+ files) using linear O(n) algorithms is too slow for real-time feedback. We need O(log n) algorithms for interactive analysis.
+
+### Decision
+
+**Implement O(log n) coverage analysis using HNSW vector indexing via AgentDB.**
+
+### Implementation
+
+```typescript
+// Sublinear Coverage Analyzer
+class SublinearCoverageAnalyzer {
+  private coverageIndex: HNSWIndex;  // O(log n) search
+
+  async findGaps(query: CoverageQuery): Promise<CoverageGap[]> {
+    // 1. Embed query context
+    const embedding = await this.embedder.embed(query);
+
+    // 2. HNSW search - O(log n)
+    const similar = await this.coverageIndex.search(embedding, { k: 10 });
+
+    // 3. Filter for coverage gaps
+    return similar.filter(f => f.coverage < query.threshold);
+  }
+}
+```
+
+### Performance Targets
+
+| Codebase Size | Traditional O(n) | v3 O(log n) | Improvement |
+|---------------|-----------------|-------------|-------------|
+| 1,000 files   | 1,000 ops       | 10 ops      | 100x        |
+| 10,000 files  | 10,000 ops      | 13 ops      | 770x        |
+| 100,000 files | 100,000 ops     | 17 ops      | 5,900x      |
+
+### Success Metrics
+
+- [ ] <100ms gap detection on 100k files
+- [ ] HNSW index with 1M+ vectors
+- [ ] Real-time coverage updates
+- [ ] >90% accuracy vs linear analysis
+
+---
+
+## ADR-004: Plugin Architecture for QE Extensions
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Agentic QE has specialized testing capabilities (n8n workflows, visual regression, performance) that not all users need. Core should be lean, with extensions as plugins.
+
+### Decision
+
+**Implement microkernel architecture with plugin system for optional QE capabilities.**
+
+**Core (Always Loaded):**
+- Test generation (basic)
+- Test execution
+- Coverage analysis
+- Quality gates
+
+**Plugins (Optional):**
+- n8n Workflow Testing Plugin
+- Visual Regression Plugin
+- Performance Testing Plugin
+- Security Scanning Plugin
+- Accessibility Testing Plugin
+- API Contract Testing Plugin
+
+### Plugin Interface
+
+```typescript
+interface QEPlugin {
+  name: string;
+  version: string;
+  dependencies: string[];
+
+  initialize(kernel: QEKernel): Promise<void>;
+  shutdown(): Promise<void>;
+
+  registerAgents?(): AgentDefinition[];
+  registerMCPTools?(): MCPTool[];
+  registerDomainServices?(): ServiceDefinition[];
+}
+```
+
+### Success Metrics
+
+- [ ] Core <50MB (vs 100MB+ with all features)
+- [ ] Plugin loading <200ms
+- [ ] 6+ official plugins
+- [ ] Plugin development guide
+
+---
+
+## ADR-005: AI-First Test Generation
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Traditional test generation relies on templates and heuristics. AI models (Claude, GPT) can generate higher-quality, context-aware tests.
+
+### Decision
+
+**Make AI-powered test generation the primary method, with template-based as fallback.**
+
+### Implementation
+
+```typescript
+class AITestGenerationService {
+  async generate(request: GenerateTestsRequest): Promise<TestCase[]> {
+    // 1. Analyze source code
+    const analysis = await this.analyzeSource(request.sourceFile);
+
+    // 2. Retrieve learned patterns
+    const patterns = await this.patternRepo.findByContext(request);
+
+    // 3. Identify coverage gaps
+    const gaps = await this.coverageAnalyzer.findGaps(request.sourceFile);
+
+    // 4. Generate via AI
+    const tests = await this.aiClient.generate(
+      this.buildPrompt(analysis, patterns, gaps)
+    );
+
+    // 5. Store successful patterns
+    await this.storePatterns(tests);
+
+    return tests;
+  }
+}
+```
+
+### Success Metrics
+
+- [ ] >80% of generated tests are valid
+- [ ] AI tests improve coverage by 20%+
+- [ ] <30 seconds per test suite generation
+- [ ] Pattern learning improves quality over time
+
+---
+
+## ADR-006: Unified Learning System
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+QE agents learn independently without sharing knowledge. Cross-agent and cross-project learning could significantly improve quality.
+
+### Decision
+
+**Implement unified learning system with pattern storage, cross-agent sharing, and transfer learning.**
+
+### Components
+
+1. **Pattern Storage** - Successful patterns indexed in AgentDB
+2. **Cross-Agent Sharing** - Patterns shared via learning coordinator
+3. **Transfer Learning** - Patterns transferred across projects
+4. **Continuous Improvement** - Feedback loop for pattern refinement
+
+### Success Metrics
+
+- [ ] 1000+ learned patterns per project
+- [ ] 15% improvement per sprint cycle
+- [ ] Cross-project transfer working
+- [ ] Pattern quality scoring
+
+---
+
+## ADR-007: Quality Gate Decision Engine
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Quality gates are currently simple threshold checks. Need intelligent decision engine that considers trends, risk, and context.
+
+### Decision
+
+**Implement intelligent quality gate engine with ML-based risk assessment.**
+
+### Gate Evaluation
+
+```typescript
+class QualityGateEngine {
+  async evaluate(context: GateContext): Promise<GateDecision> {
+    const [
+      coverage,
+      testResults,
+      riskScore,
+      trends,
+      defectPrediction
+    ] = await Promise.all([
+      this.getCoverage(context),
+      this.getTestResults(context),
+      this.calculateRisk(context),
+      this.analyzeTrends(context),
+      this.predictDefects(context)
+    ]);
+
+    // ML-based decision
+    const decision = await this.decisionModel.predict({
+      coverage,
+      testResults,
+      riskScore,
+      trends,
+      defectPrediction
+    });
+
+    return decision;
+  }
+}
+```
+
+### Success Metrics
+
+- [ ] >95% accuracy in gate decisions
+- [ ] <5% false positives (blocking good releases)
+- [ ] <1% false negatives (allowing bad releases)
+- [ ] Trend analysis integrated
+
+---
+
+## ADR-008: Multi-Agent Hierarchical Coordination
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Current agents operate independently. Need hierarchical coordination for complex QE workflows.
+
+### Decision
+
+**Implement hierarchical multi-agent coordination with Queen Coordinator pattern.**
+
+### Agent Hierarchy
+
+```
+                Queen Coordinator
+                      |
+    +--------+--------+--------+--------+
+    |        |        |        |        |
+   Test    Quality  Coverage  Learning  Execution
+   Gen      Gates   Analysis  Coord     Coord
+   |        |        |        |         |
+  2-5      6-8      9-11     12-14     15-17
+agents   agents   agents    agents    agents
+```
+
+### Success Metrics
+
+- [ ] >85% agent utilization
+- [ ] <5 minute end-to-end QE workflow
+- [ ] Coordination overhead <10%
+- [ ] Automatic work distribution
+
+---
+
+## ADR-009: AgentDB as Primary Memory Backend
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Multiple memory implementations exist. Need single, optimized backend with vector search and pattern learning.
+
+### Decision
+
+**Use AgentDB with HNSW indexing as primary memory backend for all QE domains.**
+
+### Benefits
+
+- 150x-12,500x faster search via HNSW
+- Vector embeddings for semantic search
+- Built-in RL algorithms
+- Cross-agent memory sharing
+
+### Success Metrics
+
+- [ ] <10ms vector search
+- [ ] 1M+ patterns indexed
+- [ ] Seamless cross-domain access
+- [ ] Memory usage <500MB
+
+---
+
+## ADR-010: MCP-First Tool Design
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+QE functionality should be accessible via multiple interfaces (CLI, API, programmatic). MCP provides standard interface.
+
+### Decision
+
+**All QE functionality exposed as MCP tools first, with CLI as wrapper.**
+
+### Implementation
+
+```typescript
+// MCP Tool (primary)
+const generateTestsTool: MCPTool = {
+  name: 'qe/tests/generate',
+  handler: async (input, context) => {
+    return context.testGenerator.generate(input);
+  }
+};
+
+// CLI Command (wrapper)
+class GenerateCommand {
+  async execute(args: Args): Promise<void> {
+    const result = await mcpClient.callTool('qe/tests/generate', args);
+    console.log(result);
+  }
+}
+```
+
+### Success Metrics
+
+- [ ] 100% MCP coverage
+- [ ] CLI adds <10% code
+- [ ] Consistent API across interfaces
+- [ ] Auto-generated documentation
+
+---
+
+## Decision Framework
+
+For future ADRs, use this template:
+
+### ADR-XXX: [Title]
+
+**Status:** Proposed | Accepted | Deprecated | Superseded
+**Date:** YYYY-MM-DD
+
+#### Context
+What is the issue we're trying to solve?
+
+#### Decision
+What are we going to do?
+
+#### Rationale
+Why this decision? What alternatives did we consider?
+
+#### Consequences
+What are the trade-offs?
+
+#### Implementation
+How will we do this?
+
+#### Success Metrics
+How do we know it worked?
+
+---
+
+## ADR-011: LLM Provider System for QE
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Test generation requires multiple LLM providers for different scenarios:
+- Claude for complex reasoning and test design
+- GPT-4 for alternative test perspectives
+- Local models (Ollama) for fast iteration and cost control
+- Cost tracking for test generation budget management
+
+### Decision
+
+**Implement unified LLM provider system with cost tracking, failover, and circuit breaker.**
+
+Key Components:
+- Provider Manager with round-robin/cost-based load balancing
+- Circuit breaker for cascading failure prevention
+- Cost tracking per test generation request
+- LRU caching for repeated test generation patterns
+
+Provider Priority:
+1. Claude (primary) - Complex test generation
+2. GPT-4 (secondary) - Alternative test perspectives
+3. Ollama (local) - Fast iteration, unlimited runs
+
+### Success Metrics
+
+- [ ] 3+ LLM providers supported
+- [ ] Cost tracking with budget alerts
+- [ ] Circuit breaker prevents cascading failures
+- [ ] <50ms overhead for provider selection
+
+---
+
+## ADR-012: MCP Security Features for QE
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+QE MCP tools handle sensitive operations: test execution, code analysis, credential management for integration tests. Need security hardening.
+
+### Decision
+
+**Implement security features following claude-flow v3 patterns.**
+
+Security Features:
+- **JSON Schema Validation** - Validate all MCP tool inputs
+- **Rate Limiting** - Token bucket (100 req/s, 200 burst)
+- **OAuth 2.1 + PKCE** - Enterprise authentication
+- **Sampling** - Server-initiated LLM for AI-driven test decisions
+
+CVE Prevention:
+- Path traversal protection
+- ReDoS prevention with regex escaping
+- Timing-safe authentication comparison
+
+### Success Metrics
+
+- [ ] All MCP tools have input schema validation
+- [ ] Rate limiting prevents abuse
+- [ ] OAuth 2.1 for enterprise deployments
+- [ ] Zero critical CVEs
+
+---
+
+## ADR-013: Core Security Module for QE
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+QE executes tests with potentially dangerous operations: file access, command execution, credential handling for integration tests.
+
+### Decision
+
+**Create `@agentic-qe/security` package with defense-in-depth.**
+
+Components:
+1. **Safe Executor** - No shell interpretation, command allowlist
+2. **Path Validator** - Traversal prevention, jail directories
+3. **Credential Manager** - Secure storage for integration test credentials
+4. **Input Sanitizer** - XSS, injection prevention
+
+```typescript
+const security = createSecurityModule({
+  projectRoot: process.cwd(),
+  allowedCommands: ['npm', 'jest', 'vitest', 'playwright'],
+  allowedPaths: ['src/', 'tests/', 'coverage/']
+});
+
+// Safe test execution
+await security.safeExecutor.execute('jest', ['--coverage']);
+```
+
+### Success Metrics
+
+- [ ] No command injection vulnerabilities
+- [ ] Path traversal blocked
+- [ ] Credentials encrypted at rest
+- [ ] 400+ security tests passing
+
+---
+
+## ADR-014: Background Workers for QE Monitoring
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+QE needs continuous monitoring: test health, coverage trends, flaky test detection, security scanning. Claude-flow v3 has 12 background workers.
+
+### Decision
+
+**Implement QE-specific background worker system with daemon support.**
+
+QE Workers (10 total):
+
+| Worker | Interval | Description |
+|--------|----------|-------------|
+| test-health | 5 min | Monitor test suite health |
+| coverage-tracker | 10 min | Track coverage trends |
+| flaky-detector | 15 min | Detect flaky test patterns |
+| security-scan | 30 min | Security vulnerability scanning |
+| quality-gate | 5 min | Continuous gate evaluation |
+| learning-consolidation | 30 min | Pattern consolidation |
+| defect-predictor | 15 min | ML defect prediction |
+| regression-monitor | 10 min | Watch for regressions |
+| performance-baseline | 1 hour | Performance trend tracking |
+| compliance-checker | 30 min | ADR/DDD compliance |
+
+Session Integration:
+```bash
+# Auto-start on session begin
+aqe daemon start --workers test-health,coverage-tracker,flaky-detector
+
+# Check worker status
+aqe daemon status
+```
+
+### Success Metrics
+
+- [ ] 10 QE workers implemented
+- [ ] Daemon survives session restarts
+- [ ] Historical metrics stored (30 days)
+- [ ] <500ms worker execution time
+
+---
+
+## ADR-015: Unified Plugin System for QE Extensions
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+QE has optional capabilities (n8n testing, visual regression, performance testing) that not all users need. Following ADR-004, we need a formal plugin SDK.
+
+### Decision
+
+**Implement plugin SDK with builder pattern following claude-flow v3.**
+
+Plugin Types:
+1. **n8n Workflow Testing Plugin**
+2. **Visual Regression Plugin**
+3. **Performance Testing Plugin**
+4. **API Contract Testing Plugin**
+5. **Accessibility Testing Plugin**
+6. **Security Scanning Plugin**
+
+Builder Pattern:
+```typescript
+const visualPlugin = new QEPluginBuilder('visual-regression', '1.0.0')
+  .withDescription('Visual regression testing with AI')
+  .withMCPTools([screenshotTool, compareTool, baselinesTool])
+  .withAgents(['visual-tester', 'accessibility-checker'])
+  .withWorkers([baselineWorker, regressionWorker])
+  .build();
+
+await registry.register(visualPlugin);
+```
+
+### Success Metrics
+
+- [ ] Plugin SDK published
+- [ ] 6+ official QE plugins
+- [ ] <50ms plugin load time
+- [ ] Plugin development guide
+
+---
+
+## ADR-016: Collaborative Test Task Claims
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Multiple QE agents and humans work on test coverage. Need claim system to prevent duplicate work and enable handoffs.
+
+### Decision
+
+**Implement collaborative claim system for test tasks following claude-flow v3 patterns.**
+
+Claim Types:
+- Coverage gaps (uncovered code → agent claims to write tests)
+- Flaky tests (detected → agent claims to fix)
+- Defect investigations (predicted defect → agent claims to analyze)
+- Test reviews (generated tests → human claims to review)
+
+Work Stealing:
+```typescript
+// Agent B steals stale test gap claim
+const stealable = await claimService.getStealable('test-generation');
+if (stealable.length > 0) {
+  await claimService.steal(stealable[0].gapId, agentB);
+}
+```
+
+Handoff Patterns:
+1. Test Generator → Test Reviewer (human reviews AI tests)
+2. Coverage Analyzer → Test Generator (gaps trigger generation)
+3. Flaky Detector → Flaky Hunter (detection triggers investigation)
+
+### Success Metrics
+
+- [ ] Claim service for test tasks
+- [ ] Work stealing for idle agents
+- [ ] Human ↔ Agent handoffs working
+- [ ] >90% QE agent utilization
+
+---
+
+## ADR-017: RuVector Integration for QE Intelligence
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+RuVector provides ML-based code intelligence that enhances QE:
+- Q-Learning agent routing (80%+ accuracy)
+- AST complexity for test prioritization
+- Diff risk classification for targeted testing
+- Graph analysis for module boundary testing
+
+### Decision
+
+**Integrate RuVector as OPTIONAL dependency with graceful fallback.**
+
+Integration Points:
+
+| RuVector Feature | QE Application |
+|------------------|----------------|
+| Q-Learning Router | Route test tasks to optimal agents |
+| AST Complexity | Prioritize tests by code complexity |
+| Diff Risk Classification | Target tests at high-risk changes |
+| Coverage Routing | Test coverage-aware agent selection |
+| Graph Boundaries | Focus integration tests at module boundaries |
+
+CLI Commands:
+```bash
+# Route test task with Q-Learning
+aqe route --task "Test user authentication" --q-learning
+
+# Analyze code for test prioritization
+aqe analyze complexity --path src/auth/
+
+# Classify PR risk for targeted testing
+aqe analyze diff --risk
+```
+
+Fallback: When RuVector not installed, fall back to rule-based routing.
+
+### Success Metrics
+
+- [ ] RuVector optional dependency configured
+- [ ] Q-Learning routing >80% accuracy
+- [ ] AST complexity analysis integrated
+- [ ] Graceful fallback when unavailable
+
+---
+
+## ADR-018: Expanded 12-Domain Architecture
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Initial v3 architecture (ADR-001) proposed 6 bounded contexts with 21 agents. Analysis of v2 capabilities revealed critical gaps:
+
+**Missing Capabilities from v2:**
+- Code Intelligence (Knowledge Graph) - `qe-code-intelligence`
+- Requirements Validation - `qe-requirements-validator`
+- Regression Risk Analysis - `qe-regression-risk-analyzer`
+- API Contract Testing - `qe-api-contract-validator`
+- Visual Testing - `qe-visual-tester`
+- Accessibility Testing - `qe-a11y-ally`
+- Chaos Engineering - `qe-chaos-engineer`
+- Production Intelligence - `qe-production-intelligence`
+
+**Comparison with claude-flow v3:**
+- claude-flow: 60+ agent types, 26 core commands, 140+ subcommands
+- Initial AQE v3: 21 agents, 6 domains - insufficient
+
+### Decision
+
+**Expand from 6 domains/21 agents to 12 domains/47 agents to ensure complete v2 migration and feature parity with enterprise needs.**
+
+**12 Bounded Contexts:**
+
+| # | Domain | Agents | Key Capabilities |
+|---|--------|--------|------------------|
+| 1 | test-generation | 5 | AI test creation, TDD, data generation |
+| 2 | test-execution | 4 | Parallel execution, flaky detection |
+| 3 | coverage-analysis | 4 | O(log n) gaps, mutation testing |
+| 4 | quality-assessment | 4 | Quality gates, deployment readiness |
+| 5 | defect-intelligence | 4 | Prediction, regression risk |
+| 6 | **requirements-validation** | 4 | BDD, testability scoring (NEW) |
+| 7 | **code-intelligence** | 4 | Knowledge Graph, semantic search (NEW) |
+| 8 | **security-compliance** | 4 | SAST/DAST, compliance (EXPANDED) |
+| 9 | **contract-testing** | 4 | API contracts, GraphQL (NEW) |
+| 10 | **visual-accessibility** | 4 | Visual regression, a11y (NEW) |
+| 11 | **chaos-resilience** | 4 | Chaos engineering, load testing (NEW) |
+| 12 | learning-optimization | 5 | Pattern learning, knowledge transfer |
+
+**Agent Breakdown:**
+- 1 Queen Coordinator
+- 46 Domain Agents (across 12 domains)
+- 7 Subagents (task-specific workers)
+- 2 Specialized (cross-domain: QX Partner, Fleet Commander)
+- **Total: 56 agents**
+
+### Migration Map (v2 → v3)
+
+```
+v2 Agent                    → v3 Agent                     Domain
+─────────────────────────────────────────────────────────────────
+qe-code-intelligence       → v3-qe-code-intelligence       code-intelligence
+qe-requirements-validator  → v3-qe-requirements-validator  requirements-validation
+qe-regression-risk-analyzer→ v3-qe-regression-analyzer     defect-intelligence
+qe-api-contract-validator  → v3-qe-contract-validator      contract-testing
+qe-visual-tester          → v3-qe-visual-tester           visual-accessibility
+qe-a11y-ally              → v3-qe-a11y-specialist         visual-accessibility
+qe-chaos-engineer         → v3-qe-chaos-engineer          chaos-resilience
+qe-security-scanner       → v3-qe-security-scanner        security-compliance
+qe-performance-tester     → v3-qe-performance-profiler    chaos-resilience
+qe-production-intelligence→ v3-qe-production-intel        learning-optimization
+qe-code-complexity        → v3-qe-code-complexity         quality-assessment
+qe-test-data-architect    → v3-qe-test-data-architect     test-generation
+qx-partner                → v3-qe-qx-partner              specialized
+qe-fleet-commander        → v3-qe-fleet-commander         specialized
+```
+
+### New Coordination Protocols
+
+```yaml
+protocols:
+  code-intelligence-index:
+    description: "Knowledge graph indexing"
+    participants: [v3-qe-code-intelligence, v3-qe-semantic-analyzer]
+    triggers: [code-change, hourly, "aqe kg index"]
+
+  security-audit:
+    description: "Security and compliance audit"
+    participants: [v3-qe-security-scanner, v3-qe-compliance-validator]
+    triggers: [daily-2am, dependency-update, "aqe security audit"]
+
+  requirements-validation:
+    description: "Pre-development requirements analysis"
+    participants: [v3-qe-requirements-validator, v3-qe-bdd-scenario-writer]
+    triggers: [user-story-created, sprint-planning]
+```
+
+### Rationale
+
+**Pros:**
+- Complete v2 feature migration
+- Addresses user feedback about missing agents
+- Knowledge Graph crucial for intelligent test targeting
+- Requirements validation enables shift-left testing
+- Visual/a11y testing for modern web applications
+- Chaos engineering for distributed systems
+
+**Cons:**
+- More complex coordination (47 vs 21 agents)
+- Longer migration timeline
+- Higher resource requirements
+
+**Mitigation:**
+- Hierarchical coordination (Queen + 6 group leaders)
+- Max 15 concurrent agents (per claude-flow v3)
+- Lazy loading of domains (only activate when needed)
+
+### Configuration
+
+```yaml
+# .agentic-qe/config.yaml
+v3:
+  domains: 12
+  maxConcurrentAgents: 15
+  lazyLoading: true
+  memoryBackend: hybrid
+  hnswEnabled: true
+  backgroundWorkers: 12
+  hooks: 17
+```
+
+### Success Metrics
+
+- [ ] All 22 v2 QE agents migrated to v3
+- [ ] 12 domains implemented
+- [ ] Knowledge Graph operational with O(log n) search
+- [ ] Requirements validation integrated with CI/CD
+- [ ] Visual/a11y testing automated
+- [ ] <15 concurrent agents during peak load
+
+---
+
+**Document Maintained By:** Architecture Team
+**Last Updated:** 2026-01-07
+**Next Review:** After Sprint 2

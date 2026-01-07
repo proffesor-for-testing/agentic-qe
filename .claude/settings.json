@@ -9,6 +9,13 @@
     "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
     "AQE_MEMORY_ENABLED": "true",
     "AQE_LEARNING_ENABLED": "true",
+    "AQE_V3_MODE": "true",
+    "AQE_V3_DDD_ENABLED": "true",
+    "AQE_V3_DOMAINS": "test-generation,test-execution,coverage-analysis,quality-assessment,defect-intelligence,learning-optimization",
+    "AQE_V3_SWARM_SIZE": "21",
+    "AQE_V3_TOPOLOGY": "hierarchical",
+    "AQE_V3_SUBLINEAR_ENABLED": "true",
+    "AQE_V3_HNSW_ENABLED": "true",
     "RUVECTOR_INTELLIGENCE_ENABLED": "true",
     "RUVECTOR_LEARNING_RATE": "0.1",
     "RUVECTOR_MEMORY_BACKEND": "rvlite",
@@ -456,5 +463,42 @@
       "project-coordinator"
     ],
     "generated": "2026-01-02T15:15:21.897Z"
+  },
+  "v3Configuration": {
+    "domains": {
+      "total": 6,
+      "names": [
+        "test-generation",
+        "test-execution",
+        "coverage-analysis",
+        "quality-assessment",
+        "defect-intelligence",
+        "learning-optimization"
+      ],
+      "sourceDir": "v3/src/domains"
+    },
+    "swarm": {
+      "totalAgents": 21,
+      "topology": "hierarchical",
+      "coordination": "queen-led",
+      "groups": {
+        "test-generation": ["v3-qe-test-architect", "v3-qe-tdd-specialist", "v3-qe-integration-tester", "v3-qe-property-tester"],
+        "quality-gates": ["v3-qe-quality-gate", "v3-qe-deployment-advisor", "v3-qe-risk-assessor"],
+        "intelligence": ["v3-qe-defect-predictor", "v3-qe-pattern-learner", "v3-qe-root-cause-analyzer"],
+        "execution": ["v3-qe-parallel-executor", "v3-qe-flaky-hunter", "v3-qe-retry-handler"],
+        "coverage": ["v3-qe-coverage-specialist", "v3-qe-gap-detector", "v3-qe-risk-scorer"],
+        "learning": ["v3-qe-learning-coordinator", "v3-qe-transfer-specialist", "v3-qe-metrics-optimizer", "v3-qe-knowledge-manager"]
+      }
+    },
+    "performance": {
+      "sublinearTarget": "O(log n)",
+      "coverageTarget": 90,
+      "feedbackTarget": "5min",
+      "learningImprovement": "15%/sprint"
+    },
+    "adrs": {
+      "total": 10,
+      "path": "v3/implementation/adrs/v3-adrs.md"
+    }
   }
 }

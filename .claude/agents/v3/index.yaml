@@ -1,0 +1,325 @@
+# Agentic QE v3 Agents Index
+# Comprehensive hierarchical multi-agent QE coordination system
+# Expanded from 6 domains/21 agents to 12 domains/47 agents
+
+version: "3.0.0-alpha"
+updated: "2026-01-07"
+topology: hierarchical
+totalAgents: 47
+totalDomains: 12
+maxConcurrentAgents: 15
+memoryBackend: hybrid  # SQLite + AgentDB with HNSW
+
+# ============================================
+# COORDINATOR TIER
+# ============================================
+coordinator:
+  description: "Queen coordinator for fleet orchestration"
+  agents:
+    - v3-qe-queen-coordinator
+
+# ============================================
+# DOMAIN GROUPS (12 Bounded Contexts)
+# ============================================
+
+groups:
+  # ----------------------------------------
+  # 1. TEST GENERATION DOMAIN
+  # ----------------------------------------
+  test-generation:
+    description: "AI-powered test creation and optimization"
+    domain: test-generation
+    migrated_from: [qe-test-generator]
+    agents:
+      - v3-qe-test-architect        # Strategic test planning
+      - v3-qe-tdd-specialist        # TDD red-green-refactor
+      - v3-qe-integration-tester    # Integration test creation
+      - v3-qe-property-tester       # Property-based testing
+      - v3-qe-test-data-architect   # Test data generation (from v2)
+
+  # ----------------------------------------
+  # 2. TEST EXECUTION DOMAIN
+  # ----------------------------------------
+  test-execution:
+    description: "Parallel execution, retries, and flaky detection"
+    domain: test-execution
+    migrated_from: [qe-test-executor, qe-flaky-test-hunter]
+    agents:
+      - v3-qe-parallel-executor     # Distributed test execution
+      - v3-qe-flaky-hunter          # Flaky test detection
+      - v3-qe-retry-handler         # Intelligent retry logic
+      - v3-qe-execution-optimizer   # Execution optimization
+
+  # ----------------------------------------
+  # 3. COVERAGE ANALYSIS DOMAIN
+  # ----------------------------------------
+  coverage-analysis:
+    description: "O(log n) sublinear coverage analysis"
+    domain: coverage-analysis
+    migrated_from: [qe-coverage-analyzer]
+    agents:
+      - v3-qe-coverage-specialist   # Coverage metrics
+      - v3-qe-gap-detector          # HNSW-based gap detection
+      - v3-qe-risk-scorer           # Risk-weighted coverage
+      - v3-qe-mutation-tester       # Mutation testing
+
+  # ----------------------------------------
+  # 4. QUALITY ASSESSMENT DOMAIN
+  # ----------------------------------------
+  quality-assessment:
+    description: "Quality gates, metrics, and deployment readiness"
+    domain: quality-assessment
+    migrated_from: [qe-quality-gate, qe-quality-analyzer, qe-deployment-readiness]
+    agents:
+      - v3-qe-quality-gate          # Quality gate evaluation
+      - v3-qe-quality-analyzer      # Metrics analysis
+      - v3-qe-deployment-advisor    # Deployment readiness
+      - v3-qe-code-complexity       # Code complexity analysis (from v2)
+
+  # ----------------------------------------
+  # 5. DEFECT INTELLIGENCE DOMAIN
+  # ----------------------------------------
+  defect-intelligence:
+    description: "Defect prediction, root cause analysis, patterns"
+    domain: defect-intelligence
+    migrated_from: [qe-regression-risk-analyzer]
+    agents:
+      - v3-qe-defect-predictor      # ML-based prediction
+      - v3-qe-pattern-learner       # Pattern recognition
+      - v3-qe-root-cause-analyzer   # Root cause analysis
+      - v3-qe-regression-analyzer   # Regression risk (from v2!)
+
+  # ----------------------------------------
+  # 6. REQUIREMENTS VALIDATION DOMAIN (NEW!)
+  # ----------------------------------------
+  requirements-validation:
+    description: "Requirements analysis and validation"
+    domain: requirements-validation
+    migrated_from: [qe-requirements-validator]
+    agents:
+      - v3-qe-requirements-validator  # Requirements validation (from v2!)
+      - v3-qe-bdd-scenario-writer     # BDD scenario generation
+      - v3-qe-testability-scorer      # Testability analysis
+      - v3-qe-acceptance-criteria     # AC validation
+
+  # ----------------------------------------
+  # 7. CODE INTELLIGENCE DOMAIN (NEW!)
+  # ----------------------------------------
+  code-intelligence:
+    description: "Knowledge graph, semantic code understanding"
+    domain: code-intelligence
+    migrated_from: [qe-code-intelligence]
+    agents:
+      - v3-qe-code-intelligence     # Knowledge Graph builder (from v2!)
+      - v3-qe-semantic-analyzer     # Semantic code analysis
+      - v3-qe-dependency-mapper     # Dependency analysis
+      - v3-qe-impact-analyzer       # Change impact analysis
+
+  # ----------------------------------------
+  # 8. SECURITY & COMPLIANCE DOMAIN
+  # ----------------------------------------
+  security-compliance:
+    description: "Security scanning and compliance validation"
+    domain: security-compliance
+    migrated_from: [qe-security-scanner]
+    agents:
+      - v3-qe-security-scanner      # SAST/DAST scanning (from v2)
+      - v3-qe-security-auditor      # Security audit
+      - v3-qe-compliance-validator  # Regulatory compliance
+      - v3-qe-vulnerability-tracker # CVE tracking
+
+  # ----------------------------------------
+  # 9. CONTRACT & API TESTING DOMAIN (NEW!)
+  # ----------------------------------------
+  contract-testing:
+    description: "API contract validation and compatibility"
+    domain: contract-testing
+    migrated_from: [qe-api-contract-validator]
+    agents:
+      - v3-qe-contract-validator    # Contract testing (from v2!)
+      - v3-qe-api-compatibility     # API compatibility
+      - v3-qe-schema-validator      # Schema validation
+      - v3-qe-graphql-tester        # GraphQL testing
+
+  # ----------------------------------------
+  # 10. VISUAL & ACCESSIBILITY DOMAIN (NEW!)
+  # ----------------------------------------
+  visual-accessibility:
+    description: "Visual regression and accessibility testing"
+    domain: visual-accessibility
+    migrated_from: [qe-visual-tester, qe-a11y-ally]
+    agents:
+      - v3-qe-visual-tester         # Visual regression (from v2)
+      - v3-qe-a11y-specialist       # Accessibility (from v2!)
+      - v3-qe-responsive-tester     # Responsive design
+      - v3-qe-screenshot-differ     # Screenshot comparison
+
+  # ----------------------------------------
+  # 11. CHAOS & RESILIENCE DOMAIN (NEW!)
+  # ----------------------------------------
+  chaos-resilience:
+    description: "Chaos engineering and resilience testing"
+    domain: chaos-resilience
+    migrated_from: [qe-chaos-engineer]
+    agents:
+      - v3-qe-chaos-engineer        # Chaos engineering (from v2!)
+      - v3-qe-resilience-tester     # Resilience validation
+      - v3-qe-load-tester           # Load/stress testing
+      - v3-qe-performance-profiler  # Performance profiling (from v2)
+
+  # ----------------------------------------
+  # 12. LEARNING & OPTIMIZATION DOMAIN
+  # ----------------------------------------
+  learning-optimization:
+    description: "Cross-domain learning and continuous improvement"
+    domain: learning-optimization
+    migrated_from: [qe-production-intelligence]
+    agents:
+      - v3-qe-learning-coordinator  # Learning orchestration
+      - v3-qe-transfer-specialist   # Knowledge transfer
+      - v3-qe-metrics-optimizer     # Metrics optimization
+      - v3-qe-production-intel      # Production intelligence (from v2!)
+      - v3-qe-knowledge-manager     # Knowledge management
+
+# ============================================
+# SPECIALIZED AGENTS (Cross-Domain)
+# ============================================
+specialized:
+  description: "Cross-domain specialized agents"
+  agents:
+    - v3-qe-qx-partner             # Quality Experience (from v2!)
+    - v3-qe-fleet-commander        # Fleet management (from v2!)
+
+# ============================================
+# SUBAGENTS (Task-Specific Workers)
+# ============================================
+subagents:
+  description: "Task-specific worker agents"
+  migrated_from: [subagents/*]
+  agents:
+    - v3-qe-code-reviewer          # Code review
+    - v3-qe-test-writer            # Test writing (TDD RED)
+    - v3-qe-test-implementer       # Implementation (TDD GREEN)
+    - v3-qe-test-refactorer        # Refactoring (TDD REFACTOR)
+    - v3-qe-data-generator         # Data generation
+    - v3-qe-flaky-investigator     # Flaky investigation
+    - v3-qe-coverage-gap-analyzer  # Gap analysis
+
+# ============================================
+# MIGRATION MAP (v2 → v3)
+# ============================================
+migration:
+  completed:
+    - qe-test-generator → v3-qe-test-architect
+    - qe-coverage-analyzer → v3-qe-coverage-specialist
+    - qe-quality-gate → v3-qe-quality-gate
+    - qe-flaky-test-hunter → v3-qe-flaky-hunter
+    - qe-test-executor → v3-qe-parallel-executor
+    - qe-quality-analyzer → v3-qe-quality-analyzer
+    - qe-deployment-readiness → v3-qe-deployment-advisor
+
+  to_migrate:
+    - qe-code-intelligence → v3-qe-code-intelligence
+    - qe-requirements-validator → v3-qe-requirements-validator
+    - qe-regression-risk-analyzer → v3-qe-regression-analyzer
+    - qe-api-contract-validator → v3-qe-contract-validator
+    - qe-visual-tester → v3-qe-visual-tester
+    - qe-a11y-ally → v3-qe-a11y-specialist
+    - qe-chaos-engineer → v3-qe-chaos-engineer
+    - qe-security-scanner → v3-qe-security-scanner
+    - qe-performance-tester → v3-qe-performance-profiler
+    - qe-production-intelligence → v3-qe-production-intel
+    - qe-code-complexity → v3-qe-code-complexity
+    - qe-test-data-architect → v3-qe-test-data-architect
+    - qx-partner → v3-qe-qx-partner
+    - qe-fleet-commander → v3-qe-fleet-commander
+
+# ============================================
+# COORDINATION PROTOCOLS
+# ============================================
+protocols:
+  morning-sync:
+    description: "Daily coordination and prioritization"
+    participants: all
+    triggers:
+      - schedule: "0 9 * * *"
+      - event: session-start
+
+  quality-gate:
+    description: "Pre-release quality evaluation"
+    participants:
+      - v3-qe-queen-coordinator
+      - v3-qe-quality-gate
+      - v3-qe-coverage-specialist
+      - v3-qe-regression-analyzer
+      - v3-qe-security-scanner
+    triggers:
+      - event: release-candidate
+      - command: "aqe orchestrate --phase quality-gate"
+
+  learning-consolidation:
+    description: "End-of-sprint learning consolidation"
+    participants:
+      - v3-qe-learning-coordinator
+      - v3-qe-transfer-specialist
+      - v3-qe-pattern-learner
+      - v3-qe-production-intel
+    triggers:
+      - schedule: "0 18 * * 5"
+      - command: "aqe orchestrate --phase learning-consolidation"
+
+  defect-investigation:
+    description: "Triggered on test failures"
+    participants:
+      - v3-qe-defect-predictor
+      - v3-qe-root-cause-analyzer
+      - v3-qe-flaky-hunter
+      - v3-qe-regression-analyzer
+    triggers:
+      - event: test-failure
+      - command: "aqe investigate <failure-id>"
+
+  code-intelligence-index:
+    description: "Knowledge graph indexing"
+    participants:
+      - v3-qe-code-intelligence
+      - v3-qe-semantic-analyzer
+      - v3-qe-dependency-mapper
+    triggers:
+      - event: code-change
+      - schedule: "0 * * * *"  # hourly
+      - command: "aqe kg index"
+
+  security-audit:
+    description: "Security and compliance audit"
+    participants:
+      - v3-qe-security-scanner
+      - v3-qe-security-auditor
+      - v3-qe-compliance-validator
+    triggers:
+      - schedule: "0 2 * * *"  # 2am daily
+      - event: dependency-update
+      - command: "aqe security audit"
+
+# ============================================
+# CONFIGURATION
+# ============================================
+config:
+  maxConcurrentAgents: 15
+  memoryBackend: hybrid
+  hnswEnabled: true
+  neuralLearning: true
+  backgroundWorkers: 12
+  hooks: 17
+
+# ============================================
+# STATISTICS
+# ============================================
+statistics:
+  totalAgents: 47
+  totalDomains: 12
+  mainAgents: 46
+  subAgents: 7
+  coordinator: 1
+  specialized: 2
+  protocols: 6
