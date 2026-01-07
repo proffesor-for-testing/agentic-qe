@@ -36,9 +36,9 @@ BRIGHT_BLUE='\033[1;34m'
 BRIGHT_PURPLE='\033[1;35m'
 BRIGHT_CYAN='\033[1;36m'
 
-# v3 Development Targets
-DOMAINS_TOTAL=6
-AGENTS_TARGET=21
+# v3 Development Targets (12 DDD Domains, 47 Agents per Master Plan)
+DOMAINS_TOTAL=12
+AGENTS_TARGET=47
 COVERAGE_TARGET=90
 LEARNING_TARGET=15  # % improvement per sprint
 
@@ -66,19 +66,33 @@ if [ -z "$GH_USER" ]; then
 fi
 
 # Check v3 domain implementation progress
-if [ -f "$AQE_METRICS" ]; then
-  DOMAINS_COMPLETED=$(jq -r '.domains.completed // 0' "$AQE_METRICS" 2>/dev/null || echo "0")
-  DDD_PROGRESS=$(jq -r '.ddd.progress // 0' "$AQE_METRICS" 2>/dev/null || echo "0")
-  COVERAGE_CURRENT=$(jq -r '.coverage.current // 0' "$AQE_METRICS" 2>/dev/null || echo "0")
+# A domain is "implemented" if it has at least 3 TypeScript files (not just scaffolding)
+# Scaffolding = 0-1 files, In Progress = 2 files, Implemented = 3+ files
+DOMAINS_COMPLETED=0
+DOMAINS_IN_PROGRESS=0
+V3_DOMAINS="test-generation test-execution coverage-analysis quality-assessment defect-intelligence requirements-validation code-intelligence security-compliance contract-testing visual-accessibility chaos-resilience learning-optimization"
+
+for domain in $V3_DOMAINS; do
+  domain_dir="${PROJECT_DIR}/v3/src/domains/$domain"
+  if [ -d "$domain_dir" ]; then
+    ts_count=$(find "$domain_dir" -name "*.ts" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$ts_count" -ge 3 ]; then
+      ((DOMAINS_COMPLETED++))
+    elif [ "$ts_count" -ge 1 ]; then
+      ((DOMAINS_IN_PROGRESS++))
+    fi
+  fi
+done
+
+# Get REAL test coverage from coverage reports (dynamic, not hardcoded)
+COVERAGE_FILE="${PROJECT_DIR}/coverage/coverage-summary.json"
+if [ -f "$COVERAGE_FILE" ]; then
+  # Read actual line coverage percentage from Jest/Istanbul reports
+  COVERAGE_CURRENT=$(jq -r '.total.lines.pct // 0' "$COVERAGE_FILE" 2>/dev/null | awk '{printf "%.0f", $1}')
+  COVERAGE_CURRENT=${COVERAGE_CURRENT:-0}
 else
-  # Check for v3 domain directories
-  DOMAINS_COMPLETED=0
-  [ -d "v3/src/domains/test-generation" ] && ((DOMAINS_COMPLETED++))
-  [ -d "v3/src/domains/test-execution" ] && ((DOMAINS_COMPLETED++))
-  [ -d "v3/src/domains/coverage-analysis" ] && ((DOMAINS_COMPLETED++))
-  [ -d "v3/src/domains/quality-assessment" ] && ((DOMAINS_COMPLETED++))
-  [ -d "v3/src/domains/defect-intelligence" ] && ((DOMAINS_COMPLETED++))
-  [ -d "v3/src/domains/learning-optimization" ] && ((DOMAINS_COMPLETED++))
+  # No coverage data - will hide metric
+  COVERAGE_CURRENT=-1
 fi
 
 # Get pattern count from memory database
@@ -91,19 +105,35 @@ if [ -f "$LEARNING_METRICS" ]; then
   LEARNING_PROGRESS=$(jq -r '.improvement // 0' "$LEARNING_METRICS" 2>/dev/null || echo "0")
 fi
 
-# Count active QE agents
-AGENTS_ACTIVE=$(ps aux 2>/dev/null | grep -E "(qe-|agentic-qe)" | grep -v grep | wc -l | tr -d ' ')
-AGENTS_ACTIVE=${AGENTS_ACTIVE:-0}
+# Count QE agent definitions (qe-* and v3-qe-* agents only)
+# This shows how many QE agents are defined vs the v3 target of 47
+AGENTS_DIR="${PROJECT_DIR}/.claude/agents"
+if [ -d "$AGENTS_DIR" ]; then
+  # Count QE agent files (qe-*.md and v3-qe-*.md)
+  QE_AGENTS=$(find "$AGENTS_DIR" -name "qe-*.md" -o -name "v3-qe-*.md" 2>/dev/null | wc -l | tr -d ' ')
+else
+  QE_AGENTS=0
+fi
+AGENTS_DEFINED=${QE_AGENTS:-0}
+AGENTS_ACTIVE=$AGENTS_DEFINED
 
-# Calculate context usage
+# Calculate context usage from actual token fields
 CONTEXT_PCT=0
 CONTEXT_COLOR="${DIM}"
 if [ "$CLAUDE_INPUT" != "{}" ]; then
-  CONTEXT_REMAINING=$(echo "$CLAUDE_INPUT" | jq '.context_window.remaining_percentage // null' 2>/dev/null)
-  if [ "$CONTEXT_REMAINING" != "null" ] && [ -n "$CONTEXT_REMAINING" ]; then
-    CONTEXT_PCT=$((100 - CONTEXT_REMAINING))
+  # Get token counts from Claude Code JSON
+  INPUT_TOKENS=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.input_tokens // 0' 2>/dev/null)
+  CACHE_CREATE=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0' 2>/dev/null)
+  CACHE_READ=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0' 2>/dev/null)
+  WINDOW_SIZE=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.context_window_size // 0' 2>/dev/null)
+
+  # Calculate percentage: (current_tokens / window_size) * 100
+  if [ "$WINDOW_SIZE" -gt 0 ] 2>/dev/null; then
+    CURRENT_TOKENS=$((INPUT_TOKENS + CACHE_CREATE + CACHE_READ))
+    CONTEXT_PCT=$((CURRENT_TOKENS * 100 / WINDOW_SIZE))
   fi
 
+  # Color based on usage
   if [ "$CONTEXT_PCT" -lt 50 ]; then
     CONTEXT_COLOR="${BRIGHT_GREEN}"
   elif [ "$CONTEXT_PCT" -lt 75 ]; then
@@ -113,23 +143,36 @@ if [ "$CLAUDE_INPUT" != "{}" ]; then
   fi
 fi
 
-# Domain status indicators
+# Domain status indicators (3 states: completed, in-progress, empty)
 COMPLETED_DOMAIN="${BRIGHT_GREEN}●${RESET}"
+IN_PROGRESS_DOMAIN="${YELLOW}◐${RESET}"
 PENDING_DOMAIN="${DIM}○${RESET}"
 DOMAIN_STATUS=""
+# Show completed domains (green)
 for i in $(seq 1 $DOMAINS_COMPLETED); do
   DOMAIN_STATUS="${DOMAIN_STATUS}${COMPLETED_DOMAIN}"
 done
-for i in $(seq $((DOMAINS_COMPLETED + 1)) $DOMAINS_TOTAL); do
+# Show in-progress domains (yellow)
+for i in $(seq 1 $DOMAINS_IN_PROGRESS); do
+  DOMAIN_STATUS="${DOMAIN_STATUS}${IN_PROGRESS_DOMAIN}"
+done
+# Show empty/pending domains (dim)
+DOMAINS_EMPTY=$((DOMAINS_TOTAL - DOMAINS_COMPLETED - DOMAINS_IN_PROGRESS))
+for i in $(seq 1 $DOMAINS_EMPTY); do
   DOMAIN_STATUS="${DOMAIN_STATUS}${PENDING_DOMAIN}"
 done
 
-# Coverage status color
+# Coverage status color (handle -1 = no data)
 COVERAGE_COLOR="${BRIGHT_RED}"
-if [ "$COVERAGE_CURRENT" -ge 90 ]; then
+COVERAGE_HIDDEN=false
+if [ "$COVERAGE_CURRENT" -lt 0 ]; then
+  COVERAGE_HIDDEN=true
+elif [ "$COVERAGE_CURRENT" -ge 90 ]; then
   COVERAGE_COLOR="${BRIGHT_GREEN}"
 elif [ "$COVERAGE_CURRENT" -ge 70 ]; then
   COVERAGE_COLOR="${BRIGHT_YELLOW}"
+elif [ "$COVERAGE_CURRENT" -ge 50 ]; then
+  COVERAGE_COLOR="${YELLOW}"
 fi
 
 # Learning status color
@@ -175,9 +218,16 @@ fi
 # Separator
 OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────${RESET}"
 
-# Line 1: DDD Domain Progress
-OUTPUT="${OUTPUT}\n${BRIGHT_CYAN}🏗️  DDD Domains${RESET}    [${DOMAIN_STATUS}]  ${BRIGHT_GREEN}${DOMAINS_COMPLETED}${RESET}/${BRIGHT_WHITE}${DOMAINS_TOTAL}${RESET}"
-OUTPUT="${OUTPUT}    ${COVERAGE_COLOR}📊 Coverage ${COVERAGE_DISPLAY}%${RESET}"
+# Line 1: DDD Domain Progress (show completed/in-progress/total)
+OUTPUT="${OUTPUT}\n${BRIGHT_CYAN}🏗️  DDD Domains${RESET}    [${DOMAIN_STATUS}]  ${BRIGHT_GREEN}${DOMAINS_COMPLETED}${RESET}"
+if [ "$DOMAINS_IN_PROGRESS" -gt 0 ]; then
+  OUTPUT="${OUTPUT}+${YELLOW}${DOMAINS_IN_PROGRESS}${RESET}"
+fi
+OUTPUT="${OUTPUT}/${BRIGHT_WHITE}${DOMAINS_TOTAL}${RESET}"
+# Only show coverage if we have real data
+if [ "$COVERAGE_HIDDEN" = "false" ]; then
+  OUTPUT="${OUTPUT}    ${COVERAGE_COLOR}📊 Coverage ${COVERAGE_DISPLAY}%${RESET}"
+fi
 
 # Line 2: Agent Fleet Status
 ACTIVITY_INDICATOR="${DIM}○${RESET}"
@@ -189,13 +239,46 @@ OUTPUT="${OUTPUT}\n${BRIGHT_YELLOW}🤖 QE Fleet${RESET}  ${ACTIVITY_INDICATOR}[
 OUTPUT="${OUTPUT}    ${LEARNING_COLOR}🧠 Patterns ${PATTERNS_DISPLAY}${RESET}"
 OUTPUT="${OUTPUT}    ${CONTEXT_COLOR}📂 Context ${CONTEXT_DISPLAY}%${RESET}"
 
-# Line 3: Architecture Status
-ADR_STATUS="${BRIGHT_GREEN}●${RESET}"
-EVENT_STATUS="${BRIGHT_GREEN}●${RESET}"
-PLUGIN_STATUS="${DIM}○${RESET}"
+# Line 3: Architecture Status (dynamically check real implementation)
+# ADRs: green if 10+, yellow if 1-9, dim if 0
+ADR_COUNT=$(ls "${PROJECT_DIR}/v3/implementation/adrs/"*.md 2>/dev/null | wc -l | tr -d ' ')
+if [ "$ADR_COUNT" -ge 10 ]; then
+  ADR_STATUS="${BRIGHT_GREEN}●${RESET}"
+elif [ "$ADR_COUNT" -ge 1 ]; then
+  ADR_STATUS="${YELLOW}◐${RESET}"
+else
+  ADR_STATUS="${DIM}○${RESET}"
+fi
+
+# Events: green if 5+, yellow if 1-4, dim if 0
+EVENT_COUNT=$(find "${PROJECT_DIR}/v3/src" -path "*/events*" -name "*.ts" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$EVENT_COUNT" -ge 5 ]; then
+  EVENT_STATUS="${BRIGHT_GREEN}●${RESET}"
+elif [ "$EVENT_COUNT" -ge 1 ]; then
+  EVENT_STATUS="${YELLOW}◐${RESET}"
+else
+  EVENT_STATUS="${DIM}○${RESET}"
+fi
+
+# Plugins: green if 3+, yellow if 1-2, dim if 0
+PLUGIN_COUNT=$(find "${PROJECT_DIR}/v3/src/plugins" -name "*.ts" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$PLUGIN_COUNT" -ge 3 ]; then
+  PLUGIN_STATUS="${BRIGHT_GREEN}●${RESET}"
+elif [ "$PLUGIN_COUNT" -ge 1 ]; then
+  PLUGIN_STATUS="${YELLOW}◐${RESET}"
+else
+  PLUGIN_STATUS="${DIM}○${RESET}"
+fi
+
+# AgentDB: green if memory.db exists and has data
+if [ -f "${PROJECT_DIR}/.agentic-qe/memory.db" ]; then
+  AGENTDB_STATUS="${BRIGHT_GREEN}●${RESET}"
+else
+  AGENTDB_STATUS="${DIM}○${RESET}"
+fi
 
 OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🔧 Architecture${RESET}    ${CYAN}ADR${RESET} ${ADR_STATUS}  ${DIM}│${RESET}  ${CYAN}Events${RESET} ${EVENT_STATUS}"
-OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Plugins${RESET} ${PLUGIN_STATUS}  ${DIM}│${RESET}  ${CYAN}AgentDB${RESET} ${BRIGHT_GREEN}●${RESET}"
+OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Plugins${RESET} ${PLUGIN_STATUS}  ${DIM}│${RESET}  ${CYAN}AgentDB${RESET} ${AGENTDB_STATUS}"
 
 # Footer
 OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────${RESET}"

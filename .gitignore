@@ -105,8 +105,6 @@ tests/temp/
 
 
 # Ignore memory directories but allow source code
-/memory/
-/coordination/
 memory/claude-flow-data.json
 memory/sessions/*
 !memory/sessions/README.md
@@ -148,11 +146,9 @@ claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-memory/
 !src/memory/
 !src/core/memory/
 !tests/memory/
-coordination/
 !src/edge/p2p/coordination/
 memory/claude-flow-data.json
 memory/sessions/*

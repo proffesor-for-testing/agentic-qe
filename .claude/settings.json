@@ -295,7 +295,7 @@
   ],
   "statusLine": {
     "type": "command",
-    "command": ".claude/statusline-command.sh"
+    "command": ".claude/statusline-v3.sh"
   },
   "workers": {
     "enabled": true,
