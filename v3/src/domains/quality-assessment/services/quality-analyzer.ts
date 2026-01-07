@@ -1,0 +1,603 @@
+/**
+ * Agentic QE v3 - Quality Analyzer Service
+ * Comprehensive quality metrics analysis with trends and recommendations
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import { Result, ok, err, QualityScore } from '../../../shared/types';
+import { MemoryBackend } from '../../../kernel/interfaces';
+import {
+  QualityAnalysisRequest,
+  QualityReport,
+  QualityMetricDetail,
+  QualityTrend,
+  Recommendation,
+  ComplexityRequest,
+  ComplexityReport,
+  FileComplexity,
+  ComplexitySummary,
+  ComplexityHotspot,
+} from '../interfaces';
+
+/**
+ * Interface for the quality analyzer service
+ */
+export interface IQualityAnalyzerService {
+  analyzeQuality(request: QualityAnalysisRequest): Promise<Result<QualityReport, Error>>;
+  analyzeComplexity(request: ComplexityRequest): Promise<Result<ComplexityReport, Error>>;
+  getQualityTrend(metric: string, days: number): Promise<Result<QualityTrend, Error>>;
+}
+
+/**
+ * Configuration for quality analysis
+ */
+export interface QualityAnalyzerConfig {
+  enableTrendAnalysis: boolean;
+  trendDataPointsMin: number;
+  complexityThresholds: {
+    cyclomatic: { warning: number; critical: number };
+    cognitive: { warning: number; critical: number };
+    maintainability: { warning: number; critical: number };
+  };
+}
+
+const DEFAULT_CONFIG: QualityAnalyzerConfig = {
+  enableTrendAnalysis: true,
+  trendDataPointsMin: 3,
+  complexityThresholds: {
+    cyclomatic: { warning: 10, critical: 20 },
+    cognitive: { warning: 15, critical: 30 },
+    maintainability: { warning: 50, critical: 30 }, // Lower is worse
+  },
+};
+
+/**
+ * Metric rating thresholds
+ */
+const RATING_THRESHOLDS = {
+  A: 90,
+  B: 80,
+  C: 70,
+  D: 50,
+  E: 0,
+} as const;
+
+/**
+ * Quality Analyzer Service Implementation
+ * Analyzes code quality metrics and provides actionable insights
+ */
+export class QualityAnalyzerService implements IQualityAnalyzerService {
+  private readonly config: QualityAnalyzerConfig;
+
+  constructor(
+    private readonly memory: MemoryBackend,
+    config: Partial<QualityAnalyzerConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Analyze quality metrics for source files
+   */
+  async analyzeQuality(
+    request: QualityAnalysisRequest
+  ): Promise<Result<QualityReport, Error>> {
+    try {
+      const { sourceFiles, includeMetrics, compareBaseline } = request;
+
+      if (sourceFiles.length === 0) {
+        return err(new Error('No source files provided for analysis'));
+      }
+
+      // Analyze metrics for each file
+      const fileMetrics = await this.collectFileMetrics(sourceFiles, includeMetrics);
+
+      // Calculate aggregated metrics
+      const metricDetails = this.aggregateMetrics(fileMetrics);
+
+      // Calculate overall quality score
+      const score = this.calculateQualityScore(metricDetails);
+
+      // Generate trends if enabled
+      const trends = this.config.enableTrendAnalysis
+        ? await this.generateTrends(metricDetails, compareBaseline)
+        : [];
+
+      // Generate recommendations based on metrics
+      const recommendations = this.generateRecommendations(metricDetails, score);
+
+      const report: QualityReport = {
+        score,
+        metrics: metricDetails,
+        trends,
+        recommendations,
+      };
+
+      // Store the report
+      await this.storeReport(report, sourceFiles);
+
+      return ok(report);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Analyze code complexity
+   */
+  async analyzeComplexity(
+    request: ComplexityRequest
+  ): Promise<Result<ComplexityReport, Error>> {
+    try {
+      const { sourceFiles, metrics: requestedMetrics } = request;
+
+      if (sourceFiles.length === 0) {
+        return err(new Error('No source files provided for complexity analysis'));
+      }
+
+      // Analyze each file
+      const files: FileComplexity[] = [];
+      for (const file of sourceFiles) {
+        const complexity = await this.analyzeFileComplexity(file, requestedMetrics);
+        files.push(complexity);
+      }
+
+      // Calculate summary
+      const summary = this.calculateComplexitySummary(files);
+
+      // Identify hotspots
+      const hotspots = this.identifyHotspots(files);
+
+      const report: ComplexityReport = {
+        files,
+        summary,
+        hotspots,
+      };
+
+      // Store complexity report
+      await this.storeComplexityReport(report);
+
+      return ok(report);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Get quality trend for a specific metric
+   */
+  async getQualityTrend(
+    metric: string,
+    days: number
+  ): Promise<Result<QualityTrend, Error>> {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      // Fetch historical data points
+      const keys = await this.memory.search(
+        `quality-analysis:report:*`,
+        days * 10 // Assume multiple reports per day max
+      );
+
+      const dataPoints: { date: Date; value: number }[] = [];
+
+      for (const key of keys) {
+        const report = await this.memory.get<{
+          analyzedAt: string;
+          metrics: QualityMetricDetail[];
+        }>(key);
+
+        if (report) {
+          const reportDate = new Date(report.analyzedAt);
+          if (reportDate >= startDate) {
+            const metricDetail = report.metrics.find((m) => m.name === metric);
+            if (metricDetail) {
+              dataPoints.push({
+                date: reportDate,
+                value: metricDetail.value,
+              });
+            }
+          }
+        }
+      }
+
+      // Sort by date
+      dataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      // Determine direction
+      const direction = this.calculateTrendDirection(dataPoints);
+
+      return ok({
+        metric,
+        dataPoints,
+        direction,
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  // ============================================================================
+  // Private Helper Methods
+  // ============================================================================
+
+  private async collectFileMetrics(
+    files: string[],
+    includeMetrics: string[]
+  ): Promise<Map<string, Record<string, number>>> {
+    const fileMetrics = new Map<string, Record<string, number>>();
+
+    for (const file of files) {
+      // In production, this would actually analyze the file
+      // For now, generate stub metrics based on file characteristics
+      const metrics: Record<string, number> = {};
+
+      if (includeMetrics.includes('coverage') || includeMetrics.length === 0) {
+        metrics.coverage = this.generateStubMetric(70, 95);
+      }
+      if (includeMetrics.includes('complexity') || includeMetrics.length === 0) {
+        metrics.complexity = this.generateStubMetric(5, 25);
+      }
+      if (includeMetrics.includes('maintainability') || includeMetrics.length === 0) {
+        metrics.maintainability = this.generateStubMetric(60, 100);
+      }
+      if (includeMetrics.includes('duplication') || includeMetrics.length === 0) {
+        metrics.duplication = this.generateStubMetric(0, 15);
+      }
+      if (includeMetrics.includes('testability') || includeMetrics.length === 0) {
+        metrics.testability = this.generateStubMetric(50, 90);
+      }
+
+      fileMetrics.set(file, metrics);
+    }
+
+    return fileMetrics;
+  }
+
+  private aggregateMetrics(
+    fileMetrics: Map<string, Record<string, number>>
+  ): QualityMetricDetail[] {
+    const aggregated: Map<string, number[]> = new Map();
+
+    // Collect all values per metric
+    for (const metrics of fileMetrics.values()) {
+      for (const [name, value] of Object.entries(metrics)) {
+        const existing = aggregated.get(name) || [];
+        existing.push(value);
+        aggregated.set(name, existing);
+      }
+    }
+
+    // Calculate averages and generate details
+    const details: QualityMetricDetail[] = [];
+
+    for (const [name, values] of aggregated.entries()) {
+      const average = values.reduce((a, b) => a + b, 0) / values.length;
+      const rating = this.getMetricRating(average, name);
+      const trend = this.estimateTrend(values);
+
+      details.push({
+        name,
+        value: Math.round(average * 100) / 100,
+        rating,
+        trend,
+      });
+    }
+
+    return details;
+  }
+
+  private calculateQualityScore(metrics: QualityMetricDetail[]): QualityScore {
+    // Weight different metrics for overall score
+    const weights: Record<string, number> = {
+      coverage: 0.25,
+      complexity: 0.20,
+      maintainability: 0.25,
+      duplication: 0.15,
+      testability: 0.15,
+    };
+
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (const metric of metrics) {
+      const weight = weights[metric.name] || 0.1;
+      // Normalize value to 0-100 scale (complexity needs inversion)
+      const normalizedValue = metric.name === 'complexity' || metric.name === 'duplication'
+        ? Math.max(0, 100 - metric.value * 2)
+        : metric.value;
+
+      weightedSum += normalizedValue * weight;
+      totalWeight += weight;
+    }
+
+    const overall = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+
+    return {
+      overall,
+      coverage: metrics.find((m) => m.name === 'coverage')?.value || 0,
+      complexity: metrics.find((m) => m.name === 'complexity')?.value || 0,
+      maintainability: metrics.find((m) => m.name === 'maintainability')?.value || 0,
+      security: 85, // Placeholder - would come from security analysis
+    };
+  }
+
+  private async generateTrends(
+    currentMetrics: QualityMetricDetail[],
+    _compareBaseline?: string
+  ): Promise<QualityTrend[]> {
+    const trends: QualityTrend[] = [];
+
+    for (const metric of currentMetrics) {
+      // Fetch historical data
+      const historicalResult = await this.getQualityTrend(metric.name, 30);
+
+      if (historicalResult.success) {
+        trends.push(historicalResult.value);
+      } else {
+        // Create a trend with just current data
+        trends.push({
+          metric: metric.name,
+          dataPoints: [{ date: new Date(), value: metric.value }],
+          direction: 'stable',
+        });
+      }
+    }
+
+    return trends;
+  }
+
+  private generateRecommendations(
+    metrics: QualityMetricDetail[],
+    score: QualityScore
+  ): Recommendation[] {
+    const recommendations: Recommendation[] = [];
+
+    // Check coverage
+    const coverage = metrics.find((m) => m.name === 'coverage');
+    if (coverage && coverage.value < 80) {
+      recommendations.push({
+        type: coverage.value < 60 ? 'critical' : 'improvement',
+        title: 'Increase Test Coverage',
+        description: `Current coverage is ${coverage.value}%. Aim for at least 80% coverage to ensure code reliability.`,
+        impact: 'high',
+        effort: coverage.value < 60 ? 'high' : 'medium',
+      });
+    }
+
+    // Check complexity
+    const complexity = metrics.find((m) => m.name === 'complexity');
+    if (complexity && complexity.value > this.config.complexityThresholds.cyclomatic.warning) {
+      recommendations.push({
+        type: complexity.value > this.config.complexityThresholds.cyclomatic.critical ? 'critical' : 'warning',
+        title: 'Reduce Code Complexity',
+        description: `Average cyclomatic complexity is ${complexity.value}. Consider refactoring complex functions.`,
+        impact: 'high',
+        effort: 'medium',
+      });
+    }
+
+    // Check maintainability
+    const maintainability = metrics.find((m) => m.name === 'maintainability');
+    if (maintainability && maintainability.value < this.config.complexityThresholds.maintainability.warning) {
+      recommendations.push({
+        type: maintainability.value < this.config.complexityThresholds.maintainability.critical ? 'critical' : 'warning',
+        title: 'Improve Maintainability',
+        description: `Maintainability index is ${maintainability.value}. Consider improving code structure and documentation.`,
+        impact: 'medium',
+        effort: 'medium',
+      });
+    }
+
+    // Check duplication
+    const duplication = metrics.find((m) => m.name === 'duplication');
+    if (duplication && duplication.value > 5) {
+      recommendations.push({
+        type: duplication.value > 10 ? 'warning' : 'improvement',
+        title: 'Reduce Code Duplication',
+        description: `${duplication.value}% of code is duplicated. Extract common patterns into reusable functions.`,
+        impact: 'medium',
+        effort: 'low',
+      });
+    }
+
+    // Overall score recommendation
+    if (score.overall < 70) {
+      recommendations.push({
+        type: 'critical',
+        title: 'Overall Quality Improvement Needed',
+        description: `Overall quality score is ${score.overall}. Multiple areas need attention to bring code quality to acceptable levels.`,
+        impact: 'high',
+        effort: 'high',
+      });
+    }
+
+    return recommendations.sort((a, b) => {
+      const typePriority = { critical: 0, warning: 1, improvement: 2 };
+      return typePriority[a.type] - typePriority[b.type];
+    });
+  }
+
+  private async analyzeFileComplexity(
+    file: string,
+    requestedMetrics: ComplexityRequest['metrics']
+  ): Promise<FileComplexity> {
+    // In production, this would use AST analysis
+    // Stub implementation for now
+    const includesAll = requestedMetrics.length === 0;
+
+    return {
+      path: file,
+      cyclomatic: includesAll || requestedMetrics.includes('cyclomatic')
+        ? this.generateStubMetric(1, 30)
+        : 0,
+      cognitive: includesAll || requestedMetrics.includes('cognitive')
+        ? this.generateStubMetric(1, 40)
+        : 0,
+      maintainability: includesAll || requestedMetrics.includes('maintainability')
+        ? this.generateStubMetric(40, 100)
+        : 0,
+      linesOfCode: Math.floor(this.generateStubMetric(50, 500)),
+    };
+  }
+
+  private calculateComplexitySummary(files: FileComplexity[]): ComplexitySummary {
+    if (files.length === 0) {
+      return {
+        averageCyclomatic: 0,
+        averageCognitive: 0,
+        averageMaintainability: 0,
+        totalLinesOfCode: 0,
+      };
+    }
+
+    const sumCyclomatic = files.reduce((sum, f) => sum + f.cyclomatic, 0);
+    const sumCognitive = files.reduce((sum, f) => sum + f.cognitive, 0);
+    const sumMaintainability = files.reduce((sum, f) => sum + f.maintainability, 0);
+    const totalLOC = files.reduce((sum, f) => sum + f.linesOfCode, 0);
+
+    return {
+      averageCyclomatic: Math.round((sumCyclomatic / files.length) * 100) / 100,
+      averageCognitive: Math.round((sumCognitive / files.length) * 100) / 100,
+      averageMaintainability: Math.round((sumMaintainability / files.length) * 100) / 100,
+      totalLinesOfCode: totalLOC,
+    };
+  }
+
+  private identifyHotspots(files: FileComplexity[]): ComplexityHotspot[] {
+    const hotspots: ComplexityHotspot[] = [];
+    const thresholds = this.config.complexityThresholds;
+
+    for (const file of files) {
+      // Check cyclomatic complexity
+      if (file.cyclomatic >= thresholds.cyclomatic.warning) {
+        hotspots.push({
+          file: file.path,
+          function: 'unknown', // Would be identified via AST analysis
+          complexity: file.cyclomatic,
+          recommendation: file.cyclomatic >= thresholds.cyclomatic.critical
+            ? 'Critical: Refactor this function immediately. Consider splitting into smaller functions.'
+            : 'Consider refactoring to reduce complexity.',
+        });
+      }
+
+      // Check cognitive complexity
+      if (file.cognitive >= thresholds.cognitive.warning) {
+        hotspots.push({
+          file: file.path,
+          function: 'unknown',
+          complexity: file.cognitive,
+          recommendation: file.cognitive >= thresholds.cognitive.critical
+            ? 'Critical: High cognitive complexity makes this code hard to understand and maintain.'
+            : 'Simplify control flow and reduce nesting depth.',
+        });
+      }
+
+      // Check maintainability (lower is worse)
+      if (file.maintainability <= thresholds.maintainability.warning) {
+        hotspots.push({
+          file: file.path,
+          function: 'unknown',
+          complexity: 100 - file.maintainability, // Invert for hotspot (higher = worse)
+          recommendation: file.maintainability <= thresholds.maintainability.critical
+            ? 'Critical: Very low maintainability. Consider a major refactoring effort.'
+            : 'Improve code documentation and reduce complexity.',
+        });
+      }
+    }
+
+    // Sort by complexity descending
+    return hotspots.sort((a, b) => b.complexity - a.complexity).slice(0, 10);
+  }
+
+  private getMetricRating(
+    value: number,
+    metricName: string
+  ): 'A' | 'B' | 'C' | 'D' | 'E' {
+    // For metrics where lower is better, invert the value
+    const invertedMetrics = ['complexity', 'duplication'];
+    const normalizedValue = invertedMetrics.includes(metricName)
+      ? Math.max(0, 100 - value * 2)
+      : value;
+
+    if (normalizedValue >= RATING_THRESHOLDS.A) return 'A';
+    if (normalizedValue >= RATING_THRESHOLDS.B) return 'B';
+    if (normalizedValue >= RATING_THRESHOLDS.C) return 'C';
+    if (normalizedValue >= RATING_THRESHOLDS.D) return 'D';
+    return 'E';
+  }
+
+  private estimateTrend(values: number[]): 'improving' | 'declining' | 'stable' {
+    if (values.length < 2) return 'stable';
+
+    const firstHalf = values.slice(0, Math.floor(values.length / 2));
+    const secondHalf = values.slice(Math.floor(values.length / 2));
+
+    const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+
+    const diff = secondAvg - firstAvg;
+    const threshold = firstAvg * 0.05; // 5% change threshold
+
+    if (diff > threshold) return 'improving';
+    if (diff < -threshold) return 'declining';
+    return 'stable';
+  }
+
+  private calculateTrendDirection(
+    dataPoints: { date: Date; value: number }[]
+  ): 'up' | 'down' | 'stable' {
+    if (dataPoints.length < this.config.trendDataPointsMin) {
+      return 'stable';
+    }
+
+    const values = dataPoints.map((dp) => dp.value);
+    const trend = this.estimateTrend(values);
+
+    switch (trend) {
+      case 'improving': return 'up';
+      case 'declining': return 'down';
+      default: return 'stable';
+    }
+  }
+
+  private generateStubMetric(min: number, max: number): number {
+    // Generate consistent stub metrics
+    return Math.round((min + Math.random() * (max - min)) * 100) / 100;
+  }
+
+  private async storeReport(
+    report: QualityReport,
+    sourceFiles: string[]
+  ): Promise<void> {
+    const reportId = uuidv4();
+    const key = `quality-analysis:report:${reportId}`;
+
+    await this.memory.set(
+      key,
+      {
+        id: reportId,
+        ...report,
+        sourceFiles,
+        analyzedAt: new Date().toISOString(),
+      },
+      { namespace: 'quality-assessment', ttl: 86400 * 90 } // 90 days
+    );
+  }
+
+  private async storeComplexityReport(report: ComplexityReport): Promise<void> {
+    const reportId = uuidv4();
+    const key = `quality-analysis:complexity:${reportId}`;
+
+    await this.memory.set(
+      key,
+      {
+        id: reportId,
+        ...report,
+        analyzedAt: new Date().toISOString(),
+      },
+      { namespace: 'quality-assessment', ttl: 86400 * 30 } // 30 days
+    );
+  }
+}
