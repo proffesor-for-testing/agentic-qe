@@ -536,9 +536,150 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
     }
   }
 
-  private async handlePreRelease(_event: DomainEvent): Promise<void> {
-    // Pre-release started - could trigger automatic contract verification
-    // This is a stub for future implementation
+  private async handlePreRelease(event: DomainEvent): Promise<void> {
+    // Pre-release started - trigger automatic contract verification
+    const payload = event.payload as {
+      providerName?: string;
+      serviceName?: string;
+      version?: string;
+      providerUrl?: string;
+      contractPath?: string;
+    };
+
+    // Extract provider name from payload (support multiple field names)
+    const providerName = payload.providerName || payload.serviceName;
+    if (!providerName) {
+      // Cannot verify without provider name - store warning for review
+      await this.memory.set(
+        `contract-testing:pre-release-warning:${event.id}`,
+        {
+          warning: 'Pre-release event received without provider/service name',
+          eventId: event.id,
+          timestamp: new Date().toISOString(),
+        },
+        { namespace: 'contract-testing', ttl: 86400 }
+      );
+      return;
+    }
+
+    // Store pre-release verification request
+    const verificationKey = `contract-testing:pre-release:${event.id}`;
+    await this.memory.set(
+      verificationKey,
+      {
+        providerName,
+        version: payload.version,
+        status: 'pending',
+        startedAt: new Date().toISOString(),
+      },
+      { namespace: 'contract-testing', ttl: 3600 }
+    );
+
+    // If contract path provided, run pre-release check for breaking changes
+    if (payload.contractPath) {
+      try {
+        const contractPath = FilePath.create(payload.contractPath);
+        const preReleaseResult = await this.preReleaseCheck(providerName, contractPath);
+
+        if (preReleaseResult.success) {
+          const report = preReleaseResult.value;
+          await this.memory.set(
+            verificationKey,
+            {
+              providerName,
+              version: payload.version,
+              status: report.canRelease ? 'passed' : 'failed',
+              completedAt: new Date().toISOString(),
+              breakingChanges: report.breakingChanges.length,
+              affectedConsumers: report.affectedConsumers.length,
+              recommendations: report.recommendations,
+            },
+            { namespace: 'contract-testing', ttl: 86400 }
+          );
+
+          // Publish verification result event
+          this.eventBus.publish({
+            id: `${event.id}-result`,
+            type: 'contract-testing.PreReleaseVerificationCompleted',
+            source: 'contract-testing',
+            timestamp: new Date(),
+            payload: {
+              providerName,
+              version: payload.version,
+              canRelease: report.canRelease,
+              breakingChanges: report.breakingChanges.length,
+              affectedConsumers: report.affectedConsumers.map((c) => c.name),
+            },
+          });
+        }
+      } catch (error) {
+        // Store error but don't throw - event handlers should be resilient
+        await this.memory.set(
+          verificationKey,
+          {
+            providerName,
+            version: payload.version,
+            status: 'error',
+            error: error instanceof Error ? error.message : String(error),
+            completedAt: new Date().toISOString(),
+          },
+          { namespace: 'contract-testing', ttl: 86400 }
+        );
+      }
+    }
+
+    // If provider URL provided, verify all consumer contracts
+    if (payload.providerUrl) {
+      try {
+        const verificationResult = await this.verifyAllConsumers(providerName, payload.providerUrl);
+
+        if (verificationResult.success) {
+          const report = verificationResult.value;
+          await this.memory.set(
+            `${verificationKey}:verification`,
+            {
+              providerName,
+              version: payload.version,
+              status: report.canDeploy ? 'passed' : 'failed',
+              completedAt: new Date().toISOString(),
+              totalConsumers: report.totalConsumers,
+              passedConsumers: report.passedConsumers,
+              failedConsumers: report.failedConsumers,
+            },
+            { namespace: 'contract-testing', ttl: 86400 }
+          );
+
+          // Publish consumer verification result event
+          this.eventBus.publish({
+            id: `${event.id}-consumer-result`,
+            type: 'contract-testing.ConsumerVerificationCompleted',
+            source: 'contract-testing',
+            timestamp: new Date(),
+            payload: {
+              providerName,
+              version: payload.version,
+              canDeploy: report.canDeploy,
+              totalConsumers: report.totalConsumers,
+              passedConsumers: report.passedConsumers,
+              failedConsumers: report.failedConsumers,
+            },
+          });
+        }
+      } catch (error) {
+        // Store error but don't throw
+        await this.memory.set(
+          `${verificationKey}:verification`,
+          {
+            providerName,
+            version: payload.version,
+            status: 'error',
+            error: error instanceof Error ? error.message : String(error),
+            completedAt: new Date().toISOString(),
+          },
+          { namespace: 'contract-testing', ttl: 86400 }
+        );
+      }
+    }
   }
 
   // ============================================================================

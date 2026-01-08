@@ -926,26 +926,32 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       return actionResult.value;
     }
 
-    // Fallback to stub implementation for demonstration
-    return this.stubDomainAction(step.domain, step.action, input);
+    // No action registered - throw error rather than fake success
+    throw new Error(
+      `Action '${step.action}' not registered for domain '${step.domain}'. ` +
+      `Register it using orchestrator.registerAction('${step.domain}', '${step.action}', handler)`
+    );
   }
 
-  private async stubDomainAction(
-    domain: DomainName,
-    action: string,
-    input: Record<string, unknown>
-  ): Promise<unknown> {
-    // Stub implementation for demonstration
-    // In production, this would invoke actual domain coordinators
-    await this.delay(100); // Simulate work
+  /**
+   * Check if an action is registered for a domain
+   */
+  isActionRegistered(domain: DomainName, action: string): boolean {
+    return !!this.actionRegistry[domain]?.[action];
+  }
 
-    return {
-      domain,
-      action,
-      input,
-      result: 'success',
-      timestamp: new Date().toISOString(),
-    };
+  /**
+   * Get all registered actions for a domain
+   */
+  getRegisteredActions(domain: DomainName): string[] {
+    return Object.keys(this.actionRegistry[domain] || {});
+  }
+
+  /**
+   * Get all domains with registered actions
+   */
+  getDomainsWithActions(): DomainName[] {
+    return Object.keys(this.actionRegistry) as DomainName[];
   }
 
   /**
@@ -991,14 +997,30 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
   private async executeRollback(
     rollback: { domain: DomainName; action: string; input?: Record<string, unknown> },
-    _context: WorkflowContext
+    context: WorkflowContext
   ): Promise<void> {
     try {
-      await this.stubDomainAction(
-        rollback.domain,
-        rollback.action,
-        rollback.input || {}
+      // Check if rollback action is registered
+      const domainActions = this.actionRegistry[rollback.domain];
+      if (!domainActions?.[rollback.action]) {
+        console.warn(
+          `Rollback action '${rollback.action}' not registered for domain '${rollback.domain}'. Skipping rollback.`
+        );
+        return;
+      }
+
+      // Execute rollback action
+      const result = await domainActions[rollback.action](
+        rollback.input || {},
+        context
       );
+
+      if (!result.success) {
+        console.error(
+          `Rollback failed for ${rollback.domain}.${rollback.action}:`,
+          result.error
+        );
+      }
     } catch (error) {
       // Log but don't throw - rollback failures shouldn't cascade
       console.error(`Rollback failed for ${rollback.domain}.${rollback.action}:`, error);

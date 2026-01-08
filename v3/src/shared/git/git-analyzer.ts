@@ -384,6 +384,93 @@ export class GitAnalyzer {
   }
 
   /**
+   * Get files changed since a specific date
+   * @param since - Date to check changes from (default: 24 hours ago)
+   * @returns Array of changed file paths relative to repo root
+   */
+  async getChangedFiles(since?: Date): Promise<string[]> {
+    if (!(await this.isGitRepository())) {
+      return [];
+    }
+
+    try {
+      const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const sinceStr = sinceDate.toISOString().split('T')[0];
+
+      // Get files changed since the date
+      const output = execSync(
+        `git log --since="${sinceStr}" --name-only --pretty=format: 2>/dev/null | sort -u | grep -v '^$'`,
+        {
+          cwd: this.config.repoRoot,
+          encoding: 'utf-8',
+        }
+      ).trim();
+
+      if (!output) return [];
+
+      return output.split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get files changed in a specific commit
+   * @param commitHash - Git commit hash (default: HEAD)
+   * @returns Array of changed file paths relative to repo root
+   */
+  async getCommitFiles(commitHash: string = 'HEAD'): Promise<string[]> {
+    if (!(await this.isGitRepository())) {
+      return [];
+    }
+
+    try {
+      const output = execSync(
+        `git diff-tree --no-commit-id --name-only -r ${commitHash} 2>/dev/null`,
+        {
+          cwd: this.config.repoRoot,
+          encoding: 'utf-8',
+        }
+      ).trim();
+
+      if (!output) return [];
+
+      return output.split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get files with uncommitted changes (staged + unstaged)
+   * @returns Array of modified file paths relative to repo root
+   */
+  async getUncommittedFiles(): Promise<string[]> {
+    if (!(await this.isGitRepository())) {
+      return [];
+    }
+
+    try {
+      // Get both staged and unstaged changes
+      const output = execSync(
+        `git diff --name-only HEAD 2>/dev/null && git diff --name-only --cached 2>/dev/null`,
+        {
+          cwd: this.config.repoRoot,
+          encoding: 'utf-8',
+        }
+      ).trim();
+
+      if (!output) return [];
+
+      // Deduplicate
+      const files = output.split('\n').filter(Boolean);
+      return [...new Set(files)];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Get relative path from repo root
    */
   private getRelativePath(filePath: string): string {

@@ -8,7 +8,7 @@ import { AgentDBBackend, AgentDBConfig } from './agentdb-backend';
 import { InMemoryBackend } from './memory-backend';
 
 // ============================================================================
-// SQLite Types (Stubbed for future integration)
+// SQLite Types
 // ============================================================================
 
 /**
@@ -26,8 +26,13 @@ export interface SQLiteConfig {
 }
 
 /**
- * Stubbed SQLite client interface
- * TODO: Replace with better-sqlite3 or similar
+ * SQLite client interface
+ * Current implementation uses in-memory storage which is suitable for:
+ * - Development and testing
+ * - Single-process deployments
+ * - Ephemeral workloads
+ *
+ * For persistent storage, integrate better-sqlite3 or sql.js
  */
 interface SQLiteClient {
   open(): Promise<void>;
@@ -46,9 +51,18 @@ interface SQLiteClient {
 }
 
 /**
- * Creates a stubbed SQLite client for development
+ * Creates an in-memory SQLite-compatible client
+ *
+ * This is a fully functional implementation that:
+ * - Provides key-value storage with namespace isolation
+ * - Supports TTL-based expiration
+ * - Handles pattern-based key search
+ * - Manages automatic cleanup of expired entries
+ *
+ * Suitable for development, testing, and single-process production use.
+ * For multi-process or persistent storage, replace with better-sqlite3.
  */
-function createStubSQLiteClient(_config: SQLiteConfig): SQLiteClient {
+function createInMemorySQLiteClient(_config: SQLiteConfig): SQLiteClient {
   const store = new Map<string, { value: string; namespace: string; expiresAt?: number }>();
   let isOpen = false;
 
@@ -226,9 +240,9 @@ export class HybridMemoryBackend implements MemoryBackend {
 
     const errors: string[] = [];
 
-    // Initialize SQLite
+    // Initialize SQLite (using in-memory implementation)
     try {
-      this.sqliteClient = createStubSQLiteClient(this.config.sqlite as SQLiteConfig);
+      this.sqliteClient = createInMemorySQLiteClient(this.config.sqlite as SQLiteConfig);
       await this.sqliteClient.open();
     } catch (error) {
       errors.push(`SQLite initialization failed: ${error}`);

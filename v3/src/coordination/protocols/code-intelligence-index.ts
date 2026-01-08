@@ -24,6 +24,8 @@ import {
   ImpactAnalysis,
   DependencyMap,
 } from '../../domains/code-intelligence/interfaces';
+import { GitAnalyzer } from '../../shared/git';
+import { listFiles } from '../../shared/io';
 
 // ============================================================================
 // Protocol Types
@@ -220,6 +222,7 @@ export interface ProtocolStats {
  */
 export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProtocol {
   private readonly config: IndexProtocolConfig;
+  private readonly gitAnalyzer: GitAnalyzer;
   private executionCount = 0;
   private totalDuration = 0;
   private successCount = 0;
@@ -237,6 +240,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
     config: Partial<IndexProtocolConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.gitAnalyzer = new GitAnalyzer({ enableCache: true });
   }
 
   // ============================================================================
@@ -567,43 +571,89 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
     return trigger.type === 'code-change' || trigger.type === 'git-commit';
   }
 
-  private async detectGitChanges(_since?: Date): Promise<Result<string[], Error>> {
-    // Stub: In production, would call git to get changed files
-    // Example: git diff --name-only HEAD~1
-    // or: git diff --name-only --since="2024-01-01"
-    return ok([]);
+  private async detectGitChanges(since?: Date): Promise<Result<string[], Error>> {
+    try {
+      const changedFiles = await this.gitAnalyzer.getChangedFiles(since);
+      // Filter to only include configured languages
+      const filteredFiles = changedFiles.filter((f) => this.isRelevantFile(f));
+      return ok(filteredFiles);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
   }
 
   private async detectGitCommitFiles(commitHash?: string): Promise<Result<string[], Error>> {
-    // Stub: In production, would call git to get files from specific commit
-    // Example: git diff-tree --no-commit-id --name-only -r <commit>
     if (!commitHash) {
       return ok([]);
     }
-    return ok([]);
+    try {
+      const commitFiles = await this.gitAnalyzer.getCommitFiles(commitHash);
+      // Filter to only include configured languages
+      const filteredFiles = commitFiles.filter((f) => this.isRelevantFile(f));
+      return ok(filteredFiles);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
   }
 
   private async resolveHotPaths(): Promise<Result<string[], Error>> {
-    // Stub: In production, would resolve glob patterns to actual files
-    // For now, return empty array - in real implementation would use glob or file system API
-    // to expand patterns like 'src/core/**' to actual files
-    const hotPathFiles: string[] = [];
+    try {
+      const allFiles: string[] = [];
 
-    // In production: for (const pattern of this.config.hotPaths) { ... glob(pattern) }
-    void this.config.hotPaths; // Reference to avoid unused warning
+      for (const pattern of this.config.hotPaths) {
+        const result = await listFiles(pattern);
+        if (result.success) {
+          allFiles.push(...result.value);
+        }
+      }
 
-    return ok(hotPathFiles);
+      // Filter and deduplicate
+      const filteredFiles = allFiles.filter((f) => this.isRelevantFile(f));
+      return ok([...new Set(filteredFiles)]);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
   }
 
   private async resolveGlobPatterns(patterns: string[]): Promise<Result<string[], Error>> {
-    // Stub: In production, would expand glob patterns to files
-    // In real implementation would use glob library to expand patterns
-    const files: string[] = [];
+    try {
+      const allFiles: string[] = [];
 
-    // In production: for (const pattern of patterns) { ... glob(pattern) }
-    void patterns; // Reference to avoid unused warning
+      for (const pattern of patterns) {
+        const result = await listFiles(pattern);
+        if (result.success) {
+          allFiles.push(...result.value);
+        }
+      }
 
-    return ok(files);
+      // Filter and deduplicate
+      const filteredFiles = allFiles.filter((f) => this.isRelevantFile(f));
+      return ok([...new Set(filteredFiles)]);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  private isRelevantFile(filePath: string): boolean {
+    // Filter by configured languages
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const languageExtensions: Record<string, string[]> = {
+      typescript: ['ts', 'tsx'],
+      javascript: ['js', 'jsx', 'mjs', 'cjs'],
+      python: ['py', 'pyw'],
+    };
+
+    for (const lang of this.config.languages) {
+      const exts = languageExtensions[lang] || [];
+      if (exts.includes(ext)) {
+        // Optionally exclude test files if not configured
+        if (!this.config.includeTests && this.isTestFile(filePath)) {
+          return false;
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   private buildDomainNotification(
