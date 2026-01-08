@@ -1,0 +1,1176 @@
+/**
+ * Agentic QE v3 - Queen Coordinator
+ * The sovereign orchestrator of the hierarchical hive operations.
+ * Manages 12 domain coordinators, work stealing, and cross-domain workflows.
+ *
+ * Per Master Plan Section 4.1:
+ * - Agent #1 in the hierarchy
+ * - Coordinates 47 agents across 12 domains
+ * - Implements work stealing for load balancing
+ * - Orchestrates cross-domain protocols
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import {
+  DomainName,
+  DomainEvent,
+  ALL_DOMAINS,
+  Result,
+  ok,
+  err,
+  Priority,
+  AgentStatus,
+  Severity,
+} from '../shared/types';
+import {
+  EventBus,
+  AgentCoordinator,
+  AgentInfo,
+  DomainPlugin,
+  DomainHealth,
+  MemoryBackend,
+  QEKernel,
+} from '../kernel/interfaces';
+import { CrossDomainRouter, ProtocolExecutor, WorkflowExecutor } from './interfaces';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * Task that can be assigned to domains
+ */
+export interface QueenTask {
+  readonly id: string;
+  readonly type: TaskType;
+  readonly priority: Priority;
+  readonly targetDomains: DomainName[];
+  readonly payload: Record<string, unknown>;
+  readonly timeout: number;
+  readonly createdAt: Date;
+  readonly requester?: string;
+  readonly correlationId?: string;
+}
+
+export type TaskType =
+  | 'generate-tests'
+  | 'execute-tests'
+  | 'analyze-coverage'
+  | 'assess-quality'
+  | 'predict-defects'
+  | 'validate-requirements'
+  | 'index-code'
+  | 'scan-security'
+  | 'validate-contracts'
+  | 'test-accessibility'
+  | 'run-chaos'
+  | 'optimize-learning'
+  | 'cross-domain-workflow'
+  | 'protocol-execution';
+
+/**
+ * Task execution status
+ */
+export interface TaskExecution {
+  readonly taskId: string;
+  readonly task: QueenTask;
+  readonly status: 'queued' | 'assigned' | 'running' | 'completed' | 'failed' | 'cancelled';
+  readonly assignedDomain?: DomainName;
+  readonly assignedAgents: string[];
+  readonly startedAt?: Date;
+  readonly completedAt?: Date;
+  readonly result?: unknown;
+  readonly error?: string;
+  readonly retryCount: number;
+}
+
+/**
+ * Domain group for coordination
+ */
+export interface DomainGroup {
+  readonly name: string;
+  readonly domains: DomainName[];
+  readonly priority: Priority;
+  readonly description: string;
+}
+
+/**
+ * Work stealing configuration
+ */
+export interface WorkStealingConfig {
+  enabled: boolean;
+  idleThreshold: number; // Time in ms before domain is considered idle
+  loadThreshold: number; // Max pending tasks before stealing is triggered
+  stealBatchSize: number; // Number of tasks to steal at once
+  checkInterval: number; // How often to check for work stealing opportunities
+}
+
+/**
+ * Queen Coordinator metrics
+ */
+export interface QueenMetrics {
+  readonly tasksReceived: number;
+  readonly tasksCompleted: number;
+  readonly tasksFailed: number;
+  readonly tasksStolen: number;
+  readonly averageTaskDuration: number;
+  readonly domainUtilization: Map<DomainName, number>;
+  readonly agentUtilization: number;
+  readonly protocolsExecuted: number;
+  readonly workflowsExecuted: number;
+  readonly uptime: number;
+}
+
+/**
+ * Queen Coordinator configuration
+ */
+export interface QueenConfig {
+  maxConcurrentTasks: number;
+  defaultTaskTimeout: number;
+  taskRetryLimit: number;
+  workStealing: WorkStealingConfig;
+  enableMetrics: boolean;
+  metricsInterval: number;
+  priorityWeights: Record<Priority, number>;
+}
+
+/**
+ * Queen health status
+ */
+export interface QueenHealth {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  domainHealth: Map<DomainName, DomainHealth>;
+  totalAgents: number;
+  activeAgents: number;
+  pendingTasks: number;
+  runningTasks: number;
+  workStealingActive: boolean;
+  lastHealthCheck: Date;
+  issues: HealthIssue[];
+}
+
+export interface HealthIssue {
+  domain?: DomainName;
+  severity: Severity;
+  message: string;
+  timestamp: Date;
+}
+
+/**
+ * Queen Coordinator interface
+ */
+export interface IQueenCoordinator {
+  // Lifecycle
+  initialize(): Promise<void>;
+  dispose(): Promise<void>;
+
+  // Task Management
+  submitTask(task: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>>;
+  cancelTask(taskId: string): Promise<Result<void, Error>>;
+  getTaskStatus(taskId: string): TaskExecution | undefined;
+  listTasks(filter?: TaskFilter): TaskExecution[];
+
+  // Domain Coordination
+  getDomainHealth(domain: DomainName): DomainHealth | undefined;
+  getDomainLoad(domain: DomainName): number;
+  getIdleDomains(): DomainName[];
+  getBusyDomains(): DomainName[];
+
+  // Work Stealing
+  enableWorkStealing(): void;
+  disableWorkStealing(): void;
+  triggerWorkStealing(): Promise<number>;
+
+  // Agent Management
+  listAllAgents(): AgentInfo[];
+  getAgentsByDomain(domain: DomainName): AgentInfo[];
+  requestAgentSpawn(domain: DomainName, type: string, capabilities: string[]): Promise<Result<string, Error>>;
+
+  // Health & Metrics
+  getHealth(): QueenHealth;
+  getMetrics(): QueenMetrics;
+
+  // Protocol & Workflow
+  executeProtocol(protocolId: string, params?: Record<string, unknown>): Promise<Result<string, Error>>;
+  executeWorkflow(workflowId: string, params?: Record<string, unknown>): Promise<Result<string, Error>>;
+}
+
+export interface TaskFilter {
+  status?: TaskExecution['status'];
+  domain?: DomainName;
+  priority?: Priority;
+  type?: TaskType;
+  fromDate?: Date;
+  toDate?: Date;
+}
+
+// ============================================================================
+// Domain Groups (per Master Plan Section 4.1)
+// ============================================================================
+
+export const DOMAIN_GROUPS: DomainGroup[] = [
+  {
+    name: 'Core Testing',
+    domains: ['test-generation', 'test-execution', 'coverage-analysis', 'quality-assessment'],
+    priority: 'p0',
+    description: 'Core testing workflow domains',
+  },
+  {
+    name: 'Intelligence',
+    domains: ['defect-intelligence', 'code-intelligence', 'requirements-validation', 'security-compliance'],
+    priority: 'p0',
+    description: 'Intelligence and analysis domains',
+  },
+  {
+    name: 'Specialized',
+    domains: ['contract-testing', 'visual-accessibility', 'chaos-resilience', 'learning-optimization'],
+    priority: 'p1',
+    description: 'Specialized testing domains',
+  },
+];
+
+// Task type to domain mapping
+const TASK_DOMAIN_MAP: Record<TaskType, DomainName[]> = {
+  'generate-tests': ['test-generation'],
+  'execute-tests': ['test-execution'],
+  'analyze-coverage': ['coverage-analysis'],
+  'assess-quality': ['quality-assessment'],
+  'predict-defects': ['defect-intelligence'],
+  'validate-requirements': ['requirements-validation'],
+  'index-code': ['code-intelligence'],
+  'scan-security': ['security-compliance'],
+  'validate-contracts': ['contract-testing'],
+  'test-accessibility': ['visual-accessibility'],
+  'run-chaos': ['chaos-resilience'],
+  'optimize-learning': ['learning-optimization'],
+  'cross-domain-workflow': ALL_DOMAINS as unknown as DomainName[],
+  'protocol-execution': ALL_DOMAINS as unknown as DomainName[],
+};
+
+// ============================================================================
+// Default Configuration
+// ============================================================================
+
+const DEFAULT_CONFIG: QueenConfig = {
+  maxConcurrentTasks: 50,
+  defaultTaskTimeout: 300000, // 5 minutes
+  taskRetryLimit: 3,
+  workStealing: {
+    enabled: true,
+    idleThreshold: 5000, // 5 seconds
+    loadThreshold: 10,
+    stealBatchSize: 3,
+    checkInterval: 10000, // 10 seconds
+  },
+  enableMetrics: true,
+  metricsInterval: 60000, // 1 minute
+  priorityWeights: {
+    p0: 100,
+    p1: 50,
+    p2: 25,
+    p3: 10,
+  },
+};
+
+// ============================================================================
+// Queen Coordinator Implementation
+// ============================================================================
+
+export class QueenCoordinator implements IQueenCoordinator {
+  private readonly config: QueenConfig;
+  private readonly tasks: Map<string, TaskExecution> = new Map();
+  private readonly taskQueue: Map<Priority, QueenTask[]> = new Map();
+  private readonly domainQueues: Map<DomainName, QueenTask[]> = new Map();
+  private readonly domainLastActivity: Map<DomainName, Date> = new Map();
+
+  private initialized = false;
+  private workStealingTimer: NodeJS.Timeout | null = null;
+  private metricsTimer: NodeJS.Timeout | null = null;
+  private startTime: Date = new Date();
+
+  // Metrics counters
+  private tasksReceived = 0;
+  private tasksCompleted = 0;
+  private tasksFailed = 0;
+  private tasksStolen = 0;
+  private taskDurations: number[] = [];
+  private protocolsExecuted = 0;
+  private workflowsExecuted = 0;
+
+  constructor(
+    private readonly eventBus: EventBus,
+    private readonly agentCoordinator: AgentCoordinator,
+    private readonly memory: MemoryBackend,
+    private readonly router: CrossDomainRouter,
+    private readonly protocolExecutor?: ProtocolExecutor,
+    private readonly workflowExecutor?: WorkflowExecutor,
+    private readonly domainPlugins?: Map<DomainName, DomainPlugin>,
+    config: Partial<QueenConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Initialize priority queues
+    (['p0', 'p1', 'p2', 'p3'] as Priority[]).forEach(p => {
+      this.taskQueue.set(p, []);
+    });
+
+    // Initialize domain queues
+    ALL_DOMAINS.forEach(domain => {
+      this.domainQueues.set(domain, []);
+      this.domainLastActivity.set(domain, new Date());
+    });
+  }
+
+  // ============================================================================
+  // Lifecycle
+  // ============================================================================
+
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    this.startTime = new Date();
+
+    // Initialize cross-domain router
+    await this.router.initialize();
+
+    // Subscribe to domain events for coordination
+    this.subscribeToEvents();
+
+    // Start work stealing if enabled
+    if (this.config.workStealing.enabled) {
+      this.startWorkStealing();
+    }
+
+    // Start metrics collection if enabled
+    if (this.config.enableMetrics) {
+      this.startMetricsCollection();
+    }
+
+    // Load persisted state
+    await this.loadState();
+
+    // Publish initialization event
+    await this.publishEvent('QueenInitialized', {
+      timestamp: new Date(),
+      config: this.config,
+      domains: ALL_DOMAINS,
+    });
+
+    this.initialized = true;
+  }
+
+  async dispose(): Promise<void> {
+    // Stop timers
+    if (this.workStealingTimer) {
+      clearInterval(this.workStealingTimer);
+      this.workStealingTimer = null;
+    }
+    if (this.metricsTimer) {
+      clearInterval(this.metricsTimer);
+      this.metricsTimer = null;
+    }
+
+    // Save state
+    await this.saveState();
+
+    // Cancel all pending tasks
+    for (const [taskId, execution] of this.tasks) {
+      if (execution.status === 'queued' || execution.status === 'running') {
+        await this.cancelTask(taskId);
+      }
+    }
+
+    // Publish shutdown event
+    await this.publishEvent('QueenShutdown', {
+      timestamp: new Date(),
+      metrics: this.getMetrics(),
+    });
+
+    // Dispose router
+    await this.router.dispose();
+
+    this.initialized = false;
+  }
+
+  // ============================================================================
+  // Task Management
+  // ============================================================================
+
+  async submitTask(taskInput: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>> {
+    if (!this.initialized) {
+      return err(new Error('Queen Coordinator not initialized'));
+    }
+
+    const taskId = `task_${uuidv4()}`;
+    const task: QueenTask = {
+      ...taskInput,
+      id: taskId,
+      createdAt: new Date(),
+      timeout: taskInput.timeout || this.config.defaultTaskTimeout,
+    };
+
+    // Check concurrent task limit
+    const runningCount = this.getRunningTaskCount();
+    if (runningCount >= this.config.maxConcurrentTasks) {
+      // Queue the task instead of rejecting
+      this.enqueueTask(task);
+      const execution: TaskExecution = {
+        taskId,
+        task,
+        status: 'queued',
+        assignedAgents: [],
+        retryCount: 0,
+      };
+      this.tasks.set(taskId, execution);
+      this.tasksReceived++;
+
+      await this.publishEvent('TaskQueued', { taskId, task, position: this.getQueuePosition(task) });
+      return ok(taskId);
+    }
+
+    // Assign task to appropriate domain(s)
+    const assignResult = await this.assignTask(task);
+    if (!assignResult.success) {
+      return assignResult;
+    }
+
+    this.tasksReceived++;
+    await this.publishEvent('TaskSubmitted', { taskId, task });
+
+    return ok(taskId);
+  }
+
+  async cancelTask(taskId: string): Promise<Result<void, Error>> {
+    const execution = this.tasks.get(taskId);
+    if (!execution) {
+      return err(new Error(`Task not found: ${taskId}`));
+    }
+
+    if (execution.status === 'completed' || execution.status === 'failed') {
+      return err(new Error(`Task already finished: ${taskId}`));
+    }
+
+    // Update status
+    const updated: TaskExecution = {
+      ...execution,
+      status: 'cancelled',
+      completedAt: new Date(),
+    };
+    this.tasks.set(taskId, updated);
+
+    // Remove from queues
+    this.removeFromQueues(execution.task);
+
+    // Stop assigned agents if any
+    for (const agentId of execution.assignedAgents) {
+      await this.agentCoordinator.stop(agentId);
+    }
+
+    await this.publishEvent('TaskCancelled', { taskId });
+
+    return ok(undefined);
+  }
+
+  getTaskStatus(taskId: string): TaskExecution | undefined {
+    return this.tasks.get(taskId);
+  }
+
+  listTasks(filter?: TaskFilter): TaskExecution[] {
+    let tasks = Array.from(this.tasks.values());
+
+    if (filter) {
+      if (filter.status) {
+        tasks = tasks.filter(t => t.status === filter.status);
+      }
+      if (filter.domain) {
+        tasks = tasks.filter(t => t.assignedDomain === filter.domain);
+      }
+      if (filter.priority) {
+        tasks = tasks.filter(t => t.task.priority === filter.priority);
+      }
+      if (filter.type) {
+        tasks = tasks.filter(t => t.task.type === filter.type);
+      }
+      if (filter.fromDate) {
+        tasks = tasks.filter(t => t.task.createdAt >= filter.fromDate!);
+      }
+      if (filter.toDate) {
+        tasks = tasks.filter(t => t.task.createdAt <= filter.toDate!);
+      }
+    }
+
+    return tasks;
+  }
+
+  // ============================================================================
+  // Domain Coordination
+  // ============================================================================
+
+  getDomainHealth(domain: DomainName): DomainHealth | undefined {
+    if (this.domainPlugins) {
+      const plugin = this.domainPlugins.get(domain);
+      return plugin?.getHealth();
+    }
+
+    // Fallback: compute from agent coordinator
+    const agents = this.agentCoordinator.listAgents({ domain });
+    return {
+      status: agents.length > 0 ? 'healthy' : 'degraded',
+      agents: {
+        total: agents.length,
+        active: agents.filter(a => a.status === 'running').length,
+        idle: agents.filter(a => a.status === 'idle').length,
+        failed: agents.filter(a => a.status === 'failed').length,
+      },
+      lastActivity: this.domainLastActivity.get(domain),
+      errors: [],
+    };
+  }
+
+  getDomainLoad(domain: DomainName): number {
+    const queue = this.domainQueues.get(domain) || [];
+    const runningTasks = Array.from(this.tasks.values())
+      .filter(t => t.assignedDomain === domain && t.status === 'running');
+    return queue.length + runningTasks.length;
+  }
+
+  getIdleDomains(): DomainName[] {
+    const now = Date.now();
+    const idleThreshold = this.config.workStealing.idleThreshold;
+
+    return ALL_DOMAINS.filter(domain => {
+      const lastActivity = this.domainLastActivity.get(domain);
+      const load = this.getDomainLoad(domain);
+      return load === 0 && lastActivity && (now - lastActivity.getTime()) > idleThreshold;
+    });
+  }
+
+  getBusyDomains(): DomainName[] {
+    const loadThreshold = this.config.workStealing.loadThreshold;
+    return ALL_DOMAINS.filter(domain => this.getDomainLoad(domain) > loadThreshold);
+  }
+
+  // ============================================================================
+  // Work Stealing Algorithm
+  // ============================================================================
+
+  enableWorkStealing(): void {
+    if (!this.workStealingTimer) {
+      this.startWorkStealing();
+    }
+  }
+
+  disableWorkStealing(): void {
+    if (this.workStealingTimer) {
+      clearInterval(this.workStealingTimer);
+      this.workStealingTimer = null;
+    }
+  }
+
+  async triggerWorkStealing(): Promise<number> {
+    let stolenCount = 0;
+    const idleDomains = this.getIdleDomains();
+    const busyDomains = this.getBusyDomains();
+
+    if (idleDomains.length === 0 || busyDomains.length === 0) {
+      return 0;
+    }
+
+    // Sort busy domains by load (highest first)
+    busyDomains.sort((a, b) => this.getDomainLoad(b) - this.getDomainLoad(a));
+
+    for (const busyDomain of busyDomains) {
+      if (idleDomains.length === 0) break;
+
+      const queue = this.domainQueues.get(busyDomain) || [];
+      const stealCount = Math.min(queue.length, this.config.workStealing.stealBatchSize);
+
+      for (let i = 0; i < stealCount && idleDomains.length > 0; i++) {
+        // Find a task that can be handled by an idle domain
+        const task = queue.find(t => this.canDomainHandleTask(idleDomains[0], t));
+
+        if (task) {
+          // Steal the task
+          const stealerDomain = idleDomains.shift()!;
+          this.removeFromQueues(task);
+
+          // Reassign to idle domain
+          await this.assignTaskToDomain(task, stealerDomain);
+
+          stolenCount++;
+          this.tasksStolen++;
+
+          await this.publishEvent('TaskStolen', {
+            taskId: task.id,
+            fromDomain: busyDomain,
+            toDomain: stealerDomain,
+          });
+        }
+      }
+    }
+
+    return stolenCount;
+  }
+
+  // ============================================================================
+  // Agent Management
+  // ============================================================================
+
+  listAllAgents(): AgentInfo[] {
+    return this.agentCoordinator.listAgents();
+  }
+
+  getAgentsByDomain(domain: DomainName): AgentInfo[] {
+    return this.agentCoordinator.listAgents({ domain });
+  }
+
+  async requestAgentSpawn(
+    domain: DomainName,
+    type: string,
+    capabilities: string[]
+  ): Promise<Result<string, Error>> {
+    if (!this.agentCoordinator.canSpawn()) {
+      return err(new Error('Maximum concurrent agents reached (15)'));
+    }
+
+    const result = await this.agentCoordinator.spawn({
+      name: `${domain}-${type}-${Date.now()}`,
+      domain,
+      type,
+      capabilities,
+    });
+
+    if (result.success) {
+      this.domainLastActivity.set(domain, new Date());
+      await this.publishEvent('AgentSpawned', {
+        agentId: result.value,
+        domain,
+        type,
+        capabilities,
+      });
+    }
+
+    return result;
+  }
+
+  // ============================================================================
+  // Health & Metrics
+  // ============================================================================
+
+  getHealth(): QueenHealth {
+    const domainHealth = new Map<DomainName, DomainHealth>();
+    const issues: HealthIssue[] = [];
+    let unhealthyCount = 0;
+    let degradedCount = 0;
+
+    for (const domain of ALL_DOMAINS) {
+      const health = this.getDomainHealth(domain);
+      if (health) {
+        domainHealth.set(domain, health);
+        if (health.status === 'unhealthy') {
+          unhealthyCount++;
+          issues.push({
+            domain,
+            severity: 'high',
+            message: `Domain ${domain} is unhealthy`,
+            timestamp: new Date(),
+          });
+        } else if (health.status === 'degraded') {
+          degradedCount++;
+          issues.push({
+            domain,
+            severity: 'medium',
+            message: `Domain ${domain} is degraded`,
+            timestamp: new Date(),
+          });
+        }
+      }
+    }
+
+    const agents = this.agentCoordinator.listAgents();
+    const activeAgents = agents.filter(a => a.status === 'running').length;
+    const pendingTasks = this.getQueuedTaskCount();
+    const runningTasks = this.getRunningTaskCount();
+
+    // Determine overall health
+    let status: QueenHealth['status'] = 'healthy';
+    if (unhealthyCount > 0) {
+      status = 'unhealthy';
+    } else if (degradedCount > ALL_DOMAINS.length / 2) {
+      status = 'degraded';
+    }
+
+    return {
+      status,
+      domainHealth,
+      totalAgents: agents.length,
+      activeAgents,
+      pendingTasks,
+      runningTasks,
+      workStealingActive: this.workStealingTimer !== null,
+      lastHealthCheck: new Date(),
+      issues,
+    };
+  }
+
+  getMetrics(): QueenMetrics {
+    const domainUtilization = new Map<DomainName, number>();
+    let totalLoad = 0;
+
+    for (const domain of ALL_DOMAINS) {
+      const load = this.getDomainLoad(domain);
+      domainUtilization.set(domain, load);
+      totalLoad += load;
+    }
+
+    const agents = this.agentCoordinator.listAgents();
+    const activeAgents = agents.filter(a => a.status === 'running').length;
+    const agentUtilization = agents.length > 0 ? activeAgents / agents.length : 0;
+
+    const avgDuration = this.taskDurations.length > 0
+      ? this.taskDurations.reduce((a, b) => a + b, 0) / this.taskDurations.length
+      : 0;
+
+    return {
+      tasksReceived: this.tasksReceived,
+      tasksCompleted: this.tasksCompleted,
+      tasksFailed: this.tasksFailed,
+      tasksStolen: this.tasksStolen,
+      averageTaskDuration: avgDuration,
+      domainUtilization,
+      agentUtilization,
+      protocolsExecuted: this.protocolsExecuted,
+      workflowsExecuted: this.workflowsExecuted,
+      uptime: Date.now() - this.startTime.getTime(),
+    };
+  }
+
+  // ============================================================================
+  // Protocol & Workflow
+  // ============================================================================
+
+  async executeProtocol(
+    protocolId: string,
+    params?: Record<string, unknown>
+  ): Promise<Result<string, Error>> {
+    if (!this.protocolExecutor) {
+      return err(new Error('Protocol executor not configured'));
+    }
+
+    const result = await this.protocolExecutor.execute(protocolId, params);
+    if (result.success) {
+      this.protocolsExecuted++;
+      await this.publishEvent('ProtocolExecuted', {
+        protocolId,
+        executionId: result.value.executionId,
+      });
+      return ok(result.value.executionId);
+    }
+
+    return result as Result<string, Error>;
+  }
+
+  async executeWorkflow(
+    workflowId: string,
+    params?: Record<string, unknown>
+  ): Promise<Result<string, Error>> {
+    if (!this.workflowExecutor) {
+      return err(new Error('Workflow executor not configured'));
+    }
+
+    const result = await this.workflowExecutor.execute(workflowId, params);
+    if (result.success) {
+      this.workflowsExecuted++;
+      await this.publishEvent('WorkflowExecuted', {
+        workflowId,
+        executionId: result.value.executionId,
+      });
+      return ok(result.value.executionId);
+    }
+
+    return result as Result<string, Error>;
+  }
+
+  // ============================================================================
+  // Private Methods
+  // ============================================================================
+
+  private subscribeToEvents(): void {
+    // Listen for task completion events from domains
+    for (const domain of ALL_DOMAINS) {
+      this.router.subscribeToDoamin(domain, async (event) => {
+        await this.handleDomainEvent(event);
+      });
+    }
+
+    // Listen for specific coordination events
+    this.router.subscribeToEventType('TaskCompleted', async (event) => {
+      await this.handleTaskCompleted(event);
+    });
+
+    this.router.subscribeToEventType('TaskFailed', async (event) => {
+      await this.handleTaskFailed(event);
+    });
+
+    this.router.subscribeToEventType('AgentStatusChanged', async (event) => {
+      await this.handleAgentStatusChanged(event);
+    });
+  }
+
+  private async handleDomainEvent(event: DomainEvent): Promise<void> {
+    // Update domain activity
+    this.domainLastActivity.set(event.source, new Date());
+
+    // Check if this frees up capacity for queued tasks
+    await this.processQueue();
+  }
+
+  private async handleTaskCompleted(event: DomainEvent): Promise<void> {
+    const { taskId, result } = event.payload as { taskId: string; result: unknown };
+    const execution = this.tasks.get(taskId);
+
+    if (execution) {
+      const duration = execution.startedAt
+        ? Date.now() - execution.startedAt.getTime()
+        : 0;
+
+      this.tasks.set(taskId, {
+        ...execution,
+        status: 'completed',
+        completedAt: new Date(),
+        result,
+      });
+
+      this.tasksCompleted++;
+      this.taskDurations.push(duration);
+
+      // Keep only last 1000 durations for averaging
+      if (this.taskDurations.length > 1000) {
+        this.taskDurations.shift();
+      }
+    }
+
+    // Process queue for next task
+    await this.processQueue();
+  }
+
+  private async handleTaskFailed(event: DomainEvent): Promise<void> {
+    const { taskId, error } = event.payload as { taskId: string; error: string };
+    const execution = this.tasks.get(taskId);
+
+    if (execution) {
+      // Check if we should retry
+      if (execution.retryCount < this.config.taskRetryLimit) {
+        // Retry the task
+        const retried: TaskExecution = {
+          ...execution,
+          status: 'queued',
+          retryCount: execution.retryCount + 1,
+          error,
+        };
+        this.tasks.set(taskId, retried);
+        this.enqueueTask(execution.task);
+
+        await this.publishEvent('TaskRetrying', {
+          taskId,
+          retryCount: retried.retryCount,
+          error,
+        });
+      } else {
+        // Mark as failed
+        this.tasks.set(taskId, {
+          ...execution,
+          status: 'failed',
+          completedAt: new Date(),
+          error,
+        });
+        this.tasksFailed++;
+      }
+    }
+
+    await this.processQueue();
+  }
+
+  private async handleAgentStatusChanged(event: DomainEvent): Promise<void> {
+    const { agentId: _agentId, status, domain } = event.payload as {
+      agentId: string;
+      status: AgentStatus;
+      domain: DomainName;
+    };
+
+    this.domainLastActivity.set(domain, new Date());
+
+    // If agent completed or failed, check for queued tasks
+    if (status === 'completed' || status === 'failed') {
+      await this.processQueue();
+    }
+  }
+
+  private async assignTask(task: QueenTask): Promise<Result<string, Error>> {
+    const targetDomains = task.targetDomains.length > 0
+      ? task.targetDomains
+      : TASK_DOMAIN_MAP[task.type] || [];
+
+    if (targetDomains.length === 0) {
+      return err(new Error(`No domains configured for task type: ${task.type}`));
+    }
+
+    // Find the least loaded domain that can handle this task
+    let bestDomain: DomainName | undefined;
+    let lowestLoad = Infinity;
+
+    for (const domain of targetDomains) {
+      const load = this.getDomainLoad(domain);
+      const health = this.getDomainHealth(domain);
+
+      if (health?.status !== 'unhealthy' && load < lowestLoad) {
+        lowestLoad = load;
+        bestDomain = domain;
+      }
+    }
+
+    if (!bestDomain) {
+      return err(new Error('No healthy domain available for task'));
+    }
+
+    return this.assignTaskToDomain(task, bestDomain);
+  }
+
+  private async assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<Result<string, Error>> {
+    // Spawn an agent for this task if needed
+    const spawnResult = await this.requestAgentSpawn(
+      domain,
+      'task-worker',
+      ['task-execution', task.type]
+    );
+
+    const agentIds: string[] = [];
+    if (spawnResult.success) {
+      agentIds.push(spawnResult.value);
+    }
+
+    const execution: TaskExecution = {
+      taskId: task.id,
+      task,
+      status: 'running',
+      assignedDomain: domain,
+      assignedAgents: agentIds,
+      startedAt: new Date(),
+      retryCount: 0,
+    };
+
+    this.tasks.set(task.id, execution);
+    this.domainLastActivity.set(domain, new Date());
+
+    await this.publishEvent('TaskAssigned', {
+      taskId: task.id,
+      domain,
+      agentIds,
+    });
+
+    // Invoke domain API if available
+    if (this.domainPlugins) {
+      const plugin = this.domainPlugins.get(domain);
+      if (plugin) {
+        try {
+          await plugin.handleEvent({
+            id: uuidv4(),
+            type: 'TaskAssigned',
+            timestamp: new Date(),
+            source: 'queen-coordinator' as DomainName,
+            correlationId: task.correlationId,
+            payload: { task },
+          });
+        } catch (error) {
+          // Log but don't fail - domain will handle via event bus
+        }
+      }
+    }
+
+    return ok(task.id);
+  }
+
+  private enqueueTask(task: QueenTask): void {
+    const priorityQueue = this.taskQueue.get(task.priority);
+    if (priorityQueue) {
+      priorityQueue.push(task);
+      // Sort by creation time within priority
+      priorityQueue.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    }
+
+    // Also add to domain-specific queues
+    for (const domain of task.targetDomains) {
+      const domainQueue = this.domainQueues.get(domain);
+      if (domainQueue) {
+        domainQueue.push(task);
+      }
+    }
+  }
+
+  private removeFromQueues(task: QueenTask): void {
+    // Remove from priority queue
+    const priorityQueue = this.taskQueue.get(task.priority);
+    if (priorityQueue) {
+      const idx = priorityQueue.findIndex(t => t.id === task.id);
+      if (idx !== -1) {
+        priorityQueue.splice(idx, 1);
+      }
+    }
+
+    // Remove from domain queues
+    for (const domain of ALL_DOMAINS) {
+      const domainQueue = this.domainQueues.get(domain);
+      if (domainQueue) {
+        const idx = domainQueue.findIndex(t => t.id === task.id);
+        if (idx !== -1) {
+          domainQueue.splice(idx, 1);
+        }
+      }
+    }
+  }
+
+  private async processQueue(): Promise<void> {
+    const runningCount = this.getRunningTaskCount();
+    if (runningCount >= this.config.maxConcurrentTasks) {
+      return;
+    }
+
+    // Process by priority (p0 first)
+    for (const priority of ['p0', 'p1', 'p2', 'p3'] as Priority[]) {
+      const queue = this.taskQueue.get(priority);
+      if (!queue || queue.length === 0) continue;
+
+      const task = queue.shift();
+      if (task) {
+        this.removeFromQueues(task);
+        await this.assignTask(task);
+
+        // Check if we can process more
+        if (this.getRunningTaskCount() >= this.config.maxConcurrentTasks) {
+          return;
+        }
+      }
+    }
+  }
+
+  private getQueuePosition(task: QueenTask): number {
+    let position = 0;
+
+    // Count tasks ahead in higher priority queues
+    for (const p of ['p0', 'p1', 'p2', 'p3'] as Priority[]) {
+      const queue = this.taskQueue.get(p);
+      if (queue) {
+        if (p === task.priority) {
+          position += queue.findIndex(t => t.id === task.id);
+          break;
+        }
+        position += queue.length;
+      }
+    }
+
+    return position;
+  }
+
+  private getRunningTaskCount(): number {
+    return Array.from(this.tasks.values())
+      .filter(t => t.status === 'running' || t.status === 'assigned')
+      .length;
+  }
+
+  private getQueuedTaskCount(): number {
+    return Array.from(this.tasks.values())
+      .filter(t => t.status === 'queued')
+      .length;
+  }
+
+  private canDomainHandleTask(domain: DomainName, task: QueenTask): boolean {
+    const compatibleDomains = TASK_DOMAIN_MAP[task.type] || [];
+    return compatibleDomains.includes(domain);
+  }
+
+  private startWorkStealing(): void {
+    this.workStealingTimer = setInterval(async () => {
+      await this.triggerWorkStealing();
+    }, this.config.workStealing.checkInterval);
+  }
+
+  private startMetricsCollection(): void {
+    this.metricsTimer = setInterval(async () => {
+      const metrics = this.getMetrics();
+      await this.publishEvent('MetricsCollected', { metrics });
+
+      // Store metrics in memory for historical analysis
+      await this.memory.set(`queen:metrics:${Date.now()}`, metrics, {
+        ttl: 86400000, // 24 hours
+        namespace: 'queen-coordinator',
+      });
+    }, this.config.metricsInterval);
+  }
+
+  private async loadState(): Promise<void> {
+    try {
+      const state = await this.memory.get<{
+        tasks: [string, TaskExecution][];
+      }>('queen:state');
+
+      if (state) {
+        for (const [id, execution] of state.tasks) {
+          // Only restore queued tasks
+          if (execution.status === 'queued') {
+            this.tasks.set(id, execution);
+            this.enqueueTask(execution.task);
+          }
+        }
+      }
+    } catch {
+      // Ignore errors loading state
+    }
+  }
+
+  private async saveState(): Promise<void> {
+    const queuedTasks = Array.from(this.tasks.entries())
+      .filter(([, t]) => t.status === 'queued');
+
+    await this.memory.set(
+      'queen:state',
+      { tasks: queuedTasks },
+      { namespace: 'queen-coordinator', persist: true }
+    );
+  }
+
+  private async publishEvent(type: string, payload: Record<string, unknown>): Promise<void> {
+    await this.eventBus.publish({
+      id: uuidv4(),
+      type: `Queen${type}`,
+      timestamp: new Date(),
+      source: 'queen-coordinator' as DomainName,
+      payload,
+    });
+  }
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+/**
+ * Create a Queen Coordinator from a QE Kernel
+ */
+export function createQueenCoordinator(
+  kernel: QEKernel,
+  router: CrossDomainRouter,
+  protocolExecutor?: ProtocolExecutor,
+  workflowExecutor?: WorkflowExecutor,
+  config?: Partial<QueenConfig>
+): QueenCoordinator {
+  return new QueenCoordinator(
+    kernel.eventBus,
+    kernel.coordinator,
+    kernel.memory,
+    router,
+    protocolExecutor,
+    workflowExecutor,
+    undefined,
+    config
+  );
+}

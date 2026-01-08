@@ -4,7 +4,6 @@
  */
 
 import { FileReader } from '../io';
-import { TypeScriptParser } from '../parsers';
 
 // ============================================================================
 // Types and Interfaces
@@ -220,11 +219,9 @@ const SECURITY_CONTROLS_PATTERNS = {
 
 export class CompliancePatternAnalyzer {
   private readonly fileReader: FileReader;
-  private readonly parser: TypeScriptParser;
 
   constructor() {
     this.fileReader = new FileReader();
-    this.parser = new TypeScriptParser();
   }
 
   /**

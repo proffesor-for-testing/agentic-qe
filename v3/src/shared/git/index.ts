@@ -2,8 +2,8 @@
  * Agentic QE v3 - Git Analysis Utilities
  */
 
-export {
-  GitAnalyzer,
+export { GitAnalyzer } from './git-analyzer';
+export type {
   GitAnalyzerConfig,
   GitCommit,
   GitBlameInfo,

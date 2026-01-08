@@ -194,6 +194,25 @@ export class HttpClient {
   }
 
   /**
+   * Perform a PATCH request
+   */
+  async patch(
+    url: string,
+    body: unknown,
+    options?: RequestOptions
+  ): Promise<Result<Response, HttpError>> {
+    return this.request(
+      url,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      },
+      options
+    );
+  }
+
+  /**
    * Perform a DELETE request
    */
   async delete(

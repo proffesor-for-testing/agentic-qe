@@ -121,7 +121,7 @@ const DEFAULT_CONFIG: PatternMatcherConfig = {
   maxPatterns: 100,
   minMatchScore: 0.5,
   enableVectorSearch: true,
-  embeddingDimension: EMBEDDING_CONFIG.DIMENSION,
+  embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS,
   patternNamespace: 'test-generation:patterns',
 };
 

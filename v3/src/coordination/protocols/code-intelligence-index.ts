@@ -130,7 +130,7 @@ export interface CodeIndexStartedPayload {
   startTime: Date;
 }
 
-export interface KnowledgeGraphUpdatedPayload {
+export interface ProtocolKnowledgeGraphUpdatedPayload {
   protocolId: string;
   nodesCreated: number;
   edgesCreated: number;
@@ -303,7 +303,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
         edgesCreated: indexResult.value.edgesCreated,
         filesIndexed: indexResult.value.filesIndexed,
         duration: indexResult.value.duration,
-      } satisfies KnowledgeGraphUpdatedPayload);
+      } satisfies ProtocolKnowledgeGraphUpdatedPayload);
 
       // Step 2: Analyze Impact (if enabled and relevant trigger)
       let impactAnalysis: ImpactAnalysis | undefined;

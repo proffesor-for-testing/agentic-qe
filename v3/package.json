@@ -5,6 +5,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "aqe-v3": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -17,6 +20,9 @@
     "./shared": {
       "import": "./dist/shared/index.js",
       "types": "./dist/shared/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js"
     }
   },
   "scripts": {
@@ -46,6 +52,8 @@
   },
   "dependencies": {
     "@faker-js/faker": "^10.2.0",
+    "chalk": "^5.6.2",
+    "commander": "^12.1.0",
     "uuid": "^9.0.0"
   },
   "engines": {

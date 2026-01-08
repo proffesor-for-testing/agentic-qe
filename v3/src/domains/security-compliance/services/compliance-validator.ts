@@ -9,7 +9,6 @@ import {
   CompliancePatternAnalyzer,
   getCompliancePatternAnalyzer,
 } from '../../../shared/security';
-import { FileReader } from '../../../shared/io';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { FilePath } from '../../../shared/value-objects/index.js';
 import type {
@@ -318,7 +317,6 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
   private readonly config: ComplianceValidatorConfig;
   private readonly standards: Map<string, ComplianceStandard>;
   private readonly patternAnalyzer: CompliancePatternAnalyzer;
-  private readonly fileReader: FileReader;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -326,7 +324,6 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.patternAnalyzer = getCompliancePatternAnalyzer();
-    this.fileReader = new FileReader();
 
     // Initialize standards map
     this.standards = new Map();
@@ -1141,7 +1138,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
     context: ComplianceContext
   ): Promise<string[]> {
     const evidence: string[] = [];
-    const files = this.getFilesFromContext(context);
+    const files = await this.getFilesFromContext(context);
 
     if (rule.checkType === 'static' && files.length > 0) {
       // Collect evidence based on rule category
@@ -1206,12 +1203,12 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
           evidence.push(`Code patterns reviewed: ${rule.title}`);
       }
       evidence.push(`Files analyzed: ${files.length}`);
-    } else if (rule.checkType === 'runtime') {
-      evidence.push(`Runtime check required for: ${rule.title}`);
-      evidence.push('Evidence collection pending runtime analysis');
+    } else if (rule.checkType === 'dynamic') {
+      evidence.push(`Dynamic check required for: ${rule.title}`);
+      evidence.push('Evidence collection pending dynamic analysis');
     } else if (rule.checkType === 'manual') {
       evidence.push(`Manual verification required for: ${rule.title}`);
-      evidence.push(`Review scope: ${context.scope}`);
+      evidence.push(`Review scope: ${context.projectRoot.value}`);
     }
 
     evidence.push(`Rule ${rule.id} verified at ${new Date().toISOString()}`);

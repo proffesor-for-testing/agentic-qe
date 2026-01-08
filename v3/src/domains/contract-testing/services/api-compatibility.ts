@@ -5,6 +5,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import type { Version } from '../../../shared/value-objects/index.js';
 import type {
   IApiCompatibilityService,
   ApiContract,

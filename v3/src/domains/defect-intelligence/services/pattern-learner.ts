@@ -47,7 +47,7 @@ const DEFAULT_CONFIG: PatternLearnerConfig = {
   minPatternFrequency: 2,
   maxPatterns: 50,
   clusterThreshold: 0.7,
-  embeddingDimension: EMBEDDING_CONFIG.DIMENSION,
+  embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS,
   patternNamespace: 'defect-intelligence:patterns',
   enableSemanticClustering: true,
 };
@@ -699,8 +699,7 @@ export class PatternLearnerService implements IPatternLearnerService {
       `Title: ${defect.title}`,
       defect.description ? `Description: ${defect.description}` : '',
       defect.tags?.length ? `Tags: ${defect.tags.join(', ')}` : '',
-      defect.severity ? `Severity: ${defect.severity}` : '',
-      defect.component ? `Component: ${defect.component}` : '',
+      defect.file ? `File: ${defect.file}` : '',
     ].filter(Boolean);
 
     return parts.join('\n');
@@ -714,7 +713,7 @@ export class PatternLearnerService implements IPatternLearnerService {
       `Pattern: ${pattern.name}`,
       `Indicators: ${pattern.indicators.join(', ')}`,
       `Prevention: ${pattern.prevention}`,
-      pattern.severity ? `Severity: ${pattern.severity}` : '',
+      `Frequency: ${pattern.frequency}`,
     ].filter(Boolean);
 
     return parts.join('\n');

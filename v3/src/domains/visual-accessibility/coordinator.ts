@@ -549,7 +549,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     for (const key of baselineKeys) {
       const match = key.match(/baseline:([^_]+)_(\d+)x(\d+)_/);
       if (match) {
-        const [, urlHash, widthStr, heightStr] = match;
+        const [, urlHash, widthStr] = match;
         const width = parseInt(widthStr, 10);
         uniqueUrls.add(urlHash);
 

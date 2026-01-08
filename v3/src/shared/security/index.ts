@@ -2,8 +2,8 @@
  * Agentic QE v3 - Security Utilities
  */
 
-export {
-  OSVClient,
+export { OSVClient } from './osv-client';
+export type {
   OSVClientConfig,
   OSVQueryRequest,
   OSVEcosystem,
@@ -18,9 +18,8 @@ export {
   ParsedVulnerability,
 } from './osv-client';
 
-export {
-  CompliancePatternAnalyzer,
-  getCompliancePatternAnalyzer,
+export { CompliancePatternAnalyzer, getCompliancePatternAnalyzer } from './compliance-patterns';
+export type {
   PatternMatch,
   CompliancePatternResult,
   EncryptionAnalysis,

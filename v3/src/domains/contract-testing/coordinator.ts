@@ -27,6 +27,7 @@ import type {
   SchemaDefinition,
   HttpMethod,
   ContractType,
+  FailureType,
 } from './interfaces.js';
 import { ContractValidatorService } from './services/contract-validator.js';
 import { ApiCompatibilityService } from './services/api-compatibility.js';
@@ -480,7 +481,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
           if (!verifyResult.success) {
             failures.push({
               endpoint: endpointKey,
-              type: verifyResult.errorType,
+              type: verifyResult.errorType as FailureType,
               expected: verifyResult.expected,
               actual: verifyResult.actual,
               message: verifyResult.message,
@@ -489,6 +490,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
             warnings.push({
               endpoint: endpointKey,
               message: verifyResult.warning,
+              severity: 'low',
             });
           }
         } catch (error) {
@@ -578,9 +580,9 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
 
     const response = result.value;
 
-    // Verify response status matches expected
-    if (endpoint.responses && endpoint.responses.length > 0) {
-      const expectedStatuses = endpoint.responses.map((r) => r.statusCode);
+    // Verify response status matches expected - use examples for expected status codes
+    if (endpoint.examples && endpoint.examples.length > 0) {
+      const expectedStatuses = endpoint.examples.map((e) => e.statusCode);
       if (!expectedStatuses.includes(response.status)) {
         return {
           success: false,

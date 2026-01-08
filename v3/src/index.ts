@@ -14,8 +14,14 @@ export * as Entities from './shared/entities';
 // Kernel - export core kernel components
 export * from './kernel';
 
+// Coordination Layer - export coordination components
+export * from './coordination';
+
 // Domain Interfaces - export as namespaces
 export * from './domains';
+
+// MCP Server - Model Context Protocol integration
+export * from './mcp';
 
 // Version info
 export const VERSION = '3.0.0-alpha';

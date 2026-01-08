@@ -184,12 +184,7 @@ export class OSVClient {
 
   constructor(config: OSVClientConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.http = new HttpClient({
-      timeout: this.config.timeout,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    this.http = new HttpClient();
   }
 
   /**
@@ -211,7 +206,7 @@ export class OSVClient {
     }
 
     try {
-      const response = await this.http.post<OSVQueryResponse>(
+      const result = await this.http.post(
         `${this.config.baseUrl}/v1/query`,
         {
           package: {
@@ -219,8 +214,16 @@ export class OSVClient {
             ecosystem,
             ...(version && { version }),
           },
-        }
+        },
+        { timeout: this.config.timeout }
       );
+
+      if (!result.success) {
+        console.error(`OSV query failed for ${ecosystem}:${packageName}:`, result.error);
+        return [];
+      }
+
+      const response: OSVQueryResponse = await result.value.json();
 
       // Cache successful response
       if (this.config.enableCache && response.vulns) {
@@ -259,10 +262,21 @@ export class OSVClient {
         },
       }));
 
-      const response = await this.http.post<OSVBatchQueryResponse>(
+      const result = await this.http.post(
         `${this.config.baseUrl}/v1/querybatch`,
-        { queries }
+        { queries },
+        { timeout: this.config.timeout }
       );
+
+      if (!result.success) {
+        console.error('OSV batch query failed:', result.error);
+        for (const pkg of packages) {
+          results.set(`${pkg.ecosystem}:${pkg.name}`, []);
+        }
+        return results;
+      }
+
+      const response: OSVBatchQueryResponse = await result.value.json();
 
       // Map results back to packages
       for (let i = 0; i < packages.length; i++) {
@@ -287,11 +301,18 @@ export class OSVClient {
    */
   async queryByCVE(cveId: string): Promise<ParsedVulnerability[]> {
     try {
-      const response = await this.http.get<OSVVulnerability>(
-        `${this.config.baseUrl}/v1/vulns/${cveId}`
+      const result = await this.http.get(
+        `${this.config.baseUrl}/v1/vulns/${cveId}`,
+        { timeout: this.config.timeout }
       );
 
-      return this.parseVulnerabilities([response]);
+      if (!result.success) {
+        console.error(`OSV CVE query failed for ${cveId}:`, result.error);
+        return [];
+      }
+
+      const vuln: OSVVulnerability = await result.value.json();
+      return this.parseVulnerabilities([vuln]);
     } catch (error) {
       console.error(`OSV CVE query failed for ${cveId}:`, error);
       return [];
@@ -340,8 +361,8 @@ export class OSVClient {
           version: match[2],
         };
       })
-      .filter((pkg): pkg is { name: string; ecosystem: OSVEcosystem; version?: string } =>
-        Boolean(pkg)
+      .filter((pkg): pkg is { name: string; ecosystem: OSVEcosystem; version: string } =>
+        pkg !== null
       );
 
     const results = await this.queryBatch(packages);

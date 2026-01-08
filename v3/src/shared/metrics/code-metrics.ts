@@ -3,7 +3,7 @@
  * Real code analysis for complexity, maintainability, and quality metrics
  */
 
-import { TypeScriptParser, ParsedClass, ParsedFunction } from '../parsers';
+import { TypeScriptParser, FunctionInfo, MethodInfo } from '../parsers';
 import { FileReader } from '../io';
 
 // ============================================================================
@@ -160,7 +160,7 @@ export class CodeMetricsAnalyzer {
    */
   analyzeFunctionComplexity(
     content: string,
-    func: ParsedFunction | ParsedClass['methods'][0]
+    func: FunctionInfo | MethodInfo
   ): FunctionMetrics {
     const lines = content.split('\n');
     const startLine = func.startLine;
@@ -380,7 +380,7 @@ export class CodeMetricsAnalyzer {
     return this.calculateCognitiveComplexity(code);
   }
 
-  private calculateNestingDepth(content: string, func: ParsedFunction | ParsedClass['methods'][0]): number {
+  private calculateNestingDepth(content: string, func: FunctionInfo | MethodInfo): number {
     const lines = content.split('\n');
     const functionCode = lines.slice(func.startLine - 1, func.endLine).join('\n');
 

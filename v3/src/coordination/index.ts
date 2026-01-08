@@ -96,3 +96,26 @@ export type {
   WorkflowFailedPayload,
   StepEventPayload,
 } from './workflow-orchestrator';
+
+// ============================================================================
+// Queen Coordinator (Hierarchical Orchestration)
+// ============================================================================
+
+export {
+  QueenCoordinator,
+  createQueenCoordinator,
+} from './queen-coordinator';
+
+export type {
+  IQueenCoordinator,
+  QueenTask,
+  TaskType,
+  TaskExecution,
+  TaskFilter,
+  DomainGroup,
+  WorkStealingConfig,
+  QueenConfig,
+  QueenMetrics,
+  QueenHealth,
+  HealthIssue,
+} from './queen-coordinator';

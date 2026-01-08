@@ -589,9 +589,9 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     for (const path of filesToIndex) {
       try {
         // Read actual file content
-        const content = await this.fileReader.readFile(path);
-        if (content) {
-          await this.semanticAnalyzer.indexCode(path, content);
+        const result = await this.fileReader.readFile(path);
+        if (result.success && result.value) {
+          await this.semanticAnalyzer.indexCode(path, result.value);
         }
       } catch {
         // Continue on error - file may not exist or be unreadable

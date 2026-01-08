@@ -85,7 +85,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     this.tsParser = new TypeScriptParser();
     this.fileReader = new FileReader();
     this.embedder = new NomicEmbedder({
-      dimension: this.config.embeddingDimension,
+      enableFallback: true,
     });
   }
 
@@ -788,28 +788,22 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     const text = `${entity.type} ${entity.name} ${entity.visibility}${entity.isAsync ? ' async' : ''}`;
 
     try {
-      // Use NomicEmbedder for real semantic embeddings
-      const result = await this.embedder.embed(text);
-      if (result.success) {
-        return result.value;
-      }
-      // Fall back to simple embedding if Ollama is unavailable
-      return this.fallbackEmbedding(text);
+      // Use NomicEmbedder for real semantic embeddings (returns number[] directly)
+      const embedding = await this.embedder.embed(text);
+      return embedding;
     } catch {
+      // Fall back to simple embedding if Ollama is unavailable
       return this.fallbackEmbedding(text);
     }
   }
 
   private async generateQueryEmbedding(query: string): Promise<number[]> {
     try {
-      // Use NomicEmbedder for real semantic embeddings
-      const result = await this.embedder.embed(query);
-      if (result.success) {
-        return result.value;
-      }
-      // Fall back to simple embedding if Ollama is unavailable
-      return this.fallbackEmbedding(query);
+      // Use NomicEmbedder for real semantic embeddings (returns number[] directly)
+      const embedding = await this.embedder.embed(query);
+      return embedding;
     } catch {
+      // Fall back to simple embedding if Ollama is unavailable
       return this.fallbackEmbedding(query);
     }
   }
