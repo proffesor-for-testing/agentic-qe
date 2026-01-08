@@ -1,6 +1,7 @@
 /**
  * Agentic QE v3 - Defect Prediction Service
  * ML-based defect prediction using code metrics and historical data
+ * Uses GitAnalyzer for real git history analysis
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -15,6 +16,9 @@ import {
   RegressionRisk,
   ImpactedArea,
 } from '../interfaces';
+import { GitAnalyzer } from '../../../shared/git';
+import { FileReader } from '../../../shared/io';
+import { TypeScriptParser } from '../../../shared/parsers';
 
 /**
  * Interface for the defect prediction service
@@ -93,6 +97,9 @@ const DEFAULT_FEATURES: PredictionFeature[] = [
  */
 export class DefectPredictorService implements IDefectPredictorService {
   private readonly config: DefectPredictorConfig;
+  private readonly gitAnalyzer: GitAnalyzer;
+  private readonly fileReader: FileReader;
+  private readonly tsParser: TypeScriptParser;
   private modelMetrics: ModelMetrics = {
     accuracy: 0.75,
     precision: 0.72,
@@ -107,6 +114,9 @@ export class DefectPredictorService implements IDefectPredictorService {
     config: Partial<DefectPredictorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.gitAnalyzer = new GitAnalyzer({ enableCache: true });
+    this.fileReader = new FileReader();
+    this.tsParser = new TypeScriptParser();
   }
 
   /**
@@ -302,9 +312,9 @@ export class DefectPredictorService implements IDefectPredictorService {
       return cachedMetrics;
     }
 
-    // Calculate metrics (stubbed - in production would analyze actual file)
+    // Calculate metrics using real code analysis and git history
     const metrics: Record<string, number> = {
-      codeComplexity: this.estimateComplexity(file),
+      codeComplexity: await this.calculateComplexity(file),
       changeFrequency: await this.getChangeFrequency(file),
       developerExperience: await this.getDeveloperExperience(file),
       testCoverage: await this.getTestCoverage(file),
@@ -322,48 +332,144 @@ export class DefectPredictorService implements IDefectPredictorService {
     return metrics;
   }
 
-  private estimateComplexity(file: string): number {
-    // Stub: Estimate complexity based on file path heuristics
+  /**
+   * Calculate code complexity using TypeScript AST analysis
+   * Falls back to path-based heuristics if file cannot be parsed
+   */
+  private async calculateComplexity(file: string): Promise<number> {
+    const extension = file.split('.').pop()?.toLowerCase();
+
+    // For TypeScript/JavaScript files, use AST analysis
+    if (extension && ['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+      const fileResult = await this.fileReader.readFile(file);
+
+      if (fileResult.success) {
+        try {
+          const fileName = file.split('/').pop() || file;
+          const ast = this.tsParser.parseFile(fileName, fileResult.value);
+
+          // Extract structural metrics
+          const functions = this.tsParser.extractFunctions(ast);
+          const classes = this.tsParser.extractClasses(ast);
+
+          // Calculate complexity factors
+          const lines = fileResult.value.split('\n').length;
+          const functionCount = functions.length;
+          const classCount = classes.length;
+          const methodCount = classes.reduce((sum, cls) => sum + cls.methods.length, 0);
+          const asyncCount = functions.filter((f) => f.isAsync).length;
+
+          // Count complexity indicators in code
+          const content = fileResult.value;
+          const ifCount = (content.match(/\bif\s*\(/g) || []).length;
+          const loopCount = (content.match(/\b(for|while|do)\s*[\(\{]/g) || []).length;
+          const switchCount = (content.match(/\bswitch\s*\(/g) || []).length;
+          const catchCount = (content.match(/\bcatch\s*\(/g) || []).length;
+          const ternaryCount = (content.match(/\?[^?:]+:/g) || []).length;
+
+          // Calculate cyclomatic complexity proxy
+          const cyclomaticProxy = ifCount + loopCount * 2 + switchCount * 2 + catchCount + ternaryCount;
+
+          // Normalize metrics to 0-1 scale
+          const lineComplexity = Math.min(1, lines / 500); // 500 lines = max
+          const functionComplexity = Math.min(1, (functionCount + methodCount) / 30); // 30 functions = max
+          const branchComplexity = Math.min(1, cyclomaticProxy / 50); // 50 branches = max
+          const asyncComplexity = asyncCount > 0 ? 0.1 : 0; // Async adds complexity
+
+          // Weighted average
+          const complexity =
+            lineComplexity * 0.2 +
+            functionComplexity * 0.25 +
+            branchComplexity * 0.4 +
+            asyncComplexity +
+            (classCount > 3 ? 0.05 : 0); // Many classes add complexity
+
+          return Math.max(0, Math.min(1, complexity));
+        } catch {
+          // Fall through to heuristics if parsing fails
+        }
+      }
+    }
+
+    // Fallback: Path-based heuristics for non-TS/JS files or parse failures
+    return this.estimateComplexityFromPath(file);
+  }
+
+  /**
+   * Estimate complexity based on file path heuristics (fallback)
+   */
+  private estimateComplexityFromPath(file: string): number {
     const pathParts = file.split('/');
     const filename = pathParts[pathParts.length - 1];
 
-    // Files in certain directories tend to be more complex
     let complexity = 0.3;
     if (file.includes('controller') || file.includes('service')) complexity += 0.2;
+    if (file.includes('coordinator') || file.includes('orchestrator')) complexity += 0.15;
     if (file.includes('utils') || file.includes('helper')) complexity -= 0.1;
-    if (filename.length > 30) complexity += 0.1; // Long names often indicate complexity
+    if (file.includes('types') || file.includes('interfaces')) complexity -= 0.15;
+    if (filename.length > 30) complexity += 0.1;
 
     return Math.max(0, Math.min(1, complexity));
   }
 
+  /**
+   * Get change frequency for a file using git history
+   * Falls back to memory cache if git is not available
+   */
   private async getChangeFrequency(file: string): Promise<number> {
-    // Stub: In production, would analyze git history
+    // Try git analysis first
+    const gitFrequency = await this.gitAnalyzer.getChangeFrequency(file);
+    if (gitFrequency !== 0.4) {
+      // Cache the result
+      await this.memory.set(
+        `${this.config.modelNamespace}:history:${file}`,
+        { changes: Math.round(gitFrequency * 30) },
+        { ttl: 3600 }
+      );
+      return gitFrequency;
+    }
+
+    // Fallback to cached value
     const historyKey = `${this.config.modelNamespace}:history:${file}`;
     const history = await this.memory.get<{ changes: number }>(historyKey);
-
     if (history) {
       return Math.min(1, history.changes / 50);
     }
 
-    // Default to medium frequency
     return 0.4;
   }
 
+  /**
+   * Get developer experience score for a file using git blame
+   * Falls back to memory cache if git is not available
+   */
   private async getDeveloperExperience(file: string): Promise<number> {
-    // Stub: In production, would analyze git blame
+    // Try git analysis first
+    const gitExp = await this.gitAnalyzer.getDeveloperExperience(file);
+    if (gitExp !== 0.5) {
+      // Cache the result
+      await this.memory.set(
+        `${this.config.modelNamespace}:developer-exp:${file}`,
+        { score: gitExp },
+        { ttl: 3600 }
+      );
+      return gitExp;
+    }
+
+    // Fallback to cached value
     const expKey = `${this.config.modelNamespace}:developer-exp:${file}`;
     const exp = await this.memory.get<{ score: number }>(expKey);
-
     if (exp) {
       return exp.score;
     }
 
-    // Default to medium experience (inverse - high experience = low defect risk)
     return 0.5;
   }
 
+  /**
+   * Get test coverage for a file from coverage reports
+   */
   private async getTestCoverage(file: string): Promise<number> {
-    // Stub: In production, would check coverage reports
     const coverageKey = `coverage-analysis:file:${file}`;
     const coverage = await this.memory.get<{ percentage: number }>(coverageKey);
 
@@ -376,23 +482,48 @@ export class DefectPredictorService implements IDefectPredictorService {
     return 0.4;
   }
 
+  /**
+   * Get code age for a file using git history
+   * Falls back to memory cache if git is not available
+   */
   private async getCodeAge(file: string): Promise<number> {
-    // Stub: In production, would analyze git history
+    // Try git analysis first
+    const gitAge = await this.gitAnalyzer.getCodeAge(file);
+    if (gitAge !== 0.4) {
+      return gitAge;
+    }
+
+    // Fallback to cached value
     const ageKey = `${this.config.modelNamespace}:age:${file}`;
     const age = await this.memory.get<{ days: number }>(ageKey);
 
     if (age) {
-      // Very old or very new code is more risky
       if (age.days < 7) return 0.7; // New code
       if (age.days > 365) return 0.3; // Stable code
-      return 0.4; // Middle-aged code
+      return 0.4;
     }
 
     return 0.4;
   }
 
+  /**
+   * Get bug history for a file using git commit messages
+   * Falls back to memory cache if git is not available
+   */
   private async getBugHistory(file: string): Promise<number> {
-    // Stub: In production, would analyze issue tracker
+    // Try git analysis first
+    const gitBugs = await this.gitAnalyzer.getBugHistory(file);
+    if (gitBugs !== 0.2) {
+      // Cache the result
+      await this.memory.set(
+        `${this.config.modelNamespace}:bugs:${file}`,
+        { count: Math.round(gitBugs * 10) },
+        { ttl: 3600 }
+      );
+      return gitBugs;
+    }
+
+    // Fallback to cached value
     const bugKey = `${this.config.modelNamespace}:bugs:${file}`;
     const bugs = await this.memory.get<{ count: number }>(bugKey);
 

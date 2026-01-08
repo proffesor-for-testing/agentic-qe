@@ -476,12 +476,8 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
       ).length;
       const failureRate = totalWorkflows > 0 ? failedWorkflows / totalWorkflows : 0;
 
-      // Coverage by viewport (stub)
-      const coverageByViewport = new Map<string, number>([
-        ['mobile', 85],
-        ['tablet', 90],
-        ['desktop', 95],
-      ]);
+      // Calculate coverage by viewport from baseline data
+      const coverageByViewport = await this.calculateViewportCoverage(baselineKeys);
 
       const status: VisualTestingStatus = {
         baselineCount,
@@ -528,6 +524,71 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     };
 
     return this.agentCoordinator.spawn(config);
+  }
+
+  // ============================================================================
+  // Viewport Coverage Calculation
+  // ============================================================================
+
+  /**
+   * Calculate viewport coverage from baseline keys
+   * Parses baseline keys to extract viewport dimensions and maps to categories
+   */
+  private async calculateViewportCoverage(
+    baselineKeys: string[]
+  ): Promise<Map<string, number>> {
+    const viewportCounts = new Map<string, number>([
+      ['mobile', 0],
+      ['tablet', 0],
+      ['desktop', 0],
+    ]);
+    const uniqueUrls = new Set<string>();
+
+    // Parse each baseline key to extract viewport dimensions
+    // Key format: visual-accessibility:baseline:{urlHash}_{width}x{height}_{scale}
+    for (const key of baselineKeys) {
+      const match = key.match(/baseline:([^_]+)_(\d+)x(\d+)_/);
+      if (match) {
+        const [, urlHash, widthStr, heightStr] = match;
+        const width = parseInt(widthStr, 10);
+        uniqueUrls.add(urlHash);
+
+        // Categorize viewport by width
+        const category = this.categorizeViewport(width);
+        viewportCounts.set(category, (viewportCounts.get(category) || 0) + 1);
+      }
+    }
+
+    // Calculate coverage percentages
+    const totalUrls = uniqueUrls.size || 1; // Avoid division by zero
+    const coverageByViewport = new Map<string, number>();
+
+    for (const [category, count] of viewportCounts) {
+      // Coverage is the percentage of URLs that have baselines for this viewport
+      // Since each URL can have multiple viewports, we normalize by total URLs
+      const coverage = Math.min(100, Math.round((count / totalUrls) * 100));
+      coverageByViewport.set(category, coverage);
+    }
+
+    // If no baselines exist, return default values
+    if (baselineKeys.length === 0) {
+      return new Map([
+        ['mobile', 0],
+        ['tablet', 0],
+        ['desktop', 0],
+      ]);
+    }
+
+    return coverageByViewport;
+  }
+
+  /**
+   * Categorize viewport width into mobile/tablet/desktop
+   */
+  private categorizeViewport(width: number): string {
+    if (width <= 480) return 'mobile';
+    if (width <= 1024) return 'tablet';
+    return 'desktop';
   }
 
   // ============================================================================

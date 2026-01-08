@@ -6,6 +6,12 @@
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
+  NomicEmbedder,
+  NomicEmbedderConfig,
+  EMBEDDING_CONFIG,
+  IEmbeddingProvider,
+} from '../../../shared/embeddings';
+import {
   SearchRequest,
   SearchResults,
   SearchResult,
@@ -68,21 +74,34 @@ export interface HalsteadMetrics {
  * Configuration for the semantic analyzer
  */
 export interface SemanticAnalyzerConfig {
+  /** Embedding vector dimension (768 for Nomic, 384 for fallback) */
   embeddingDimension: number;
+  /** Minimum similarity score threshold */
   minScore: number;
+  /** Maximum search results */
   maxResults: number;
+  /** Storage namespace */
   namespace: string;
+  /** Enable embedding caching */
   enableCaching: boolean;
+  /** Cache size limit */
   cacheSize: number;
+  /** Use Nomic embeddings via Ollama when available */
+  useNomicEmbeddings: boolean;
+  /** Nomic embedder configuration */
+  nomicConfig?: NomicEmbedderConfig;
+  /** Custom embedding provider (for testing/DI) */
+  embeddingProvider?: IEmbeddingProvider;
 }
 
 const DEFAULT_CONFIG: SemanticAnalyzerConfig = {
-  embeddingDimension: 384,
+  embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS, // 768 for Nomic
   minScore: 0.5,
   maxResults: 100,
   namespace: 'code-intelligence:semantic',
   enableCaching: true,
   cacheSize: 1000,
+  useNomicEmbeddings: true,
 };
 
 /**
@@ -93,12 +112,47 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   private readonly config: SemanticAnalyzerConfig;
   private readonly embeddingCache: Map<string, number[]> = new Map();
   private readonly analysisCache: Map<string, SemanticAnalysis> = new Map();
+  private embedder: IEmbeddingProvider | null = null;
+  private embedderInitialized = false;
 
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<SemanticAnalyzerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Use custom embedding provider if provided
+    if (config.embeddingProvider) {
+      this.embedder = config.embeddingProvider;
+      this.embedderInitialized = true;
+    }
+  }
+
+  /**
+   * Initialize the Nomic embedder lazily
+   */
+  private async initializeEmbedder(): Promise<void> {
+    if (this.embedderInitialized) {
+      return;
+    }
+
+    if (this.config.useNomicEmbeddings) {
+      const nomicEmbedder = new NomicEmbedder({
+        enableFallback: true,
+        ...this.config.nomicConfig,
+      });
+
+      // Check if Ollama is available
+      const isAvailable = await nomicEmbedder.healthCheck();
+      if (isAvailable) {
+        this.embedder = nomicEmbedder;
+        // Update dimension to match Nomic's output
+        (this.config as { embeddingDimension: number }).embeddingDimension =
+          EMBEDDING_CONFIG.DIMENSIONS;
+      }
+    }
+
+    this.embedderInitialized = true;
   }
 
   /**
@@ -259,6 +313,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
   /**
    * Get embedding vector for code
+   * Uses Nomic embeddings via Ollama when available, falls back to pseudo-embeddings
    */
   async getEmbedding(code: string): Promise<number[]> {
     // Check cache
@@ -267,9 +322,17 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
       return this.embeddingCache.get(cacheKey)!;
     }
 
-    // Generate embedding
-    // Stub: In production, use a proper embedding model (CodeBERT, etc.)
-    const embedding = this.generateCodeEmbedding(code);
+    // Initialize embedder lazily
+    await this.initializeEmbedder();
+
+    // Generate embedding using Nomic or fallback
+    let embedding: number[];
+    if (this.embedder) {
+      embedding = await this.embedder.embed(code);
+    } else {
+      // Fallback to pseudo-embedding when Ollama is not available
+      embedding = this.generateCodeEmbedding(code);
+    }
 
     // Cache result
     if (this.config.enableCaching) {
@@ -277,6 +340,13 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     }
 
     return embedding;
+  }
+
+  /**
+   * Check if using real Nomic embeddings
+   */
+  isUsingNomicEmbeddings(): boolean {
+    return this.embedder !== null && this.embedder instanceof NomicEmbedder;
   }
 
   // ============================================================================
@@ -630,8 +700,8 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   // ============================================================================
 
   private generateCodeEmbedding(code: string): number[] {
-    // Stub: Generate a pseudo-embedding based on code features
-    // In production, use a proper code embedding model
+    // Fallback: Generate a pseudo-embedding based on code features
+    // Used when Ollama/Nomic is not available
 
     const embedding = new Array(this.config.embeddingDimension).fill(0);
 

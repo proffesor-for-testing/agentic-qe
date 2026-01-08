@@ -8,6 +8,32 @@ import {
   SemanticAnalyzerConfig,
 } from '../../../../src/domains/code-intelligence/services/semantic-analyzer';
 import { MemoryBackend, VectorSearchResult } from '../../../../src/kernel/interfaces';
+import { IEmbeddingProvider, EMBEDDING_CONFIG } from '../../../../src/shared/embeddings';
+
+/**
+ * Mock Embedding Provider for testing
+ * Generates deterministic pseudo-embeddings without requiring Ollama
+ */
+function createMockEmbeddingProvider(): IEmbeddingProvider {
+  return {
+    async embed(text: string): Promise<number[]> {
+      // Generate deterministic embedding based on text content
+      const embedding = new Array(EMBEDDING_CONFIG.DIMENSIONS).fill(0);
+      for (let i = 0; i < text.length && i < embedding.length; i++) {
+        embedding[i] = text.charCodeAt(i) / 1000;
+      }
+      // Normalize
+      const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
+      return embedding.map((v) => v / magnitude);
+    },
+    async healthCheck(): Promise<boolean> {
+      return true;
+    },
+    getDimensions(): number {
+      return EMBEDDING_CONFIG.DIMENSIONS;
+    },
+  };
+}
 
 /**
  * Mock Memory Backend for testing
@@ -65,10 +91,16 @@ function createMockMemoryBackend(): MemoryBackend {
 describe('SemanticAnalyzerService', () => {
   let service: SemanticAnalyzerService;
   let mockMemory: MemoryBackend;
+  let mockEmbeddingProvider: IEmbeddingProvider;
 
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
-    service = new SemanticAnalyzerService(mockMemory);
+    mockEmbeddingProvider = createMockEmbeddingProvider();
+    // Use mock embedding provider to avoid Ollama dependency in tests
+    service = new SemanticAnalyzerService(mockMemory, {
+      embeddingProvider: mockEmbeddingProvider,
+      useNomicEmbeddings: false, // Disable Nomic to use mock provider
+    });
   });
 
   describe('search', () => {
@@ -239,7 +271,10 @@ describe('SemanticAnalyzerService', () => {
       const errorMemory = createMockMemoryBackend();
       errorMemory.storeVector = vi.fn().mockRejectedValue(new Error('Storage failed'));
 
-      const errorService = new SemanticAnalyzerService(errorMemory);
+      const errorService = new SemanticAnalyzerService(errorMemory, {
+        embeddingProvider: mockEmbeddingProvider,
+        useNomicEmbeddings: false,
+      });
       const result = await errorService.indexCode('src/error.ts', 'code');
 
       expect(result.success).toBe(false);
@@ -271,7 +306,10 @@ describe('SemanticAnalyzerService', () => {
         { key: 'k2', score: 0.8, metadata: { file: 'f2.ts' } }, // Above threshold
       ]);
 
-      const lowScoreService = new SemanticAnalyzerService(lowScoreMemory);
+      const lowScoreService = new SemanticAnalyzerService(lowScoreMemory, {
+        embeddingProvider: mockEmbeddingProvider,
+        useNomicEmbeddings: false,
+      });
       await lowScoreService.indexCode('f2.ts', 'code');
 
       const result = await lowScoreService.findSimilar('test code', 10);
@@ -299,7 +337,10 @@ describe('SemanticAnalyzerService', () => {
       const emptyMemory = createMockMemoryBackend();
       emptyMemory.vectorSearch = vi.fn().mockResolvedValue([]);
 
-      const emptyService = new SemanticAnalyzerService(emptyMemory);
+      const emptyService = new SemanticAnalyzerService(emptyMemory, {
+        embeddingProvider: mockEmbeddingProvider,
+        useNomicEmbeddings: false,
+      });
       const result = await emptyService.findSimilar('unique code', 5);
 
       expect(result.success).toBe(true);
@@ -473,7 +514,7 @@ describe('SemanticAnalyzerService', () => {
       const embedding = await service.getEmbedding('test code');
 
       expect(Array.isArray(embedding)).toBe(true);
-      expect(embedding.length).toBe(384); // Default dimension
+      expect(embedding.length).toBe(EMBEDDING_CONFIG.DIMENSIONS); // 768 for Nomic
     });
 
     it('should generate normalized embeddings', async () => {
@@ -509,6 +550,8 @@ describe('SemanticAnalyzerService', () => {
         minScore: 0.7,
         maxResults: 50,
         enableCaching: false,
+        embeddingProvider: mockEmbeddingProvider,
+        useNomicEmbeddings: false,
       };
 
       const customService = new SemanticAnalyzerService(mockMemory, customConfig);
@@ -522,7 +565,11 @@ describe('SemanticAnalyzerService', () => {
         { key: 'high', score: 0.9, metadata: { file: 'high.ts' } },
       ]);
 
-      const strictService = new SemanticAnalyzerService(strictMemory, { minScore: 0.8 });
+      const strictService = new SemanticAnalyzerService(strictMemory, {
+        minScore: 0.8,
+        embeddingProvider: mockEmbeddingProvider,
+        useNomicEmbeddings: false,
+      });
       await strictService.indexCode('high.ts', 'code');
 
       const result = await strictService.findSimilar('query', 10);

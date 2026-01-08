@@ -26,21 +26,63 @@ curl http://localhost:11434/api/embeddings \
 
 ### 2. RuVector PostgreSQL Database
 
-```bash
-# Option A: Use existing agentic-qe container
-docker start agentic-qe-ruvector-dev
+Code Intelligence requires PostgreSQL with vector search capability. Use the `ruvnet/ruvector` image which includes the RuVector extension pre-installed.
 
-# Option B: Start fresh container
-docker run -d --name ruvector-db \
+**Option A: Quick Docker run**
+```bash
+docker run -d \
+  --name ruvector-db \
+  -p 5432:5432 \
   -e POSTGRES_USER=ruvector \
   -e POSTGRES_PASSWORD=ruvector \
   -e POSTGRES_DB=ruvector_db \
-  -p 5432:5432 \
-  postgres:15
-
-# Verify connection
-psql postgresql://ruvector:ruvector@localhost:5432/ruvector_db -c "SELECT 1"
+  -v ruvector-data:/var/lib/postgresql/data \
+  ruvnet/ruvector:latest
 ```
+
+**Option B: Using docker-compose** (recommended for projects)
+
+Create a `docker-compose.yml` in your project:
+```yaml
+version: '3.8'
+services:
+  ruvector:
+    image: ruvnet/ruvector:latest
+    container_name: ruvector-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ruvector
+      POSTGRES_PASSWORD: ruvector
+      POSTGRES_DB: ruvector_db
+    volumes:
+      - ruvector-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ruvector -d ruvector_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ruvector-data:
+```
+
+Then start with:
+```bash
+docker-compose up -d
+```
+
+**Verify connection:**
+```bash
+# Check container is running
+docker ps | grep ruvector
+
+# Test database connection
+docker exec ruvector-db psql -U ruvector -d ruvector_db -c "SELECT 1"
+```
+
+> ⚠️ **Important**: Do NOT use plain `postgres:15` - it lacks the vector extension required for semantic search.
 
 ### 3. Verify Setup
 
@@ -73,49 +115,47 @@ Expected output:
 ## Quick Setup via CLI
 
 ```bash
-# Check prerequisites and get setup instructions
-aqe code-intel setup
+# Index your codebase (after starting Ollama + PostgreSQL)
+aqe kg index
 
-# Enable Code Intelligence for this project
-aqe code-intel enable
+# Check indexing statistics
+aqe kg stats
 
-# Index your codebase
-aqe code-intel index
-
-# Check status
-aqe code-intel status
+# Search code semantically
+aqe kg query "how does authentication work"
 ```
 
 ## Usage Options
 
-### Option 1: CLI Commands
+### Option 1: CLI Commands (`aqe kg`)
 
 ```bash
-# Setup and status
-aqe code-intel setup        # Check prerequisites
-aqe code-intel enable       # Enable for project
-aqe code-intel status       # Show current config
-
 # Indexing
-aqe code-intel index                    # Full index
-aqe code-intel index --incremental      # Incremental update
-aqe code-intel index --watch            # Watch mode
+aqe kg index                    # Full index
+aqe kg index --incremental      # Incremental update
+aqe kg index --watch            # Watch mode
+aqe kg index --git-since v2.6.0 # Index changes since a git ref
 
 # Searching
-aqe code-intel query "how does authentication work"
-aqe code-intel query "JWT validation" --k 20 --verbose
+aqe kg query "how does authentication work"
+aqe kg query "JWT validation" --k 20 --verbose
 
 # Visualization
-aqe code-intel graph src/services/UserService.ts --type class
-aqe code-intel graph src/services --type dependency
+aqe kg graph src/services/UserService.ts --type class
+aqe kg graph src/services --type dependency
+
+# C4 Architecture Diagrams
+aqe kg c4-context              # System context diagram
+aqe kg c4-container            # Container diagram
+aqe kg c4-component            # Component diagram
 
 # Statistics
-aqe code-intel stats
-aqe code-intel stats --verbose
+aqe kg stats
+aqe kg stats --verbose
 
-# Aliases: aqe kg, aqe knowledge-graph work identically
-aqe kg index
-aqe kg query "find all API endpoints"
+# Module Coupling Analysis
+aqe kg mincut coupling-all     # Find highly coupled modules
+aqe kg mincut circular         # Detect circular dependencies
 ```
 
 ### Option 2: Agent via Task Tool (Recommended)
@@ -169,10 +209,10 @@ console.log(results);
 
 ### Option 4: Automatic Agent Injection
 
-When Code Intelligence is enabled (via `aqe code-intel enable`), the **FleetManager automatically injects** Code Intelligence components into all spawned agents. No code changes required!
+When Code Intelligence is enabled (via `aqe kg index`), the **FleetManager automatically injects** Code Intelligence components into all spawned agents. No code changes required!
 
 **How it works:**
-1. `aqe init` or `aqe code-intel enable` creates `.agentic-qe/config/code-intelligence.json`
+1. `aqe init` creates `.agentic-qe/config/code-intelligence.json`
 2. When FleetManager initializes, it loads the config and starts CodeIntelligenceService
 3. Every agent spawned via `fleet.spawnAgent()` automatically receives `codeIntelligence` config
 4. Agents can then use `this.hasCodeIntelligence()` and `this.getCodeIntelligenceContext()`
@@ -335,14 +375,19 @@ ollama serve &
 
 ### Database connection failed
 ```bash
-# Check container
+# Check if container exists and is running
 docker ps -a | grep ruvector
 
-# Restart container
-docker start agentic-qe-ruvector-dev
+# Start container if stopped
+docker start ruvector-db
 
-# Check logs
-docker logs agentic-qe-ruvector-dev
+# Check container logs for errors
+docker logs ruvector-db --tail 50
+
+# Test connection from inside container
+docker exec ruvector-db psql -U ruvector -d ruvector_db -c "SELECT 1"
+
+# If container doesn't exist, create it (see Prerequisites section)
 ```
 
 ### Embeddings dimension mismatch

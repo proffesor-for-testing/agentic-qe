@@ -121,8 +121,9 @@ export async function initializeCodeIntelligence(
     prereqs.messages.forEach(msg => {
       console.log(chalk.gray(`     • ${msg}`));
     });
-    console.log(chalk.gray('\n  Skipping Code Intelligence setup. You can enable it later with:'));
-    console.log(chalk.cyan('     aqe code-intel setup\n'));
+    console.log(chalk.gray('\n  Skipping Code Intelligence setup.'));
+    console.log(chalk.gray('  To enable later, start prerequisites and run:'));
+    console.log(chalk.cyan('     aqe kg index\n'));
 
     // Create disabled config
     await saveCodeIntelligenceConfig({
@@ -163,7 +164,7 @@ export async function initializeCodeIntelligence(
       {
         type: 'confirm',
         name: 'autoIndex',
-        message: 'Index the codebase now? (can be done later with: aqe code-intel index)',
+        message: 'Index the codebase now? (can be done later with: aqe kg index)',
         default: false,
         when: (ans: { enable: boolean }) => ans.enable,
       },
@@ -192,7 +193,7 @@ export async function initializeCodeIntelligence(
   await saveCodeIntelligenceConfig(codeIntelConfig);
 
   if (!enableCodeIntel) {
-    console.log(chalk.gray('  Code Intelligence disabled. Enable later with: aqe code-intel enable'));
+    console.log(chalk.gray('  Code Intelligence disabled. Enable later by running: aqe kg index'));
     return;
   }
 
@@ -206,11 +207,11 @@ export async function initializeCodeIntelligence(
       console.log(chalk.green('  ✓ Codebase indexed successfully'));
     } catch (error) {
       console.log(chalk.yellow(`  ⚠️  Indexing failed: ${(error as Error).message}`));
-      console.log(chalk.gray('     Run manually with: aqe code-intel index'));
+      console.log(chalk.gray('     Run manually with: aqe kg index'));
     }
   } else {
     console.log(chalk.gray('\n  To index your codebase, run:'));
-    console.log(chalk.cyan('     aqe code-intel index'));
+    console.log(chalk.cyan('     aqe kg index'));
   }
 }
 

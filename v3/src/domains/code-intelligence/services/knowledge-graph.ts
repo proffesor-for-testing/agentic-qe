@@ -4,6 +4,9 @@
  */
 
 import { Result, ok, err } from '../../../shared/types';
+import { TypeScriptParser } from '../../../shared/parsers';
+import { FileReader } from '../../../shared/io';
+import { NomicEmbedder } from '../../../shared/embeddings';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   IndexRequest,
@@ -70,12 +73,20 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   private readonly config: KnowledgeGraphConfig;
   private readonly nodeCache: Map<string, KGNode> = new Map();
   private readonly edgeIndex: Map<string, KGEdge[]> = new Map();
+  private readonly tsParser: TypeScriptParser;
+  private readonly fileReader: FileReader;
+  private readonly embedder: NomicEmbedder;
 
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<KnowledgeGraphConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.tsParser = new TypeScriptParser();
+    this.fileReader = new FileReader();
+    this.embedder = new NomicEmbedder({
+      dimension: this.config.embeddingDimension,
+    });
   }
 
   /**
@@ -290,7 +301,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     const fileNode = await this.createFileNode(filePath);
     nodesCreated++;
 
-    // Parse file to extract entities (stub - in production use AST parser)
+    // Parse file to extract entities using TypeScript AST parser
     const entities = await this.extractEntities(filePath);
 
     for (const entity of entities) {
@@ -398,23 +409,86 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   }
 
   private async extractEntities(filePath: string): Promise<ExtractedEntity[]> {
-    // Stub: In production, use AST parser (TypeScript, Babel, etc.)
-    // This would extract classes, functions, variables, interfaces, etc.
     const extension = this.getFileExtension(filePath);
     const entities: ExtractedEntity[] = [];
 
-    // Simulate entity extraction based on file type
+    // Use TypeScript parser for TS/JS files
     if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
-      // Would parse TypeScript/JavaScript AST
-      entities.push({
-        type: 'module',
-        name: this.getFileName(filePath).replace(/\.[^.]+$/, ''),
-        line: 1,
-        visibility: 'public',
-        isAsync: false,
-      });
+      const fileResult = await this.fileReader.readFile(filePath);
+
+      if (fileResult.success) {
+        const fileName = this.getFileName(filePath);
+        const ast = this.tsParser.parseFile(fileName, fileResult.value);
+
+        // Extract functions
+        const functions = this.tsParser.extractFunctions(ast);
+        for (const func of functions) {
+          entities.push({
+            type: 'function',
+            name: func.name,
+            line: func.startLine,
+            visibility: 'public',
+            isAsync: func.isAsync,
+          });
+        }
+
+        // Extract classes
+        const classes = this.tsParser.extractClasses(ast);
+        for (const cls of classes) {
+          entities.push({
+            type: 'class',
+            name: cls.name,
+            line: cls.startLine,
+            visibility: 'public',
+            isAsync: false,
+          });
+
+          // Add class methods as entities
+          for (const method of cls.methods) {
+            entities.push({
+              type: 'function',
+              name: `${cls.name}.${method.name}`,
+              line: method.startLine,
+              visibility: method.visibility,
+              isAsync: method.isAsync,
+            });
+          }
+        }
+
+        // Extract interfaces
+        const interfaces = this.tsParser.extractInterfaces(ast);
+        for (const iface of interfaces) {
+          entities.push({
+            type: 'interface',
+            name: iface.name,
+            line: iface.startLine,
+            visibility: 'public',
+            isAsync: false,
+          });
+        }
+
+        // If no entities found, create a module entity for the file
+        if (entities.length === 0) {
+          entities.push({
+            type: 'module',
+            name: fileName.replace(/\.[^.]+$/, ''),
+            line: 1,
+            visibility: 'public',
+            isAsync: false,
+          });
+        }
+      } else {
+        // Fallback: create a module entity for the file itself
+        entities.push({
+          type: 'module',
+          name: this.getFileName(filePath).replace(/\.[^.]+$/, ''),
+          line: 1,
+          visibility: 'public',
+          isAsync: false,
+        });
+      }
     } else if (extension === 'py') {
-      // Would parse Python AST
+      // Python files: create a module entity (AST parsing not implemented)
       entities.push({
         type: 'module',
         name: this.getFileName(filePath).replace('.py', ''),
@@ -427,10 +501,31 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     return entities;
   }
 
-  private async extractImports(_filePath: string): Promise<string[]> {
-    // Stub: In production, parse actual imports from file
-    // This would return resolved import paths
-    return [];
+  private async extractImports(filePath: string): Promise<string[]> {
+    const extension = this.getFileExtension(filePath);
+    const importPaths: string[] = [];
+
+    // Use TypeScript parser for TS/JS files
+    if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+      const fileResult = await this.fileReader.readFile(filePath);
+
+      if (fileResult.success) {
+        const fileName = this.getFileName(filePath);
+        const ast = this.tsParser.parseFile(fileName, fileResult.value);
+        const imports = this.tsParser.extractImports(ast);
+
+        // Extract import sources (module property in new API)
+        for (const importInfo of imports) {
+          // Only include relative imports and package imports
+          // Skip node built-ins for now
+          if (!importInfo.module.startsWith('node:')) {
+            importPaths.push(importInfo.module);
+          }
+        }
+      }
+    }
+
+    return importPaths;
   }
 
   private async executeCypherQuery(
@@ -689,17 +784,38 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   }
 
   private async generateEmbedding(entity: ExtractedEntity): Promise<number[]> {
-    // Stub: In production, use an embedding model
-    const text = `${entity.type} ${entity.name} ${entity.visibility}`;
-    return this.simpleEmbedding(text);
+    // Create rich text representation of the entity for semantic embedding
+    const text = `${entity.type} ${entity.name} ${entity.visibility}${entity.isAsync ? ' async' : ''}`;
+
+    try {
+      // Use NomicEmbedder for real semantic embeddings
+      const result = await this.embedder.embed(text);
+      if (result.success) {
+        return result.value;
+      }
+      // Fall back to simple embedding if Ollama is unavailable
+      return this.fallbackEmbedding(text);
+    } catch {
+      return this.fallbackEmbedding(text);
+    }
   }
 
   private async generateQueryEmbedding(query: string): Promise<number[]> {
-    return this.simpleEmbedding(query);
+    try {
+      // Use NomicEmbedder for real semantic embeddings
+      const result = await this.embedder.embed(query);
+      if (result.success) {
+        return result.value;
+      }
+      // Fall back to simple embedding if Ollama is unavailable
+      return this.fallbackEmbedding(query);
+    } catch {
+      return this.fallbackEmbedding(query);
+    }
   }
 
-  private simpleEmbedding(text: string): number[] {
-    // Simple pseudo-embedding for testing
+  private fallbackEmbedding(text: string): number[] {
+    // Fallback pseudo-embedding when Ollama is unavailable
     const embedding = new Array(this.config.embeddingDimension).fill(0);
     const words = text.toLowerCase().split(/\s+/);
 

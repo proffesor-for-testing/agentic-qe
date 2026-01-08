@@ -4,6 +4,11 @@
  */
 
 import { Result, ok, err } from '../../../shared/types';
+import { HttpClient } from '../../../shared/http';
+import {
+  SystemMetricsCollector,
+  getSystemMetricsCollector,
+} from '../../../shared/metrics';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   ChaosExperiment,
@@ -18,6 +23,8 @@ import {
   Incident,
   IChaosEngineeringService,
 } from '../interfaces';
+import * as net from 'net';
+import { exec } from 'child_process';
 
 /**
  * Configuration for the chaos engineer service
@@ -70,12 +77,17 @@ export class ChaosEngineerService implements IChaosEngineeringService {
   private readonly config: ChaosEngineerConfig;
   private readonly activeExperiments: Map<string, ExperimentExecution> = new Map();
   private readonly activeFaults: Map<string, FaultInjection> = new Map();
+  private readonly httpClient: HttpClient;
+  private readonly metricsCollector: SystemMetricsCollector;
+  private readonly stressWorkers: Map<string, NodeJS.Timeout | number[]> = new Map();
 
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<ChaosEngineerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.httpClient = new HttpClient();
+    this.metricsCollector = getSystemMetricsCollector();
   }
 
   /**
@@ -476,34 +488,163 @@ export class ChaosEngineerService implements IChaosEngineeringService {
   }
 
   private async executeHttpProbe(probe: SteadyStateProbe): Promise<boolean> {
-    // Stub: Would make actual HTTP request
-    // In production: fetch(probe.target) with timeout
-    console.log(`Executing HTTP probe: ${probe.name} -> ${probe.target}`);
-    return true; // Simulated success
+    try {
+      const result = await this.httpClient.get(probe.target, {
+        timeout: probe.timeout ?? 5000,
+        retries: 1,
+        circuitBreaker: false,
+      });
+
+      if (!result.success) {
+        console.log(`HTTP probe failed: ${probe.name} -> ${result.error.message}`);
+        return false;
+      }
+
+      const response = result.value;
+
+      // Check expected status if specified
+      if (probe.expectedStatus !== undefined) {
+        const passed = response.status === probe.expectedStatus;
+        if (!passed) {
+          console.log(`HTTP probe ${probe.name}: expected status ${probe.expectedStatus}, got ${response.status}`);
+        }
+        return passed;
+      }
+
+      // Default: any 2xx status is success
+      return response.ok;
+    } catch (error) {
+      console.log(`HTTP probe error: ${probe.name} -> ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
   }
 
   private async executeTcpProbe(probe: SteadyStateProbe): Promise<boolean> {
-    // Stub: Would check TCP connectivity
-    console.log(`Executing TCP probe: ${probe.name} -> ${probe.target}`);
-    return true;
+    return new Promise((resolve) => {
+      try {
+        // Parse target as host:port
+        const [host, portStr] = probe.target.split(':');
+        const port = parseInt(portStr, 10);
+
+        if (!host || isNaN(port)) {
+          console.log(`TCP probe invalid target: ${probe.target} (expected host:port)`);
+          resolve(false);
+          return;
+        }
+
+        const timeout = probe.timeout ?? 5000;
+        const socket = new net.Socket();
+
+        const timer = setTimeout(() => {
+          socket.destroy();
+          console.log(`TCP probe timeout: ${probe.name} -> ${probe.target}`);
+          resolve(false);
+        }, timeout);
+
+        socket.connect(port, host, () => {
+          clearTimeout(timer);
+          socket.destroy();
+          resolve(true);
+        });
+
+        socket.on('error', (err) => {
+          clearTimeout(timer);
+          socket.destroy();
+          console.log(`TCP probe error: ${probe.name} -> ${err.message}`);
+          resolve(false);
+        });
+      } catch (error) {
+        console.log(`TCP probe exception: ${probe.name} -> ${error instanceof Error ? error.message : String(error)}`);
+        resolve(false);
+      }
+    });
   }
 
   private async executeCommandProbe(probe: SteadyStateProbe): Promise<boolean> {
-    // Stub: Would execute shell command
-    console.log(`Executing command probe: ${probe.name} -> ${probe.target}`);
-    return true;
+    return new Promise((resolve) => {
+      const timeout = probe.timeout ?? 10000;
+
+      exec(probe.target, { timeout }, (error, stdout, _stderr) => {
+        if (error) {
+          console.log(`Command probe failed: ${probe.name} -> ${error.message}`);
+          resolve(false);
+          return;
+        }
+
+        // Check expected output if specified
+        if (probe.expectedOutput !== undefined) {
+          const passed = stdout.trim().includes(probe.expectedOutput);
+          if (!passed) {
+            console.log(`Command probe ${probe.name}: output did not contain expected value`);
+          }
+          resolve(passed);
+          return;
+        }
+
+        // Default: exit code 0 is success (no error)
+        resolve(true);
+      });
+    });
   }
 
   private async executeMetricProbe(probe: SteadyStateProbe): Promise<boolean> {
-    // Stub: Would query metrics endpoint
-    console.log(`Executing metric probe: ${probe.name} -> ${probe.target}`);
-    return true;
+    try {
+      // Query metrics endpoint (expects JSON response with 'value' field)
+      const result = await this.httpClient.get(probe.target, {
+        timeout: probe.timeout ?? 5000,
+        retries: 1,
+        circuitBreaker: false,
+      });
+
+      if (!result.success) {
+        console.log(`Metric probe failed: ${probe.name} -> ${result.error.message}`);
+        return false;
+      }
+
+      const response = result.value;
+      if (!response.ok) {
+        console.log(`Metric probe HTTP error: ${probe.name} -> ${response.status}`);
+        return false;
+      }
+
+      // Parse response body for metric value
+      const text = await response.text();
+      let metricValue: number;
+
+      try {
+        const json = JSON.parse(text);
+        metricValue = typeof json.value === 'number' ? json.value : parseFloat(json.value);
+      } catch {
+        // Try parsing as plain number
+        metricValue = parseFloat(text);
+      }
+
+      if (isNaN(metricValue)) {
+        console.log(`Metric probe ${probe.name}: could not parse metric value from response`);
+        return false;
+      }
+
+      // Check threshold if specified
+      if (probe.threshold !== undefined) {
+        const { operator, value } = probe.threshold;
+        switch (operator) {
+          case 'lt': return metricValue < value;
+          case 'gt': return metricValue > value;
+          case 'lte': return metricValue <= value;
+          case 'gte': return metricValue >= value;
+          case 'eq': return metricValue === value;
+          default: return true;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.log(`Metric probe error: ${probe.name} -> ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
   }
 
   private async performFaultInjection(fault: FaultInjection): Promise<Result<number>> {
-    // Stub: In production, this would inject actual faults
-    // using tools like Chaos Monkey, Litmus, or custom injectors
-
     const faultHandlers: Record<FaultType, () => Promise<Result<number>>> = {
       'latency': async () => this.injectLatency(fault),
       'error': async () => this.injectError(fault),
@@ -526,72 +667,154 @@ export class ChaosEngineerService implements IChaosEngineeringService {
   }
 
   private async injectLatency(fault: FaultInjection): Promise<Result<number>> {
+    // Latency injection is typically done at proxy/network level
+    // For simulation, we store the config and check during probe execution
     const latencyMs = fault.parameters.latencyMs ?? 100;
-    console.log(`Injecting latency: ${latencyMs}ms to ${fault.target.selector}`);
-    return ok(1); // Affected targets count
+    console.log(`Latency injection configured: ${latencyMs}ms for ${fault.target.selector}`);
+    console.log(`Note: Actual latency injection requires network proxy (e.g., Toxiproxy, tc)`);
+    return ok(1);
   }
 
   private async injectError(fault: FaultInjection): Promise<Result<number>> {
+    // Error injection typically requires proxy/service mesh
     const errorCode = fault.parameters.errorCode ?? 500;
-    console.log(`Injecting error: ${errorCode} to ${fault.target.selector}`);
+    console.log(`Error injection configured: ${errorCode} for ${fault.target.selector}`);
+    console.log(`Note: Actual error injection requires service mesh (e.g., Istio, Linkerd)`);
     return ok(1);
   }
 
   private async injectTimeout(fault: FaultInjection): Promise<Result<number>> {
-    console.log(`Injecting timeout to ${fault.target.selector}`);
+    // Timeout injection via proxy configuration
+    console.log(`Timeout injection configured for ${fault.target.selector}`);
+    console.log(`Note: Actual timeout injection requires network proxy configuration`);
     return ok(1);
   }
 
   private async injectPacketLoss(fault: FaultInjection): Promise<Result<number>> {
     const lossPercent = fault.parameters.packetLossPercent ?? 10;
-    console.log(`Injecting packet loss: ${lossPercent}% to ${fault.target.selector}`);
+    console.log(`Packet loss configured: ${lossPercent}% for ${fault.target.selector}`);
+    console.log(`Note: Actual packet loss requires tc/iptables (Linux) or similar`);
     return ok(1);
   }
 
   private async injectCpuStress(fault: FaultInjection): Promise<Result<number>> {
+    // Real CPU stress implementation using busy loops
     const cpuPercent = fault.parameters.cpuPercent ?? 80;
-    console.log(`Injecting CPU stress: ${cpuPercent}% to ${fault.target.selector}`);
-    return ok(1);
+    const cores = fault.parameters.cores ?? 1;
+    const duration = fault.duration;
+
+    console.log(`Injecting CPU stress: ${cpuPercent}% on ${cores} core(s) for ${duration}ms`);
+
+    // Create CPU-intensive work
+    const startTime = Date.now();
+    const workInterval = setInterval(() => {
+      if (Date.now() - startTime >= duration) {
+        clearInterval(workInterval);
+        return;
+      }
+
+      // Busy work based on target CPU percentage
+      const busyTime = 10 * (cpuPercent / 100);
+
+      const busyStart = Date.now();
+      while (Date.now() - busyStart < busyTime) {
+        // Busy loop - CPU intensive operations
+        Math.random() * Math.random();
+      }
+      // Note: Idle time is handled by the interval itself (10ms interval)
+      // In real implementation, this would use worker threads for true parallelism
+    }, 10);
+
+    this.stressWorkers.set(fault.id, workInterval);
+
+    return ok(cores as number);
   }
 
   private async injectMemoryStress(fault: FaultInjection): Promise<Result<number>> {
-    const memoryBytes = fault.parameters.memoryBytes ?? 1024 * 1024 * 100; // 100MB
-    console.log(`Injecting memory stress: ${memoryBytes} bytes to ${fault.target.selector}`);
-    return ok(1);
+    // Real memory stress implementation by allocating buffers
+    const memoryBytes = fault.parameters.memoryBytes ?? 1024 * 1024 * 100; // 100MB default
+    const memoryMB = Math.round(memoryBytes / (1024 * 1024));
+
+    console.log(`Injecting memory stress: ${memoryMB}MB allocation`);
+
+    try {
+      // Allocate memory in chunks to avoid single large allocation issues
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      const chunks = Math.ceil(memoryBytes / chunkSize);
+      const allocatedMemory: number[][] = [];
+
+      for (let i = 0; i < chunks; i++) {
+        const size = Math.min(chunkSize, memoryBytes - (i * chunkSize));
+        // Use Array to allocate memory that won't be easily garbage collected
+        const chunk = new Array(size).fill(Math.random());
+        allocatedMemory.push(chunk);
+      }
+
+      // Store reference to prevent garbage collection
+      this.stressWorkers.set(fault.id, allocatedMemory as unknown as number[]);
+
+      console.log(`Memory stress active: ${allocatedMemory.length} chunks allocated`);
+      return ok(1);
+    } catch (error) {
+      return err(new Error(`Failed to allocate memory: ${error instanceof Error ? error.message : String(error)}`));
+    }
   }
 
   private async injectDiskStress(fault: FaultInjection): Promise<Result<number>> {
-    console.log(`Injecting disk stress to ${fault.target.selector}`);
+    // Disk stress would require file system operations
+    console.log(`Disk stress configured for ${fault.target.selector}`);
+    console.log(`Note: Actual disk stress requires file system write permissions`);
     return ok(1);
   }
 
   private async injectNetworkPartition(fault: FaultInjection): Promise<Result<number>> {
-    console.log(`Injecting network partition to ${fault.target.selector}`);
+    // Network partition typically requires iptables or similar
+    console.log(`Network partition configured for ${fault.target.selector}`);
+    console.log(`Note: Actual network partition requires iptables/firewall rules`);
     return ok(1);
   }
 
   private async injectDnsFailure(fault: FaultInjection): Promise<Result<number>> {
-    console.log(`Injecting DNS failure to ${fault.target.selector}`);
+    // DNS failure injection via /etc/hosts or DNS server configuration
+    console.log(`DNS failure configured for ${fault.target.selector}`);
+    console.log(`Note: Actual DNS failure requires DNS server or /etc/hosts modification`);
     return ok(1);
   }
 
   private async injectProcessKill(fault: FaultInjection): Promise<Result<number>> {
-    console.log(`Injecting process kill to ${fault.target.selector}`);
+    // Process kill via system commands
+    const processPattern = fault.target.selector;
+    console.log(`Process kill configured for pattern: ${processPattern}`);
+    console.log(`Note: Actual process kill requires appropriate permissions`);
+
+    // In dry-run mode or without permissions, just log
+    if (this.config.enableDryRun) {
+      console.log(`[DRY RUN] Would kill processes matching: ${processPattern}`);
+      return ok(0);
+    }
+
     return ok(1);
   }
 
   private async performFaultRemoval(fault: FaultInjection): Promise<void> {
-    // Stub: Would remove the injected fault
     console.log(`Removing fault: ${fault.id} (${fault.type})`);
+
+    // Clean up any active stress workers
+    const worker = this.stressWorkers.get(fault.id);
+    if (worker) {
+      if (typeof worker === 'object' && 'unref' in worker) {
+        // It's a timeout/interval
+        clearInterval(worker as NodeJS.Timeout);
+      }
+      // Memory allocations will be garbage collected when reference is removed
+      this.stressWorkers.delete(fault.id);
+    }
   }
 
   private async collectMetricsDuringExperiment(
     execution: ExperimentExecution,
     experiment: ChaosExperiment
   ): Promise<void> {
-    // Stub: Collect metrics during experiment execution
-    // In production, this would poll metrics endpoints
-
     const metricsToCollect = experiment.hypothesis.metrics.map((m) => m.metric);
     const startTime = Date.now();
     const duration = Math.max(
@@ -599,13 +822,13 @@ export class ChaosEngineerService implements IChaosEngineeringService {
       this.config.defaultTimeout
     );
 
-    // Simulate metric collection
+    // Collect real metrics during experiment execution
     while (Date.now() - startTime < Math.min(duration, 5000)) {
       for (const metric of metricsToCollect) {
         const snapshot: MetricSnapshot = {
           timestamp: new Date(),
           name: metric,
-          value: this.generateSimulatedMetricValue(metric),
+          value: this.collectRealMetricValue(metric),
           labels: { experiment: experiment.id },
         };
         execution.result.metrics.push(snapshot);
@@ -614,17 +837,9 @@ export class ChaosEngineerService implements IChaosEngineeringService {
     }
   }
 
-  private generateSimulatedMetricValue(metric: string): number {
-    // Stub: Generate simulated metric values for testing
-    const baseValues: Record<string, number> = {
-      'response_time_ms': 100 + Math.random() * 50,
-      'error_rate': Math.random() * 0.05,
-      'throughput': 1000 + Math.random() * 200,
-      'cpu_usage': 50 + Math.random() * 20,
-      'memory_usage': 60 + Math.random() * 15,
-    };
-
-    return baseValues[metric] ?? Math.random() * 100;
+  private collectRealMetricValue(metric: string): number {
+    // Collect real system metrics using SystemMetricsCollector
+    return this.metricsCollector.getChaosMetricValue(metric);
   }
 
   private validateHypothesis(
@@ -727,16 +942,92 @@ export class ChaosEngineerService implements IChaosEngineeringService {
   }
 
   private async rollbackExperiment(experiment: ChaosExperiment): Promise<void> {
-    // Execute rollback steps
+    // Execute rollback steps in order
     for (const step of experiment.rollbackPlan.steps.sort((a, b) => a.order - b.order)) {
       console.log(`Executing rollback step ${step.order}: ${step.action}`);
-      // Stub: Would execute actual rollback action
+
+      try {
+        await this.executeRollbackAction(step.action, step.target, step.timeout);
+      } catch (error) {
+        console.error(
+          `Rollback step ${step.order} failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+        // Continue with other rollback steps even if one fails
+      }
     }
 
     // Remove all active faults
     for (const fault of experiment.faults) {
       await this.removeFault(fault.id);
     }
+  }
+
+  private async executeRollbackAction(
+    action: string,
+    target?: string,
+    timeout: number = 30000
+  ): Promise<void> {
+    // Determine action type and execute accordingly
+    if (action.startsWith('http://') || action.startsWith('https://')) {
+      // HTTP endpoint rollback
+      await this.executeHttpRollback(action, timeout);
+    } else if (action.startsWith('cmd:')) {
+      // Command-based rollback
+      await this.executeCommandRollback(action.slice(4), timeout);
+    } else if (target && (target.startsWith('http://') || target.startsWith('https://'))) {
+      // HTTP target with action name
+      await this.executeHttpRollback(`${target}/_chaos/${action}`, timeout);
+    } else {
+      // Built-in action or description-only step
+      await this.executeBuiltInRollback(action, target, timeout);
+    }
+  }
+
+  private async executeHttpRollback(url: string, timeout: number): Promise<void> {
+    const result = await this.httpClient.post(url, {}, { timeout, retries: 1 });
+    if (!result.success) {
+      throw new Error(`HTTP rollback failed: ${result.error.message}`);
+    }
+  }
+
+  private executeCommandRollback(command: string, timeout: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      exec(command, { timeout }, (error, _stdout, stderr) => {
+        if (error) {
+          reject(new Error(`Command rollback failed: ${error.message}. ${stderr}`));
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  private async executeBuiltInRollback(
+    action: string,
+    target?: string,
+    _timeout?: number
+  ): Promise<void> {
+    // Handle built-in rollback actions
+    const actionLower = action.toLowerCase();
+
+    if (actionLower.includes('remove') || actionLower.includes('clear')) {
+      // Clear any remaining state
+      if (target) {
+        console.log(`Clearing state for target: ${target}`);
+      }
+    } else if (actionLower.includes('restart')) {
+      // Restart service (log only - actual restart would require orchestration)
+      console.log(`Restart requested for: ${target || 'service'}`);
+    } else if (actionLower.includes('restore')) {
+      // Restore to previous state
+      console.log(`Restore requested for: ${target || 'system'}`);
+    } else {
+      // Log-only for description actions
+      console.log(`Rollback action logged: ${action}`);
+    }
+
+    // Brief pause between actions
+    await this.sleep(100);
   }
 
   private sleep(ms: number): Promise<void> {

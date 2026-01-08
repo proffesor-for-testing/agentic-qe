@@ -912,8 +912,7 @@ A comprehensive knowledge graph and semantic search system for intelligent code 
 - `aqe kg index <directory>` - Index codebase
 - `aqe kg search <query>` - Semantic code search
 - `aqe kg visualize <entity>` - Generate Mermaid diagrams
-- `aqe code-intel setup` - Check prerequisites
-- `aqe code-intel enable` - Enable for project
+- `aqe kg stats` - Show indexing statistics
 
 **Infrastructure**
 - `generateMcpJson()` - Creates `.claude/mcp.json` for MCP server definition

@@ -485,12 +485,155 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
   }
 
   private detectDeprecations(
-    _oldContract: ApiContract,
-    _newContract: ApiContract,
-    _deprecations: Deprecation[]
+    oldContract: ApiContract,
+    newContract: ApiContract,
+    deprecations: Deprecation[]
   ): void {
-    // Stub: In production, this would detect deprecation annotations
-    // in schemas, endpoints, or contract metadata
+    // Detect deprecations by comparing old and new contracts
+
+    // Build endpoint maps for comparison
+    const oldEndpoints = this.buildEndpointMap(oldContract.endpoints);
+    const newEndpoints = this.buildEndpointMap(newContract.endpoints);
+
+    // Check for endpoints in old contract that are missing or marked deprecated in new
+    for (const [key, oldEndpoint] of oldEndpoints) {
+      const newEndpoint = newEndpoints.get(key);
+
+      if (!newEndpoint) {
+        // Endpoint removed - this is a deprecation leading to removal
+        deprecations.push({
+          location: `${oldEndpoint.method} ${oldEndpoint.path}`,
+          reason: 'Endpoint has been removed in the new version',
+          removalVersion: newContract.version.toString(),
+        });
+      }
+    }
+
+    // Check for deprecated markers in schema content
+    for (const schema of newContract.schemas) {
+      this.detectSchemaDeprecations(schema, deprecations, newContract.version);
+    }
+
+    // Check for deprecated patterns in endpoint paths
+    for (const endpoint of newContract.endpoints) {
+      // Check if path indicates deprecation (e.g., /v1/ when /v2/ exists)
+      if (endpoint.path.includes('/deprecated/')) {
+        deprecations.push({
+          location: `${endpoint.method} ${endpoint.path}`,
+          reason: 'Endpoint path indicates deprecation',
+        });
+      }
+
+      // Check response schemas for deprecated fields
+      if (endpoint.responseSchema) {
+        const schema = newContract.schemas.find(
+          (s) => s.name === endpoint.responseSchema
+        );
+        if (schema) {
+          this.detectSchemaDeprecations(
+            schema,
+            deprecations,
+            newContract.version,
+            `${endpoint.method} ${endpoint.path}`
+          );
+        }
+      }
+    }
+  }
+
+  private detectSchemaDeprecations(
+    schema: SchemaDefinition,
+    deprecations: Deprecation[],
+    version: Version,
+    context?: string
+  ): void {
+    // Parse schema content to find deprecated markers
+    try {
+      const schemaContent =
+        typeof schema.content === 'string'
+          ? JSON.parse(schema.content)
+          : schema.content;
+
+      this.scanObjectForDeprecations(
+        schemaContent,
+        schema.name,
+        deprecations,
+        version,
+        context
+      );
+    } catch {
+      // Unable to parse schema - skip deprecation detection
+    }
+  }
+
+  private scanObjectForDeprecations(
+    obj: unknown,
+    path: string,
+    deprecations: Deprecation[],
+    version: Version,
+    context?: string
+  ): void {
+    if (!obj || typeof obj !== 'object') return;
+
+    const record = obj as Record<string, unknown>;
+
+    // Check for deprecated field marker
+    if (record.deprecated === true) {
+      const location = context ? `${context} -> ${path}` : path;
+      deprecations.push({
+        location,
+        reason:
+          typeof record.description === 'string'
+            ? record.description
+            : 'Field marked as deprecated',
+        removalVersion:
+          typeof record.removalVersion === 'string'
+            ? record.removalVersion
+            : undefined,
+        replacement:
+          typeof record.replacement === 'string'
+            ? record.replacement
+            : undefined,
+      });
+    }
+
+    // Check for x-deprecated extension (OpenAPI convention)
+    if (record['x-deprecated'] === true) {
+      const location = context ? `${context} -> ${path}` : path;
+      deprecations.push({
+        location,
+        reason:
+          typeof record['x-deprecated-message'] === 'string'
+            ? record['x-deprecated-message']
+            : 'Element marked as deprecated via x-deprecated',
+        removalVersion: version.toString(),
+      });
+    }
+
+    // Recursively check nested objects
+    if (record.properties && typeof record.properties === 'object') {
+      const props = record.properties as Record<string, unknown>;
+      for (const [propName, propValue] of Object.entries(props)) {
+        this.scanObjectForDeprecations(
+          propValue,
+          `${path}.${propName}`,
+          deprecations,
+          version,
+          context
+        );
+      }
+    }
+
+    // Check items for array schemas
+    if (record.items && typeof record.items === 'object') {
+      this.scanObjectForDeprecations(
+        record.items,
+        `${path}[]`,
+        deprecations,
+        version,
+        context
+      );
+    }
   }
 
   private buildEndpointMap(

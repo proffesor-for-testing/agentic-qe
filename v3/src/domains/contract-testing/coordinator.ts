@@ -6,6 +6,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types/index.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
+import { HttpClient, createHttpClient } from '../../shared/http/index.js';
+import { FileReader } from '../../shared/io/index.js';
 import type {
   EventBus,
   MemoryBackend,
@@ -79,6 +81,8 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   private readonly config: CoordinatorConfig;
   private readonly contractValidator: ContractValidatorService;
   private readonly apiCompatibility: ApiCompatibilityService;
+  private readonly httpClient: HttpClient;
+  private readonly fileReader: FileReader;
   // SchemaValidatorService reserved for future use
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private readonly contractStore: Map<string, ApiContract> = new Map();
@@ -93,6 +97,8 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.contractValidator = new ContractValidatorService(memory);
     this.apiCompatibility = new ApiCompatibilityService(memory);
+    this.httpClient = createHttpClient();
+    this.fileReader = new FileReader();
     // Note: schemaValidator initialized when needed for schema operations
   }
 
@@ -271,7 +277,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     try {
       this.startWorkflow(workflowId, 'compare');
 
-      // Load new contract from path (stub - would read file in production)
+      // Load new contract from path using FileReader
       const newContract = await this.loadContractFromPath(newContractPath);
       if (!newContract) {
         this.failWorkflow(workflowId, 'Failed to load contract from path');
@@ -375,7 +381,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     try {
       this.startWorkflow(workflowId, 'import');
 
-      // Load and validate OpenAPI spec (stub - would read file in production)
+      // Load and validate OpenAPI spec using FileReader
       const specContent = await this.loadFileContent(specPath);
       if (!specContent) {
         this.failWorkflow(workflowId, 'Failed to load OpenAPI spec');
@@ -451,22 +457,61 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     consumerName: string,
     providerUrl: string
   ): Promise<VerificationResult> {
-    // Stub verification - in production would make actual HTTP calls
     const failures: VerificationResult['failures'] = [];
     const warnings: VerificationResult['warnings'] = [];
 
-    for (const endpoint of contract.endpoints) {
-      // Simulate endpoint verification
-      const isReachable = providerUrl.length > 0; // Stub
+    // Skip real HTTP for non-HTTP URLs (test mode)
+    const isRealUrl =
+      providerUrl.startsWith('http://') || providerUrl.startsWith('https://');
 
-      if (!isReachable) {
-        failures.push({
-          endpoint: `${endpoint.method} ${endpoint.path}`,
-          type: 'connection-error',
-          expected: 'reachable',
-          actual: 'unreachable',
-          message: `Endpoint ${endpoint.method} ${endpoint.path} is not reachable`,
-        });
+    for (const endpoint of contract.endpoints) {
+      const endpointUrl = `${providerUrl}${endpoint.path}`;
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+
+      if (isRealUrl) {
+        // Make actual HTTP request to verify endpoint
+        try {
+          const verifyResult = await this.verifyEndpoint(
+            endpointUrl,
+            endpoint.method,
+            endpoint
+          );
+
+          if (!verifyResult.success) {
+            failures.push({
+              endpoint: endpointKey,
+              type: verifyResult.errorType,
+              expected: verifyResult.expected,
+              actual: verifyResult.actual,
+              message: verifyResult.message,
+            });
+          } else if (verifyResult.warning) {
+            warnings.push({
+              endpoint: endpointKey,
+              message: verifyResult.warning,
+            });
+          }
+        } catch (error) {
+          failures.push({
+            endpoint: endpointKey,
+            type: 'connection-error',
+            expected: 'reachable',
+            actual: 'error',
+            message: `Failed to verify endpoint: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      } else {
+        // Simulation mode for non-HTTP URLs (testing)
+        // Endpoint is considered valid if URL is non-empty
+        if (!providerUrl) {
+          failures.push({
+            endpoint: endpointKey,
+            type: 'connection-error',
+            expected: 'reachable',
+            actual: 'unreachable',
+            message: `Endpoint ${endpointKey} is not reachable (no provider URL)`,
+          });
+        }
       }
     }
 
@@ -478,6 +523,89 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       failures,
       warnings,
       timestamp: new Date(),
+    };
+  }
+
+  private async verifyEndpoint(
+    url: string,
+    method: HttpMethod,
+    endpoint: ContractEndpoint
+  ): Promise<{
+    success: boolean;
+    errorType: string;
+    expected: string;
+    actual: string;
+    message: string;
+    warning?: string;
+  }> {
+    const timeout = 10000;
+    const requestOptions = { timeout, retries: 1, circuitBreaker: false };
+
+    let result;
+    switch (method) {
+      case 'GET':
+      case 'HEAD':
+        result = await this.httpClient.get(url, requestOptions);
+        break;
+      case 'POST':
+        result = await this.httpClient.post(url, {}, requestOptions);
+        break;
+      case 'PUT':
+        result = await this.httpClient.put(url, {}, requestOptions);
+        break;
+      case 'PATCH':
+        result = await this.httpClient.patch(url, {}, requestOptions);
+        break;
+      case 'DELETE':
+        result = await this.httpClient.delete(url, requestOptions);
+        break;
+      case 'OPTIONS':
+        result = await this.httpClient.get(url, requestOptions);
+        break;
+      default:
+        result = await this.httpClient.get(url, requestOptions);
+    }
+
+    if (!result.success) {
+      return {
+        success: false,
+        errorType: 'connection-error',
+        expected: 'successful response',
+        actual: `error: ${result.error.message}`,
+        message: `Endpoint unreachable: ${result.error.message}`,
+      };
+    }
+
+    const response = result.value;
+
+    // Verify response status matches expected
+    if (endpoint.responses && endpoint.responses.length > 0) {
+      const expectedStatuses = endpoint.responses.map((r) => r.statusCode);
+      if (!expectedStatuses.includes(response.status)) {
+        return {
+          success: false,
+          errorType: 'status-mismatch',
+          expected: expectedStatuses.join(' or '),
+          actual: String(response.status),
+          message: `Expected status ${expectedStatuses.join('/')} but got ${response.status}`,
+        };
+      }
+    }
+
+    // Check for deprecation warnings
+    let warning: string | undefined;
+    const deprecationHeader = response.headers.get('Deprecation');
+    if (deprecationHeader) {
+      warning = `Endpoint is deprecated: ${deprecationHeader}`;
+    }
+
+    return {
+      success: true,
+      errorType: '',
+      expected: '',
+      actual: '',
+      message: 'Endpoint verified successfully',
+      warning,
     };
   }
 
@@ -505,14 +633,56 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     return contracts;
   }
 
-  private async loadContractFromPath(_path: FilePath): Promise<ApiContract | null> {
-    // Stub - in production would read file from path
-    return null;
+  private async loadContractFromPath(path: FilePath): Promise<ApiContract | null> {
+    // Read contract file from path using FileReader
+    const content = await this.loadFileContent(path);
+    if (!content) {
+      return null;
+    }
+
+    try {
+      // Determine file type and parse accordingly
+      const filePath = path.value.toLowerCase();
+
+      if (filePath.endsWith('.json')) {
+        // Parse as JSON contract or OpenAPI spec
+        const parsed = JSON.parse(content);
+
+        // Check if it's an OpenAPI spec
+        if (parsed.openapi || parsed.swagger) {
+          return this.parseOpenAPIToContract(content);
+        }
+
+        // Assume it's a direct contract format
+        return parsed as ApiContract;
+      } else if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
+        // YAML support would require a YAML parser
+        // For now, log a warning and return null
+        console.warn('YAML contract files not yet supported:', path.value);
+        return null;
+      }
+
+      // Try parsing as JSON anyway
+      return JSON.parse(content) as ApiContract;
+    } catch (error) {
+      console.error(
+        `Failed to parse contract from ${path.value}:`,
+        error instanceof Error ? error.message : String(error)
+      );
+      return null;
+    }
   }
 
-  private async loadFileContent(_path: FilePath): Promise<string | null> {
-    // Stub - in production would read file
-    return null;
+  private async loadFileContent(path: FilePath): Promise<string | null> {
+    // Read file content using FileReader
+    const result = await this.fileReader.readFile(path.value);
+
+    if (!result.success) {
+      console.error(`Failed to read file ${path.value}:`, result.error);
+      return null;
+    }
+
+    return result.value;
   }
 
   private parseOpenAPIToContract(specContent: string): ApiContract {

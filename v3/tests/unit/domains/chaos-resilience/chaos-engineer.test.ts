@@ -291,10 +291,12 @@ describe('ChaosEngineerService', () => {
 
       const result = await service.verifySteadyState(definition);
 
+      // Result is successful (no thrown error)
       expect(result.success).toBe(true);
-      // The stub returns true for all probes
+      // With real HTTP client, probe fails when no server is running
+      // This is correct behavior - probe accurately reports service unavailable
       if (result.success) {
-        expect(result.value).toBe(true);
+        expect(result.value).toBe(false); // No server = probe fails
       }
     });
 

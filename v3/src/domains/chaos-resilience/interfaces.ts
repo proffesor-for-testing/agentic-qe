@@ -57,6 +57,15 @@ export interface SteadyStateProbe {
   readonly target: string;
   readonly expected: unknown;
   readonly timeout: number;
+  /** Expected HTTP status code (for http probes) */
+  readonly expectedStatus?: number;
+  /** Expected output substring (for command probes) */
+  readonly expectedOutput?: string;
+  /** Threshold configuration (for metric probes) */
+  readonly threshold?: {
+    readonly operator: 'lt' | 'gt' | 'lte' | 'gte' | 'eq';
+    readonly value: number;
+  };
 }
 
 /**
@@ -96,6 +105,8 @@ export interface FaultParameters {
   readonly packetLossPercent?: number;
   readonly cpuPercent?: number;
   readonly memoryBytes?: number;
+  /** Number of CPU cores to stress (for cpu-stress faults) */
+  readonly cores?: number;
 }
 
 export interface BlastRadius {

@@ -42,6 +42,7 @@ import {
   ImpactAnalyzerService,
   IImpactAnalyzerService,
 } from './services/impact-analyzer';
+import { FileReader } from '../../shared/io';
 
 /**
  * Interface for the code intelligence coordinator
@@ -92,6 +93,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   private readonly knowledgeGraph: IKnowledgeGraphService;
   private readonly semanticAnalyzer: ISemanticAnalyzerService;
   private readonly impactAnalyzer: IImpactAnalyzerService;
+  private readonly fileReader: FileReader;
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private initialized = false;
 
@@ -105,6 +107,7 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     this.knowledgeGraph = new KnowledgeGraphService(memory);
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);
     this.impactAnalyzer = new ImpactAnalyzerService(memory, this.knowledgeGraph);
+    this.fileReader = new FileReader();
   }
 
   /**
@@ -580,15 +583,18 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
   private async indexForSemanticSearch(paths: string[]): Promise<void> {
     // Index a subset of files for semantic search
-    // In production, would read actual file contents
-    for (const path of paths.slice(0, 100)) {
-      // Limit for performance
+    // Limit to 100 files for performance in a single batch
+    const filesToIndex = paths.slice(0, 100);
+
+    for (const path of filesToIndex) {
       try {
-        // Stub: Would read actual file content here
-        const stubContent = `// Content of ${path}`;
-        await this.semanticAnalyzer.indexCode(path, stubContent);
+        // Read actual file content
+        const content = await this.fileReader.readFile(path);
+        if (content) {
+          await this.semanticAnalyzer.indexCode(path, content);
+        }
       } catch {
-        // Continue on error
+        // Continue on error - file may not exist or be unreadable
       }
     }
   }

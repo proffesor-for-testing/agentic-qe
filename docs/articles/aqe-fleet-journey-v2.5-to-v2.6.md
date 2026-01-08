@@ -542,13 +542,10 @@ aqe kg index <directory>
 aqe kg search <query>
 
 # Generate Mermaid diagrams
-aqe kg visualize <entity>
+aqe kg graph <file> --type class
 
-# Check prerequisites
-aqe code-intel setup
-
-# Enable for project
-aqe code-intel enable
+# Check indexing stats
+aqe kg stats
 ```
 
 #### Benchmark Results (Verified)

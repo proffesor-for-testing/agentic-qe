@@ -5,6 +5,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
+import { HttpClient, RequestOptions } from '../../../shared/http';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   LoadTest,
@@ -74,18 +75,31 @@ interface MutableLoadTestError {
 }
 
 /**
+ * Result of a single HTTP request during load testing
+ */
+interface RequestResult {
+  status: number;
+  latency: number;
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
+/**
  * Load Testing Service Implementation
  * Manages load tests, stress tests, and performance benchmarking
  */
 export class LoadTesterService implements ILoadTestingService {
   private readonly config: LoadTesterConfig;
   private readonly activeTests: Map<string, LoadTestExecution> = new Map();
+  private readonly httpClient: HttpClient;
 
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<LoadTesterConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.httpClient = new HttpClient();
   }
 
   /**
@@ -525,70 +539,140 @@ export class LoadTesterService implements ILoadTestingService {
   }
 
   private async executeBatch(
-    _test: LoadTest,
+    test: LoadTest,
     virtualUsers: number,
     strategy: ExecutionStrategy
   ): Promise<BatchResult> {
-    // Stub: In production, this would execute actual HTTP requests
-    // using a library like axios, undici, or node-fetch
-
     const totalRequests = Math.round(virtualUsers * strategy.requestMultiplier);
-    const responseTimes: number[] = [];
-    const errors: string[] = [];
-    let successfulRequests = 0;
-    let failedRequests = 0;
+    const concurrency = Math.min(totalRequests, this.config.connectionPoolSize);
 
-    for (let i = 0; i < totalRequests; i++) {
-      // Simulate request execution
-      const responseTime = this.simulateRequest(strategy);
+    // Create request batches for concurrency control
+    const batches = this.createBatches(totalRequests, concurrency);
+    const allResults: RequestResult[] = [];
 
-      if (responseTime.success) {
-        successfulRequests++;
-        responseTimes.push(responseTime.value);
-      } else {
-        failedRequests++;
-        errors.push(responseTime.error);
+    for (const batch of batches) {
+      const batchStart = Date.now();
+
+      // Execute batch of requests in parallel
+      const batchResults = await Promise.all(
+        batch.map(() => this.executeRequest(test, strategy))
+      );
+
+      allResults.push(...batchResults);
+
+      // Rate limiting: ensure we don't exceed target requests per second
+      const elapsed = Date.now() - batchStart;
+      const targetTime = (1000 / Math.max(virtualUsers, 1)) * batch.length;
+      if (elapsed < targetTime) {
+        await this.sleep(targetTime - elapsed);
       }
     }
 
+    // Aggregate results
+    const responseTimes = allResults.filter(r => r.success).map(r => r.latency);
+    const errors = allResults.filter(r => !r.success).map(r => r.error || 'Unknown error');
+
     return {
-      totalRequests,
-      successfulRequests,
-      failedRequests,
+      totalRequests: allResults.length,
+      successfulRequests: allResults.filter(r => r.success).length,
+      failedRequests: allResults.filter(r => !r.success).length,
       responseTimes,
       errors,
     };
   }
 
-  private simulateRequest(
+  /**
+   * Execute a single HTTP request and measure latency
+   */
+  private async executeRequest(
+    test: LoadTest,
     strategy: ExecutionStrategy
-  ): { success: true; value: number } | { success: false; error: string } {
-    // Simulate request with some randomness
-    const shouldFail = Math.random() < strategy.errorInjectionRate;
+  ): Promise<RequestResult> {
+    const start = Date.now();
+    const timestamp = start;
 
-    if (shouldFail) {
-      const errorTypes = [
-        'Connection timeout',
-        'Connection refused',
-        'HTTP 500',
-        'HTTP 502',
-        'HTTP 503',
-      ];
+    // Apply error injection for testing (optional, based on strategy)
+    if (strategy.errorInjectionRate > 0 && Math.random() < strategy.errorInjectionRate) {
       return {
+        status: 0,
+        latency: Date.now() - start,
         success: false,
-        error: errorTypes[Math.floor(Math.random() * errorTypes.length)],
+        error: 'Simulated error injection',
+        timestamp,
       };
     }
 
-    // Simulate response time with some variance
-    const baseResponseTime = 50; // 50ms base
-    const variance = 100 * Math.random(); // Up to 100ms variance
-    const loadFactor = strategy.requestMultiplier * 10; // Additional latency under load
+    try {
+      const { url, method = 'GET', headers, body } = test.target;
 
-    return {
-      success: true,
-      value: baseResponseTime + variance + loadFactor,
-    };
+      const requestOptions: RequestOptions = {
+        headers,
+        timeout: this.config.defaultTimeout,
+        retries: 0, // No retries during load test to get accurate metrics
+        circuitBreaker: false, // Disable circuit breaker for load testing
+      };
+
+      // Execute request based on method
+      let result;
+      switch (method.toUpperCase()) {
+        case 'POST':
+          result = await this.httpClient.post(url, body, requestOptions);
+          break;
+        case 'PUT':
+          result = await this.httpClient.put(url, body, requestOptions);
+          break;
+        case 'DELETE':
+          result = await this.httpClient.delete(url, requestOptions);
+          break;
+        case 'GET':
+        default:
+          result = await this.httpClient.get(url, requestOptions);
+          break;
+      }
+
+      if (result.success) {
+        const response = result.value;
+        return {
+          status: response.status,
+          latency: Date.now() - start,
+          success: response.ok,
+          error: response.ok ? undefined : `HTTP ${response.status}: ${response.statusText}`,
+          timestamp,
+        };
+      } else {
+        return {
+          status: result.error.status ?? 0,
+          latency: Date.now() - start,
+          success: false,
+          error: result.error.message,
+          timestamp,
+        };
+      }
+    } catch (error) {
+      return {
+        status: 0,
+        latency: Date.now() - start,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp,
+      };
+    }
+  }
+
+  /**
+   * Create batches of requests for concurrency control
+   */
+  private createBatches(totalRequests: number, concurrency: number): number[][] {
+    const batches: number[][] = [];
+    let remaining = totalRequests;
+
+    while (remaining > 0) {
+      const batchSize = Math.min(remaining, concurrency);
+      batches.push(Array.from({ length: batchSize }, (_, i) => i));
+      remaining -= batchSize;
+    }
+
+    return batches;
   }
 
   private percentile(sorted: number[], p: number): number {

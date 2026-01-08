@@ -1,6 +1,7 @@
 /**
  * Agentic QE v3 - Defect Pattern Learner Service
  * Learns and recognizes defect patterns from historical data
+ * Uses NomicEmbedder for semantic embeddings
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -15,6 +16,7 @@ import {
   DefectClusters,
   DefectCluster,
 } from '../interfaces';
+import { NomicEmbedder, IEmbeddingProvider, EMBEDDING_CONFIG } from '../../../shared/embeddings';
 
 /**
  * Interface for the pattern learner service
@@ -37,13 +39,15 @@ export interface PatternLearnerConfig {
   embeddingDimension: number;
   patternNamespace: string;
   enableSemanticClustering: boolean;
+  /** Optional embedder instance (defaults to NomicEmbedder with fallback) */
+  embedder?: IEmbeddingProvider;
 }
 
 const DEFAULT_CONFIG: PatternLearnerConfig = {
   minPatternFrequency: 2,
   maxPatterns: 50,
   clusterThreshold: 0.7,
-  embeddingDimension: 384,
+  embeddingDimension: EMBEDDING_CONFIG.DIMENSION,
   patternNamespace: 'defect-intelligence:patterns',
   enableSemanticClustering: true,
 };
@@ -93,12 +97,15 @@ const KNOWN_PATTERNS: Record<string, { indicators: string[]; prevention: string 
 export class PatternLearnerService implements IPatternLearnerService {
   private readonly config: PatternLearnerConfig;
   private readonly patternCache: Map<string, DefectPattern> = new Map();
+  private readonly embedder: IEmbeddingProvider;
 
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<PatternLearnerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    // Use provided embedder or create NomicEmbedder with fallback enabled
+    this.embedder = config.embedder ?? new NomicEmbedder({ enableFallback: true });
   }
 
   /**
@@ -211,7 +218,7 @@ export class PatternLearnerService implements IPatternLearnerService {
   ): Promise<Result<DefectInfo[], Error>> {
     try {
       // Generate embedding for the defect
-      const embedding = this.generateDefectEmbedding(defect);
+      const embedding = await this.generateDefectEmbedding(defect);
 
       // Search for similar vectors
       const results: VectorSearchResult[] = await this.memory.vectorSearch(
@@ -379,7 +386,7 @@ export class PatternLearnerService implements IPatternLearnerService {
 
     // Store vector for semantic search
     if (this.config.enableSemanticClustering) {
-      const embedding = this.generatePatternEmbedding(pattern);
+      const embedding = await this.generatePatternEmbedding(pattern);
       await this.memory.storeVector(patternKey, embedding, {
         patternId: pattern.id,
         name: pattern.name,
@@ -442,7 +449,7 @@ export class PatternLearnerService implements IPatternLearnerService {
     // Generate embeddings for all defects
     const embeddings: { defect: DefectInfo; embedding: number[] }[] = [];
     for (const defect of defects) {
-      const embedding = this.generateDefectEmbedding(defect);
+      const embedding = await this.generateDefectEmbedding(defect);
       embeddings.push({ defect, embedding });
 
       // Store for future similarity searches
@@ -666,33 +673,51 @@ export class PatternLearnerService implements IPatternLearnerService {
     };
   }
 
-  private generateDefectEmbedding(defect: DefectInfo): number[] {
-    const text = `${defect.title} ${defect.description} ${defect.tags?.join(' ') || ''}`;
-    return this.simpleEmbedding(text);
+  /**
+   * Generate embedding for a defect
+   * Uses NomicEmbedder for semantic embeddings
+   */
+  private async generateDefectEmbedding(defect: DefectInfo): Promise<number[]> {
+    const text = this.formatDefectForEmbedding(defect);
+    return this.embedder.embed(text);
   }
 
-  private generatePatternEmbedding(pattern: DefectPattern): number[] {
-    const text = `${pattern.name} ${pattern.indicators.join(' ')} ${pattern.prevention}`;
-    return this.simpleEmbedding(text);
+  /**
+   * Generate embedding for a pattern
+   * Uses the same embedder as defects for consistent similarity matching
+   */
+  private async generatePatternEmbedding(pattern: DefectPattern): Promise<number[]> {
+    const text = this.formatPatternForEmbedding(pattern);
+    return this.embedder.embed(text);
   }
 
-  private simpleEmbedding(text: string): number[] {
-    // Stub: Generate a simple pseudo-embedding for testing
-    // In production, use an actual embedding model
-    const embedding: number[] = new Array(this.config.embeddingDimension).fill(0);
-    const words = text.toLowerCase().split(/\s+/);
+  /**
+   * Format a defect for embedding generation
+   */
+  private formatDefectForEmbedding(defect: DefectInfo): string {
+    const parts = [
+      `Title: ${defect.title}`,
+      defect.description ? `Description: ${defect.description}` : '',
+      defect.tags?.length ? `Tags: ${defect.tags.join(', ')}` : '',
+      defect.severity ? `Severity: ${defect.severity}` : '',
+      defect.component ? `Component: ${defect.component}` : '',
+    ].filter(Boolean);
 
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      for (let j = 0; j < word.length && j < embedding.length; j++) {
-        embedding[(i + j) % embedding.length] += word.charCodeAt(j) / 1000;
-      }
-    }
+    return parts.join('\n');
+  }
 
-    // Normalize
-    const magnitude =
-      Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
-    return embedding.map((v) => v / magnitude);
+  /**
+   * Format a pattern for embedding generation
+   */
+  private formatPatternForEmbedding(pattern: DefectPattern): string {
+    const parts = [
+      `Pattern: ${pattern.name}`,
+      `Indicators: ${pattern.indicators.join(', ')}`,
+      `Prevention: ${pattern.prevention}`,
+      pattern.severity ? `Severity: ${pattern.severity}` : '',
+    ].filter(Boolean);
+
+    return parts.join('\n');
   }
 
   private cosineSimilarity(a: number[], b: number[]): number {

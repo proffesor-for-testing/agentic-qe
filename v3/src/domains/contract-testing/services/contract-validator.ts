@@ -474,15 +474,81 @@ export class ContractValidatorService implements IContractValidationService {
     content: string,
     schemaId: string,
     errors: ValidationError[],
-    _warnings: string[]
+    warnings: string[]
   ): void {
-    // Basic GraphQL schema validation (stub)
-    if (!content.includes('type') && !content.includes('schema')) {
+    // GraphQL schema validation with syntax checking
+    const lines = content.split('\n');
+    let braceDepth = 0;
+    let hasTypeDefinition = false;
+    let hasQueryType = false;
+
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      const line = lines[lineNum].trim();
+
+      // Skip comments and empty lines
+      if (line.startsWith('#') || line === '') continue;
+
+      // Check for type definitions
+      if (line.startsWith('type ') || line.startsWith('input ') || line.startsWith('interface ') || line.startsWith('enum ')) {
+        hasTypeDefinition = true;
+        if (line.startsWith('type Query')) {
+          hasQueryType = true;
+        }
+      }
+
+      // Check for schema definition
+      if (line.startsWith('schema ') || line.startsWith('schema{')) {
+        hasTypeDefinition = true;
+      }
+
+      // Track brace depth for balance check
+      braceDepth += (line.match(/{/g) || []).length;
+      braceDepth -= (line.match(/}/g) || []).length;
+
+      // Check for invalid syntax patterns
+      if (line.includes('::')) {
+        errors.push({
+          path: `schema.${schemaId}.line${lineNum + 1}`,
+          message: 'Invalid double colon in GraphQL schema',
+          code: 'INVALID_GRAPHQL_SYNTAX',
+        });
+      }
+
+      // Check for field definitions without type
+      if (line.includes(':') && !line.includes('type ') && !line.includes('schema')) {
+        const colonIndex = line.indexOf(':');
+        const afterColon = line.slice(colonIndex + 1).trim();
+        if (afterColon === '' || afterColon === '{') {
+          errors.push({
+            path: `schema.${schemaId}.line${lineNum + 1}`,
+            message: 'Field definition missing type',
+            code: 'INVALID_GRAPHQL_FIELD',
+          });
+        }
+      }
+    }
+
+    // Check for required elements
+    if (!hasTypeDefinition) {
       errors.push({
         path: `schema.${schemaId}`,
         message: 'GraphQL schema must contain type definitions',
         code: 'INVALID_GRAPHQL',
       });
+    }
+
+    // Check for balanced braces
+    if (braceDepth !== 0) {
+      errors.push({
+        path: `schema.${schemaId}`,
+        message: 'GraphQL schema has unbalanced braces',
+        code: 'INVALID_GRAPHQL_BRACES',
+      });
+    }
+
+    // Warn if no Query type
+    if (hasTypeDefinition && !hasQueryType && !content.includes('schema {')) {
+      warnings.push(`Schema ${schemaId} has no Query type defined`);
     }
   }
 
@@ -490,15 +556,104 @@ export class ContractValidatorService implements IContractValidationService {
     content: string,
     schemaId: string,
     errors: ValidationError[],
-    _warnings: string[]
+    warnings: string[]
   ): void {
-    // Basic Protobuf validation (stub)
-    if (!content.includes('message') && !content.includes('syntax')) {
+    // Protobuf schema validation with syntax checking
+    const lines = content.split('\n');
+    let braceDepth = 0;
+    let hasMessage = false;
+    let hasSyntax = false;
+    let syntaxVersion: string | null = null;
+
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      const line = lines[lineNum].trim();
+
+      // Skip comments and empty lines
+      if (line.startsWith('//') || line === '') continue;
+
+      // Check for syntax declaration
+      const syntaxMatch = line.match(/^syntax\s*=\s*["']proto(\d)["']\s*;?/);
+      if (syntaxMatch) {
+        hasSyntax = true;
+        syntaxVersion = syntaxMatch[1];
+      }
+
+      // Check for message definitions
+      if (line.startsWith('message ')) {
+        hasMessage = true;
+        // Check for valid message name
+        const msgMatch = line.match(/^message\s+([A-Z][a-zA-Z0-9_]*)\s*\{?/);
+        if (!msgMatch) {
+          warnings.push(`Message name should start with uppercase letter at line ${lineNum + 1}`);
+        }
+      }
+
+      // Check for enum definitions
+      if (line.startsWith('enum ')) {
+        hasMessage = true; // Enums are also valid definitions
+      }
+
+      // Check for service definitions
+      if (line.startsWith('service ')) {
+        hasMessage = true;
+      }
+
+      // Track brace depth
+      braceDepth += (line.match(/{/g) || []).length;
+      braceDepth -= (line.match(/}/g) || []).length;
+
+      // Check for field definitions (inside messages)
+      const fieldMatch = line.match(/^\s*(optional|required|repeated)?\s*(\w+)\s+(\w+)\s*=\s*(\d+)/);
+      if (fieldMatch) {
+        const [, modifier, , , fieldNum] = fieldMatch;
+        const num = parseInt(fieldNum, 10);
+
+        // Field numbers should be positive and within valid range
+        if (num <= 0 || num > 536870911) {
+          errors.push({
+            path: `schema.${schemaId}.line${lineNum + 1}`,
+            message: `Invalid field number ${num}`,
+            code: 'INVALID_PROTOBUF_FIELD_NUMBER',
+          });
+        }
+
+        // Warn about reserved field numbers
+        if (num >= 19000 && num <= 19999) {
+          warnings.push(`Field number ${num} is in reserved range (19000-19999) at line ${lineNum + 1}`);
+        }
+
+        // Check for required in proto3
+        if (modifier === 'required' && syntaxVersion === '3') {
+          errors.push({
+            path: `schema.${schemaId}.line${lineNum + 1}`,
+            message: 'Required fields are not allowed in proto3',
+            code: 'INVALID_PROTOBUF_REQUIRED',
+          });
+        }
+      }
+    }
+
+    // Check for required elements
+    if (!hasMessage) {
       errors.push({
         path: `schema.${schemaId}`,
-        message: 'Protobuf schema must contain message definitions',
+        message: 'Protobuf schema must contain message, enum, or service definitions',
         code: 'INVALID_PROTOBUF',
       });
+    }
+
+    // Check for balanced braces
+    if (braceDepth !== 0) {
+      errors.push({
+        path: `schema.${schemaId}`,
+        message: 'Protobuf schema has unbalanced braces',
+        code: 'INVALID_PROTOBUF_BRACES',
+      });
+    }
+
+    // Warn if no syntax declaration
+    if (!hasSyntax) {
+      warnings.push(`Schema ${schemaId} has no syntax declaration (defaults to proto2)`);
     }
   }
 
@@ -574,7 +729,7 @@ export class ContractValidatorService implements IContractValidationService {
     try {
       const schema = JSON.parse(schemaContent);
 
-      // Basic type validation (stub - in production use ajv or similar)
+      // JSON Schema validation with type, required, constraints, and nested object/array support
       this.basicTypeValidation(data, schema, '', errors);
     } catch {
       errors.push({
@@ -663,8 +818,13 @@ export class ContractValidatorService implements IContractValidationService {
       }
     } else if (type === 'array' && actualType === 'array') {
       const items = schema.items as Record<string, unknown> | undefined;
+      const dataArr = data as unknown[];
+
+      // Validate array constraints
+      this.validateArrayConstraints(dataArr, schema, path, errors);
+
+      // Validate each item
       if (items) {
-        const dataArr = data as unknown[];
         for (let i = 0; i < dataArr.length; i++) {
           this.basicTypeValidation(
             dataArr[i],
@@ -675,6 +835,12 @@ export class ContractValidatorService implements IContractValidationService {
           );
         }
       }
+    } else if (type === 'string' && actualType === 'string') {
+      // Validate string constraints
+      this.validateStringConstraints(data as string, schema, path, errors);
+    } else if ((type === 'number' || type === 'integer') && (actualType === 'number' || actualType === 'integer')) {
+      // Validate number constraints
+      this.validateNumberConstraints(data as number, schema, path, errors);
     } else if (type !== actualType) {
       // Allow integer as number
       if (!(type === 'number' && actualType === 'integer')) {
@@ -684,6 +850,168 @@ export class ContractValidatorService implements IContractValidationService {
           message: `Expected type '${type}' but got '${actualType}'`,
           params: { expectedType: type, actualType },
         });
+      }
+    }
+
+    // Check enum constraint (applies to any type)
+    if (schema.enum) {
+      const enumValues = schema.enum as unknown[];
+      if (!enumValues.some((v) => JSON.stringify(v) === JSON.stringify(data))) {
+        errors.push({
+          path,
+          keyword: 'enum',
+          message: `Value must be one of: ${enumValues.map((v) => JSON.stringify(v)).join(', ')}`,
+          params: { allowedValues: enumValues },
+        });
+      }
+    }
+  }
+
+  private validateStringConstraints(
+    data: string,
+    schema: Record<string, unknown>,
+    path: string,
+    errors: SchemaError[]
+  ): void {
+    const minLength = schema.minLength as number | undefined;
+    const maxLength = schema.maxLength as number | undefined;
+    const pattern = schema.pattern as string | undefined;
+
+    if (minLength !== undefined && data.length < minLength) {
+      errors.push({
+        path,
+        keyword: 'minLength',
+        message: `String must be at least ${minLength} characters`,
+        params: { limit: minLength, actual: data.length },
+      });
+    }
+
+    if (maxLength !== undefined && data.length > maxLength) {
+      errors.push({
+        path,
+        keyword: 'maxLength',
+        message: `String must be at most ${maxLength} characters`,
+        params: { limit: maxLength, actual: data.length },
+      });
+    }
+
+    if (pattern) {
+      try {
+        const regex = new RegExp(pattern);
+        if (!regex.test(data)) {
+          errors.push({
+            path,
+            keyword: 'pattern',
+            message: `String must match pattern: ${pattern}`,
+            params: { pattern },
+          });
+        }
+      } catch {
+        // Invalid regex pattern, skip validation
+      }
+    }
+  }
+
+  private validateNumberConstraints(
+    data: number,
+    schema: Record<string, unknown>,
+    path: string,
+    errors: SchemaError[]
+  ): void {
+    const minimum = schema.minimum as number | undefined;
+    const maximum = schema.maximum as number | undefined;
+    const exclusiveMinimum = schema.exclusiveMinimum as number | undefined;
+    const exclusiveMaximum = schema.exclusiveMaximum as number | undefined;
+    const multipleOf = schema.multipleOf as number | undefined;
+
+    if (minimum !== undefined && data < minimum) {
+      errors.push({
+        path,
+        keyword: 'minimum',
+        message: `Number must be >= ${minimum}`,
+        params: { limit: minimum, actual: data },
+      });
+    }
+
+    if (maximum !== undefined && data > maximum) {
+      errors.push({
+        path,
+        keyword: 'maximum',
+        message: `Number must be <= ${maximum}`,
+        params: { limit: maximum, actual: data },
+      });
+    }
+
+    if (exclusiveMinimum !== undefined && data <= exclusiveMinimum) {
+      errors.push({
+        path,
+        keyword: 'exclusiveMinimum',
+        message: `Number must be > ${exclusiveMinimum}`,
+        params: { limit: exclusiveMinimum, actual: data },
+      });
+    }
+
+    if (exclusiveMaximum !== undefined && data >= exclusiveMaximum) {
+      errors.push({
+        path,
+        keyword: 'exclusiveMaximum',
+        message: `Number must be < ${exclusiveMaximum}`,
+        params: { limit: exclusiveMaximum, actual: data },
+      });
+    }
+
+    if (multipleOf !== undefined && data % multipleOf !== 0) {
+      errors.push({
+        path,
+        keyword: 'multipleOf',
+        message: `Number must be a multiple of ${multipleOf}`,
+        params: { multipleOf, actual: data },
+      });
+    }
+  }
+
+  private validateArrayConstraints(
+    data: unknown[],
+    schema: Record<string, unknown>,
+    path: string,
+    errors: SchemaError[]
+  ): void {
+    const minItems = schema.minItems as number | undefined;
+    const maxItems = schema.maxItems as number | undefined;
+    const uniqueItems = schema.uniqueItems as boolean | undefined;
+
+    if (minItems !== undefined && data.length < minItems) {
+      errors.push({
+        path,
+        keyword: 'minItems',
+        message: `Array must have at least ${minItems} items`,
+        params: { limit: minItems, actual: data.length },
+      });
+    }
+
+    if (maxItems !== undefined && data.length > maxItems) {
+      errors.push({
+        path,
+        keyword: 'maxItems',
+        message: `Array must have at most ${maxItems} items`,
+        params: { limit: maxItems, actual: data.length },
+      });
+    }
+
+    if (uniqueItems) {
+      const seen = new Set<string>();
+      for (let i = 0; i < data.length; i++) {
+        const serialized = JSON.stringify(data[i]);
+        if (seen.has(serialized)) {
+          errors.push({
+            path: `${path}[${i}]`,
+            keyword: 'uniqueItems',
+            message: 'Array items must be unique',
+            params: { duplicateIndex: i },
+          });
+          break;
+        }
+        seen.add(serialized);
       }
     }
   }

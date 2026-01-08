@@ -11,15 +11,15 @@
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| ADR-001 | Adopt DDD for QE Bounded Contexts | Proposed | 2026-01-07 |
-| ADR-002 | Event-Driven Domain Communication | Proposed | 2026-01-07 |
+| ADR-001 | Adopt DDD for QE Bounded Contexts | **Accepted** | 2026-01-07 |
+| ADR-002 | Event-Driven Domain Communication | **Accepted** | 2026-01-07 |
 | ADR-003 | Sublinear Algorithms for Coverage Analysis | Proposed | 2026-01-07 |
-| ADR-004 | Plugin Architecture for QE Extensions | Proposed | 2026-01-07 |
+| ADR-004 | Plugin Architecture for QE Extensions | **Accepted** | 2026-01-07 |
 | ADR-005 | AI-First Test Generation | Proposed | 2026-01-07 |
 | ADR-006 | Unified Learning System | Proposed | 2026-01-07 |
 | ADR-007 | Quality Gate Decision Engine | Proposed | 2026-01-07 |
-| ADR-008 | Multi-Agent Hierarchical Coordination | Proposed | 2026-01-07 |
-| ADR-009 | AgentDB as Primary Memory Backend | Proposed | 2026-01-07 |
+| ADR-008 | Multi-Agent Hierarchical Coordination | **Accepted** | 2026-01-07 |
+| ADR-009 | AgentDB as Primary Memory Backend | **Accepted** | 2026-01-07 |
 | ADR-010 | MCP-First Tool Design | Proposed | 2026-01-07 |
 | ADR-011 | LLM Provider System for QE | Proposed | 2026-01-07 |
 | ADR-012 | MCP Security Features for QE | Proposed | 2026-01-07 |
@@ -28,14 +28,15 @@
 | ADR-015 | Unified Plugin System for QE Extensions | Proposed | 2026-01-07 |
 | ADR-016 | Collaborative Test Task Claims | Proposed | 2026-01-07 |
 | ADR-017 | RuVector Integration for QE Intelligence | Proposed | 2026-01-07 |
-| ADR-018 | Expanded 12-Domain Architecture | Proposed | 2026-01-07 |
+| ADR-018 | Expanded 12-Domain Architecture | **Accepted** | 2026-01-07 |
 | ADR-019 | Phase 1 Foundation Implementation | **Accepted** | 2026-01-07 |
+| ADR-020 | Stub Implementation Replacement | Proposed | 2026-01-07 |
 
 ---
 
 ## ADR-001: Adopt DDD for QE Bounded Contexts
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-01-07
 **Decision Makers:** Architecture Team
 **Context Owner:** Lead Architect
@@ -75,7 +76,9 @@ v3 Target Structure:
 
 ### Decision
 
-**We will restructure Agentic QE v3 using Domain-Driven Design with 6 bounded contexts focused on quality engineering capabilities.**
+**We will restructure Agentic QE v3 using Domain-Driven Design with 12 bounded contexts (expanded per ADR-018) focused on quality engineering capabilities.**
+
+> **Note:** Original proposal was 6 domains. Per ADR-018, expanded to 12 domains to ensure feature parity with v2.
 
 Bounded Contexts:
 1. **Test Generation** - AI-powered test creation, pattern learning
@@ -83,7 +86,13 @@ Bounded Contexts:
 3. **Coverage Analysis** - Sublinear gap detection, risk scoring
 4. **Quality Assessment** - Quality gates, deployment decisions
 5. **Defect Intelligence** - Prediction, root cause, pattern learning
-6. **Learning Optimization** - Cross-domain learning, transfer
+6. **Requirements Validation** - BDD, testability scoring (per ADR-018)
+7. **Code Intelligence** - Knowledge Graph, semantic search (per ADR-018)
+8. **Security Compliance** - SAST/DAST, compliance (per ADR-018)
+9. **Contract Testing** - API contracts, GraphQL (per ADR-018)
+10. **Visual Accessibility** - Visual regression, a11y (per ADR-018)
+11. **Chaos Resilience** - Chaos engineering, load testing (per ADR-018)
+12. **Learning Optimization** - Cross-domain learning, transfer
 
 ### Rationale
 
@@ -129,17 +138,17 @@ Bounded Contexts:
 
 ### Success Metrics
 
-- [ ] 6 clearly defined bounded contexts
+- [x] 12 clearly defined bounded contexts (expanded per ADR-018)
 - [ ] No circular dependencies between domains
 - [ ] Each domain testable in isolation
-- [ ] Domain events for cross-domain communication
+- [x] Domain events for cross-domain communication
 - [ ] <300 lines per domain service
 
 ---
 
 ## ADR-002: Event-Driven Domain Communication
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-01-07
 
 ### Context
@@ -241,7 +250,7 @@ class SublinearCoverageAnalyzer {
 
 ## ADR-004: Plugin Architecture for QE Extensions
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-01-07
 
 ### Context
@@ -427,7 +436,7 @@ class QualityGateEngine {
 
 ## ADR-008: Multi-Agent Hierarchical Coordination
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-01-07
 
 ### Context
@@ -463,7 +472,7 @@ agents   agents   agents    agents    agents
 
 ## ADR-009: AgentDB as Primary Memory Backend
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-01-07
 
 ### Context
@@ -852,7 +861,7 @@ Fallback: When RuVector not installed, fall back to rule-based routing.
 
 ## ADR-018: Expanded 12-Domain Architecture
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-01-07
 
 ### Context
@@ -1095,13 +1104,27 @@ v3/
 - [x] All tests passing (46/46 tests) ✅
 - [x] TypeScript compilation successful ✅
 
-### Next Steps (Phase 2)
+### Phase 2: Domain Services - **COMPLETE**
 
-1. Implement core domain services for test-generation
-2. Implement core domain services for test-execution
-3. Implement core domain services for coverage-analysis
-4. Create integration tests
-5. Connect to AgentDB for persistent memory
+- 48 service files implemented across 12 domains
+- 773 unit tests passing
+- Note: 50% contain stub implementations (to be replaced per ADR-020)
+
+### Phase 3: Event Integration - **COMPLETE**
+
+- CrossDomainEventRouter implemented
+- 6 coordination protocols (morning-sync, quality-gate, regression-prevention, coverage-driven, tdd-cycle, security-audit)
+- WorkflowOrchestrator with built-in workflows
+- 41 integration tests
+- Total: 814 tests passing
+
+### Next Steps (Phase 4)
+
+1. Replace stub implementations with real functionality (per ADR-020)
+2. Implement TypeScript Compiler API for AST parsing
+3. Port Nomic embeddings from v2 for semantic analysis
+4. Add real OWASP detection for security scanning
+5. Implement OSV API for dependency vulnerability scanning
 
 ### Rationale
 
@@ -1111,6 +1134,39 @@ Phase 1 establishes the architectural foundation that all subsequent phases depe
 - Type safety through comprehensive interfaces
 - Testable foundation before adding complexity
 - Clear boundaries for parallel development
+
+---
+
+## ADR-020: Stub Implementation Replacement
+
+**Status:** Proposed
+**Date:** 2026-01-07
+
+### Context
+
+Phase 2 domain services contain 150+ stub implementations across 24 service files. These stubs simulate behavior rather than perform real operations.
+
+### Decision
+
+Replace stub implementations with real functionality:
+1. TypeScript Compiler API for AST parsing
+2. Nomic embeddings (ported from v2) for semantic analysis
+3. Pattern-based OWASP detection for security scanning
+4. Real HTTP clients for load testing
+5. OSV API for dependency vulnerability scanning
+
+### Scope
+
+- 24 service files across 12 domains
+- 150+ stub methods
+- New shared modules: parsers/, io/, http/, embeddings/
+
+### Success Criteria
+
+- 0 "// Stub:" comments remaining in production code
+- Real file I/O for all code intelligence operations
+- Real vulnerability detection against OWASP Top 10
+- Integration tests with actual I/O operations
 
 ---
 

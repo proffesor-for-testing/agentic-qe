@@ -117,15 +117,14 @@ docker-compose up -d ruvector
 # During init
 aqe init  # Select "Enable Code Intelligence"
 
-# Or enable later
-aqe code-intel enable
-aqe code-intel index src/
+# Or enable later (after starting Ollama + PostgreSQL)
+aqe kg index
 ```
 
 ### Query Your Codebase
 ```bash
-aqe code-intel search "authentication flow"
-aqe code-intel graph --symbol AuthService
+aqe kg query "authentication flow"
+aqe kg graph src/auth/AuthService.ts --type class
 ```
 
 ## Conclusion

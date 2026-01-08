@@ -81,7 +81,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
       let queryCount = 0;
       let mutationCount = 0;
 
-      // Basic GraphQL schema parsing and validation (stub)
+      // GraphQL schema parsing and validation using line-based analysis
       const lines = schema.split('\n');
       let inType = false;
       let inQuery = false;
