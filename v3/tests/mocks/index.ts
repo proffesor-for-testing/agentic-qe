@@ -1,14 +1,24 @@
 /**
  * Test Mocks for Agentic QE v3
- * Provides mock implementations for kernel interfaces
+ * Provides mock implementations matching actual kernel interfaces
  */
 
 import { vi } from 'vitest';
-import { EventBus, MemoryBackend, AgentCoordinator, Subscription, AgentInfo, AgentSpawnConfig } from '../../src/kernel/interfaces';
+import {
+  EventBus,
+  MemoryBackend,
+  AgentCoordinator,
+  Subscription,
+  AgentInfo,
+  AgentSpawnConfig,
+  AgentFilter,
+  StoreOptions,
+  VectorSearchResult,
+} from '../../src/kernel/interfaces';
 import { DomainEvent, DomainName, AgentStatus, Result } from '../../src/shared/types';
 
 /**
- * Create a mock EventBus
+ * Create a mock EventBus matching the actual interface
  */
 export function createMockEventBus(): EventBus {
   const handlers = new Map<string, Set<(event: DomainEvent) => Promise<void>>>();
@@ -76,29 +86,46 @@ export function createMockEventBus(): EventBus {
 }
 
 /**
- * Create a mock MemoryBackend
+ * Create a mock MemoryBackend matching the actual interface
  */
 export function createMockMemory(): MemoryBackend {
-  const storage = new Map<string, { value: unknown; embedding?: number[]; metadata?: Record<string, unknown> }>();
+  const storage = new Map<string, unknown>();
+  const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
 
   return {
-    store: vi.fn(async (key: string, value: unknown, embedding?: number[]): Promise<void> => {
-      storage.set(key, { value, embedding });
+    // Initializable
+    initialize: vi.fn(async (): Promise<void> => {}),
+
+    // Core methods matching actual interface
+    set: vi.fn(async <T>(key: string, value: T, _options?: StoreOptions): Promise<void> => {
+      storage.set(key, value);
     }),
 
-    retrieve: vi.fn(async (key: string): Promise<unknown | undefined> => {
-      return storage.get(key)?.value;
+    get: vi.fn(async <T>(key: string): Promise<T | undefined> => {
+      return storage.get(key) as T | undefined;
     }),
 
-    search: vi.fn(async (embedding: number[], k: number): Promise<Array<{ key: string; value: unknown; similarity: number }>> => {
-      const results: Array<{ key: string; value: unknown; similarity: number }> = [];
+    delete: vi.fn(async (key: string): Promise<boolean> => {
+      return storage.delete(key);
+    }),
 
-      for (const [key, data] of storage) {
-        if (data.embedding) {
-          // Calculate cosine similarity
-          const similarity = cosineSimilarity(embedding, data.embedding);
-          results.push({ key, value: data.value, similarity });
-        }
+    has: vi.fn(async (key: string): Promise<boolean> => {
+      return storage.has(key);
+    }),
+
+    search: vi.fn(async (pattern: string, limit?: number): Promise<string[]> => {
+      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+      const matches = Array.from(storage.keys()).filter(k => regex.test(k));
+      return limit ? matches.slice(0, limit) : matches;
+    }),
+
+    // Vector search methods
+    vectorSearch: vi.fn(async (embedding: number[], k: number): Promise<VectorSearchResult[]> => {
+      const results: VectorSearchResult[] = [];
+
+      for (const [key, data] of vectors) {
+        const similarity = cosineSimilarity(embedding, data.embedding);
+        results.push({ key, similarity, metadata: data.metadata });
       }
 
       return results
@@ -106,34 +133,20 @@ export function createMockMemory(): MemoryBackend {
         .slice(0, k);
     }),
 
-    delete: vi.fn(async (key: string): Promise<boolean> => {
-      return storage.delete(key);
+    storeVector: vi.fn(async (key: string, embedding: number[], metadata?: unknown): Promise<void> => {
+      vectors.set(key, { embedding, metadata });
     }),
 
-    clear: vi.fn(async (): Promise<void> => {
-      storage.clear();
-    }),
-
-    keys: vi.fn(async (pattern?: string): Promise<string[]> => {
-      const allKeys = Array.from(storage.keys());
-      if (!pattern) return allKeys;
-
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-      return allKeys.filter(k => regex.test(k));
-    }),
-
-    size: vi.fn(async (): Promise<number> => {
-      return storage.size;
-    }),
-
+    // Disposable
     dispose: vi.fn(async (): Promise<void> => {
       storage.clear();
+      vectors.clear();
     }),
   };
 }
 
 /**
- * Create a mock AgentCoordinator
+ * Create a mock AgentCoordinator matching the actual interface
  */
 export function createMockAgentCoordinator(): AgentCoordinator {
   const agents = new Map<string, AgentInfo>();
@@ -141,14 +154,14 @@ export function createMockAgentCoordinator(): AgentCoordinator {
 
   return {
     spawn: vi.fn(async (config: AgentSpawnConfig): Promise<Result<string, Error>> => {
-      const id = config.id || `agent-${++agentCounter}`;
+      const id = `agent-${++agentCounter}`;
       const agent: AgentInfo = {
         id,
+        name: config.name,
         type: config.type,
         domain: config.domain,
         status: 'idle',
-        spawnedAt: new Date(),
-        capabilities: config.capabilities || [],
+        startedAt: new Date(),
       };
       agents.set(id, agent);
       return { success: true, value: id };
@@ -159,35 +172,33 @@ export function createMockAgentCoordinator(): AgentCoordinator {
       return agent?.status;
     }),
 
-    listAgents: vi.fn((): AgentInfo[] => {
-      return Array.from(agents.values());
-    }),
-
-    terminate: vi.fn(async (agentId: string): Promise<boolean> => {
-      return agents.delete(agentId);
-    }),
-
-    assignTask: vi.fn(async (agentId: string, task: unknown): Promise<Result<void, Error>> => {
-      const agent = agents.get(agentId);
-      if (!agent) {
-        return { success: false, error: new Error(`Agent ${agentId} not found`) };
+    listAgents: vi.fn((filter?: AgentFilter): AgentInfo[] => {
+      let result = Array.from(agents.values());
+      if (filter?.domain) {
+        result = result.filter(a => a.domain === filter.domain);
       }
-      agent.status = 'running';
-      // Simulate task completion
-      setTimeout(() => {
-        if (agents.has(agentId)) {
-          agents.get(agentId)!.status = 'idle';
-        }
-      }, 100);
-      return { success: true, value: undefined };
+      if (filter?.status) {
+        result = result.filter(a => a.status === filter.status);
+      }
+      if (filter?.type) {
+        result = result.filter(a => a.type === filter.type);
+      }
+      return result;
     }),
 
-    getMetrics: vi.fn((): Record<string, unknown> => {
-      return {
-        totalAgents: agents.size,
-        activeAgents: Array.from(agents.values()).filter(a => a.status === 'running').length,
-        idleAgents: Array.from(agents.values()).filter(a => a.status === 'idle').length,
-      };
+    stop: vi.fn(async (agentId: string): Promise<Result<void, Error>> => {
+      if (agents.delete(agentId)) {
+        return { success: true, value: undefined };
+      }
+      return { success: false, error: new Error(`Agent ${agentId} not found`) };
+    }),
+
+    getActiveCount: vi.fn((): number => {
+      return Array.from(agents.values()).filter(a => a.status === 'running').length;
+    }),
+
+    canSpawn: vi.fn((): boolean => {
+      return agents.size < 15; // Max concurrent agents
     }),
 
     dispose: vi.fn(async (): Promise<void> => {
@@ -214,20 +225,4 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
   if (normA === 0 || normB === 0) return 0;
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-/**
- * Create a spy wrapper around an existing object
- */
-export function spyOnObject<T extends object>(obj: T): T {
-  const spied = { ...obj } as T;
-
-  for (const key of Object.keys(obj)) {
-    const value = (obj as any)[key];
-    if (typeof value === 'function') {
-      (spied as any)[key] = vi.fn(value.bind(obj));
-    }
-  }
-
-  return spied;
 }

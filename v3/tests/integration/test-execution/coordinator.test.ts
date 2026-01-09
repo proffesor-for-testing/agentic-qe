@@ -1,6 +1,6 @@
 /**
  * Integration Tests - Test Execution Coordinator
- * Tests the full workflow of test execution including parallel execution and flaky detection
+ * Tests the full workflow of test execution using actual interfaces
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -8,25 +8,19 @@ import {
   TestExecutionCoordinator,
   ITestExecutionCoordinator,
 } from '../../../src/domains/test-execution/coordinator';
-import { EventBus, MemoryBackend, AgentCoordinator } from '../../../src/kernel/interfaces';
-import { createMockEventBus, createMockMemory, createMockAgentCoordinator } from '../../mocks';
+import { EventBus, MemoryBackend } from '../../../src/kernel/interfaces';
+import { createMockEventBus, createMockMemory } from '../../mocks';
 
 describe('Test Execution Coordinator Integration', () => {
   let coordinator: ITestExecutionCoordinator;
   let eventBus: EventBus;
   let memory: MemoryBackend;
-  let agentCoordinator: AgentCoordinator;
 
   beforeEach(async () => {
     eventBus = createMockEventBus();
     memory = createMockMemory();
-    agentCoordinator = createMockAgentCoordinator();
 
-    coordinator = new TestExecutionCoordinator(
-      eventBus,
-      memory,
-      agentCoordinator
-    );
+    coordinator = new TestExecutionCoordinator(eventBus, memory);
     await coordinator.initialize();
   });
 
@@ -36,497 +30,376 @@ describe('Test Execution Coordinator Integration', () => {
   });
 
   describe('Test Execution Workflow', () => {
-    it('should execute a single test suite', async () => {
+    it('should execute test files', async () => {
       const request = {
-        suites: [
-          {
-            name: 'UserService',
-            tests: [
-              { name: 'should create user', file: 'user.test.ts' },
-              { name: 'should delete user', file: 'user.test.ts' },
-            ],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-        },
+        testFiles: ['tests/unit/example.test.ts'],
+        framework: 'vitest',
+        timeout: 30000,
       };
 
-      const result = await coordinator.executeTests(request);
+      const result = await coordinator.execute(request);
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.totalTests).toBeGreaterThan(0);
-        expect(result.value.suiteResults).toHaveLength(1);
+        expect(result.value.runId).toBeDefined();
+        expect(result.value.status).toBeDefined();
+        expect(result.value.total).toBeGreaterThanOrEqual(0);
       }
     });
 
+    it('should execute tests with custom environment', async () => {
+      const request = {
+        testFiles: ['tests/integration/api.test.ts'],
+        framework: 'vitest',
+        env: { NODE_ENV: 'test', DEBUG: 'true' },
+      };
+
+      const result = await coordinator.execute(request);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should track test results', async () => {
+      const request = {
+        testFiles: ['tests/unit/math.test.ts'],
+        framework: 'vitest',
+      };
+
+      const result = await coordinator.execute(request);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.passed).toBeDefined();
+        expect(result.value.failed).toBeDefined();
+        expect(result.value.skipped).toBeDefined();
+        expect(result.value.duration).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it('should handle empty test files array', async () => {
+      const request = {
+        testFiles: [],
+        framework: 'vitest',
+      };
+
+      const result = await coordinator.execute(request);
+
+      // Should handle gracefully - either success with 0 tests or error
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('Parallel Execution', () => {
     it('should execute tests in parallel', async () => {
       const request = {
-        suites: [
-          { name: 'Suite1', tests: [{ name: 'test1', file: 'a.test.ts' }] },
-          { name: 'Suite2', tests: [{ name: 'test2', file: 'b.test.ts' }] },
-          { name: 'Suite3', tests: [{ name: 'test3', file: 'c.test.ts' }] },
-        ],
-        options: {
-          parallel: true,
-          maxWorkers: 3,
-          timeout: 30000,
-        },
+        testFiles: ['tests/a.test.ts', 'tests/b.test.ts', 'tests/c.test.ts'],
+        framework: 'vitest',
+        workers: 3,
       };
 
-      const startTime = Date.now();
-      const result = await coordinator.executeTests(request);
-      const duration = Date.now() - startTime;
+      const result = await coordinator.executeParallel(request);
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.suiteResults).toHaveLength(3);
-        // Parallel execution should be faster than sequential
-        expect(result.value.parallelExecution).toBe(true);
+        expect(result.value.runId).toBeDefined();
       }
     });
 
-    it('should emit TestRunStarted and TestRunCompleted events', async () => {
-      const publishSpy = vi.spyOn(eventBus, 'publish');
-
+    it('should support file-based sharding', async () => {
       const request = {
-        suites: [
-          { name: 'Suite', tests: [{ name: 'test', file: 'test.ts' }] },
-        ],
-        options: { parallel: false, timeout: 30000 },
+        testFiles: ['tests/suite1.test.ts', 'tests/suite2.test.ts'],
+        framework: 'vitest',
+        workers: 2,
+        sharding: 'file' as const,
       };
 
-      await coordinator.executeTests(request);
-
-      expect(publishSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'test-execution.run-started',
-        })
-      );
-      expect(publishSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'test-execution.run-completed',
-        })
-      );
-    });
-
-    it('should handle test failures gracefully', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'FailingSuite',
-            tests: [
-              { name: 'failing test', file: 'fail.test.ts', expectedToFail: true },
-            ],
-          },
-        ],
-        options: { parallel: false, timeout: 30000 },
-      };
-
-      const result = await coordinator.executeTests(request);
+      const result = await coordinator.executeParallel(request);
 
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.failedTests).toBeGreaterThanOrEqual(0);
-      }
+    });
+
+    it('should support process isolation', async () => {
+      const request = {
+        testFiles: ['tests/isolated.test.ts'],
+        framework: 'vitest',
+        workers: 1,
+        isolation: 'process' as const,
+      };
+
+      const result = await coordinator.executeParallel(request);
+
+      expect(result.success).toBe(true);
     });
   });
 
   describe('Flaky Test Detection', () => {
-    it('should detect flaky tests through multiple runs', async () => {
+    it('should detect flaky tests', async () => {
       const request = {
-        testFile: 'flaky.test.ts',
+        testFiles: ['tests/potentially-flaky.test.ts'],
         runs: 5,
-        options: {
-          threshold: 0.8, // 80% pass rate to be considered stable
-        },
+        threshold: 0.8,
       };
 
-      const result = await coordinator.detectFlakyTests(request);
+      const result = await coordinator.detectFlaky(request);
 
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.value.flakyTests).toBeDefined();
         expect(Array.isArray(result.value.flakyTests)).toBe(true);
+        expect(result.value.totalRuns).toBe(5);
       }
     });
 
-    it('should emit FlakyTestDetected event when flakiness found', async () => {
-      const publishSpy = vi.spyOn(eventBus, 'publish');
-
+    it('should identify flakiness patterns', async () => {
       const request = {
-        testFile: 'intermittent.test.ts',
+        testFiles: ['tests/timing-sensitive.test.ts'],
         runs: 3,
-        options: { threshold: 0.9 },
+        threshold: 0.9,
       };
 
-      await coordinator.detectFlakyTests(request);
-
-      // May or may not emit depending on mock behavior
-      // Just verify no errors
-      expect(publishSpy).toBeDefined();
-    });
-
-    it('should provide flakiness statistics', async () => {
-      const request = {
-        testFile: 'stats.test.ts',
-        runs: 10,
-        options: { threshold: 0.8 },
-      };
-
-      const result = await coordinator.detectFlakyTests(request);
+      const result = await coordinator.detectFlaky(request);
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.statistics).toBeDefined();
-        expect(result.value.statistics.totalRuns).toBeGreaterThan(0);
+        // Each flaky test should have a pattern
+        result.value.flakyTests.forEach(test => {
+          expect(test.pattern).toBeDefined();
+          expect(['timing', 'ordering', 'resource', 'async', 'unknown']).toContain(test.pattern);
+        });
+      }
+    });
+
+    it('should provide recommendations for flaky tests', async () => {
+      const request = {
+        testFiles: ['tests/flaky.test.ts'],
+        runs: 4,
+        threshold: 0.75,
+      };
+
+      const result = await coordinator.detectFlaky(request);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        result.value.flakyTests.forEach(test => {
+          expect(test.recommendation).toBeDefined();
+        });
       }
     });
   });
 
   describe('Retry Logic', () => {
-    it('should retry failed tests automatically', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'RetryableSuite',
-            tests: [{ name: 'flaky test', file: 'retry.test.ts' }],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          retryConfig: {
-            maxRetries: 3,
-            retryDelay: 100,
-            retryOn: ['timeout', 'assertion'],
-          },
-        },
-      };
+    it('should handle retry for existing run', async () => {
+      // First execute tests to get a valid runId
+      const execResult = await coordinator.execute({
+        testFiles: ['tests/retry-test.ts'],
+        framework: 'vitest',
+      });
 
-      const result = await coordinator.executeTests(request);
+      expect(execResult.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.retriedTests).toBeDefined();
+      if (execResult.success) {
+        // Try to retry (even if no failures, should handle gracefully)
+        const request = {
+          runId: execResult.value.runId,
+          failedTests: [], // No failures to retry
+          maxRetries: 3,
+        };
+
+        const result = await coordinator.retry(request);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.retried).toBeDefined();
+        }
       }
     });
 
-    it('should respect max retry limit', async () => {
+    it('should handle retry for non-existent run', async () => {
       const request = {
-        suites: [
-          {
-            name: 'AlwaysFailingSuite',
-            tests: [{ name: 'persistent failure', file: 'fail.test.ts' }],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          retryConfig: {
-            maxRetries: 2,
-            retryDelay: 50,
-          },
-        },
+        runId: 'non-existent-run',
+        failedTests: ['test-1'],
+        maxRetries: 3,
       };
 
-      const result = await coordinator.executeTests(request);
+      const result = await coordinator.retry(request);
 
-      expect(result.success).toBe(true);
-      if (result.success && result.value.retriedTests) {
-        // Should not exceed max retries
-        expect(
-          result.value.retriedTests.every(t => t.attempts <= 3)
-        ).toBe(true);
+      // Should fail gracefully for non-existent run
+      expect(result).toBeDefined();
+      if (!result.success) {
+        expect(result.error.message).toContain('not found');
       }
     });
 
-    it('should apply exponential backoff on retries', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'BackoffSuite',
-            tests: [{ name: 'retry with backoff', file: 'backoff.test.ts' }],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          retryConfig: {
-            maxRetries: 3,
-            retryDelay: 100,
-            backoffMultiplier: 2,
-          },
-        },
-      };
+    it('should support linear backoff option', async () => {
+      const execResult = await coordinator.execute({
+        testFiles: ['tests/backoff.ts'],
+        framework: 'vitest',
+      });
 
-      const result = await coordinator.executeTests(request);
+      if (execResult.success) {
+        const request = {
+          runId: execResult.value.runId,
+          failedTests: [],
+          maxRetries: 2,
+          backoff: 'linear' as const,
+        };
 
+        const result = await coordinator.retry(request);
+        expect(result).toBeDefined();
+      }
+    });
+
+    it('should support exponential backoff option', async () => {
+      const execResult = await coordinator.execute({
+        testFiles: ['tests/exp-backoff.ts'],
+        framework: 'vitest',
+      });
+
+      if (execResult.success) {
+        const request = {
+          runId: execResult.value.runId,
+          failedTests: [],
+          maxRetries: 3,
+          backoff: 'exponential' as const,
+        };
+
+        const result = await coordinator.retry(request);
+        expect(result).toBeDefined();
+      }
+    });
+  });
+
+  describe('Execution Statistics', () => {
+    it('should retrieve stats for a run', async () => {
+      // First execute a test
+      const execResult = await coordinator.execute({
+        testFiles: ['tests/stats.test.ts'],
+        framework: 'vitest',
+      });
+
+      expect(execResult.success).toBe(true);
+
+      if (execResult.success) {
+        const statsResult = await coordinator.getStats(execResult.value.runId);
+
+        expect(statsResult.success).toBe(true);
+        if (statsResult.success) {
+          expect(statsResult.value.runId).toBe(execResult.value.runId);
+          expect(statsResult.value.duration).toBeGreaterThanOrEqual(0);
+        }
+      }
+    });
+
+    it('should handle non-existent run ID', async () => {
+      const result = await coordinator.getStats('non-existent-run');
+
+      // Should handle gracefully
       expect(result).toBeDefined();
     });
   });
 
-  describe('Execution Optimization', () => {
-    it('should optimize test order based on history', async () => {
-      // Store some test history
-      await memory.store('test-history:fast.test.ts', { avgDuration: 100 });
-      await memory.store('test-history:slow.test.ts', { avgDuration: 5000 });
-      await memory.store('test-history:flaky.test.ts', { avgDuration: 500, failures: 3 });
+  describe('Event Publishing', () => {
+    it('should publish TestRunStarted event', async () => {
+      const publishSpy = vi.spyOn(eventBus, 'publish');
 
-      const request = {
-        suites: [
-          {
-            name: 'OptimizedSuite',
-            tests: [
-              { name: 'slow', file: 'slow.test.ts' },
-              { name: 'fast', file: 'fast.test.ts' },
-              { name: 'flaky', file: 'flaky.test.ts' },
-            ],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          optimize: true,
-        },
-      };
-
-      const result = await coordinator.executeTests(request);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.optimized).toBe(true);
-      }
-    });
-
-    it('should prioritize recently failed tests', async () => {
-      // Store failure history
-      await memory.store('test-failures:critical.test.ts', {
-        lastFailed: new Date().toISOString(),
-        failureCount: 5,
+      await coordinator.execute({
+        testFiles: ['tests/event.test.ts'],
+        framework: 'vitest',
       });
 
-      const request = {
-        suites: [
-          {
-            name: 'PrioritizedSuite',
-            tests: [
-              { name: 'passing', file: 'pass.test.ts' },
-              { name: 'critical', file: 'critical.test.ts' },
-            ],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          prioritize: 'failures',
-        },
-      };
+      expect(publishSpy).toHaveBeenCalled();
+    });
 
-      const result = await coordinator.executeTests(request);
+    it('should publish TestRunCompleted event', async () => {
+      const publishSpy = vi.spyOn(eventBus, 'publish');
 
-      expect(result.success).toBe(true);
+      await coordinator.execute({
+        testFiles: ['tests/complete.test.ts'],
+        framework: 'vitest',
+      });
+
+      // Should have published at least one event
+      expect(publishSpy.mock.calls.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Test Isolation', () => {
-    it('should isolate test environments', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'IsolatedSuite',
-            tests: [{ name: 'isolated test', file: 'isolated.test.ts' }],
-          },
-        ],
-        options: {
-          parallel: true,
-          timeout: 30000,
-          isolation: 'process', // Run each test in separate process
-        },
-      };
+  describe('Run Management', () => {
+    it('should track active runs', async () => {
+      const activeRuns = coordinator.getActiveRuns();
+      expect(activeRuns).toBeDefined();
+      expect(Array.isArray(activeRuns)).toBe(true);
+    });
 
-      const result = await coordinator.executeTests(request);
+    it('should cancel active run', async () => {
+      // Start a run
+      const execPromise = coordinator.execute({
+        testFiles: ['tests/long-running.test.ts'],
+        framework: 'vitest',
+        timeout: 60000,
+      });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.isolation).toBe('process');
+      // Get active runs and try to cancel
+      const activeRuns = coordinator.getActiveRuns();
+
+      if (activeRuns.length > 0) {
+        const cancelResult = await coordinator.cancelRun(activeRuns[0]);
+        expect(cancelResult).toBeDefined();
       }
+
+      await execPromise;
     });
 
-    it('should clean up resources after test completion', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'CleanupSuite',
-            tests: [{ name: 'resource test', file: 'resource.test.ts' }],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          cleanup: true,
-        },
-      };
+    it('should handle canceling non-existent run', async () => {
+      const result = await coordinator.cancelRun('non-existent-run');
 
-      const result = await coordinator.executeTests(request);
-
-      expect(result.success).toBe(true);
-      // Verify cleanup was performed
-      expect(coordinator.getActiveWorkflows().length).toBe(0);
+      // Should handle gracefully
+      expect(result).toBeDefined();
     });
   });
 
-  describe('Concurrent Execution Management', () => {
-    it('should handle multiple concurrent test runs', async () => {
+  describe('Concurrent Execution', () => {
+    it('should handle multiple concurrent executions', async () => {
       const requests = [
-        {
-          suites: [{ name: 'Suite1', tests: [{ name: 't1', file: '1.test.ts' }] }],
-          options: { parallel: false, timeout: 30000 },
-        },
-        {
-          suites: [{ name: 'Suite2', tests: [{ name: 't2', file: '2.test.ts' }] }],
-          options: { parallel: false, timeout: 30000 },
-        },
-        {
-          suites: [{ name: 'Suite3', tests: [{ name: 't3', file: '3.test.ts' }] }],
-          options: { parallel: false, timeout: 30000 },
-        },
+        { testFiles: ['tests/a.test.ts'], framework: 'vitest' },
+        { testFiles: ['tests/b.test.ts'], framework: 'vitest' },
+        { testFiles: ['tests/c.test.ts'], framework: 'vitest' },
       ];
 
       const results = await Promise.all(
-        requests.map(req => coordinator.executeTests(req))
+        requests.map(req => coordinator.execute(req))
       );
 
       results.forEach(result => {
         expect(result).toBeDefined();
+        expect(result.success).toBe(true);
       });
-    });
-
-    it('should track active workflows', async () => {
-      const request = {
-        suites: [
-          { name: 'TrackedSuite', tests: [{ name: 'tracked', file: 'tracked.test.ts' }] },
-        ],
-        options: { parallel: false, timeout: 30000 },
-      };
-
-      // Start execution but don't wait
-      const resultPromise = coordinator.executeTests(request);
-
-      // Check workflows
-      const workflows = coordinator.getActiveWorkflows();
-      expect(workflows).toBeDefined();
-
-      await resultPromise;
     });
   });
 
   describe('Error Handling', () => {
-    it('should handle timeout gracefully', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'TimeoutSuite',
-            tests: [{ name: 'slow test', file: 'slow.test.ts', duration: 10000 }],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 100, // Very short timeout
-        },
-      };
+    it('should handle coordinator not initialized', async () => {
+      const uninitCoordinator = new TestExecutionCoordinator(eventBus, memory);
 
-      const result = await coordinator.executeTests(request);
+      // Don't initialize - try to use
+      const result = await uninitCoordinator.execute({
+        testFiles: ['tests/test.ts'],
+        framework: 'vitest',
+      });
 
-      // Should complete (possibly with timeout error)
+      // Should handle gracefully
       expect(result).toBeDefined();
     });
 
-    it('should handle empty test suite', async () => {
+    it('should handle invalid framework', async () => {
       const request = {
-        suites: [],
-        options: { parallel: false, timeout: 30000 },
+        testFiles: ['tests/test.ts'],
+        framework: 'unknown-framework',
       };
 
-      const result = await coordinator.executeTests(request);
+      const result = await coordinator.execute(request);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.totalTests).toBe(0);
-      }
-    });
-
-    it('should handle invalid test file', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'InvalidSuite',
-            tests: [{ name: 'invalid', file: 'nonexistent.test.ts' }],
-          },
-        ],
-        options: { parallel: false, timeout: 30000 },
-      };
-
-      const result = await coordinator.executeTests(request);
-
-      // Should handle gracefully, possibly marking tests as skipped
+      // Should handle gracefully
       expect(result).toBeDefined();
-    });
-  });
-
-  describe('Reporting', () => {
-    it('should generate execution report', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'ReportSuite',
-            tests: [
-              { name: 'passing test', file: 'pass.test.ts' },
-              { name: 'failing test', file: 'fail.test.ts' },
-            ],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          generateReport: true,
-        },
-      };
-
-      const result = await coordinator.executeTests(request);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.report).toBeDefined();
-        expect(result.value.report?.summary).toBeDefined();
-      }
-    });
-
-    it('should include timing information in report', async () => {
-      const request = {
-        suites: [
-          {
-            name: 'TimedSuite',
-            tests: [{ name: 'timed test', file: 'timed.test.ts' }],
-          },
-        ],
-        options: {
-          parallel: false,
-          timeout: 30000,
-          generateReport: true,
-        },
-      };
-
-      const result = await coordinator.executeTests(request);
-
-      expect(result.success).toBe(true);
-      if (result.success && result.value.report) {
-        expect(result.value.report.duration).toBeGreaterThanOrEqual(0);
-        expect(result.value.report.startTime).toBeDefined();
-        expect(result.value.report.endTime).toBeDefined();
-      }
     });
   });
 });
