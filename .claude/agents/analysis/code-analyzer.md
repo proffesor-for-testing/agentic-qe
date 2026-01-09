@@ -1,5 +1,6 @@
 ---
-name: analyst
+name: code-analyzer
+description: "Advanced code quality analysis agent for comprehensive code reviews and improvements"
 type: code-analyzer
 color: indigo
 priority: high

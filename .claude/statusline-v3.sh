@@ -36,9 +36,9 @@ BRIGHT_BLUE='\033[1;34m'
 BRIGHT_PURPLE='\033[1;35m'
 BRIGHT_CYAN='\033[1;36m'
 
-# v3 Development Targets (12 DDD Domains, 47 Agents per Master Plan)
+# v3 Development Targets (12 DDD Domains, V3-QE agent fleet)
 DOMAINS_TOTAL=12
-AGENTS_TARGET=47
+V3_QE_TARGET=80   # V3-QE specific agents target
 COVERAGE_TARGET=90
 LEARNING_TARGET=15  # % improvement per sprint
 
@@ -84,6 +84,16 @@ for domain in $V3_DOMAINS; do
   fi
 done
 
+# Get v3 test count (more relevant than coverage for v3)
+V3_TEST_COUNT=0
+V3_TEST_FILE="${PROJECT_DIR}/v3/package.json"
+if [ -d "${PROJECT_DIR}/v3/tests" ]; then
+  # Count test files
+  V3_TEST_FILES=$(find "${PROJECT_DIR}/v3/tests" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
+  # Estimate test count (avg 25 tests per file based on our 1171/46 ratio)
+  V3_TEST_COUNT=$((V3_TEST_FILES * 25))
+fi
+
 # Get REAL test coverage from coverage reports (dynamic, not hardcoded)
 COVERAGE_FILE="${PROJECT_DIR}/coverage/coverage-summary.json"
 if [ -f "$COVERAGE_FILE" ]; then
@@ -105,17 +115,16 @@ if [ -f "$LEARNING_METRICS" ]; then
   LEARNING_PROGRESS=$(jq -r '.improvement // 0' "$LEARNING_METRICS" 2>/dev/null || echo "0")
 fi
 
-# Count QE agent definitions (qe-* and v3-qe-* agents only)
-# This shows how many QE agents are defined vs the v3 target of 47
+# Count V3-QE agent definitions only (v3-qe-* agents in v3/ directory)
+# This shows V3-specific QE agents, not legacy or generic agents
 AGENTS_DIR="${PROJECT_DIR}/.claude/agents"
-if [ -d "$AGENTS_DIR" ]; then
-  # Count QE agent files (qe-*.md and v3-qe-*.md)
-  QE_AGENTS=$(find "$AGENTS_DIR" -name "qe-*.md" -o -name "v3-qe-*.md" 2>/dev/null | wc -l | tr -d ' ')
+if [ -d "$AGENTS_DIR/v3" ]; then
+  # Count V3-QE agent files only
+  V3_QE_AGENTS=$(find "$AGENTS_DIR/v3" -name "v3-qe-*.md" 2>/dev/null | wc -l | tr -d ' ')
 else
-  QE_AGENTS=0
+  V3_QE_AGENTS=0
 fi
-AGENTS_DEFINED=${QE_AGENTS:-0}
-AGENTS_ACTIVE=$AGENTS_DEFINED
+AGENTS_ACTIVE=${V3_QE_AGENTS:-0}
 
 # Calculate context usage from actual token fields
 CONTEXT_PCT=0
@@ -224,28 +233,35 @@ if [ "$DOMAINS_IN_PROGRESS" -gt 0 ]; then
   OUTPUT="${OUTPUT}+${YELLOW}${DOMAINS_IN_PROGRESS}${RESET}"
 fi
 OUTPUT="${OUTPUT}/${BRIGHT_WHITE}${DOMAINS_TOTAL}${RESET}"
-# Only show coverage if we have real data
-if [ "$COVERAGE_HIDDEN" = "false" ]; then
+# Show v3 test count (more useful than coverage for v3)
+if [ "$V3_TEST_COUNT" -gt 0 ]; then
+  OUTPUT="${OUTPUT}    ${BRIGHT_GREEN}✓ ~${V3_TEST_COUNT} tests${RESET}"
+elif [ "$COVERAGE_HIDDEN" = "false" ]; then
   OUTPUT="${OUTPUT}    ${COVERAGE_COLOR}📊 Coverage ${COVERAGE_DISPLAY}%${RESET}"
 fi
 
-# Line 2: Agent Fleet Status
+# Line 2: Agent Fleet Status (V3-QE agents only)
 ACTIVITY_INDICATOR="${DIM}○${RESET}"
 if [ "$AGENTS_ACTIVE" -gt 0 ]; then
   ACTIVITY_INDICATOR="${BRIGHT_GREEN}◉${RESET}"
 fi
 
-OUTPUT="${OUTPUT}\n${BRIGHT_YELLOW}🤖 QE Fleet${RESET}  ${ACTIVITY_INDICATOR}[${AGENTS_COLOR}${AGENTS_DISPLAY}${RESET}/${BRIGHT_WHITE}${AGENTS_TARGET}${RESET}]"
+OUTPUT="${OUTPUT}\n${BRIGHT_YELLOW}🤖 V3-QE Fleet${RESET}  ${ACTIVITY_INDICATOR}[${AGENTS_COLOR}${AGENTS_DISPLAY}${RESET}/${BRIGHT_WHITE}${V3_QE_TARGET}${RESET}]"
 OUTPUT="${OUTPUT}    ${LEARNING_COLOR}🧠 Patterns ${PATTERNS_DISPLAY}${RESET}"
 OUTPUT="${OUTPUT}    ${CONTEXT_COLOR}📂 Context ${CONTEXT_DISPLAY}%${RESET}"
 
 # Line 3: Architecture Status (dynamically check real implementation)
-# ADRs: green if 10+, yellow if 1-9, dim if 0
-ADR_COUNT=$(ls "${PROJECT_DIR}/v3/implementation/adrs/"*.md 2>/dev/null | wc -l | tr -d ' ')
+# ADRs: count sections in the ADR file (## ADR-XXX)
+ADR_FILE="${PROJECT_DIR}/v3/implementation/adrs/v3-adrs.md"
+if [ -f "$ADR_FILE" ]; then
+  ADR_COUNT=$(grep -c "^## ADR-" "$ADR_FILE" 2>/dev/null || echo "0")
+else
+  ADR_COUNT=0
+fi
 if [ "$ADR_COUNT" -ge 10 ]; then
-  ADR_STATUS="${BRIGHT_GREEN}●${RESET}"
+  ADR_STATUS="${BRIGHT_GREEN}●${ADR_COUNT}${RESET}"
 elif [ "$ADR_COUNT" -ge 1 ]; then
-  ADR_STATUS="${YELLOW}◐${RESET}"
+  ADR_STATUS="${YELLOW}◐${ADR_COUNT}${RESET}"
 else
   ADR_STATUS="${DIM}○${RESET}"
 fi
@@ -260,12 +276,12 @@ else
   EVENT_STATUS="${DIM}○${RESET}"
 fi
 
-# Plugins: green if 3+, yellow if 1-2, dim if 0
-PLUGIN_COUNT=$(find "${PROJECT_DIR}/v3/src/plugins" -name "*.ts" 2>/dev/null | wc -l | tr -d ' ')
-if [ "$PLUGIN_COUNT" -ge 3 ]; then
-  PLUGIN_STATUS="${BRIGHT_GREEN}●${RESET}"
+# Plugins: check domain plugins (v3/src/domains/*/plugin.ts)
+PLUGIN_COUNT=$(find "${PROJECT_DIR}/v3/src/domains" -name "plugin.ts" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$PLUGIN_COUNT" -ge 10 ]; then
+  PLUGIN_STATUS="${BRIGHT_GREEN}●${PLUGIN_COUNT}${RESET}"
 elif [ "$PLUGIN_COUNT" -ge 1 ]; then
-  PLUGIN_STATUS="${YELLOW}◐${RESET}"
+  PLUGIN_STATUS="${YELLOW}◐${PLUGIN_COUNT}${RESET}"
 else
   PLUGIN_STATUS="${DIM}○${RESET}"
 fi
