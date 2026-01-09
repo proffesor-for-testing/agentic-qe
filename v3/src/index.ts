@@ -23,6 +23,18 @@ export * from './domains';
 // MCP Server - Model Context Protocol integration
 export * from './mcp';
 
+// Learning Module - QE ReasoningBank for pattern learning (ADR-021)
+export * from './learning';
+
+// Feedback Module - Quality Feedback Loop (ADR-023)
+export * from './feedback';
+
+// Routing Module - QE Router for agent selection (ADR-022)
+export * from './routing';
+
+// Optimization Module - Self-Optimization Engine (ADR-024)
+export * from './optimization';
+
 // Version info
 export const VERSION = '3.0.0-alpha';
 export const ARCHITECTURE = 'DDD with 12 Bounded Contexts';
