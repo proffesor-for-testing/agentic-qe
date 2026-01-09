@@ -24,9 +24,40 @@ import {
   createEvent,
 } from '../../shared/events';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
-import { TestExecutorService } from './services/test-executor';
-import { FlakyDetectorService } from './services/flaky-detector';
-import { RetryHandlerService } from './services/retry-handler';
+import { TestExecutorService, TestExecutorConfig } from './services/test-executor';
+import { FlakyDetectorService, FlakyDetectorConfig } from './services/flaky-detector';
+import { RetryHandlerService, RetryHandlerConfig } from './services/retry-handler';
+
+// ============================================================================
+// Coordinator Configuration
+// ============================================================================
+
+/**
+ * Configuration for the test execution coordinator
+ */
+export interface TestExecutionCoordinatorConfig {
+  /**
+   * When true, enables simulation mode for all services (for unit testing).
+   * When false (default), services operate in deterministic production mode.
+   */
+  simulateForTesting: boolean;
+  /**
+   * Optional executor-specific config overrides
+   */
+  executorConfig?: Partial<TestExecutorConfig>;
+  /**
+   * Optional flaky detector-specific config overrides
+   */
+  flakyDetectorConfig?: Partial<FlakyDetectorConfig>;
+  /**
+   * Optional retry handler-specific config overrides
+   */
+  retryHandlerConfig?: Partial<RetryHandlerConfig>;
+}
+
+const DEFAULT_COORDINATOR_CONFIG: TestExecutionCoordinatorConfig = {
+  simulateForTesting: false,
+};
 
 // ============================================================================
 // Coordinator Interface
@@ -59,11 +90,24 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
   constructor(
     private readonly eventBus: EventBus,
-    memory: MemoryBackend
+    memory: MemoryBackend,
+    config: Partial<TestExecutionCoordinatorConfig> = {}
   ) {
-    this.executor = new TestExecutorService(memory);
-    this.flakyDetector = new FlakyDetectorService(memory);
-    this.retryHandler = new RetryHandlerService(memory);
+    const fullConfig = { ...DEFAULT_COORDINATOR_CONFIG, ...config };
+
+    // Create services with appropriate configuration
+    this.executor = new TestExecutorService(memory, {
+      simulateForTesting: fullConfig.simulateForTesting,
+      ...fullConfig.executorConfig,
+    });
+    this.flakyDetector = new FlakyDetectorService(memory, {
+      simulateForTesting: fullConfig.simulateForTesting,
+      ...fullConfig.flakyDetectorConfig,
+    });
+    this.retryHandler = new RetryHandlerService(memory, {
+      simulateForTesting: fullConfig.simulateForTesting,
+      ...fullConfig.retryHandlerConfig,
+    });
   }
 
   /**
@@ -375,7 +419,8 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
 
 export function createTestExecutionCoordinator(
   eventBus: EventBus,
-  memory: MemoryBackend
+  memory: MemoryBackend,
+  config?: Partial<TestExecutionCoordinatorConfig>
 ): ITestExecutionCoordinator {
-  return new TestExecutionCoordinator(eventBus, memory);
+  return new TestExecutionCoordinator(eventBus, memory, config);
 }

@@ -63,6 +63,12 @@ export interface ResponsiveTestConfig {
   checkTouchTargets: boolean;
   minFontSize: number;
   minTouchTargetSize: number;
+  /**
+   * Enable simulation mode for testing purposes only.
+   * When true, returns deterministic stub data for layout issues.
+   * When false (default), returns empty results (no browser available).
+   */
+  simulationMode: boolean;
 }
 
 /**
@@ -152,6 +158,7 @@ const DEFAULT_CONFIG: ResponsiveTestConfig = {
   checkTouchTargets: true,
   minFontSize: 12,
   minTouchTargetSize: 44,
+  simulationMode: false,
 };
 
 /**
@@ -226,8 +233,9 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
 
       // Detect breakpoint issues
       const breakpointIssues = this.detectBreakpointIssues(
+        url,
         viewportResults,
-        testConfig.breakpoints
+        testConfig
       );
 
       // Calculate layout score
@@ -338,8 +346,12 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
     config: ResponsiveTestConfig
   ): Promise<ViewportResult> {
     const screenshot = this.createScreenshot(url, viewport);
-    const layoutIssues = this.detectLayoutIssues(viewport, config);
-    const renderTime = Math.floor(Math.random() * 1000) + 200;
+    const layoutIssues = this.detectLayoutIssues(url, viewport, config);
+
+    // Deterministic render time based on URL hash and viewport
+    const urlHash = this.hashUrl(url);
+    const hashNum = parseInt(urlHash, 36);
+    const renderTime = 200 + ((hashNum + viewport.width) % 1000);
 
     const passed = layoutIssues.filter((i) => i.severity === 'critical').length === 0;
 
@@ -353,6 +365,11 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
   }
 
   private createScreenshot(url: string, viewport: Viewport): Screenshot {
+    // Deterministic load time based on URL hash and viewport
+    const urlHash = this.hashUrl(url);
+    const hashNum = parseInt(urlHash, 36);
+    const loadTime = 500 + ((hashNum + viewport.width + viewport.height) % 2000);
+
     return {
       id: uuidv4(),
       url,
@@ -363,22 +380,31 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
         browser: 'chromium',
         os: process.platform,
         fullPage: false,
-        loadTime: Math.floor(Math.random() * 2000) + 500,
+        loadTime,
       },
     };
   }
 
   private detectLayoutIssues(
+    url: string,
     viewport: Viewport,
     config: ResponsiveTestConfig
   ): LayoutIssue[] {
+    // In production mode (simulationMode: false), return empty results
+    // since we can't detect layout issues without a real browser
+    if (!config.simulationMode) {
+      return [];
+    }
+
+    // Simulation mode: use deterministic results based on URL hash and viewport
     const issues: LayoutIssue[] = [];
+    const urlHash = this.hashUrl(url);
+    const hashNum = parseInt(urlHash, 36);
 
-    // Simulate detecting layout issues
-    // In production, this would analyze actual DOM/CSS
-
-    // Check for horizontal overflow (more likely on small screens)
-    if (viewport.width < 768 && Math.random() < 0.2) {
+    // Deterministic check for horizontal overflow (more likely on small screens)
+    // Use hash + viewport width for determinism
+    const overflowDeterminant = ((hashNum + viewport.width) % 100) / 100;
+    if (viewport.width < 768 && overflowDeterminant < 0.2) {
       issues.push({
         type: 'horizontal-overflow',
         severity: 'critical',
@@ -388,8 +414,9 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
       });
     }
 
-    // Check for text overflow
-    if (viewport.width < 480 && Math.random() < 0.15) {
+    // Deterministic check for text overflow
+    const textOverflowDeterminant = ((hashNum + viewport.width + 100) % 100) / 100;
+    if (viewport.width < 480 && textOverflowDeterminant < 0.15) {
       issues.push({
         type: 'text-overflow',
         severity: 'warning',
@@ -399,8 +426,9 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
       });
     }
 
-    // Check touch target size on mobile
-    if (config.checkTouchTargets && viewport.isMobile && Math.random() < 0.25) {
+    // Deterministic check for touch target size on mobile
+    const touchDeterminant = ((hashNum + viewport.width + 200) % 100) / 100;
+    if (config.checkTouchTargets && viewport.isMobile && touchDeterminant < 0.25) {
       issues.push({
         type: 'touch-target-size',
         severity: 'warning',
@@ -410,8 +438,9 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
       });
     }
 
-    // Check font size
-    if (viewport.isMobile && Math.random() < 0.1) {
+    // Deterministic check for font size
+    const fontDeterminant = ((hashNum + viewport.width + 300) % 100) / 100;
+    if (viewport.isMobile && fontDeterminant < 0.1) {
       issues.push({
         type: 'font-size-too-small',
         severity: 'warning',
@@ -421,8 +450,9 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
       });
     }
 
-    // Check for non-responsive images
-    if (Math.random() < 0.15) {
+    // Deterministic check for non-responsive images
+    const imageDeterminant = ((hashNum + viewport.width + 400) % 100) / 100;
+    if (imageDeterminant < 0.15) {
       issues.push({
         type: 'image-not-responsive',
         severity: 'info',
@@ -436,10 +466,19 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
   }
 
   private detectBreakpointIssues(
+    url: string,
     viewportResults: ViewportResult[],
-    breakpoints: number[]
+    config: ResponsiveTestConfig
   ): BreakpointIssue[] {
+    // In production mode (simulationMode: false), return empty results
+    // since we can't detect breakpoint issues without a real browser
+    if (!config.simulationMode) {
+      return [];
+    }
+
     const issues: BreakpointIssue[] = [];
+    const urlHash = this.hashUrl(url);
+    const hashNum = parseInt(urlHash, 36);
 
     // Sort results by viewport width
     const sorted = [...viewportResults].sort(
@@ -452,17 +491,21 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
       const next = sorted[i + 1];
 
       // Check if there's a breakpoint between these viewports
-      const breakpointBetween = breakpoints.find(
+      const breakpointBetween = config.breakpoints.find(
         (bp) => bp > current.viewport.width && bp < next.viewport.width
       );
 
-      if (breakpointBetween && Math.random() < 0.2) {
-        issues.push({
-          breakpoint: breakpointBetween,
-          description: 'Layout shifts abruptly at this breakpoint',
-          affectedElements: ['.navigation', '.sidebar'],
-          suggestion: 'Consider adding intermediate styles or adjusting breakpoint',
-        });
+      // Deterministic decision based on hash and breakpoint
+      if (breakpointBetween) {
+        const determinant = ((hashNum + breakpointBetween + i * 100) % 100) / 100;
+        if (determinant < 0.2) {
+          issues.push({
+            breakpoint: breakpointBetween,
+            description: 'Layout shifts abruptly at this breakpoint',
+            affectedElements: ['.navigation', '.sidebar'],
+            suggestion: 'Consider adding intermediate styles or adjusting breakpoint',
+          });
+        }
       }
     }
 

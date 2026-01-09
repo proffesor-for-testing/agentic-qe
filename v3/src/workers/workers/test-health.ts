@@ -17,6 +17,7 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import { TestExecutionAPI } from '../../domains/test-execution/interfaces';
 
 const CONFIG: WorkerConfig = {
   id: 'test-health',
@@ -106,20 +107,86 @@ export class TestHealthWorker extends BaseWorker {
       this.previousMetrics = previous;
     }
 
-    // In a real implementation, this would query the test-execution domain
-    // For now, return simulated metrics
-    return {
-      totalTests: 1171,
-      passingTests: 1150,
-      failingTests: 15,
-      skippedTests: 6,
-      avgExecutionTimeMs: 245,
-      reliability: 92,
-      growth: {
-        testsAddedLast7Days: 23,
-        testsRemovedLast7Days: 5,
-      },
-    };
+    // Try to get metrics from the test-execution domain service
+    const testAPI = context.domains.getDomainAPI<TestExecutionAPI>('test-execution');
+
+    if (!testAPI) {
+      throw new Error(
+        'Test-execution domain not available - cannot compute health metrics. ' +
+        'Ensure the test-execution domain is properly initialized before running this worker.'
+      );
+    }
+
+    try {
+      // Query stored test run results from memory
+      const recentRunKeys = await context.memory.search('test-health:run-result:*');
+
+      if (recentRunKeys.length === 0) {
+        throw new Error(
+          'No test run data found in memory - cannot compute health metrics. ' +
+          'Run some tests first or ensure test results are being stored with keys matching "test-health:run-result:*".'
+        );
+      }
+
+      let totalTests = 0;
+      let passingTests = 0;
+      let failingTests = 0;
+      let skippedTests = 0;
+      let totalDuration = 0;
+      let runCount = 0;
+
+      for (const key of recentRunKeys.slice(0, 50)) {
+        const runResult = await context.memory.get<{
+          total: number;
+          passed: number;
+          failed: number;
+          skipped: number;
+          duration: number;
+        }>(key);
+
+        if (runResult) {
+          totalTests += runResult.total;
+          passingTests += runResult.passed;
+          failingTests += runResult.failed;
+          skippedTests += runResult.skipped;
+          totalDuration += runResult.duration;
+          runCount++;
+        }
+      }
+
+      // Calculate averages
+      const avgExecutionTimeMs = runCount > 0 ? Math.round(totalDuration / runCount) : 0;
+
+      // Calculate reliability based on pass rate
+      const reliability = totalTests > 0
+        ? Math.round((passingTests / totalTests) * 100)
+        : 0;
+
+      // Get growth data from stored metrics
+      const growthData = await context.memory.get<{
+        testsAddedLast7Days: number;
+        testsRemovedLast7Days: number;
+      }>('test-health:growth-metrics');
+
+      return {
+        totalTests: totalTests || 0,
+        passingTests: passingTests || 0,
+        failingTests: failingTests || 0,
+        skippedTests: skippedTests || 0,
+        avgExecutionTimeMs,
+        reliability,
+        growth: {
+          testsAddedLast7Days: growthData?.testsAddedLast7Days || 0,
+          testsRemovedLast7Days: growthData?.testsRemovedLast7Days || 0,
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to collect test health metrics: ${errorMessage}. ` +
+        'Check memory service connectivity and test result data availability.'
+      );
+    }
   }
 
   private analyzePassRate(

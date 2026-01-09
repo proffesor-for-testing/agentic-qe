@@ -18,6 +18,7 @@ import {
   WorkerRecommendation,
 } from '../interfaces';
 import { DomainName, ALL_DOMAINS } from '../../shared/types';
+import { QualityAssessmentExtendedAPI } from '../../domains/quality-assessment/plugin';
 
 const CONFIG: WorkerConfig = {
   id: 'compliance-checker',
@@ -122,65 +123,92 @@ export class ComplianceCheckerWorker extends BaseWorker {
     );
   }
 
-  private async checkADRCompliance(_context: WorkerContext): Promise<ADRCompliance[]> {
-    // In a real implementation, this would check actual ADR compliance
-    return [
-      {
-        adrId: 'ADR-001',
-        title: 'Adapter Configuration',
-        status: 'compliant',
-        score: 100,
-        violations: [],
-        lastChecked: new Date(),
-      },
-      {
-        adrId: 'ADR-002',
-        title: 'SQL Tables vs Apache AGE',
-        status: 'compliant',
-        score: 100,
-        violations: [],
-        lastChecked: new Date(),
-      },
-      {
-        adrId: 'ADR-014',
-        title: 'Background Workers',
-        status: 'partial',
-        score: 80,
-        violations: [
-          'Worker health metrics not fully exposed via MCP',
-        ],
-        lastChecked: new Date(),
-      },
-    ];
-  }
+  private async checkADRCompliance(context: WorkerContext): Promise<ADRCompliance[]> {
+    // Try to get ADR compliance from the quality-assessment domain service
+    const qaAPI = context.domains.getDomainAPI<QualityAssessmentExtendedAPI>('quality-assessment');
 
-  private async checkDDDCompliance(_context: WorkerContext): Promise<DDDCompliance[]> {
-    const results: DDDCompliance[] = [];
+    if (!qaAPI) {
+      throw new Error(
+        'Quality-assessment domain not available - cannot check ADR compliance. ' +
+        'Ensure the quality-assessment domain is properly initialized before running this worker.'
+      );
+    }
 
-    for (const domain of ALL_DOMAINS) {
-      // Simulated DDD compliance check
-      const compliance = this.checkDomainCompliance(domain);
-      results.push(compliance);
+    // Query memory for stored ADR compliance data
+    const storedCompliance = await context.memory.search('compliance:adr:*');
+
+    if (storedCompliance.length === 0) {
+      throw new Error(
+        'No ADR compliance data found in memory - cannot check ADR compliance. ' +
+        'Ensure ADR compliance data is stored with keys matching "compliance:adr:*" before running this worker.'
+      );
+    }
+
+    const results: ADRCompliance[] = [];
+    const failedKeys: string[] = [];
+
+    for (const key of storedCompliance) {
+      try {
+        const data = await context.memory.get<ADRCompliance>(key);
+        if (data) {
+          results.push(data);
+        }
+      } catch (error) {
+        failedKeys.push(key);
+      }
+    }
+
+    if (results.length === 0) {
+      throw new Error(
+        `Found ${storedCompliance.length} ADR compliance keys but failed to retrieve any data. ` +
+        `Failed keys: ${failedKeys.join(', ')}. Check memory service connectivity.`
+      );
     }
 
     return results;
   }
 
-  private checkDomainCompliance(domain: DomainName): DDDCompliance {
-    // In a real implementation, this would analyze actual file structure
-    const hasCoordinator = true;
-    const hasPlugin = true;
-    const hasInterfaces = true;
-    const hasServices = true;
-    const hasEntities = false; // Many domains don't have entities yet
-    const hasEvents = false; // Events not implemented in all domains
-    const hasRepositories = false; // Repositories not implemented in all domains
-    const namingCompliant = true;
+  private async checkDDDCompliance(context: WorkerContext): Promise<DDDCompliance[]> {
+    const results: DDDCompliance[] = [];
+
+    for (const domain of ALL_DOMAINS) {
+      try {
+        const compliance = await this.checkDomainCompliance(context, domain);
+        results.push(compliance);
+      } catch (error) {
+        context.logger.warn(`Failed to check DDD compliance for ${domain}`, { error });
+      }
+    }
+
+    return results;
+  }
+
+  private async checkDomainCompliance(context: WorkerContext, domain: DomainName): Promise<DDDCompliance> {
+    // Try to get domain health and check if domain is loaded
+    const domainHealth = context.domains.getDomainHealth(domain);
+    const domainAPI = context.domains.getDomainAPI(domain);
+
+    // Determine which components are available based on domain health and API availability
+    const hasCoordinator = domainHealth.status !== 'unhealthy';
+    const hasPlugin = domainAPI !== undefined;
+    const hasInterfaces = hasPlugin;
+    const hasServices = hasPlugin;
+
+    // Query memory for stored DDD compliance data for this domain
+    const storedData = await context.memory.get<Partial<DDDCompliance>>(`compliance:ddd:${domain}`);
+
+    // Use stored data if available, otherwise use defaults
+    const hasEntities = storedData?.hasEntities ?? false;
+    const hasEvents = storedData?.hasEvents ?? false;
+    const hasRepositories = storedData?.hasRepositories ?? false;
+    const namingCompliant = storedData?.namingCompliant ?? hasPlugin;
 
     const violations: string[] = [];
     if (!hasEntities) violations.push('Missing domain entities');
     if (!hasEvents) violations.push('Missing domain events');
     if (!hasRepositories) violations.push('Missing repositories');
+    if (!hasCoordinator) violations.push('Domain coordinator not available');
+    if (!hasPlugin) violations.push('Domain plugin not loaded');
 
     // Calculate score based on components present
     const components = [
@@ -210,45 +238,40 @@ export class ComplianceCheckerWorker extends BaseWorker {
     };
   }
 
-  private async checkStructuralCompliance(_context: WorkerContext): Promise<StructuralCompliance[]> {
-    return [
-      {
-        category: 'directory-structure',
-        rule: 'Each domain must have standard subdirectories',
-        compliant: true,
-        details: 'All 12 domains have required directory structure',
-      },
-      {
-        category: 'naming-conventions',
-        rule: 'Files must follow kebab-case naming',
-        compliant: true,
-        details: 'All files follow kebab-case naming convention',
-      },
-      {
-        category: 'export-patterns',
-        rule: 'Each domain must have index.ts exports',
-        compliant: true,
-        details: 'All domains export via index.ts',
-      },
-      {
-        category: 'dependency-direction',
-        rule: 'Dependencies must flow inward (DDD onion architecture)',
-        compliant: false,
-        details: 'Some services import directly from kernel instead of using interfaces',
-      },
-      {
-        category: 'shared-kernel',
-        rule: 'Shared types must be in shared/ directory',
-        compliant: true,
-        details: 'Shared types properly isolated',
-      },
-      {
-        category: 'test-structure',
-        rule: 'Tests must mirror source structure',
-        compliant: true,
-        details: 'Test directory structure mirrors src/',
-      },
-    ];
+  private async checkStructuralCompliance(context: WorkerContext): Promise<StructuralCompliance[]> {
+    // Try to get stored structural compliance data from memory
+    const storedResults = await context.memory.search('compliance:structural:*');
+
+    if (storedResults.length === 0) {
+      throw new Error(
+        'No structural compliance data found in memory - cannot check structural compliance. ' +
+        'Ensure structural compliance data is stored with keys matching "compliance:structural:*" before running this worker.'
+      );
+    }
+
+    const results: StructuralCompliance[] = [];
+    const failedKeys: string[] = [];
+
+    for (const key of storedResults) {
+      try {
+        const data = await context.memory.get<StructuralCompliance>(key);
+        if (data) {
+          results.push(data);
+        }
+      } catch (error) {
+        failedKeys.push(key);
+        context.logger.warn(`Failed to retrieve structural compliance data: ${key}`, { error });
+      }
+    }
+
+    if (results.length === 0) {
+      throw new Error(
+        `Found ${storedResults.length} structural compliance keys but failed to retrieve any data. ` +
+        `Failed keys: ${failedKeys.join(', ')}. Check memory service connectivity.`
+      );
+    }
+
+    return results;
   }
 
   private analyzeADRCompliance(

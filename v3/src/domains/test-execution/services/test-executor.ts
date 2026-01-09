@@ -3,6 +3,8 @@
  * Implements ITestExecutionService for running test suites
  */
 
+import { spawn, ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
 import {
@@ -13,6 +15,44 @@ import {
   ExecutionStats,
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+/**
+ * Configuration for the test executor service
+ */
+export interface TestExecutorConfig {
+  /**
+   * When true, simulates test execution with random outcomes (for unit testing).
+   * When false (default), returns deterministic results or structured errors
+   * indicating no real test runner is available.
+   */
+  simulateForTesting: boolean;
+  /**
+   * Base number of tests to report per file in simulation mode.
+   * Defaults to 5.
+   */
+  simulatedTestsPerFile: number;
+  /**
+   * Simulated failure rate (0-1) when simulateForTesting is true.
+   * Defaults to 0.2 (20% chance of failure per file).
+   */
+  simulatedFailureRate: number;
+  /**
+   * Simulated skip rate (0-1) when simulateForTesting is true.
+   * Defaults to 0.1 (10% chance of skip per file).
+   */
+  simulatedSkipRate: number;
+}
+
+const DEFAULT_CONFIG: TestExecutorConfig = {
+  simulateForTesting: false,
+  simulatedTestsPerFile: 5,
+  simulatedFailureRate: 0.2,
+  simulatedSkipRate: 0.1,
+};
 
 // ============================================================================
 // Interfaces
@@ -39,8 +79,14 @@ export interface ITestExecutionService {
 export class TestExecutorService implements ITestExecutionService {
   private readonly runResults = new Map<string, TestRunResult>();
   private readonly runStats = new Map<string, ExecutionStats>();
+  private readonly config: TestExecutorConfig;
 
-  constructor(private readonly memory: MemoryBackend) {}
+  constructor(
+    private readonly memory: MemoryBackend,
+    config: Partial<TestExecutorConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+  }
 
   /**
    * Execute a test suite sequentially
@@ -52,8 +98,8 @@ export class TestExecutorService implements ITestExecutionService {
     try {
       // Validate request
       const validation = this.validateRequest(request);
-      if (!validation.success) {
-        return validation;
+      if (validation.success === false) {
+        return err(validation.error);
       }
 
       // Execute tests
@@ -107,8 +153,8 @@ export class TestExecutorService implements ITestExecutionService {
     try {
       // Validate request
       const validation = this.validateParallelRequest(request);
-      if (!validation.success) {
-        return validation;
+      if (validation.success === false) {
+        return err(validation.error);
       }
 
       const { workers, sharding = 'file', isolation = 'process' } = request;
@@ -265,14 +311,426 @@ export class TestExecutorService implements ITestExecutionService {
 
   private async executeTestFile(
     file: string,
-    _framework: string,
-    _timeout: number
+    framework: string,
+    timeout: number
   ): Promise<TestExecutionResult> {
-    // In a real implementation, this would spawn a test runner process
-    // For now, we simulate test execution
+    // In simulation mode (for unit testing), use random behavior
+    if (this.config.simulateForTesting) {
+      return this.simulateTestExecution(file);
+    }
+
+    // Production mode: spawn actual test runner process
+    const result = await this.spawnTestRunner(file, framework, timeout);
+    if (result.success === false) {
+      throw result.error;
+    }
+    return result.value;
+  }
+
+  /**
+   * Spawn actual test runner process (vitest, jest, mocha)
+   */
+  private async spawnTestRunner(
+    file: string,
+    framework: string,
+    timeout: number
+  ): Promise<Result<TestExecutionResult, Error>> {
+    // Verify test file exists
+    if (!existsSync(file)) {
+      return err(new Error(`Test file not found: ${file}`));
+    }
+
+    // Build command based on framework
+    const { command, args } = this.buildTestCommand(file, framework);
+
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      let killed = false;
+
+      // Spawn the test runner process
+      const proc: ChildProcess = spawn(command, args, {
+        shell: true,
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          FORCE_COLOR: '0', // Disable color codes for easier parsing
+          CI: 'true', // Enable CI mode for consistent output
+        },
+      });
+
+      // Set timeout
+      const timeoutId = setTimeout(() => {
+        killed = true;
+        proc.kill('SIGTERM');
+        resolve(err(new Error(`Test execution timed out after ${timeout}ms for file: ${file}`)));
+      }, timeout);
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('close', (code: number | null) => {
+        clearTimeout(timeoutId);
+
+        if (killed) {
+          return; // Already handled by timeout
+        }
+
+        // Parse results based on framework
+        const parseResult = this.parseTestOutput(stdout, stderr, file, framework, code);
+        resolve(parseResult);
+      });
+
+      proc.on('error', (error: Error) => {
+        clearTimeout(timeoutId);
+        resolve(err(new Error(`Failed to spawn test runner: ${error.message}. Is '${command}' installed?`)));
+      });
+    });
+  }
+
+  /**
+   * Build test command based on framework
+   */
+  private buildTestCommand(file: string, framework: string): { command: string; args: string[] } {
+    switch (framework.toLowerCase()) {
+      case 'vitest':
+        return {
+          command: 'npx',
+          args: ['vitest', 'run', file, '--reporter=json', '--no-color'],
+        };
+      case 'jest':
+        return {
+          command: 'npx',
+          args: ['jest', file, '--json', '--no-colors', '--testLocationInResults'],
+        };
+      case 'mocha':
+        return {
+          command: 'npx',
+          args: ['mocha', file, '--reporter=json'],
+        };
+      default:
+        // Default to vitest
+        return {
+          command: 'npx',
+          args: ['vitest', 'run', file, '--reporter=json', '--no-color'],
+        };
+    }
+  }
+
+  /**
+   * Parse test runner output to extract results
+   */
+  private parseTestOutput(
+    stdout: string,
+    stderr: string,
+    file: string,
+    framework: string,
+    exitCode: number | null
+  ): Result<TestExecutionResult, Error> {
+    try {
+      switch (framework.toLowerCase()) {
+        case 'vitest':
+          return this.parseVitestOutput(stdout, stderr, file, exitCode);
+        case 'jest':
+          return this.parseJestOutput(stdout, stderr, file, exitCode);
+        case 'mocha':
+          return this.parseMochaOutput(stdout, stderr, file, exitCode);
+        default:
+          return this.parseVitestOutput(stdout, stderr, file, exitCode);
+      }
+    } catch (error) {
+      return err(new Error(
+        `Failed to parse test output for ${file}: ${error instanceof Error ? error.message : String(error)}\n` +
+        `stdout: ${stdout.slice(0, 500)}\nstderr: ${stderr.slice(0, 500)}`
+      ));
+    }
+  }
+
+  /**
+   * Parse vitest JSON output
+   */
+  private parseVitestOutput(
+    stdout: string,
+    stderr: string,
+    file: string,
+    exitCode: number | null
+  ): Result<TestExecutionResult, Error> {
+    // Try to extract JSON from output
+    const jsonMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
+
+    if (jsonMatch) {
+      try {
+        const json = JSON.parse(jsonMatch[0]);
+        const testResults = json.testResults || [];
+
+        let passed = 0;
+        let failed = 0;
+        let skipped = 0;
+        const failedTests: FailedTest[] = [];
+
+        for (const result of testResults) {
+          for (const assertion of result.assertionResults || []) {
+            if (assertion.status === 'passed') {
+              passed++;
+            } else if (assertion.status === 'failed') {
+              failed++;
+              failedTests.push({
+                testId: uuidv4(),
+                testName: assertion.fullName || assertion.title || 'Unknown test',
+                file: result.name || file,
+                error: assertion.failureMessages?.join('\n') || 'Test failed',
+                stack: assertion.failureMessages?.join('\n') || '',
+                duration: assertion.duration || 0,
+              });
+            } else if (assertion.status === 'skipped' || assertion.status === 'pending') {
+              skipped++;
+            }
+          }
+        }
+
+        return ok({
+          total: passed + failed + skipped,
+          passed,
+          failed,
+          skipped,
+          failedTests,
+          coverage: undefined,
+        });
+      } catch {
+        // JSON parse failed, fall through to line parsing
+      }
+    }
+
+    // Fallback: parse summary line from vitest output
+    // Example: "Tests  5 passed | 1 failed | 1 skipped (7)"
+    return this.parseTestSummaryLine(stdout, stderr, file, exitCode);
+  }
+
+  /**
+   * Parse jest JSON output
+   */
+  private parseJestOutput(
+    stdout: string,
+    stderr: string,
+    file: string,
+    exitCode: number | null
+  ): Result<TestExecutionResult, Error> {
+    try {
+      // Jest outputs JSON to stdout when --json flag is used
+      const json = JSON.parse(stdout);
+
+      let passed = 0;
+      let failed = 0;
+      let skipped = 0;
+      const failedTests: FailedTest[] = [];
+
+      for (const result of json.testResults || []) {
+        for (const assertion of result.assertionResults || []) {
+          if (assertion.status === 'passed') {
+            passed++;
+          } else if (assertion.status === 'failed') {
+            failed++;
+            failedTests.push({
+              testId: uuidv4(),
+              testName: assertion.fullName || assertion.title || 'Unknown test',
+              file: result.name || file,
+              error: assertion.failureMessages?.join('\n') || 'Test failed',
+              stack: assertion.failureMessages?.join('\n') || '',
+              duration: assertion.duration || 0,
+            });
+          } else if (assertion.status === 'skipped' || assertion.status === 'pending') {
+            skipped++;
+          }
+        }
+      }
+
+      return ok({
+        total: passed + failed + skipped,
+        passed,
+        failed,
+        skipped,
+        failedTests,
+        coverage: undefined,
+      });
+    } catch {
+      return this.parseTestSummaryLine(stdout, stderr, file, exitCode);
+    }
+  }
+
+  /**
+   * Parse mocha JSON output
+   */
+  private parseMochaOutput(
+    stdout: string,
+    stderr: string,
+    file: string,
+    exitCode: number | null
+  ): Result<TestExecutionResult, Error> {
+    try {
+      const json = JSON.parse(stdout);
+
+      const passed = json.stats?.passes || 0;
+      const failed = json.stats?.failures || 0;
+      const skipped = json.stats?.pending || 0;
+      const failedTests: FailedTest[] = [];
+
+      for (const failure of json.failures || []) {
+        failedTests.push({
+          testId: uuidv4(),
+          testName: failure.fullTitle || failure.title || 'Unknown test',
+          file: failure.file || file,
+          error: failure.err?.message || 'Test failed',
+          stack: failure.err?.stack || '',
+          duration: failure.duration || 0,
+        });
+      }
+
+      return ok({
+        total: passed + failed + skipped,
+        passed,
+        failed,
+        skipped,
+        failedTests,
+        coverage: undefined,
+      });
+    } catch {
+      return this.parseTestSummaryLine(stdout, stderr, file, exitCode);
+    }
+  }
+
+  /**
+   * Fallback: parse test summary line from text output
+   */
+  private parseTestSummaryLine(
+    stdout: string,
+    stderr: string,
+    file: string,
+    exitCode: number | null
+  ): Result<TestExecutionResult, Error> {
+    // Look for common patterns in test output
+    // Vitest: "Tests  5 passed | 1 failed | 1 skipped (7)"
+    // Jest: "Tests:       1 failed, 5 passed, 6 total"
+
+    const combinedOutput = stdout + '\n' + stderr;
+
+    // Vitest pattern
+    const vitestMatch = combinedOutput.match(/Tests\s+(\d+)\s+passed(?:\s*\|\s*(\d+)\s+failed)?(?:\s*\|\s*(\d+)\s+skipped)?/i);
+    if (vitestMatch) {
+      const passed = parseInt(vitestMatch[1], 10) || 0;
+      const failed = parseInt(vitestMatch[2], 10) || 0;
+      const skipped = parseInt(vitestMatch[3], 10) || 0;
+
+      return ok({
+        total: passed + failed + skipped,
+        passed,
+        failed,
+        skipped,
+        failedTests: failed > 0 ? this.createGenericFailures(file, failed, combinedOutput) : [],
+        coverage: undefined,
+      });
+    }
+
+    // Jest pattern
+    const jestMatch = combinedOutput.match(/Tests:\s+(?:(\d+)\s+failed,\s+)?(?:(\d+)\s+skipped,\s+)?(\d+)\s+passed,\s+(\d+)\s+total/i);
+    if (jestMatch) {
+      const failed = parseInt(jestMatch[1], 10) || 0;
+      const skipped = parseInt(jestMatch[2], 10) || 0;
+      const passed = parseInt(jestMatch[3], 10) || 0;
+
+      return ok({
+        total: passed + failed + skipped,
+        passed,
+        failed,
+        skipped,
+        failedTests: failed > 0 ? this.createGenericFailures(file, failed, combinedOutput) : [],
+        coverage: undefined,
+      });
+    }
+
+    // Check for common error indicators
+    if (exitCode !== 0) {
+      const errorMessages = [
+        'Cannot find module',
+        'SyntaxError',
+        'Error:',
+        'FAIL',
+        'failed',
+      ];
+
+      for (const indicator of errorMessages) {
+        if (combinedOutput.includes(indicator)) {
+          return err(new Error(
+            `Test execution failed for ${file} (exit code ${exitCode}):\n${combinedOutput.slice(0, 1000)}`
+          ));
+        }
+      }
+    }
+
+    // If we got here with exit code 0 but no parseable output,
+    // it might mean the file had no tests or an unsupported format
+    if (exitCode === 0) {
+      // Check if output indicates no tests
+      if (combinedOutput.includes('No test') || combinedOutput.includes('0 tests')) {
+        return err(new Error(`No tests found in file: ${file}`));
+      }
+    }
+
+    // Could not parse output - return error with details
+    return err(new Error(
+      `Unable to parse test results for ${file}. Exit code: ${exitCode}\n` +
+      `Output: ${combinedOutput.slice(0, 500)}`
+    ));
+  }
+
+  /**
+   * Create generic failure entries when we know tests failed but can't parse details
+   */
+  private createGenericFailures(file: string, count: number, output: string): FailedTest[] {
+    const failures: FailedTest[] = [];
+
+    // Try to extract failure details from output
+    const failurePattern = /FAIL\s+(.+?)(?:\n|$)|AssertionError[:\s]+(.+?)(?:\n|$)|Error[:\s]+(.+?)(?:\n|$)/gi;
+    const matches = Array.from(output.matchAll(failurePattern));
+
+    for (const match of matches) {
+      if (failures.length >= count) break;
+      failures.push({
+        testId: uuidv4(),
+        testName: match[1] || match[2] || match[3] || `Test #${failures.length + 1}`,
+        file,
+        error: match[0].trim(),
+        stack: '',
+        duration: 0,
+      });
+    }
+
+    // Fill remaining with generic entries
+    while (failures.length < count) {
+      failures.push({
+        testId: uuidv4(),
+        testName: `Failed test #${failures.length + 1}`,
+        file,
+        error: 'Test failed (details not available)',
+        stack: '',
+        duration: 0,
+      });
+    }
+
+    return failures;
+  }
+
+  /**
+   * Simulate test execution with random outcomes (for unit testing only)
+   */
+  private simulateTestExecution(file: string): TestExecutionResult {
     const testCount = Math.floor(Math.random() * 10) + 1;
-    const failCount = Math.random() > 0.8 ? 1 : 0;
-    const skipCount = Math.random() > 0.9 ? 1 : 0;
+    const failCount = Math.random() > (1 - this.config.simulatedFailureRate) ? 1 : 0;
+    const skipCount = Math.random() > (1 - this.config.simulatedSkipRate) ? 1 : 0;
 
     const failedTests: FailedTest[] = [];
     if (failCount > 0) {

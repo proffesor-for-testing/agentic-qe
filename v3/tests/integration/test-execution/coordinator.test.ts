@@ -20,7 +20,10 @@ describe('Test Execution Coordinator Integration', () => {
     eventBus = createMockEventBus();
     memory = createMockMemory();
 
-    coordinator = new TestExecutionCoordinator(eventBus, memory);
+    // Enable simulation mode for integration tests since no real test runner is available
+    coordinator = new TestExecutionCoordinator(eventBus, memory, {
+      simulateForTesting: true,
+    });
     await coordinator.initialize();
   });
 
@@ -378,7 +381,9 @@ describe('Test Execution Coordinator Integration', () => {
 
   describe('Error Handling', () => {
     it('should handle coordinator not initialized', async () => {
-      const uninitCoordinator = new TestExecutionCoordinator(eventBus, memory);
+      const uninitCoordinator = new TestExecutionCoordinator(eventBus, memory, {
+        simulateForTesting: true,
+      });
 
       // Don't initialize - try to use
       const result = await uninitCoordinator.execute({

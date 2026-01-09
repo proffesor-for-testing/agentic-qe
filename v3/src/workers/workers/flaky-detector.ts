@@ -17,6 +17,7 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import { TestExecutionAPI } from '../../domains/test-execution/interfaces';
 
 const CONFIG: WorkerConfig = {
   id: 'flaky-detector',
@@ -110,47 +111,50 @@ export class FlakyDetectorWorker extends BaseWorker {
     );
   }
 
-  private async collectTestHistory(_context: WorkerContext): Promise<TestExecutionHistory[]> {
-    // In a real implementation, this would query the test-execution domain
-    // Simulated data for demonstration
-    return [
-      {
-        testId: 'test-1',
-        testName: 'should handle concurrent requests',
-        file: 'src/kernel/agent-coordinator.test.ts',
-        executions: [
-          { timestamp: new Date(), passed: true, durationMs: 120 },
-          { timestamp: new Date(), passed: false, durationMs: 5200, error: 'Timeout' },
-          { timestamp: new Date(), passed: true, durationMs: 145 },
-          { timestamp: new Date(), passed: false, durationMs: 5100, error: 'Timeout' },
-          { timestamp: new Date(), passed: true, durationMs: 130 },
-        ],
-      },
-      {
-        testId: 'test-2',
-        testName: 'should validate async operations',
-        file: 'src/coordination/workflow-orchestrator.test.ts',
-        executions: [
-          { timestamp: new Date(), passed: true, durationMs: 80 },
-          { timestamp: new Date(), passed: true, durationMs: 85 },
-          { timestamp: new Date(), passed: false, durationMs: 90, error: 'Race condition' },
-          { timestamp: new Date(), passed: true, durationMs: 82 },
-          { timestamp: new Date(), passed: true, durationMs: 88 },
-        ],
-      },
-      {
-        testId: 'test-3',
-        testName: 'should process events in order',
-        file: 'src/kernel/event-bus.test.ts',
-        executions: [
-          { timestamp: new Date(), passed: true, durationMs: 50 },
-          { timestamp: new Date(), passed: true, durationMs: 52 },
-          { timestamp: new Date(), passed: true, durationMs: 48 },
-          { timestamp: new Date(), passed: true, durationMs: 51 },
-          { timestamp: new Date(), passed: true, durationMs: 49 },
-        ],
-      },
-    ];
+  private async collectTestHistory(context: WorkerContext): Promise<TestExecutionHistory[]> {
+    // Try to get test execution data from the test-execution domain service
+    const testAPI = context.domains.getDomainAPI<TestExecutionAPI>('test-execution');
+
+    if (!testAPI) {
+      throw new Error(
+        'Test-execution domain not available - cannot detect flaky tests. ' +
+        'Ensure the test-execution domain is properly initialized before running this worker.'
+      );
+    }
+
+    // Query stored test execution history from memory
+    const historyKeys = await context.memory.search('flaky:history:*');
+
+    if (historyKeys.length === 0) {
+      throw new Error(
+        'No test execution history found in memory - cannot detect flaky tests. ' +
+        'Run tests multiple times and ensure history is stored with keys matching "flaky:history:*" before running this worker.'
+      );
+    }
+
+    const results: TestExecutionHistory[] = [];
+    const failedKeys: string[] = [];
+
+    for (const key of historyKeys) {
+      try {
+        const data = await context.memory.get<TestExecutionHistory>(key);
+        if (data) {
+          results.push(data);
+        }
+      } catch (error) {
+        failedKeys.push(key);
+      }
+    }
+
+    if (results.length === 0) {
+      throw new Error(
+        `Found ${historyKeys.length} test history keys but failed to retrieve any data. ` +
+        `Failed keys: ${failedKeys.slice(0, 5).join(', ')}${failedKeys.length > 5 ? '...' : ''}. ` +
+        'Check memory service connectivity and data format.'
+      );
+    }
+
+    return results;
   }
 
   private detectFlakyTests(history: TestExecutionHistory[]): FlakyTestResult[] {

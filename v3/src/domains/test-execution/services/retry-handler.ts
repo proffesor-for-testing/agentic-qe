@@ -3,9 +3,76 @@
  * Implements intelligent retry logic for failed tests
  */
 
+import { spawn } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+/**
+ * Supported test runners for retry execution
+ */
+export type TestRunner = 'vitest' | 'jest' | 'mocha' | 'auto';
+
+/**
+ * Configuration for the retry handler service
+ */
+export interface RetryHandlerConfig {
+  /**
+   * When true, simulates test execution with random outcomes (for unit testing).
+   * When false (default), executes actual tests using the configured test runner.
+   */
+  simulateForTesting: boolean;
+  /**
+   * Success rate for simulated retries (0-1) when simulateForTesting is true.
+   * Defaults to 0.7 (70% chance of passing on retry).
+   */
+  simulatedRetrySuccessRate: number;
+  /**
+   * When true, adds random jitter to backoff delays.
+   * When false (default), backoff delays are deterministic.
+   */
+  enableJitter: boolean;
+  /**
+   * Maximum jitter percentage (0-1) when enableJitter is true.
+   * Defaults to 0.1 (10% variation).
+   */
+  maxJitterPercent: number;
+  /**
+   * Test runner to use for executing retries.
+   * 'auto' will detect the runner based on project configuration.
+   * Defaults to 'auto'.
+   */
+  testRunner: TestRunner;
+  /**
+   * Timeout for individual test execution in milliseconds.
+   * Defaults to 60000 (60 seconds).
+   */
+  testTimeout: number;
+  /**
+   * Working directory for test execution.
+   * Defaults to process.cwd().
+   */
+  cwd?: string;
+  /**
+   * Path to npx binary. Defaults to 'npx'.
+   */
+  npxPath: string;
+}
+
+const DEFAULT_RETRY_CONFIG: RetryHandlerConfig = {
+  simulateForTesting: false,
+  simulatedRetrySuccessRate: 0.7,
+  enableJitter: false,
+  maxJitterPercent: 0.1,
+  testRunner: 'auto',
+  testTimeout: 60000,
+  npxPath: 'npx',
+};
 
 // ============================================================================
 // Interfaces
@@ -77,6 +144,7 @@ export class RetryHandlerService implements IRetryHandler {
   private readonly retryHistory = new Map<string, RetryRecord[]>();
   private readonly retryPolicies = new Map<string, RetryPolicy>();
   private readonly runStats = new Map<string, RunRetryStats>();
+  private readonly config: RetryHandlerConfig;
 
   private readonly defaultPolicy: RetryPolicy = {
     maxRetries: 3,
@@ -90,7 +158,12 @@ export class RetryHandlerService implements IRetryHandler {
     ],
   };
 
-  constructor(private readonly memory: MemoryBackend) {}
+  constructor(
+    private readonly memory: MemoryBackend,
+    config: Partial<RetryHandlerConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_RETRY_CONFIG, ...config };
+  }
 
   /**
    * Determine if a test should be retried based on policy and history
@@ -340,13 +413,279 @@ export class RetryHandlerService implements IRetryHandler {
   }
 
   private async executeTest(test: FailedTest): Promise<{ passed: boolean; error?: string }> {
-    // In a real implementation, this would execute the actual test
-    // For now, simulate with some probability of success on retry
-    const passOnRetry = Math.random() > 0.3;
+    // In simulation mode (for unit testing), use random behavior
+    if (this.config.simulateForTesting) {
+      const passOnRetry = Math.random() < this.config.simulatedRetrySuccessRate;
+      return {
+        passed: passOnRetry,
+        error: passOnRetry ? undefined : test.error,
+      };
+    }
 
+    // In production mode, actually execute the test
+    return this.executeRealTest(test);
+  }
+
+  /**
+   * Execute a real test using the configured test runner
+   */
+  private async executeRealTest(test: FailedTest): Promise<{ passed: boolean; error?: string }> {
+    const testFile = test.file;
+    const testName = test.testName;
+    const cwd = this.config.cwd ?? process.cwd();
+
+    // Validate test file exists
+    if (!existsSync(testFile)) {
+      throw new Error(`Test file not found: ${testFile}. Cannot retry non-existent test file.`);
+    }
+
+    // Detect or use configured test runner
+    const runner = await this.detectTestRunner(cwd);
+    if (!runner) {
+      throw new Error(
+        `No test runner detected or configured. Install vitest, jest, or mocha, ` +
+        `or configure testRunner in RetryHandlerConfig. Cannot execute retry for: ${testFile}`
+      );
+    }
+
+    // Build command based on runner
+    const { command, args } = this.buildTestCommand(runner, testFile, testName);
+
+    // Execute the test
+    return this.spawnTestProcess(command, args, cwd);
+  }
+
+  /**
+   * Detect which test runner is available in the project
+   */
+  private async detectTestRunner(cwd: string): Promise<TestRunner | null> {
+    // If explicitly configured, use that
+    if (this.config.testRunner !== 'auto') {
+      return this.config.testRunner;
+    }
+
+    // Check for vitest config
+    const vitestConfigs = [
+      'vitest.config.ts',
+      'vitest.config.js',
+      'vitest.config.mts',
+      'vitest.config.mjs',
+      'vite.config.ts',
+      'vite.config.js',
+    ];
+    for (const config of vitestConfigs) {
+      if (existsSync(`${cwd}/${config}`)) {
+        return 'vitest';
+      }
+    }
+
+    // Check for jest config
+    const jestConfigs = [
+      'jest.config.ts',
+      'jest.config.js',
+      'jest.config.json',
+      'jest.config.mjs',
+    ];
+    for (const config of jestConfigs) {
+      if (existsSync(`${cwd}/${config}`)) {
+        return 'jest';
+      }
+    }
+
+    // Check package.json for test script hints
+    try {
+      const pkgPath = `${cwd}/package.json`;
+      if (existsSync(pkgPath)) {
+        const pkgContent = readFileSync(pkgPath, 'utf-8');
+        const pkg = JSON.parse(pkgContent);
+        const testScript = pkg?.scripts?.test ?? '';
+        if (testScript.includes('vitest')) return 'vitest';
+        if (testScript.includes('jest')) return 'jest';
+        if (testScript.includes('mocha')) return 'mocha';
+
+        // Check devDependencies
+        const devDeps = pkg?.devDependencies ?? {};
+        if ('vitest' in devDeps) return 'vitest';
+        if ('jest' in devDeps) return 'jest';
+        if ('mocha' in devDeps) return 'mocha';
+      }
+    } catch {
+      // Ignore package.json read errors
+    }
+
+    return null;
+  }
+
+  /**
+   * Build the command and arguments for the test runner
+   */
+  private buildTestCommand(
+    runner: TestRunner,
+    testFile: string,
+    testName?: string
+  ): { command: string; args: string[] } {
+    const npx = this.config.npxPath;
+
+    switch (runner) {
+      case 'vitest':
+        // vitest run --reporter=json testFile -t "testName"
+        const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
+        if (testName) {
+          vitestArgs.push('-t', testName);
+        }
+        return { command: npx, args: vitestArgs };
+
+      case 'jest':
+        // jest --json testFile -t "testName"
+        const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
+        if (testName) {
+          jestArgs.push('-t', testName);
+        }
+        return { command: npx, args: jestArgs };
+
+      case 'mocha':
+        // mocha --reporter json testFile --grep "testName"
+        const mochaArgs = ['mocha', '--reporter', 'json', testFile];
+        if (testName) {
+          mochaArgs.push('--grep', testName);
+        }
+        return { command: npx, args: mochaArgs };
+
+      default:
+        throw new Error(`Unsupported test runner: ${runner}`);
+    }
+  }
+
+  /**
+   * Spawn a test process and parse the result
+   */
+  private spawnTestProcess(
+    command: string,
+    args: string[],
+    cwd: string
+  ): Promise<{ passed: boolean; error?: string }> {
+    return new Promise((resolve, reject) => {
+      const timeout = this.config.testTimeout;
+      let stdout = '';
+      let stderr = '';
+      let timedOut = false;
+
+      const proc = spawn(command, args, {
+        cwd,
+        shell: true,
+        env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
+      });
+
+      const timeoutHandle = setTimeout(() => {
+        timedOut = true;
+        proc.kill('SIGTERM');
+        // Give it a moment to terminate gracefully, then force kill
+        setTimeout(() => proc.kill('SIGKILL'), 1000);
+      }, timeout);
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('close', (code: number | null) => {
+        clearTimeout(timeoutHandle);
+
+        if (timedOut) {
+          reject(new Error(
+            `Test execution timed out after ${timeout}ms for command: ${command} ${args.join(' ')}`
+          ));
+          return;
+        }
+
+        // Parse result based on exit code and output
+        const result = this.parseTestResult(code, stdout, stderr);
+        resolve(result);
+      });
+
+      proc.on('error', (err: Error) => {
+        clearTimeout(timeoutHandle);
+        reject(new Error(
+          `Failed to spawn test process: ${err.message}. ` +
+          `Command: ${command} ${args.join(' ')}. ` +
+          `Ensure the test runner is installed and accessible.`
+        ));
+      });
+    });
+  }
+
+  /**
+   * Parse test runner output to determine pass/fail status
+   */
+  private parseTestResult(
+    exitCode: number | null,
+    stdout: string,
+    stderr: string
+  ): { passed: boolean; error?: string } {
+    // Exit code 0 typically means all tests passed
+    if (exitCode === 0) {
+      return { passed: true };
+    }
+
+    // Try to parse JSON output for more detailed error info
+    try {
+      // Vitest JSON output
+      const vitestMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
+      if (vitestMatch) {
+        const result = JSON.parse(vitestMatch[0]);
+        if (result.success === true || result.numFailedTests === 0) {
+          return { passed: true };
+        }
+        const failedTest = result.testResults?.[0]?.assertionResults?.find(
+          (r: { status: string }) => r.status === 'failed'
+        );
+        return {
+          passed: false,
+          error: failedTest?.failureMessages?.join('\n') ?? `Test failed with exit code ${exitCode}`,
+        };
+      }
+
+      // Jest JSON output
+      const jestMatch = stdout.match(/\{[\s\S]*"numFailedTests"[\s\S]*\}/);
+      if (jestMatch) {
+        const result = JSON.parse(jestMatch[0]);
+        if (result.success === true || result.numFailedTests === 0) {
+          return { passed: true };
+        }
+        const failedTest = result.testResults?.[0]?.assertionResults?.find(
+          (r: { status: string }) => r.status === 'failed'
+        );
+        return {
+          passed: false,
+          error: failedTest?.failureMessages?.join('\n') ?? `Test failed with exit code ${exitCode}`,
+        };
+      }
+
+      // Mocha JSON output
+      const mochaMatch = stdout.match(/\{[\s\S]*"stats"[\s\S]*"failures"[\s\S]*\}/);
+      if (mochaMatch) {
+        const result = JSON.parse(mochaMatch[0]);
+        if (result.stats?.failures === 0) {
+          return { passed: true };
+        }
+        const failure = result.failures?.[0];
+        return {
+          passed: false,
+          error: failure?.err?.message ?? `Test failed with exit code ${exitCode}`,
+        };
+      }
+    } catch {
+      // JSON parsing failed, fall back to simple exit code check
+    }
+
+    // Non-zero exit code means failure
+    const errorOutput = stderr || stdout || `Test failed with exit code ${exitCode}`;
     return {
-      passed: passOnRetry,
-      error: passOnRetry ? undefined : test.error,
+      passed: false,
+      error: errorOutput.substring(0, 1000), // Truncate long error messages
     };
   }
 
@@ -375,9 +714,11 @@ export class RetryHandlerService implements IRetryHandler {
         delay = baseDelay;
     }
 
-    // Add some jitter (0-10% random variation)
-    const jitter = delay * 0.1 * Math.random();
-    delay += jitter;
+    // Add jitter only when explicitly enabled
+    if (this.config.enableJitter) {
+      const jitter = delay * this.config.maxJitterPercent * Math.random();
+      delay += jitter;
+    }
 
     return Math.min(delay, maxDelay);
   }

@@ -29,6 +29,7 @@ export type {
 export {
   TestExecutorService,
   type ITestExecutionService,
+  type TestExecutorConfig,
 } from './services/test-executor';
 
 export {
@@ -40,6 +41,7 @@ export {
   type TestExecutionRecord,
   type ExecutionContext,
   type CorrelationFactor,
+  type FlakyDetectorConfig,
 } from './services/flaky-detector';
 
 export {
@@ -50,6 +52,7 @@ export {
   type TestRetryStats,
   type RetryPolicy,
   type RetryCondition,
+  type RetryHandlerConfig,
 } from './services/retry-handler';
 
 // ============================================================================
@@ -60,6 +63,7 @@ export {
   TestExecutionCoordinator,
   createTestExecutionCoordinator,
   type ITestExecutionCoordinator,
+  type TestExecutionCoordinatorConfig,
 } from './coordinator';
 
 // ============================================================================

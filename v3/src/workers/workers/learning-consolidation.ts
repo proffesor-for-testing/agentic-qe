@@ -18,6 +18,7 @@ import {
   WorkerRecommendation,
 } from '../interfaces';
 import { DomainName, ALL_DOMAINS } from '../../shared/types';
+import { LearningOptimizationAPI } from '../../domains/learning-optimization/plugin';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -113,38 +114,78 @@ export class LearningConsolidationWorker extends BaseWorker {
 
   private async collectPatterns(context: WorkerContext): Promise<LearningPattern[]> {
     const patterns: LearningPattern[] = [];
+    const errors: string[] = [];
 
-    // In a real implementation, this would query each domain's learning store
-    // Simulated patterns for demonstration
+    // Query each domain for patterns via the learning-optimization domain API
     for (const domain of ALL_DOMAINS) {
-      const domainPatterns = await this.getDomainPatterns(context, domain);
-      patterns.push(...domainPatterns);
+      try {
+        const domainPatterns = await this.getDomainPatterns(context, domain);
+        patterns.push(...domainPatterns);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errors.push(`${domain}: ${errorMessage}`);
+        context.logger.warn(`Failed to collect patterns from ${domain}`, { error });
+      }
+    }
+
+    // If we got no patterns and encountered errors, that's a failure
+    if (patterns.length === 0 && errors.length > 0) {
+      throw new Error(
+        `Failed to collect any learning patterns. Errors from domains: ${errors.join('; ')}. ` +
+        'Ensure at least one domain is available and has pattern data.'
+      );
+    }
+
+    // If we simply have no patterns anywhere, that's also a failure
+    if (patterns.length === 0) {
+      throw new Error(
+        'No learning patterns found across any domain - cannot perform consolidation. ' +
+        'Ensure the learning-optimization domain has stored pattern data before running this worker.'
+      );
     }
 
     return patterns;
   }
 
-  private async getDomainPatterns(_context: WorkerContext, domain: DomainName): Promise<LearningPattern[]> {
-    // Simulated patterns for each domain
-    const now = new Date();
-    const patterns: LearningPattern[] = [];
+  private async getDomainPatterns(context: WorkerContext, domain: DomainName): Promise<LearningPattern[]> {
+    // Try to get patterns from the learning-optimization domain service
+    const learningAPI = context.domains.getDomainAPI<LearningOptimizationAPI>('learning-optimization');
 
-    // Generate some sample patterns
-    const patternTypes = ['test-pattern', 'failure-pattern', 'optimization-pattern'];
-    for (let i = 0; i < 3; i++) {
-      patterns.push({
-        id: `${domain}-pattern-${i}`,
-        domain,
-        type: patternTypes[i % patternTypes.length],
-        pattern: `Pattern ${i} for ${domain}`,
-        confidence: 0.7 + Math.random() * 0.3,
-        occurrences: Math.floor(Math.random() * 100) + 1,
-        lastSeen: new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-        effectiveness: 0.5 + Math.random() * 0.5,
-      });
+    if (!learningAPI) {
+      throw new Error(
+        `Learning-optimization domain not available for ${domain} - cannot retrieve patterns. ` +
+        'Ensure the learning-optimization domain is properly initialized.'
+      );
     }
 
-    return patterns;
+    const result = await learningAPI.getPatternStats(domain);
+
+    if (!result.success) {
+      throw new Error(
+        `Failed to get pattern stats for ${domain}: Unknown error. ` +
+        'Check domain service health and data availability.'
+      );
+    }
+
+    if (!result.value || !result.value.topPatterns || result.value.topPatterns.length === 0) {
+      // This is a warning case - domain exists but has no patterns yet
+      // We'll let the parent method aggregate and decide if this is fatal
+      context.logger.debug(`No patterns found for domain ${domain}`);
+      return [];
+    }
+
+    // Convert PatternStats.topPatterns to LearningPattern format
+    const stats = result.value;
+    return stats.topPatterns.map(p => ({
+      id: p.id,
+      domain: p.domain,
+      type: p.type,
+      pattern: p.name,
+      confidence: p.confidence,
+      occurrences: p.usageCount,
+      lastSeen: p.lastUsedAt,
+      effectiveness: p.successRate,
+    }));
   }
 
   private async consolidatePatterns(

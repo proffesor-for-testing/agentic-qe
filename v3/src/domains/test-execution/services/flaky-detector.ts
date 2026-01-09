@@ -4,6 +4,9 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { spawn } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
 import { Result, ok, err } from '../../../shared/types';
 import {
   FlakyDetectionRequest,
@@ -11,6 +14,68 @@ import {
   FlakyTest,
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+/**
+ * Configuration for the flaky detector service
+ */
+export interface FlakyDetectorConfig {
+  /**
+   * When true, simulates test execution with random outcomes (for unit testing).
+   * When false (default), actually executes tests using the configured test runner.
+   */
+  simulateForTesting: boolean;
+  /**
+   * Base flakiness probability (0-1) when simulateForTesting is true.
+   * Defaults to 0.3 (30% of tests are flaky in simulation).
+   */
+  simulatedFlakinessRate: number;
+  /**
+   * Simulated pass rate for flaky tests (0-1) when simulateForTesting is true.
+   * Defaults to 0.7 (70% pass rate for flaky tests).
+   */
+  simulatedFlakyPassRate: number;
+  /**
+   * Number of tests per file in simulation mode.
+   * Defaults to 2.
+   */
+  simulatedTestsPerFile: number;
+  /**
+   * Test runner command to use. Defaults to 'npx vitest'.
+   * Examples: 'npx vitest', 'npm test --', 'npx jest', 'npx mocha'
+   */
+  testRunner: string;
+  /**
+   * Additional arguments to pass to the test runner.
+   */
+  testRunnerArgs: string[];
+  /**
+   * Working directory for test execution.
+   */
+  cwd?: string;
+  /**
+   * Timeout in milliseconds for each test run.
+   * Defaults to 60000 (60 seconds).
+   */
+  runTimeout: number;
+  /**
+   * Environment variables to pass to the test runner.
+   */
+  env?: Record<string, string>;
+}
+
+const DEFAULT_FLAKY_CONFIG: FlakyDetectorConfig = {
+  simulateForTesting: false,
+  simulatedFlakinessRate: 0.3,
+  simulatedFlakyPassRate: 0.7,
+  simulatedTestsPerFile: 2,
+  testRunner: 'npx',
+  testRunnerArgs: ['vitest', 'run', '--reporter=json'],
+  runTimeout: 60000,
+};
 
 // ============================================================================
 // Interfaces
@@ -78,14 +143,56 @@ export interface ExecutionContext {
 }
 
 // ============================================================================
+// Test Runner Output Types
+// ============================================================================
+
+interface VitestAssertionResult {
+  title: string;
+  fullName?: string;
+  status: 'passed' | 'failed' | 'skipped' | 'pending';
+  duration?: number;
+  failureMessages?: string[];
+}
+
+interface VitestTestResult {
+  assertionResults?: VitestAssertionResult[];
+}
+
+interface VitestJsonOutput {
+  testResults?: VitestTestResult[];
+}
+
+interface JestAssertionResult {
+  title: string;
+  fullName?: string;
+  status: 'passed' | 'failed' | 'skipped' | 'pending';
+  duration?: number;
+  failureMessages?: string[];
+}
+
+interface JestTestFileResult {
+  assertionResults?: JestAssertionResult[];
+}
+
+interface JestJsonOutput {
+  testResults?: JestTestFileResult[];
+}
+
+// ============================================================================
 // Flaky Detector Service
 // ============================================================================
 
 export class FlakyDetectorService implements IFlakyTestDetector {
   private readonly testHistory = new Map<string, TestExecutionRecord[]>();
   private readonly analysisCache = new Map<string, FlakyAnalysis>();
+  private readonly config: FlakyDetectorConfig;
 
-  constructor(private readonly memory: MemoryBackend) {}
+  constructor(
+    private readonly memory: MemoryBackend,
+    config: Partial<FlakyDetectorConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_FLAKY_CONFIG, ...config };
+  }
 
   /**
    * Detect flaky tests by running them multiple times
@@ -246,22 +353,499 @@ export class FlakyDetectorService implements IFlakyTestDetector {
   // ============================================================================
 
   private async runMultipleTimes(
-    _file: string,
+    file: string,
     runs: number
   ): Promise<Map<string, TestExecutionRecord[]>> {
+    // In simulation mode (for unit testing), use random behavior
+    if (this.config.simulateForTesting) {
+      return this.simulateMultipleRuns(runs);
+    }
+
+    // In production mode, ACTUALLY execute the test file multiple times
+    // Verify the test file exists
+    const resolvedPath = this.config.cwd
+      ? path.resolve(this.config.cwd, file)
+      : path.resolve(file);
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(
+        `Test file not found: ${resolvedPath}. Cannot perform flaky detection without a valid test file.`
+      );
+    }
+
+    // Execute the test file N times and collect results
+    const allResults = new Map<string, TestExecutionRecord[]>();
+
+    for (let runIndex = 0; runIndex < runs; runIndex++) {
+      const runResult = await this.executeTestFile(file, runIndex);
+
+      // Merge results from this run into allResults
+      for (const [testId, records] of runResult.entries()) {
+        const existing = allResults.get(testId) ?? [];
+        existing.push(...records);
+        allResults.set(testId, existing);
+      }
+    }
+
+    // If we got no results after N runs, that means the test runner failed
+    if (allResults.size === 0) {
+      throw new Error(
+        `Test execution produced no results for ${file}. ` +
+          `Ensure the test runner (${this.config.testRunner}) is properly configured ` +
+          `and the test file contains valid tests.`
+      );
+    }
+
+    // Record all executions for future reference
+    for (const [testId, records] of allResults.entries()) {
+      for (const record of records) {
+        await this.recordExecution(testId, record);
+      }
+    }
+
+    return allResults;
+  }
+
+  /**
+   * Execute a single test file and parse the results
+   */
+  private async executeTestFile(
+    file: string,
+    runIndex: number
+  ): Promise<Map<string, TestExecutionRecord[]>> {
+    const results = new Map<string, TestExecutionRecord[]>();
+    const runId = uuidv4();
+    const startTime = Date.now();
+
+    return new Promise((resolve, reject) => {
+      const args = [...this.config.testRunnerArgs, file];
+      const cwd = this.config.cwd ?? process.cwd();
+
+      const child = spawn(this.config.testRunner, args, {
+        cwd,
+        env: { ...process.env, ...this.config.env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      // Set timeout
+      const timeout = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(
+          new Error(
+            `Test execution timed out after ${this.config.runTimeout}ms for ${file}`
+          )
+        );
+      }, this.config.runTimeout);
+
+      child.on('error', (error) => {
+        clearTimeout(timeout);
+        reject(
+          new Error(
+            `Failed to execute test runner: ${error.message}. ` +
+              `Ensure ${this.config.testRunner} is installed and accessible.`
+          )
+        );
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timeout);
+        const duration = Date.now() - startTime;
+
+        try {
+          // Parse the test results from stdout
+          const parsedResults = this.parseTestOutput(
+            stdout,
+            stderr,
+            code ?? 0,
+            file,
+            runId,
+            runIndex,
+            duration
+          );
+
+          // If parsing fails but we have an exit code, create a single result for the file
+          if (parsedResults.size === 0) {
+            const testId = this.generateTestId(file, 'main');
+            results.set(testId, [
+              {
+                runId,
+                passed: code === 0,
+                duration,
+                error: code !== 0 ? stderr || `Exit code: ${code}` : undefined,
+                timestamp: new Date(),
+                context: {
+                  parallelRuns: 1,
+                  workerIndex: runIndex,
+                },
+              },
+            ]);
+          } else {
+            for (const [testId, records] of parsedResults.entries()) {
+              results.set(testId, records);
+            }
+          }
+
+          resolve(results);
+        } catch (parseError) {
+          // If we can't parse output but process completed, create result from exit code
+          const testId = this.generateTestId(file, 'main');
+          results.set(testId, [
+            {
+              runId,
+              passed: code === 0,
+              duration,
+              error:
+                code !== 0
+                  ? stderr || `Exit code: ${code}, Parse error: ${parseError}`
+                  : undefined,
+              timestamp: new Date(),
+              context: {
+                parallelRuns: 1,
+                workerIndex: runIndex,
+              },
+            },
+          ]);
+          resolve(results);
+        }
+      });
+    });
+  }
+
+  /**
+   * Parse test runner output to extract individual test results
+   */
+  private parseTestOutput(
+    stdout: string,
+    stderr: string,
+    exitCode: number,
+    file: string,
+    runId: string,
+    runIndex: number,
+    totalDuration: number
+  ): Map<string, TestExecutionRecord[]> {
     const results = new Map<string, TestExecutionRecord[]>();
 
-    // Simulate multiple test runs
-    // In real implementation, this would execute the actual test file
-    const testIds = [`test-${uuidv4().slice(0, 8)}`, `test-${uuidv4().slice(0, 8)}`];
+    // Try to parse as JSON (vitest with --reporter=json)
+    try {
+      const jsonOutput = this.extractJson(stdout);
+      if (jsonOutput) {
+        const parsed = JSON.parse(jsonOutput);
+        return this.parseVitestJson(parsed, file, runId, runIndex);
+      }
+    } catch {
+      // Not valid JSON, try other formats
+    }
+
+    // Try to parse Jest JSON output
+    try {
+      const jsonOutput = this.extractJson(stdout);
+      if (jsonOutput) {
+        const parsed = JSON.parse(jsonOutput);
+        if (parsed.testResults) {
+          return this.parseJestJson(parsed, file, runId, runIndex);
+        }
+      }
+    } catch {
+      // Not Jest format
+    }
+
+    // Try to parse TAP format
+    if (stdout.includes('TAP version') || stdout.match(/^(ok|not ok)\s+\d+/m)) {
+      return this.parseTapOutput(stdout, file, runId, runIndex);
+    }
+
+    // Try to parse Mocha-style output
+    const mochaResults = this.parseMochaOutput(
+      stdout,
+      stderr,
+      exitCode,
+      file,
+      runId,
+      runIndex,
+      totalDuration
+    );
+    if (mochaResults.size > 0) {
+      return mochaResults;
+    }
+
+    // Fallback: create a single result based on exit code
+    return results;
+  }
+
+  /**
+   * Extract JSON from mixed output
+   */
+  private extractJson(output: string): string | null {
+    // Try to find JSON object or array
+    const jsonStart = output.indexOf('{');
+    const jsonArrayStart = output.indexOf('[');
+    const start =
+      jsonStart === -1
+        ? jsonArrayStart
+        : jsonArrayStart === -1
+          ? jsonStart
+          : Math.min(jsonStart, jsonArrayStart);
+
+    if (start === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = start; i < output.length; i++) {
+      const char = output[i];
+
+      if (escape) {
+        escape = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) continue;
+
+      if (char === '{' || char === '[') depth++;
+      if (char === '}' || char === ']') depth--;
+
+      if (depth === 0) {
+        return output.substring(start, i + 1);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse Vitest JSON output
+   */
+  private parseVitestJson(
+    json: VitestJsonOutput,
+    file: string,
+    runId: string,
+    runIndex: number
+  ): Map<string, TestExecutionRecord[]> {
+    const results = new Map<string, TestExecutionRecord[]>();
+
+    if (!json.testResults) return results;
+
+    for (const suite of json.testResults) {
+      for (const test of suite.assertionResults || []) {
+        const testId = this.generateTestId(file, test.fullName || test.title);
+        const record: TestExecutionRecord = {
+          runId,
+          passed: test.status === 'passed',
+          duration: test.duration || 0,
+          error:
+            test.status === 'failed'
+              ? test.failureMessages?.join('\n')
+              : undefined,
+          timestamp: new Date(),
+          context: {
+            parallelRuns: 1,
+            workerIndex: runIndex,
+          },
+        };
+        results.set(testId, [record]);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Parse Jest JSON output
+   */
+  private parseJestJson(
+    json: JestJsonOutput,
+    file: string,
+    runId: string,
+    runIndex: number
+  ): Map<string, TestExecutionRecord[]> {
+    const results = new Map<string, TestExecutionRecord[]>();
+
+    for (const testResult of json.testResults || []) {
+      for (const assertion of testResult.assertionResults || []) {
+        const testId = this.generateTestId(
+          file,
+          assertion.fullName || assertion.title
+        );
+        const record: TestExecutionRecord = {
+          runId,
+          passed: assertion.status === 'passed',
+          duration: assertion.duration || 0,
+          error:
+            assertion.status === 'failed'
+              ? assertion.failureMessages?.join('\n')
+              : undefined,
+          timestamp: new Date(),
+          context: {
+            parallelRuns: 1,
+            workerIndex: runIndex,
+          },
+        };
+        results.set(testId, [record]);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Parse TAP output format
+   */
+  private parseTapOutput(
+    output: string,
+    file: string,
+    runId: string,
+    runIndex: number
+  ): Map<string, TestExecutionRecord[]> {
+    const results = new Map<string, TestExecutionRecord[]>();
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+      const match = line.match(/^(ok|not ok)\s+(\d+)\s*-?\s*(.*)/);
+      if (match) {
+        const [, status, , testName] = match;
+        const testId = this.generateTestId(file, testName || `test-${match[2]}`);
+        const record: TestExecutionRecord = {
+          runId,
+          passed: status === 'ok',
+          duration: 0,
+          error: status !== 'ok' ? `Test failed: ${testName}` : undefined,
+          timestamp: new Date(),
+          context: {
+            parallelRuns: 1,
+            workerIndex: runIndex,
+          },
+        };
+        results.set(testId, [record]);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Parse Mocha-style console output
+   */
+  private parseMochaOutput(
+    stdout: string,
+    stderr: string,
+    exitCode: number,
+    file: string,
+    runId: string,
+    runIndex: number,
+    duration: number
+  ): Map<string, TestExecutionRecord[]> {
+    const results = new Map<string, TestExecutionRecord[]>();
+
+    // Look for passing/failing indicators
+    const passMatch = stdout.match(/(\d+)\s+passing/);
+    const failMatch = stdout.match(/(\d+)\s+failing/);
+
+    if (passMatch || failMatch) {
+      const passing = passMatch ? parseInt(passMatch[1], 10) : 0;
+      const failing = failMatch ? parseInt(failMatch[1], 10) : 0;
+
+      // Create aggregate results
+      for (let i = 0; i < passing; i++) {
+        const testId = this.generateTestId(file, `passing-${i + 1}`);
+        results.set(testId, [
+          {
+            runId,
+            passed: true,
+            duration: duration / (passing + failing),
+            timestamp: new Date(),
+            context: { parallelRuns: 1, workerIndex: runIndex },
+          },
+        ]);
+      }
+
+      for (let i = 0; i < failing; i++) {
+        const testId = this.generateTestId(file, `failing-${i + 1}`);
+        results.set(testId, [
+          {
+            runId,
+            passed: false,
+            duration: duration / (passing + failing),
+            error: stderr || 'Test failed',
+            timestamp: new Date(),
+            context: { parallelRuns: 1, workerIndex: runIndex },
+          },
+        ]);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Generate a deterministic test ID from file and test name
+   */
+  private generateTestId(file: string, testName: string): string {
+    const sanitizedFile = file.replace(/[^a-zA-Z0-9]/g, '-');
+    const sanitizedName = testName.replace(/[^a-zA-Z0-9]/g, '-');
+    return `${sanitizedFile}::${sanitizedName}`;
+  }
+
+  /**
+   * Get recorded execution history for tests in a file
+   */
+  private async getHistoryForFile(file: string): Promise<Map<string, TestExecutionRecord[]>> {
+    const results = new Map<string, TestExecutionRecord[]>();
+
+    // Check for any test IDs associated with this file in memory
+    for (const [testId, history] of this.testHistory.entries()) {
+      // Simple file association check (in real implementation, would use proper mapping)
+      if (testId.includes(file.replace(/[^a-zA-Z0-9]/g, '-'))) {
+        results.set(testId, history);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Simulate multiple test runs with random outcomes (for unit testing only)
+   */
+  private simulateMultipleRuns(runs: number): Map<string, TestExecutionRecord[]> {
+    const results = new Map<string, TestExecutionRecord[]>();
+    const testCount = this.config.simulatedTestsPerFile;
+    const testIds = Array.from(
+      { length: testCount },
+      () => `test-${uuidv4().slice(0, 8)}`
+    );
 
     for (const testId of testIds) {
       const records: TestExecutionRecord[] = [];
 
+      // Determine if this test is flaky
+      const isFlaky = Math.random() < this.config.simulatedFlakinessRate;
+
       for (let i = 0; i < runs; i++) {
-        // Simulate some flakiness
-        const isFlaky = Math.random() > 0.7;
-        const passed = isFlaky ? Math.random() > 0.3 : true;
+        // If flaky, randomly pass/fail; otherwise always pass
+        const passed = isFlaky
+          ? Math.random() < this.config.simulatedFlakyPassRate
+          : true;
 
         records.push({
           runId: uuidv4(),

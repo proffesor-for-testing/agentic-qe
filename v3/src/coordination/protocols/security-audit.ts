@@ -40,6 +40,16 @@ import type {
   DetectedSecret,
   ScanSummary,
 } from '../../domains/security-compliance/interfaces.js';
+import {
+  SecurityScannerService,
+  type ISecurityScannerService,
+} from '../../domains/security-compliance/services/security-scanner.js';
+import {
+  runSemgrepWithRules,
+  isSemgrepAvailable,
+  convertSemgrepFindings,
+  type SemgrepFinding,
+} from '../../domains/security-compliance/services/semgrep-integration.js';
 
 // ============================================================================
 // Protocol Types
@@ -237,6 +247,7 @@ export class SecurityAuditProtocol {
   private readonly config: SecurityAuditConfig;
   private currentAudit: SecurityAuditResult | null = null;
   private readonly activeAgents: Map<string, string> = new Map();
+  private securityScanner: ISecurityScannerService | null = null;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -245,6 +256,17 @@ export class SecurityAuditProtocol {
     config: Partial<SecurityAuditConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Get or create the SecurityScannerService instance
+   * Lazily initialized to avoid constructor complexity
+   */
+  private getSecurityScanner(): ISecurityScannerService {
+    if (!this.securityScanner) {
+      this.securityScanner = new SecurityScannerService(this.memory);
+    }
+    return this.securityScanner;
   }
 
   // ==========================================================================
@@ -376,41 +398,129 @@ export class SecurityAuditProtocol {
 
   /**
    * Scan for vulnerabilities using SAST
+   * Delegates to real SecurityScannerService with semgrep integration when available
    */
   async scanVulnerabilities(options: SecurityAuditOptions): Promise<Result<SASTResult>> {
     try {
-      // Spawn security scanner agent
+      // Spawn security scanner agent for coordination tracking
       const agentId = await this.spawnAgent('security-scanner', ['sast', 'vulnerability-scan']);
       if (!agentId.success) {
         return err(agentId.error);
       }
 
-      // Simulate SAST scan (in production, delegate to SecurityScannerService)
       const files = this.config.scanPaths.map(path => FilePath.create(path));
 
-      const vulnerabilities = await this.performSASTAnalysis(files, options);
+      // Try real SecurityScannerService first
+      try {
+        const scanner = this.getSecurityScanner();
+        const ruleSetIds = options.ruleSetIds || ['owasp-top-10', 'cwe-sans-25'];
+        const scanResult = await scanner.scanWithRules(files, ruleSetIds);
 
-      const summary = this.calculateSummary(vulnerabilities);
+        if (scanResult.success) {
+          return ok(scanResult.value);
+        }
+        // If scanner fails, continue to fallback
+      } catch (scannerError) {
+        // Scanner unavailable - log and continue to fallback
+        await this.memory.set(
+          'security-audit:scanner-error',
+          { error: String(scannerError), timestamp: new Date().toISOString() },
+          { namespace: 'security-compliance', ttl: 3600 }
+        );
+      }
 
-      const result: SASTResult = {
-        scanId: uuidv4(),
-        vulnerabilities,
-        summary,
-        coverage: {
-          filesScanned: files.length,
-          linesScanned: vulnerabilities.length * 100, // Estimate
-          rulesApplied: 45, // OWASP Top 10 + CWE
-        },
-      };
+      // Try semgrep if available as secondary option
+      const semgrepAvailable = await isSemgrepAvailable();
+      if (semgrepAvailable) {
+        try {
+          const semgrepResult = await runSemgrepWithRules(
+            this.config.scanPaths[0] || '.',
+            options.ruleSetIds || ['owasp-top-10']
+          );
 
-      return ok(result);
+          if (semgrepResult.success && semgrepResult.findings.length > 0) {
+            const convertedFindings = convertSemgrepFindings(semgrepResult.findings);
+            const vulnerabilities: Vulnerability[] = convertedFindings.map(f => ({
+              id: uuidv4(),
+              cveId: undefined,
+              title: f.title,
+              description: f.description,
+              severity: f.severity as VulnerabilitySeverity,
+              category: this.mapSemgrepCategory(f.owaspCategory || 'injection'),
+              location: {
+                file: f.file,
+                line: f.line,
+                column: f.column,
+                snippet: f.snippet,
+              },
+              remediation: {
+                description: f.remediation,
+                estimatedEffort: 'moderate',
+                automatable: false,
+              },
+              references: f.references,
+            }));
+
+            const summary = this.calculateSummary(vulnerabilities);
+
+            return ok({
+              scanId: uuidv4(),
+              vulnerabilities,
+              summary,
+              coverage: {
+                filesScanned: files.length,
+                linesScanned: vulnerabilities.length * 50,
+                rulesApplied: 45,
+              },
+            });
+          }
+        } catch (semgrepError) {
+          // Semgrep failed - log error
+          await this.memory.set(
+            'security-audit:semgrep-error',
+            { error: String(semgrepError), timestamp: new Date().toISOString() },
+            { namespace: 'security-compliance', ttl: 3600 }
+          );
+        }
+      }
+
+      // NO FALLBACK - Security scans must either succeed or fail explicitly
+      // An empty vulnerability list would falsely indicate "scan succeeded, nothing found"
+      // when in reality we couldn't scan at all
+      return err(new Error(
+        'SAST scanning unavailable: neither SecurityScannerService nor semgrep could execute. ' +
+        'Install semgrep (pip install semgrep) or ensure SecurityScannerService is properly configured.'
+      ));
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   /**
+   * Map semgrep OWASP category to VulnerabilityCategory
+   */
+  private mapSemgrepCategory(owaspCategory: string): VulnerabilityCategory {
+    const categoryMap: Record<string, VulnerabilityCategory> = {
+      'A01': 'access-control',
+      'A02': 'sensitive-data',
+      'A03': 'injection',
+      'A04': 'insecure-deserialization',
+      'A05': 'security-misconfiguration',
+      'A06': 'vulnerable-components',
+      'A07': 'broken-auth',
+      'A08': 'insecure-deserialization',
+      'A09': 'insufficient-logging',
+      'A10': 'xxe',
+      'injection': 'injection',
+      'xss': 'xss',
+      'broken-auth': 'broken-auth',
+    };
+    return categoryMap[owaspCategory] || 'security-misconfiguration';
+  }
+
+  /**
    * Scan dependencies for vulnerabilities
+   * Delegates to real SecurityScannerService which uses OSV API for real vulnerability data
    */
   async scanDependencies(): Promise<Result<DependencyScanResult>> {
     try {
@@ -419,23 +529,68 @@ export class SecurityAuditProtocol {
         return err(agentId.error);
       }
 
-      // Simulate dependency scan
-      const vulnerabilities: Vulnerability[] = [];
+      // Try real SecurityScannerService with OSV API integration
+      try {
+        const scanner = this.getSecurityScanner();
 
-      // Check common vulnerability patterns
-      const knownVulnerabilities = await this.checkKnownDependencyVulnerabilities();
-      vulnerabilities.push(...knownVulnerabilities);
+        // Try to scan package.json if it exists
+        const packageJsonPath = this.findPackageJsonPath();
+        if (packageJsonPath) {
+          const scanResult = await scanner.scanPackageJson(packageJsonPath);
 
-      const summary = this.calculateSummary(vulnerabilities);
+          if (scanResult.success) {
+            // Convert scanner result to protocol result format
+            return ok({
+              vulnerabilities: scanResult.value.vulnerabilities,
+              outdatedPackages: [],
+              summary: scanResult.value.summary,
+            });
+          }
+        }
+      } catch (scannerError) {
+        // Scanner unavailable - log error
+        await this.memory.set(
+          'security-audit:dependency-scanner-error',
+          { error: String(scannerError), timestamp: new Date().toISOString() },
+          { namespace: 'security-compliance', ttl: 3600 }
+        );
+      }
 
-      return ok({
-        vulnerabilities,
-        outdatedPackages: [],
-        summary,
-      });
+      // NO FALLBACK - Dependency scans must either succeed or fail explicitly
+      // An empty vulnerability list would falsely indicate "scan succeeded, no vulnerable deps"
+      // when in reality we couldn't scan at all
+      return err(new Error(
+        'Dependency scanning unavailable: SecurityScannerService could not scan package.json. ' +
+        'Ensure package.json exists and SecurityScannerService is properly configured.'
+      ));
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  /**
+   * Find package.json path from scan paths or current directory
+   */
+  private findPackageJsonPath(): string | null {
+    // Check common locations
+    const candidates = [
+      'package.json',
+      './package.json',
+      '../package.json',
+    ];
+
+    // Add scan paths if they look like project roots
+    for (const scanPath of this.config.scanPaths) {
+      if (scanPath.includes('src') || scanPath.includes('lib')) {
+        const projectRoot = scanPath.split('/src')[0].split('/lib')[0];
+        if (projectRoot) {
+          candidates.push(`${projectRoot}/package.json`);
+        }
+      }
+    }
+
+    // Return first candidate (real check happens in scanner)
+    return candidates[0] || null;
   }
 
   /**
@@ -468,6 +623,7 @@ export class SecurityAuditProtocol {
 
   /**
    * Run DAST scan against target URL
+   * Delegates to real SecurityScannerService for dynamic application security testing
    */
   private async runDASTScan(targetUrl: string): Promise<Result<DASTResult>> {
     try {
@@ -476,22 +632,34 @@ export class SecurityAuditProtocol {
         return err(agentId.error);
       }
 
-      // Simulate DAST scan
-      const vulnerabilities: Vulnerability[] = [];
+      // Try real SecurityScannerService for DAST
+      try {
+        const scanner = this.getSecurityScanner();
+        const scanResult = await scanner.scanUrl(targetUrl, {
+          maxDepth: 5,
+          activeScanning: false, // Passive by default for safety
+          timeout: this.config.timeout,
+        });
 
-      // Check for common DAST findings
-      const webVulns = await this.performDASTAnalysis(targetUrl);
-      vulnerabilities.push(...webVulns);
+        if (scanResult.success) {
+          return ok(scanResult.value);
+        }
+      } catch (scannerError) {
+        // Scanner unavailable - log error
+        await this.memory.set(
+          'security-audit:dast-scanner-error',
+          { error: String(scannerError), timestamp: new Date().toISOString() },
+          { namespace: 'security-compliance', ttl: 3600 }
+        );
+      }
 
-      const summary = this.calculateSummary(vulnerabilities);
-
-      return ok({
-        scanId: uuidv4(),
-        targetUrl,
-        vulnerabilities,
-        summary,
-        crawledUrls: 50, // Estimate
-      });
+      // NO FALLBACK - DAST scans must either succeed or fail explicitly
+      // An empty vulnerability list would falsely indicate "scan succeeded, target is secure"
+      // when in reality we couldn't scan at all
+      return err(new Error(
+        `DAST scanning unavailable: SecurityScannerService could not scan ${targetUrl}. ` +
+        'Ensure the target URL is accessible and SecurityScannerService is properly configured.'
+      ));
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
