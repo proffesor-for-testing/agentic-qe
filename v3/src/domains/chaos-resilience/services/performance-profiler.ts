@@ -28,6 +28,12 @@ export interface PerformanceProfilerConfig {
   healthCheckInterval: number;
   maxRetries: number;
   recoveryCheckDelay: number;
+  /**
+   * When true, simulated health checks will randomly fail (5% failure rate).
+   * When false (default), simulated health checks always succeed.
+   * Only affects non-HTTP service URLs in simulation mode.
+   */
+  simulateRandomFailures: boolean;
 }
 
 const DEFAULT_CONFIG: PerformanceProfilerConfig = {
@@ -35,6 +41,7 @@ const DEFAULT_CONFIG: PerformanceProfilerConfig = {
   healthCheckInterval: 1000, // 1 second
   maxRetries: 3,
   recoveryCheckDelay: 500, // 500ms between recovery checks
+  simulateRandomFailures: false, // Deterministic by default
 };
 
 /**
@@ -478,14 +485,17 @@ export class PerformanceProfilerService implements IResilienceTestingService {
   }
 
   private simulateHealthCheck(): boolean {
-    // Simulate health check with 95% success rate
-    return Math.random() > 0.05;
+    // Deterministic by default - only use random failures when explicitly configured
+    if (this.config.simulateRandomFailures) {
+      return Math.random() > 0.05; // 95% success rate
+    }
+    return true; // Always healthy in deterministic mode
   }
 
   private async checkServiceIsActive(service: string): Promise<boolean> {
     // Skip real HTTP for non-HTTP URLs
     if (!this.isRealServiceUrl(service)) {
-      return Math.random() > 0.1;
+      return this.simulateServiceActive();
     }
 
     // Real implementation: check if service responds to requests
@@ -496,8 +506,16 @@ export class PerformanceProfilerService implements IResilienceTestingService {
       });
       return result.success && result.value.ok;
     } catch {
-      return Math.random() > 0.1;
+      return this.simulateServiceActive();
     }
+  }
+
+  private simulateServiceActive(): boolean {
+    // Deterministic by default - only use random failures when explicitly configured
+    if (this.config.simulateRandomFailures) {
+      return Math.random() > 0.1; // 90% success rate
+    }
+    return true; // Always active in deterministic mode
   }
 
   private async injectFault(service: string, faultType: FaultType): Promise<void> {
@@ -638,13 +656,8 @@ export class PerformanceProfilerService implements IResilienceTestingService {
       const state = this.httpClient.getCircuitState(service);
       return state.state;
     } catch {
-      // Fallback to simulation
-      const states: Array<'closed' | 'open' | 'half-open'> = [
-        'closed',
-        'open',
-        'half-open',
-      ];
-      return states[Math.floor(Math.random() * states.length)];
+      // Deterministic fallback - return 'closed' (default healthy state)
+      return 'closed';
     }
   }
 
@@ -672,9 +685,9 @@ export class PerformanceProfilerService implements IResilienceTestingService {
   }
 
   private async sendSuccessfulRequest(service: string): Promise<boolean> {
-    // Skip real HTTP for non-HTTP URLs
+    // Skip real HTTP for non-HTTP URLs - return success deterministically
     if (!this.isRealServiceUrl(service)) {
-      return Math.random() > 0.1;
+      return true; // Deterministic: always succeed in simulation mode
     }
 
     // Real implementation: send actual HTTP request
@@ -685,7 +698,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
       });
       return result.success && result.value.ok;
     } catch {
-      return Math.random() > 0.1;
+      return true; // Deterministic fallback
     }
   }
 
@@ -733,7 +746,8 @@ export class PerformanceProfilerService implements IResilienceTestingService {
 
   private simulateRequestBatch(count: number): RateLimitResponse[] {
     const results: RateLimitResponse[] = [];
-    const rateLimitThreshold = 50 + Math.floor(Math.random() * 50);
+    // Deterministic rate limit threshold - simulate 75 requests before rate limiting
+    const rateLimitThreshold = 75;
 
     for (let i = 0; i < count; i++) {
       if (i >= rateLimitThreshold) {

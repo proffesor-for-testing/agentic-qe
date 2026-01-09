@@ -64,6 +64,11 @@ export interface ToolResult<T = unknown> {
 }
 
 /**
+ * Data source tracking for audit/transparency
+ */
+export type DataSource = 'real' | 'demo' | 'fallback';
+
+/**
  * Tool result metadata
  */
 export interface ToolResultMetadata {
@@ -73,6 +78,8 @@ export interface ToolResultMetadata {
   domain?: DomainName;
   taskId?: string;
   toolName?: string;
+  /** Indicates whether data came from real services, explicit demo mode, or fallback */
+  dataSource?: DataSource;
 }
 
 // ============================================================================

@@ -147,10 +147,16 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
         return { success: false, error: 'Operation aborted' };
       }
 
+      // Check if demo mode is EXPLICITLY requested (only for testing/docs)
+      if (this.isDemoMode(context)) {
+        this.markAsDemoData(context, 'Demo mode explicitly requested');
+        return this.getDemoResult(files);
+      }
+
       // Get the real service
       const service = this.getService(context);
 
-      // Use real prediction service
+      // Use real prediction service - NO FALLBACKS
       const result = await service.predictDefects({
         files,
         features: features.map((f) => ({
@@ -160,10 +166,16 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
         threshold,
       });
 
-      // If prediction failed, return sample data for testing/demos
+      // If prediction failed, return error - don't silently fall back
       if (!result.success) {
-        return this.getSampleResult(files);
+        return {
+          success: false,
+          error: `Defect prediction failed: ${result.error?.message || 'Service unavailable'}. Ensure the defect-intelligence domain is properly initialized.`,
+        };
       }
+
+      // Mark as real data - we have actual predictions
+      this.markAsRealData();
 
       const predictions = result.value.predictions;
 
@@ -222,9 +234,10 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
   }
 
   /**
-   * Return sample defect prediction data when no real data available
+   * Return demo defect prediction data when no real data available.
+   * Only used when demoMode is explicitly requested or as fallback with warning.
    */
-  private getSampleResult(files: string[]): ToolResult<DefectPredictResult> {
+  private getDemoResult(files: string[]): ToolResult<DefectPredictResult> {
     const targetFiles = files.length > 0 ? files : ['src/service.ts', 'src/handler.ts', 'src/utils.ts'];
 
     const predictions: FilePrediction[] = targetFiles.map((file, idx) => ({

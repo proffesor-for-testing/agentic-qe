@@ -202,6 +202,9 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
         return { success: false, error: 'Operation aborted' };
       }
 
+      // Mark as real data - this tool always uses real services
+      this.markAsRealData();
+
       const service = this.getService(context);
       const comparisons: VisualComparison[] = [];
       const newBaselines: string[] = [];
@@ -386,6 +389,9 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
       if (this.isAborted(context)) {
         return { success: false, error: 'Operation aborted' };
       }
+
+      // Mark as real data - this tool always uses real services
+      this.markAsRealData();
 
       const service = this.getService(context);
       const audits: UrlAudit[] = [];

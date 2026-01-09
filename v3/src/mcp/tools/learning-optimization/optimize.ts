@@ -271,6 +271,14 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     experienceIds: string[] | undefined,
     context: MCPToolContext
   ): Promise<LearnResult> {
+    const targetDomain = domain || 'learning-optimization';
+
+    // Check if demo mode is explicitly requested
+    if (this.isDemoMode(context)) {
+      this.markAsDemoData(context, 'Demo mode explicitly requested');
+      return this.getDemoLearnResult(targetDomain);
+    }
+
     const { learningCoordinator } = this.getServices(context);
 
     this.emitStream(context, {
@@ -279,7 +287,6 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     });
 
     // Get experiences from memory or mine recent ones
-    const targetDomain = domain || 'learning-optimization';
     const timeRange = TimeRange.lastNDays(7);
     const mineResult = await learningCoordinator.mineExperiences(targetDomain, timeRange);
 
@@ -314,10 +321,20 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       experiencesProcessed = experienceIds.length;
     }
 
-    // If no real patterns were learned, return sample data for testing/demos
+    // If no patterns were learned, return empty result (not fake data)
+    // This is a valid state - no patterns discovered yet
     if (newPatterns.length === 0) {
-      return this.getSampleLearnResult(targetDomain);
+      this.markAsRealData(); // Still real data, just empty
+      return {
+        experiencesProcessed,
+        patternsLearned: 0,
+        newPatterns: [],
+        improvement: 0,
+      };
     }
+
+    // Mark as real data - we have actual learning results
+    this.markAsRealData();
 
     return {
       experiencesProcessed,
@@ -328,9 +345,10 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
   }
 
   /**
-   * Return sample learn results when no real data available
+   * Return demo learn results when no real data available.
+   * Only used when demoMode is explicitly requested or as fallback with warning.
    */
-  private getSampleLearnResult(domain: DomainName): LearnResult {
+  private getDemoLearnResult(domain: DomainName): LearnResult {
     return {
       experiencesProcessed: 150,
       patternsLearned: 12,

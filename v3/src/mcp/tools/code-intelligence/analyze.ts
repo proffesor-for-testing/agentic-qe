@@ -265,12 +265,20 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     paths: string[],
     context: MCPToolContext
   ): Promise<SearchResult> {
+    const startTime = Date.now();
+
+    // Check if demo mode is explicitly requested
+    if (this.isDemoMode(context)) {
+      const searchTime = Date.now() - startTime;
+      this.markAsDemoData(context, 'Demo mode explicitly requested');
+      return this.getDemoSearchResult(query, searchTime);
+    }
+
     this.emitStream(context, {
       status: 'searching',
       message: `Searching for: ${query}`,
     });
 
-    const startTime = Date.now();
     const service = this.getSemanticAnalyzer(context);
 
     // Use real semantic search
@@ -283,10 +291,27 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
 
     const searchTime = Date.now() - startTime;
 
-    // If search failed or returned no results, return sample data for testing/demos
-    if (!result.success || result.value.results.length === 0) {
-      return this.getSampleSearchResult(query, searchTime);
+    // If search failed, return error
+    if (!result.success) {
+      return {
+        results: [],
+        total: 0,
+        searchTime,
+      };
     }
+
+    // Empty results is a valid state - no matches found
+    if (result.value.results.length === 0) {
+      this.markAsRealData(); // Real data, just no matches
+      return {
+        results: [],
+        total: 0,
+        searchTime,
+      };
+    }
+
+    // Mark as real data - we have actual search results
+    this.markAsRealData();
 
     // Convert search results to output format
     const searchResults: SearchHit[] = result.value.results.map((r) => ({
@@ -305,9 +330,10 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   }
 
   /**
-   * Return sample search results when no real data available
+   * Return demo search results when no real data available.
+   * Only used when demoMode is explicitly requested or as fallback with warning.
    */
-  private getSampleSearchResult(query: string, searchTime: number): SearchResult {
+  private getDemoSearchResult(query: string, searchTime: number): SearchResult {
     return {
       results: [
         {
@@ -338,9 +364,10 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   }
 
   /**
-   * Return sample impact results when no real data available
+   * Return demo impact results when no real data available.
+   * Only used when demoMode is explicitly requested or as fallback with warning.
    */
-  private getSampleImpactResult(changedFiles: string[]): ImpactResult {
+  private getDemoImpactResult(changedFiles: string[]): ImpactResult {
     const baseFile = changedFiles[0] || 'src/service.ts';
     const baseName = baseFile.split('/').pop()?.replace('.ts', '') || 'service';
 
@@ -395,6 +422,12 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     depth: number,
     context: MCPToolContext
   ): Promise<ImpactResult> {
+    // Check if demo mode is explicitly requested
+    if (this.isDemoMode(context)) {
+      this.markAsDemoData(context, 'Demo mode explicitly requested');
+      return this.getDemoImpactResult(changedFiles);
+    }
+
     this.emitStream(context, {
       status: 'analyzing',
       message: `Analyzing impact of ${changedFiles.length} changed files`,
@@ -410,10 +443,19 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
         includeTests: true,
       });
 
-      // If impact analysis failed, return sample data for testing/demos
+      // If impact analysis failed, return error - don't silently fall back
       if (!result.success) {
-        return this.getSampleImpactResult(changedFiles);
+        return {
+          directImpact: [],
+          transitiveImpact: [],
+          impactedTests: [],
+          riskLevel: 'low',
+          recommendations: [`Impact analysis failed: ${result.error?.message || 'Unknown error'}. Ensure the code index is built first using action: 'index'.`],
+        };
       }
+
+      // Mark as real data - we have actual impact analysis
+      this.markAsRealData();
 
       const impact = result.value;
 
@@ -439,9 +481,15 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
         riskLevel: impact.overallRisk,
         recommendations: impact.recommendations,
       };
-    } catch {
-      // On error, return sample data for testing/demos
-      return this.getSampleImpactResult(changedFiles);
+    } catch (error) {
+      // On error, return error info in recommendations - don't silently fall back
+      return {
+        directImpact: [],
+        transitiveImpact: [],
+        impactedTests: [],
+        riskLevel: 'low',
+        recommendations: [`Impact analysis error: ${error instanceof Error ? error.message : 'Unknown error'}. Check that files exist and index is built.`],
+      };
     }
   }
 

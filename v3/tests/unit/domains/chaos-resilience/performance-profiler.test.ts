@@ -116,12 +116,20 @@ describe('PerformanceProfilerService', () => {
     });
 
     it('should fail if initial health check fails', async () => {
-      // Mock checkServiceHealth to return false
+      // Create service with simulateRandomFailures enabled to test failure scenarios
+      const failureService = new PerformanceProfilerService(mockMemory, {
+        defaultTimeout: 3000,
+        healthCheckInterval: 100,
+        recoveryCheckDelay: 50,
+        simulateRandomFailures: true, // Enable random failures for this test
+      });
+
+      // Mock Math.random to force health check failure
       const originalRandom = Math.random;
       Math.random = () => 0.01; // Will make health check fail (< 0.05)
 
       try {
-        const result = await service.testRecovery('unhealthy-service', 'latency', 5000);
+        const result = await failureService.testRecovery('unhealthy-service', 'latency', 5000);
 
         expect(result.success).toBe(true);
         if (result.success) {

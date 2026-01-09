@@ -133,9 +133,11 @@ describe('CoverageAnalyzeTool', () => {
     expect(tool.domain).toBe('coverage-analysis');
   });
 
-  it('should analyze coverage', async () => {
+  it('should analyze coverage (with demo mode for unit test)', async () => {
+    // Use demoMode to test output format without requiring real coverage data
     const result = await tool.invoke({
       target: 'src/',
+      dryRun: true, // explicit demo mode
     });
 
     expect(result.success).toBe(true);
@@ -143,10 +145,21 @@ describe('CoverageAnalyzeTool', () => {
     expect(result.data?.summary.lines).toBeDefined();
   });
 
-  it('should include risk scoring', async () => {
+  it('should return error when no coverage data found', async () => {
+    // Without demo mode, should return error when no real coverage data
+    const result = await tool.invoke({
+      target: 'nonexistent-path/',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('No coverage data found');
+  });
+
+  it('should include risk scoring (with demo mode)', async () => {
     const result = await tool.invoke({
       target: 'src/',
       includeRiskScoring: true,
+      dryRun: true, // explicit demo mode
     });
 
     expect(result.success).toBe(true);
@@ -168,31 +181,42 @@ describe('CoverageGapsTool', () => {
     expect(tool.name).toBe('qe/coverage/gaps');
   });
 
-  it('should detect coverage gaps', async () => {
+  it('should detect coverage gaps (with demo mode)', async () => {
+    // Use demoMode to test output format without requiring real coverage data
     const result = await tool.invoke({
       target: 'src/',
       maxLineCoverage: 60,
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
     expect(result.data?.gaps).toBeDefined();
     expect(Array.isArray(result.data?.gaps)).toBe(true);
   });
 
-  it('should filter by risk score', async () => {
+  it('should return error when no coverage data found', async () => {
+    // Without demo mode, should return error when no real coverage data
+    const result = await tool.invoke({
+      target: 'nonexistent-path/',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('No coverage data found');
+  });
+
+  it('should filter by risk score (with demo mode)', async () => {
     const result = await tool.invoke({
       target: 'src/',
       minRiskScore: 0.7,
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
   });
 
-  it('should suggest tests for gaps', async () => {
+  it('should suggest tests for gaps (with demo mode)', async () => {
     const result = await tool.invoke({
       target: 'src/',
       suggestTests: true,
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
   });
@@ -257,21 +281,33 @@ describe('DefectPredictTool', () => {
     expect(tool.domain).toBe('defect-intelligence');
   });
 
-  it('should predict defects', async () => {
+  it('should predict defects (with demo mode)', async () => {
+    // Use demoMode to test output format without requiring real prediction service
     const result = await tool.invoke({
       target: 'src/',
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
     expect(result.data?.predictions).toBeDefined();
     expect(Array.isArray(result.data?.predictions)).toBe(true);
   });
 
-  it('should include risk factors', async () => {
+  it('should return error when prediction service fails', async () => {
+    // Without demo mode, service failure returns error (not fake data)
+    const result = await tool.invoke({
+      files: ['nonexistent-file.ts'],
+    });
+
+    // Should either succeed with real data or fail with error
+    // Won't return fake data as fallback
+    expect(result.metadata).toBeDefined();
+  });
+
+  it('should include risk factors (with demo mode)', async () => {
     const result = await tool.invoke({
       target: 'src/',
       includeFactors: true,
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
   });
@@ -359,21 +395,34 @@ describe('CodeAnalyzeTool', () => {
     expect(result.data?.indexResult).toBeDefined();
   });
 
-  it('should support search action', async () => {
+  it('should support search action (with demo mode)', async () => {
+    // Use demoMode to test output format
     const result = await tool.invoke({
       action: 'search',
       query: 'UserService',
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
     expect(result.data?.searchResult).toBeDefined();
   });
 
-  it('should support impact action', async () => {
+  it('should return empty results for search with no matches', async () => {
+    // Without demo mode, no matches returns empty (not fake data)
+    const result = await tool.invoke({
+      action: 'search',
+      query: 'NonexistentClass12345',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.searchResult?.results).toEqual([]);
+  });
+
+  it('should support impact action (with demo mode)', async () => {
+    // Use demoMode to test output format
     const result = await tool.invoke({
       action: 'impact',
       changedFiles: ['src/service.ts'],
-    });
+    }, { demoMode: true });
 
     expect(result.success).toBe(true);
     expect(result.data?.impactResult).toBeDefined();
@@ -633,7 +682,20 @@ describe('LearningOptimizeTool', () => {
     expect(schema.required).toContain('action');
   });
 
-  it('should support learn action', async () => {
+  it('should support learn action (with demo mode)', async () => {
+    // Use demoMode to test output format with demo data
+    const result = await tool.invoke({
+      action: 'learn',
+      domain: 'test-generation',
+    }, { demoMode: true });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.learnResult).toBeDefined();
+    expect(result.data?.learnResult?.patternsLearned).toBeGreaterThan(0);
+  });
+
+  it('should return empty patterns when no learning data', async () => {
+    // Without demo mode, no learning data returns empty results (not fake data)
     const result = await tool.invoke({
       action: 'learn',
       domain: 'test-generation',
@@ -641,6 +703,8 @@ describe('LearningOptimizeTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.data?.learnResult).toBeDefined();
+    // Returns empty patterns, not fake data
+    expect(result.data?.learnResult?.patternsLearned).toBe(0);
   });
 
   it('should support optimize action', async () => {

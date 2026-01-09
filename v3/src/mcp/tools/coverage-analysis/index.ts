@@ -248,26 +248,40 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
         return { success: false, error: 'Operation aborted' };
       }
 
-      // Parse real coverage data
+      // Check if demo mode is EXPLICITLY requested (only for testing/docs)
+      if (this.isDemoMode(context) || dryRun) {
+        this.markAsDemoData(context, 'Demo mode explicitly requested');
+        return this.getDemoResult(target, thresholds, shouldIncludeRisk, context);
+      }
+
+      // Parse real coverage data - NO FALLBACKS
       let parsedReport: ParsedCoverageReport | null = null;
 
-      if (!dryRun) {
-        if (coverageFile) {
-          try {
-            parsedReport = await parseCoverage(coverageFile, target);
-          } catch (parseError) {
-            // Fall through to sample data
-          }
-        } else {
-          // Try to find coverage in target directory
-          parsedReport = await findAndParseCoverage(target);
+      if (coverageFile) {
+        try {
+          parsedReport = await parseCoverage(coverageFile, target);
+        } catch (parseError) {
+          // Return error - don't silently fall back to fake data
+          return {
+            success: false,
+            error: `Failed to parse coverage file '${coverageFile}': ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+          };
         }
+      } else {
+        // Try to find coverage in target directory
+        parsedReport = await findAndParseCoverage(target);
       }
 
-      // If no real data available, return sample data for testing/demos
+      // If no coverage data found, return error with actionable guidance
       if (!parsedReport || parsedReport.files.size === 0) {
-        return this.getSampleResult(target, thresholds, shouldIncludeRisk, context);
+        return {
+          success: false,
+          error: `No coverage data found in '${target}'. Run your test suite with coverage enabled (e.g., 'npm test -- --coverage') and ensure coverage reports are generated (lcov.info, coverage-final.json, etc.)`,
+        };
       }
+
+      // Mark as real data - we have actual coverage
+      this.markAsRealData();
 
       // Convert to domain format
       const domainFiles = convertParsedToDomainFormat(parsedReport);
@@ -375,10 +389,10 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
   }
 
   /**
-   * Returns sample coverage data when no real data is available.
-   * Useful for testing and demos.
+   * Returns demo coverage data when no real data is available.
+   * Only used when demoMode is explicitly requested or as fallback with warning.
    */
-  private getSampleResult(
+  private getDemoResult(
     target: string,
     thresholds: CoverageThresholds,
     includeRisk: boolean,
@@ -491,10 +505,22 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
         parsedReport = await findAndParseCoverage(target);
       }
 
-      // If no real data available, return sample data for testing/demos
-      if (!parsedReport || parsedReport.files.size === 0) {
-        return this.getSampleGapsResult(target, minRisk, limit, context);
+      // Check if demo mode is EXPLICITLY requested (only for testing/docs)
+      if (this.isDemoMode(context)) {
+        this.markAsDemoData(context, 'Demo mode explicitly requested');
+        return this.getDemoGapsResult(target, minRisk, limit, context);
       }
+
+      // If no coverage data found, return error with actionable guidance
+      if (!parsedReport || parsedReport.files.size === 0) {
+        return {
+          success: false,
+          error: `No coverage data found in '${target}'. Run your test suite with coverage enabled to generate coverage reports before detecting gaps.`,
+        };
+      }
+
+      // Mark as real data - we have actual coverage
+      this.markAsRealData();
 
       // Convert to domain format
       const domainFiles = convertParsedToDomainFormat(parsedReport);
@@ -565,10 +591,10 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
   }
 
   /**
-   * Returns sample gap data when no real coverage data is available.
-   * Useful for testing and demos.
+   * Returns demo gap data when no real coverage data is available.
+   * Only used when demoMode is explicitly requested or as fallback with warning.
    */
-  private getSampleGapsResult(
+  private getDemoGapsResult(
     target: string,
     minRisk: number,
     limit: number,

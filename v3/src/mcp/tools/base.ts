@@ -66,7 +66,32 @@ export interface MCPToolContext {
   streaming?: boolean;
   onStream?: StreamCallback;
   abortSignal?: AbortSignal;
+  /** Explicit demo mode - when true, returns sample data without calling real services */
+  demoMode?: boolean;
 }
+
+/**
+ * Data source tracking for audit/transparency
+ */
+export type DataSource = 'real' | 'demo' | 'fallback';
+
+/**
+ * Logger interface for tool operations
+ */
+export interface ToolLogger {
+  info(message: string, data?: Record<string, unknown>): void;
+  warn(message: string, data?: Record<string, unknown>): void;
+  error(message: string, data?: Record<string, unknown>): void;
+}
+
+/**
+ * Default console logger
+ */
+export const defaultToolLogger: ToolLogger = {
+  info: (msg, data) => console.log(`[MCP-TOOL] ${msg}`, data || ''),
+  warn: (msg, data) => console.warn(`[MCP-TOOL] ⚠️ ${msg}`, data || ''),
+  error: (msg, data) => console.error(`[MCP-TOOL] ❌ ${msg}`, data || ''),
+};
 
 // ============================================================================
 // Base MCP Tool Class
@@ -86,6 +111,50 @@ export abstract class MCPToolBase<
    * Tool configuration
    */
   abstract readonly config: MCPToolConfig;
+
+  /**
+   * Logger for tool operations
+   */
+  protected logger: ToolLogger = defaultToolLogger;
+
+  /**
+   * Track data source for current execution
+   */
+  protected currentDataSource: DataSource = 'real';
+
+  /**
+   * Set logger for this tool
+   */
+  setLogger(logger: ToolLogger): void {
+    this.logger = logger;
+  }
+
+  /**
+   * Mark result as coming from demo/sample data
+   * MUST be called when returning sample data for transparency
+   */
+  protected markAsDemoData(context: MCPToolContext, reason: string): void {
+    this.currentDataSource = context.demoMode ? 'demo' : 'fallback';
+    this.logger.warn(`${this.config.name} returning ${this.currentDataSource} data`, {
+      reason,
+      requestId: context.requestId,
+      demoMode: context.demoMode,
+    });
+  }
+
+  /**
+   * Mark result as coming from real service data
+   */
+  protected markAsRealData(): void {
+    this.currentDataSource = 'real';
+  }
+
+  /**
+   * Check if demo mode is explicitly requested
+   */
+  protected isDemoMode(context: MCPToolContext): boolean {
+    return context.demoMode === true;
+  }
 
   /**
    * Execute the tool with parameters
@@ -202,10 +271,15 @@ export abstract class MCPToolBase<
       streaming?: boolean;
       onStream?: StreamCallback;
       abortSignal?: AbortSignal;
+      /** Explicit demo mode - returns sample data without calling real services */
+      demoMode?: boolean;
     } = {}
   ): Promise<ToolResult<TResult>> {
     const startTime = Date.now();
     const requestId = uuidv4();
+
+    // Reset data source tracking for this invocation
+    this.currentDataSource = 'real';
 
     // Validate parameters
     const validation = this.validate(params);
@@ -224,6 +298,7 @@ export abstract class MCPToolBase<
       streaming: options.streaming,
       onStream: options.onStream,
       abortSignal: options.abortSignal,
+      demoMode: options.demoMode,
     };
 
     try {
@@ -260,6 +335,7 @@ export abstract class MCPToolBase<
       requestId,
       domain: this.config.domain,
       toolName: this.config.name,
+      dataSource: this.currentDataSource,
     };
   }
 
