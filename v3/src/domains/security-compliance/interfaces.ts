@@ -127,6 +127,23 @@ export interface ScanSummary {
 }
 
 // ============================================================================
+// Options and Configuration
+// ============================================================================
+
+/**
+ * Security audit configuration options
+ */
+export interface SecurityAuditOptions {
+  readonly scanTypes?: ('sast' | 'dast' | 'dependency' | 'secret')[];
+  readonly ruleSetIds?: string[];
+  readonly targetUrl?: string;
+  readonly depth?: 'quick' | 'standard' | 'deep';
+  readonly excludePatterns?: string[];
+  readonly failOnSeverity?: VulnerabilitySeverity;
+  readonly complianceFrameworks?: string[];
+}
+
+// ============================================================================
 // Service Interfaces
 // ============================================================================
 

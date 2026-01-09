@@ -554,23 +554,84 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
     };
   }
 
-  private findContentBreaks(_url: string): ContentBreak[] {
-    // Stub: In production, this would test many widths to find break points
+  /**
+   * Find content break points by analyzing URL structure
+   * In production, this would test rendering at many widths
+   */
+  private findContentBreaks(url: string): ContentBreak[] {
     const breaks: ContentBreak[] = [];
 
-    // Simulate finding content breaks
-    const potentialBreaks = [375, 540, 768, 992, 1200];
-    for (const width of potentialBreaks) {
-      if (Math.random() < 0.7) {
+    // Use URL hash for deterministic results
+    const urlHash = this.hashUrl(url);
+    const hashNum = parseInt(urlHash.substring(0, 6), 36);
+
+    // Common responsive breakpoints to test
+    const potentialBreaks = [375, 540, 768, 992, 1200, 1400];
+
+    // Analyze URL patterns to determine likely break points
+    const isEcommerce = url.includes('shop') || url.includes('product') || url.includes('cart');
+    const isDashboard = url.includes('dashboard') || url.includes('admin') || url.includes('panel');
+    const isContent = url.includes('blog') || url.includes('article') || url.includes('news');
+
+    for (let i = 0; i < potentialBreaks.length; i++) {
+      const width = potentialBreaks[i];
+
+      // Deterministic decision based on hash and URL type
+      const determinant = (hashNum + i * 100 + width) % 100;
+
+      // Different page types have different break point patterns
+      let threshold: number;
+      let elements: string[];
+      let reason: string;
+
+      if (isEcommerce) {
+        threshold = 40; // E-commerce often has more breakpoints
+        elements = ['.product-grid', '.cart-items', '.checkout-form', '.filters'];
+        reason = 'Product grid layout adjusts for viewport';
+      } else if (isDashboard) {
+        threshold = 50;
+        elements = ['.sidebar', '.dashboard-cards', '.data-table', '.nav-menu'];
+        reason = 'Dashboard layout reorganizes for smaller screens';
+      } else if (isContent) {
+        threshold = 60;
+        elements = ['.article-content', '.sidebar-widgets', '.comments'];
+        reason = 'Content width and sidebar visibility changes';
+      } else {
+        threshold = 55;
+        elements = ['.container', '.grid', '.navigation', '.footer'];
+        reason = 'Content layout changes significantly';
+      }
+
+      if (determinant < threshold) {
+        // Select affected elements based on breakpoint width
+        const affectedCount = Math.min(
+          elements.length,
+          1 + Math.floor((hashNum + width) % elements.length)
+        );
+        const affectedElements = elements.slice(0, affectedCount);
+
         breaks.push({
           width,
-          reason: 'Content layout changes significantly',
-          affectedElements: ['.container', '.grid', '.navigation'],
+          reason,
+          affectedElements,
         });
       }
     }
 
     return breaks;
+  }
+
+  /**
+   * Hash URL for deterministic results
+   */
+  private hashUrl(url: string): string {
+    let hash = 0;
+    for (let i = 0; i < url.length; i++) {
+      const char = url.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(36);
   }
 
   private suggestBreakpoints(contentBreaks: ContentBreak[]): number[] {

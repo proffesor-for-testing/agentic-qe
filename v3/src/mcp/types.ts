@@ -72,6 +72,7 @@ export interface ToolResultMetadata {
   requestId: string;
   domain?: DomainName;
   taskId?: string;
+  toolName?: string;
 }
 
 // ============================================================================

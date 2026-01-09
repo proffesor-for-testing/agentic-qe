@@ -469,7 +469,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
 
   private async executeProbe(probe: SteadyStateProbe): Promise<boolean> {
     try {
-      // Stub: In production, this would actually execute the probe
+      // Execute the appropriate probe type based on configuration
       switch (probe.type) {
         case 'http':
           return await this.executeHttpProbe(probe);

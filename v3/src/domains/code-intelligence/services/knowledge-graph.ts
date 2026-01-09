@@ -532,38 +532,123 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     query: string,
     limit: number
   ): Promise<Result<KGQueryResult, Error>> {
-    // Stub: In production, implement a Cypher query parser and executor
-    // For now, support simple patterns
+    // Cypher query parser supporting:
+    // - MATCH (n:Label) - node patterns
+    // - MATCH (n:Label)-[r:REL_TYPE]->(m:Label) - relationship patterns
+    // - WHERE n.property = 'value' - property filters
+    // - RETURN n, r, m - result selection (implicit: all matched)
 
     const nodes: KGNode[] = [];
     const edges: KGEdge[] = [];
+    const nodeAliases: Map<string, KGNode[]> = new Map();
 
-    // Parse simple MATCH patterns
-    const matchPattern = /MATCH\s+\((\w+):(\w+)\)/i.exec(query);
-    if (matchPattern) {
-      const label = matchPattern[2];
+    // Parse relationship pattern: MATCH (a:Label1)-[r:RelType]->(b:Label2)
+    const relationshipPattern =
+      /MATCH\s+\((\w+):(\w+)\)\s*-\[(\w+)?:?(\w+)?\]\s*->\s*\((\w+):(\w+)\)/i.exec(query);
 
-      // Search for nodes with matching label
-      const pattern = `${this.config.namespace}:node:*`;
-      const keys = await this.memory.search(pattern, limit * 2);
+    if (relationshipPattern) {
+      const [, sourceAlias, sourceLabel, , relType, targetAlias, targetLabel] =
+        relationshipPattern;
 
-      for (const key of keys.slice(0, limit)) {
-        const node = await this.memory.get<KGNode>(key);
-        if (node && node.label === label) {
-          nodes.push(node);
+      // Find source nodes
+      const sourceNodes = await this.findNodesByLabel(sourceLabel, limit * 2);
+      nodeAliases.set(sourceAlias, sourceNodes);
+
+      // For each source node, find relationships and target nodes
+      for (const sourceNode of sourceNodes.slice(0, limit)) {
+        const nodeEdges = await this.getEdges(sourceNode.id, 'outgoing');
+
+        for (const edge of nodeEdges) {
+          // Filter by relationship type if specified
+          if (relType && edge.type !== relType) continue;
+
+          const targetNode = await this.getNode(edge.target);
+          if (targetNode && targetNode.label === targetLabel) {
+            if (!nodes.some((n) => n.id === sourceNode.id)) {
+              nodes.push(sourceNode);
+            }
+            if (!nodes.some((n) => n.id === targetNode.id)) {
+              nodes.push(targetNode);
+            }
+            // Use source+target+type as unique edge identifier
+            if (!edges.some((e) => e.source === edge.source && e.target === edge.target && e.type === edge.type)) {
+              edges.push(edge);
+            }
+          }
         }
+      }
+
+      if (targetAlias) {
+        nodeAliases.set(
+          targetAlias,
+          nodes.filter((n) => n.label === targetLabel)
+        );
+      }
+    } else {
+      // Parse simple node pattern: MATCH (n:Label)
+      const matchPattern = /MATCH\s+\((\w+):(\w+)\)/i.exec(query);
+      if (matchPattern) {
+        const [, alias, label] = matchPattern;
+        const matchedNodes = await this.findNodesByLabel(label, limit);
+        nodeAliases.set(alias, matchedNodes);
+        nodes.push(...matchedNodes);
       }
     }
 
+    // Parse WHERE clause for property filtering
+    const wherePattern = /WHERE\s+(\w+)\.(\w+)\s*=\s*['"]?([^'")\s]+)['"]?/i.exec(query);
+    if (wherePattern) {
+      const [, alias, property, value] = wherePattern;
+      const aliasNodes = nodeAliases.get(alias) || nodes;
+
+      // Filter nodes by property value
+      const filteredNodes = aliasNodes.filter((node) => {
+        const propValue = node.properties[property];
+        return propValue !== undefined && String(propValue) === value;
+      });
+
+      // Replace nodes with filtered set
+      nodes.length = 0;
+      nodes.push(...filteredNodes.slice(0, limit));
+
+      // Also filter edges to only include those connecting filtered nodes
+      const nodeIds = new Set(nodes.map((n) => n.id));
+      const filteredEdges = edges.filter(
+        (e) => nodeIds.has(e.source) && nodeIds.has(e.target)
+      );
+      edges.length = 0;
+      edges.push(...filteredEdges);
+    }
+
     return ok({
-      nodes,
+      nodes: nodes.slice(0, limit),
       edges,
       metadata: {
         query,
         type: 'cypher',
         resultCount: nodes.length,
+        edgeCount: edges.length,
       },
     });
+  }
+
+  /**
+   * Find nodes by their label
+   */
+  private async findNodesByLabel(label: string, limit: number): Promise<KGNode[]> {
+    const nodes: KGNode[] = [];
+    const pattern = `${this.config.namespace}:node:*`;
+    const keys = await this.memory.search(pattern, limit * 2);
+
+    for (const key of keys) {
+      const node = await this.memory.get<KGNode>(key);
+      if (node && node.label === label) {
+        nodes.push(node);
+        if (nodes.length >= limit) break;
+      }
+    }
+
+    return nodes;
   }
 
   private async executeNaturalLanguageQuery(

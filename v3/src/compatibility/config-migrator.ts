@@ -266,7 +266,10 @@ export class ConfigMigrator {
    */
   mergeWithDefaults(partial: Partial<V3Config>): V3Config {
     const defaults = this.generateDefault();
-    return this.deepMerge(defaults, partial) as V3Config;
+    return this.deepMerge(
+      defaults as unknown as Record<string, unknown>,
+      partial as unknown as Record<string, unknown>
+    ) as unknown as V3Config;
   }
 
   /**

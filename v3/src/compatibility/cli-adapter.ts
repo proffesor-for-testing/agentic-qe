@@ -116,10 +116,10 @@ const CLI_MAPPINGS: CLICommandMapping[] = [
  */
 export class CLIAdapter {
   private mappings: Map<string, CLICommandMapping>;
-  private agentMapper: AgentMapper;
+  private readonly _agentMapper: AgentMapper;
 
   constructor(agentMapper: AgentMapper) {
-    this.agentMapper = agentMapper;
+    this._agentMapper = agentMapper;
     this.mappings = new Map();
 
     for (const mapping of CLI_MAPPINGS) {
@@ -127,6 +127,13 @@ export class CLIAdapter {
       const normalized = this.normalizeCommand(mapping.v2Command);
       this.mappings.set(normalized, mapping);
     }
+  }
+
+  /**
+   * Get the agent mapper for agent-related resolution
+   */
+  get agentMapper(): AgentMapper {
+    return this._agentMapper;
   }
 
   /**

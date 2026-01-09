@@ -655,10 +655,79 @@ export class DefectPredictorService implements IDefectPredictorService {
   }
 
   private async analyzeDependencies(file: string): Promise<string[]> {
-    // Stub: In production, would parse imports and build dependency graph
+    // Check cache first
     const depsKey = `code-intelligence:dependencies:${file}`;
-    const deps = await this.memory.get<string[]>(depsKey);
-    return deps || [];
+    const cachedDeps = await this.memory.get<string[]>(depsKey);
+    if (cachedDeps && cachedDeps.length > 0) {
+      return cachedDeps;
+    }
+
+    // Parse the file to extract imports
+    const dependencies: string[] = [];
+    try {
+      const fileResult = await this.fileReader.readFile(file);
+      if (!fileResult.success) {
+        return [];
+      }
+
+      const fileName = file.split('/').pop() || file;
+      const ast = this.tsParser.parseFile(fileName, fileResult.value);
+      const imports = this.tsParser.extractImports(ast);
+
+      for (const importInfo of imports) {
+        // Resolve relative imports to actual file paths
+        if (importInfo.module.startsWith('.')) {
+          const resolvedPath = this.resolveRelativeImport(file, importInfo.module);
+          dependencies.push(resolvedPath);
+        } else if (!importInfo.module.startsWith('node:')) {
+          // External package dependencies
+          dependencies.push(importInfo.module);
+        }
+      }
+
+      // Cache the dependencies for future lookups
+      if (dependencies.length > 0) {
+        await this.memory.set(depsKey, dependencies, {
+          namespace: 'code-intelligence',
+          ttl: 3600, // Cache for 1 hour
+        });
+      }
+    } catch (error) {
+      // Log but don't fail - return empty array
+      console.error(`Failed to analyze dependencies for ${file}:`, error);
+    }
+
+    return dependencies;
+  }
+
+  /**
+   * Resolve a relative import path to an absolute file path
+   */
+  private resolveRelativeImport(fromFile: string, importPath: string): string {
+    const fromDir = fromFile.substring(0, fromFile.lastIndexOf('/'));
+    const segments = fromDir.split('/');
+
+    // Process the relative path
+    const importSegments = importPath.split('/');
+    for (const segment of importSegments) {
+      if (segment === '.') {
+        continue;
+      } else if (segment === '..') {
+        segments.pop();
+      } else {
+        segments.push(segment);
+      }
+    }
+
+    let resolved = segments.join('/');
+
+    // Add file extension if not present
+    if (!resolved.endsWith('.ts') && !resolved.endsWith('.tsx') && !resolved.endsWith('.js')) {
+      // Check common extensions - prefer .ts
+      resolved = resolved + '.ts';
+    }
+
+    return resolved;
   }
 
   private async getBaselineRisk(baseline: string): Promise<number> {
