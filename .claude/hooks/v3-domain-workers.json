@@ -1,0 +1,121 @@
+{
+  "description": "V3 DDD Domain-Specific Workers for AQE Self-Learning",
+  "version": "3.0.0",
+  "domains": {
+    "test-generation": {
+      "id": "test-generation",
+      "displayName": "Test Generation",
+      "priority": "high",
+      "agents": ["qe-test-generator", "qe-test-architect", "v3-qe-test-architect"],
+      "triggers": ["test", "spec", "tdd", "bdd", "unit", "integration"],
+      "hooks": ["qe:pre-test-generation", "qe:post-test-generation"],
+      "learningEnabled": true
+    },
+    "test-execution": {
+      "id": "test-execution",
+      "displayName": "Test Execution",
+      "priority": "high",
+      "agents": ["qe-test-executor", "qe-flaky-hunter", "v3-qe-parallel-executor"],
+      "triggers": ["run", "execute", "parallel", "retry", "flaky"],
+      "hooks": ["qe:test-execution-result"],
+      "learningEnabled": true
+    },
+    "coverage-analysis": {
+      "id": "coverage-analysis",
+      "displayName": "Coverage Analysis",
+      "priority": "high",
+      "agents": ["qe-coverage-analyzer", "v3-qe-coverage-specialist", "qe-coverage-gap-analyzer"],
+      "triggers": ["coverage", "gap", "uncovered", "branch", "line"],
+      "hooks": ["qe:pre-coverage-analysis", "qe:post-coverage-analysis", "qe:coverage-gap-identified"],
+      "learningEnabled": true
+    },
+    "quality-assessment": {
+      "id": "quality-assessment",
+      "displayName": "Quality Assessment",
+      "priority": "critical",
+      "agents": ["qe-quality-gate", "qe-quality-analyzer", "v3-qe-quality-gate"],
+      "triggers": ["quality", "gate", "deploy", "release", "score"],
+      "hooks": ["qe:quality-score", "qe:risk-assessment"],
+      "learningEnabled": true
+    },
+    "defect-intelligence": {
+      "id": "defect-intelligence",
+      "displayName": "Defect Intelligence",
+      "priority": "high",
+      "agents": ["v3-qe-defect-predictor", "v3-qe-root-cause-analyzer", "qe-flaky-investigator"],
+      "triggers": ["bug", "defect", "predict", "root-cause", "flaky"],
+      "hooks": ["qe:pattern-learned", "qe:pattern-applied"],
+      "learningEnabled": true
+    },
+    "learning-optimization": {
+      "id": "learning-optimization",
+      "displayName": "Learning Optimization",
+      "priority": "medium",
+      "agents": ["v3-qe-learning-coordinator", "v3-qe-pattern-learner", "sona-learning-optimizer"],
+      "triggers": ["learn", "train", "pattern", "optimize", "neural"],
+      "hooks": ["qe:pattern-learned", "qe:pattern-applied", "qe:pattern-promoted"],
+      "learningEnabled": true
+    },
+    "requirements-validation": {
+      "id": "requirements-validation",
+      "displayName": "Requirements Validation",
+      "priority": "medium",
+      "agents": ["qe-requirements-validator", "v3-qe-tdd-specialist"],
+      "triggers": ["requirements", "bdd", "gherkin", "feature", "scenario"],
+      "hooks": ["qe:pre-test-generation"],
+      "learningEnabled": true
+    },
+    "code-intelligence": {
+      "id": "code-intelligence",
+      "displayName": "Code Intelligence",
+      "priority": "medium",
+      "agents": ["qe-code-intelligence", "qe-code-complexity", "code-analyzer"],
+      "triggers": ["code", "complexity", "analyze", "semantic", "graph"],
+      "hooks": ["qe:agent-routing", "qe:agent-completion"],
+      "learningEnabled": true
+    },
+    "security-compliance": {
+      "id": "security-compliance",
+      "displayName": "Security & Compliance",
+      "priority": "critical",
+      "agents": ["qe-security-auditor", "qe-security-scanner", "security-architect"],
+      "triggers": ["security", "audit", "sast", "dast", "owasp", "compliance"],
+      "hooks": ["qe:risk-assessment"],
+      "learningEnabled": true
+    },
+    "contract-testing": {
+      "id": "contract-testing",
+      "displayName": "Contract Testing",
+      "priority": "high",
+      "agents": ["qe-api-contract-validator", "v3-qe-integration-tester"],
+      "triggers": ["contract", "api", "pact", "openapi", "graphql", "schema"],
+      "hooks": ["qe:pre-test-generation", "qe:post-test-generation"],
+      "learningEnabled": true
+    },
+    "visual-accessibility": {
+      "id": "visual-accessibility",
+      "displayName": "Visual & Accessibility",
+      "priority": "medium",
+      "agents": ["qe-visual-tester", "qe-a11y-ally"],
+      "triggers": ["visual", "screenshot", "a11y", "wcag", "accessibility", "percy"],
+      "hooks": ["qe:pre-test-generation", "qe:quality-score"],
+      "learningEnabled": true
+    },
+    "chaos-resilience": {
+      "id": "chaos-resilience",
+      "displayName": "Chaos & Resilience",
+      "priority": "medium",
+      "agents": ["qe-chaos-engineer", "qe-performance-tester", "qe-performance-validator"],
+      "triggers": ["chaos", "resilience", "load", "stress", "performance", "fault"],
+      "hooks": ["qe:test-execution-result", "qe:quality-score"],
+      "learningEnabled": true
+    }
+  },
+  "globalSettings": {
+    "enableCrossDomainLearning": true,
+    "patternPromotionThreshold": 3,
+    "successRateThreshold": 0.7,
+    "maxPatternsPerDomain": 1000,
+    "cleanupIntervalHours": 24
+  }
+}

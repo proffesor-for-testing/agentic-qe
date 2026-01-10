@@ -16,6 +16,13 @@
     "AQE_V3_TOPOLOGY": "hierarchical",
     "AQE_V3_SUBLINEAR_ENABLED": "true",
     "AQE_V3_HNSW_ENABLED": "true",
+    "AQE_V3_HOOKS_ENABLED": "true",
+    "AQE_V3_HOOK_BRIDGE": ".claude/hooks/v3-qe-bridge.sh",
+    "AQE_V3_DOMAIN_WORKERS": ".claude/hooks/v3-domain-workers.json",
+    "AQE_V3_AISP_ENABLED": "true",
+    "AQE_V3_REASONING_BANK": ".agentic-qe/qe-patterns.db",
+    "AQE_V3_PATTERN_PROMOTION_THRESHOLD": "3",
+    "AQE_V3_SUCCESS_RATE_THRESHOLD": "0.7",
     "RUVECTOR_INTELLIGENCE_ENABLED": "true",
     "RUVECTOR_LEARNING_RATE": "0.1",
     "RUVECTOR_MEMORY_BACKEND": "rvlite",
@@ -107,6 +114,11 @@
             "type": "command",
             "timeout": 3000,
             "command": "[ -n \"$TOOL_INPUT_file_path\" ] && npx @claude-flow/cli@latest hooks post-edit --file \"$TOOL_INPUT_file_path\" --success \"${TOOL_SUCCESS:-true}\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 5000,
+            "command": "[ -n \"$TOOL_INPUT_file_path\" ] && [ \"${AQE_V3_HOOKS_ENABLED:-true}\" = \"true\" ] && .claude/hooks/v3-qe-bridge.sh file-edit \"$TOOL_INPUT_file_path\" \"${TOOL_SUCCESS:-true}\" 2>/dev/null || true"
           }
         ]
       },
@@ -117,6 +129,11 @@
             "type": "command",
             "timeout": 3000,
             "command": "[ -n \"$TOOL_INPUT_command\" ] && npx @claude-flow/cli@latest hooks post-command --command \"$TOOL_INPUT_command\" --success \"${TOOL_SUCCESS:-true}\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 5000,
+            "command": "[ -n \"$TOOL_INPUT_command\" ] && [ \"${AQE_V3_HOOKS_ENABLED:-true}\" = \"true\" ] && .claude/hooks/v3-qe-bridge.sh command-exec \"$TOOL_INPUT_command\" \"${TOOL_SUCCESS:-true}\" 2>/dev/null || true"
           }
         ]
       },
@@ -127,6 +144,11 @@
             "type": "command",
             "timeout": 3000,
             "command": "[ -n \"$TOOL_RESULT_agent_id\" ] && npx @claude-flow/cli@latest hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success \"${TOOL_SUCCESS:-true}\" 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "timeout": 5000,
+            "command": "[ -n \"$TOOL_RESULT_agent_id\" ] && [ \"${AQE_V3_HOOKS_ENABLED:-true}\" = \"true\" ] && .claude/hooks/v3-qe-bridge.sh task-complete \"$TOOL_RESULT_agent_id\" \"${TOOL_INPUT_subagent_type:-unknown}\" \"${TOOL_SUCCESS:-true}\" 2>/dev/null || true"
           }
         ]
       }
@@ -290,6 +312,97 @@
         "priority": "medium",
         "description": "Run QE self-learning cycle",
         "agents": ["qe-test-generator", "qe-coverage-analyzer"]
+      },
+      "v3-test-generation": {
+        "priority": "high",
+        "description": "V3 test generation domain learning",
+        "agents": ["qe-test-generator", "qe-test-architect", "v3-qe-test-architect"],
+        "domain": "test-generation",
+        "hooks": ["qe:pre-test-generation", "qe:post-test-generation"]
+      },
+      "v3-test-execution": {
+        "priority": "high",
+        "description": "V3 test execution domain learning",
+        "agents": ["qe-test-executor", "qe-flaky-hunter", "v3-qe-parallel-executor"],
+        "domain": "test-execution",
+        "hooks": ["qe:test-execution-result"]
+      },
+      "v3-coverage-analysis": {
+        "priority": "high",
+        "description": "V3 coverage analysis domain learning",
+        "agents": ["qe-coverage-analyzer", "v3-qe-coverage-specialist", "qe-coverage-gap-analyzer"],
+        "domain": "coverage-analysis",
+        "hooks": ["qe:pre-coverage-analysis", "qe:post-coverage-analysis", "qe:coverage-gap-identified"]
+      },
+      "v3-quality-assessment": {
+        "priority": "critical",
+        "description": "V3 quality assessment domain learning",
+        "agents": ["qe-quality-gate", "qe-quality-analyzer", "v3-qe-quality-gate"],
+        "domain": "quality-assessment",
+        "hooks": ["qe:quality-score", "qe:risk-assessment"]
+      },
+      "v3-defect-intelligence": {
+        "priority": "high",
+        "description": "V3 defect intelligence domain learning",
+        "agents": ["v3-qe-defect-predictor", "v3-qe-root-cause-analyzer", "qe-flaky-investigator"],
+        "domain": "defect-intelligence",
+        "hooks": ["qe:pattern-learned", "qe:pattern-applied"]
+      },
+      "v3-learning-optimization": {
+        "priority": "medium",
+        "description": "V3 learning optimization domain",
+        "agents": ["v3-qe-learning-coordinator", "v3-qe-pattern-learner", "sona-learning-optimizer"],
+        "domain": "learning-optimization",
+        "hooks": ["qe:pattern-learned", "qe:pattern-applied", "qe:pattern-promoted"]
+      },
+      "v3-requirements-validation": {
+        "priority": "medium",
+        "description": "V3 requirements validation domain learning",
+        "agents": ["qe-requirements-validator", "v3-qe-tdd-specialist"],
+        "domain": "requirements-validation",
+        "hooks": ["qe:pre-test-generation"]
+      },
+      "v3-code-intelligence": {
+        "priority": "medium",
+        "description": "V3 code intelligence domain learning",
+        "agents": ["qe-code-intelligence", "qe-code-complexity", "code-analyzer"],
+        "domain": "code-intelligence",
+        "hooks": ["qe:agent-routing", "qe:agent-completion"]
+      },
+      "v3-security-compliance": {
+        "priority": "critical",
+        "description": "V3 security compliance domain learning",
+        "agents": ["qe-security-auditor", "qe-security-scanner", "security-architect"],
+        "domain": "security-compliance",
+        "hooks": ["qe:risk-assessment"]
+      },
+      "v3-contract-testing": {
+        "priority": "high",
+        "description": "V3 contract testing domain learning",
+        "agents": ["qe-api-contract-validator", "v3-qe-integration-tester"],
+        "domain": "contract-testing",
+        "hooks": ["qe:pre-test-generation", "qe:post-test-generation"]
+      },
+      "v3-visual-accessibility": {
+        "priority": "medium",
+        "description": "V3 visual accessibility domain learning",
+        "agents": ["qe-visual-tester", "qe-a11y-ally"],
+        "domain": "visual-accessibility",
+        "hooks": ["qe:pre-test-generation", "qe:quality-score"]
+      },
+      "v3-chaos-resilience": {
+        "priority": "medium",
+        "description": "V3 chaos resilience domain learning",
+        "agents": ["qe-chaos-engineer", "qe-performance-tester", "qe-performance-validator"],
+        "domain": "chaos-resilience",
+        "hooks": ["qe:test-execution-result", "qe:quality-score"]
+      },
+      "v3-aisp-validate": {
+        "priority": "low",
+        "description": "AISP specification validation",
+        "agents": ["v3-qe-test-architect"],
+        "domain": "learning-optimization",
+        "hooks": ["aisp:validate", "aisp:generate"]
       }
     }
   },
@@ -448,15 +561,72 @@
       "learningImprovement": "15%/sprint"
     },
     "adrs": {
-      "total": 20,
-      "path": "v3/implementation/adrs/v3-adrs.md"
+      "total": 29,
+      "path": "v3/implementation/adrs/v3-adrs.md",
+      "aisp": ["ADR-026", "ADR-027", "ADR-028", "ADR-029"]
     },
     "stats": {
       "sourceFiles": 166,
       "testFiles": 46,
       "testsPassing": 1171,
       "stubsRemaining": 18,
-      "lastUpdated": "2026-01-09"
+      "lastUpdated": "2026-01-10"
+    }
+  },
+  "v3Learning": {
+    "enabled": true,
+    "reasoningBank": {
+      "dbPath": ".agentic-qe/qe-patterns.db",
+      "enableHNSW": true,
+      "embeddingModel": "Xenova/all-MiniLM-L6-v2",
+      "hnswConfig": {
+        "M": 16,
+        "efConstruction": 200,
+        "efSearch": 100
+      }
+    },
+    "patternPromotion": {
+      "threshold": 3,
+      "successRateMin": 0.7,
+      "confidenceMin": 0.6
+    },
+    "hooks": {
+      "bridgeScript": ".claude/hooks/v3-qe-bridge.sh",
+      "domainWorkers": ".claude/hooks/v3-domain-workers.json",
+      "events": [
+        "qe:pre-test-generation",
+        "qe:post-test-generation",
+        "qe:test-execution-result",
+        "qe:pre-coverage-analysis",
+        "qe:post-coverage-analysis",
+        "qe:coverage-gap-identified",
+        "qe:agent-routing",
+        "qe:agent-completion",
+        "qe:quality-score",
+        "qe:risk-assessment",
+        "qe:pattern-learned",
+        "qe:pattern-applied",
+        "qe:pattern-promoted"
+      ]
+    },
+    "aisp": {
+      "enabled": true,
+      "version": "5.1",
+      "parserPath": "v3/src/aisp",
+      "validationEnabled": true,
+      "qualityTiers": ["◊⁺⁺", "◊⁺", "◊", "◊⁻", "⊘"]
+    },
+    "crossDomain": {
+      "enabled": true,
+      "transferLearning": true,
+      "patternSharing": true,
+      "metricsAggregation": true
+    },
+    "feedback": {
+      "outcomeTracking": true,
+      "coverageLearning": true,
+      "patternPromotion": true,
+      "routingOptimization": true
     }
   }
 }
