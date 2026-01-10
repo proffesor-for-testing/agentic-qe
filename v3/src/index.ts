@@ -35,6 +35,9 @@ export * from './routing';
 // Optimization Module - Self-Optimization Engine (ADR-024)
 export * from './optimization';
 
+// Init Module - Enhanced Init with Self-Configuration (ADR-025)
+export * from './init';
+
 // Version info
 export const VERSION = '3.0.0-alpha';
 export const ARCHITECTURE = 'DDD with 12 Bounded Contexts';
