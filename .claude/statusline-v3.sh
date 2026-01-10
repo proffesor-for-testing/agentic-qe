@@ -41,6 +41,7 @@ DOMAINS_TOTAL=12
 V3_QE_TARGET=80   # V3-QE specific agents target
 COVERAGE_TARGET=90
 LEARNING_TARGET=15  # % improvement per sprint
+QE_HOOKS_TOTAL=13  # Total QE hook events
 
 # Default values
 DOMAINS_COMPLETED=0
@@ -49,6 +50,11 @@ COVERAGE_CURRENT=0
 LEARNING_PROGRESS=0
 DDD_PROGRESS=0
 PATTERNS_COUNT=0
+LEARNING_EXP=0
+LEARNING_MODE="off"
+TRANSFER_COUNT=0
+UNIT_TESTS=0
+INT_TESTS=0
 
 # Get current git branch
 GIT_BRANCH=""
@@ -84,14 +90,14 @@ for domain in $V3_DOMAINS; do
   fi
 done
 
-# Get v3 test count (more relevant than coverage for v3)
-V3_TEST_COUNT=0
-V3_TEST_FILE="${PROJECT_DIR}/v3/package.json"
+# Get v3 test breakdown by type (more actionable than total count)
+UNIT_TESTS=0
+INT_TESTS=0
 if [ -d "${PROJECT_DIR}/v3/tests" ]; then
-  # Count test files
-  V3_TEST_FILES=$(find "${PROJECT_DIR}/v3/tests" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
-  # Estimate test count (avg 25 tests per file based on our 1171/46 ratio)
-  V3_TEST_COUNT=$((V3_TEST_FILES * 25))
+  # Count unit test files
+  UNIT_TESTS=$(find "${PROJECT_DIR}/v3/tests/unit" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
+  # Count integration test files
+  INT_TESTS=$(find "${PROJECT_DIR}/v3/tests/integration" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
 fi
 
 # Get REAL test coverage from coverage reports (dynamic, not hardcoded)
@@ -105,12 +111,26 @@ else
   COVERAGE_CURRENT=-1
 fi
 
-# Get pattern count from memory database
+# Get pattern count and learning metrics from memory database
 if [ -f "$MEMORY_DB" ] && command -v sqlite3 &>/dev/null; then
   PATTERNS_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM patterns" 2>/dev/null || echo "0")
+  LEARNING_EXP=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM learning_experiences" 2>/dev/null || echo "0")
+  TRANSFER_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM transfer_registry" 2>/dev/null || echo "0")
+  # Get success rate from patterns if available
+  PATTERN_SUCCESS=$(sqlite3 "$MEMORY_DB" "SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0" 2>/dev/null || echo "0")
 fi
 
-# Get learning metrics
+# Get learning mode from config
+LEARNING_CONFIG="${PROJECT_DIR}/.agentic-qe/learning-config.json"
+if [ -f "$LEARNING_CONFIG" ]; then
+  LEARNING_MODE=$(jq -r '.scheduler.mode // "off"' "$LEARNING_CONFIG" 2>/dev/null || echo "off")
+  LEARNING_ENABLED=$(jq -r '.enabled // false' "$LEARNING_CONFIG" 2>/dev/null || echo "false")
+  if [ "$LEARNING_ENABLED" != "true" ]; then
+    LEARNING_MODE="off"
+  fi
+fi
+
+# Get learning metrics (legacy)
 if [ -f "$LEARNING_METRICS" ]; then
   LEARNING_PROGRESS=$(jq -r '.improvement // 0' "$LEARNING_METRICS" 2>/dev/null || echo "0")
 fi
@@ -233,11 +253,10 @@ if [ "$DOMAINS_IN_PROGRESS" -gt 0 ]; then
   OUTPUT="${OUTPUT}+${YELLOW}${DOMAINS_IN_PROGRESS}${RESET}"
 fi
 OUTPUT="${OUTPUT}/${BRIGHT_WHITE}${DOMAINS_TOTAL}${RESET}"
-# Show v3 test count (more useful than coverage for v3)
-if [ "$V3_TEST_COUNT" -gt 0 ]; then
-  OUTPUT="${OUTPUT}    ${BRIGHT_GREEN}✓ ~${V3_TEST_COUNT} tests${RESET}"
-elif [ "$COVERAGE_HIDDEN" = "false" ]; then
-  OUTPUT="${OUTPUT}    ${COVERAGE_COLOR}📊 Coverage ${COVERAGE_DISPLAY}%${RESET}"
+# Show test type breakdown (more actionable than total count)
+if [ "$UNIT_TESTS" -gt 0 ] || [ "$INT_TESTS" -gt 0 ]; then
+  OUTPUT="${OUTPUT}    ${BRIGHT_GREEN}📊 Unit${RESET} ${WHITE}${UNIT_TESTS}${RESET}"
+  OUTPUT="${OUTPUT} ${DIM}│${RESET} ${BRIGHT_CYAN}Int${RESET} ${WHITE}${INT_TESTS}${RESET}"
 fi
 
 # Line 2: Agent Fleet Status (V3-QE agents only)
@@ -250,51 +269,94 @@ OUTPUT="${OUTPUT}\n${BRIGHT_YELLOW}🤖 V3-QE Fleet${RESET}  ${ACTIVITY_INDICATO
 OUTPUT="${OUTPUT}    ${LEARNING_COLOR}🧠 Patterns ${PATTERNS_DISPLAY}${RESET}"
 OUTPUT="${OUTPUT}    ${CONTEXT_COLOR}📂 Context ${CONTEXT_DISPLAY}%${RESET}"
 
-# Line 3: Architecture Status (dynamically check real implementation)
-# ADRs: count sections in the ADR file (## ADR-XXX)
-ADR_FILE="${PROJECT_DIR}/v3/implementation/adrs/v3-adrs.md"
-if [ -f "$ADR_FILE" ]; then
-  ADR_COUNT=$(grep -c "^## ADR-" "$ADR_FILE" 2>/dev/null || echo "0")
-else
-  ADR_COUNT=0
+# Line 3: Learning Status
+LEARNING_MODE_COLOR="${DIM}"
+LEARNING_MODE_INDICATOR="○"
+if [ "$LEARNING_MODE" = "continuous" ]; then
+  LEARNING_MODE_COLOR="${BRIGHT_GREEN}"
+  LEARNING_MODE_INDICATOR="●"
+elif [ "$LEARNING_MODE" = "scheduled" ]; then
+  LEARNING_MODE_COLOR="${YELLOW}"
+  LEARNING_MODE_INDICATOR="◐"
 fi
-if [ "$ADR_COUNT" -ge 10 ]; then
+
+TRANSFER_COLOR="${DIM}"
+TRANSFER_INDICATOR="○"
+if [ "$TRANSFER_COUNT" -gt 10 ]; then
+  TRANSFER_COLOR="${BRIGHT_GREEN}"
+  TRANSFER_INDICATOR="●"
+elif [ "$TRANSFER_COUNT" -gt 0 ]; then
+  TRANSFER_COLOR="${YELLOW}"
+  TRANSFER_INDICATOR="◐"
+fi
+
+EXP_DISPLAY=$(printf "%4d" "$LEARNING_EXP")
+OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🎓 Learning${RESET}     ${CYAN}Exp${RESET} ${WHITE}${EXP_DISPLAY}${RESET}"
+OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Mode${RESET} ${LEARNING_MODE_COLOR}${LEARNING_MODE_INDICATOR}${LEARNING_MODE}${RESET}"
+OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Transfer${RESET} ${TRANSFER_COLOR}${TRANSFER_INDICATOR}${TRANSFER_COUNT}${RESET}"
+
+# Line 4: Architecture Status (dynamically check real implementation)
+# ADRs: count embedded sections + standalone ADR files (deduplicated)
+ADR_DIR="${PROJECT_DIR}/v3/implementation/adrs"
+ADR_FILE="${ADR_DIR}/v3-adrs.md"
+ADR_COUNT=0
+if [ -d "$ADR_DIR" ]; then
+  # Count embedded ADRs in v3-adrs.md
+  EMBEDDED_ADRS=$(grep -c "^## ADR-" "$ADR_FILE" 2>/dev/null || echo "0")
+  # Count standalone ADR files (ADR-0XX-*.md)
+  STANDALONE_ADRS=$(find "$ADR_DIR" -maxdepth 1 -name "ADR-0*.md" 2>/dev/null | wc -l | tr -d ' ')
+  # Total (standalone files are typically newer, not in v3-adrs.md yet)
+  ADR_COUNT=$((EMBEDDED_ADRS + STANDALONE_ADRS))
+fi
+if [ "$ADR_COUNT" -ge 20 ]; then
   ADR_STATUS="${BRIGHT_GREEN}●${ADR_COUNT}${RESET}"
-elif [ "$ADR_COUNT" -ge 1 ]; then
+elif [ "$ADR_COUNT" -ge 10 ]; then
   ADR_STATUS="${YELLOW}◐${ADR_COUNT}${RESET}"
 else
-  ADR_STATUS="${DIM}○${RESET}"
+  ADR_STATUS="${DIM}○${ADR_COUNT}${RESET}"
 fi
 
-# Events: green if 5+, yellow if 1-4, dim if 0
-EVENT_COUNT=$(find "${PROJECT_DIR}/v3/src" -path "*/events*" -name "*.ts" 2>/dev/null | wc -l | tr -d ' ')
-if [ "$EVENT_COUNT" -ge 5 ]; then
-  EVENT_STATUS="${BRIGHT_GREEN}●${RESET}"
-elif [ "$EVENT_COUNT" -ge 1 ]; then
-  EVENT_STATUS="${YELLOW}◐${RESET}"
+# QE Hooks: count hook files in .claude/hooks
+HOOKS_DIR="${PROJECT_DIR}/.claude/hooks"
+HOOKS_COUNT=0
+if [ -d "$HOOKS_DIR" ]; then
+  HOOKS_COUNT=$(find "$HOOKS_DIR" -name "*.sh" -o -name "*.json" 2>/dev/null | wc -l | tr -d ' ')
+fi
+if [ "$HOOKS_COUNT" -ge 2 ]; then
+  HOOKS_STATUS="${BRIGHT_GREEN}●${HOOKS_COUNT}${RESET}"
+elif [ "$HOOKS_COUNT" -ge 1 ]; then
+  HOOKS_STATUS="${YELLOW}◐${HOOKS_COUNT}${RESET}"
 else
-  EVENT_STATUS="${DIM}○${RESET}"
+  HOOKS_STATUS="${DIM}○${RESET}"
 fi
 
-# Plugins: check domain plugins (v3/src/domains/*/plugin.ts)
-PLUGIN_COUNT=$(find "${PROJECT_DIR}/v3/src/domains" -name "plugin.ts" 2>/dev/null | wc -l | tr -d ' ')
-if [ "$PLUGIN_COUNT" -ge 10 ]; then
-  PLUGIN_STATUS="${BRIGHT_GREEN}●${PLUGIN_COUNT}${RESET}"
-elif [ "$PLUGIN_COUNT" -ge 1 ]; then
-  PLUGIN_STATUS="${YELLOW}◐${PLUGIN_COUNT}${RESET}"
+# Domains: count implemented domains
+if [ "$DOMAINS_COMPLETED" -ge 10 ]; then
+  DOMAINS_STATUS="${BRIGHT_GREEN}●${DOMAINS_COMPLETED}${RESET}"
+elif [ "$DOMAINS_COMPLETED" -ge 5 ]; then
+  DOMAINS_STATUS="${YELLOW}◐${DOMAINS_COMPLETED}${RESET}"
 else
-  PLUGIN_STATUS="${DIM}○${RESET}"
+  DOMAINS_STATUS="${DIM}○${DOMAINS_COMPLETED}${RESET}"
 fi
 
 # AgentDB: green if memory.db exists and has data
+AGENTDB_SIZE=""
 if [ -f "${PROJECT_DIR}/.agentic-qe/memory.db" ]; then
-  AGENTDB_STATUS="${BRIGHT_GREEN}●${RESET}"
+  # Get size in MB
+  DB_SIZE_KB=$(du -k "${PROJECT_DIR}/.agentic-qe/memory.db" 2>/dev/null | cut -f1)
+  if [ "$DB_SIZE_KB" -gt 1024 ]; then
+    DB_SIZE_MB=$((DB_SIZE_KB / 1024))
+    AGENTDB_SIZE="${DB_SIZE_MB}M"
+  else
+    AGENTDB_SIZE="${DB_SIZE_KB}K"
+  fi
+  AGENTDB_STATUS="${BRIGHT_GREEN}●${AGENTDB_SIZE}${RESET}"
 else
   AGENTDB_STATUS="${DIM}○${RESET}"
 fi
 
-OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🔧 Architecture${RESET}    ${CYAN}ADR${RESET} ${ADR_STATUS}  ${DIM}│${RESET}  ${CYAN}Events${RESET} ${EVENT_STATUS}"
-OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Plugins${RESET} ${PLUGIN_STATUS}  ${DIM}│${RESET}  ${CYAN}AgentDB${RESET} ${AGENTDB_STATUS}"
+OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🔧 Architecture${RESET}    ${CYAN}ADR${RESET} ${ADR_STATUS}  ${DIM}│${RESET}  ${CYAN}Hooks${RESET} ${HOOKS_STATUS}"
+OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Domains${RESET} ${DOMAINS_STATUS}  ${DIM}│${RESET}  ${CYAN}AgentDB${RESET} ${AGENTDB_STATUS}"
 
 # Footer
 OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────${RESET}"
