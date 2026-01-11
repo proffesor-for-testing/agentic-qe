@@ -506,18 +506,28 @@ export class InitOrchestrator {
         },
       ],
 
-      // Session hooks
+      // Session hooks (new format with matcher)
       SessionStart: [
         {
-          type: 'command',
-          command: `npx @claude-flow/cli@latest hooks session-start`,
+          matcher: {},
+          hooks: [
+            {
+              type: 'command',
+              command: `npx @claude-flow/cli@latest hooks session-start`,
+            },
+          ],
         },
       ],
 
       SessionEnd: [
         {
-          type: 'command',
-          command: `npx @claude-flow/cli@latest hooks session-end --save-state`,
+          matcher: {},
+          hooks: [
+            {
+              type: 'command',
+              command: `npx @claude-flow/cli@latest hooks session-end --save-state`,
+            },
+          ],
         },
       ],
     };
