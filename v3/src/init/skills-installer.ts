@@ -175,10 +175,10 @@ export class SkillsInstaller {
       join(moduleDir, '../../../.claude/skills'),
       // Development: relative to v3/dist/init/ (3 levels up to agentic-qe root)
       join(moduleDir, '../../../.claude/skills'),
-      // Installed: in node_modules
-      join(this.projectRoot, 'node_modules/@agentic-qe/v3/skills'),
-      // Fallback: bundled skills in v3 package
-      join(moduleDir, '../../skills'),
+      // NPM package: assets directory at package root (dist/init -> dist -> package root)
+      join(moduleDir, '../../assets/skills'),
+      // Local install: in node_modules
+      join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/skills'),
     ];
 
     for (const skillsPath of possiblePaths) {

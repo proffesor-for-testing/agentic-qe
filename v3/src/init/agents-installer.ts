@@ -174,10 +174,10 @@ export class AgentsInstaller {
       join(moduleDir, '../../../.claude/agents/v3'),
       // Development: relative to v3/dist/init/ (3 levels up to agentic-qe root)
       join(moduleDir, '../../../.claude/agents/v3'),
-      // Installed: in node_modules
-      join(this.projectRoot, 'node_modules/@agentic-qe/v3/agents'),
-      // Fallback: bundled agents in v3 package
-      join(moduleDir, '../../agents'),
+      // NPM package: assets directory at package root (dist/init -> dist -> package root)
+      join(moduleDir, '../../assets/agents/v3'),
+      // Local install: in node_modules
+      join(this.projectRoot, 'node_modules/@agentic-qe/v3/assets/agents/v3'),
     ];
 
     for (const agentsPath of possiblePaths) {
