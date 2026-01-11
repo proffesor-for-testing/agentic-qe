@@ -172,9 +172,9 @@ export const QE_MCP_TOOLS = [
         type: {
           type: 'string',
           enum: [
-            'test-architect', 'tdd-specialist', 'coverage-specialist',
-            'quality-gate', 'defect-predictor', 'parallel-executor',
-            'learning-coordinator', 'flaky-hunter', 'security-scanner'
+            'v3-qe-test-architect', 'v3-qe-tdd-specialist', 'v3-qe-coverage-specialist',
+            'v3-qe-quality-gate', 'v3-qe-defect-predictor', 'v3-qe-parallel-executor',
+            'v3-qe-learning-coordinator', 'v3-qe-flaky-hunter', 'v3-qe-security-scanner'
           ]
         },
         task: { type: 'string', description: 'Initial task to assign' }

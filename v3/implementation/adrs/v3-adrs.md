@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 6 In Progress (RuVector MinCut Intelligence)
+**Status:** Phase 6 In Progress (RuVector MinCut Intelligence + V3 Skills Improvement)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-10 (ADR-030 to ADR-035 RuVector MinCut Integration)
+**Last Verified:** 2026-01-11 (ADR-037 to ADR-041 V3 QE Skills Improvement)
 
 ---
 
@@ -47,6 +47,12 @@
 | ADR-033 | Early Exit Testing | **Accepted** | 2026-01-10 | ✅ λ-stability decisions + speculative execution |
 | ADR-034 | Neural Topology Optimizer | **Accepted** | 2026-01-10 | ✅ RL-based swarm topology optimization + value network |
 | ADR-035 | Causal Discovery | **Accepted** | 2026-01-10 | ✅ STDP spike timing correlation for root cause analysis |
+| ADR-036 | Language-Aware Result Persistence | **Accepted** | 2026-01-10 | ✅ ResultSaver (780 LOC) + TaskExecutor integration |
+| ADR-037 | V3 QE Agent Naming Standardization | **Proposed** | 2026-01-11 | ⏳ V2→V3 naming migration |
+| ADR-038 | V3 QE Memory System Unification | **Proposed** | 2026-01-11 | ⏳ AgentDB + HNSW + SONA |
+| ADR-039 | V3 QE MCP Optimization | **Proposed** | 2026-01-11 | ⏳ Connection pooling + O(1) lookup |
+| ADR-040 | V3 QE Agentic-Flow Integration | **Proposed** | 2026-01-11 | ⏳ SONA + Flash Attention + 9 RL algorithms |
+| ADR-041 | V3 QE CLI Enhancement | **Proposed** | 2026-01-11 | ⏳ Interactive wizards + workflows |
 
 ---
 
@@ -2294,6 +2300,128 @@ const appliedRules = configurator.getApplicableRules(analysis);
 
 ---
 
+## ADR-036: Language-Aware Result Persistence
+
+**Status:** Accepted
+**Date:** 2026-01-10
+**Decision Makers:** Architecture Team
+**Source:** MCP v3 Task Execution Pipeline
+
+### Context
+
+The MCP v3 task executor now returns real results from domain services, but these results are only returned in the API response and not persisted for later analysis. Users need to:
+
+1. Review results after task completion
+2. Compare results across multiple runs
+3. Track quality trends over time
+4. Generate reports for stakeholders
+5. Use generated tests directly in their codebase
+
+Current limitations:
+- Results lost after API response
+- No historical tracking
+- Cannot diff between runs
+- Generated tests not saved as usable files
+
+### Decision
+
+**Implement language/framework-aware result persistence that saves outputs in appropriate formats based on task type and target stack.**
+
+### Output Format Matrix
+
+| Task Type | Primary Format | Secondary Format | Extension Pattern |
+|-----------|---------------|------------------|-------------------|
+| Test Generation | Source Code | JSON manifest | Language-specific |
+| Coverage Analysis | LCOV | JSON + HTML | `.lcov`, `.json`, `.html` |
+| Security Scan | SARIF | JSON + MD report | `.sarif`, `.json`, `.md` |
+| Quality Assessment | JSON | MD report | `.json`, `.md` |
+| Code Indexing | JSON graph | GraphML | `.json`, `.graphml` |
+| Defect Prediction | JSON | MD report | `.json`, `.md` |
+| Contract Testing | JSON | OpenAPI diff | `.json`, `.yaml` |
+| Accessibility | JSON | HTML report | `.json`, `.html` |
+| Chaos/Load Test | JSON | HTML dashboard | `.json`, `.html` |
+
+### Test File Extensions by Language/Framework
+
+```typescript
+const TEST_FILE_PATTERNS: Record<string, Record<string, string>> = {
+  typescript: { jest: '.test.ts', vitest: '.test.ts', mocha: '.spec.ts' },
+  javascript: { jest: '.test.js', vitest: '.test.js', mocha: '.spec.js' },
+  python: { pytest: 'test_*.py', unittest: '*_test.py' },
+  java: { junit: '*Test.java', testng: '*Test.java' },
+  go: { testing: '*_test.go' },
+  rust: { cargo: '*_test.rs' },
+  ruby: { rspec: '*_spec.rb', minitest: '*_test.rb' },
+  php: { phpunit: '*Test.php', pest: '*.test.php' },
+  csharp: { xunit: '*Tests.cs', nunit: '*Tests.cs' },
+  kotlin: { junit: '*Test.kt', kotest: '*Spec.kt' },
+  swift: { xctest: '*Tests.swift' },
+};
+```
+
+### Directory Structure
+
+```
+.agentic-qe/
+├── results/
+│   ├── security/
+│   │   ├── 2026-01-10T15-30-00_scan.sarif
+│   │   ├── 2026-01-10T15-30-00_scan.json
+│   │   └── 2026-01-10T15-30-00_report.md
+│   ├── coverage/
+│   │   ├── 2026-01-10T15-30-00_coverage.lcov
+│   │   └── 2026-01-10T15-30-00_gaps.md
+│   ├── tests/
+│   │   ├── generated/
+│   │   │   ├── user-service.test.ts
+│   │   │   └── test_auth_module.py
+│   │   └── manifest.json
+│   └── index.json  # Index of all results
+```
+
+### Implementation (2026-01-10) ✅ COMPLETE
+
+**Files Created:**
+- `v3/src/coordination/result-saver.ts` - Core ResultSaver class (780 LOC)
+- `v3/src/coordination/task-executor.ts` - TaskExecutor with ResultSaver integration
+
+**Implemented Features:**
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| ResultSaver class | ✅ | 780 lines, full implementation |
+| Task-type savers | ✅ | 10 savers (test-gen, coverage, security, quality, code-index, defect, contract, a11y, chaos, generic) |
+| LCOV generator | ✅ | `generateLcov()` for coverage reports |
+| SARIF generator | ✅ | `generateSarif()` for security findings |
+| MD report generators | ✅ | Test, coverage, security, quality reports |
+| Language patterns | ✅ | 11 languages (TS, JS, Python, Java, Go, Rust, Ruby, PHP, C#, Kotlin, Swift) |
+| Framework patterns | ✅ | jest, vitest, mocha, pytest, junit, testng, rspec, phpunit, xunit, kotest, xctest |
+| Result index | ✅ | `updateIndex()` with trend tracking |
+| TaskExecutor integration | ✅ | Auto-saves results after task execution |
+
+**Key Methods:**
+```typescript
+class ResultSaver {
+  save(taskId, taskType, result, options): Promise<SavedResult>
+  // 10 private task-type handlers
+  generateLcov(data): string
+  generateSarif(data): string
+  generateTestReport(data): string
+  updateIndex(savedResult): Promise<void>
+}
+```
+
+### Success Metrics
+
+- [x] Results persist in standard formats (SARIF, LCOV, JSON)
+- [x] Generated tests saved as ready-to-use source files
+- [x] Language/framework conventions respected (11 languages, 11+ frameworks)
+- [x] Result index with trend tracking
+- [ ] Result comparison/diff (future enhancement)
+- [ ] 30-day retention with compression (future enhancement)
+
+---
+
 ## Implementation Roadmap Summary
 
 ### Sprint 1 (Days 1-5): Foundation - ADR-021
@@ -2328,19 +2456,200 @@ const appliedRules = configurator.getApplicableRules(analysis);
 
 ---
 
-**Document Maintained By:** Architecture Team
-**Last Updated:** 2026-01-10 (ADR-030 to ADR-035 RuVector MinCut Intelligence)
-**Next Review:** After Integration Testing Complete
+---
 
-### Current Implementation Stats (2026-01-10)
+## ADR-037: V3 QE Agent Naming Standardization
+
+**Status:** Proposed
+**Date:** 2026-01-11
+**Decision Makers:** Architecture Team
+**Source:** V3 Skills Improvement Analysis
+
+### Context
+
+V3 QE skills currently reference agents using V2-style short names (e.g., `'test-architect'`, `'coverage-specialist'`) while the actual V3 QE agent definitions use the full `v3-qe-*` prefix (e.g., `'v3-qe-test-architect'`, `'v3-qe-coverage-specialist'`).
+
+This inconsistency causes:
+1. Confusion about which agent version is being used
+2. Potential routing errors in the Task tool
+3. Documentation mismatches
+4. Difficulty in agent discovery
+
+### Decision
+
+Standardize all V3 QE skills to use the full `v3-qe-*` agent naming convention.
+
+**Naming Convention:** `v3-qe-{domain}-{specialty}`
+
+**Files Updated:**
+- `.claude/skills/v3-qe-fleet-coordination/SKILL.md`
+- `.claude/skills/v3-qe-mcp/SKILL.md`
+- `.claude/skills/v3-qe-integration/SKILL.md`
+
+**Full ADR:** [ADR-037-v3-qe-agent-naming.md](./ADR-037-v3-qe-agent-naming.md)
+
+---
+
+## ADR-038: V3 QE Memory System Unification
+
+**Status:** Proposed
+**Date:** 2026-01-11
+**Decision Makers:** Architecture Team
+**Source:** V3 Skills Improvement Analysis
+
+### Context
+
+The existing `v3-qe-memory-system` skill provides basic AgentDB integration, but lacks the comprehensive unification approach from `v3-memory-unification` in claude-flow.
+
+### Decision
+
+Create enhanced `v3-qe-memory-unification` skill with:
+- AgentDB with HNSW indexing (150x-12,500x faster search)
+- Migration from legacy QE memory systems (SQLite, markdown, in-memory)
+- Cross-domain memory sharing for 12 DDD domains
+- SONA integration for pattern learning
+- Domain-specific HNSW configurations
+
+**New Skill:** `.claude/skills/v3-qe-memory-unification/SKILL.md`
+
+**Full ADR:** [ADR-038-v3-qe-memory-unification.md](./ADR-038-v3-qe-memory-unification.md)
+
+---
+
+## ADR-039: V3 QE MCP Optimization
+
+**Status:** Proposed
+**Date:** 2026-01-11
+**Decision Makers:** Architecture Team
+**Source:** V3 Skills Improvement Analysis
+
+### Context
+
+The existing `v3-qe-mcp` skill provides basic MCP tool definitions but lacks the performance optimizations from `v3-mcp-optimization` in claude-flow.
+
+### Decision
+
+Create enhanced `v3-qe-mcp-optimization` skill with:
+- Connection pooling (50 max, 5 min pre-warmed)
+- O(1) tool lookup via hash-indexed registry
+- Load balancing for fleet operations
+- <100ms p95 response time targets
+- Performance monitoring dashboard
+
+**New Skill:** `.claude/skills/v3-qe-mcp-optimization/SKILL.md`
+
+**Full ADR:** [ADR-039-v3-qe-mcp-optimization.md](./ADR-039-v3-qe-mcp-optimization.md)
+
+---
+
+## ADR-040: V3 QE Agentic-Flow Integration
+
+**Status:** Proposed
+**Date:** 2026-01-11
+**Decision Makers:** Architecture Team
+**Source:** V3 Skills Improvement Analysis
+
+### Context
+
+The existing `v3-qe-integration` skill provides basic cross-domain integration but lacks deep agentic-flow integration patterns from `v3-integration-deep` in claude-flow.
+
+### Decision
+
+Create enhanced `v3-qe-agentic-flow-integration` skill with:
+- SONA learning mode integration (<0.05ms adaptation)
+- Flash Attention (2.49x-7.47x speedup) for QE workloads
+- 9 RL algorithms for intelligent QE decisions
+- Code deduplication with agentic-flow
+
+**New Skill:** `.claude/skills/v3-qe-agentic-flow-integration/SKILL.md`
+
+**Full ADR:** [ADR-040-v3-qe-agentic-flow-integration.md](./ADR-040-v3-qe-agentic-flow-integration.md)
+
+---
+
+## ADR-041: V3 QE CLI Enhancement
+
+**Status:** Proposed
+**Date:** 2026-01-11
+**Decision Makers:** Architecture Team
+**Source:** V3 Skills Improvement Analysis
+
+### Context
+
+The existing `v3-qe-cli` skill provides basic CLI commands for QE operations but lacks modern CLI features from `v3-cli-modernization` in claude-flow.
+
+### Decision
+
+Enhance `v3-qe-cli` with:
+- Interactive test generation wizard
+- Progress bars for fleet operations
+- Workflow automation for QE pipelines
+- Intelligent command completion
+- Streaming output for test execution
+
+**Enhanced Skill:** `.claude/skills/v3-qe-cli/SKILL.md` (to be updated)
+
+**Full ADR:** [ADR-041-v3-qe-cli-enhancement.md](./ADR-041-v3-qe-cli-enhancement.md)
+
+---
+
+## Implementation Roadmap Summary
+
+### Sprint 1 (Days 1-5): Foundation - ADR-021
+- Create `v3/@aqe-platform/learning` package
+- Implement QEReasoningBank
+- Define QE pattern types
+
+### Sprint 2 (Days 6-10): Routing - ADR-022
+- Create `v3/@aqe-platform/routing` package
+- Build QE agent registry (78 agents)
+- Implement ML-based task router
+
+### Sprint 3 (Days 11-15): Feedback - ADR-023
+- Create `v3/@aqe-platform/feedback` package
+- Implement TestOutcomeTracker
+- Build CoverageLearner
+
+### Sprint 4 (Days 16-20): Optimization - ADR-024
+- Create `v3/@aqe-platform/optimization` package
+- Implement AQEAutoTuner
+- Create QE optimization workers
+
+### Sprint 5 (Days 21-25): Init - ADR-025
+- Enhance `aqe init --wizard`
+- Implement self-configuration
+- Create pre-trained pattern library
+
+### Sprint 6 (Days 26-30): Integration
+- Integration tests
+- Performance benchmarks
+- Documentation
+
+### Sprint 7 (Current): V3 Skills Improvement - ADR-037 to ADR-041
+- V3 agent naming standardization
+- Memory unification with HNSW
+- MCP optimization with pooling
+- Agentic-flow deep integration
+- CLI enhancement
+
+---
+
+**Document Maintained By:** Architecture Team
+**Last Updated:** 2026-01-11 (ADR-037 to ADR-041 V3 Skills Improvement)
+**Next Review:** After V3 Skills Implementation Complete
+
+### Current Implementation Stats (2026-01-11)
 
 | Metric | Count |
 |--------|-------|
 | Source Files | 182+ |
 | Test Files | 91 |
 | Tests Passing | 2,335 |
-| ADRs Complete | 34/35 (ADR-020 ongoing) |
+| ADRs Complete | 35/41 (ADR-020 ongoing, ADR-037-041 proposed) |
 | RuVector MinCut ADRs | 6 (ADR-030 to ADR-035) |
+| Result Persistence ADR | 1 (ADR-036) |
+| V3 Skills Improvement ADRs | 5 (ADR-037 to ADR-041) |
+| V3 QE Skills | 24 (21 existing + 3 new enhanced) |
 | Init Module Tests | 73 |
 | Feedback Module Tests | 101 |
 | Optimization Module Tests | 103 |

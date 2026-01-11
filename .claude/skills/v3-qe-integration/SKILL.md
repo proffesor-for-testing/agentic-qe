@@ -375,7 +375,7 @@ describe('Cross-Domain Integration', () => {
   it('should trigger coverage analysis when test suite is created', async () => {
     await framework.testCrossDomainFlow({
       setup: {
-        agents: ['test-architect', 'coverage-specialist']
+        agents: ['v3-qe-test-architect', 'v3-qe-coverage-specialist']
       },
       trigger: new TestSuiteCreated({
         testSuiteId: 'suite-1',

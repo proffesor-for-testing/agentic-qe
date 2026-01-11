@@ -34,32 +34,32 @@ export class QEFleetCoordinator {
     const groupConfigs: GroupConfig[] = [
       {
         name: 'test-generation',
-        agents: ['test-architect', 'tdd-specialist', 'integration-tester', 'property-tester'],
+        agents: ['v3-qe-test-architect', 'v3-qe-tdd-specialist', 'v3-qe-integration-tester', 'v3-qe-property-tester'],
         domain: 'test-generation'
       },
       {
         name: 'quality-gates',
-        agents: ['quality-gate', 'deployment-advisor', 'risk-assessor'],
+        agents: ['v3-qe-quality-gate', 'v3-qe-deployment-advisor', 'v3-qe-risk-assessor'],
         domain: 'quality-assessment'
       },
       {
         name: 'intelligence',
-        agents: ['defect-predictor', 'pattern-learner', 'root-cause-analyzer'],
+        agents: ['v3-qe-defect-predictor', 'v3-qe-pattern-learner', 'v3-qe-root-cause-analyzer'],
         domain: 'defect-intelligence'
       },
       {
         name: 'execution',
-        agents: ['parallel-executor', 'flaky-hunter', 'retry-handler'],
+        agents: ['v3-qe-parallel-executor', 'v3-qe-flaky-hunter', 'v3-qe-retry-handler'],
         domain: 'test-execution'
       },
       {
         name: 'coverage',
-        agents: ['coverage-specialist', 'gap-detector', 'risk-scorer'],
+        agents: ['v3-qe-coverage-specialist', 'v3-qe-gap-detector', 'v3-qe-risk-scorer'],
         domain: 'coverage-analysis'
       },
       {
         name: 'learning',
-        agents: ['learning-coordinator', 'transfer-specialist', 'metrics-optimizer', 'knowledge-manager'],
+        agents: ['v3-qe-learning-coordinator', 'v3-qe-transfer-specialist', 'v3-qe-metrics-optimizer', 'v3-qe-knowledge-manager'],
         domain: 'learning-optimization'
       }
     ];
@@ -170,48 +170,48 @@ export const QE_PROTOCOLS = {
     participants: 'all',
     schedule: '0 9 * * *',
     steps: [
-      { agent: 'queen', action: 'gather-status' },
-      { agent: 'coverage-specialist', action: 'report-coverage' },
-      { agent: 'quality-gate', action: 'report-quality' },
-      { agent: 'defect-predictor', action: 'report-risks' },
-      { agent: 'queen', action: 'prioritize-day' }
+      { agent: 'v3-qe-queen', action: 'gather-status' },
+      { agent: 'v3-qe-coverage-specialist', action: 'report-coverage' },
+      { agent: 'v3-qe-quality-gate', action: 'report-quality' },
+      { agent: 'v3-qe-defect-predictor', action: 'report-risks' },
+      { agent: 'v3-qe-queen', action: 'prioritize-day' }
     ]
   },
 
   // Quality gate - pre-release evaluation
   QUALITY_GATE: {
     name: 'quality-gate',
-    participants: ['queen', 'quality-gate', 'coverage-specialist', 'risk-assessor'],
+    participants: ['v3-qe-queen', 'v3-qe-quality-gate', 'v3-qe-coverage-specialist', 'v3-qe-risk-assessor'],
     trigger: 'release-candidate',
     steps: [
-      { agent: 'coverage-specialist', action: 'analyze-coverage', timeout: 60000 },
-      { agent: 'quality-gate', action: 'evaluate-criteria', timeout: 30000 },
-      { agent: 'risk-assessor', action: 'assess-risks', timeout: 45000 },
-      { agent: 'queen', action: 'make-decision', timeout: 10000 }
+      { agent: 'v3-qe-coverage-specialist', action: 'analyze-coverage', timeout: 60000 },
+      { agent: 'v3-qe-quality-gate', action: 'evaluate-criteria', timeout: 30000 },
+      { agent: 'v3-qe-risk-assessor', action: 'assess-risks', timeout: 45000 },
+      { agent: 'v3-qe-queen', action: 'make-decision', timeout: 10000 }
     ]
   },
 
   // Learning consolidation - end of sprint
   LEARNING_CONSOLIDATION: {
     name: 'learning-consolidation',
-    participants: ['learning-coordinator', 'transfer-specialist', 'pattern-learner'],
+    participants: ['v3-qe-learning-coordinator', 'v3-qe-transfer-specialist', 'v3-qe-pattern-learner'],
     schedule: '0 18 * * 5', // Friday 6pm
     steps: [
-      { agent: 'pattern-learner', action: 'extract-patterns' },
-      { agent: 'transfer-specialist', action: 'identify-transfers' },
-      { agent: 'learning-coordinator', action: 'consolidate-knowledge' }
+      { agent: 'v3-qe-pattern-learner', action: 'extract-patterns' },
+      { agent: 'v3-qe-transfer-specialist', action: 'identify-transfers' },
+      { agent: 'v3-qe-learning-coordinator', action: 'consolidate-knowledge' }
     ]
   },
 
   // Defect investigation - triggered on failure
   DEFECT_INVESTIGATION: {
     name: 'defect-investigation',
-    participants: ['defect-predictor', 'root-cause-analyzer', 'flaky-hunter'],
+    participants: ['v3-qe-defect-predictor', 'v3-qe-root-cause-analyzer', 'v3-qe-flaky-hunter'],
     trigger: 'test-failure',
     steps: [
-      { agent: 'flaky-hunter', action: 'check-flakiness' },
-      { agent: 'root-cause-analyzer', action: 'analyze-root-cause' },
-      { agent: 'defect-predictor', action: 'predict-related-failures' }
+      { agent: 'v3-qe-flaky-hunter', action: 'check-flakiness' },
+      { agent: 'v3-qe-root-cause-analyzer', action: 'analyze-root-cause' },
+      { agent: 'v3-qe-defect-predictor', action: 'predict-related-failures' }
     ]
   }
 };
