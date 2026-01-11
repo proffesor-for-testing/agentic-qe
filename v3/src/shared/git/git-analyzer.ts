@@ -9,8 +9,17 @@
  * - Bug history from commit messages
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as path from 'path';
+
+/**
+ * Sanitize a string for safe use in git arguments
+ * Removes shell metacharacters that could enable injection
+ */
+function sanitizeGitArg(arg: string): string {
+  // Remove characters that could be used for command injection
+  return arg.replace(/[;&|`$(){}[\]<>\\'"!\n\r]/g, '');
+}
 
 /**
  * Git commit information
@@ -93,7 +102,7 @@ export class GitAnalyzer {
     if (this.isGitRepo !== null) return this.isGitRepo;
 
     try {
-      execSync('git rev-parse --is-inside-work-tree', {
+      execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
         cwd: this.config.repoRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -118,16 +127,17 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = this.getRelativePath(filePath);
-      const output = execSync(
-        `git log --oneline --since="90 days ago" -- "${relativePath}" 2>/dev/null | wc -l`,
-        {
-          cwd: this.config.repoRoot,
-          encoding: 'utf-8',
-        }
-      ).trim();
+      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
+      // Use execFileSync with argument array to prevent injection
+      const output = execFileSync('git', [
+        'log', '--oneline', '--since=90 days ago', '--', relativePath
+      ], {
+        cwd: this.config.repoRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
 
-      const commits = parseInt(output, 10) || 0;
+      const commits = output ? output.split('\n').length : 0;
       const frequency = Math.min(1, commits / 30); // Normalize: 30+ commits in 90 days = 1.0
       this.setCache(cacheKey, frequency);
       return frequency;
@@ -150,26 +160,29 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = this.getRelativePath(filePath);
+      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
 
-      // Get blame info
-      const blameOutput = execSync(
-        `git blame --line-porcelain "${relativePath}" 2>/dev/null | grep "^author " | sort | uniq -c`,
-        {
-          cwd: this.config.repoRoot,
-          encoding: 'utf-8',
+      // Get blame info using execFileSync with argument array
+      const blameOutput = execFileSync('git', [
+        'blame', '--line-porcelain', '--', relativePath
+      ], {
+        cwd: this.config.repoRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      // Parse blame output - count authors manually instead of piping through shell
+      const authorCounts = new Map<string, number>();
+      const lines = blameOutput.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('author ')) {
+          const author = line.substring(7).trim();
+          authorCounts.set(author, (authorCounts.get(author) || 0) + 1);
         }
-      );
+      }
 
-      // Parse blame output
-      const authorLines = blameOutput.trim().split('\n').filter(Boolean);
-      const totalLines = authorLines.reduce((sum, line) => {
-        const count = parseInt(line.trim().split(/\s+/)[0], 10);
-        return sum + (isNaN(count) ? 0 : count);
-      }, 0);
-
-      // Get unique authors
-      const uniqueAuthors = authorLines.length;
+      const totalLines = Array.from(authorCounts.values()).reduce((a, b) => a + b, 0);
+      const uniqueAuthors = authorCounts.size;
 
       // Score based on code ownership concentration
       // High concentration by few authors = more experience = lower risk
@@ -198,28 +211,43 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = this.getRelativePath(filePath);
+      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
 
-      // Get first and last commit dates
-      const firstCommitOutput = execSync(
-        `git log --format="%at" --follow --diff-filter=A -- "${relativePath}" 2>/dev/null | tail -1`,
-        {
+      // Get first commit date using execFileSync with argument array
+      let firstCommitTimestamp: number = NaN;
+      try {
+        const firstCommitOutput = execFileSync('git', [
+          'log', '--format=%at', '--follow', '--diff-filter=A', '--', relativePath
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        // Get last line (oldest commit)
+        const lines = firstCommitOutput.split('\n').filter(Boolean);
+        if (lines.length > 0) {
+          firstCommitTimestamp = parseInt(lines[lines.length - 1], 10);
         }
-      ).trim();
+      } catch {
+        // File may not have been added yet
+      }
 
-      const lastCommitOutput = execSync(
-        `git log -1 --format="%at" -- "${relativePath}" 2>/dev/null`,
-        {
+      // Get last commit date using execFileSync with argument array
+      let lastCommitTimestamp: number = NaN;
+      try {
+        const lastCommitOutput = execFileSync('git', [
+          'log', '-1', '--format=%at', '--', relativePath
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
-        }
-      ).trim();
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        lastCommitTimestamp = parseInt(lastCommitOutput, 10);
+      } catch {
+        // File may not be in git
+      }
 
       const now = Date.now() / 1000;
-      const firstCommitTimestamp = parseInt(firstCommitOutput, 10);
-      const lastCommitTimestamp = parseInt(lastCommitOutput, 10);
 
       if (isNaN(lastCommitTimestamp)) {
         return 0.4; // File not in git
@@ -260,18 +288,40 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = this.getRelativePath(filePath);
-      const keywords = this.config.bugKeywords.join('|');
+      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
 
-      const output = execSync(
-        `git log --oneline --grep="${keywords}" -i -- "${relativePath}" 2>/dev/null | wc -l`,
-        {
-          cwd: this.config.repoRoot,
-          encoding: 'utf-8',
+      // Search for each keyword separately and count unique commits
+      // This avoids shell injection from keywords config
+      let bugCommits = 0;
+      const seenCommits = new Set<string>();
+
+      for (const keyword of this.config.bugKeywords) {
+        const sanitizedKeyword = sanitizeGitArg(keyword);
+        try {
+          const output = execFileSync('git', [
+            'log', '--oneline', '--grep', sanitizedKeyword, '-i', '--', relativePath
+          ], {
+            cwd: this.config.repoRoot,
+            encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+          }).trim();
+
+          if (output) {
+            // Track unique commit hashes to avoid double-counting
+            const lines = output.split('\n');
+            for (const line of lines) {
+              const hash = line.split(' ')[0];
+              if (hash && !seenCommits.has(hash)) {
+                seenCommits.add(hash);
+                bugCommits++;
+              }
+            }
+          }
+        } catch {
+          // Keyword search failed, continue with next
         }
-      ).trim();
+      }
 
-      const bugCommits = parseInt(output, 10) || 0;
       const riskScore = Math.min(1, bugCommits / 10); // Normalize: 10+ bug fixes = 1.0
       this.setCache(cacheKey, riskScore);
       return riskScore;
@@ -293,51 +343,83 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = this.getRelativePath(filePath);
+      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
 
-      // Get commit count
-      const commitCountOutput = execSync(
-        `git log --oneline -- "${relativePath}" 2>/dev/null | wc -l`,
-        {
+      // Get commit count using execFileSync with argument array
+      let totalCommits = 0;
+      try {
+        const commitCountOutput = execFileSync('git', [
+          'log', '--oneline', '--', relativePath
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
-        }
-      ).trim();
-      const totalCommits = parseInt(commitCountOutput, 10) || 0;
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        totalCommits = commitCountOutput ? commitCountOutput.split('\n').length : 0;
+      } catch {
+        // File may not be in git
+      }
 
-      // Get unique authors
-      const authorsOutput = execSync(
-        `git log --format="%ae" -- "${relativePath}" 2>/dev/null | sort -u | wc -l`,
-        {
+      // Get unique authors - parse output manually instead of piping through sort/wc
+      let uniqueAuthors = 0;
+      try {
+        const authorsOutput = execFileSync('git', [
+          'log', '--format=%ae', '--', relativePath
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        if (authorsOutput) {
+          const authorSet = new Set(authorsOutput.split('\n').filter(Boolean));
+          uniqueAuthors = authorSet.size;
         }
-      ).trim();
-      const uniqueAuthors = parseInt(authorsOutput, 10) || 0;
+      } catch {
+        // File may not be in git
+      }
 
       // Get first commit date
-      const firstCommitOutput = execSync(
-        `git log --format="%at" --follow -- "${relativePath}" 2>/dev/null | tail -1`,
-        {
+      let firstCommit: Date | null = null;
+      try {
+        const firstCommitOutput = execFileSync('git', [
+          'log', '--format=%at', '--follow', '--', relativePath
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        if (firstCommitOutput) {
+          const lines = firstCommitOutput.split('\n').filter(Boolean);
+          if (lines.length > 0) {
+            const timestamp = parseInt(lines[lines.length - 1], 10);
+            if (!isNaN(timestamp)) {
+              firstCommit = new Date(timestamp * 1000);
+            }
+          }
         }
-      ).trim();
-      const firstCommit = firstCommitOutput
-        ? new Date(parseInt(firstCommitOutput, 10) * 1000)
-        : null;
+      } catch {
+        // File may not be in git
+      }
 
       // Get last commit date
-      const lastCommitOutput = execSync(
-        `git log -1 --format="%at" -- "${relativePath}" 2>/dev/null`,
-        {
+      let lastCommit: Date | null = null;
+      try {
+        const lastCommitOutput = execFileSync('git', [
+          'log', '-1', '--format=%at', '--', relativePath
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        if (lastCommitOutput) {
+          const timestamp = parseInt(lastCommitOutput, 10);
+          if (!isNaN(timestamp)) {
+            lastCommit = new Date(timestamp * 1000);
+          }
         }
-      ).trim();
-      const lastCommit = lastCommitOutput
-        ? new Date(parseInt(lastCommitOutput, 10) * 1000)
-        : null;
+      } catch {
+        // File may not be in git
+      }
 
       // Calculate change frequency (commits per month)
       let changeFrequency = 0;
@@ -354,16 +436,33 @@ export class GitAnalyzer {
         ? Date.now() - lastCommit.getTime() < 7 * 24 * 60 * 60 * 1000
         : false;
 
-      // Count bug fix commits
-      const bugKeywords = this.config.bugKeywords.join('|');
-      const bugFixOutput = execSync(
-        `git log --oneline --grep="${bugKeywords}" -i -- "${relativePath}" 2>/dev/null | wc -l`,
-        {
-          cwd: this.config.repoRoot,
-          encoding: 'utf-8',
+      // Count bug fix commits - search each keyword separately to avoid injection
+      let bugFixCommits = 0;
+      const seenBugCommits = new Set<string>();
+      for (const keyword of this.config.bugKeywords) {
+        const sanitizedKeyword = sanitizeGitArg(keyword);
+        try {
+          const bugFixOutput = execFileSync('git', [
+            'log', '--oneline', '--grep', sanitizedKeyword, '-i', '--', relativePath
+          ], {
+            cwd: this.config.repoRoot,
+            encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+          }).trim();
+          if (bugFixOutput) {
+            const lines = bugFixOutput.split('\n');
+            for (const line of lines) {
+              const hash = line.split(' ')[0];
+              if (hash && !seenBugCommits.has(hash)) {
+                seenBugCommits.add(hash);
+                bugFixCommits++;
+              }
+            }
+          }
+        } catch {
+          // Keyword search failed, continue with next
         }
-      ).trim();
-      const bugFixCommits = parseInt(bugFixOutput, 10) || 0;
+      }
 
       const history: FileHistory = {
         filePath: relativePath,
@@ -397,18 +496,20 @@ export class GitAnalyzer {
       const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
       const sinceStr = sinceDate.toISOString().split('T')[0];
 
-      // Get files changed since the date
-      const output = execSync(
-        `git log --since="${sinceStr}" --name-only --pretty=format: 2>/dev/null | sort -u | grep -v '^$'`,
-        {
-          cwd: this.config.repoRoot,
-          encoding: 'utf-8',
-        }
-      ).trim();
+      // Get files changed since the date using execFileSync with argument array
+      const output = execFileSync('git', [
+        'log', `--since=${sinceStr}`, '--name-only', '--pretty=format:'
+      ], {
+        cwd: this.config.repoRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
 
       if (!output) return [];
 
-      return output.split('\n').filter(Boolean);
+      // Deduplicate and filter empty lines manually (instead of sort -u | grep -v)
+      const files = output.split('\n').filter(Boolean);
+      return Array.from(new Set(files));
     } catch {
       return [];
     }
@@ -425,13 +526,16 @@ export class GitAnalyzer {
     }
 
     try {
-      const output = execSync(
-        `git diff-tree --no-commit-id --name-only -r ${commitHash} 2>/dev/null`,
-        {
-          cwd: this.config.repoRoot,
-          encoding: 'utf-8',
-        }
-      ).trim();
+      // Sanitize commit hash to prevent injection
+      const sanitizedHash = sanitizeGitArg(commitHash);
+
+      const output = execFileSync('git', [
+        'diff-tree', '--no-commit-id', '--name-only', '-r', sanitizedHash
+      ], {
+        cwd: this.config.repoRoot,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
 
       if (!output) return [];
 
@@ -451,20 +555,42 @@ export class GitAnalyzer {
     }
 
     try {
-      // Get both staged and unstaged changes
-      const output = execSync(
-        `git diff --name-only HEAD 2>/dev/null && git diff --name-only --cached 2>/dev/null`,
-        {
+      const files: string[] = [];
+
+      // Get unstaged changes using execFileSync with argument array
+      try {
+        const unstagedOutput = execFileSync('git', [
+          'diff', '--name-only', 'HEAD'
+        ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        if (unstagedOutput) {
+          files.push(...unstagedOutput.split('\n').filter(Boolean));
         }
-      ).trim();
+      } catch {
+        // May fail if no HEAD commit exists
+      }
 
-      if (!output) return [];
+      // Get staged changes using execFileSync with argument array
+      try {
+        const stagedOutput = execFileSync('git', [
+          'diff', '--name-only', '--cached'
+        ], {
+          cwd: this.config.repoRoot,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        if (stagedOutput) {
+          files.push(...stagedOutput.split('\n').filter(Boolean));
+        }
+      } catch {
+        // May fail if no commits exist
+      }
 
       // Deduplicate
-      const files = output.split('\n').filter(Boolean);
-      return [...new Set(files)];
+      return Array.from(new Set(files));
     } catch {
       return [];
     }

@@ -349,8 +349,9 @@ export class TestExecutorService implements ITestExecutionService {
       let killed = false;
 
       // Spawn the test runner process
+      // Note: shell: false (default) to prevent command injection (CWE-78)
+      // Arguments are passed as array to avoid shell interpretation
       const proc: ChildProcess = spawn(command, args, {
-        shell: true,
         cwd: process.cwd(),
         env: {
           ...process.env,

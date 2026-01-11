@@ -570,9 +570,10 @@ export class RetryHandlerService implements IRetryHandler {
       let stderr = '';
       let timedOut = false;
 
+      // Note: shell: false (default) to prevent command injection (CWE-78)
+      // Arguments are passed as array to avoid shell interpretation
       const proc = spawn(command, args, {
         cwd,
-        shell: true,
         env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
       });
 

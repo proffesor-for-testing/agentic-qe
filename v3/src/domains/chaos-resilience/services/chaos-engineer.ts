@@ -24,7 +24,8 @@ import {
   IChaosEngineeringService,
 } from '../interfaces';
 import * as net from 'net';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
+import { validateCommand } from '../../../mcp/security/cve-prevention';
 
 /**
  * Configuration for the chaos engineer service
@@ -560,11 +561,43 @@ export class ChaosEngineerService implements IChaosEngineeringService {
     });
   }
 
+  /**
+   * Allowed commands for chaos probes (security whitelist)
+   */
+  private static readonly ALLOWED_PROBE_COMMANDS = [
+    'curl', 'wget',          // Health check endpoints
+    'nc', 'netcat',          // Network connectivity
+    'ping',                  // Network reachability
+    'nslookup', 'dig',       // DNS checks
+    'ps', 'pgrep',           // Process checks
+    'cat', 'head', 'tail',   // File content checks
+    'ls', 'stat',            // File system checks
+    'echo',                  // Simple output
+    'test', '[',             // Conditional checks
+    'node', 'npm',           // Node.js checks
+  ];
+
   private async executeCommandProbe(probe: SteadyStateProbe): Promise<boolean> {
     return new Promise((resolve) => {
       const timeout = probe.timeout ?? 10000;
 
-      exec(probe.target, { timeout }, (error, stdout, _stderr) => {
+      // Validate command against whitelist to prevent injection (CWE-78)
+      const validation = validateCommand(probe.target, ChaosEngineerService.ALLOWED_PROBE_COMMANDS);
+      if (!validation.valid) {
+        console.log(`Command probe ${probe.name} blocked: ${validation.error}`);
+        console.log(`Blocked patterns: ${validation.blockedPatterns?.join(', ') || 'none'}`);
+        resolve(false);
+        return;
+      }
+
+      // Parse command into executable and arguments
+      const sanitizedCommand = validation.sanitizedCommand || probe.target;
+      const parts = sanitizedCommand.trim().split(/\s+/);
+      const executable = parts[0];
+      const args = parts.slice(1);
+
+      // Use execFile instead of exec to avoid shell interpretation
+      execFile(executable, args, { timeout }, (error, stdout, _stderr) => {
         if (error) {
           console.log(`Command probe failed: ${probe.name} -> ${error.message}`);
           resolve(false);
@@ -990,9 +1023,37 @@ export class ChaosEngineerService implements IChaosEngineeringService {
     }
   }
 
+  /**
+   * Allowed commands for rollback operations (security whitelist)
+   */
+  private static readonly ALLOWED_ROLLBACK_COMMANDS = [
+    'kill', 'pkill',         // Process termination
+    'rm', 'rmdir',           // File cleanup
+    'mv', 'cp',              // File operations
+    'systemctl', 'service',  // Service management
+    'docker', 'kubectl',     // Container management
+    'iptables',              // Network rules (for cleanup)
+    'tc',                    // Traffic control (for cleanup)
+    'echo', 'true',          // No-op commands
+  ];
+
   private executeCommandRollback(command: string, timeout: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      exec(command, { timeout }, (error, _stdout, stderr) => {
+      // Validate command against whitelist to prevent injection (CWE-78)
+      const validation = validateCommand(command, ChaosEngineerService.ALLOWED_ROLLBACK_COMMANDS);
+      if (!validation.valid) {
+        reject(new Error(`Rollback command blocked: ${validation.error}`));
+        return;
+      }
+
+      // Parse command into executable and arguments
+      const sanitizedCommand = validation.sanitizedCommand || command;
+      const parts = sanitizedCommand.trim().split(/\s+/);
+      const executable = parts[0];
+      const args = parts.slice(1);
+
+      // Use execFile instead of exec to avoid shell interpretation
+      execFile(executable, args, { timeout }, (error, _stdout, stderr) => {
         if (error) {
           reject(new Error(`Command rollback failed: ${error.message}. ${stderr}`));
         } else {
