@@ -16,9 +16,10 @@ import type {
   WizardState,
   PretrainedLibrary,
 } from './types.js';
-import { createDefaultConfig } from './types.js';
+import { createDefaultConfig, DEFAULT_SKILLS_CONFIG } from './types.js';
 import { ProjectAnalyzer, createProjectAnalyzer } from './project-analyzer.js';
 import { SelfConfigurator, createSelfConfigurator } from './self-configurator.js';
+import { SkillsInstaller, createSkillsInstaller, type SkillsInstallResult } from './skills-installer.js';
 
 // ============================================================================
 // Internal Types
@@ -89,6 +90,13 @@ const WIZARD_STEPS: WizardStep[] = [
     id: 'workers',
     title: 'Background Workers',
     description: 'Start background workers for continuous monitoring?',
+    type: 'confirm',
+    default: true,
+  },
+  {
+    id: 'skills',
+    title: 'Install Skills',
+    description: 'Install AQE skills (v2 methodology + v3 domain skills)?',
     type: 'confirm',
     default: true,
   },
@@ -171,7 +179,15 @@ export class InitOrchestrator {
         return 0;
       });
 
-      // Step 6: Write configuration file
+      // Step 6: Install skills
+      const skillsInstalled = await this.runStep('Skills Installation', async () => {
+        if (config.skills.install) {
+          return await this.installSkills(config);
+        }
+        return 0;
+      });
+
+      // Step 7: Write configuration file
       await this.runStep('Save Configuration', async () => {
         return await this.saveConfig(config);
       });
@@ -184,6 +200,7 @@ export class InitOrchestrator {
           projectAnalyzed: true,
           configGenerated: true,
           patternsLoaded,
+          skillsInstalled,
           hooksConfigured,
           workersStarted,
         },
@@ -207,6 +224,7 @@ export class InitOrchestrator {
           projectAnalyzed: false,
           configGenerated: false,
           patternsLoaded: 0,
+          skillsInstalled: 0,
           hooksConfigured: false,
           workersStarted: 0,
         },
@@ -291,6 +309,11 @@ export class InitOrchestrator {
     // Apply workers preference
     if (answers['workers'] === false) {
       config.workers.daemonAutoStart = false;
+    }
+
+    // Apply skills preference
+    if (answers['skills'] === false) {
+      config.skills.install = false;
     }
 
     return config;
@@ -580,6 +603,33 @@ echo "Daemon started (PID: $!)"
   }
 
   /**
+   * Install AQE skills
+   * Copies v2 methodology and v3 domain skills to the project
+   */
+  private async installSkills(config: AQEInitConfig): Promise<number> {
+    if (!config.skills.install) {
+      return 0;
+    }
+
+    const installer = createSkillsInstaller({
+      projectRoot: this.projectRoot,
+      installV2Skills: config.skills.installV2,
+      installV3Skills: config.skills.installV3,
+      installPlatformSkills: config.skills.installPlatform,
+      overwrite: config.skills.overwrite,
+    });
+
+    const result = await installer.install();
+
+    // Log any errors
+    if (result.errors.length > 0) {
+      console.warn('Skills installation warnings:', result.errors);
+    }
+
+    return result.installed.length;
+  }
+
+  /**
    * Save configuration to file
    * Creates .agentic-qe directory and writes config.yaml
    */
@@ -662,6 +712,15 @@ echo "Daemon started (PID: $!)"
     lines.push(`  claudeCode: ${config.hooks.claudeCode}`);
     lines.push(`  preCommit: ${config.hooks.preCommit}`);
     lines.push(`  ciIntegration: ${config.hooks.ciIntegration}`);
+    lines.push('');
+
+    // Skills section
+    lines.push('skills:');
+    lines.push(`  install: ${config.skills.install}`);
+    lines.push(`  installV2: ${config.skills.installV2}`);
+    lines.push(`  installV3: ${config.skills.installV3}`);
+    lines.push(`  installPlatform: ${config.skills.installPlatform}`);
+    lines.push(`  overwrite: ${config.skills.overwrite}`);
     lines.push('');
 
     // Auto-tuning section

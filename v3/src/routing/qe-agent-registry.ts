@@ -2,8 +2,16 @@
  * QE Agent Registry
  * ADR-022: Adaptive QE Agent Routing
  *
- * Registry of all 78 QE agents with their capabilities, domains, and performance metrics.
+ * Registry of all 80 QE agents with their capabilities, domains, and performance metrics.
  * This registry is used by the QETaskRouter to select the optimal agent for each task.
+ *
+ * Agent Categories:
+ * - V3 QE Agents (35): Core quality engineering agents
+ * - n8n Agents (15): n8n workflow testing agents
+ * - General Agents (7): Versatile general-purpose agents
+ * - V3 Specialized (11): Advanced v3-specific agents
+ * - Swarm Agents (8): Multi-agent coordination
+ * - Consensus Agents (4): Distributed consensus protocols
  */
 
 import type {

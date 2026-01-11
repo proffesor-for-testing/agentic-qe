@@ -313,7 +313,7 @@ export class MCPProtocolServer {
           { name: 'lazyLoading', type: 'boolean', description: 'Enable lazy loading', default: true },
         ],
       },
-      handler: (params) => handleFleetInit(params as Parameters<typeof handleFleetInit>[0]),
+      handler: (params) => handleFleetInit(params as unknown as Parameters<typeof handleFleetInit>[0]),
     });
 
     this.registerTool({
@@ -325,7 +325,7 @@ export class MCPProtocolServer {
           { name: 'verbose', type: 'boolean', description: 'Include detailed information', default: false },
         ],
       },
-      handler: (params) => handleFleetStatus(params as Parameters<typeof handleFleetStatus>[0]),
+      handler: (params) => handleFleetStatus(params as unknown as Parameters<typeof handleFleetStatus>[0]),
     });
 
     this.registerTool({
@@ -337,7 +337,7 @@ export class MCPProtocolServer {
           { name: 'domain', type: 'string', description: 'Specific domain to check' },
         ],
       },
-      handler: (params) => handleFleetHealth(params as Parameters<typeof handleFleetHealth>[0]),
+      handler: (params) => handleFleetHealth(params as unknown as Parameters<typeof handleFleetHealth>[0]),
     });
 
     // Task tools
@@ -352,7 +352,7 @@ export class MCPProtocolServer {
           { name: 'payload', type: 'object', description: 'Task payload data' },
         ],
       },
-      handler: (params) => handleTaskSubmit(params as Parameters<typeof handleTaskSubmit>[0]),
+      handler: (params) => handleTaskSubmit(params as unknown as Parameters<typeof handleTaskSubmit>[0]),
     });
 
     this.registerTool({
@@ -365,7 +365,7 @@ export class MCPProtocolServer {
           { name: 'limit', type: 'number', description: 'Maximum results', default: 50 },
         ],
       },
-      handler: (params) => handleTaskList(params as Parameters<typeof handleTaskList>[0]),
+      handler: (params) => handleTaskList(params as unknown as Parameters<typeof handleTaskList>[0]),
     });
 
     this.registerTool({
@@ -377,7 +377,7 @@ export class MCPProtocolServer {
           { name: 'taskId', type: 'string', description: 'Task ID', required: true },
         ],
       },
-      handler: (params) => handleTaskStatus(params as Parameters<typeof handleTaskStatus>[0]),
+      handler: (params) => handleTaskStatus(params as unknown as Parameters<typeof handleTaskStatus>[0]),
     });
 
     this.registerTool({
@@ -389,7 +389,7 @@ export class MCPProtocolServer {
           { name: 'taskId', type: 'string', description: 'Task ID to cancel', required: true },
         ],
       },
-      handler: (params) => handleTaskCancel(params as Parameters<typeof handleTaskCancel>[0]),
+      handler: (params) => handleTaskCancel(params as unknown as Parameters<typeof handleTaskCancel>[0]),
     });
 
     this.registerTool({
@@ -402,7 +402,7 @@ export class MCPProtocolServer {
           { name: 'strategy', type: 'string', description: 'Execution strategy', enum: ['parallel', 'sequential', 'adaptive'] },
         ],
       },
-      handler: (params) => handleTaskOrchestrate(params as Parameters<typeof handleTaskOrchestrate>[0]),
+      handler: (params) => handleTaskOrchestrate(params as unknown as Parameters<typeof handleTaskOrchestrate>[0]),
     });
 
     // Agent tools
@@ -415,7 +415,7 @@ export class MCPProtocolServer {
           { name: 'domain', type: 'string', description: 'Filter by domain' },
         ],
       },
-      handler: (params) => handleAgentList(params as Parameters<typeof handleAgentList>[0]),
+      handler: (params) => handleAgentList(params as unknown as Parameters<typeof handleAgentList>[0]),
     });
 
     this.registerTool({
@@ -428,7 +428,7 @@ export class MCPProtocolServer {
           { name: 'type', type: 'string', description: 'Agent type', default: 'worker' },
         ],
       },
-      handler: (params) => handleAgentSpawn(params as Parameters<typeof handleAgentSpawn>[0]),
+      handler: (params) => handleAgentSpawn(params as unknown as Parameters<typeof handleAgentSpawn>[0]),
     });
 
     this.registerTool({
@@ -440,7 +440,7 @@ export class MCPProtocolServer {
           { name: 'agentId', type: 'string', description: 'Specific agent ID' },
         ],
       },
-      handler: (params) => handleAgentMetrics(params as Parameters<typeof handleAgentMetrics>[0]),
+      handler: (params) => handleAgentMetrics(params as unknown as Parameters<typeof handleAgentMetrics>[0]),
     });
 
     this.registerTool({
@@ -452,7 +452,7 @@ export class MCPProtocolServer {
           { name: 'agentId', type: 'string', description: 'Agent ID', required: true },
         ],
       },
-      handler: (params) => handleAgentStatus(params as Parameters<typeof handleAgentStatus>[0]),
+      handler: (params) => handleAgentStatus(params as unknown as Parameters<typeof handleAgentStatus>[0]),
     });
 
     // Domain tools - Test Generation
@@ -467,7 +467,7 @@ export class MCPProtocolServer {
           { name: 'testType', type: 'string', description: 'Type of tests', enum: ['unit', 'integration', 'e2e'] },
         ],
       },
-      handler: (params) => handleTestGenerate(params as Parameters<typeof handleTestGenerate>[0]),
+      handler: (params) => handleTestGenerate(params as unknown as Parameters<typeof handleTestGenerate>[0]),
     });
 
     // Domain tools - Test Execution
@@ -481,7 +481,7 @@ export class MCPProtocolServer {
           { name: 'parallel', type: 'boolean', description: 'Enable parallel execution', default: true },
         ],
       },
-      handler: (params) => handleTestExecute(params as Parameters<typeof handleTestExecute>[0]),
+      handler: (params) => handleTestExecute(params as unknown as Parameters<typeof handleTestExecute>[0]),
     });
 
     // Domain tools - Coverage Analysis
@@ -495,7 +495,7 @@ export class MCPProtocolServer {
           { name: 'detectGaps', type: 'boolean', description: 'Detect coverage gaps', default: true },
         ],
       },
-      handler: (params) => handleCoverageAnalyze(params as Parameters<typeof handleCoverageAnalyze>[0]),
+      handler: (params) => handleCoverageAnalyze(params as unknown as Parameters<typeof handleCoverageAnalyze>[0]),
     });
 
     // Domain tools - Quality Assessment
@@ -508,7 +508,7 @@ export class MCPProtocolServer {
           { name: 'runGate', type: 'boolean', description: 'Run quality gate evaluation', default: false },
         ],
       },
-      handler: (params) => handleQualityAssess(params as Parameters<typeof handleQualityAssess>[0]),
+      handler: (params) => handleQualityAssess(params as unknown as Parameters<typeof handleQualityAssess>[0]),
     });
 
     // Domain tools - Security
@@ -523,7 +523,7 @@ export class MCPProtocolServer {
           { name: 'target', type: 'string', description: 'Target to scan' },
         ],
       },
-      handler: (params) => handleSecurityScan(params as Parameters<typeof handleSecurityScan>[0]),
+      handler: (params) => handleSecurityScan(params as unknown as Parameters<typeof handleSecurityScan>[0]),
     });
 
     // Domain tools - Contract Testing
@@ -536,7 +536,7 @@ export class MCPProtocolServer {
           { name: 'contractPath', type: 'string', description: 'Path to contract file' },
         ],
       },
-      handler: (params) => handleContractValidate(params as Parameters<typeof handleContractValidate>[0]),
+      handler: (params) => handleContractValidate(params as unknown as Parameters<typeof handleContractValidate>[0]),
     });
 
     // Domain tools - Accessibility
@@ -550,7 +550,7 @@ export class MCPProtocolServer {
           { name: 'standard', type: 'string', description: 'Accessibility standard' },
         ],
       },
-      handler: (params) => handleAccessibilityTest(params as Parameters<typeof handleAccessibilityTest>[0]),
+      handler: (params) => handleAccessibilityTest(params as unknown as Parameters<typeof handleAccessibilityTest>[0]),
     });
 
     // Domain tools - Chaos Engineering
@@ -564,7 +564,7 @@ export class MCPProtocolServer {
           { name: 'target', type: 'string', description: 'Target service' },
         ],
       },
-      handler: (params) => handleChaosTest(params as Parameters<typeof handleChaosTest>[0]),
+      handler: (params) => handleChaosTest(params as unknown as Parameters<typeof handleChaosTest>[0]),
     });
 
     // Domain tools - Defect Intelligence
@@ -577,7 +577,7 @@ export class MCPProtocolServer {
           { name: 'target', type: 'string', description: 'Target path' },
         ],
       },
-      handler: (params) => handleDefectPredict(params as Parameters<typeof handleDefectPredict>[0]),
+      handler: (params) => handleDefectPredict(params as unknown as Parameters<typeof handleDefectPredict>[0]),
     });
 
     // Domain tools - Requirements
@@ -590,7 +590,7 @@ export class MCPProtocolServer {
           { name: 'requirementsPath', type: 'string', description: 'Path to requirements' },
         ],
       },
-      handler: (params) => handleRequirementsValidate(params as Parameters<typeof handleRequirementsValidate>[0]),
+      handler: (params) => handleRequirementsValidate(params as unknown as Parameters<typeof handleRequirementsValidate>[0]),
     });
 
     // Domain tools - Code Intelligence
@@ -603,7 +603,7 @@ export class MCPProtocolServer {
           { name: 'target', type: 'string', description: 'Target path' },
         ],
       },
-      handler: (params) => handleCodeIndex(params as Parameters<typeof handleCodeIndex>[0]),
+      handler: (params) => handleCodeIndex(params as unknown as Parameters<typeof handleCodeIndex>[0]),
     });
 
     // Memory tools
@@ -618,7 +618,7 @@ export class MCPProtocolServer {
           { name: 'namespace', type: 'string', description: 'Memory namespace', default: 'default' },
         ],
       },
-      handler: (params) => handleMemoryStore(params as Parameters<typeof handleMemoryStore>[0]),
+      handler: (params) => handleMemoryStore(params as unknown as Parameters<typeof handleMemoryStore>[0]),
     });
 
     this.registerTool({
@@ -631,7 +631,7 @@ export class MCPProtocolServer {
           { name: 'namespace', type: 'string', description: 'Memory namespace', default: 'default' },
         ],
       },
-      handler: (params) => handleMemoryRetrieve(params as Parameters<typeof handleMemoryRetrieve>[0]),
+      handler: (params) => handleMemoryRetrieve(params as unknown as Parameters<typeof handleMemoryRetrieve>[0]),
     });
 
     this.registerTool({
@@ -644,7 +644,7 @@ export class MCPProtocolServer {
           { name: 'namespace', type: 'string', description: 'Memory namespace' },
         ],
       },
-      handler: (params) => handleMemoryQuery(params as Parameters<typeof handleMemoryQuery>[0]),
+      handler: (params) => handleMemoryQuery(params as unknown as Parameters<typeof handleMemoryQuery>[0]),
     });
 
     this.registerTool({
@@ -657,7 +657,7 @@ export class MCPProtocolServer {
           { name: 'namespace', type: 'string', description: 'Memory namespace', default: 'default' },
         ],
       },
-      handler: (params) => handleMemoryDelete(params as Parameters<typeof handleMemoryDelete>[0]),
+      handler: (params) => handleMemoryDelete(params as unknown as Parameters<typeof handleMemoryDelete>[0]),
     });
 
     this.registerTool({
@@ -681,7 +681,7 @@ export class MCPProtocolServer {
           { name: 'knowledgeDomain', type: 'string', description: 'Knowledge domain', required: true },
         ],
       },
-      handler: (params) => handleMemoryShare(params as Parameters<typeof handleMemoryShare>[0]),
+      handler: (params) => handleMemoryShare(params as unknown as Parameters<typeof handleMemoryShare>[0]),
     });
 
     console.error(`[MCP] Registered ${this.tools.size} tools`);

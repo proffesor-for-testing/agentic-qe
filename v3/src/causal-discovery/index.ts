@@ -29,15 +29,13 @@
  * ```
  */
 
-// Export types
-export {
+// Export types (use 'export type' for type-only exports with isolatedModules)
+export type {
   // Configuration
   CausalDiscoveryConfig,
-  DEFAULT_CAUSAL_CONFIG,
 
   // Event types
   TestEventType,
-  ALL_EVENT_TYPES,
   TestEvent,
 
   // Causal relationships
@@ -56,7 +54,6 @@ export {
 
   // STDP
   STDPParams,
-  DEFAULT_STDP_PARAMS,
 
   // Spike types
   Spike,
@@ -65,16 +62,24 @@ export {
   // Weight matrix types
   WeightEntry,
   WeightMatrixStats,
-} from './types';
+} from './types.js';
+
+// Export runtime values
+export {
+  DEFAULT_CAUSAL_CONFIG,
+  ALL_EVENT_TYPES,
+  DEFAULT_STDP_PARAMS,
+} from './types.js';
 
 // Export implementations
-export { CausalWeightMatrix } from './weight-matrix';
-export { CausalGraphImpl } from './causal-graph';
-export { CausalDiscoveryEngine } from './discovery-engine';
+export { CausalWeightMatrix } from './weight-matrix.js';
+export { CausalGraphImpl } from './causal-graph.js';
+export { CausalDiscoveryEngine } from './discovery-engine.js';
 
 // Factory function for creating a configured engine
-import { CausalDiscoveryConfig, DEFAULT_CAUSAL_CONFIG } from './types';
-import { CausalDiscoveryEngine } from './discovery-engine';
+import type { CausalDiscoveryConfig } from './types.js';
+import { DEFAULT_CAUSAL_CONFIG } from './types.js';
+import { CausalDiscoveryEngine } from './discovery-engine.js';
 
 /**
  * Create a causal discovery engine with optional configuration

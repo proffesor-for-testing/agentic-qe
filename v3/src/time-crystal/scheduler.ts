@@ -63,8 +63,8 @@ export class TimeCrystalScheduler {
   private readonly config: CPGConfig;
   private readonly options: SchedulerOptions;
 
-  private oscillators: OscillatorNeuron[];
-  private coupling: number[][];
+  private oscillators!: OscillatorNeuron[];
+  private coupling!: number[][];
   private currentPhase: number = 0;
   private time: number = 0;
   private phaseHistory: number[] = [];

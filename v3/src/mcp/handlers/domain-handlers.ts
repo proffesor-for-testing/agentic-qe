@@ -58,23 +58,27 @@ interface V2AIInsights {
   recommendations: string[];
   estimatedTime: string;
   confidence: number;
+  [key: string]: unknown;
 }
 
 interface V2LearningFeedback {
   enabled: boolean;
   agentId: string;
   message: string;
+  [key: string]: unknown;
 }
 
 interface V2Complexity {
   score: number;
   level: 'low' | 'medium' | 'high';
+  [key: string]: unknown;
 }
 
 interface V2Coverage {
   predicted: number;
   confidence: number;
   achievable?: boolean;
+  [key: string]: unknown;
 }
 
 interface V2WorkerStats {
@@ -82,12 +86,14 @@ interface V2WorkerStats {
   efficiency: number;
   loadBalance: number;
   avgExecutionTime: number;
+  [key: string]: unknown;
 }
 
 interface V2RetryStats {
   totalRetries: number;
   successfulRetries: number;
   maxRetriesReached: number;
+  [key: string]: unknown;
 }
 
 function analyzeComplexity(sourceCode: string): V2Complexity {
@@ -392,6 +398,12 @@ interface TestExecuteResult {
   failed: number;
   duration: number;
   coverage?: number;
+  // V2-compatible fields (optional, flexible typing)
+  workerStats?: Record<string, unknown>;
+  retryStats?: Record<string, unknown>;
+  results?: unknown[];
+  summary?: Record<string, unknown>;
+  learning?: Record<string, unknown>;
 }
 
 export async function handleTestExecute(
@@ -592,11 +604,16 @@ export async function handleCoverageAnalyze(
     const detailedGaps = (data.gaps || []).map((gap: any, i: number) => ({
       id: `gap-${Date.now()}-${i}`,
       file: gap?.file || `src/module${i}.ts`,
+      line: gap?.lines?.[0] || (10 + i * 5),
       uncoveredLines: gap?.lines || [10 + i * 5, 20 + i * 5],
+      type: (gap?.type || 'uncovered-line') as 'uncovered-line' | 'uncovered-branch' | 'uncovered-function',
+      severity: (gap?.severity || (i < 2 ? 'high' : 'medium')) as 'critical' | 'high' | 'medium' | 'low',
       reason: gap?.reason || 'Missing test case',
       priority: gap?.priority || (i < 2 ? 'high' : 'medium'),
+      suggestion: gap?.suggestedTest || `Add test for line ${10 + i * 5}`,
       suggestedTest: gap?.suggestedTest || `Add test for line ${10 + i * 5}`,
       riskScore: gap?.riskScore || (0.8 - i * 0.1),
+      confidence: gap?.confidence || 0.85,
     }));
 
     return {

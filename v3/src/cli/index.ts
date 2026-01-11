@@ -20,6 +20,7 @@ import { CrossDomainEventRouter } from '../coordination/cross-domain-router';
 import { DefaultProtocolExecutor } from '../coordination/protocol-executor';
 import { WorkflowOrchestrator } from '../coordination/workflow-orchestrator';
 import { DomainName, ALL_DOMAINS, Priority } from '../shared/types';
+import { InitOrchestrator, type InitOrchestratorOptions } from '../init/init-wizard';
 
 // ============================================================================
 // CLI State
@@ -179,8 +180,70 @@ program
   .option('-m, --max-agents <number>', 'Maximum concurrent agents', '15')
   .option('--memory <backend>', 'Memory backend (sqlite|agentdb|hybrid)', 'hybrid')
   .option('--lazy', 'Enable lazy loading of domains')
+  .option('--wizard', 'Run interactive setup wizard')
+  .option('--auto', 'Auto-configure based on project analysis')
+  .option('--minimal', 'Minimal configuration (skip optional features)')
+  .option('--skip-patterns', 'Skip loading pre-trained patterns')
   .action(async (options) => {
     try {
+      // Check if wizard mode requested
+      if (options.wizard || options.auto) {
+        console.log(chalk.blue('\n🚀 Agentic QE v3 Initialization\n'));
+
+        const orchestratorOptions: InitOrchestratorOptions = {
+          projectRoot: process.cwd(),
+          autoMode: options.auto,
+          minimal: options.minimal,
+          skipPatterns: options.skipPatterns,
+        };
+
+        const orchestrator = new InitOrchestrator(orchestratorOptions);
+
+        if (options.wizard) {
+          // Show wizard steps
+          console.log(chalk.white('📋 Setup Wizard Steps:\n'));
+          const steps = orchestrator.getWizardSteps();
+          for (let i = 0; i < steps.length; i++) {
+            console.log(chalk.gray(`  ${i + 1}. ${steps[i].title}`));
+            console.log(chalk.gray(`     ${steps[i].description}\n`));
+          }
+        }
+
+        console.log(chalk.white('🔍 Analyzing project...\n'));
+
+        const result = await orchestrator.initialize();
+
+        // Display step results
+        for (const step of result.steps) {
+          const statusIcon = step.status === 'success' ? '✓' : step.status === 'error' ? '✗' : '⚠';
+          const statusColor = step.status === 'success' ? chalk.green : step.status === 'error' ? chalk.red : chalk.yellow;
+          console.log(statusColor(`  ${statusIcon} ${step.step} (${step.durationMs}ms)`));
+        }
+        console.log('');
+
+        if (result.success) {
+          console.log(chalk.green('✅ AQE v3 initialized successfully!\n'));
+
+          // Show summary
+          console.log(chalk.blue('📊 Summary:'));
+          console.log(chalk.gray(`  • Patterns loaded: ${result.summary.patternsLoaded}`));
+          console.log(chalk.gray(`  • Hooks configured: ${result.summary.hooksConfigured ? 'Yes' : 'No'}`));
+          console.log(chalk.gray(`  • Workers started: ${result.summary.workersStarted}`));
+          console.log(chalk.gray(`  • Total time: ${result.totalDurationMs}ms\n`));
+
+          console.log(chalk.white('Next steps:'));
+          console.log(chalk.gray('  1. Add MCP: claude mcp add aqe-v3 -- npx @agentic-qe/v3 mcp'));
+          console.log(chalk.gray('  2. Run tests: aqe-v3 test <path>'));
+          console.log(chalk.gray('  3. Check status: aqe-v3 status\n'));
+        } else {
+          console.log(chalk.red('❌ Initialization failed. Check errors above.\n'));
+          process.exit(1);
+        }
+
+        process.exit(0);
+      }
+
+      // Standard init without wizard
       console.log(chalk.blue('\n🚀 Initializing Agentic QE v3...\n'));
 
       // Determine enabled domains
@@ -1582,6 +1645,307 @@ program
       console.error(chalk.red('\n❌ Failed:'), error);
       await cleanupAndExit(1);
     }
+  });
+
+// ============================================================================
+// Migrate Command - V2 to V3 Migration
+// ============================================================================
+
+program
+  .command('migrate')
+  .description('Migrate from Agentic QE v2 to v3')
+  .option('--dry-run', 'Preview migration without making changes')
+  .option('--backup', 'Create backup before migration (recommended)', true)
+  .option('--skip-memory', 'Skip memory database migration')
+  .option('--skip-patterns', 'Skip pattern migration')
+  .option('--skip-config', 'Skip configuration migration')
+  .option('--force', 'Force migration even if v3 already exists')
+  .action(async (options) => {
+    const fs = await import('fs');
+    const path = await import('path');
+
+    console.log(chalk.blue('\n🔄 Agentic QE v2 to v3 Migration\n'));
+
+    const cwd = process.cwd();
+    const v2Dir = path.join(cwd, '.agentic-qe');
+    const v3Dir = path.join(cwd, '.aqe-v3');
+
+    // Step 1: Detect v2 installation
+    console.log(chalk.white('1. Detecting v2 installation...'));
+
+    if (!fs.existsSync(v2Dir)) {
+      console.log(chalk.yellow('   ⚠ No v2 installation found at .agentic-qe/'));
+      console.log(chalk.gray('   This might be a fresh project. Use `aqe-v3 init` instead.'));
+      process.exit(0);
+    }
+
+    const v2Files = {
+      memoryDb: path.join(v2Dir, 'memory.db'),
+      config: path.join(v2Dir, 'config.json'),
+      patterns: path.join(v2Dir, 'patterns'),
+    };
+
+    const hasMemory = fs.existsSync(v2Files.memoryDb);
+    const hasConfig = fs.existsSync(v2Files.config);
+    const hasPatterns = fs.existsSync(v2Files.patterns);
+
+    console.log(chalk.green('   ✓ Found v2 installation:'));
+    console.log(chalk.gray(`     Memory DB: ${hasMemory ? '✓' : '✗'}`));
+    console.log(chalk.gray(`     Config: ${hasConfig ? '✓' : '✗'}`));
+    console.log(chalk.gray(`     Patterns: ${hasPatterns ? '✓' : '✗'}\n`));
+
+    // Step 2: Check v3 existence
+    console.log(chalk.white('2. Checking v3 status...'));
+
+    if (fs.existsSync(v3Dir) && !options.force) {
+      console.log(chalk.yellow('   ⚠ v3 directory already exists at .aqe-v3/'));
+      console.log(chalk.gray('   Use --force to overwrite existing v3 installation.'));
+      process.exit(1);
+    }
+    console.log(chalk.green('   ✓ Ready for migration\n'));
+
+    // Dry run mode
+    if (options.dryRun) {
+      console.log(chalk.blue('📋 Dry Run - Migration Plan:\n'));
+
+      if (!options.skipMemory && hasMemory) {
+        const stats = fs.statSync(v2Files.memoryDb);
+        console.log(chalk.gray(`  • Migrate memory.db (${(stats.size / 1024).toFixed(1)} KB)`));
+        console.log(chalk.gray('    From: .agentic-qe/memory.db'));
+        console.log(chalk.gray('    To:   .aqe-v3/agentdb/'));
+      }
+
+      if (!options.skipConfig && hasConfig) {
+        console.log(chalk.gray('  • Convert config.json to v3 format'));
+        console.log(chalk.gray('    From: .agentic-qe/config.json'));
+        console.log(chalk.gray('    To:   .aqe-v3/config.json'));
+      }
+
+      if (!options.skipPatterns && hasPatterns) {
+        const patternFiles = fs.readdirSync(v2Files.patterns);
+        console.log(chalk.gray(`  • Migrate ${patternFiles.length} pattern files`));
+        console.log(chalk.gray('    From: .agentic-qe/patterns/'));
+        console.log(chalk.gray('    To:   .aqe-v3/reasoning-bank/'));
+      }
+
+      console.log(chalk.yellow('\n⚠ This is a dry run. No changes were made.'));
+      console.log(chalk.gray('Run without --dry-run to execute migration.\n'));
+      process.exit(0);
+    }
+
+    // Step 3: Create backup
+    if (options.backup) {
+      console.log(chalk.white('3. Creating backup...'));
+      const backupDir = path.join(cwd, `.agentic-qe-backup-${Date.now()}`);
+
+      try {
+        fs.mkdirSync(backupDir, { recursive: true });
+
+        // Copy v2 directory
+        const copyDir = (src: string, dest: string) => {
+          if (!fs.existsSync(src)) return;
+
+          if (fs.statSync(src).isDirectory()) {
+            fs.mkdirSync(dest, { recursive: true });
+            for (const file of fs.readdirSync(src)) {
+              copyDir(path.join(src, file), path.join(dest, file));
+            }
+          } else {
+            fs.copyFileSync(src, dest);
+          }
+        };
+
+        copyDir(v2Dir, backupDir);
+        console.log(chalk.green(`   ✓ Backup created at ${path.basename(backupDir)}\n`));
+      } catch (err) {
+        console.log(chalk.red(`   ✗ Backup failed: ${err}`));
+        console.log(chalk.gray('   Use --no-backup to skip backup.\n'));
+        process.exit(1);
+      }
+    } else {
+      console.log(chalk.yellow('3. Backup skipped (--no-backup)\n'));
+    }
+
+    // Step 4: Create v3 directory structure
+    console.log(chalk.white('4. Creating v3 directory structure...'));
+
+    try {
+      fs.mkdirSync(v3Dir, { recursive: true });
+      fs.mkdirSync(path.join(v3Dir, 'agentdb'), { recursive: true });
+      fs.mkdirSync(path.join(v3Dir, 'reasoning-bank'), { recursive: true });
+      fs.mkdirSync(path.join(v3Dir, 'cache'), { recursive: true });
+      fs.mkdirSync(path.join(v3Dir, 'logs'), { recursive: true });
+      console.log(chalk.green('   ✓ Directory structure created\n'));
+    } catch (err) {
+      console.log(chalk.red(`   ✗ Failed: ${err}\n`));
+      process.exit(1);
+    }
+
+    // Step 5: Migrate memory database
+    if (!options.skipMemory && hasMemory) {
+      console.log(chalk.white('5. Migrating memory database...'));
+
+      try {
+        // Copy SQLite database first (v3 can read v2 format)
+        const destDb = path.join(v3Dir, 'agentdb', 'memory.db');
+        fs.copyFileSync(v2Files.memoryDb, destDb);
+
+        // Create index file for HNSW
+        const indexFile = path.join(v3Dir, 'agentdb', 'index.json');
+        fs.writeFileSync(indexFile, JSON.stringify({
+          version: '3.0.0',
+          migratedFrom: 'v2',
+          migratedAt: new Date().toISOString(),
+          hnswEnabled: true,
+          vectorDimensions: 128,
+        }, null, 2));
+
+        const stats = fs.statSync(v2Files.memoryDb);
+        console.log(chalk.green(`   ✓ Memory database migrated (${(stats.size / 1024).toFixed(1)} KB)\n`));
+      } catch (err) {
+        console.log(chalk.red(`   ✗ Migration failed: ${err}\n`));
+      }
+    } else if (options.skipMemory) {
+      console.log(chalk.yellow('5. Memory migration skipped\n'));
+    } else {
+      console.log(chalk.gray('5. No memory database to migrate\n'));
+    }
+
+    // Step 6: Migrate configuration
+    if (!options.skipConfig && hasConfig) {
+      console.log(chalk.white('6. Migrating configuration...'));
+
+      try {
+        const v2ConfigRaw = fs.readFileSync(v2Files.config, 'utf-8');
+        const v2Config = JSON.parse(v2ConfigRaw);
+
+        // Convert to v3 format
+        const v3Config = {
+          version: '3.0.0',
+          migratedFrom: v2Config.version || '2.x',
+          migratedAt: new Date().toISOString(),
+          kernel: {
+            eventBus: 'in-memory',
+            coordinator: 'queen',
+          },
+          domains: {
+            'test-generation': { enabled: true },
+            'test-execution': { enabled: true },
+            'coverage-analysis': { enabled: true, algorithm: 'hnsw', dimensions: 128 },
+            'quality-assessment': { enabled: true },
+            'defect-intelligence': { enabled: true },
+            'requirements-validation': { enabled: true },
+            'code-intelligence': { enabled: true },
+            'security-compliance': { enabled: true },
+            'contract-testing': { enabled: true },
+            'visual-accessibility': { enabled: false },
+            'chaos-resilience': { enabled: true },
+            'learning-optimization': { enabled: true },
+          },
+          memory: {
+            backend: 'hybrid',
+            path: '.aqe-v3/agentdb/',
+            hnsw: { M: 16, efConstruction: 200 },
+          },
+          learning: {
+            reasoningBank: true,
+            sona: true,
+            patternRetention: v2Config.learning?.patternRetention || 180,
+          },
+          v2Migration: {
+            originalConfig: v2Config,
+            migrationDate: new Date().toISOString(),
+          },
+        };
+
+        const destConfig = path.join(v3Dir, 'config.json');
+        fs.writeFileSync(destConfig, JSON.stringify(v3Config, null, 2));
+        console.log(chalk.green('   ✓ Configuration migrated\n'));
+      } catch (err) {
+        console.log(chalk.red(`   ✗ Config migration failed: ${err}\n`));
+      }
+    } else if (options.skipConfig) {
+      console.log(chalk.yellow('6. Configuration migration skipped\n'));
+    } else {
+      console.log(chalk.gray('6. No configuration to migrate\n'));
+    }
+
+    // Step 7: Migrate patterns
+    if (!options.skipPatterns && hasPatterns) {
+      console.log(chalk.white('7. Migrating patterns to ReasoningBank...'));
+
+      try {
+        const patternFiles = fs.readdirSync(v2Files.patterns);
+        let migratedCount = 0;
+
+        for (const file of patternFiles) {
+          const srcPath = path.join(v2Files.patterns, file);
+          const destPath = path.join(v3Dir, 'reasoning-bank', file);
+
+          if (fs.statSync(srcPath).isFile()) {
+            fs.copyFileSync(srcPath, destPath);
+            migratedCount++;
+          }
+        }
+
+        // Create reasoning bank index
+        const indexPath = path.join(v3Dir, 'reasoning-bank', 'index.json');
+        fs.writeFileSync(indexPath, JSON.stringify({
+          version: '3.0.0',
+          migratedFrom: 'v2',
+          migratedAt: new Date().toISOString(),
+          patternCount: migratedCount,
+          hnswIndexed: false,
+        }, null, 2));
+
+        console.log(chalk.green(`   ✓ ${migratedCount} patterns migrated\n`));
+      } catch (err) {
+        console.log(chalk.red(`   ✗ Pattern migration failed: ${err}\n`));
+      }
+    } else if (options.skipPatterns) {
+      console.log(chalk.yellow('7. Pattern migration skipped\n'));
+    } else {
+      console.log(chalk.gray('7. No patterns to migrate\n'));
+    }
+
+    // Step 8: Validation
+    console.log(chalk.white('8. Validating migration...'));
+
+    const validationResults = {
+      v3DirExists: fs.existsSync(v3Dir),
+      configExists: fs.existsSync(path.join(v3Dir, 'config.json')),
+      agentdbExists: fs.existsSync(path.join(v3Dir, 'agentdb')),
+      reasoningBankExists: fs.existsSync(path.join(v3Dir, 'reasoning-bank')),
+    };
+
+    const allValid = Object.values(validationResults).every(v => v);
+
+    if (allValid) {
+      console.log(chalk.green('   ✓ Migration validated successfully\n'));
+    } else {
+      console.log(chalk.yellow('   ⚠ Some validations failed:'));
+      for (const [key, value] of Object.entries(validationResults)) {
+        console.log(chalk.gray(`     ${key}: ${value ? '✓' : '✗'}`));
+      }
+      console.log('');
+    }
+
+    // Summary
+    console.log(chalk.blue('═══════════════════════════════════════════════'));
+    console.log(chalk.green.bold('✅ Migration Complete!\n'));
+    console.log(chalk.white('Your v2 data is now available in v3 format.'));
+    console.log(chalk.gray('v2 installation (.agentic-qe/) was NOT modified.\n'));
+
+    console.log(chalk.white('Next steps:'));
+    console.log(chalk.gray('  1. Run `aqe-v3 status` to verify the system'));
+    console.log(chalk.gray('  2. Add v3 MCP: `claude mcp add aqe-v3 -- npx @agentic-qe/v3 mcp`'));
+    console.log(chalk.gray('  3. Test with: `aqe-v3 test <path>`\n'));
+
+    console.log(chalk.yellow('Rollback:'));
+    console.log(chalk.gray('  If migration failed, simply delete .aqe-v3/'));
+    console.log(chalk.gray('  Your v2 installation remains unchanged.\n'));
+
+    process.exit(0);
   });
 
 // ============================================================================

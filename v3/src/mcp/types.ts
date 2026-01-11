@@ -466,6 +466,16 @@ export interface TestGenerateResult {
   suggestions?: string[];
   duration?: number;
   savedFiles?: string[];
+  patternsUsed?: string[];
+  // V2-compatible fields (optional, flexible typing for backwards compatibility)
+  tests?: unknown[];
+  antiPatterns?: unknown[];
+  aiInsights?: Record<string, unknown>;
+  coverage?: Record<string, unknown>;
+  properties?: unknown[];
+  language?: string;
+  complexity?: unknown;
+  learning?: Record<string, unknown>;
 }
 
 /**
@@ -480,6 +490,14 @@ export interface CoverageAnalyzeResult {
   riskScore?: number;
   duration?: number;
   savedFiles?: string[];
+  // V2-compatible fields (optional, flexible typing)
+  statementCoverage?: number;
+  totalFiles?: number;
+  coverageByFile?: unknown[];
+  gapAnalysis?: Record<string, unknown>;
+  trends?: Record<string, unknown>;
+  aiInsights?: Record<string, unknown>;
+  learning?: Record<string, unknown>;
 }
 
 /**
@@ -492,6 +510,13 @@ export interface CoverageGap {
   severity: 'critical' | 'high' | 'medium' | 'low';
   confidence?: number;
   suggestion?: string;
+  // Extended fields for V2 compatibility
+  id?: string;
+  uncoveredLines?: number[];
+  reason?: string;
+  priority?: string;
+  suggestedTest?: string;
+  riskScore?: number;
 }
 
 /**

@@ -41,77 +41,83 @@
  * ```
  */
 
-// Types
-export {
+// Types (use 'export type' for type-only exports with isolatedModules)
+export type {
   // Lambda Types
   QualityLambda,
   QualityDimensions,
   QualityMetricsInput,
-  QualityLambdaFlags,
 
   // 4-Tier Response Types
-  QualityTier,
   QualityGateReason,
   QualityAction,
   QualityGateDecision,
 
   // Policy Types
   CoherenceGatePolicy,
-  DEFAULT_COHERENCE_GATE_POLICY,
 
   // Partition Types
   QualityPartition,
-  QualityPartitionType,
 
   // History Types
   LambdaHistoryPoint,
   LambdaTrend,
-} from './types';
+} from './types.js';
+
+// Runtime values (enums and constants)
+export {
+  QualityTier,
+  QualityLambdaFlags,
+  DEFAULT_COHERENCE_GATE_POLICY,
+} from './types.js';
+
+// Type re-export for QualityPartitionType (string union type)
+export type { QualityPartitionType } from './types.js';
 
 // Lambda Calculator
 export {
   LambdaCalculator,
   createLambdaCalculator,
   calculateQualityLambda,
-} from './lambda-calculator';
+} from './lambda-calculator.js';
 
 export type {
   LambdaCalculatorConfig,
-} from './lambda-calculator';
+} from './lambda-calculator.js';
 
 // Gate Controller
 export {
   CoherenceGateController,
   createCoherenceGateController,
   evaluateQualityGate,
-} from './gate-controller';
+} from './gate-controller.js';
 
 export type {
   CoherenceGateControllerConfig,
-} from './gate-controller';
+} from './gate-controller.js';
 
 // Partition Detector
 export {
   PartitionDetector,
   createPartitionDetector,
   detectQualityPartitions,
-} from './partition-detector';
+} from './partition-detector.js';
 
 export type {
   PartitionDetectorConfig,
   PartitionDetectionResult,
   RemediationStep,
   RemediationPlan,
-} from './partition-detector';
+} from './partition-detector.js';
 
 // ============================================================================
 // Convenience Functions
 // ============================================================================
 
-import { QualityMetricsInput, QualityGateDecision, QualityLambda } from './types';
-import { calculateQualityLambda } from './lambda-calculator';
-import { evaluateQualityGate } from './gate-controller';
-import { createPartitionDetector } from './partition-detector';
+import type { QualityMetricsInput, QualityGateDecision, QualityLambda } from './types.js';
+import { calculateQualityLambda } from './lambda-calculator.js';
+import { evaluateQualityGate } from './gate-controller.js';
+import { createPartitionDetector } from './partition-detector.js';
 
 /**
  * End-to-end coherence gate evaluation from raw metrics

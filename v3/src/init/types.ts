@@ -148,6 +148,22 @@ export interface HooksConfig {
 }
 
 /**
+ * Skills configuration
+ */
+export interface SkillsConfig {
+  /** Install skills during init (default: true) */
+  install: boolean;
+  /** Install v2 methodology skills (default: true) */
+  installV2: boolean;
+  /** Install v3 domain skills (default: true) */
+  installV3: boolean;
+  /** Install platform-specific skills (default: true) */
+  installPlatform: boolean;
+  /** Overwrite existing skills (default: false) */
+  overwrite: boolean;
+}
+
+/**
  * Auto-tuning configuration
  */
 export interface AutoTuningConfig {
@@ -173,6 +189,7 @@ export interface AQEInitConfig {
   routing: RoutingConfig;
   workers: WorkersConfig;
   hooks: HooksConfig;
+  skills: SkillsConfig;
   autoTuning: AutoTuningConfig;
 
   // Domain-specific settings
@@ -215,6 +232,7 @@ export interface InitResult {
     projectAnalyzed: boolean;
     configGenerated: boolean;
     patternsLoaded: number;
+    skillsInstalled: number;
     hooksConfigured: boolean;
     workersStarted: number;
   };
@@ -347,6 +365,14 @@ export const DEFAULT_HOOKS_CONFIG: HooksConfig = {
   ciIntegration: false,
 };
 
+export const DEFAULT_SKILLS_CONFIG: SkillsConfig = {
+  install: true,
+  installV2: true,
+  installV3: true,
+  installPlatform: true,
+  overwrite: false,
+};
+
 export const DEFAULT_AUTO_TUNING_CONFIG: AutoTuningConfig = {
   enabled: true,
   parameters: [
@@ -389,6 +415,7 @@ export function createDefaultConfig(projectName: string, projectRoot: string): A
     routing: DEFAULT_ROUTING_CONFIG,
     workers: DEFAULT_WORKERS_CONFIG,
     hooks: DEFAULT_HOOKS_CONFIG,
+    skills: DEFAULT_SKILLS_CONFIG,
     autoTuning: DEFAULT_AUTO_TUNING_CONFIG,
     domains: {
       enabled: ALL_DOMAINS,

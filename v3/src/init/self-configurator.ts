@@ -14,6 +14,7 @@ import type {
   HooksConfig,
   AutoTuningConfig,
   HNSWConfig,
+  SkillsConfig,
 } from './types.js';
 import {
   DEFAULT_HNSW_CONFIG,
@@ -22,6 +23,7 @@ import {
   DEFAULT_WORKERS_CONFIG,
   DEFAULT_HOOKS_CONFIG,
   DEFAULT_AUTO_TUNING_CONFIG,
+  DEFAULT_SKILLS_CONFIG,
   ALL_DOMAINS,
 } from './types.js';
 
@@ -250,6 +252,7 @@ export class SelfConfigurator {
       routing: this.recommendRouting(analysis),
       workers: this.recommendWorkers(analysis),
       hooks: this.recommendHooks(analysis),
+      skills: this.recommendSkills(analysis),
       autoTuning: this.recommendAutoTuning(analysis),
       domains: {
         enabled: this.recommendDomains(analysis),
@@ -373,6 +376,30 @@ export class SelfConfigurator {
 
     // Enable pre-commit for projects with many tests
     config.preCommit = analysis.existingTests.totalCount > 50;
+
+    return config;
+  }
+
+  /**
+   * Recommend skills configuration
+   */
+  private recommendSkills(analysis: ProjectAnalysis): SkillsConfig {
+    const config = { ...DEFAULT_SKILLS_CONFIG };
+
+    // Always install by default
+    config.install = true;
+
+    // Install v2 methodology skills - version-agnostic best practices
+    config.installV2 = true;
+
+    // Install v3 domain skills - v3-specific implementation guides
+    config.installV3 = true;
+
+    // Install platform skills for detected frameworks
+    // Check for common platforms in the project
+    config.installPlatform = analysis.frameworks.some(f =>
+      ['playwright', 'cypress', 'jest', 'vitest', 'mocha'].includes(f.name.toLowerCase())
+    );
 
     return config;
   }
