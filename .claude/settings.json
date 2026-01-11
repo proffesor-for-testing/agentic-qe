@@ -221,7 +221,7 @@
       "Bash(npx claude-flow*)",
       "Bash(npx @claude-flow/*)",
       "mcp__claude-flow__*",
-      "mcp__agentic-qe__*",
+      "mcp__agentic_qe__*",
       "mcp__agentic-qe-v3__*"
     ],
     "deny": [
