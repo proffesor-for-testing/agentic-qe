@@ -13,7 +13,7 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../ba
 import { ToolResult } from '../../types';
 import { VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
-import { MemoryBackend } from '../../../kernel/interfaces';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 
 // ============================================================================
 // Visual Compare Types
@@ -486,7 +486,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
                 id: 'keyboard-trap',
                 impact: 'critical' as const,
                 description: trap.description,
-                help: trap.escapePath,
+                help: trap.escapePath || 'No escape path available',
                 helpUrl: 'https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap',
                 wcagCriteria: ['2.1.2'],
                 nodes: [
@@ -756,34 +756,36 @@ function createMinimalMemoryBackend(): MemoryBackend {
   const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
 
   return {
-    set: async (key: string, value: unknown, metadata?: unknown) => {
-      store.set(key, { value, metadata });
+    async initialize(): Promise<void> {
+      // No initialization needed
     },
-    get: async <T>(key: string): Promise<T | null> => {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : null;
-    },
-    delete: async (key: string): Promise<boolean> => {
-      return store.delete(key);
-    },
-    has: async (key: string): Promise<boolean> => {
-      return store.has(key);
-    },
-    keys: async (): Promise<string[]> => {
-      return Array.from(store.keys());
-    },
-    clear: async (): Promise<void> => {
+    async dispose(): Promise<void> {
       store.clear();
       vectors.clear();
     },
-    close: async (): Promise<void> => {},
-    vectorSearch: async (): Promise<Array<{ key: string; score: number; metadata?: unknown }>> => [],
-    storeVector: async (): Promise<void> => {},
-    getStats: async () => ({ keyCount: store.size }),
-    search: async (pattern: string, limit?: number): Promise<string[]> => {
+    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
+      store.set(key, { value });
+    },
+    async get<T>(key: string): Promise<T | undefined> {
+      const entry = store.get(key);
+      return entry ? (entry.value as T) : undefined;
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      return store.has(key);
+    },
+    async search(pattern: string, limit?: number): Promise<string[]> {
       const regex = new RegExp(pattern.replace(/\*/g, '.*'));
       const matches = Array.from(store.keys()).filter((key) => regex.test(key));
       return limit ? matches.slice(0, limit) : matches;
+    },
+    async vectorSearch(_embedding: number[], _k: number): Promise<VectorSearchResult[]> {
+      return [];
+    },
+    async storeVector(_key: string, _embedding: number[], _metadata?: unknown): Promise<void> {
+      // Minimal implementation
     },
   };
 }

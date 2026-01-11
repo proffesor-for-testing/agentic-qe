@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 5 Complete (Self-Learning + Init)
+**Status:** Phase 6 In Progress (RuVector MinCut Intelligence)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-01-10 (ADR-025 Init Module Complete)
+**Last Verified:** 2026-01-10 (ADR-030 to ADR-035 RuVector MinCut Integration)
 
 ---
 
@@ -37,6 +37,16 @@
 | ADR-023 | Quality Feedback Loop System | **Accepted** | 2026-01-09 | ✅ 101 tests: TestOutcomeTracker + CoverageLearner + PatternPromotion
 | ADR-024 | Self-Optimization Engine | **Accepted** | 2026-01-09 | ✅ 103 tests: AutoTuner + MetricCollectors + 4 QE Workers + Applicators
 | ADR-025 | Enhanced Init with Self-Configuration | **Accepted** | 2026-01-10 | ✅ 73 tests: ProjectAnalyzer + SelfConfigurator + InitWizard
+| ADR-026 | AISP Parsing and Validation | **Rejected** | 2026-01-10 | ❌ Deleted - no integration points, duplicated existing EventBus |
+| ADR-027 | AISP Agent Specifications for QE Fleet | **Rejected** | 2026-01-10 | ❌ Deleted - TypeScript interfaces sufficient |
+| ADR-028 | AISP↔Prose Translator (Rosetta Stone) | **Rejected** | 2026-01-10 | ❌ Deleted - no consumers of translation |
+| ADR-029 | AISP Agent Communication Protocol | **Rejected** | 2026-01-10 | ❌ Deleted - duplicated existing coordination layer |
+| ADR-030 | Coherence-Gated Quality Gates | **Accepted** | 2026-01-10 | ✅ RuVector λ-coherence + 4-tier compute allocation |
+| ADR-031 | Strange Loop Self-Awareness | **Accepted** | 2026-01-10 | ✅ Self-observation → self-modeling → self-healing cycle |
+| ADR-032 | Time Crystal Scheduling | **Accepted** | 2026-01-10 | ✅ Kuramoto CPG oscillators for self-sustaining scheduling |
+| ADR-033 | Early Exit Testing | **Accepted** | 2026-01-10 | ✅ λ-stability decisions + speculative execution |
+| ADR-034 | Neural Topology Optimizer | **Accepted** | 2026-01-10 | ✅ RL-based swarm topology optimization + value network |
+| ADR-035 | Causal Discovery | **Accepted** | 2026-01-10 | ✅ STDP spike timing correlation for root cause analysis |
 
 ---
 
@@ -2319,7 +2329,7 @@ const appliedRules = configurator.getApplicableRules(analysis);
 ---
 
 **Document Maintained By:** Architecture Team
-**Last Updated:** 2026-01-10 (ADR-025 Init Module Complete)
+**Last Updated:** 2026-01-10 (ADR-030 to ADR-035 RuVector MinCut Intelligence)
 **Next Review:** After Integration Testing Complete
 
 ### Current Implementation Stats (2026-01-10)
@@ -2329,7 +2339,8 @@ const appliedRules = configurator.getApplicableRules(analysis);
 | Source Files | 182+ |
 | Test Files | 91 |
 | Tests Passing | 2,335 |
-| ADRs Complete | 24/25 (ADR-020 ongoing) |
+| ADRs Complete | 34/35 (ADR-020 ongoing) |
+| RuVector MinCut ADRs | 6 (ADR-030 to ADR-035) |
 | Init Module Tests | 73 |
 | Feedback Module Tests | 101 |
 | Optimization Module Tests | 103 |

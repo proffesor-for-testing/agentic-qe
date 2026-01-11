@@ -208,8 +208,23 @@ export interface QEKernel extends Initializable, Disposable {
   /** Get the memory backend */
   readonly memory: MemoryBackend;
 
-  /** Get a domain's API */
+  /** Get a domain's API (synchronous, returns undefined if not loaded) */
   getDomainAPI<T>(domain: DomainName): T | undefined;
+
+  /** Get a domain's API with lazy loading support */
+  getDomainAPIAsync?<T>(domain: DomainName): Promise<T | undefined>;
+
+  /** Ensure a domain is loaded */
+  ensureDomainLoaded?(domain: DomainName): Promise<boolean>;
+
+  /** Check if a domain is currently loaded */
+  isDomainLoaded?(domain: DomainName): boolean;
+
+  /** Get list of loaded domains */
+  getLoadedDomains?(): DomainName[];
+
+  /** Get list of enabled but not yet loaded domains */
+  getPendingDomains?(): DomainName[];
 
   /** Get kernel health */
   getHealth(): KernelHealth;

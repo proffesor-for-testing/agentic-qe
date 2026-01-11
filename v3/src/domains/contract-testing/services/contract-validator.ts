@@ -35,6 +35,43 @@ const DEFAULT_CONFIG: ContractValidatorConfig = {
 };
 
 /**
+ * GraphQL schema parsing types
+ */
+interface GraphQLSchemaInfo {
+  types: Record<string, GraphQLTypeDef>;
+  queryType: string | null;
+  mutationType: string | null;
+  subscriptionType: string | null;
+  errors: string[];
+}
+
+interface GraphQLTypeDef {
+  kind: 'type' | 'input' | 'interface' | 'enum';
+  fields: Record<string, GraphQLFieldDef>;
+  implements: string | null;
+}
+
+interface GraphQLFieldDef {
+  type: string;
+  arguments?: Record<string, { type: string }>;
+}
+
+interface GraphQLOperationInfo {
+  type: 'query' | 'mutation' | 'subscription';
+  name: string | null;
+  fields: GraphQLField[];
+  variableDefinitions: Record<string, { type: string; required: boolean }>;
+  errors: string[];
+}
+
+interface GraphQLField {
+  name: string;
+  alias?: string;
+  arguments?: Record<string, unknown>;
+  selections?: GraphQLField[];
+}
+
+/**
  * Contract Validation Service Implementation
  * Validates API contracts against schemas and specifications
  */
@@ -751,18 +788,584 @@ export class ContractValidatorService implements IContractValidationService {
   }
 
   private async validateAgainstGraphQLSchema(
-    _data: unknown,
-    _schemaContent: string,
+    data: unknown,
+    schemaContent: string,
     errors: SchemaError[]
   ): Promise<void> {
-    // GraphQL validation would require parsing the schema
-    // For now, just do basic validation
-    errors.push({
-      path: '',
-      keyword: 'graphql',
-      message: 'GraphQL validation not fully implemented',
-      params: {},
-    });
+    // Parse the GraphQL schema to extract type definitions
+    const schemaInfo = this.parseGraphQLSchema(schemaContent);
+    if (schemaInfo.errors.length > 0) {
+      for (const schemaError of schemaInfo.errors) {
+        errors.push({
+          path: '',
+          keyword: 'schema',
+          message: schemaError,
+          params: {},
+        });
+      }
+      return;
+    }
+
+    // Validate the data (expected to be a GraphQL operation)
+    if (typeof data !== 'object' || data === null) {
+      errors.push({
+        path: '',
+        keyword: 'type',
+        message: 'GraphQL request must be an object with query/mutation',
+        params: {},
+      });
+      return;
+    }
+
+    const request = data as Record<string, unknown>;
+    const query = request.query as string | undefined;
+    const variables = request.variables as Record<string, unknown> | undefined;
+
+    if (!query || typeof query !== 'string') {
+      errors.push({
+        path: 'query',
+        keyword: 'required',
+        message: 'GraphQL request must contain a query string',
+        params: {},
+      });
+      return;
+    }
+
+    // Parse and validate the operation
+    const operationInfo = this.parseGraphQLOperation(query);
+    if (operationInfo.errors.length > 0) {
+      for (const opError of operationInfo.errors) {
+        errors.push({
+          path: 'query',
+          keyword: 'syntax',
+          message: opError,
+          params: {},
+        });
+      }
+      return;
+    }
+
+    // Validate operation type exists in schema
+    const operationType = operationInfo.type; // 'query' | 'mutation' | 'subscription'
+    const rootType = this.getRootTypeForOperation(operationType, schemaInfo);
+    if (!rootType) {
+      errors.push({
+        path: 'query',
+        keyword: 'operation',
+        message: `Schema does not support ${operationType} operations`,
+        params: { operationType },
+      });
+      return;
+    }
+
+    // Validate selected fields exist on the root type
+    for (const field of operationInfo.fields) {
+      const fieldDef = schemaInfo.types[rootType]?.fields[field.name];
+      if (!fieldDef) {
+        errors.push({
+          path: `query.${field.name}`,
+          keyword: 'field',
+          message: `Field '${field.name}' does not exist on type '${rootType}'`,
+          params: { field: field.name, type: rootType },
+        });
+      } else {
+        // Validate arguments if provided
+        if (field.arguments) {
+          for (const [argName, _argValue] of Object.entries(field.arguments)) {
+            if (!fieldDef.arguments?.[argName]) {
+              errors.push({
+                path: `query.${field.name}.${argName}`,
+                keyword: 'argument',
+                message: `Unknown argument '${argName}' on field '${field.name}'`,
+                params: { argument: argName, field: field.name },
+              });
+            }
+          }
+        }
+
+        // Validate nested field selections
+        if (field.selections && field.selections.length > 0) {
+          const fieldType = this.unwrapGraphQLType(fieldDef.type);
+          this.validateGraphQLSelections(
+            field.selections,
+            fieldType,
+            schemaInfo,
+            `query.${field.name}`,
+            errors
+          );
+        }
+      }
+    }
+
+    // Validate variables against operation variable definitions
+    if (variables && operationInfo.variableDefinitions) {
+      for (const [varName, varDef] of Object.entries(operationInfo.variableDefinitions)) {
+        if (varDef.required && !(varName in variables)) {
+          errors.push({
+            path: `variables.${varName}`,
+            keyword: 'required',
+            message: `Required variable '${varName}' is missing`,
+            params: { variable: varName },
+          });
+        }
+        if (varName in variables) {
+          this.validateGraphQLVariableType(variables[varName], varDef.type, `variables.${varName}`, errors);
+        }
+      }
+    }
+  }
+
+  /**
+   * Parse GraphQL schema to extract type definitions
+   */
+  private parseGraphQLSchema(schemaContent: string): GraphQLSchemaInfo {
+    const info: GraphQLSchemaInfo = {
+      types: {},
+      queryType: null,
+      mutationType: null,
+      subscriptionType: null,
+      errors: [],
+    };
+
+    const lines = schemaContent.split('\n');
+    let currentType: string | null = null;
+    let currentTypeKind: 'type' | 'input' | 'interface' | 'enum' | null = null;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Skip comments and empty lines
+      if (line.startsWith('#') || line === '') continue;
+
+      // Detect schema definition
+      const schemaMatch = line.match(/^schema\s*\{?/);
+      if (schemaMatch) {
+        // Parse schema block to find root types
+        let schemaBlock = line;
+        if (!line.includes('}')) {
+          for (let j = i + 1; j < lines.length; j++) {
+            schemaBlock += ' ' + lines[j].trim();
+            if (lines[j].includes('}')) break;
+          }
+        }
+        const queryMatch = schemaBlock.match(/query\s*:\s*(\w+)/);
+        const mutationMatch = schemaBlock.match(/mutation\s*:\s*(\w+)/);
+        const subscriptionMatch = schemaBlock.match(/subscription\s*:\s*(\w+)/);
+        if (queryMatch) info.queryType = queryMatch[1];
+        if (mutationMatch) info.mutationType = mutationMatch[1];
+        if (subscriptionMatch) info.subscriptionType = subscriptionMatch[1];
+        continue;
+      }
+
+      // Detect type definitions
+      const typeMatch = line.match(/^(type|input|interface|enum)\s+(\w+)(?:\s+implements\s+(\w+))?\s*\{?/);
+      if (typeMatch) {
+        currentTypeKind = typeMatch[1] as 'type' | 'input' | 'interface' | 'enum';
+        currentType = typeMatch[2];
+        info.types[currentType] = {
+          kind: currentTypeKind,
+          fields: {},
+          implements: typeMatch[3] || null,
+        };
+
+        // Default Query/Mutation/Subscription types
+        if (currentType === 'Query' && !info.queryType) info.queryType = 'Query';
+        if (currentType === 'Mutation' && !info.mutationType) info.mutationType = 'Mutation';
+        if (currentType === 'Subscription' && !info.subscriptionType) info.subscriptionType = 'Subscription';
+
+        if (line.includes('{')) braceDepth++;
+        continue;
+      }
+
+      // Track brace depth
+      if (line.includes('{')) braceDepth++;
+      if (line.includes('}')) {
+        braceDepth--;
+        if (braceDepth === 0) {
+          currentType = null;
+          currentTypeKind = null;
+        }
+        continue;
+      }
+
+      // Parse field definitions within a type
+      if (currentType && currentTypeKind !== 'enum') {
+        const fieldMatch = line.match(/^(\w+)(?:\s*\(([^)]*)\))?\s*:\s*(.+?)(?:\s*@.*)?$/);
+        if (fieldMatch) {
+          const fieldName = fieldMatch[1];
+          const argsStr = fieldMatch[2];
+          const fieldType = fieldMatch[3].trim();
+
+          const fieldDef: GraphQLFieldDef = {
+            type: fieldType,
+            arguments: {},
+          };
+
+          // Parse arguments
+          if (argsStr) {
+            const argMatches = argsStr.matchAll(/(\w+)\s*:\s*([^,\)]+)/g);
+            for (const argMatch of argMatches) {
+              fieldDef.arguments![argMatch[1]] = { type: argMatch[2].trim() };
+            }
+          }
+
+          info.types[currentType].fields[fieldName] = fieldDef;
+        }
+      }
+
+      // Parse enum values
+      if (currentType && currentTypeKind === 'enum') {
+        const enumValue = line.match(/^(\w+)(?:\s*@.*)?$/);
+        if (enumValue) {
+          info.types[currentType].fields[enumValue[1]] = { type: 'EnumValue' };
+        }
+      }
+    }
+
+    // Validate schema has at least a query type
+    if (!info.queryType && Object.keys(info.types).length > 0) {
+      // Check if there's a Query type defined
+      if (!info.types['Query']) {
+        info.errors.push('GraphQL schema must define a Query type or schema definition');
+      }
+    }
+
+    return info;
+  }
+
+  /**
+   * Parse GraphQL operation (query/mutation/subscription)
+   */
+  private parseGraphQLOperation(query: string): GraphQLOperationInfo {
+    const info: GraphQLOperationInfo = {
+      type: 'query',
+      name: null,
+      fields: [],
+      variableDefinitions: {},
+      errors: [],
+    };
+
+    // Remove comments
+    const cleanQuery = query.replace(/#[^\n]*/g, '').trim();
+
+    // Detect operation type
+    const operationMatch = cleanQuery.match(/^(query|mutation|subscription)(?:\s+(\w+))?\s*(?:\(([^)]*)\))?\s*\{/);
+    if (operationMatch) {
+      info.type = operationMatch[1] as 'query' | 'mutation' | 'subscription';
+      info.name = operationMatch[2] || null;
+
+      // Parse variable definitions
+      if (operationMatch[3]) {
+        const varMatches = operationMatch[3].matchAll(/\$(\w+)\s*:\s*([^,\)!]+)(!)?/g);
+        for (const varMatch of varMatches) {
+          info.variableDefinitions[varMatch[1]] = {
+            type: varMatch[2].trim(),
+            required: !!varMatch[3],
+          };
+        }
+      }
+    } else if (cleanQuery.startsWith('{')) {
+      // Anonymous query
+      info.type = 'query';
+    } else if (!cleanQuery.includes('{')) {
+      info.errors.push('Invalid GraphQL operation: missing selection set');
+      return info;
+    }
+
+    // Extract the selection set
+    const selectionSetMatch = cleanQuery.match(/\{([\s\S]*)\}/);
+    if (!selectionSetMatch) {
+      info.errors.push('Invalid GraphQL operation: could not parse selection set');
+      return info;
+    }
+
+    // Parse fields from selection set
+    info.fields = this.parseGraphQLSelectionSet(selectionSetMatch[1]);
+
+    return info;
+  }
+
+  /**
+   * Parse GraphQL selection set into field list
+   */
+  private parseGraphQLSelectionSet(selectionSet: string): GraphQLField[] {
+    const fields: GraphQLField[] = [];
+    let depth = 0;
+    let currentField = '';
+    let i = 0;
+
+    while (i < selectionSet.length) {
+      const char = selectionSet[i];
+
+      if (char === '{') {
+        depth++;
+        currentField += char;
+      } else if (char === '}') {
+        depth--;
+        currentField += char;
+      } else if ((char === '\n' || char === ' ' || char === ',') && depth === 0) {
+        if (currentField.trim()) {
+          const field = this.parseGraphQLField(currentField.trim());
+          if (field) fields.push(field);
+        }
+        currentField = '';
+      } else {
+        currentField += char;
+      }
+      i++;
+    }
+
+    // Handle last field
+    if (currentField.trim()) {
+      const field = this.parseGraphQLField(currentField.trim());
+      if (field) fields.push(field);
+    }
+
+    return fields;
+  }
+
+  /**
+   * Parse a single GraphQL field
+   */
+  private parseGraphQLField(fieldStr: string): GraphQLField | null {
+    // Handle alias
+    const aliasMatch = fieldStr.match(/^(\w+)\s*:\s*(.+)$/);
+    let fieldContent = fieldStr;
+    let alias: string | undefined;
+    if (aliasMatch && !aliasMatch[2].includes('(') && !aliasMatch[2].includes('{')) {
+      // This might be a type annotation in variable, not an alias - skip
+    } else if (aliasMatch && (aliasMatch[2].match(/^\w/) || aliasMatch[2].includes('('))) {
+      alias = aliasMatch[1];
+      fieldContent = aliasMatch[2];
+    }
+
+    // Parse field name and arguments
+    const fieldMatch = fieldContent.match(/^(\w+)(?:\s*\(([^)]*)\))?(?:\s*\{([\s\S]*)\})?$/);
+    if (!fieldMatch) {
+      // Try without nested selection
+      const simpleMatch = fieldContent.match(/^(\w+)(?:\s*\(([^)]*)\))?/);
+      if (simpleMatch) {
+        return {
+          name: simpleMatch[1],
+          alias,
+          arguments: simpleMatch[2] ? this.parseGraphQLArguments(simpleMatch[2]) : undefined,
+        };
+      }
+      return null;
+    }
+
+    const field: GraphQLField = {
+      name: fieldMatch[1],
+      alias,
+    };
+
+    // Parse arguments
+    if (fieldMatch[2]) {
+      field.arguments = this.parseGraphQLArguments(fieldMatch[2]);
+    }
+
+    // Parse nested selections
+    if (fieldMatch[3]) {
+      field.selections = this.parseGraphQLSelectionSet(fieldMatch[3]);
+    }
+
+    return field;
+  }
+
+  /**
+   * Parse GraphQL arguments
+   */
+  private parseGraphQLArguments(argsStr: string): Record<string, unknown> {
+    const args: Record<string, unknown> = {};
+    const argMatches = argsStr.matchAll(/(\w+)\s*:\s*([^,\)]+)/g);
+    for (const match of argMatches) {
+      const value = match[2].trim();
+      // Parse value (handle variables, strings, numbers, booleans)
+      if (value.startsWith('$')) {
+        args[match[1]] = { _variable: value.substring(1) };
+      } else if (value.startsWith('"') || value.startsWith("'")) {
+        args[match[1]] = value.slice(1, -1);
+      } else if (value === 'true') {
+        args[match[1]] = true;
+      } else if (value === 'false') {
+        args[match[1]] = false;
+      } else if (value === 'null') {
+        args[match[1]] = null;
+      } else if (!isNaN(Number(value))) {
+        args[match[1]] = Number(value);
+      } else {
+        args[match[1]] = value; // Enum value
+      }
+    }
+    return args;
+  }
+
+  /**
+   * Get root type name for operation type
+   */
+  private getRootTypeForOperation(
+    operationType: 'query' | 'mutation' | 'subscription',
+    schemaInfo: GraphQLSchemaInfo
+  ): string | null {
+    switch (operationType) {
+      case 'query':
+        return schemaInfo.queryType;
+      case 'mutation':
+        return schemaInfo.mutationType;
+      case 'subscription':
+        return schemaInfo.subscriptionType;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Unwrap GraphQL type (remove [], !)
+   */
+  private unwrapGraphQLType(type: string): string {
+    return type.replace(/[\[\]!]/g, '').trim();
+  }
+
+  /**
+   * Validate nested field selections
+   */
+  private validateGraphQLSelections(
+    selections: GraphQLField[],
+    typeName: string,
+    schemaInfo: GraphQLSchemaInfo,
+    path: string,
+    errors: SchemaError[]
+  ): void {
+    const typeDef = schemaInfo.types[typeName];
+    if (!typeDef) {
+      // Could be a scalar type, skip validation
+      if (['String', 'Int', 'Float', 'Boolean', 'ID'].includes(typeName)) {
+        if (selections.length > 0) {
+          errors.push({
+            path,
+            keyword: 'selection',
+            message: `Cannot select fields on scalar type '${typeName}'`,
+            params: { type: typeName },
+          });
+        }
+      }
+      return;
+    }
+
+    for (const selection of selections) {
+      const fieldDef = typeDef.fields[selection.name];
+      if (!fieldDef) {
+        errors.push({
+          path: `${path}.${selection.name}`,
+          keyword: 'field',
+          message: `Field '${selection.name}' does not exist on type '${typeName}'`,
+          params: { field: selection.name, type: typeName },
+        });
+      } else if (selection.selections && selection.selections.length > 0) {
+        const nestedType = this.unwrapGraphQLType(fieldDef.type);
+        this.validateGraphQLSelections(
+          selection.selections,
+          nestedType,
+          schemaInfo,
+          `${path}.${selection.name}`,
+          errors
+        );
+      }
+    }
+  }
+
+  /**
+   * Validate variable type matches expected GraphQL type
+   */
+  private validateGraphQLVariableType(
+    value: unknown,
+    expectedType: string,
+    path: string,
+    errors: SchemaError[]
+  ): void {
+    const baseType = this.unwrapGraphQLType(expectedType);
+    const isNonNull = expectedType.endsWith('!');
+    const isList = expectedType.includes('[');
+
+    if (value === null || value === undefined) {
+      if (isNonNull) {
+        errors.push({
+          path,
+          keyword: 'type',
+          message: `Variable cannot be null (expected ${expectedType})`,
+          params: { expectedType },
+        });
+      }
+      return;
+    }
+
+    if (isList) {
+      if (!Array.isArray(value)) {
+        errors.push({
+          path,
+          keyword: 'type',
+          message: `Expected array for type ${expectedType}`,
+          params: { expectedType, actualType: typeof value },
+        });
+      }
+      return;
+    }
+
+    // Validate scalar types
+    switch (baseType) {
+      case 'String':
+      case 'ID':
+        if (typeof value !== 'string') {
+          errors.push({
+            path,
+            keyword: 'type',
+            message: `Expected string for type ${baseType}`,
+            params: { expectedType: baseType, actualType: typeof value },
+          });
+        }
+        break;
+      case 'Int':
+        if (typeof value !== 'number' || !Number.isInteger(value)) {
+          errors.push({
+            path,
+            keyword: 'type',
+            message: `Expected integer for type Int`,
+            params: { expectedType: 'Int', actualType: typeof value },
+          });
+        }
+        break;
+      case 'Float':
+        if (typeof value !== 'number') {
+          errors.push({
+            path,
+            keyword: 'type',
+            message: `Expected number for type Float`,
+            params: { expectedType: 'Float', actualType: typeof value },
+          });
+        }
+        break;
+      case 'Boolean':
+        if (typeof value !== 'boolean') {
+          errors.push({
+            path,
+            keyword: 'type',
+            message: `Expected boolean for type Boolean`,
+            params: { expectedType: 'Boolean', actualType: typeof value },
+          });
+        }
+        break;
+      // Custom types - basic object validation
+      default:
+        if (typeof value !== 'object') {
+          errors.push({
+            path,
+            keyword: 'type',
+            message: `Expected object for type ${baseType}`,
+            params: { expectedType: baseType, actualType: typeof value },
+          });
+        }
+    }
   }
 
   private basicTypeValidation(

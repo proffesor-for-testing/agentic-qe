@@ -9,6 +9,9 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
+import { TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
+import { GenerateTestsRequest } from '../../../domains/test-generation/interfaces';
 
 // ============================================================================
 // Types
@@ -65,6 +68,26 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
     timeout: 120000,
   };
 
+  private testGeneratorService: TestGeneratorService | null = null;
+
+  /**
+   * Initialize or get the test generator service
+   */
+  private getService(): TestGeneratorService {
+    if (!this.testGeneratorService) {
+      this.testGeneratorService = new TestGeneratorService(
+        createMinimalMemoryBackend(),
+        {
+          defaultFramework: 'vitest',
+          maxTestsPerFile: 50,
+          coverageTargetDefault: 80,
+          enableAIGeneration: true,
+        }
+      );
+    }
+    return this.testGeneratorService;
+  }
+
   async execute(
     params: TestGenerateParams,
     context: MCPToolContext
@@ -95,16 +118,38 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
         };
       }
 
-      // In a real implementation, this would call the domain service
-      // For now, we'll return a structured result
-      const tests: GeneratedTest[] = sourceFiles.map((file, index) => ({
-        id: `test-${context.requestId}-${index}`,
-        name: `Test suite for ${file.split('/').pop()}`,
-        sourceFile: file,
-        testFile: file.replace(/\.(ts|js)$/, `.test.$1`),
-        testCode: generateTestTemplate(file, testType, framework),
-        type: testType,
-        assertions: Math.floor(Math.random() * 10) + 5,
+      // Get the domain service and call it with the request
+      const service = this.getService();
+
+      // Build the domain request from MCP params
+      const domainRequest: GenerateTestsRequest = {
+        sourceFiles,
+        testType: testType as 'unit' | 'integration' | 'e2e',
+        framework: framework as 'jest' | 'vitest' | 'mocha' | 'pytest',
+        coverageTarget,
+        patterns,
+      };
+
+      // Call the domain service for real test generation
+      const result = await service.generateTests(domainRequest);
+
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error?.message || 'Test generation failed',
+        };
+      }
+
+      // Map domain result to MCP result
+      const domainTests = result.value;
+      const tests: GeneratedTest[] = domainTests.tests.map((test) => ({
+        id: test.id,
+        name: test.name,
+        sourceFile: test.sourceFile,
+        testFile: test.testFile,
+        testCode: test.testCode,
+        type: test.type,
+        assertions: test.assertions,
       }));
 
       this.emitStream(context, {
@@ -113,6 +158,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
         progress: 50,
       });
 
+      // Detect anti-patterns if requested
       const antiPatterns: AntiPattern[] = detectAntiPatterns
         ? detectAntiPatternsInSource(sourceFiles)
         : [];
@@ -127,8 +173,8 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
         success: true,
         data: {
           tests,
-          coverageEstimate: Math.min(coverageTarget, tests.length * 15),
-          patternsUsed: patterns.length > 0 ? patterns : ['default-' + testType],
+          coverageEstimate: domainTests.coverageEstimate,
+          patternsUsed: domainTests.patternsUsed,
           suggestions: generateSuggestions(tests, aiEnhancement),
           antiPatterns: antiPatterns.length > 0 ? antiPatterns : undefined,
         },
@@ -202,81 +248,233 @@ const TEST_GENERATE_SCHEMA: MCPToolSchema = {
 // Helper Functions
 // ============================================================================
 
-function generateTestTemplate(
-  sourceFile: string,
-  testType: string,
-  framework: string
-): string {
-  const fileName = sourceFile.split('/').pop()?.replace(/\.(ts|js)$/, '') || 'module';
+/**
+ * Detect anti-patterns in source files
+ * Analyzes test code for common issues: magic numbers, missing assertions, test interdependence
+ */
+function detectAntiPatternsInSource(files: string[]): AntiPattern[] {
+  const antiPatterns: AntiPattern[] = [];
+  const fs = require('fs');
 
-  if (framework === 'vitest' || framework === 'jest') {
-    return `import { describe, it, expect } from '${framework}';
-import { ${fileName} } from './${fileName}';
+  for (const file of files) {
+    try {
+      // Try to read the file content
+      let content: string;
+      try {
+        content = fs.readFileSync(file, 'utf-8');
+      } catch {
+        // File doesn't exist or can't be read, skip
+        continue;
+      }
 
-describe('${fileName}', () => {
-  it('should be defined', () => {
-    expect(${fileName}).toBeDefined();
-  });
+      const lines = content.split('\n');
 
-  ${testType === 'unit' ? generateUnitTests(fileName) : ''}
-  ${testType === 'integration' ? generateIntegrationTests(fileName) : ''}
-  ${testType === 'e2e' ? generateE2ETests(fileName) : ''}
-});
-`;
+      // Detect magic numbers (numeric literals that aren't 0, 1, -1, or common values)
+      const magicNumberPattern = /(?<![\w.])(\d{2,}|[2-9]\d*)(?![\w.])/g;
+      const allowedNumbers = new Set(['10', '100', '1000', '60', '24', '365', '404', '500', '200', '201']);
+
+      lines.forEach((line, index) => {
+        // Skip comments and imports
+        if (line.trim().startsWith('//') || line.trim().startsWith('*') ||
+            line.includes('import') || line.includes('require')) {
+          return;
+        }
+
+        const matches = line.match(magicNumberPattern);
+        if (matches) {
+          for (const match of matches) {
+            // Skip allowed numbers and numbers in strings
+            if (allowedNumbers.has(match)) continue;
+            // Check if it's in a string
+            const beforeMatch = line.substring(0, line.indexOf(match));
+            const singleQuotes = (beforeMatch.match(/'/g) || []).length;
+            const doubleQuotes = (beforeMatch.match(/"/g) || []).length;
+            const backticks = (beforeMatch.match(/`/g) || []).length;
+            if (singleQuotes % 2 === 1 || doubleQuotes % 2 === 1 || backticks % 2 === 1) continue;
+
+            antiPatterns.push({
+              name: 'magic-number',
+              location: `${file}:${index + 1}`,
+              severity: 'medium',
+              suggestion: `Consider extracting ${match} into a named constant to improve readability and maintainability`,
+            });
+            break; // Only report first magic number per line
+          }
+        }
+      });
+
+      // Detect missing assertions in test blocks
+      const testBlockPattern = /(?:it|test)\s*\(\s*['"`]([^'"`]+)['"`]\s*,/g;
+      let testMatch;
+      while ((testMatch = testBlockPattern.exec(content)) !== null) {
+        const testStart = testMatch.index;
+        const testName = testMatch[1];
+
+        // Find the test block content
+        const afterTest = content.substring(testStart);
+        const blockContent = extractTestBlockContent(afterTest);
+
+        if (blockContent) {
+          // Check for assertions
+          const hasExpect = /expect\s*\(/.test(blockContent);
+          const hasAssert = /assert[\.\(]/.test(blockContent);
+          const hasShould = /\.should[\.\(]/.test(blockContent);
+          const hasToBe = /\.toBe|\.toEqual|\.toMatch|\.toThrow|\.toContain/.test(blockContent);
+
+          if (!hasExpect && !hasAssert && !hasShould && !hasToBe) {
+            const lineNumber = content.substring(0, testStart).split('\n').length;
+            antiPatterns.push({
+              name: 'no-assertions',
+              location: `${file}:${lineNumber}`,
+              severity: 'high',
+              suggestion: `Test "${testName}" has no assertions. Add expect() or assert() calls to verify behavior`,
+            });
+          }
+        }
+      }
+
+      // Detect test interdependence (shared mutable state)
+      const sharedStatePatterns = [
+        { pattern: /let\s+\w+\s*=\s*(?!undefined|null)/g, name: 'mutable-let-declaration' },
+        { pattern: /(?:^|\s)var\s+\w+\s*=/g, name: 'mutable-var-declaration' },
+      ];
+
+      // Check if there are shared variables modified in multiple tests
+      const describeBlocks = content.match(/describe\s*\([^)]+,\s*(?:function\s*\(\)|(?:\(\s*\))?\s*=>)\s*\{/g);
+      if (describeBlocks) {
+        for (const describeBlock of describeBlocks) {
+          const describeStart = content.indexOf(describeBlock);
+          const describeContent = extractDescribeBlockContent(content.substring(describeStart));
+
+          if (describeContent) {
+            // Look for let/var at describe level that's modified in tests
+            const letMatch = describeContent.match(/^\s*let\s+(\w+)\s*(?::\s*\w+)?\s*(?:=|;)/m);
+            if (letMatch) {
+              const varName = letMatch[1];
+              // Check if this variable is assigned in multiple it blocks
+              const assignmentsInTests = (describeContent.match(
+                new RegExp(`(?:it|test)\\s*\\([^)]+,[^]*?${varName}\\s*=`, 'g')
+              ) || []).length;
+
+              if (assignmentsInTests >= 2) {
+                const lineNumber = content.substring(0, describeStart + describeContent.indexOf(letMatch[0])).split('\n').length;
+                antiPatterns.push({
+                  name: 'test-interdependence',
+                  location: `${file}:${lineNumber}`,
+                  severity: 'high',
+                  suggestion: `Shared mutable variable '${varName}' is modified in multiple tests, causing test interdependence. Use beforeEach to reset state or isolate test data`,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Detect test-only implementation (tests that test test helpers)
+      if (/\.test\.|\.spec\./.test(file)) {
+        // Look for imports from other test files
+        const testImports = content.match(/import\s+.*from\s+['"].*(?:\.test|\.spec)['"]/g);
+        if (testImports && testImports.length > 0) {
+          antiPatterns.push({
+            name: 'test-importing-tests',
+            location: file,
+            severity: 'medium',
+            suggestion: 'Test file imports from another test file. Extract shared test utilities to a separate module',
+          });
+        }
+      }
+
+      // Detect overly long test descriptions (hard to understand)
+      const longDescPattern = /(?:it|test|describe)\s*\(\s*['"`]([^'"`]{100,})['"`]/g;
+      let longDescMatch;
+      while ((longDescMatch = longDescPattern.exec(content)) !== null) {
+        const lineNumber = content.substring(0, longDescMatch.index).split('\n').length;
+        antiPatterns.push({
+          name: 'long-test-description',
+          location: `${file}:${lineNumber}`,
+          severity: 'low',
+          suggestion: 'Test description is too long. Consider breaking into smaller, focused tests or using a more concise description',
+        });
+      }
+
+      // Detect setTimeout/setInterval in tests without proper handling
+      if (/setTimeout|setInterval/.test(content)) {
+        const hasUseFakeTimers = /useFakeTimers|fakeTimers|clock/.test(content);
+        if (!hasUseFakeTimers) {
+          const timeoutMatch = content.match(/setTimeout|setInterval/);
+          if (timeoutMatch) {
+            const lineNumber = content.substring(0, content.indexOf(timeoutMatch[0])).split('\n').length;
+            antiPatterns.push({
+              name: 'real-timers-in-tests',
+              location: `${file}:${lineNumber}`,
+              severity: 'medium',
+              suggestion: 'Using real timers in tests can cause flakiness. Consider using fake timers (jest.useFakeTimers() or vi.useFakeTimers())',
+            });
+          }
+        }
+      }
+
+    } catch (error) {
+      // Skip files that can't be processed
+      continue;
+    }
   }
 
-  return `// Test template for ${fileName} using ${framework}`;
+  return antiPatterns;
 }
 
-function generateUnitTests(moduleName: string): string {
-  return `
-  describe('unit tests', () => {
-    it('should handle valid input', () => {
-      // TODO: Implement test
-      expect(true).toBe(true);
-    });
+/**
+ * Extract the content of a test block (it/test function body)
+ */
+function extractTestBlockContent(content: string): string | null {
+  let braceCount = 0;
+  let startIndex = -1;
+  let endIndex = -1;
 
-    it('should handle edge cases', () => {
-      // TODO: Implement test
-      expect(true).toBe(true);
-    });
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === '{') {
+      if (startIndex === -1) startIndex = i;
+      braceCount++;
+    } else if (content[i] === '}') {
+      braceCount--;
+      if (braceCount === 0 && startIndex !== -1) {
+        endIndex = i;
+        break;
+      }
+    }
+  }
 
-    it('should throw on invalid input', () => {
-      // TODO: Implement test
-      expect(() => {}).not.toThrow();
-    });
-  });`;
+  if (startIndex !== -1 && endIndex !== -1) {
+    return content.substring(startIndex + 1, endIndex);
+  }
+  return null;
 }
 
-function generateIntegrationTests(moduleName: string): string {
-  return `
-  describe('integration tests', () => {
-    it('should integrate with dependencies', async () => {
-      // TODO: Implement integration test
-      expect(true).toBe(true);
-    });
+/**
+ * Extract the content of a describe block
+ */
+function extractDescribeBlockContent(content: string): string | null {
+  let braceCount = 0;
+  let startIndex = -1;
+  let endIndex = -1;
 
-    it('should handle async operations', async () => {
-      // TODO: Implement async test
-      await expect(Promise.resolve(true)).resolves.toBe(true);
-    });
-  });`;
-}
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === '{') {
+      if (startIndex === -1) startIndex = i;
+      braceCount++;
+    } else if (content[i] === '}') {
+      braceCount--;
+      if (braceCount === 0 && startIndex !== -1) {
+        endIndex = i;
+        break;
+      }
+    }
+  }
 
-function generateE2ETests(moduleName: string): string {
-  return `
-  describe('e2e tests', () => {
-    it('should complete full workflow', async () => {
-      // TODO: Implement e2e test
-      expect(true).toBe(true);
-    });
-  });`;
-}
-
-function detectAntiPatternsInSource(files: string[]): AntiPattern[] {
-  // Placeholder for anti-pattern detection
-  // In real implementation, this would analyze source code
-  return [];
+  if (startIndex !== -1 && endIndex !== -1) {
+    return content.substring(startIndex + 1, endIndex);
+  }
+  return null;
 }
 
 function generateSuggestions(tests: GeneratedTest[], aiEnabled: boolean): string[] {
@@ -292,4 +490,55 @@ function generateSuggestions(tests: GeneratedTest[], aiEnabled: boolean): string
   }
 
   return suggestions;
+}
+
+// ============================================================================
+// Memory Backend Helper
+// ============================================================================
+
+/**
+ * Create a minimal in-memory backend for when no context memory is available
+ */
+function createMinimalMemoryBackend(): MemoryBackend {
+  const store = new Map<string, { value: unknown; metadata?: unknown }>();
+  const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
+
+  return {
+    async initialize(): Promise<void> {
+      // No initialization needed
+    },
+    async dispose(): Promise<void> {
+      store.clear();
+      vectors.clear();
+    },
+    async set<T>(key: string, value: T, _options?: unknown): Promise<void> {
+      store.set(key, { value });
+    },
+    async get<T>(key: string): Promise<T | undefined> {
+      const entry = store.get(key);
+      return entry?.value as T | undefined;
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      return store.has(key);
+    },
+    async search(pattern: string, limit?: number): Promise<string[]> {
+      const allKeys = Array.from(store.keys());
+      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+      const filtered = allKeys.filter((k) => regex.test(k));
+      return limit ? filtered.slice(0, limit) : filtered;
+    },
+    async storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void> {
+      vectors.set(key, { embedding, metadata });
+    },
+    async vectorSearch(
+      _embedding: number[],
+      _k: number
+    ): Promise<VectorSearchResult[]> {
+      // Simple implementation - return empty for minimal backend
+      return [];
+    },
+  };
 }

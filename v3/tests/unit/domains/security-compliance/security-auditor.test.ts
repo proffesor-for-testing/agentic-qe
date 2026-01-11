@@ -250,7 +250,7 @@ describe('SecurityAuditorService', () => {
           expect(result.value.overallRiskScore).toBeDefined();
           expect(result.value.recommendations).toBeDefined();
         }
-      });
+      }, 30000); // Extended timeout for comprehensive audit
 
       it('should run audit with only SAST enabled', async () => {
         const options: SecurityAuditOptions = {

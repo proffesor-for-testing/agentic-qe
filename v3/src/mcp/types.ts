@@ -464,6 +464,8 @@ export interface TestGenerateResult {
   coverageEstimate: number;
   antiPatternsDetected?: number;
   suggestions?: string[];
+  duration?: number;
+  savedFiles?: string[];
 }
 
 /**
@@ -476,6 +478,8 @@ export interface CoverageAnalyzeResult {
   functionCoverage: number;
   gaps?: CoverageGap[];
   riskScore?: number;
+  duration?: number;
+  savedFiles?: string[];
 }
 
 /**

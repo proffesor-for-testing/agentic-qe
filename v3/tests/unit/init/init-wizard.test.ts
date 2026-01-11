@@ -219,34 +219,34 @@ describe('InitOrchestrator', () => {
     });
 
     it('should load pretrained patterns when provided', async () => {
-      // Create realistic pretrained library with actual patterns
+      // Create realistic pretrained library with actual patterns grouped by domain
       const testPatterns = Array.from({ length: 50 }, (_, i) => ({
         id: `pattern-${i}`,
-        name: `Test Pattern ${i}`,
-        template: 'describe("test", () => { it("should work", () => {}) })',
-        context: { language: 'typescript', framework: 'vitest' },
+        domain: i < 25 ? 'test-generation' : 'test-execution',
+        type: 'unit',
+        content: 'describe("test", () => { it("should work", () => {}) })',
+        metadata: {
+          language: 'typescript',
+          framework: 'vitest',
+          confidence: 0.9,
+          usageCount: 10,
+          successRate: 0.95,
+        },
       }));
 
       const pretrainedLibrary: PretrainedLibrary = {
         version: '1.0.0',
-        categories: [
-          {
-            name: 'unit-testing',
-            description: 'Unit test patterns',
-            patterns: testPatterns.slice(0, 25),
-          },
-          {
-            name: 'integration-testing',
-            description: 'Integration test patterns',
-            patterns: testPatterns.slice(25),
-          },
-        ],
+        exportedFrom: 'test-suite',
+        exportDate: new Date().toISOString(),
+        patterns: testPatterns,
         statistics: {
           totalPatterns: 50,
-          byCategory: {
-            'unit-testing': 25,
-            'integration-testing': 25,
+          byDomain: {
+            'test-generation': 25,
+            'test-execution': 25,
           },
+          byLanguage: { typescript: 50 },
+          averageConfidence: 0.9,
         },
       };
 
@@ -643,18 +643,35 @@ describe('InitOrchestrator', () => {
       expect(registry.maxConcurrent).toBeDefined();
     });
 
-    it('should write pretrained patterns to category directories', async () => {
+    it('should write pretrained patterns to domain directories', async () => {
       const testPatterns = [
-        { id: 'p1', name: 'Pattern 1', template: 'test', context: {} },
-        { id: 'p2', name: 'Pattern 2', template: 'test', context: {} },
+        {
+          id: 'p1',
+          domain: 'test-generation',
+          type: 'unit',
+          content: 'test pattern 1',
+          metadata: { confidence: 0.9, usageCount: 5, successRate: 0.95 },
+        },
+        {
+          id: 'p2',
+          domain: 'test-generation',
+          type: 'integration',
+          content: 'test pattern 2',
+          metadata: { confidence: 0.85, usageCount: 3, successRate: 0.9 },
+        },
       ];
 
       const pretrainedLibrary: PretrainedLibrary = {
         version: '1.0.0',
-        categories: [
-          { name: 'unit-testing', description: 'Unit tests', patterns: testPatterns },
-        ],
-        statistics: { totalPatterns: 2, byCategory: { 'unit-testing': 2 } },
+        exportedFrom: 'test-suite',
+        exportDate: new Date().toISOString(),
+        patterns: testPatterns,
+        statistics: {
+          totalPatterns: 2,
+          byDomain: { 'test-generation': 2 },
+          byLanguage: {},
+          averageConfidence: 0.875,
+        },
       };
 
       const orchestrator = createInitOrchestrator({
@@ -665,10 +682,10 @@ describe('InitOrchestrator', () => {
 
       await orchestrator.initialize();
 
-      // Verify pattern directory created
+      // Verify pattern directory created for the domain
       const mkdirCalls = mockMkdirSync.mock.calls;
       const patternDirCall = mkdirCalls.find((call) =>
-        (call[0] as string).includes('patterns/unit-testing')
+        (call[0] as string).includes('patterns/test-generation')
       );
       expect(patternDirCall).toBeDefined();
 

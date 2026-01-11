@@ -409,7 +409,14 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
         }
       }
 
-      // Check for git changes if available (stub - would integrate with git)
+      // Check for git changes using GitAnalyzer integration
+      // First, get uncommitted changes (staged + unstaged)
+      const uncommittedFiles = await this.gitAnalyzer.getUncommittedFiles();
+      if (uncommittedFiles.length > 0) {
+        changedFiles.push(...uncommittedFiles);
+      }
+
+      // Then, get committed changes since last index
       const gitChanges = await this.detectGitChanges(lastIndexTime);
       if (gitChanges.success) {
         changedFiles.push(...gitChanges.value);

@@ -1220,55 +1220,567 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   }
 
   /**
-   * Perform SAST scan - placeholder for SecurityScannerService integration
-   * In a full implementation, this would delegate to a dedicated SAST service
+   * Perform SAST scan using AST-based analysis for JavaScript/TypeScript
+   * Scans for common vulnerability patterns: XSS, SQL injection, command injection, path traversal
    */
   private async performSASTScan(): Promise<SASTResult> {
-    // SAST scanning would typically use tools like ESLint security plugins, Semgrep, etc.
-    // This is a placeholder that returns minimal results
-    // Real implementation would integrate with SecurityScannerService
+    const scanId = uuidv4();
+    const startTime = Date.now();
+    const vulnerabilities: Vulnerability[] = [];
+    let filesScanned = 0;
+    let linesScanned = 0;
+
+    try {
+      // Find source files to scan
+      const sourceFiles = await this.findSourceFiles(process.cwd());
+
+      // Define vulnerability patterns for AST-like analysis
+      const vulnerabilityPatterns: Array<{
+        id: string;
+        pattern: RegExp;
+        title: string;
+        description: string;
+        severity: VulnerabilitySeverity;
+        category: VulnerabilityCategory;
+        remediation: string;
+        fixExample?: string;
+        cweId: string;
+      }> = [
+        // SQL Injection patterns
+        {
+          id: 'sqli-concat',
+          pattern: /(?:query|execute|exec|run)\s*\(\s*(?:['"`].*?\s*\+|`[^`]*\$\{)/gi,
+          title: 'SQL Injection via String Concatenation',
+          description: 'SQL query constructed using string concatenation with potentially untrusted input',
+          severity: 'critical',
+          category: 'injection',
+          remediation: 'Use parameterized queries or prepared statements',
+          fixExample: 'db.query("SELECT * FROM users WHERE id = $1", [userId])',
+          cweId: 'CWE-89',
+        },
+        // XSS patterns
+        {
+          id: 'xss-innerhtml',
+          pattern: /\.innerHTML\s*=\s*(?!['"`])/g,
+          title: 'XSS via innerHTML Assignment',
+          description: 'Direct innerHTML assignment with potentially unsanitized content',
+          severity: 'high',
+          category: 'xss',
+          remediation: 'Use textContent for text, or sanitize HTML with DOMPurify',
+          fixExample: 'element.textContent = userInput;',
+          cweId: 'CWE-79',
+        },
+        {
+          id: 'xss-document-write',
+          pattern: /document\.write\s*\([^)]+\)/g,
+          title: 'XSS via document.write',
+          description: 'document.write() can execute scripts from untrusted data',
+          severity: 'high',
+          category: 'xss',
+          remediation: 'Avoid document.write(); use DOM manipulation methods',
+          cweId: 'CWE-79',
+        },
+        {
+          id: 'xss-eval',
+          pattern: /(?<!\.)\beval\s*\([^)]+\)/g,
+          title: 'Code Injection via eval()',
+          description: 'eval() executes arbitrary code and is a major security risk',
+          severity: 'critical',
+          category: 'xss',
+          remediation: 'Never use eval(); use JSON.parse() for JSON data',
+          fixExample: 'JSON.parse(jsonString)',
+          cweId: 'CWE-95',
+        },
+        {
+          id: 'xss-dangerous-react',
+          pattern: /dangerouslySetInnerHTML\s*=\s*\{/g,
+          title: 'React dangerouslySetInnerHTML Usage',
+          description: 'dangerouslySetInnerHTML bypasses React XSS protections',
+          severity: 'medium',
+          category: 'xss',
+          remediation: 'Sanitize HTML content with DOMPurify before use',
+          fixExample: 'dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}',
+          cweId: 'CWE-79',
+        },
+        // Command Injection patterns
+        {
+          id: 'cmd-injection-exec',
+          pattern: /(?:child_process\.)?exec\s*\(\s*(?:[^,)]*\s*\+|`[^`]*\$\{)/g,
+          title: 'Command Injection via exec()',
+          description: 'Shell command execution with unsanitized input',
+          severity: 'critical',
+          category: 'injection',
+          remediation: 'Use execFile() with argument array instead of exec()',
+          fixExample: 'execFile("command", [arg1, arg2], callback)',
+          cweId: 'CWE-78',
+        },
+        {
+          id: 'cmd-injection-spawn-shell',
+          pattern: /spawn\s*\([^)]+,\s*\{[^}]*shell\s*:\s*true/g,
+          title: 'Dangerous Shell Option in spawn()',
+          description: 'spawn() with shell: true can enable command injection',
+          severity: 'high',
+          category: 'injection',
+          remediation: 'Avoid shell: true option; use direct command execution',
+          cweId: 'CWE-78',
+        },
+        // Path Traversal patterns
+        {
+          id: 'path-traversal-readfile',
+          pattern: /(?:readFile|readFileSync)\s*\([^)]*\+/g,
+          title: 'Path Traversal via File Read',
+          description: 'File read operation with concatenated path may allow directory traversal',
+          severity: 'high',
+          category: 'access-control',
+          remediation: 'Validate and sanitize file paths; use path.resolve() and check against base directory',
+          fixExample: 'const safePath = path.resolve(baseDir, path.basename(userInput))',
+          cweId: 'CWE-22',
+        },
+        {
+          id: 'path-traversal-writefile',
+          pattern: /(?:writeFile|writeFileSync)\s*\([^)]*\+/g,
+          title: 'Path Traversal via File Write',
+          description: 'File write operation with concatenated path may allow directory traversal',
+          severity: 'high',
+          category: 'access-control',
+          remediation: 'Validate file paths before writing; ensure path is within allowed directory',
+          cweId: 'CWE-22',
+        },
+        // Hardcoded secrets
+        {
+          id: 'secret-private-key',
+          pattern: /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/g,
+          title: 'Private Key Detected in Source',
+          description: 'Private key found in source code',
+          severity: 'critical',
+          category: 'sensitive-data',
+          remediation: 'Store private keys in secure key management systems, not in code',
+          cweId: 'CWE-798',
+        },
+        // Insecure configurations
+        {
+          id: 'config-tls-disabled',
+          pattern: /rejectUnauthorized\s*:\s*false/g,
+          title: 'TLS Certificate Validation Disabled',
+          description: 'Disabling TLS certificate validation exposes to MITM attacks',
+          severity: 'high',
+          category: 'security-misconfiguration',
+          remediation: 'Always enable TLS certificate validation in production',
+          cweId: 'CWE-295',
+        },
+        {
+          id: 'config-cors-wildcard',
+          pattern: /cors\s*\(\s*\{[^}]*origin\s*:\s*['"]\*['"]/gi,
+          title: 'Permissive CORS Configuration',
+          description: 'CORS allows all origins (*) which may expose sensitive data',
+          severity: 'medium',
+          category: 'security-misconfiguration',
+          remediation: 'Restrict CORS to specific trusted origins',
+          fixExample: 'cors({ origin: ["https://trusted-domain.com"] })',
+          cweId: 'CWE-942',
+        },
+      ];
+
+      for (const filePath of sourceFiles) {
+        if (this.shouldExclude(filePath)) {
+          continue;
+        }
+
+        // Only scan JS/TS files
+        const ext = path.extname(filePath).toLowerCase();
+        if (!['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
+          continue;
+        }
+
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const lines = content.split('\n');
+          filesScanned++;
+          linesScanned += lines.length;
+
+          // Check each vulnerability pattern
+          for (const vulnPattern of vulnerabilityPatterns) {
+            // Reset regex state
+            vulnPattern.pattern.lastIndex = 0;
+            let match: RegExpExecArray | null;
+
+            while ((match = vulnPattern.pattern.exec(content)) !== null) {
+              // Calculate line and column
+              const beforeMatch = content.substring(0, match.index);
+              const linesBefore = beforeMatch.split('\n');
+              const lineNumber = linesBefore.length;
+              const column = linesBefore[linesBefore.length - 1].length + 1;
+
+              // Check if in comment
+              const currentLine = lines[lineNumber - 1] || '';
+              if (currentLine.trimStart().startsWith('//') || currentLine.trimStart().startsWith('*')) {
+                continue;
+              }
+
+              // Check for nosec annotation
+              if (currentLine.includes('// nosec') || currentLine.includes('// security-ignore')) {
+                continue;
+              }
+
+              // Extract snippet with context
+              const startLine = Math.max(0, lineNumber - 2);
+              const endLine = Math.min(lines.length, lineNumber + 1);
+              const snippet = lines.slice(startLine, endLine).join('\n');
+
+              const location: VulnerabilityLocation = {
+                file: filePath,
+                line: lineNumber,
+                column,
+                snippet,
+              };
+
+              const remediation: RemediationAdvice = {
+                description: vulnPattern.remediation,
+                fixExample: vulnPattern.fixExample,
+                estimatedEffort: vulnPattern.severity === 'critical' ? 'moderate' : 'minor',
+                automatable: vulnPattern.severity === 'low' || vulnPattern.severity === 'medium',
+              };
+
+              vulnerabilities.push({
+                id: uuidv4(),
+                cveId: undefined,
+                title: vulnPattern.title,
+                description: `${vulnPattern.description} [${vulnPattern.cweId}]`,
+                severity: vulnPattern.severity,
+                category: vulnPattern.category,
+                location,
+                remediation,
+                references: [
+                  `https://cwe.mitre.org/data/definitions/${vulnPattern.cweId.replace('CWE-', '')}.html`,
+                ],
+              });
+            }
+          }
+        } catch {
+          // Skip files that can't be read
+        }
+      }
+    } catch (error) {
+      console.error('SAST scan failed:', error);
+    }
+
+    const scanDurationMs = Date.now() - startTime;
+
+    // Calculate summary
+    let critical = 0, high = 0, medium = 0, low = 0, informational = 0;
+    for (const vuln of vulnerabilities) {
+      switch (vuln.severity) {
+        case 'critical': critical++; break;
+        case 'high': high++; break;
+        case 'medium': medium++; break;
+        case 'low': low++; break;
+        case 'informational': informational++; break;
+      }
+    }
+
     return {
-      scanId: uuidv4(),
-      vulnerabilities: [],
+      scanId,
+      vulnerabilities,
       summary: {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-        informational: 0,
-        totalFiles: 0,
-        scanDurationMs: 0,
+        critical,
+        high,
+        medium,
+        low,
+        informational,
+        totalFiles: filesScanned,
+        scanDurationMs,
       },
       coverage: {
-        filesScanned: 0,
-        linesScanned: 0,
-        rulesApplied: 0,
+        filesScanned,
+        linesScanned,
+        rulesApplied: 12, // Number of vulnerability patterns
       },
     };
   }
 
   /**
-   * Perform DAST scan - placeholder for SecurityScannerService integration
-   * In a full implementation, this would delegate to a dedicated DAST service
+   * Perform DAST scan using HTTP requests to test for vulnerabilities
+   * Tests for common web vulnerabilities: XSS, SQL injection, security headers, etc.
    */
   private async performDASTScan(targetUrl: string): Promise<DASTResult> {
-    // DAST scanning would typically use tools like OWASP ZAP, Burp Suite, etc.
-    // This is a placeholder that returns minimal results
-    // Real implementation would integrate with SecurityScannerService
+    const scanId = uuidv4();
+    const startTime = Date.now();
+    const vulnerabilities: Vulnerability[] = [];
+    let crawledUrls = 0;
+
+    try {
+      // Validate URL
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+      } catch {
+        return {
+          scanId,
+          targetUrl,
+          vulnerabilities: [{
+            id: uuidv4(),
+            title: 'Invalid Target URL',
+            description: 'The provided target URL is not valid',
+            severity: 'informational',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl },
+            remediation: { description: 'Provide a valid URL', estimatedEffort: 'trivial', automatable: false },
+            references: [],
+          }],
+          summary: { critical: 0, high: 0, medium: 0, low: 0, informational: 1, totalFiles: 0, scanDurationMs: Date.now() - startTime },
+          crawledUrls: 0,
+        };
+      }
+
+      // Perform HTTP request to check security headers and response characteristics
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      try {
+        const response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'AgenticQE-SecurityScanner/3.0',
+            'Accept': 'text/html,application/json,*/*',
+          },
+          signal: controller.signal,
+          redirect: 'follow',
+        });
+
+        clearTimeout(timeoutId);
+        crawledUrls = 1;
+
+        // Check security headers
+        const headers = response.headers;
+
+        // Check for missing security headers
+        const securityHeaderChecks: Array<{
+          header: string;
+          title: string;
+          description: string;
+          severity: VulnerabilitySeverity;
+          remediation: string;
+        }> = [
+          {
+            header: 'strict-transport-security',
+            title: 'Missing HTTP Strict Transport Security (HSTS)',
+            description: 'HSTS header is missing, allowing downgrade attacks',
+            severity: 'medium',
+            remediation: 'Add Strict-Transport-Security header with appropriate max-age',
+          },
+          {
+            header: 'x-content-type-options',
+            title: 'Missing X-Content-Type-Options Header',
+            description: 'X-Content-Type-Options header is missing, allowing MIME sniffing attacks',
+            severity: 'low',
+            remediation: 'Add X-Content-Type-Options: nosniff header',
+          },
+          {
+            header: 'x-frame-options',
+            title: 'Missing X-Frame-Options Header',
+            description: 'X-Frame-Options header is missing, allowing clickjacking attacks',
+            severity: 'medium',
+            remediation: 'Add X-Frame-Options: DENY or SAMEORIGIN header',
+          },
+          {
+            header: 'content-security-policy',
+            title: 'Missing Content Security Policy',
+            description: 'CSP header is missing, increasing XSS attack surface',
+            severity: 'medium',
+            remediation: 'Implement a Content-Security-Policy header',
+          },
+          {
+            header: 'x-xss-protection',
+            title: 'Missing X-XSS-Protection Header',
+            description: 'X-XSS-Protection header is missing (legacy XSS filter)',
+            severity: 'low',
+            remediation: 'Add X-XSS-Protection: 1; mode=block header',
+          },
+        ];
+
+        for (const check of securityHeaderChecks) {
+          if (!headers.get(check.header)) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: check.title,
+              description: check.description,
+              severity: check.severity,
+              category: 'security-misconfiguration',
+              location: {
+                file: targetUrl,
+                snippet: `Response Headers: ${check.header} not present`,
+              },
+              remediation: {
+                description: check.remediation,
+                estimatedEffort: 'minor',
+                automatable: true,
+              },
+              references: [
+                'https://owasp.org/www-project-secure-headers/',
+              ],
+            });
+          }
+        }
+
+        // Check for insecure cookies
+        const cookies = headers.get('set-cookie');
+        if (cookies) {
+          if (!cookies.toLowerCase().includes('secure')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Cookie Without Secure Flag',
+              description: 'Session cookie is set without the Secure flag',
+              severity: 'medium',
+              category: 'sensitive-data',
+              location: { file: targetUrl, snippet: `Set-Cookie: ${cookies.substring(0, 50)}...` },
+              remediation: { description: 'Add Secure flag to cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/controls/SecureCookieAttribute'],
+            });
+          }
+          if (!cookies.toLowerCase().includes('httponly')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Cookie Without HttpOnly Flag',
+              description: 'Session cookie is set without the HttpOnly flag, making it accessible to JavaScript',
+              severity: 'medium',
+              category: 'sensitive-data',
+              location: { file: targetUrl, snippet: `Set-Cookie: ${cookies.substring(0, 50)}...` },
+              remediation: { description: 'Add HttpOnly flag to session cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/HttpOnly'],
+            });
+          }
+          if (!cookies.toLowerCase().includes('samesite')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Cookie Without SameSite Attribute',
+              description: 'Cookie is set without the SameSite attribute, potentially vulnerable to CSRF',
+              severity: 'low',
+              category: 'broken-auth',
+              location: { file: targetUrl, snippet: `Set-Cookie: ${cookies.substring(0, 50)}...` },
+              remediation: { description: 'Add SameSite=Strict or SameSite=Lax to cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/SameSite'],
+            });
+          }
+        }
+
+        // Check for server information disclosure
+        const server = headers.get('server');
+        if (server && /[0-9]+\.[0-9]+/.test(server)) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Server Version Disclosure',
+            description: `Server header reveals version information: ${server}`,
+            severity: 'low',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl, snippet: `Server: ${server}` },
+            remediation: { description: 'Remove or obfuscate server version information', estimatedEffort: 'trivial', automatable: true },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+
+        // Check for HTTPS
+        if (parsedUrl.protocol === 'http:') {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Insecure HTTP Protocol',
+            description: 'Target is using HTTP instead of HTTPS, exposing data in transit',
+            severity: 'high',
+            category: 'sensitive-data',
+            location: { file: targetUrl },
+            remediation: { description: 'Use HTTPS with valid TLS certificate', estimatedEffort: 'moderate', automatable: false },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+
+        // Try common test endpoints for additional checks
+        const testEndpoints = [
+          { path: '/.git/config', vuln: 'Git Repository Exposed', severity: 'high' as VulnerabilitySeverity },
+          { path: '/.env', vuln: 'Environment File Exposed', severity: 'critical' as VulnerabilitySeverity },
+          { path: '/phpinfo.php', vuln: 'PHP Info Exposed', severity: 'medium' as VulnerabilitySeverity },
+          { path: '/wp-config.php.bak', vuln: 'WordPress Config Backup Exposed', severity: 'critical' as VulnerabilitySeverity },
+        ];
+
+        for (const endpoint of testEndpoints) {
+          try {
+            const testUrl = new URL(endpoint.path, parsedUrl.origin).toString();
+            const testResponse = await fetch(testUrl, {
+              method: 'GET',
+              signal: AbortSignal.timeout(5000),
+            });
+
+            if (testResponse.ok && testResponse.status === 200) {
+              const text = await testResponse.text();
+              // Verify it's actually the sensitive content, not a custom 404
+              if (text.length > 10 && !text.toLowerCase().includes('not found')) {
+                crawledUrls++;
+                vulnerabilities.push({
+                  id: uuidv4(),
+                  title: endpoint.vuln,
+                  description: `Sensitive file found at ${endpoint.path}`,
+                  severity: endpoint.severity,
+                  category: 'sensitive-data',
+                  location: { file: testUrl },
+                  remediation: { description: 'Remove or restrict access to sensitive files', estimatedEffort: 'trivial', automatable: true },
+                  references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+                });
+              }
+            }
+          } catch {
+            // Endpoint not accessible, which is expected/good
+          }
+        }
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+
+        // Network errors might indicate issues
+        if (errorMessage.includes('certificate') || errorMessage.includes('SSL') || errorMessage.includes('TLS')) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'TLS/SSL Certificate Issue',
+            description: `Certificate error: ${errorMessage}`,
+            severity: 'high',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl },
+            remediation: { description: 'Fix TLS certificate configuration', estimatedEffort: 'moderate', automatable: false },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('DAST scan failed:', error);
+    }
+
+    const scanDurationMs = Date.now() - startTime;
+
+    // Calculate summary
+    let critical = 0, high = 0, medium = 0, low = 0, informational = 0;
+    for (const vuln of vulnerabilities) {
+      switch (vuln.severity) {
+        case 'critical': critical++; break;
+        case 'high': high++; break;
+        case 'medium': medium++; break;
+        case 'low': low++; break;
+        case 'informational': informational++; break;
+      }
+    }
+
     return {
-      scanId: uuidv4(),
+      scanId,
       targetUrl,
-      vulnerabilities: [],
+      vulnerabilities,
       summary: {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-        informational: 0,
+        critical,
+        high,
+        medium,
+        low,
+        informational,
         totalFiles: 1,
-        scanDurationMs: 0,
+        scanDurationMs,
       },
-      crawledUrls: 0,
+      crawledUrls,
     };
   }
 

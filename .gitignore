@@ -175,3 +175,9 @@ tmp/*
 **/intelligence.json
 **/.ruvector/
 .env.supabase
+
+#v3 database files
+v3/agentdb.*
+
+.agentic-qe/results/*
+v3/.agentic-qe/results/*

@@ -17,8 +17,8 @@ import {
   parseCoverage,
   CoverageReport as ParsedCoverageReport,
 } from '../../../domains/coverage-analysis/services/coverage-parser';
-import { MemoryBackend } from '../../../kernel/interfaces';
-import { FileCoverage as DomainFileCoverage } from '../../../domains/coverage-analysis/interfaces';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
+import { FileCoverage as DomainFileCoverage, CoverageSummary as DomainCoverageSummary } from '../../../domains/coverage-analysis/interfaces';
 
 // ============================================================================
 // Types
@@ -118,28 +118,30 @@ function createMinimalMemoryBackend(): MemoryBackend {
   const vectors = new Map<string, { embedding: number[]; metadata: unknown }>();
 
   return {
-    set: async (key: string, value: unknown, metadata?: unknown) => {
-      store.set(key, { value, metadata });
+    async initialize(): Promise<void> {
+      // No initialization needed
     },
-    get: async <T>(key: string): Promise<T | null> => {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : null;
-    },
-    delete: async (key: string): Promise<boolean> => {
-      return store.delete(key);
-    },
-    has: async (key: string): Promise<boolean> => {
-      return store.has(key);
-    },
-    keys: async (): Promise<string[]> => {
-      return Array.from(store.keys());
-    },
-    clear: async (): Promise<void> => {
+    async dispose(): Promise<void> {
       store.clear();
       vectors.clear();
     },
-    close: async (): Promise<void> => {},
-    vectorSearch: async (embedding: number[], k: number) => {
+    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
+      store.set(key, { value });
+    },
+    async get<T>(key: string): Promise<T | undefined> {
+      const entry = store.get(key);
+      return entry ? (entry.value as T) : undefined;
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      return store.has(key);
+    },
+    async search(_pattern: string, _limit?: number): Promise<string[]> {
+      return [];
+    },
+    async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
       const results = Array.from(vectors.entries())
         .map(([key, data]) => {
           let dot = 0, normA = 0, normB = 0;
@@ -155,11 +157,39 @@ function createMinimalMemoryBackend(): MemoryBackend {
         .slice(0, k);
       return results;
     },
-    storeVector: async (key: string, embedding: number[], metadata?: unknown) => {
+    async storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void> {
       vectors.set(key, { embedding, metadata });
     },
-    getStats: async () => ({ keyCount: store.size, vectorCount: vectors.size }),
-    search: async () => [],
+  };
+}
+
+// ============================================================================
+// Helper: Calculate Coverage Summary from Files
+// ============================================================================
+
+function calculateSummary(files: DomainFileCoverage[]): DomainCoverageSummary {
+  let totalLines = 0, coveredLines = 0;
+  let totalBranches = 0, coveredBranches = 0;
+  let totalFunctions = 0, coveredFunctions = 0;
+  let totalStatements = 0, coveredStatements = 0;
+
+  for (const file of files) {
+    totalLines += file.lines.total;
+    coveredLines += file.lines.covered;
+    totalBranches += file.branches.total;
+    coveredBranches += file.branches.covered;
+    totalFunctions += file.functions.total;
+    coveredFunctions += file.functions.covered;
+    totalStatements += file.statements.total;
+    coveredStatements += file.statements.covered;
+  }
+
+  return {
+    line: totalLines > 0 ? (coveredLines / totalLines) * 100 : 0,
+    branch: totalBranches > 0 ? (coveredBranches / totalBranches) * 100 : 0,
+    function: totalFunctions > 0 ? (coveredFunctions / totalFunctions) * 100 : 0,
+    statement: totalStatements > 0 ? (coveredStatements / totalStatements) * 100 : 0,
+    files: files.length,
   };
 }
 
@@ -289,7 +319,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
       // Use real analyzer service
       const service = this.getService(context);
       const analyzeResult = await service.analyze({
-        coverageData: { files: domainFiles, timestamp: Date.now() },
+        coverageData: { files: domainFiles, summary: calculateSummary(domainFiles) },
         threshold: thresholds.lines || 80,
         includeFileDetails: true,
       });
@@ -532,7 +562,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
       const prioritizeStrategy = prioritization === 'change-frequency' ? 'recent-changes' : 'risk';
 
       const gapResult = await service.detectGaps({
-        coverageData: { files: domainFiles, timestamp: Date.now() },
+        coverageData: { files: domainFiles, summary: calculateSummary(domainFiles) },
         minCoverage: 80,
         prioritize: prioritizeStrategy,
       });

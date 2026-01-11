@@ -177,11 +177,26 @@ const languagePatterns: LanguagePattern[] = [
 // Helper Functions
 // ============================================================================
 
-function readPackageJson(root: string): Record<string, unknown> | null {
+/**
+ * Package.json structure for type safety
+ */
+interface PackageJson {
+  name?: string;
+  main?: string;
+  module?: string;
+  exports?: unknown;
+  workspaces?: unknown;
+  jest?: unknown;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+function readPackageJson(root: string): PackageJson | null {
   const pkgPath = join(root, 'package.json');
   if (!existsSync(pkgPath)) return null;
   try {
-    return JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    return JSON.parse(readFileSync(pkgPath, 'utf-8')) as PackageJson;
   } catch {
     return null;
   }
@@ -190,9 +205,7 @@ function readPackageJson(root: string): Record<string, unknown> | null {
 function getPackageVersion(root: string, packageName: string): string | undefined {
   const pkg = readPackageJson(root);
   if (!pkg) return undefined;
-  const deps = pkg.devDependencies as Record<string, string> | undefined;
-  const prodDeps = pkg.dependencies as Record<string, string> | undefined;
-  return deps?.[packageName] || prodDeps?.[packageName];
+  return pkg.devDependencies?.[packageName] || pkg.dependencies?.[packageName];
 }
 
 function walkDir(

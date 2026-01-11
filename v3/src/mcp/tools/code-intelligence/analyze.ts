@@ -14,7 +14,7 @@ import { ToolResult } from '../../types';
 import { KnowledgeGraphService } from '../../../domains/code-intelligence/services/knowledge-graph';
 import { SemanticAnalyzerService } from '../../../domains/code-intelligence/services/semantic-analyzer';
 import { ImpactAnalyzerService } from '../../../domains/code-intelligence/services/impact-analyzer';
-import { MemoryBackend } from '../../../kernel/interfaces';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -66,7 +66,7 @@ export interface ImpactResult {
   directImpact: ImpactedFile[];
   transitiveImpact: ImpactedFile[];
   impactedTests: string[];
-  riskLevel: 'critical' | 'high' | 'medium' | 'low';
+  riskLevel: 'critical' | 'high' | 'medium' | 'low' | 'info';
   recommendations: string[];
 }
 
@@ -284,9 +284,9 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     // Use real semantic search
     const result = await service.search({
       query,
+      type: 'semantic',
       limit: 20,
-      minScore: 0.5,
-      paths: paths.length > 0 && paths[0] !== '.' ? paths : undefined,
+      scope: paths.length > 0 && paths[0] !== '.' ? paths : undefined,
     });
 
     const searchTime = Date.now() - startTime;
@@ -317,14 +317,14 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     const searchResults: SearchHit[] = result.value.results.map((r) => ({
       file: r.file,
       line: r.line,
-      snippet: r.content.substring(0, 200) + (r.content.length > 200 ? '...' : ''),
+      snippet: r.snippet.substring(0, 200) + (r.snippet.length > 200 ? '...' : ''),
       score: r.score,
-      highlights: extractHighlights(r.content, query),
+      highlights: extractHighlights(r.snippet, query),
     }));
 
     return {
       results: searchResults,
-      total: result.value.totalResults,
+      total: result.value.total,
       searchTime,
     };
   }
@@ -459,26 +459,12 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
 
       const impact = result.value;
 
-      // Convert to output format
-      const directImpact: ImpactedFile[] = impact.directlyAffected.map((f) => ({
-        file: f.file,
-        reason: f.reason,
-        distance: 0,
-        riskScore: f.riskScore,
-      }));
-
-      const transitiveImpact: ImpactedFile[] = impact.transitivelyAffected.map((f) => ({
-        file: f.file,
-        reason: f.reason,
-        distance: f.distance,
-        riskScore: f.riskScore,
-      }));
-
+      // Impact already in correct format from service
       return {
-        directImpact,
-        transitiveImpact,
+        directImpact: impact.directImpact,
+        transitiveImpact: impact.transitiveImpact,
         impactedTests: impact.impactedTests,
-        riskLevel: impact.overallRisk,
+        riskLevel: impact.riskLevel,
         recommendations: impact.recommendations,
       };
     } catch (error) {
@@ -699,28 +685,32 @@ function createMinimalMemoryBackend(): MemoryBackend {
   const vectors = new Map<string, { embedding: number[]; metadata?: unknown }>();
 
   return {
-    set: async (key: string, value: unknown, metadata?: unknown) => {
-      store.set(key, { value, metadata });
+    async initialize(): Promise<void> {
+      // No initialization needed
     },
-    get: async <T>(key: string): Promise<T | null> => {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : null;
-    },
-    delete: async (key: string): Promise<boolean> => {
-      return store.delete(key);
-    },
-    has: async (key: string): Promise<boolean> => {
-      return store.has(key);
-    },
-    keys: async (): Promise<string[]> => {
-      return Array.from(store.keys());
-    },
-    clear: async (): Promise<void> => {
+    async dispose(): Promise<void> {
       store.clear();
       vectors.clear();
     },
-    close: async (): Promise<void> => {},
-    vectorSearch: async (embedding: number[], k: number): Promise<Array<{ key: string; score: number; metadata?: unknown }>> => {
+    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
+      store.set(key, { value });
+    },
+    async get<T>(key: string): Promise<T | undefined> {
+      const entry = store.get(key);
+      return entry ? (entry.value as T) : undefined;
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      return store.has(key);
+    },
+    async search(pattern: string, limit?: number): Promise<string[]> {
+      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+      const matches = Array.from(store.keys()).filter((key) => regex.test(key));
+      return limit ? matches.slice(0, limit) : matches;
+    },
+    async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
       // Simple cosine similarity search
       const results = Array.from(vectors.entries())
         .map(([key, data]) => ({
@@ -732,14 +722,8 @@ function createMinimalMemoryBackend(): MemoryBackend {
         .slice(0, k);
       return results;
     },
-    storeVector: async (key: string, embedding: number[], metadata?: unknown): Promise<void> => {
+    async storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void> {
       vectors.set(key, { embedding, metadata });
-    },
-    getStats: async () => ({ keyCount: store.size }),
-    search: async (pattern: string, limit?: number): Promise<string[]> => {
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-      const matches = Array.from(store.keys()).filter((key) => regex.test(key));
-      return limit ? matches.slice(0, limit) : matches;
     },
   };
 }

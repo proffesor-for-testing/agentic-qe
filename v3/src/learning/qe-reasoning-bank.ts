@@ -296,7 +296,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     performanceScore: number;
   }> = {
     'qe-test-generator': {
-      domains: ['test-generation', 'mutation-testing'],
+      domains: ['test-generation'],
       capabilities: ['test-generation', 'tdd', 'bdd', 'unit-test', 'integration-test'],
       performanceScore: 0.85,
     },
@@ -316,37 +316,37 @@ export class QEReasoningBank implements IQEReasoningBank {
       performanceScore: 0.9,
     },
     'qe-api-contract-validator': {
-      domains: ['api-testing'],
+      domains: ['contract-testing'],
       capabilities: ['contract-testing', 'openapi', 'graphql', 'pact'],
       performanceScore: 0.87,
     },
     'qe-security-auditor': {
-      domains: ['security-testing'],
+      domains: ['security-compliance'],
       capabilities: ['sast', 'dast', 'vulnerability', 'owasp'],
       performanceScore: 0.82,
     },
     'qe-visual-tester': {
-      domains: ['visual-testing'],
+      domains: ['visual-accessibility'],
       capabilities: ['screenshot', 'visual-regression', 'percy', 'chromatic'],
       performanceScore: 0.8,
     },
     'qe-a11y-ally': {
-      domains: ['accessibility'],
+      domains: ['visual-accessibility'],
       capabilities: ['wcag', 'aria', 'screen-reader', 'contrast'],
       performanceScore: 0.85,
     },
     'qe-performance-tester': {
-      domains: ['performance'],
+      domains: ['chaos-resilience'],
       capabilities: ['load-testing', 'stress-testing', 'k6', 'artillery'],
       performanceScore: 0.83,
     },
     'qe-flaky-investigator': {
-      domains: ['test-generation'],
+      domains: ['test-execution'],
       capabilities: ['flaky-detection', 'test-stability', 'retry'],
       performanceScore: 0.78,
     },
     'qe-chaos-engineer': {
-      domains: ['performance'],
+      domains: ['chaos-resilience'],
       capabilities: ['chaos-testing', 'resilience', 'fault-injection'],
       performanceScore: 0.75,
     },
@@ -753,24 +753,85 @@ Check for:
   /**
    * Generate embedding for text
    *
-   * Uses simple hash-based embedding as fallback.
-   * Can be upgraded to ONNX embeddings when available.
+   * Uses ONNX transformer embeddings when available, with hash-based fallback
+   * for ARM64 or when transformers module cannot be loaded.
    */
   async embed(text: string): Promise<number[]> {
-    // Try ONNX embeddings if enabled and available
+    // Try ONNX embeddings if enabled
     if (this.config.useONNXEmbeddings) {
       try {
-        const { computeEmbedding } = await import(
-          '../domains/code-intelligence/services/semantic-analyzer.js'
-        );
-        return computeEmbedding(text);
-      } catch {
-        // Fall through to hash-based embedding
+        const { computeRealEmbedding } = await import('./real-embeddings.js');
+        const embedding = await computeRealEmbedding(text);
+        // Resize to configured dimension if needed (384 -> 128)
+        if (embedding.length !== this.config.embeddingDimension) {
+          return this.resizeEmbedding(embedding, this.config.embeddingDimension);
+        }
+        return embedding;
+      } catch (error) {
+        // ARM64 ONNX compatibility issue or module not available
+        // Fall through to hash-based embedding silently
+        if (process.env.DEBUG) {
+          console.warn(
+            '[QEReasoningBank] ONNX embeddings unavailable, using hash fallback:',
+            error instanceof Error ? error.message : String(error)
+          );
+        }
       }
     }
 
-    // Hash-based fallback embedding
+    // Hash-based fallback (always works, including ARM64)
     return this.hashEmbedding(text);
+  }
+
+  /**
+   * Resize embedding to target dimension using averaging or truncation
+   */
+  private resizeEmbedding(embedding: number[], targetDim: number): number[] {
+    if (embedding.length === targetDim) {
+      return embedding;
+    }
+
+    if (embedding.length > targetDim) {
+      // Average adjacent values to reduce dimension
+      const ratio = embedding.length / targetDim;
+      const result = new Array(targetDim).fill(0);
+      for (let i = 0; i < targetDim; i++) {
+        const start = Math.floor(i * ratio);
+        const end = Math.floor((i + 1) * ratio);
+        let sum = 0;
+        for (let j = start; j < end; j++) {
+          sum += embedding[j];
+        }
+        result[i] = sum / (end - start);
+      }
+      // Normalize
+      const magnitude = Math.sqrt(result.reduce((sum, val) => sum + val * val, 0));
+      if (magnitude > 0) {
+        for (let i = 0; i < targetDim; i++) {
+          result[i] /= magnitude;
+        }
+      }
+      return result;
+    } else {
+      // Interpolate to increase dimension (less common)
+      const result = new Array(targetDim).fill(0);
+      const ratio = (embedding.length - 1) / (targetDim - 1);
+      for (let i = 0; i < targetDim; i++) {
+        const pos = i * ratio;
+        const lower = Math.floor(pos);
+        const upper = Math.min(lower + 1, embedding.length - 1);
+        const weight = pos - lower;
+        result[i] = embedding[lower] * (1 - weight) + embedding[upper] * weight;
+      }
+      // Normalize
+      const magnitude = Math.sqrt(result.reduce((sum, val) => sum + val * val, 0));
+      if (magnitude > 0) {
+        for (let i = 0; i < targetDim; i++) {
+          result[i] /= magnitude;
+        }
+      }
+      return result;
+    }
   }
 
   /**

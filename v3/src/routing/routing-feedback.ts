@@ -240,7 +240,7 @@ export class RoutingFeedbackCollector {
 
     // Pearson correlation between confidence and success (binary 0/1)
     const confidences = outcomes.map(o => o.decision.confidence);
-    const successes = outcomes.map(o => o.outcome.success ? 1 : 0);
+    const successes: number[] = outcomes.map(o => o.outcome.success ? 1 : 0);
 
     const meanConf = confidences.reduce((a, b) => a + b, 0) / confidences.length;
     const meanSuccess = successes.reduce((a, b) => a + b, 0) / successes.length;

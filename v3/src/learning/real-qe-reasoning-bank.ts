@@ -202,7 +202,7 @@ export class RealQEReasoningBank {
     performanceScore: number;
   }> = {
     'qe-test-generator': {
-      domains: ['test-generation', 'mutation-testing'],
+      domains: ['test-generation'],
       capabilities: ['test-generation', 'tdd', 'bdd', 'unit-test', 'integration-test'],
       performanceScore: 0.85,
     },
@@ -222,37 +222,37 @@ export class RealQEReasoningBank {
       performanceScore: 0.9,
     },
     'qe-api-contract-validator': {
-      domains: ['api-testing'],
+      domains: ['contract-testing'],
       capabilities: ['contract-testing', 'openapi', 'graphql', 'pact'],
       performanceScore: 0.87,
     },
     'qe-security-auditor': {
-      domains: ['security-testing'],
+      domains: ['security-compliance'],
       capabilities: ['sast', 'dast', 'vulnerability', 'owasp'],
       performanceScore: 0.82,
     },
     'qe-visual-tester': {
-      domains: ['visual-testing'],
+      domains: ['visual-accessibility'],
       capabilities: ['screenshot', 'visual-regression', 'percy', 'chromatic'],
       performanceScore: 0.8,
     },
     'qe-a11y-ally': {
-      domains: ['accessibility'],
+      domains: ['visual-accessibility'],
       capabilities: ['wcag', 'aria', 'screen-reader', 'contrast'],
       performanceScore: 0.85,
     },
     'qe-performance-tester': {
-      domains: ['performance'],
+      domains: ['chaos-resilience'],
       capabilities: ['load-testing', 'stress-testing', 'k6', 'artillery'],
       performanceScore: 0.83,
     },
     'qe-flaky-investigator': {
-      domains: ['test-generation'],
+      domains: ['test-execution'],
       capabilities: ['flaky-detection', 'test-stability', 'retry'],
       performanceScore: 0.78,
     },
     'qe-chaos-engineer': {
-      domains: ['performance'],
+      domains: ['chaos-resilience'],
       capabilities: ['chaos-testing', 'resilience', 'fault-injection'],
       performanceScore: 0.75,
     },
@@ -730,29 +730,27 @@ export class RealQEReasoningBank {
     const pattern = this.sqliteStore.getPattern(patternId);
     if (!pattern) return;
 
-    // Update pattern metrics
-    pattern.usageCount++;
-    if (success) {
-      pattern.successfulUses++;
-    }
+    // Calculate updated metrics (pattern properties are readonly, so we compute new values)
+    const newUsageCount = pattern.usageCount + 1;
+    const newSuccessfulUses = success ? pattern.successfulUses + 1 : pattern.successfulUses;
 
     // Update success rate (rolling average)
-    pattern.successRate = pattern.successfulUses / pattern.usageCount;
+    const newSuccessRate = newSuccessfulUses / newUsageCount;
 
     // Update quality score (exponential moving average)
     const alpha = 0.3; // Weight for new observation
-    pattern.qualityScore = (1 - alpha) * pattern.qualityScore + alpha * qualityScore;
+    const newQualityScore = (1 - alpha) * pattern.qualityScore + alpha * qualityScore;
 
     // Update confidence
-    pattern.confidence = Math.min(1.0, 0.5 + (pattern.usageCount * 0.05) + (pattern.successRate * 0.3));
+    const newConfidence = Math.min(1.0, 0.5 + (newUsageCount * 0.05) + (newSuccessRate * 0.3));
 
     // Persist updates
     this.sqliteStore.updatePattern(patternId, {
-      usageCount: pattern.usageCount,
-      successfulUses: pattern.successfulUses,
-      successRate: pattern.successRate,
-      qualityScore: pattern.qualityScore,
-      confidence: pattern.confidence,
+      usageCount: newUsageCount,
+      successfulUses: newSuccessfulUses,
+      successRate: newSuccessRate,
+      qualityScore: newQualityScore,
+      confidence: newConfidence,
     });
   }
 
@@ -771,7 +769,8 @@ export class RealQEReasoningBank {
     // Promotion criteria
     if (pattern.tier === 'short-term') {
       return successCount >= 3 && successRate >= 0.6 && avgQuality >= 0.5;
-    } else if (pattern.tier === 'working' || pattern.tier === 'long-term') {
+    } else if (pattern.tier === 'long-term') {
+      // Long-term patterns need higher thresholds to indicate they should be kept
       return successCount >= 10 && successRate >= 0.75 && avgQuality >= 0.7;
     }
 

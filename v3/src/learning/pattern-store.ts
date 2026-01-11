@@ -464,21 +464,21 @@ export class PatternStore implements IPatternStore {
    * Detect QE domain from pattern type
    */
   private detectDomainFromType(patternType: QEPatternType): QEDomain {
-    const typeToOomain: Record<QEPatternType, QEDomain> = {
+    const typeToDomain: Record<QEPatternType, QEDomain> = {
       'test-template': 'test-generation',
       'assertion-pattern': 'test-generation',
       'mock-pattern': 'test-generation',
       'coverage-strategy': 'coverage-analysis',
-      'mutation-strategy': 'mutation-testing',
-      'api-contract': 'api-testing',
-      'visual-baseline': 'visual-testing',
-      'a11y-check': 'accessibility',
-      'perf-benchmark': 'performance',
-      'flaky-fix': 'test-generation',
-      'refactor-safe': 'test-generation',
+      'mutation-strategy': 'test-generation', // Mutation is part of test generation
+      'api-contract': 'contract-testing',
+      'visual-baseline': 'visual-accessibility',
+      'a11y-check': 'visual-accessibility',
+      'perf-benchmark': 'chaos-resilience',
+      'flaky-fix': 'test-execution',
+      'refactor-safe': 'code-intelligence',
       'error-handling': 'test-generation',
     };
-    return typeToOomain[patternType] || 'test-generation';
+    return typeToDomain[patternType] || 'test-generation';
   }
 
   /**
@@ -499,9 +499,10 @@ export class PatternStore implements IPatternStore {
 
     if (pattern) {
       this.indexPattern(pattern);
+      return pattern;
     }
 
-    return pattern;
+    return null;
   }
 
   /**

@@ -63,7 +63,16 @@ async function verifyGapDetectorComplexity(): Promise<void> {
         return {
           runFn: async () => {
             await service.detectGaps({
-              coverageData: { files, timestamp: Date.now() },
+              coverageData: {
+                files,
+                summary: {
+                  line: Math.round(files.reduce((s, f) => s + f.lines.covered / f.lines.total, 0) * 100 / files.length),
+                  branch: Math.round(files.reduce((s, f) => s + f.branches.covered / f.branches.total, 0) * 100 / files.length),
+                  function: Math.round(files.reduce((s, f) => s + f.functions.covered / f.functions.total, 0) * 100 / files.length),
+                  statement: Math.round(files.reduce((s, f) => s + f.statements.covered / f.statements.total, 0) * 100 / files.length),
+                  files: files.length,
+                },
+              },
               minCoverage: 80,
               prioritize: 'risk',
             });
@@ -137,7 +146,16 @@ async function verifyCoverageAnalyzerComplexity(): Promise<void> {
 
         return {
           runFn: async () => {
-            await service.findGaps({ files, timestamp: Date.now() }, 80);
+            await service.findGaps({
+              files,
+              summary: {
+                line: Math.round(files.reduce((s, f) => s + f.lines.covered / f.lines.total, 0) * 100 / files.length),
+                branch: Math.round(files.reduce((s, f) => s + f.branches.covered / f.branches.total, 0) * 100 / files.length),
+                function: Math.round(files.reduce((s, f) => s + f.functions.covered / f.functions.total, 0) * 100 / files.length),
+                statement: Math.round(files.reduce((s, f) => s + f.statements.covered / f.statements.total, 0) * 100 / files.length),
+                files: files.length,
+              },
+            }, 80);
           },
         };
       },

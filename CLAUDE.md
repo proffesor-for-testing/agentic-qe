@@ -155,10 +155,10 @@ They're working in parallel. I'll synthesize their results when they complete.
 ### Before Starting Any Task
 ```bash
 # 1. Search memory for relevant patterns from past successes
-Bash("npx @claude-flow/cli@latest memory search -q '[task keywords]' --namespace patterns")
+Bash("npx @claude-flow/cli@latest memory search --query '[task keywords]' --namespace patterns")
 
 # 2. Check if similar task was done before
-Bash("npx @claude-flow/cli@latest memory search -q '[task type]' --namespace tasks")
+Bash("npx @claude-flow/cli@latest memory search --query '[task type]' --namespace tasks")
 
 # 3. Load learned optimizations
 Bash("npx @claude-flow/cli@latest hooks route --task '[task description]'")
@@ -305,6 +305,23 @@ cd v3 && npm test -- --run  # Run all v3 tests
 | `hooks` | 17 | Self-learning hooks + 12 background workers |
 | `hive-mind` | 6 | Queen-led Byzantine fault-tolerant consensus |
 
+### Advanced Commands
+
+| Command | Subcommands | Description |
+|---------|-------------|-------------|
+| `daemon` | 5 | Background worker daemon (start, stop, status, trigger, enable) |
+| `neural` | 5 | Neural pattern training (train, status, patterns, predict, optimize) |
+| `security` | 6 | Security scanning (scan, audit, cve, threats, validate, report) |
+| `performance` | 5 | Performance profiling (benchmark, profile, metrics, optimize, report) |
+| `providers` | 5 | AI providers (list, add, remove, test, configure) |
+| `plugins` | 5 | Plugin management (list, install, uninstall, enable, disable) |
+| `deployment` | 5 | Deployment management (deploy, rollback, status, environments, release) |
+| `embeddings` | 4 | Vector embeddings (embed, batch, search, init) - 75x faster with agentic-flow |
+| `claims` | 4 | Claims-based authorization (check, grant, revoke, list) |
+| `migrate` | 5 | V2 to V3 migration with rollback support |
+| `doctor` | 1 | System diagnostics with health checks |
+| `completions` | 4 | Shell completions (bash, zsh, fish, powershell) |
+
 ### Quick CLI Examples
 
 ```bash
@@ -321,7 +338,7 @@ npx @claude-flow/cli@latest agent spawn -t coder --name my-coder
 npx @claude-flow/cli@latest swarm init --v3-mode
 
 # Search memory (HNSW-indexed)
-npx @claude-flow/cli@latest memory search -q "authentication patterns"
+npx @claude-flow/cli@latest memory search --query "authentication patterns"
 
 # System diagnostics
 npx @claude-flow/cli@latest doctor --fix
@@ -333,16 +350,67 @@ npx @claude-flow/cli@latest security scan --depth full
 npx @claude-flow/cli@latest performance benchmark --suite all
 ```
 
-## 🪝 V3 Hooks System (17 Hooks + 12 Workers)
+## 🚀 Available Agents (60+ Types)
 
-### Hook Categories
+### Core Development
+`coder`, `reviewer`, `tester`, `planner`, `researcher`
 
-| Category | Hooks | Purpose |
-|----------|-------|---------|
-| **Core** | `pre-edit`, `post-edit`, `pre-command`, `post-command`, `pre-task`, `post-task` | Tool lifecycle |
-| **Session** | `session-start`, `session-end`, `session-restore`, `notify` | Context management |
-| **Intelligence** | `route`, `explain`, `pretrain`, `build-agents`, `transfer` | Neural learning |
-| **Learning** | `intelligence` (trajectory-start/step/end, pattern-store/search, stats, attention) | Reinforcement |
+### V3 Specialized Agents
+`security-architect`, `security-auditor`, `memory-specialist`, `performance-engineer`
+
+### Swarm Coordination
+`hierarchical-coordinator`, `mesh-coordinator`, `adaptive-coordinator`, `collective-intelligence-coordinator`, `swarm-memory-manager`
+
+### Consensus & Distributed
+`byzantine-coordinator`, `raft-manager`, `gossip-coordinator`, `consensus-builder`, `crdt-synchronizer`, `quorum-manager`, `security-manager`
+
+### Performance & Optimization
+`perf-analyzer`, `performance-benchmarker`, `task-orchestrator`, `memory-coordinator`, `smart-agent`
+
+### GitHub & Repository
+`github-modes`, `pr-manager`, `code-review-swarm`, `issue-tracker`, `release-manager`, `workflow-automation`, `project-board-sync`, `repo-architect`, `multi-repo-swarm`
+
+### SPARC Methodology
+`sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`, `refinement`
+
+### Specialized Development
+`backend-dev`, `mobile-dev`, `ml-developer`, `cicd-engineer`, `api-docs`, `system-architect`, `code-analyzer`, `base-template-generator`
+
+### Testing & Validation
+`tdd-london-swarm`, `production-validator`
+
+## 🪝 V3 Hooks System (27 Hooks + 12 Workers)
+
+### All Available Hooks
+
+| Hook | Description | Key Options |
+|------|-------------|-------------|
+| `pre-edit` | Get context before editing files | `--file`, `--operation` |
+| `post-edit` | Record editing outcome for learning | `--file`, `--success`, `--train-neural` |
+| `pre-command` | Assess risk before commands | `--command`, `--validate-safety` |
+| `post-command` | Record command execution outcome | `--command`, `--track-metrics` |
+| `pre-task` | Record task start, get agent suggestions | `--description`, `--coordinate-swarm` |
+| `post-task` | Record task completion for learning | `--task-id`, `--success`, `--store-results` |
+| `session-start` | Start/restore session (v2 compat) | `--session-id`, `--auto-configure` |
+| `session-end` | End session and persist state | `--generate-summary`, `--export-metrics` |
+| `session-restore` | Restore a previous session | `--session-id`, `--latest` |
+| `route` | Route task to optimal agent | `--task`, `--context`, `--top-k` |
+| `route-task` | (v2 compat) Alias for route | `--task`, `--auto-swarm` |
+| `explain` | Explain routing decision | `--topic`, `--detailed` |
+| `pretrain` | Bootstrap intelligence from repo | `--model-type`, `--epochs` |
+| `build-agents` | Generate optimized agent configs | `--agent-types`, `--focus` |
+| `metrics` | View learning metrics dashboard | `--v3-dashboard`, `--format` |
+| `transfer` | Transfer patterns via IPFS registry | `store`, `from-project` |
+| `list` | List all registered hooks | `--format` |
+| `intelligence` | RuVector intelligence system | `trajectory-*`, `pattern-*`, `stats` |
+| `worker` | Background worker management | `list`, `dispatch`, `status`, `detect` |
+| `progress` | Check V3 implementation progress | `--detailed`, `--format` |
+| `statusline` | Generate dynamic statusline | `--json`, `--compact`, `--no-color` |
+| `coverage-route` | Route based on test coverage gaps | `--task`, `--path` |
+| `coverage-suggest` | Suggest coverage improvements | `--path` |
+| `coverage-gaps` | List coverage gaps with priorities | `--format`, `--limit` |
+| `pre-bash` | (v2 compat) Alias for pre-command | Same as pre-command |
+| `post-bash` | (v2 compat) Alias for post-command | Same as post-command |
 
 ### 12 Background Workers
 
@@ -361,7 +429,188 @@ npx @claude-flow/cli@latest performance benchmark --suite all
 | `benchmark` | normal | Performance benchmarking |
 | `testgaps` | normal | Test coverage analysis |
 
----
+### Essential Hook Commands
+
+```bash
+# Core hooks
+npx @claude-flow/cli@latest hooks pre-task --description "[task]"
+npx @claude-flow/cli@latest hooks post-task --task-id "[id]" --success true
+npx @claude-flow/cli@latest hooks post-edit --file "[file]" --train-neural true
+
+# Session management
+npx @claude-flow/cli@latest hooks session-start --session-id "[id]"
+npx @claude-flow/cli@latest hooks session-end --export-metrics true
+npx @claude-flow/cli@latest hooks session-restore --session-id "[id]"
+
+# Intelligence routing
+npx @claude-flow/cli@latest hooks route --task "[task]"
+npx @claude-flow/cli@latest hooks explain --topic "[topic]"
+
+# Neural learning
+npx @claude-flow/cli@latest hooks pretrain --model-type moe --epochs 10
+npx @claude-flow/cli@latest hooks build-agents --agent-types coder,tester
+
+# Background workers
+npx @claude-flow/cli@latest hooks worker list
+npx @claude-flow/cli@latest hooks worker dispatch --trigger audit
+npx @claude-flow/cli@latest hooks worker status
+
+# Coverage-aware routing
+npx @claude-flow/cli@latest hooks coverage-gaps --format table
+npx @claude-flow/cli@latest hooks coverage-route --task "[task]"
+
+# Statusline (for Claude Code integration)
+npx @claude-flow/cli@latest hooks statusline
+npx @claude-flow/cli@latest hooks statusline --json
+```
+
+## 🔄 Migration (V2 to V3)
+
+```bash
+# Check migration status
+npx @claude-flow/cli@latest migrate status
+
+# Run migration with backup
+npx @claude-flow/cli@latest migrate run --backup
+
+# Rollback if needed
+npx @claude-flow/cli@latest migrate rollback
+
+# Validate migration
+npx @claude-flow/cli@latest migrate validate
+```
+
+## 🧠 Intelligence System (RuVector)
+
+V3 includes the RuVector Intelligence System:
+- **SONA**: Self-Optimizing Neural Architecture (<0.05ms adaptation)
+- **MoE**: Mixture of Experts for specialized routing
+- **HNSW**: 150x-12,500x faster pattern search
+- **EWC++**: Elastic Weight Consolidation (prevents forgetting)
+- **Flash Attention**: 2.49x-7.47x speedup
+
+The 4-step intelligence pipeline:
+1. **RETRIEVE** - Fetch relevant patterns via HNSW
+2. **JUDGE** - Evaluate with verdicts (success/failure)
+3. **DISTILL** - Extract key learnings via LoRA
+4. **CONSOLIDATE** - Prevent catastrophic forgetting via EWC++
+
+## 📦 Embeddings Package (v3.0.0-alpha.12)
+
+Features:
+- **sql.js**: Cross-platform SQLite persistent cache (WASM, no native compilation)
+- **Document chunking**: Configurable overlap and size
+- **Normalization**: L2, L1, min-max, z-score
+- **Hyperbolic embeddings**: Poincaré ball model for hierarchical data
+- **75x faster**: With agentic-flow ONNX integration
+- **Neural substrate**: Integration with RuVector
+
+## 🐝 Hive-Mind Consensus
+
+### Topologies
+- `hierarchical` - Queen controls workers directly
+- `mesh` - Fully connected peer network
+- `hierarchical-mesh` - Hybrid (recommended)
+- `adaptive` - Dynamic based on load
+
+### Consensus Strategies
+- `byzantine` - BFT (tolerates f < n/3 faulty)
+- `raft` - Leader-based (tolerates f < n/2)
+- `gossip` - Epidemic for eventual consistency
+- `crdt` - Conflict-free replicated data types
+- `quorum` - Configurable quorum-based
+
+## V3 Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Flash Attention | 2.49x-7.47x speedup |
+| HNSW Search | 150x-12,500x faster |
+| Memory Reduction | 50-75% with quantization |
+| MCP Response | <100ms |
+| CLI Startup | <500ms |
+| SONA Adaptation | <0.05ms |
+
+## 📊 Performance Optimization Protocol
+
+### Automatic Performance Tracking
+```bash
+# After any significant operation, track metrics
+Bash("npx @claude-flow/cli@latest hooks post-command --command '[operation]' --track-metrics true")
+
+# Periodically run benchmarks (every major feature)
+Bash("npx @claude-flow/cli@latest performance benchmark --suite all")
+
+# Analyze bottlenecks when performance degrades
+Bash("npx @claude-flow/cli@latest performance profile --target '[component]'")
+```
+
+### Session Persistence (Cross-Conversation Learning)
+```bash
+# At session start - restore previous context
+Bash("npx @claude-flow/cli@latest session restore --latest")
+
+# At session end - persist learned patterns
+Bash("npx @claude-flow/cli@latest hooks session-end --generate-summary true --persist-state true --export-metrics true")
+```
+
+### Neural Pattern Training
+```bash
+# Train on successful code patterns
+Bash("npx @claude-flow/cli@latest neural train --pattern-type coordination --epochs 10")
+
+# Predict optimal approach for new tasks
+Bash("npx @claude-flow/cli@latest neural predict --input '[task description]'")
+
+# View learned patterns
+Bash("npx @claude-flow/cli@latest neural patterns --list")
+```
+
+## 🔧 Environment Variables
+
+```bash
+# Configuration
+CLAUDE_FLOW_CONFIG=./claude-flow.config.json
+CLAUDE_FLOW_LOG_LEVEL=info
+
+# MCP Server
+CLAUDE_FLOW_MCP_PORT=3000
+CLAUDE_FLOW_MCP_HOST=localhost
+CLAUDE_FLOW_MCP_TRANSPORT=stdio
+
+# Memory
+CLAUDE_FLOW_MEMORY_BACKEND=hybrid
+CLAUDE_FLOW_MEMORY_PATH=./data/memory
+```
+
+## 🔍 Doctor Health Checks
+
+Run `npx @claude-flow/cli@latest doctor` to check:
+- Node.js version (20+)
+- npm version (9+)
+- Git installation
+- Config file validity
+- Daemon status
+- Memory database
+- API keys
+- MCP servers
+- Disk space
+- TypeScript installation
+
+## 🚀 Quick Setup
+
+```bash
+# Add MCP servers (auto-detects MCP mode when stdin is piped)
+claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
+claude mcp add ruv-swarm -- npx -y ruv-swarm mcp start  # Optional
+claude mcp add flow-nexus -- npx -y flow-nexus@latest mcp start  # Optional
+
+# Start daemon
+npx @claude-flow/cli@latest daemon start
+
+# Run doctor
+npx @claude-flow/cli@latest doctor --fix
+```
 
 ## 🎯 Claude Code vs CLI Tools
 
@@ -377,13 +626,51 @@ npx @claude-flow/cli@latest performance benchmark --suite all
 - **Swarm init**: `npx @claude-flow/cli@latest swarm init --topology <type>`
 - **Swarm status**: `npx @claude-flow/cli@latest swarm status`
 - **Agent spawn**: `npx @claude-flow/cli@latest agent spawn -t <type> --name <name>`
-- **Memory store**: `npx @claude-flow/cli@latest memory store --namespace <ns> --key <k> --value <v>`
-- **Memory search**: `npx @claude-flow/cli@latest memory search -q "<query>"`
+- **Memory store**: `npx @claude-flow/cli@latest memory store --key "mykey" --value "myvalue" --namespace patterns`
+- **Memory search**: `npx @claude-flow/cli@latest memory search --query "search terms"`
+- **Memory list**: `npx @claude-flow/cli@latest memory list --namespace patterns`
+- **Memory retrieve**: `npx @claude-flow/cli@latest memory retrieve --key "mykey" --namespace patterns`
 - **Hooks**: `npx @claude-flow/cli@latest hooks <hook-name> [options]`
 
-**KEY**: CLI coordinates the strategy via Bash, Claude Code's Task tool executes with real agents.
+## 📝 Memory Commands Reference (IMPORTANT)
 
----
+### Store Data (ALL options shown)
+```bash
+# REQUIRED: --key and --value
+# OPTIONAL: --namespace (default: "default"), --ttl, --tags
+npx @claude-flow/cli@latest memory store --key "pattern-auth" --value "JWT with refresh tokens" --namespace patterns
+npx @claude-flow/cli@latest memory store --key "bug-fix-123" --value "Fixed null check" --namespace solutions --tags "bugfix,auth"
+```
+
+### Search Data (semantic vector search)
+```bash
+# REQUIRED: --query (full flag, not -q)
+# OPTIONAL: --namespace, --limit, --threshold
+npx @claude-flow/cli@latest memory search --query "authentication patterns"
+npx @claude-flow/cli@latest memory search --query "error handling" --namespace patterns --limit 5
+```
+
+### List Entries
+```bash
+# OPTIONAL: --namespace, --limit
+npx @claude-flow/cli@latest memory list
+npx @claude-flow/cli@latest memory list --namespace patterns --limit 10
+```
+
+### Retrieve Specific Entry
+```bash
+# REQUIRED: --key
+# OPTIONAL: --namespace (default: "default")
+npx @claude-flow/cli@latest memory retrieve --key "pattern-auth"
+npx @claude-flow/cli@latest memory retrieve --key "pattern-auth" --namespace patterns
+```
+
+### Initialize Memory Database
+```bash
+npx @claude-flow/cli@latest memory init --force --verbose
+```
+
+**KEY**: CLI coordinates the strategy via Bash, Claude Code's Task tool executes with real agents.
 
 ## Support
 

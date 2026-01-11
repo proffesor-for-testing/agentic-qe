@@ -239,12 +239,20 @@ export class QualityFeedbackLoop {
       context: {},
     };
 
-    // Create a minimal routing decision
+    // Create a minimal routing decision with proper type
     const decision = {
       recommended: input.recommendedAgent,
       confidence: 0.8, // Default confidence since we don't have full decision context
       reasoning: 'Recorded from feedback',
-      alternatives: [],
+      alternatives: [] as Array<{ agent: string; score: number; reason: string }>,
+      scores: {
+        similarity: 0.8,
+        performance: 0.8,
+        capabilities: 0.8,
+        combined: 0.8,
+      },
+      latencyMs: 0,
+      timestamp: input.timestamp,
     };
 
     // Record through the routing feedback collector
@@ -356,9 +364,9 @@ export class QualityFeedbackLoop {
   exportData(): {
     outcomes: TestOutcome[];
     sessions: CoverageSession[];
-    strategies: ReturnType<typeof this.coverageLearner.exportStrategies>;
-    promotionHistory: ReturnType<typeof this.promotionManager.exportHistory>;
-    routingOutcomes: ReturnType<typeof this.routingFeedback.exportOutcomes>;
+    strategies: ReturnType<CoverageLearner['exportStrategies']>;
+    promotionHistory: ReturnType<PatternPromotionManager['exportHistory']>;
+    routingOutcomes: ReturnType<RoutingFeedbackCollector['exportOutcomes']>;
   } {
     return {
       outcomes: this.outcomeTracker.exportOutcomes(),
@@ -375,9 +383,9 @@ export class QualityFeedbackLoop {
   importData(data: {
     outcomes?: TestOutcome[];
     sessions?: CoverageSession[];
-    strategies?: ReturnType<typeof this.coverageLearner.exportStrategies>;
-    promotionHistory?: ReturnType<typeof this.promotionManager.exportHistory>;
-    routingOutcomes?: ReturnType<typeof this.routingFeedback.exportOutcomes>;
+    strategies?: ReturnType<CoverageLearner['exportStrategies']>;
+    promotionHistory?: ReturnType<PatternPromotionManager['exportHistory']>;
+    routingOutcomes?: ReturnType<RoutingFeedbackCollector['exportOutcomes']>;
   }): void {
     if (data.outcomes) {
       this.outcomeTracker.importOutcomes(data.outcomes);

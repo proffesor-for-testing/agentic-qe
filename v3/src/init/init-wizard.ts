@@ -336,31 +336,40 @@ export class InitOrchestrator {
     if (config.learning.pretrainedPatterns && this.options.pretrainedLibrary) {
       const library = this.options.pretrainedLibrary;
 
+      // Group patterns by domain for organization
+      const patternsByDomain = new Map<string, typeof library.patterns>();
+      for (const pattern of library.patterns) {
+        const domain = pattern.domain || 'general';
+        if (!patternsByDomain.has(domain)) {
+          patternsByDomain.set(domain, []);
+        }
+        patternsByDomain.get(domain)!.push(pattern);
+      }
+
       // Write patterns index for lazy loading
       const patternsIndexPath = join(dataDir, 'pretrained-index.json');
       const patternsIndex = {
         version: library.version,
         totalPatterns: library.statistics.totalPatterns,
-        categories: library.categories.map((cat) => ({
-          name: cat.name,
-          description: cat.description,
-          patternCount: cat.patterns.length,
+        domains: Array.from(patternsByDomain.entries()).map(([domain, patterns]) => ({
+          name: domain,
+          patternCount: patterns.length,
         })),
         loadedAt: new Date().toISOString(),
       };
       writeFileSync(patternsIndexPath, JSON.stringify(patternsIndex, null, 2), 'utf-8');
 
-      // Write actual patterns for each category
-      for (const category of library.categories) {
-        const categoryDir = join(dataDir, 'patterns', category.name);
-        if (!existsSync(categoryDir)) {
-          mkdirSync(categoryDir, { recursive: true });
+      // Write actual patterns for each domain
+      for (const [domain, patterns] of patternsByDomain) {
+        const domainDir = join(dataDir, 'patterns', domain);
+        if (!existsSync(domainDir)) {
+          mkdirSync(domainDir, { recursive: true });
         }
 
         // Write patterns file
-        const patternsPath = join(categoryDir, 'patterns.json');
-        writeFileSync(patternsPath, JSON.stringify(category.patterns, null, 2), 'utf-8');
-        patternsLoaded += category.patterns.length;
+        const patternsPath = join(domainDir, 'patterns.json');
+        writeFileSync(patternsPath, JSON.stringify(patterns, null, 2), 'utf-8');
+        patternsLoaded += patterns.length;
       }
 
       return patternsLoaded;
@@ -631,7 +640,7 @@ echo "Daemon started (PID: $!)"
     lines.push('routing:');
     lines.push(`  mode: "${config.routing.mode}"`);
     lines.push(`  confidenceThreshold: ${config.routing.confidenceThreshold}`);
-    lines.push(`  fallbackEnabled: ${config.routing.fallbackEnabled}`);
+    lines.push(`  feedbackEnabled: ${config.routing.feedbackEnabled}`);
     lines.push('');
 
     // Workers section

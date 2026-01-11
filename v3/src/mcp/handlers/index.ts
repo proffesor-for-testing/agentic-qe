@@ -43,6 +43,7 @@ export {
   handleDefectPredict,
   handleRequirementsValidate,
   handleCodeIndex,
+  resetTaskExecutor,
 } from './domain-handlers';
 
 // Memory handlers

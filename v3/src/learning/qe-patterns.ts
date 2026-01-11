@@ -14,18 +14,33 @@ import type { DomainName } from '../shared/types/index.js';
 /**
  * QE domain patterns for automatic classification
  * Each domain has regex patterns to match against task descriptions
+ * Aligned with the 12 DDD bounded contexts from DomainName type
  */
 export const QE_DOMAINS = {
-  'test-generation': /test|spec|describe|it\(|expect|assert|mock|stub|fixture/i,
-  'coverage-analysis': /coverage|branch|line|uncovered|gap|untested|percentage/i,
-  'mutation-testing': /mutant|mutation|kill|survive|stryker|pitest/i,
-  'api-testing': /endpoint|request|response|api|contract|openapi|swagger|graphql/i,
-  'security-testing': /vuln|cve|owasp|xss|sqli|injection|csrf|auth|secret/i,
-  'visual-testing': /screenshot|visual|snapshot|regression|pixel|diff|percy/i,
-  'accessibility': /a11y|aria|wcag|screen.?reader|accessible|contrast|focus/i,
-  'performance': /load|stress|benchmark|latency|throughput|k6|artillery|jmeter/i,
+  // Core Testing Domains
+  'test-generation': /test|spec|describe|it\(|expect|assert|mock|stub|fixture|tdd|bdd/i,
+  'test-execution': /run|execute|parallel|retry|flaky|timeout|worker|orchestrat/i,
+  'coverage-analysis': /coverage|branch|line|uncovered|gap|untested|percentage|sublinear/i,
+
+  // Quality Domains
+  'quality-assessment': /quality|gate|deploy|readiness|metric|threshold|sla|score/i,
+  'defect-intelligence': /defect|bug|predict|root.?cause|regression|failure|incident/i,
+  'requirements-validation': /requirement|bdd|gherkin|testabil|accept|criteri|scenario/i,
+
+  // Analysis Domains
+  'code-intelligence': /semantic|knowledge|graph|ast|symbol|reference|impact|depend/i,
+  'security-compliance': /vuln|cve|owasp|xss|sqli|injection|csrf|auth|secret|compliance|sast|dast/i,
+  'contract-testing': /contract|pact|openapi|swagger|graphql|schema|endpoint|api/i,
+
+  // Specialized Testing Domains
+  'visual-accessibility': /screenshot|visual|snapshot|pixel|percy|a11y|aria|wcag|screen.?reader|accessible|contrast/i,
+  'chaos-resilience': /chaos|resilience|fault|inject|blast|recover|latency|failure|stress|load/i,
+  'learning-optimization': /learn|pattern|optim|neural|embedding|vector|memory|adapt|train/i,
 } as const;
 
+/**
+ * QE Domain type - aligned with DomainName from shared types
+ */
 export type QEDomain = keyof typeof QE_DOMAINS;
 
 /**
@@ -246,19 +261,11 @@ export function detectQEDomains(taskDescription: string): QEDomain[] {
 
 /**
  * Map QE domain to AQE bounded context domain
+ * Since QEDomain is now aligned with DomainName, this is an identity mapping
  */
 export function mapQEDomainToAQE(qeDomain: QEDomain): DomainName {
-  const mapping: Record<QEDomain, DomainName> = {
-    'test-generation': 'test-generation',
-    'coverage-analysis': 'coverage-analysis',
-    'mutation-testing': 'test-generation', // Part of test-generation
-    'api-testing': 'contract-testing',
-    'security-testing': 'security-compliance',
-    'visual-testing': 'visual-accessibility',
-    'accessibility': 'visual-accessibility',
-    'performance': 'chaos-resilience',
-  };
-  return mapping[qeDomain];
+  // QEDomain and DomainName are now aligned (same 12 domains)
+  return qeDomain as DomainName;
 }
 
 /**

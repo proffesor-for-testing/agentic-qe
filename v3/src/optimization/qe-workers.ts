@@ -28,8 +28,10 @@ import type {
 export const QE_OPTIMIZATION_WORKER_CONFIGS: Record<string, Omit<WorkerConfig, 'id'>> = {
   'pattern-consolidator': {
     name: 'Pattern Consolidator',
+    description: 'Consolidates and prunes patterns in the ReasoningBank for optimal memory usage',
     intervalMs: 30 * 60 * 1000, // 30 minutes
     priority: 'normal',
+    targetDomains: ['learning-optimization'],
     enabled: true,
     timeoutMs: 60 * 1000, // 1 minute
     retryCount: 2,
@@ -37,8 +39,10 @@ export const QE_OPTIMIZATION_WORKER_CONFIGS: Record<string, Omit<WorkerConfig, '
   },
   'coverage-gap-scanner': {
     name: 'Coverage Gap Scanner',
+    description: 'Scans codebase for coverage gaps and identifies untested code',
     intervalMs: 60 * 60 * 1000, // 1 hour
     priority: 'high',
+    targetDomains: ['coverage-analysis', 'test-generation'],
     enabled: true,
     timeoutMs: 120 * 1000, // 2 minutes
     retryCount: 2,
@@ -46,8 +50,10 @@ export const QE_OPTIMIZATION_WORKER_CONFIGS: Record<string, Omit<WorkerConfig, '
   },
   'flaky-test-detector': {
     name: 'Flaky Test Detector',
+    description: 'Detects flaky tests by analyzing test execution history and patterns',
     intervalMs: 2 * 60 * 60 * 1000, // 2 hours
     priority: 'high',
+    targetDomains: ['test-execution', 'defect-intelligence'],
     enabled: true,
     timeoutMs: 180 * 1000, // 3 minutes
     retryCount: 1,
@@ -55,8 +61,10 @@ export const QE_OPTIMIZATION_WORKER_CONFIGS: Record<string, Omit<WorkerConfig, '
   },
   'routing-accuracy-monitor': {
     name: 'Routing Accuracy Monitor',
+    description: 'Monitors agent routing accuracy and provides improvement recommendations',
     intervalMs: 15 * 60 * 1000, // 15 minutes
     priority: 'critical',
+    targetDomains: ['learning-optimization', 'quality-assessment'],
     enabled: true,
     timeoutMs: 30 * 1000, // 30 seconds
     retryCount: 3,
@@ -117,48 +125,48 @@ export class PatternConsolidatorWorker extends BaseWorker {
       // Record findings
       if (result.merged > 0) {
         findings.push({
-          id: this.generateId(),
-          type: 'info',
-          severity: 'low',
+          type: 'pattern-merged',
+          severity: 'info',
+          domain: 'learning-optimization',
           title: 'Patterns Merged',
           description: `Merged ${result.merged} duplicate pattern groups`,
-          location: 'ReasoningBank',
-          timestamp: new Date(),
+          resource: 'ReasoningBank',
         });
       }
 
       if (result.pruned > 0) {
         findings.push({
-          id: this.generateId(),
-          type: 'info',
-          severity: 'low',
+          type: 'pattern-pruned',
+          severity: 'info',
+          domain: 'learning-optimization',
           title: 'Patterns Pruned',
           description: `Pruned ${result.pruned} low-quality patterns`,
-          location: 'ReasoningBank',
-          timestamp: new Date(),
+          resource: 'ReasoningBank',
         });
       }
 
       // Generate recommendations
       if (afterStats.duplicateGroups > 10) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'medium',
-          title: 'High Duplicate Pattern Count',
-          description: `${afterStats.duplicateGroups} potential duplicate groups remain. Consider manual review.`,
+          priority: 'p2',
+          domain: 'learning-optimization',
           action: 'Review patterns with similar embeddings',
-          estimatedImpact: 'Reduced memory usage and faster searches',
+          description: `${afterStats.duplicateGroups} potential duplicate groups remain. Consider manual review.`,
+          estimatedImpact: 'medium',
+          effort: 'medium',
+          autoFixable: false,
         });
       }
 
       if (afterStats.lowQuality > afterStats.total * 0.2) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'high',
-          title: 'High Low-Quality Pattern Ratio',
-          description: `${afterStats.lowQuality} low-quality patterns (${((afterStats.lowQuality / afterStats.total) * 100).toFixed(1)}% of total)`,
+          priority: 'p1',
+          domain: 'learning-optimization',
           action: 'Review pattern quality thresholds',
-          estimatedImpact: 'Improved pattern matching accuracy',
+          description: `${afterStats.lowQuality} low-quality patterns (${((afterStats.lowQuality / afterStats.total) * 100).toFixed(1)}% of total)`,
+          estimatedImpact: 'high',
+          effort: 'low',
+          autoFixable: true,
         });
       }
 
@@ -250,13 +258,12 @@ export class CoverageGapScannerWorker extends BaseWorker {
       const highRiskGaps = gaps.filter(g => g.riskScore > 0.7);
       for (const gap of highRiskGaps.slice(0, 10)) {
         findings.push({
-          id: this.generateId(),
-          type: 'issue',
+          type: 'coverage-gap',
           severity: gap.riskScore > 0.9 ? 'critical' : 'high',
+          domain: 'coverage-analysis',
           title: `High-Risk Coverage Gap: ${gap.file}`,
           description: `${gap.type} at lines ${gap.startLine}-${gap.endLine} (risk: ${(gap.riskScore * 100).toFixed(0)}%)`,
-          location: `${gap.file}:${gap.startLine}`,
-          timestamp: new Date(),
+          resource: `${gap.file}:${gap.startLine}`,
         });
       }
 
@@ -272,24 +279,26 @@ export class CoverageGapScannerWorker extends BaseWorker {
       // Generate recommendations
       if (highRiskGaps.length > 20) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'critical',
-          title: 'Critical Coverage Debt',
-          description: `${highRiskGaps.length} high-risk coverage gaps detected`,
+          priority: 'p0',
+          domain: 'coverage-analysis',
           action: 'Dedicate sprint time to coverage improvement',
-          estimatedImpact: 'Reduced production incidents',
+          description: `${highRiskGaps.length} high-risk coverage gaps detected`,
+          estimatedImpact: 'high',
+          effort: 'high',
+          autoFixable: false,
         });
       }
 
       const uncoveredFunctions = gaps.filter(g => g.type === 'uncovered-functions');
       if (uncoveredFunctions.length > 10) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'high',
-          title: 'Untested Functions',
-          description: `${uncoveredFunctions.length} functions have no test coverage`,
+          priority: 'p1',
+          domain: 'test-generation',
           action: 'Generate unit tests for untested functions',
-          estimatedImpact: 'Improved code reliability',
+          description: `${uncoveredFunctions.length} functions have no test coverage`,
+          estimatedImpact: 'high',
+          effort: 'medium',
+          autoFixable: true,
         });
       }
 
@@ -420,14 +429,13 @@ export class FlakyTestDetectorWorker extends BaseWorker {
       // Create findings
       for (const test of flakyTests.slice(0, 15)) {
         findings.push({
-          id: this.generateId(),
-          type: 'issue',
+          type: 'flaky-test',
           severity: test.flakinessScore > 0.7 ? 'high' : 'medium',
+          domain: 'test-execution',
           title: `Flaky Test: ${test.testName}`,
           description: test.reason,
-          location: test.filePath,
-          timestamp: new Date(),
-          metadata: {
+          resource: test.filePath,
+          context: {
             testId: test.testId,
             flakinessScore: test.flakinessScore,
           },
@@ -446,12 +454,13 @@ export class FlakyTestDetectorWorker extends BaseWorker {
       // Generate recommendations
       if (flakyTests.length > 10) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'high',
-          title: 'Significant Flaky Test Problem',
-          description: `${flakyTests.length} flaky tests detected. CI reliability at risk.`,
+          priority: 'p1',
+          domain: 'test-execution',
           action: 'Implement test quarantine and systematic fixes',
-          estimatedImpact: 'Improved CI reliability and developer productivity',
+          description: `${flakyTests.length} flaky tests detected. CI reliability at risk.`,
+          estimatedImpact: 'high',
+          effort: 'medium',
+          autoFixable: false,
         });
       }
 
@@ -460,12 +469,13 @@ export class FlakyTestDetectorWorker extends BaseWorker {
       );
       if (highVarianceTests.length > 5) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'medium',
-          title: 'High Test Duration Variance',
-          description: `${highVarianceTests.length} tests have inconsistent execution times`,
+          priority: 'p2',
+          domain: 'test-execution',
           action: 'Review tests for timing-dependent code or resource contention',
-          estimatedImpact: 'More predictable CI times',
+          description: `${highVarianceTests.length} tests have inconsistent execution times`,
+          estimatedImpact: 'medium',
+          effort: 'medium',
+          autoFixable: false,
         });
       }
 
@@ -556,73 +566,71 @@ export class RoutingAccuracyMonitorWorker extends BaseWorker {
         retrainResult = await this.deps.retrainRouter();
 
         findings.push({
-          id: this.generateId(),
-          type: 'action',
+          type: 'router-retrained',
           severity: 'medium',
+          domain: 'learning-optimization',
           title: 'Router Retrained',
           description: `Retrained with ${retrainResult.patternsUsed} patterns. New accuracy: ${(retrainResult.accuracy * 100).toFixed(1)}%`,
-          location: 'QERouter',
-          timestamp: new Date(),
+          resource: 'QERouter',
         });
       }
 
       // Generate findings for concerning patterns
       if (followRate < 0.5 && stats.totalDecisions > 20) {
         findings.push({
-          id: this.generateId(),
-          type: 'warning',
+          type: 'low-follow-rate',
           severity: 'high',
+          domain: 'learning-optimization',
           title: 'Low Recommendation Follow Rate',
           description: `Only ${(followRate * 100).toFixed(1)}% of recommendations are being followed`,
-          location: 'QERouter',
-          timestamp: new Date(),
+          resource: 'QERouter',
         });
       }
 
       if (stats.successWhenOverridden > stats.successWhenFollowed && stats.totalDecisions > 20) {
         findings.push({
-          id: this.generateId(),
-          type: 'issue',
+          type: 'override-better',
           severity: 'critical',
+          domain: 'learning-optimization',
           title: 'Override Success Higher Than Follow',
           description: 'Overriding recommendations leads to better outcomes than following them',
-          location: 'QERouter',
-          timestamp: new Date(),
+          resource: 'QERouter',
         });
       }
 
       if (stats.confidenceCorrelation < 0.3 && stats.totalDecisions > 30) {
         findings.push({
-          id: this.generateId(),
-          type: 'warning',
+          type: 'low-correlation',
           severity: 'medium',
+          domain: 'learning-optimization',
           title: 'Low Confidence-Success Correlation',
           description: `Confidence scores poorly predict success (correlation: ${stats.confidenceCorrelation.toFixed(2)})`,
-          location: 'QERouter',
-          timestamp: new Date(),
+          resource: 'QERouter',
         });
       }
 
       // Generate recommendations
       if (accuracy < this.accuracyThreshold) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'high',
-          title: 'Improve Router Training Data',
-          description: `Current accuracy ${(accuracy * 100).toFixed(1)}% is below ${(this.accuracyThreshold * 100).toFixed(0)}% threshold`,
+          priority: 'p1',
+          domain: 'learning-optimization',
           action: 'Review and augment training patterns',
-          estimatedImpact: 'Better agent selection, faster task completion',
+          description: `Current accuracy ${(accuracy * 100).toFixed(1)}% is below ${(this.accuracyThreshold * 100).toFixed(0)}% threshold`,
+          estimatedImpact: 'high',
+          effort: 'medium',
+          autoFixable: false,
         });
       }
 
       if (followRate < 0.7) {
         recommendations.push({
-          id: this.generateId(),
-          priority: 'medium',
-          title: 'Investigate Override Reasons',
-          description: 'Users frequently override recommendations',
+          priority: 'p2',
+          domain: 'learning-optimization',
           action: 'Analyze override patterns to improve routing logic',
-          estimatedImpact: 'More trusted recommendations',
+          description: 'Users frequently override recommendations',
+          estimatedImpact: 'medium',
+          effort: 'low',
+          autoFixable: false,
         });
       }
 
@@ -643,7 +651,7 @@ export class RoutingAccuracyMonitorWorker extends BaseWorker {
             accuracy: Math.round(accuracy * 100),
             followRate: Math.round(followRate * 100),
             confidenceCorrelation: stats.confidenceCorrelation,
-            retrainTriggered: retrainResult !== null,
+            retrainTriggered: retrainResult !== null ? 1 : 0,
           },
         },
         findings,

@@ -99,16 +99,61 @@ class ConsoleWorkerLogger implements WorkerLogger {
 }
 
 /**
- * Stub Domain Access (to be integrated with kernel)
+ * Kernel-integrated Domain Access
+ * Provides workers access to domain services via the kernel
+ */
+class KernelWorkerDomainAccess implements WorkerDomainAccess {
+  constructor(
+    private readonly kernelGetter: () => KernelReference | undefined
+  ) {}
+
+  getDomainAPI<T>(domain: DomainName): T | undefined {
+    const kernel = this.kernelGetter();
+    if (!kernel) {
+      return undefined;
+    }
+    return kernel.getDomainAPI<T>(domain);
+  }
+
+  getDomainHealth(domain: DomainName): { status: string; errors: string[] } {
+    const kernel = this.kernelGetter();
+    if (!kernel) {
+      return { status: 'unknown', errors: ['Kernel not available'] };
+    }
+
+    const health = kernel.getHealth();
+    const domainHealth = health.domains[domain];
+
+    if (!domainHealth) {
+      return { status: 'unknown', errors: [`Domain ${domain} not found`] };
+    }
+
+    return {
+      status: domainHealth.status,
+      errors: domainHealth.errors || [],
+    };
+  }
+}
+
+/**
+ * Reference interface for kernel (to avoid circular dependency)
+ */
+interface KernelReference {
+  getDomainAPI<T>(domain: DomainName): T | undefined;
+  getHealth(): {
+    domains: Record<string, { status: string; errors?: string[] }>;
+  };
+}
+
+/**
+ * Stub Domain Access (fallback when kernel not available)
  */
 class StubWorkerDomainAccess implements WorkerDomainAccess {
   getDomainAPI<T>(_domain: DomainName): T | undefined {
-    // Will be integrated with actual kernel
     return undefined;
   }
 
   getDomainHealth(_domain: DomainName): { status: string; errors: string[] } {
-    // Will be integrated with actual kernel
     return { status: 'healthy', errors: [] };
   }
 }
@@ -124,15 +169,38 @@ export class WorkerManagerImpl implements IWorkerManager {
   private memory: InMemoryWorkerMemory;
   private domainAccess: WorkerDomainAccess;
   private running = false;
+  private kernelRef: KernelReference | undefined;
 
   constructor(options?: {
     eventBus?: WorkerEventBus;
     memory?: WorkerMemory;
     domainAccess?: WorkerDomainAccess;
+    kernel?: KernelReference;
   }) {
     this.eventBus = (options?.eventBus as InMemoryWorkerEventBus) ?? new InMemoryWorkerEventBus();
     this.memory = (options?.memory as InMemoryWorkerMemory) ?? new InMemoryWorkerMemory();
-    this.domainAccess = options?.domainAccess ?? new StubWorkerDomainAccess();
+    this.kernelRef = options?.kernel;
+
+    // Use kernel-based domain access if kernel is provided, otherwise fall back
+    if (options?.domainAccess) {
+      this.domainAccess = options.domainAccess;
+    } else if (options?.kernel) {
+      this.domainAccess = new KernelWorkerDomainAccess(() => this.kernelRef);
+    } else {
+      this.domainAccess = new StubWorkerDomainAccess();
+    }
+  }
+
+  /**
+   * Set or update the kernel reference
+   * Allows late binding of kernel after construction
+   */
+  setKernel(kernel: KernelReference): void {
+    this.kernelRef = kernel;
+    // Update domain access to use kernel if not already custom
+    if (this.domainAccess instanceof StubWorkerDomainAccess) {
+      this.domainAccess = new KernelWorkerDomainAccess(() => this.kernelRef);
+    }
   }
 
   /**

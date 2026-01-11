@@ -390,13 +390,221 @@ export class ResponsiveTesterService implements IResponsiveTestingService {
     viewport: Viewport,
     config: ResponsiveTestConfig
   ): LayoutIssue[] {
-    // In production mode (simulationMode: false), return empty results
-    // since we can't detect layout issues without a real browser
-    if (!config.simulationMode) {
-      return [];
+    // Simulation mode: use deterministic results based on URL hash and viewport
+    if (config.simulationMode) {
+      return this.detectLayoutIssuesSimulation(url, viewport, config);
     }
 
-    // Simulation mode: use deterministic results based on URL hash and viewport
+    // Production mode: perform heuristic-based responsive analysis
+    // without browser automation (static analysis based on URL patterns and viewport)
+    return this.detectLayoutIssuesHeuristic(url, viewport, config);
+  }
+
+  /**
+   * Heuristic-based responsive layout issue detection for production mode.
+   * Analyzes URL patterns and viewport characteristics to identify likely issues.
+   */
+  private detectLayoutIssuesHeuristic(
+    url: string,
+    viewport: Viewport,
+    config: ResponsiveTestConfig
+  ): LayoutIssue[] {
+    const issues: LayoutIssue[] = [];
+    const urlLower = url.toLowerCase();
+
+    // === Check CSS breakpoint coverage ===
+    // Identify pages that commonly have breakpoint issues
+    const hasResponsivePatterns = this.hasResponsivePatterns(urlLower);
+
+    // Check for horizontal overflow risk at small viewports
+    if (viewport.width < 768) {
+      // Pages with tables, wide images, or fixed-width elements
+      if (this.hasWideContentPatterns(urlLower)) {
+        issues.push({
+          type: 'horizontal-overflow',
+          severity: 'critical',
+          element: '.wide-content, table, pre',
+          description: 'Wide content elements may cause horizontal overflow on mobile',
+          viewport,
+        });
+      }
+
+      // Pages without responsive patterns
+      if (!hasResponsivePatterns) {
+        issues.push({
+          type: 'horizontal-overflow',
+          severity: 'warning',
+          element: '.container',
+          description: 'Page may lack responsive CSS breakpoints for mobile',
+          viewport,
+        });
+      }
+    }
+
+    // === Check viewport meta tag issues ===
+    // Very small widths without proper viewport handling
+    if (viewport.width <= 320) {
+      issues.push({
+        type: 'text-overflow',
+        severity: 'warning',
+        element: 'body',
+        description: 'Verify viewport meta tag is set correctly for very small screens',
+        viewport,
+      });
+    }
+
+    // === Check touch target sizes ===
+    if (config.checkTouchTargets && viewport.hasTouch) {
+      // Interactive pages need proper touch targets
+      if (this.hasInteractiveElements(urlLower)) {
+        issues.push({
+          type: 'touch-target-size',
+          severity: 'warning',
+          element: 'button, a, input',
+          description: `Touch targets should be at least ${config.minTouchTargetSize}px for accessibility`,
+          viewport,
+        });
+      }
+
+      // Navigation links on mobile
+      if (viewport.isMobile && this.hasNavigationElements(urlLower)) {
+        issues.push({
+          type: 'touch-target-size',
+          severity: 'info',
+          element: 'nav a',
+          description: 'Navigation links may be too small for touch on mobile devices',
+          viewport,
+        });
+      }
+    }
+
+    // === Check font size readability ===
+    if (viewport.isMobile && config.minFontSize > 0) {
+      // Forms and data-heavy pages often have small text
+      if (this.hasDataDensePatterns(urlLower)) {
+        issues.push({
+          type: 'font-size-too-small',
+          severity: 'warning',
+          element: '.data, .table, .form-label',
+          description: `Font size may be below ${config.minFontSize}px on mobile`,
+          viewport,
+        });
+      }
+    }
+
+    // === Check image responsiveness ===
+    if (this.hasImagePatterns(urlLower)) {
+      // Large viewports should use higher resolution images
+      if (viewport.deviceScaleFactor > 1) {
+        issues.push({
+          type: 'image-not-responsive',
+          severity: 'info',
+          element: 'img',
+          description: 'Verify images use srcset for high-DPI displays',
+          viewport,
+        });
+      }
+
+      // Small viewports should use appropriately sized images
+      if (viewport.width < 480) {
+        issues.push({
+          type: 'image-not-responsive',
+          severity: 'info',
+          element: 'img',
+          description: 'Verify images are resized for mobile to reduce bandwidth',
+          viewport,
+        });
+      }
+    }
+
+    // === Check media query coverage ===
+    // Analyze standard breakpoint coverage
+    const nearestBreakpoint = this.findNearestBreakpoint(viewport.width, config.breakpoints);
+    if (nearestBreakpoint.gap > 200) {
+      issues.push({
+        type: 'hidden-content',
+        severity: 'info',
+        element: 'body',
+        description: `Viewport ${viewport.width}px is ${nearestBreakpoint.gap}px from nearest breakpoint (${nearestBreakpoint.value}px)`,
+        viewport,
+      });
+    }
+
+    // === Check element overlap risks ===
+    if (this.hasOverlapRiskPatterns(urlLower) && viewport.width < 1024) {
+      issues.push({
+        type: 'overlapping-elements',
+        severity: 'warning',
+        element: '.positioned, .absolute, .fixed',
+        description: 'Positioned elements may overlap on smaller screens',
+        viewport,
+      });
+    }
+
+    return issues;
+  }
+
+  // URL pattern detection helpers for responsive analysis
+  private hasResponsivePatterns(url: string): boolean {
+    // URLs that typically have responsive design
+    return url.includes('mobile') || url.includes('responsive') ||
+           url.includes('bootstrap') || url.includes('tailwind') ||
+           url.includes('material') || url.includes('foundation');
+  }
+
+  private hasWideContentPatterns(url: string): boolean {
+    return url.includes('table') || url.includes('data') || url.includes('report') ||
+           url.includes('code') || url.includes('pre') || url.includes('spreadsheet');
+  }
+
+  private hasInteractiveElements(url: string): boolean {
+    return url.includes('form') || url.includes('button') || url.includes('input') ||
+           url.includes('select') || url.includes('click') || url.includes('action');
+  }
+
+  private hasNavigationElements(url: string): boolean {
+    return url.includes('nav') || url.includes('menu') || url.includes('header') ||
+           url.includes('sidebar') || url.includes('footer') || url.includes('breadcrumb');
+  }
+
+  private hasDataDensePatterns(url: string): boolean {
+    return url.includes('dashboard') || url.includes('analytics') || url.includes('report') ||
+           url.includes('table') || url.includes('stats') || url.includes('metrics');
+  }
+
+  private hasImagePatterns(url: string): boolean {
+    return url.includes('gallery') || url.includes('photo') || url.includes('image') ||
+           url.includes('media') || url.includes('portfolio') || url.includes('hero');
+  }
+
+  private hasOverlapRiskPatterns(url: string): boolean {
+    return url.includes('modal') || url.includes('overlay') || url.includes('tooltip') ||
+           url.includes('dropdown') || url.includes('popup') || url.includes('float');
+  }
+
+  private findNearestBreakpoint(width: number, breakpoints: number[]): { value: number; gap: number } {
+    let nearest = breakpoints[0] || 0;
+    let minGap = Math.abs(width - nearest);
+
+    for (const bp of breakpoints) {
+      const gap = Math.abs(width - bp);
+      if (gap < minGap) {
+        minGap = gap;
+        nearest = bp;
+      }
+    }
+
+    return { value: nearest, gap: minGap };
+  }
+
+  /**
+   * Simulation mode layout issue detection with deterministic results.
+   */
+  private detectLayoutIssuesSimulation(
+    url: string,
+    viewport: Viewport,
+    config: ResponsiveTestConfig
+  ): LayoutIssue[] {
     const issues: LayoutIssue[] = [];
     const urlHash = this.hashUrl(url);
     const hashNum = parseInt(urlHash, 36);

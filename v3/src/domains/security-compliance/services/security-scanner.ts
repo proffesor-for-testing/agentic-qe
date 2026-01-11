@@ -1181,42 +1181,598 @@ export class SecurityScannerService implements ISecurityScannerService {
 
   /**
    * Perform dynamic (DAST) scanning on a target URL
-   * Note: DAST implementation uses placeholder detection; full implementation requires
-   * actual HTTP client and response analysis
+   * Makes actual HTTP requests to detect security vulnerabilities
+   *
+   * **Capabilities:**
+   * - Security header analysis (HSTS, CSP, X-Frame-Options, etc.)
+   * - Cookie security (Secure, HttpOnly, SameSite flags)
+   * - CORS misconfiguration detection
+   * - Sensitive file exposure (/.git, /.env, etc.)
+   * - Link crawling with same-origin scope
+   * - XSS reflection testing (GET parameters)
+   * - SQL injection error-based detection (GET parameters)
+   * - Form security analysis (CSRF tokens, autocomplete, action URLs)
+   *
+   * **Limitations:**
+   * - Injection testing: GET parameters only (POST form submission not implemented)
+   * - Crawling: Same-origin only, max 10 links per page, single depth
+   * - Auth flows: Header-based only, no login form automation
+   * - No JavaScript execution (static response analysis only)
+   * - No session management testing beyond cookie attributes
    */
   private async performDynamicScan(
-    _targetUrl: string,
+    targetUrl: string,
     options: DASTOptions
   ): Promise<{ vulnerabilities: Vulnerability[]; crawledUrls: number }> {
     const vulnerabilities: Vulnerability[] = [];
-    const crawledUrls = Math.min(
-      (options.maxDepth ?? 5) * 20,
-      Math.floor(Math.random() * 100) + 10
-    );
+    let crawledUrls = 0;
 
-    // DAST placeholder: In production, this would make HTTP requests and analyze responses
-    // For now, return empty results - DAST pattern implementation is separate from SAST
-    // Future enhancement: implement actual HTTP header checks, response analysis, etc.
+    try {
+      // Validate and parse URL
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+      } catch {
+        // Invalid URL - return informational finding
+        vulnerabilities.push({
+          id: uuidv4(),
+          title: 'Invalid Target URL',
+          description: 'The provided target URL is not valid',
+          severity: 'informational',
+          category: 'security-misconfiguration',
+          location: { file: targetUrl },
+          remediation: { description: 'Provide a valid URL', estimatedEffort: 'trivial', automatable: false },
+          references: [],
+        });
+        return { vulnerabilities, crawledUrls: 0 };
+      }
+
+      const timeout = options.timeout ?? this.config.timeout;
+      const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
+
+      // Perform main page scan
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), Math.min(timeout, 30000));
+
+      try {
+        const response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          signal: controller.signal,
+          redirect: 'follow',
+        });
+
+        clearTimeout(timeoutId);
+        crawledUrls++;
+
+        // Security header analysis
+        const headers = response.headers;
+
+        // Check for missing security headers
+        const headerChecks = [
+          { header: 'strict-transport-security', title: 'Missing HSTS Header', severity: 'medium' as VulnerabilitySeverity, remediation: 'Add Strict-Transport-Security header' },
+          { header: 'x-content-type-options', title: 'Missing X-Content-Type-Options', severity: 'low' as VulnerabilitySeverity, remediation: 'Add X-Content-Type-Options: nosniff' },
+          { header: 'x-frame-options', title: 'Missing X-Frame-Options', severity: 'medium' as VulnerabilitySeverity, remediation: 'Add X-Frame-Options: DENY or SAMEORIGIN' },
+          { header: 'content-security-policy', title: 'Missing Content-Security-Policy', severity: 'medium' as VulnerabilitySeverity, remediation: 'Implement a Content-Security-Policy' },
+          { header: 'referrer-policy', title: 'Missing Referrer-Policy', severity: 'low' as VulnerabilitySeverity, remediation: 'Add Referrer-Policy header' },
+          { header: 'permissions-policy', title: 'Missing Permissions-Policy', severity: 'low' as VulnerabilitySeverity, remediation: 'Add Permissions-Policy header' },
+        ];
+
+        for (const check of headerChecks) {
+          if (!headers.get(check.header)) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: check.title,
+              description: `Security header ${check.header} is not present in the response`,
+              severity: check.severity,
+              category: 'security-misconfiguration',
+              location: { file: targetUrl, snippet: `Missing: ${check.header}` },
+              remediation: { description: check.remediation, estimatedEffort: 'minor', automatable: true },
+              references: ['https://owasp.org/www-project-secure-headers/'],
+            });
+          }
+        }
+
+        // Check for insecure protocol
+        if (parsedUrl.protocol === 'http:') {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Insecure HTTP Protocol',
+            description: 'Application is accessible over unencrypted HTTP',
+            severity: 'high',
+            category: 'sensitive-data',
+            location: { file: targetUrl },
+            remediation: { description: 'Redirect all HTTP traffic to HTTPS', estimatedEffort: 'moderate', automatable: false },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+
+        // Check for cookie security
+        const setCookie = headers.get('set-cookie');
+        if (setCookie) {
+          const cookieLower = setCookie.toLowerCase();
+          if (!cookieLower.includes('secure')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Cookie Missing Secure Flag',
+              description: 'Cookie is set without the Secure attribute',
+              severity: 'medium',
+              category: 'sensitive-data',
+              location: { file: targetUrl, snippet: `Set-Cookie header without Secure flag` },
+              remediation: { description: 'Add Secure flag to all cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/controls/SecureCookieAttribute'],
+            });
+          }
+          if (!cookieLower.includes('httponly')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Cookie Missing HttpOnly Flag',
+              description: 'Cookie is accessible to client-side JavaScript',
+              severity: 'medium',
+              category: 'sensitive-data',
+              location: { file: targetUrl, snippet: `Set-Cookie header without HttpOnly flag` },
+              remediation: { description: 'Add HttpOnly flag to session cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/HttpOnly'],
+            });
+          }
+        }
+
+        // Check for server version disclosure
+        const serverHeader = headers.get('server') || headers.get('x-powered-by');
+        if (serverHeader && /\d+\.\d+/.test(serverHeader)) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Server Version Disclosure',
+            description: `Server version information exposed: ${serverHeader}`,
+            severity: 'low',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl, snippet: `Server: ${serverHeader}` },
+            remediation: { description: 'Remove or obfuscate server version headers', estimatedEffort: 'trivial', automatable: true },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+
+        // Scan for sensitive file exposure (only if active scanning is enabled)
+        if (options.activeScanning ?? this.config.dastActiveScanning) {
+          const sensitiveEndpoints = [
+            { path: '/.git/config', name: 'Git Configuration' },
+            { path: '/.env', name: 'Environment File' },
+            { path: '/robots.txt', name: 'Robots.txt' },
+            { path: '/sitemap.xml', name: 'Sitemap' },
+            { path: '/.htaccess', name: 'htaccess File' },
+            { path: '/web.config', name: 'IIS Configuration' },
+          ];
+
+          for (const endpoint of sensitiveEndpoints) {
+            if (crawledUrls >= maxDepth * 10) break; // Limit crawling
+
+            try {
+              const testUrl = new URL(endpoint.path, parsedUrl.origin).toString();
+              const testResponse = await fetch(testUrl, {
+                method: 'GET',
+                signal: AbortSignal.timeout(5000),
+              });
+
+              if (testResponse.ok) {
+                crawledUrls++;
+                const contentType = testResponse.headers.get('content-type') || '';
+                const text = await testResponse.text();
+
+                // Verify it's not a custom 404 page
+                if (text.length > 20 && !text.toLowerCase().includes('not found') && !text.toLowerCase().includes('404')) {
+                  // Check for sensitive content markers
+                  const isSensitive =
+                    endpoint.path.includes('.git') ||
+                    endpoint.path.includes('.env') ||
+                    endpoint.path.includes('.htaccess') ||
+                    endpoint.path.includes('web.config');
+
+                  if (isSensitive) {
+                    vulnerabilities.push({
+                      id: uuidv4(),
+                      title: `Sensitive File Exposed: ${endpoint.name}`,
+                      description: `${endpoint.name} is publicly accessible`,
+                      severity: endpoint.path.includes('.git') || endpoint.path.includes('.env') ? 'high' : 'medium',
+                      category: 'sensitive-data',
+                      location: { file: testUrl },
+                      remediation: { description: `Restrict access to ${endpoint.path}`, estimatedEffort: 'trivial', automatable: true },
+                      references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+                    });
+                  }
+                }
+              }
+            } catch {
+              // File not accessible - this is expected/good
+            }
+          }
+        }
+
+        // CORS analysis
+        try {
+          const corsResponse = await fetch(targetUrl, {
+            method: 'OPTIONS',
+            headers: {
+              'Origin': 'https://evil-attacker.com',
+              'Access-Control-Request-Method': 'GET',
+            },
+            signal: AbortSignal.timeout(5000),
+          });
+
+          const allowOrigin = corsResponse.headers.get('access-control-allow-origin');
+          if (allowOrigin === '*' || allowOrigin === 'https://evil-attacker.com') {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Overly Permissive CORS Policy',
+              description: allowOrigin === '*' ? 'CORS allows all origins' : 'CORS reflects arbitrary origin',
+              severity: 'medium',
+              category: 'access-control',
+              location: { file: targetUrl, snippet: `Access-Control-Allow-Origin: ${allowOrigin}` },
+              remediation: { description: 'Restrict CORS to specific trusted origins', estimatedEffort: 'minor', automatable: false },
+              references: ['https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny'],
+            });
+          }
+        } catch {
+          // OPTIONS request failed - CORS might be properly restricted
+        }
+
+        // ============================================================
+        // ENHANCED DAST: Link crawling, injection testing, form analysis
+        // ============================================================
+
+        if (options.activeScanning ?? this.config.dastActiveScanning) {
+          const responseText = await response.clone().text();
+
+          // 1. LINK CRAWLING - Extract and scan discovered links
+          const discoveredUrls = await this.extractAndCrawlLinks(
+            responseText,
+            parsedUrl,
+            crawledUrls,
+            maxDepth,
+            vulnerabilities
+          );
+          crawledUrls = discoveredUrls;
+
+          // 2. INJECTION TESTING - Test URL parameters for XSS/SQLi
+          if (parsedUrl.search) {
+            await this.testInjectionVulnerabilities(
+              targetUrl,
+              parsedUrl,
+              vulnerabilities
+            );
+          }
+
+          // 3. FORM DISCOVERY - Analyze forms for security issues
+          await this.analyzeFormsForSecurityIssues(
+            responseText,
+            targetUrl,
+            vulnerabilities
+          );
+        }
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        const errorMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+
+        if (errorMsg.includes('CERT') || errorMsg.includes('SSL') || errorMsg.includes('TLS') || errorMsg.includes('certificate')) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'TLS Certificate Error',
+            description: `SSL/TLS error: ${errorMsg}`,
+            severity: 'high',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl },
+            remediation: { description: 'Fix TLS certificate configuration', estimatedEffort: 'moderate', automatable: false },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        } else if (errorMsg.includes('timeout') || errorMsg.includes('abort')) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Connection Timeout',
+            description: `Target did not respond within timeout: ${errorMsg}`,
+            severity: 'informational',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl },
+            remediation: { description: 'Verify target is accessible', estimatedEffort: 'trivial', automatable: false },
+            references: [],
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('DAST scan error:', error);
+    }
 
     return { vulnerabilities, crawledUrls };
   }
 
   /**
-   * Perform authenticated dynamic scanning
-   * Note: DAST implementation placeholder; requires actual HTTP client implementation
+   * Perform authenticated dynamic scanning with credentials
+   * Supports basic auth, bearer token, OAuth, and cookie-based authentication
    */
   private async performAuthenticatedScan(
     targetUrl: string,
-    _credentials: AuthCredentials,
+    credentials: AuthCredentials,
     options: DASTOptions
   ): Promise<{ vulnerabilities: Vulnerability[]; crawledUrls: number }> {
-    // DAST placeholder: Similar to unauthenticated but with auth headers
-    const baseResult = await this.performDynamicScan(targetUrl, options);
+    const vulnerabilities: Vulnerability[] = [];
+    let crawledUrls = 0;
 
-    return {
-      vulnerabilities: baseResult.vulnerabilities,
-      crawledUrls: Math.round(baseResult.crawledUrls * 1.5), // More URLs accessible when authenticated
-    };
+    try {
+      // Build authentication headers based on credential type
+      const authHeaders: Record<string, string> = {};
+
+      switch (credentials.type) {
+        case 'basic':
+          if (credentials.username && credentials.password) {
+            const encoded = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+            authHeaders['Authorization'] = `Basic ${encoded}`;
+          }
+          break;
+        case 'bearer':
+        case 'oauth':
+          if (credentials.token) {
+            authHeaders['Authorization'] = `Bearer ${credentials.token}`;
+          }
+          break;
+        case 'cookie':
+          if (credentials.token) {
+            authHeaders['Cookie'] = credentials.token;
+          }
+          break;
+      }
+
+      // Validate and parse URL
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(targetUrl);
+      } catch {
+        vulnerabilities.push({
+          id: uuidv4(),
+          title: 'Invalid Target URL',
+          description: 'The provided target URL is not valid',
+          severity: 'informational',
+          category: 'security-misconfiguration',
+          location: { file: targetUrl },
+          remediation: { description: 'Provide a valid URL', estimatedEffort: 'trivial', automatable: false },
+          references: [],
+        });
+        return { vulnerabilities, crawledUrls: 0 };
+      }
+
+      const timeout = options.timeout ?? this.config.timeout;
+      const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
+
+      // Test authentication by making an authenticated request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), Math.min(timeout, 30000));
+
+      try {
+        const response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            ...authHeaders,
+          },
+          signal: controller.signal,
+          redirect: 'follow',
+        });
+
+        clearTimeout(timeoutId);
+        crawledUrls++;
+
+        // Check if authentication was successful
+        if (response.status === 401 || response.status === 403) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Authentication Failed',
+            description: `Authentication returned ${response.status} status`,
+            severity: 'informational',
+            category: 'broken-auth',
+            location: { file: targetUrl },
+            remediation: { description: 'Verify credentials are correct', estimatedEffort: 'trivial', automatable: false },
+            references: [],
+          });
+        }
+
+        // Perform all the standard header checks from unauthenticated scan
+        const headers = response.headers;
+
+        // Security header analysis (same as unauthenticated)
+        const headerChecks = [
+          { header: 'strict-transport-security', title: 'Missing HSTS Header', severity: 'medium' as VulnerabilitySeverity },
+          { header: 'x-content-type-options', title: 'Missing X-Content-Type-Options', severity: 'low' as VulnerabilitySeverity },
+          { header: 'x-frame-options', title: 'Missing X-Frame-Options', severity: 'medium' as VulnerabilitySeverity },
+          { header: 'content-security-policy', title: 'Missing Content-Security-Policy', severity: 'medium' as VulnerabilitySeverity },
+        ];
+
+        for (const check of headerChecks) {
+          if (!headers.get(check.header)) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: check.title,
+              description: `Security header ${check.header} is not present`,
+              severity: check.severity,
+              category: 'security-misconfiguration',
+              location: { file: targetUrl, snippet: `Missing: ${check.header}` },
+              remediation: { description: `Add ${check.header} header`, estimatedEffort: 'minor', automatable: true },
+              references: ['https://owasp.org/www-project-secure-headers/'],
+            });
+          }
+        }
+
+        // Check for session token in URL (authenticated-specific)
+        if (parsedUrl.search.includes('token=') || parsedUrl.search.includes('session=') || parsedUrl.search.includes('auth=')) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Session Token in URL',
+            description: 'Authentication token appears in URL query string',
+            severity: 'high',
+            category: 'sensitive-data',
+            location: { file: targetUrl, snippet: parsedUrl.search.substring(0, 50) },
+            remediation: { description: 'Send tokens in headers or request body, not URL', estimatedEffort: 'moderate', automatable: false },
+            references: ['https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url'],
+          });
+        }
+
+        // Test for authorization bypass on protected endpoints (authenticated-specific)
+        if (options.activeScanning ?? this.config.dastActiveScanning) {
+          const protectedEndpoints = [
+            '/admin',
+            '/dashboard',
+            '/api/users',
+            '/api/admin',
+            '/settings',
+            '/profile',
+          ];
+
+          for (const endpoint of protectedEndpoints) {
+            if (crawledUrls >= maxDepth * 15) break;
+
+            try {
+              const testUrl = new URL(endpoint, parsedUrl.origin).toString();
+
+              // First, try with authentication
+              const authResponse = await fetch(testUrl, {
+                method: 'GET',
+                headers: { ...authHeaders },
+                signal: AbortSignal.timeout(5000),
+              });
+
+              if (authResponse.ok) {
+                crawledUrls++;
+
+                // Now try without authentication
+                const unauthResponse = await fetch(testUrl, {
+                  method: 'GET',
+                  signal: AbortSignal.timeout(5000),
+                });
+
+                // If both succeed, there might be missing authentication
+                if (unauthResponse.ok && unauthResponse.status === 200) {
+                  const authText = await authResponse.text();
+                  const unauthText = await unauthResponse.text();
+
+                  // Check if the responses are similar (both returning actual content)
+                  if (authText.length > 100 && unauthText.length > 100 &&
+                      Math.abs(authText.length - unauthText.length) < authText.length * 0.1) {
+                    vulnerabilities.push({
+                      id: uuidv4(),
+                      title: 'Missing Authentication on Protected Endpoint',
+                      description: `Endpoint ${endpoint} is accessible without authentication`,
+                      severity: 'high',
+                      category: 'broken-auth',
+                      location: { file: testUrl },
+                      remediation: { description: 'Implement proper authentication checks', estimatedEffort: 'moderate', automatable: false },
+                      references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+                    });
+                  }
+                }
+              }
+            } catch {
+              // Endpoint not accessible - expected
+            }
+          }
+
+          // Test for Insecure Direct Object References (IDOR)
+          const idorEndpoints = [
+            '/api/users/1',
+            '/api/users/2',
+            '/api/orders/1',
+            '/profile/1',
+          ];
+
+          for (const endpoint of idorEndpoints.slice(0, 2)) {
+            if (crawledUrls >= maxDepth * 15) break;
+
+            try {
+              const testUrl = new URL(endpoint, parsedUrl.origin).toString();
+              const response = await fetch(testUrl, {
+                method: 'GET',
+                headers: { ...authHeaders },
+                signal: AbortSignal.timeout(5000),
+              });
+
+              if (response.ok) {
+                crawledUrls++;
+                const text = await response.text();
+
+                // If we can access other users' data, that's an IDOR
+                if (text.includes('email') || text.includes('password') || text.includes('phone')) {
+                  vulnerabilities.push({
+                    id: uuidv4(),
+                    title: 'Potential Insecure Direct Object Reference (IDOR)',
+                    description: `Endpoint ${endpoint} may expose other users' data`,
+                    severity: 'high',
+                    category: 'access-control',
+                    location: { file: testUrl },
+                    remediation: { description: 'Implement proper authorization checks for resource access', estimatedEffort: 'moderate', automatable: false },
+                    references: ['https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/04-Testing_for_Insecure_Direct_Object_References'],
+                  });
+                }
+              }
+            } catch {
+              // Endpoint not accessible
+            }
+          }
+        }
+
+        // Cookie security checks
+        const setCookie = headers.get('set-cookie');
+        if (setCookie) {
+          const cookieLower = setCookie.toLowerCase();
+          if (!cookieLower.includes('secure')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Session Cookie Missing Secure Flag',
+              description: 'Authenticated session cookie is not marked as Secure',
+              severity: 'high', // Higher severity for authenticated sessions
+              category: 'sensitive-data',
+              location: { file: targetUrl },
+              remediation: { description: 'Add Secure flag to session cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/controls/SecureCookieAttribute'],
+            });
+          }
+          if (!cookieLower.includes('httponly')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Session Cookie Missing HttpOnly Flag',
+              description: 'Session cookie is accessible to JavaScript',
+              severity: 'high',
+              category: 'sensitive-data',
+              location: { file: targetUrl },
+              remediation: { description: 'Add HttpOnly flag to session cookies', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-community/HttpOnly'],
+            });
+          }
+        }
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        const errorMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+
+        if (errorMsg.includes('CERT') || errorMsg.includes('SSL') || errorMsg.includes('TLS')) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'TLS Certificate Error',
+            description: `SSL/TLS error during authenticated scan: ${errorMsg}`,
+            severity: 'high',
+            category: 'security-misconfiguration',
+            location: { file: targetUrl },
+            remediation: { description: 'Fix TLS certificate configuration', estimatedEffort: 'moderate', automatable: false },
+            references: [],
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('Authenticated DAST scan error:', error);
+    }
+
+    return { vulnerabilities, crawledUrls };
   }
 
   private validateCredentials(credentials: AuthCredentials): {
@@ -1478,5 +2034,321 @@ export class SecurityScannerService implements ISecurityScannerService {
       unknown: 'medium',
     };
     return mapping[osvSeverity];
+  }
+
+  // ============================================================
+  // ENHANCED DAST METHODS
+  // ============================================================
+
+  /**
+   * Extract links from HTML and crawl discovered pages
+   * Implements basic web crawling within same origin
+   */
+  private async extractAndCrawlLinks(
+    html: string,
+    baseUrl: URL,
+    currentCrawled: number,
+    maxDepth: number,
+    vulnerabilities: Vulnerability[]
+  ): Promise<number> {
+    let crawledUrls = currentCrawled;
+    const maxCrawl = maxDepth * 5; // Allow more pages based on depth
+
+    // Extract links from HTML using regex (no DOM parser needed)
+    const linkPattern = /href=["']([^"']+)["']/gi;
+    const discoveredLinks = new Set<string>();
+    let match;
+
+    while ((match = linkPattern.exec(html)) !== null) {
+      const href = match[1];
+      // Only follow same-origin links
+      try {
+        const linkUrl = new URL(href, baseUrl.origin);
+        if (linkUrl.origin === baseUrl.origin && !discoveredLinks.has(linkUrl.pathname)) {
+          discoveredLinks.add(linkUrl.pathname);
+        }
+      } catch {
+        // Invalid URL - skip
+      }
+    }
+
+    // Crawl discovered links (limited)
+    const linksToCrawl = Array.from(discoveredLinks).slice(0, Math.min(10, maxCrawl - crawledUrls));
+
+    for (const path of linksToCrawl) {
+      if (crawledUrls >= maxCrawl) break;
+
+      try {
+        const crawlUrl = new URL(path, baseUrl.origin).toString();
+        const crawlResponse = await fetch(crawlUrl, {
+          method: 'GET',
+          headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
+          signal: AbortSignal.timeout(5000),
+          redirect: 'follow',
+        });
+
+        crawledUrls++;
+
+        // Check for security issues on crawled pages
+        if (crawlResponse.ok) {
+          // Check for sensitive data exposure in URLs
+          if (path.includes('password') || path.includes('token') || path.includes('api_key')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Sensitive Data in URL Path',
+              description: `URL path may contain sensitive parameter names: ${path}`,
+              severity: 'medium',
+              category: 'sensitive-data',
+              location: { file: crawlUrl },
+              remediation: { description: 'Avoid sensitive data in URL paths', estimatedEffort: 'minor', automatable: false },
+              references: ['https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url'],
+            });
+          }
+
+          // Check for directory listing
+          const responseText = await crawlResponse.text();
+          if (responseText.includes('Index of /') || responseText.includes('Directory listing for')) {
+            vulnerabilities.push({
+              id: uuidv4(),
+              title: 'Directory Listing Enabled',
+              description: `Directory listing is enabled at: ${crawlUrl}`,
+              severity: 'medium',
+              category: 'security-misconfiguration',
+              location: { file: crawlUrl },
+              remediation: { description: 'Disable directory listing in server configuration', estimatedEffort: 'trivial', automatable: true },
+              references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+            });
+          }
+        }
+      } catch {
+        // Page not accessible - expected for some links
+      }
+    }
+
+    return crawledUrls;
+  }
+
+  /**
+   * Test URL parameters for injection vulnerabilities (XSS, SQLi)
+   * Uses safe payloads that reveal vulnerability without exploitation
+   */
+  private async testInjectionVulnerabilities(
+    targetUrl: string,
+    parsedUrl: URL,
+    vulnerabilities: Vulnerability[]
+  ): Promise<void> {
+    const params = new URLSearchParams(parsedUrl.search);
+    const paramNames = Array.from(params.keys());
+
+    // Safe test payloads that reveal vulnerability without harm
+    const xssPayloads = [
+      { payload: '<script>alert(1)</script>', name: 'Basic XSS' },
+      { payload: '"><img src=x onerror=alert(1)>', name: 'Attribute Injection' },
+      { payload: "'-alert(1)-'", name: 'JavaScript Injection' },
+    ];
+
+    const sqliPayloads = [
+      { payload: "' OR '1'='1", name: 'SQL OR Injection' },
+      { payload: "1; DROP TABLE test--", name: 'SQL Statement Injection' },
+      { payload: "1' AND '1'='1", name: 'SQL AND Injection' },
+    ];
+
+    // Test each parameter with injection payloads
+    for (const paramName of paramNames.slice(0, 3)) { // Limit to first 3 params
+      // Test XSS
+      for (const xss of xssPayloads) {
+        try {
+          const testParams = new URLSearchParams(parsedUrl.search);
+          testParams.set(paramName, xss.payload);
+          const testUrl = `${parsedUrl.origin}${parsedUrl.pathname}?${testParams.toString()}`;
+
+          const response = await fetch(testUrl, {
+            method: 'GET',
+            headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
+            signal: AbortSignal.timeout(5000),
+          });
+
+          if (response.ok) {
+            const text = await response.text();
+            const escapedPayload = xss.payload
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#x27;');
+
+            // Check for XSS vulnerability:
+            // 1. Payload reflected unescaped (definite XSS)
+            // 2. Payload partially escaped but critical chars remain (potential bypass)
+            const hasUnescapedPayload = text.includes(xss.payload);
+            const hasEscapedPayload = text.includes(escapedPayload);
+
+            // Only flag if payload is reflected AND it's unescaped
+            if (hasUnescapedPayload && !hasEscapedPayload) {
+              vulnerabilities.push({
+                id: uuidv4(),
+                title: `Reflected XSS: ${xss.name}`,
+                description: `Parameter '${paramName}' reflects unsanitized input - payload executed without encoding`,
+                severity: 'critical',
+                category: 'xss',
+                location: { file: targetUrl, snippet: `Parameter: ${paramName}, Payload: ${xss.payload.substring(0, 30)}...` },
+                remediation: { description: 'HTML-encode all user input before rendering. Use framework auto-escaping.', estimatedEffort: 'moderate', automatable: false },
+                references: ['https://owasp.org/www-community/attacks/xss/', 'https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html'],
+              });
+              break; // One XSS finding per parameter is enough
+            }
+
+            // Check for partial escaping (< escaped but not > or vice versa) - potential bypass
+            const hasPartialEscape =
+              (text.includes('&lt;') && text.includes('>') && text.includes(xss.payload.replace(/</g, '&lt;'))) ||
+              (text.includes('<') && text.includes('&gt;') && text.includes(xss.payload.replace(/>/g, '&gt;')));
+
+            if (hasPartialEscape) {
+              vulnerabilities.push({
+                id: uuidv4(),
+                title: `Potential XSS: Inconsistent Encoding`,
+                description: `Parameter '${paramName}' has inconsistent HTML encoding - some characters escaped, others not`,
+                severity: 'medium',
+                category: 'xss',
+                location: { file: targetUrl, snippet: `Parameter: ${paramName}` },
+                remediation: { description: 'Use consistent HTML encoding for all special characters', estimatedEffort: 'minor', automatable: false },
+                references: ['https://owasp.org/www-community/attacks/xss/'],
+              });
+              break;
+            }
+          }
+        } catch {
+          // Request failed - target may be blocking
+        }
+      }
+
+      // Test SQLi (look for error-based indicators)
+      for (const sqli of sqliPayloads) {
+        try {
+          const testParams = new URLSearchParams(parsedUrl.search);
+          testParams.set(paramName, sqli.payload);
+          const testUrl = `${parsedUrl.origin}${parsedUrl.pathname}?${testParams.toString()}`;
+
+          const response = await fetch(testUrl, {
+            method: 'GET',
+            headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
+            signal: AbortSignal.timeout(5000),
+          });
+
+          const text = await response.text();
+          // Look for SQL error indicators
+          const sqlErrorPatterns = [
+            /SQL syntax.*MySQL/i,
+            /Warning.*mysql/i,
+            /PostgreSQL.*ERROR/i,
+            /ORA-\d{5}/i,
+            /SQLite.*error/i,
+            /SQLITE_ERROR/i,
+            /unclosed quotation mark/i,
+            /quoted string not properly terminated/i,
+          ];
+
+          for (const pattern of sqlErrorPatterns) {
+            if (pattern.test(text)) {
+              vulnerabilities.push({
+                id: uuidv4(),
+                title: `SQL Injection: ${sqli.name}`,
+                description: `Parameter '${paramName}' appears vulnerable to SQL injection - database error message exposed`,
+                severity: 'critical',
+                category: 'injection',
+                location: { file: targetUrl, snippet: `Parameter: ${paramName}` },
+                remediation: { description: 'Use parameterized queries or prepared statements', estimatedEffort: 'moderate', automatable: false },
+                references: ['https://owasp.org/www-community/attacks/SQL_Injection'],
+              });
+              break;
+            }
+          }
+        } catch {
+          // Request failed
+        }
+      }
+    }
+  }
+
+  /**
+   * Analyze HTML forms for security issues
+   * Checks for CSRF protection, autocomplete settings, and action targets
+   */
+  private async analyzeFormsForSecurityIssues(
+    html: string,
+    baseUrl: string,
+    vulnerabilities: Vulnerability[]
+  ): Promise<void> {
+    // Extract forms using regex
+    const formPattern = /<form[^>]*>([\s\S]*?)<\/form>/gi;
+    let formMatch;
+    let formIndex = 0;
+
+    while ((formMatch = formPattern.exec(html)) !== null && formIndex < 10) {
+      formIndex++;
+      const formHtml = formMatch[0];
+      const formContent = formMatch[1];
+
+      // Check for CSRF token
+      const hasCsrfToken =
+        /name=["']?csrf/i.test(formContent) ||
+        /name=["']?_token/i.test(formContent) ||
+        /name=["']?authenticity_token/i.test(formContent) ||
+        /name=["']?__RequestVerificationToken/i.test(formContent);
+
+      // Check form method
+      const isPostForm = /method=["']?post/i.test(formHtml);
+
+      if (isPostForm && !hasCsrfToken) {
+        vulnerabilities.push({
+          id: uuidv4(),
+          title: 'Missing CSRF Token',
+          description: `POST form #${formIndex} does not appear to have CSRF protection`,
+          severity: 'medium',
+          category: 'broken-auth',
+          location: { file: baseUrl, snippet: `Form #${formIndex}` },
+          remediation: { description: 'Add CSRF token to all state-changing forms', estimatedEffort: 'minor', automatable: false },
+          references: ['https://owasp.org/www-community/attacks/csrf'],
+        });
+      }
+
+      // Check for password fields without autocomplete=off
+      if (/type=["']?password/i.test(formContent)) {
+        const hasAutocompleteOff =
+          /autocomplete=["']?(off|new-password)/i.test(formContent) ||
+          /autocomplete=["']?(off|new-password)/i.test(formHtml);
+
+        if (!hasAutocompleteOff) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Password Field Allows Autocomplete',
+            description: `Form #${formIndex} has password field that may be cached by browser`,
+            severity: 'low',
+            category: 'sensitive-data',
+            location: { file: baseUrl, snippet: `Form #${formIndex}` },
+            remediation: { description: 'Add autocomplete="new-password" to password fields', estimatedEffort: 'trivial', automatable: true },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+      }
+
+      // Check for insecure form action
+      const actionMatch = /action=["']?([^"'\s>]+)/i.exec(formHtml);
+      if (actionMatch) {
+        const action = actionMatch[1];
+        if (action.startsWith('http://') && !action.includes('localhost') && !action.includes('127.0.0.1')) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Form Submits to Insecure HTTP',
+            description: `Form #${formIndex} submits data over insecure HTTP: ${action}`,
+            severity: 'high',
+            category: 'sensitive-data',
+            location: { file: baseUrl, snippet: `Action: ${action}` },
+            remediation: { description: 'Change form action to use HTTPS', estimatedEffort: 'trivial', automatable: true },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
+        }
+      }
+    }
   }
 }

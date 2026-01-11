@@ -12,6 +12,19 @@ export { ToolRegistry, createToolRegistry } from './tool-registry';
 // Handlers
 export * from './handlers';
 
-// Server
+// Server (legacy)
 export { MCPServer, createMCPServer } from './server';
 export { default } from './server';
+
+// Transport Layer
+export * from './transport';
+
+// Protocol Server (v3 - claude-flow pattern)
+export {
+  MCPProtocolServer,
+  createMCPProtocolServer,
+  quickStart,
+  type MCPServerConfig,
+  type MCPCapabilities,
+  type MCPServerInfo,
+} from './protocol-server';

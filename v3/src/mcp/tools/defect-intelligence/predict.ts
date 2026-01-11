@@ -10,7 +10,7 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
 import { DefectPredictorService } from '../../../domains/defect-intelligence/services/defect-predictor';
-import { MemoryBackend } from '../../../kernel/interfaces';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { Severity } from '../../../shared/types';
 
 // ============================================================================
@@ -434,27 +434,33 @@ function createMinimalMemoryBackend(): MemoryBackend {
   const store = new Map<string, { value: unknown; metadata?: unknown }>();
 
   return {
-    set: async (key: string, value: unknown, metadata?: unknown) => {
-      store.set(key, { value, metadata });
+    async initialize(): Promise<void> {
+      // No initialization needed
     },
-    get: async <T>(key: string): Promise<T | null> => {
-      const entry = store.get(key);
-      return entry ? (entry.value as T) : null;
-    },
-    delete: async (key: string): Promise<boolean> => {
-      return store.delete(key);
-    },
-    has: async (key: string): Promise<boolean> => {
-      return store.has(key);
-    },
-    keys: async (): Promise<string[]> => {
-      return Array.from(store.keys());
-    },
-    clear: async (): Promise<void> => {
+    async dispose(): Promise<void> {
       store.clear();
     },
-    close: async (): Promise<void> => {},
-    vectorSearch: async (): Promise<any[]> => [],
-    getStats: async () => ({ keyCount: store.size }),
+    async set(key: string, value: unknown, _options?: unknown): Promise<void> {
+      store.set(key, { value });
+    },
+    async get<T>(key: string): Promise<T | undefined> {
+      const entry = store.get(key);
+      return entry ? (entry.value as T) : undefined;
+    },
+    async delete(key: string): Promise<boolean> {
+      return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      return store.has(key);
+    },
+    async search(_pattern: string, _limit?: number): Promise<string[]> {
+      return [];
+    },
+    async vectorSearch(_embedding: number[], _k: number): Promise<VectorSearchResult[]> {
+      return [];
+    },
+    async storeVector(_key: string, _embedding: number[], _metadata?: unknown): Promise<void> {
+      // Minimal implementation
+    },
   };
 }

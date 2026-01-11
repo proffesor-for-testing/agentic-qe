@@ -10,7 +10,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base.js';
 import { ToolResult } from '../../types.js';
-import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { Version } from '../../../shared/value-objects/index.js';
 import { ContractValidatorService } from '../../../domains/contract-testing/services/contract-validator.js';
 import { ApiCompatibilityService } from '../../../domains/contract-testing/services/api-compatibility.js';
@@ -107,12 +107,18 @@ function createMinimalMemoryBackend(): MemoryBackend {
   const store = new Map<string, { value: unknown; ttl?: number; created: number }>();
 
   return {
-    async get<T>(key: string): Promise<T | null> {
+    async initialize(): Promise<void> {
+      // No initialization needed
+    },
+    async dispose(): Promise<void> {
+      store.clear();
+    },
+    async get<T>(key: string): Promise<T | undefined> {
       const entry = store.get(key);
-      if (!entry) return null;
+      if (!entry) return undefined;
       if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
         store.delete(key);
-        return null;
+        return undefined;
       }
       return entry.value as T;
     },
@@ -121,6 +127,15 @@ function createMinimalMemoryBackend(): MemoryBackend {
     },
     async delete(key: string): Promise<boolean> {
       return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      const entry = store.get(key);
+      if (!entry) return false;
+      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
+        store.delete(key);
+        return false;
+      }
+      return true;
     },
     async search(pattern: string, limit = 100): Promise<string[]> {
       const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
@@ -133,7 +148,7 @@ function createMinimalMemoryBackend(): MemoryBackend {
       }
       return matches;
     },
-    async vectorSearch(_embedding: number[], _limit = 10): Promise<Array<{ key: string; similarity: number }>> {
+    async vectorSearch(_embedding: number[], _limit = 10): Promise<VectorSearchResult[]> {
       return [];
     },
     async storeVector(_key: string, _embedding: number[], _metadata?: Record<string, unknown>): Promise<void> {
@@ -164,7 +179,7 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
     apiCompatibility: ApiCompatibilityService;
   } {
     if (!this.contractValidator || !this.apiCompatibility) {
-      const memory = (context as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
+      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
       this.contractValidator = new ContractValidatorService(memory);
       this.apiCompatibility = new ApiCompatibilityService(memory);
     }
@@ -399,11 +414,9 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
 
             for (const method of httpMethods) {
               if (method in methodsObj) {
-                const operation = methodsObj[method] as Record<string, unknown>;
                 endpoints.push({
                   path,
                   method: method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS',
-                  description: (operation.summary as string) || (operation.description as string) || '',
                   examples: [],
                 });
               }
@@ -431,7 +444,6 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
             endpoints.push({
               path: (request.path as string) || '/',
               method: ((request.method as string) || 'GET').toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-              description: (interaction.description as string) || '',
               examples: [],
             });
           }
@@ -458,11 +470,6 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
       ],
       endpoints,
       schemas,
-      metadata: {
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        tags: [format],
-      },
     };
   }
 

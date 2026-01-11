@@ -12,6 +12,7 @@ export * from './shared/events';
 export * as Entities from './shared/entities';
 
 // Kernel - export core kernel components
+// Note: HNSWConfig is also in init, but kernel's is the primary
 export * from './kernel';
 
 // Coordination Layer - export coordination components
@@ -21,13 +22,72 @@ export * from './coordination';
 export * from './domains';
 
 // MCP Server - Model Context Protocol integration
-export * from './mcp';
+// Export only what's available from mcp module
+export {
+  MCPServer,
+  createMCPServer,
+  ToolRegistry,
+  createToolRegistry,
+} from './mcp';
 
 // Learning Module - QE ReasoningBank for pattern learning (ADR-021)
-export * from './learning';
+// Exclude types that conflict with routing (ComplexityLevel, ProgrammingLanguage, TestFramework)
+export {
+  createQEReasoningBank,
+  QEReasoningBank,
+  RealQEReasoningBank,
+  createRealQEReasoningBank,
+  detectQEDomain,
+  detectQEDomains,
+  mapQEDomainToAQE,
+  QE_DOMAIN_LIST,
+  QE_DOMAINS,
+} from './learning';
+export type {
+  QEPattern,
+  QEPatternType,
+  QEPatternTemplate,
+  QEPatternContext,
+  QEDomain,
+  CreateQEPatternOptions,
+  LearningOutcome,
+  PatternSearchOptions,
+  PatternSearchResult,
+  QERoutingRequest,
+  QERoutingResult,
+} from './learning';
 
 // Feedback Module - Quality Feedback Loop (ADR-023)
-export * from './feedback';
+// Exclude types that conflict with shared/types (CoverageMetrics, QualityScore)
+export {
+  createTestOutcomeTracker,
+  createCoverageLearner,
+  createQualityScoreCalculator,
+  createPatternPromotionManager,
+  createQualityFeedbackLoop,
+  QualityFeedbackLoop,
+  TestOutcomeTracker,
+  CoverageLearner,
+  QualityScoreCalculator,
+  PatternPromotionManager,
+  DEFAULT_FEEDBACK_CONFIG,
+  DEFAULT_QUALITY_WEIGHTS,
+  DEFAULT_PROMOTION_CRITERIA,
+} from './feedback';
+export type {
+  TestOutcome,
+  CoverageSession,
+  CoverageStrategy,
+  CoverageTechnique,
+  FeedbackConfig,
+  PatternTier,
+  CoverageGap as FeedbackCoverageGap,
+  QualityDimensions,
+  QualityWeights,
+  PromotionCriteria,
+  PatternPromotionEvent,
+  PatternDemotionEvent,
+} from './feedback';
 
 // Routing Module - QE Router for agent selection (ADR-022)
 export * from './routing';
@@ -36,7 +96,44 @@ export * from './routing';
 export * from './optimization';
 
 // Init Module - Enhanced Init with Self-Configuration (ADR-025)
-export * from './init';
+// Exclude HNSWConfig (use kernel's), ALL_DOMAINS (use shared/types'), CoverageMetrics (use shared/types')
+export {
+  createDefaultConfig,
+  createProjectAnalyzer,
+  createSelfConfigurator,
+  createInitOrchestrator,
+  quickInit,
+  formatInitResult,
+  ProjectAnalyzer,
+  SelfConfigurator,
+  InitOrchestrator,
+  DEFAULT_LEARNING_CONFIG,
+  DEFAULT_ROUTING_CONFIG,
+  DEFAULT_WORKERS_CONFIG,
+  DEFAULT_HOOKS_CONFIG,
+  DEFAULT_AUTO_TUNING_CONFIG,
+} from './init';
+export type {
+  ProjectAnalysis,
+  DetectedFramework,
+  DetectedLanguage,
+  ExistingTests,
+  CodeComplexity,
+  AQEInitConfig,
+  LearningConfig,
+  RoutingConfig as InitRoutingConfig,
+  WorkersConfig,
+  HooksConfig,
+  AutoTuningConfig,
+  InitResult,
+  InitStepResult,
+  WizardStep,
+  WizardOption,
+  WizardState,
+  PretrainedPattern,
+  PretrainedLibrary,
+  InitOrchestratorOptions,
+} from './init';
 
 // Version info
 export const VERSION = '3.0.0-alpha';

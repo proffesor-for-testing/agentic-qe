@@ -27,6 +27,9 @@
   },
   "scripts": {
     "build": "tsc",
+    "cli": "tsx src/cli/index.ts",
+    "aqe": "tsx src/cli/index.ts",
+    "mcp": "tsx src/mcp/entry.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -48,6 +51,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.10.0",
     "@vitest/coverage-v8": "^1.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^1.0.0"
   },

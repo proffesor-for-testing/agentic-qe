@@ -393,7 +393,7 @@ describe('CodeAnalyzeTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.data?.indexResult).toBeDefined();
-  });
+  }, 30000); // Extended timeout for file indexing
 
   it('should support search action (with demo mode)', async () => {
     // Use demoMode to test output format

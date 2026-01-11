@@ -234,21 +234,19 @@ export class CoverageLearner {
       name: `Coverage Strategy: ${strategy.technique}`,
       description: strategy.description,
       template: {
-        type: 'procedure',
+        type: 'workflow',
         content: JSON.stringify({
           technique: strategy.technique,
           filePatterns: strategy.filePatterns,
           avgImprovement: strategy.avgImprovement,
         }),
-        variables: ['targetFile', 'currentCoverage'],
+        variables: [
+          { name: 'targetFile', type: 'string', required: true, description: 'Target file to analyze' },
+          { name: 'currentCoverage', type: 'number', required: true, description: 'Current coverage percentage' },
+        ],
       },
       context: {
         tags: ['coverage', strategy.technique, ...strategy.filePatterns],
-        confidence: strategy.confidence,
-        metadata: {
-          successCount: strategy.successCount,
-          avgImprovement: strategy.avgImprovement,
-        },
       },
     });
   }

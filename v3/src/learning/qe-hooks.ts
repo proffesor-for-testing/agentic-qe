@@ -539,8 +539,8 @@ export class QEHookRegistry {
     // Subscribe to EventBus if available
     if (this.eventBus) {
       for (const event of Object.values(QE_HOOK_EVENTS)) {
-        this.eventBus.subscribe(event, (payload) => {
-          this.emit(event, payload.payload as QEHookContext['data']);
+        this.eventBus.subscribe(event, async (payload) => {
+          await this.emit(event, payload.payload as QEHookContext['data']);
         });
       }
     }

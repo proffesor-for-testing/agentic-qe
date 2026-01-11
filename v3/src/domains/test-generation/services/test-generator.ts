@@ -131,7 +131,8 @@ interface SchemaField {
 
 /**
  * Test Generation Service Implementation
- * Uses AI prompts (stubbed) to generate test cases from source code
+ * Uses heuristic analysis and AST parsing to generate test cases from source code
+ * Supports TDD workflow, property-based testing, and pattern-aware generation
  */
 export class TestGeneratorService implements ITestGenerationService {
   private readonly config: TestGeneratorConfig;
@@ -1521,12 +1522,13 @@ class Test${moduleName}:
     _framework: string
   ): Promise<TDDResult> {
     // Generate TDD RED phase: failing test that defines expected behavior
+    const funcName = this.camelCase(feature);
+    const assertions = this.generateAssertionsFromBehavior(behavior, funcName);
+
     const testCode = `describe('${feature}', () => {
   it('${behavior}', () => {
     // Red phase: This test should fail initially
-    const result = ${this.camelCase(feature)}();
-    expect(result).toBeDefined();
-    // TODO: Add specific assertions for the behavior
+${assertions}
   });
 });`;
 
@@ -1537,20 +1539,237 @@ class Test${moduleName}:
     };
   }
 
+  /**
+   * Generate specific assertions from behavior description
+   * Uses NLP-style extraction to infer test values and assertions
+   */
+  private generateAssertionsFromBehavior(behavior: string, funcName: string): string {
+    const behaviorLower = behavior.toLowerCase();
+    const assertions: string[] = [];
+
+    // Extract context from behavior description
+    const context = this.extractBehaviorContext(behavior);
+
+    // Build function call with appropriate arguments
+    const funcCall = this.buildFunctionCall(funcName, context, behaviorLower);
+
+    // Add setup if needed
+    if (context.setupCode) {
+      assertions.push(context.setupCode);
+    }
+
+    // Generate assertions based on expected outcome
+    if (behaviorLower.includes('return') && behaviorLower.includes('true')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(result).toBe(true);`);
+    } else if (behaviorLower.includes('return') && behaviorLower.includes('false')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(result).toBe(false);`);
+    } else if (behaviorLower.includes('throw') || behaviorLower.includes('error')) {
+      const errorMsg = context.extractedString || 'Error';
+      assertions.push(`    expect(() => ${funcCall}).toThrow(${context.extractedString ? `'${errorMsg}'` : ''});`);
+    } else if (behaviorLower.includes('empty') || behaviorLower.includes('nothing')) {
+      assertions.push(`    const result = ${funcCall};`);
+      if (behaviorLower.includes('string')) {
+        assertions.push(`    expect(result).toBe('');`);
+      } else if (behaviorLower.includes('object')) {
+        assertions.push(`    expect(result).toEqual({});`);
+      } else {
+        assertions.push(`    expect(result).toEqual([]);`);
+      }
+    } else if (behaviorLower.includes('null')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(result).toBeNull();`);
+    } else if (behaviorLower.includes('undefined')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(result).toBeUndefined();`);
+    } else if (behaviorLower.includes('contain') || behaviorLower.includes('include')) {
+      assertions.push(`    const result = ${funcCall};`);
+      const expectedValue = context.extractedString || context.extractedNumber?.toString() || 'expectedItem';
+      if (context.extractedString) {
+        assertions.push(`    expect(result).toContain('${expectedValue}');`);
+      } else if (context.extractedNumber !== undefined) {
+        assertions.push(`    expect(result).toContain(${expectedValue});`);
+      } else {
+        assertions.push(`    expect(result).toContain(testInput); // Contains the input`);
+      }
+    } else if (behaviorLower.includes('length') || behaviorLower.includes('count')) {
+      assertions.push(`    const result = ${funcCall};`);
+      const expectedLength = context.extractedNumber ?? 3;
+      assertions.push(`    expect(result).toHaveLength(${expectedLength});`);
+    } else if (behaviorLower.includes('equal') || behaviorLower.includes('match')) {
+      assertions.push(`    const result = ${funcCall};`);
+      if (context.extractedString) {
+        assertions.push(`    expect(result).toEqual('${context.extractedString}');`);
+      } else if (context.extractedNumber !== undefined) {
+        assertions.push(`    expect(result).toEqual(${context.extractedNumber});`);
+      } else {
+        assertions.push(`    expect(result).toEqual(expectedOutput);`);
+      }
+    } else if (behaviorLower.includes('greater') || behaviorLower.includes('more than')) {
+      assertions.push(`    const result = ${funcCall};`);
+      const threshold = context.extractedNumber ?? 0;
+      assertions.push(`    expect(result).toBeGreaterThan(${threshold});`);
+    } else if (behaviorLower.includes('less') || behaviorLower.includes('fewer')) {
+      assertions.push(`    const result = ${funcCall};`);
+      const threshold = context.extractedNumber ?? 100;
+      assertions.push(`    expect(result).toBeLessThan(${threshold});`);
+    } else if (behaviorLower.includes('valid') || behaviorLower.includes('success')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(result).toBeDefined();`);
+      if (behaviorLower.includes('object') || behaviorLower.includes('response')) {
+        assertions.push(`    expect(result.success ?? result.valid ?? result.ok).toBeTruthy();`);
+      } else {
+        assertions.push(`    expect(result).toBeTruthy();`);
+      }
+    } else if (behaviorLower.includes('array') || behaviorLower.includes('list')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(Array.isArray(result)).toBe(true);`);
+      if (context.extractedNumber !== undefined) {
+        assertions.push(`    expect(result.length).toBeGreaterThanOrEqual(${context.extractedNumber});`);
+      }
+    } else if (behaviorLower.includes('object')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(typeof result).toBe('object');`);
+      assertions.push(`    expect(result).not.toBeNull();`);
+    } else if (behaviorLower.includes('string')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(typeof result).toBe('string');`);
+      if (context.extractedString) {
+        assertions.push(`    expect(result).toContain('${context.extractedString}');`);
+      }
+    } else if (behaviorLower.includes('number')) {
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(typeof result).toBe('number');`);
+      assertions.push(`    expect(Number.isNaN(result)).toBe(false);`);
+    } else {
+      // Default: check it's defined
+      assertions.push(`    const result = ${funcCall};`);
+      assertions.push(`    expect(result).toBeDefined();`);
+    }
+
+    return assertions.join('\n');
+  }
+
+  /**
+   * Extract contextual information from behavior description
+   */
+  private extractBehaviorContext(behavior: string): {
+    extractedString?: string;
+    extractedNumber?: number;
+    inputType?: string;
+    setupCode?: string;
+  } {
+    const context: {
+      extractedString?: string;
+      extractedNumber?: number;
+      inputType?: string;
+      setupCode?: string;
+    } = {};
+
+    // Extract quoted strings from behavior
+    const stringMatch = behavior.match(/["']([^"']+)["']/);
+    if (stringMatch) {
+      context.extractedString = stringMatch[1];
+    }
+
+    // Extract numbers from behavior
+    const numberMatch = behavior.match(/\b(\d+)\b/);
+    if (numberMatch) {
+      context.extractedNumber = parseInt(numberMatch[1], 10);
+    }
+
+    // Detect input type
+    if (/\b(email|e-mail)\b/i.test(behavior)) {
+      context.inputType = 'email';
+      context.setupCode = `    const testInput = 'test@example.com';`;
+    } else if (/\b(url|link|href)\b/i.test(behavior)) {
+      context.inputType = 'url';
+      context.setupCode = `    const testInput = 'https://example.com';`;
+    } else if (/\b(date|time|timestamp)\b/i.test(behavior)) {
+      context.inputType = 'date';
+      context.setupCode = `    const testInput = new Date('2024-01-15');`;
+    } else if (/\b(id|uuid|identifier)\b/i.test(behavior)) {
+      context.inputType = 'id';
+      context.setupCode = `    const testInput = 'abc-123-def';`;
+    } else if (/\b(user|person|customer)\b/i.test(behavior)) {
+      context.inputType = 'user';
+      context.setupCode = `    const testInput = { id: '1', name: 'Test User', email: 'test@example.com' };`;
+    } else if (/\b(config|options|settings)\b/i.test(behavior)) {
+      context.inputType = 'config';
+      context.setupCode = `    const testInput = { enabled: true, timeout: 5000 };`;
+    }
+
+    return context;
+  }
+
+  /**
+   * Build function call with appropriate arguments based on context
+   */
+  private buildFunctionCall(
+    funcName: string,
+    context: { inputType?: string; extractedString?: string; extractedNumber?: number },
+    behaviorLower: string
+  ): string {
+    // If context has setup code, use testInput variable
+    if (context.inputType) {
+      return `${funcName}(testInput)`;
+    }
+
+    // No input needed
+    if (!behaviorLower.includes('with') && !behaviorLower.includes('given') && !behaviorLower.includes('for')) {
+      return `${funcName}()`;
+    }
+
+    // Infer input type from behavior
+    if (behaviorLower.includes('string') || behaviorLower.includes('text') || behaviorLower.includes('name')) {
+      const value = context.extractedString || 'test input';
+      return `${funcName}('${value}')`;
+    }
+    if (behaviorLower.includes('number') || behaviorLower.includes('count') || behaviorLower.includes('amount')) {
+      const value = context.extractedNumber ?? 42;
+      return `${funcName}(${value})`;
+    }
+    if (behaviorLower.includes('array') || behaviorLower.includes('list') || behaviorLower.includes('items')) {
+      return `${funcName}([1, 2, 3])`;
+    }
+    if (behaviorLower.includes('object') || behaviorLower.includes('data') || behaviorLower.includes('payload')) {
+      return `${funcName}({ key: 'value' })`;
+    }
+    if (behaviorLower.includes('boolean') || behaviorLower.includes('flag')) {
+      return `${funcName}(true)`;
+    }
+
+    // Default: use extracted value or generic input
+    if (context.extractedString) {
+      return `${funcName}('${context.extractedString}')`;
+    }
+    if (context.extractedNumber !== undefined) {
+      return `${funcName}(${context.extractedNumber})`;
+    }
+
+    return `${funcName}(input)`;
+  }
+
   private async generateGreenPhaseCode(
     feature: string,
     behavior: string,
     _framework: string
   ): Promise<TDDResult> {
     // Generate TDD GREEN phase: minimal implementation to pass the test
+    // Analyze the behavior description to generate appropriate implementation
+    const behaviorLower = behavior.toLowerCase();
+    const funcName = this.camelCase(feature);
+
+    // Infer return type and implementation from behavior
+    const { returnType, implementation, params } = this.inferImplementationFromBehavior(behaviorLower);
+
     const implementationCode = `/**
  * ${feature}
  * Behavior: ${behavior}
  */
-export function ${this.camelCase(feature)}() {
-  // Minimal implementation to pass the test
-  // TODO: Replace with actual implementation
-  return {};
+export function ${funcName}(${params}): ${returnType} {
+${implementation}
 }`;
 
     return {
@@ -1558,6 +1777,99 @@ export function ${this.camelCase(feature)}() {
       implementationCode,
       nextStep: 'Refactor the code while keeping tests green',
     };
+  }
+
+  /**
+   * Infer implementation details from behavior description using heuristics
+   * Analyzes the behavior text to determine return type, parameters, and minimal implementation
+   */
+  private inferImplementationFromBehavior(behavior: string): {
+    returnType: string;
+    implementation: string;
+    params: string;
+  } {
+    // Default values
+    let returnType = 'unknown';
+    let implementation = '  return undefined;';
+    let params = '';
+
+    // Detect return type from behavior description
+    if (behavior.includes('return') || behavior.includes('returns')) {
+      if (behavior.includes('boolean') || behavior.includes('true') || behavior.includes('false') ||
+          behavior.includes('valid') || behavior.includes('is ') || behavior.includes('has ') ||
+          behavior.includes('can ') || behavior.includes('should ')) {
+        returnType = 'boolean';
+        implementation = '  // Validate and return boolean result\n  return true;';
+      } else if (behavior.includes('number') || behavior.includes('count') || behavior.includes('sum') ||
+                 behavior.includes('total') || behavior.includes('calculate') || behavior.includes('average')) {
+        returnType = 'number';
+        implementation = '  // Perform calculation and return result\n  return 0;';
+      } else if (behavior.includes('string') || behavior.includes('text') || behavior.includes('message') ||
+                 behavior.includes('name') || behavior.includes('format')) {
+        returnType = 'string';
+        implementation = "  // Process and return string result\n  return '';";
+      } else if (behavior.includes('array') || behavior.includes('list') || behavior.includes('items') ||
+                 behavior.includes('collection') || behavior.includes('filter') || behavior.includes('map')) {
+        returnType = 'unknown[]';
+        implementation = '  // Process and return array\n  return [];';
+      } else if (behavior.includes('object') || behavior.includes('data') || behavior.includes('result') ||
+                 behavior.includes('response')) {
+        returnType = 'Record<string, unknown>';
+        implementation = '  // Build and return object\n  return {};';
+      }
+    }
+
+    // Detect if async is needed
+    if (behavior.includes('async') || behavior.includes('await') || behavior.includes('promise') ||
+        behavior.includes('fetch') || behavior.includes('load') || behavior.includes('save') ||
+        behavior.includes('api') || behavior.includes('request')) {
+      returnType = `Promise<${returnType}>`;
+      implementation = implementation.replace('return ', 'return await Promise.resolve(').replace(';', ');');
+    }
+
+    // Detect parameters from behavior
+    const paramPatterns: Array<{ pattern: RegExp; param: string }> = [
+      { pattern: /(?:with|given|for|using)\s+(?:a\s+)?(?:string|text|name)/i, param: 'input: string' },
+      { pattern: /(?:with|given|for|using)\s+(?:a\s+)?(?:number|count|amount)/i, param: 'value: number' },
+      { pattern: /(?:with|given|for|using)\s+(?:an?\s+)?(?:array|list|items)/i, param: 'items: unknown[]' },
+      { pattern: /(?:with|given|for|using)\s+(?:an?\s+)?(?:object|data)/i, param: 'data: Record<string, unknown>' },
+      { pattern: /(?:with|given|for|using)\s+(?:an?\s+)?id/i, param: 'id: string' },
+      { pattern: /(?:with|given|for|using)\s+(?:valid|invalid)\s+input/i, param: 'input: unknown' },
+      { pattern: /(?:when|if)\s+(?:called\s+)?(?:with|without)/i, param: 'input?: unknown' },
+    ];
+
+    const detectedParams: string[] = [];
+    for (const { pattern, param } of paramPatterns) {
+      if (pattern.test(behavior) && !detectedParams.includes(param)) {
+        detectedParams.push(param);
+      }
+    }
+    params = detectedParams.join(', ');
+
+    // Detect validation logic from behavior
+    if (behavior.includes('validate') || behavior.includes('check') || behavior.includes('verify')) {
+      if (params.includes('input')) {
+        implementation = `  // Validate the input
+  if (input === undefined || input === null) {
+    throw new Error('Invalid input');
+  }
+${implementation}`;
+      }
+    }
+
+    // Detect error throwing from behavior
+    if (behavior.includes('throw') || behavior.includes('error') || behavior.includes('exception') ||
+        behavior.includes('invalid') || behavior.includes('fail')) {
+      if (behavior.includes('when') || behavior.includes('if')) {
+        implementation = `  // Check for error conditions
+  if (!input) {
+    throw new Error('Validation failed');
+  }
+${implementation}`;
+      }
+    }
+
+    return { returnType, implementation, params };
   }
 
   private async generateRefactoringSuggestions(
@@ -1580,22 +1892,262 @@ export function ${this.camelCase(feature)}() {
   private generatePropertyTestCode(
     funcName: string,
     property: string,
-    _constraints: Record<string, unknown>
+    constraints: Record<string, unknown>
   ): string {
+    // Analyze property description to generate appropriate generators and assertions
+    const propertyLower = property.toLowerCase();
+    const { generators, assertion, setupCode } = this.analyzePropertyForTestGeneration(
+      propertyLower,
+      funcName,
+      constraints
+    );
+
     return `import * as fc from 'fast-check';
 
 describe('${funcName} property tests', () => {
   it('${property}', () => {
+${setupCode}
     fc.assert(
-      fc.property(fc.anything(), (input) => {
-        const result = ${funcName}(input);
-        // Property: ${property}
-        // TODO: Implement property assertion
-        return result !== undefined;
+      fc.property(${generators.join(', ')}, (${this.generatePropertyParams(generators)}) => {
+        const result = ${funcName}(${this.generatePropertyArgs(generators)});
+        ${assertion}
       })
     );
   });
 });`;
+  }
+
+  /**
+   * Analyze property description to determine generators and assertions
+   */
+  private analyzePropertyForTestGeneration(
+    propertyLower: string,
+    funcName: string,
+    constraints: Record<string, unknown>
+  ): { generators: string[]; assertion: string; setupCode: string } {
+    const generators: string[] = [];
+    let assertion = 'return result !== undefined;';
+    let setupCode = '';
+
+    // Idempotent property: f(f(x)) === f(x)
+    if (propertyLower.includes('idempotent') || propertyLower.includes('same result')) {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      assertion = `// Idempotent: applying twice gives same result
+        const firstResult = ${funcName}(input);
+        const secondResult = ${funcName}(firstResult);
+        return JSON.stringify(firstResult) === JSON.stringify(secondResult);`;
+    }
+    // Commutative property: f(a, b) === f(b, a)
+    else if (propertyLower.includes('commutative') || propertyLower.includes('order independent')) {
+      const gen = this.inferGeneratorFromConstraints(constraints, 'value');
+      generators.push(gen, gen);
+      assertion = `// Commutative: order doesn't matter
+        const result1 = ${funcName}(a, b);
+        const result2 = ${funcName}(b, a);
+        return JSON.stringify(result1) === JSON.stringify(result2);`;
+    }
+    // Associative property: f(f(a, b), c) === f(a, f(b, c))
+    else if (propertyLower.includes('associative')) {
+      const gen = this.inferGeneratorFromConstraints(constraints, 'value');
+      generators.push(gen, gen, gen);
+      assertion = `// Associative: grouping doesn't matter
+        const left = ${funcName}(${funcName}(a, b), c);
+        const right = ${funcName}(a, ${funcName}(b, c));
+        return JSON.stringify(left) === JSON.stringify(right);`;
+    }
+    // Identity property: f(x, identity) === x
+    else if (propertyLower.includes('identity') || propertyLower.includes('neutral element')) {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      const identity = constraints.identity !== undefined ? String(constraints.identity) : '0';
+      setupCode = `    const identity = ${identity};`;
+      assertion = `// Identity: operation with identity returns original
+        const result = ${funcName}(input, identity);
+        return JSON.stringify(result) === JSON.stringify(input);`;
+    }
+    // Inverse property: f(f(x)) === x (e.g., encode/decode)
+    else if (propertyLower.includes('inverse') || propertyLower.includes('reversible') ||
+             propertyLower.includes('round-trip') || propertyLower.includes('encode') ||
+             propertyLower.includes('decode')) {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      const inverseFn = constraints.inverse as string || `${funcName}Inverse`;
+      assertion = `// Inverse: applying function and its inverse returns original
+        const encoded = ${funcName}(input);
+        const decoded = ${inverseFn}(encoded);
+        return JSON.stringify(decoded) === JSON.stringify(input);`;
+    }
+    // Distributive property: f(a, b + c) === f(a, b) + f(a, c)
+    else if (propertyLower.includes('distributive')) {
+      const gen = this.inferGeneratorFromConstraints(constraints, 'number');
+      generators.push(gen, gen, gen);
+      assertion = `// Distributive: f(a, b + c) === f(a, b) + f(a, c)
+        const left = ${funcName}(a, b + c);
+        const right = ${funcName}(a, b) + ${funcName}(a, c);
+        return Math.abs(left - right) < 0.0001;`;
+    }
+    // Monotonic property: a <= b implies f(a) <= f(b)
+    else if (propertyLower.includes('monotonic') || propertyLower.includes('preserves order') ||
+             propertyLower.includes('non-decreasing') || propertyLower.includes('sorted')) {
+      generators.push('fc.integer()', 'fc.integer()');
+      assertion = `// Monotonic: preserves order
+        const [small, large] = a <= b ? [a, b] : [b, a];
+        const resultSmall = ${funcName}(small);
+        const resultLarge = ${funcName}(large);
+        return resultSmall <= resultLarge;`;
+    }
+    // Bounds/range property: output is within expected bounds
+    else if (propertyLower.includes('bound') || propertyLower.includes('range') ||
+             propertyLower.includes('between') || propertyLower.includes('clamp')) {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      const min = constraints.min !== undefined ? constraints.min : 0;
+      const max = constraints.max !== undefined ? constraints.max : 100;
+      assertion = `// Bounded: result is within expected range
+        const result = ${funcName}(input);
+        return result >= ${min} && result <= ${max};`;
+    }
+    // Length preservation
+    else if (propertyLower.includes('length') || propertyLower.includes('size')) {
+      generators.push('fc.array(fc.anything())');
+      if (propertyLower.includes('preserve')) {
+        assertion = `// Length preserved: output has same length as input
+        const result = ${funcName}(input);
+        return Array.isArray(result) && result.length === input.length;`;
+      } else {
+        assertion = `// Length invariant
+        const result = ${funcName}(input);
+        return typeof result.length === 'number' || typeof result.size === 'number';`;
+      }
+    }
+    // Type preservation
+    else if (propertyLower.includes('type') && propertyLower.includes('preserve')) {
+      generators.push('fc.anything()');
+      assertion = `// Type preserved: output has same type as input
+        const result = ${funcName}(input);
+        return typeof result === typeof input;`;
+    }
+    // Non-null/defined output
+    else if (propertyLower.includes('never null') || propertyLower.includes('always defined') ||
+             propertyLower.includes('non-null')) {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      assertion = `// Never null: always returns defined value
+        const result = ${funcName}(input);
+        return result !== null && result !== undefined;`;
+    }
+    // Deterministic property: same input always produces same output
+    else if (propertyLower.includes('deterministic') || propertyLower.includes('pure') ||
+             propertyLower.includes('consistent')) {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      assertion = `// Deterministic: same input always gives same output
+        const result1 = ${funcName}(input);
+        const result2 = ${funcName}(input);
+        return JSON.stringify(result1) === JSON.stringify(result2);`;
+    }
+    // Default case: basic existence check with type-appropriate generator
+    else {
+      generators.push(this.inferGeneratorFromConstraints(constraints, 'input'));
+      assertion = `// Basic property: function returns a value
+        return result !== undefined;`;
+    }
+
+    return { generators, assertion, setupCode };
+  }
+
+  /**
+   * Infer the appropriate fast-check generator from constraints
+   */
+  private inferGeneratorFromConstraints(
+    constraints: Record<string, unknown>,
+    hint: string
+  ): string {
+    // Check explicit type constraint
+    const type = (constraints.type as string)?.toLowerCase() || hint.toLowerCase();
+
+    if (type.includes('string') || type.includes('text')) {
+      const minLength = constraints.minLength as number | undefined;
+      const maxLength = constraints.maxLength as number | undefined;
+      if (minLength !== undefined || maxLength !== undefined) {
+        return `fc.string({ minLength: ${minLength ?? 0}, maxLength: ${maxLength ?? 100} })`;
+      }
+      return 'fc.string()';
+    }
+
+    if (type.includes('number') || type.includes('int') || type.includes('value')) {
+      const min = constraints.min as number | undefined;
+      const max = constraints.max as number | undefined;
+      if (min !== undefined || max !== undefined) {
+        return `fc.integer({ min: ${min ?? Number.MIN_SAFE_INTEGER}, max: ${max ?? Number.MAX_SAFE_INTEGER} })`;
+      }
+      return 'fc.integer()';
+    }
+
+    if (type.includes('float') || type.includes('decimal')) {
+      return 'fc.float()';
+    }
+
+    if (type.includes('boolean') || type.includes('bool')) {
+      return 'fc.boolean()';
+    }
+
+    if (type.includes('array') || type.includes('list')) {
+      const itemType = constraints.itemType as string || 'anything';
+      const itemGen = this.getSimpleGenerator(itemType);
+      return `fc.array(${itemGen})`;
+    }
+
+    if (type.includes('object') || type.includes('record')) {
+      return 'fc.object()';
+    }
+
+    if (type.includes('date')) {
+      return 'fc.date()';
+    }
+
+    if (type.includes('uuid') || type.includes('id')) {
+      return 'fc.uuid()';
+    }
+
+    if (type.includes('email')) {
+      return 'fc.emailAddress()';
+    }
+
+    // Default to anything
+    return 'fc.anything()';
+  }
+
+  /**
+   * Get a simple generator for a type name
+   */
+  private getSimpleGenerator(typeName: string): string {
+    const typeMap: Record<string, string> = {
+      string: 'fc.string()',
+      number: 'fc.integer()',
+      integer: 'fc.integer()',
+      float: 'fc.float()',
+      boolean: 'fc.boolean()',
+      date: 'fc.date()',
+      uuid: 'fc.uuid()',
+      anything: 'fc.anything()',
+    };
+    return typeMap[typeName.toLowerCase()] || 'fc.anything()';
+  }
+
+  /**
+   * Generate parameter names from generator list
+   */
+  private generatePropertyParams(generators: string[]): string {
+    if (generators.length === 1) {
+      return 'input';
+    }
+    return generators.map((_, i) => String.fromCharCode(97 + i)).join(', '); // a, b, c...
+  }
+
+  /**
+   * Generate argument list for function call
+   */
+  private generatePropertyArgs(generators: string[]): string {
+    if (generators.length === 1) {
+      return 'input';
+    }
+    return generators.map((_, i) => String.fromCharCode(97 + i)).join(', ');
   }
 
   private inferGenerators(
@@ -1998,16 +2550,89 @@ describe('${funcName} property tests', () => {
 
     const testId = uuidv4();
     const testFile = this.getTestFilePath(file, framework);
+    const moduleName = this.extractModuleName(file);
+    const importPath = this.getImportPath(file);
+
+    // Generate meaningful coverage test code
+    const testCode = this.generateCoverageTestCode(moduleName, importPath, lines, framework);
 
     return {
       id: testId,
       name: `Coverage test for lines ${lines[0]}-${lines[lines.length - 1]}`,
       sourceFile: file,
       testFile,
-      testCode: `// Generated to cover lines ${lines.join(', ')}\nit('should cover lines ${lines[0]}-${lines[lines.length - 1]}', () => {\n  // TODO: Implement coverage test\n});`,
+      testCode,
       type: 'unit',
-      assertions: 1,
+      assertions: this.countAssertions(testCode),
     };
+  }
+
+  /**
+   * Generate actual coverage test code for specific lines
+   */
+  private generateCoverageTestCode(
+    moduleName: string,
+    importPath: string,
+    lines: number[],
+    framework: string
+  ): string {
+    const funcName = this.camelCase(moduleName);
+    const lineRange = lines.length === 1
+      ? `line ${lines[0]}`
+      : `lines ${lines[0]}-${lines[lines.length - 1]}`;
+
+    if (framework === 'pytest') {
+      return `# Coverage test for ${lineRange} in ${moduleName}
+import pytest
+from ${importPath.replace(/\//g, '.')} import ${funcName}
+
+class Test${this.pascalCase(moduleName)}Coverage:
+    """Tests to cover ${lineRange}"""
+
+    def test_cover_${lines[0]}_${lines[lines.length - 1]}(self):
+        """Exercise code path covering ${lineRange}"""
+        # Arrange: Set up test inputs to reach uncovered lines
+        test_input = None  # Replace with appropriate input
+
+        # Act: Execute the code path
+        try:
+            result = ${funcName}(test_input)
+
+            # Assert: Verify expected behavior
+            assert result is not None
+        except Exception as e:
+            # If exception is expected for this path, verify it
+            pytest.fail(f"Unexpected exception: {e}")
+`;
+    }
+
+    // Default: Jest/Vitest format
+    return `// Coverage test for ${lineRange} in ${moduleName}
+import { ${funcName} } from '${importPath}';
+
+describe('${moduleName} coverage', () => {
+  describe('${lineRange}', () => {
+    it('should execute code path covering ${lineRange}', () => {
+      // Arrange: Set up test inputs to reach uncovered lines
+      const testInput = undefined; // Replace with appropriate input
+
+      // Act: Execute the code path
+      const result = ${funcName}(testInput);
+
+      // Assert: Verify the code was reached and behaves correctly
+      expect(result).toBeDefined();
+    });
+
+    it('should handle edge case for ${lineRange}', () => {
+      // Arrange: Set up edge case input
+      const edgeCaseInput = null;
+
+      // Act & Assert: Verify edge case handling
+      expect(() => ${funcName}(edgeCaseInput)).not.toThrow();
+    });
+  });
+});
+`;
   }
 
   private groupConsecutiveLines(lines: number[]): number[][] {
@@ -2097,6 +2722,12 @@ describe('${funcName} property tests', () => {
     return str
       .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
       .replace(/^./, (chr) => chr.toLowerCase());
+  }
+
+  private pascalCase(str: string): string {
+    return str
+      .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+      .replace(/^./, (chr) => chr.toUpperCase());
   }
 
   private async storeGenerationMetadata(

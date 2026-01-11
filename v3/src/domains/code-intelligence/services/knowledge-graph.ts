@@ -488,14 +488,93 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         });
       }
     } else if (extension === 'py') {
-      // Python files: create a module entity (AST parsing not implemented)
-      entities.push({
-        type: 'module',
-        name: this.getFileName(filePath).replace('.py', ''),
-        line: 1,
-        visibility: 'public',
-        isAsync: false,
-      });
+      // Python files: regex-based parsing for classes, functions, imports
+      const fileResult = await this.fileReader.readFile(filePath);
+
+      if (fileResult.success) {
+        const content = fileResult.value;
+        const lines = content.split('\n');
+
+        // Extract class definitions: class ClassName(Base): or class ClassName:
+        const classPattern = /^class\s+(\w+)\s*(?:\([^)]*\))?\s*:/;
+        // Extract function definitions: def function_name(...): or async def function_name(...):
+        const funcPattern = /^(async\s+)?def\s+(\w+)\s*\(/;
+
+        let currentClass: string | null = null;
+        let currentIndent = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const lineNum = i + 1;
+          const trimmedLine = line.trimStart();
+          const indent = line.length - trimmedLine.length;
+
+          // Track class scope for methods
+          if (currentClass && indent <= currentIndent) {
+            currentClass = null;
+          }
+
+          // Match class definitions
+          const classMatch = trimmedLine.match(classPattern);
+          if (classMatch) {
+            const className = classMatch[1];
+            entities.push({
+              type: 'class',
+              name: className,
+              line: lineNum,
+              visibility: className.startsWith('_') ? 'private' : 'public',
+              isAsync: false,
+            });
+            currentClass = className;
+            currentIndent = indent;
+            continue;
+          }
+
+          // Match function/method definitions
+          const funcMatch = trimmedLine.match(funcPattern);
+          if (funcMatch) {
+            const isAsync = !!funcMatch[1];
+            const funcName = funcMatch[2];
+            const isMethod = currentClass !== null && indent > currentIndent;
+
+            // Determine visibility
+            let visibility: 'public' | 'private' | 'protected' = 'public';
+            if (funcName.startsWith('__') && !funcName.endsWith('__')) {
+              visibility = 'private'; // Name-mangled private
+            } else if (funcName.startsWith('_')) {
+              visibility = 'protected'; // Convention private
+            }
+
+            entities.push({
+              type: 'function',
+              name: isMethod ? `${currentClass}.${funcName}` : funcName,
+              line: lineNum,
+              visibility,
+              isAsync,
+            });
+          }
+        }
+
+        // If no entities found, create a module entity for the file
+        if (entities.length === 0) {
+          entities.push({
+            type: 'module',
+            name: this.getFileName(filePath).replace('.py', ''),
+            line: 1,
+            visibility: 'public',
+            isAsync: false,
+          });
+        }
+      } else {
+        // Fallback: create a module entity for the file itself
+        entities.push({
+          type: 'module',
+          name: this.getFileName(filePath).replace('.py', ''),
+          line: 1,
+          visibility: 'public',
+          isAsync: false,
+        });
+      }
     }
 
     return entities;

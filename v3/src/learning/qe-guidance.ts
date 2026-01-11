@@ -335,7 +335,7 @@ export const COVERAGE_ANALYSIS_GUIDANCE: QEGuidance = {
  * Mutation Testing Domain Guidance
  */
 export const MUTATION_TESTING_GUIDANCE: QEGuidance = {
-  domain: 'mutation-testing',
+  domain: 'test-generation', // Mutation testing is part of test generation
   bestPractices: [
     'Use mutation testing to validate test suite quality',
     'Focus on surviving mutants - they indicate weak tests',
@@ -388,7 +388,7 @@ export const MUTATION_TESTING_GUIDANCE: QEGuidance = {
  * API Testing Domain Guidance
  */
 export const API_TESTING_GUIDANCE: QEGuidance = {
-  domain: 'api-testing',
+  domain: 'contract-testing',
   bestPractices: [
     'Use contract testing for API boundaries (Pact, etc.)',
     'Test both successful and error responses',
@@ -449,7 +449,7 @@ export const API_TESTING_GUIDANCE: QEGuidance = {
  * Security Testing Domain Guidance
  */
 export const SECURITY_TESTING_GUIDANCE: QEGuidance = {
-  domain: 'security-testing',
+  domain: 'security-compliance',
   bestPractices: [
     'Follow OWASP Top 10 for vulnerability testing',
     'Test authentication bypass scenarios',
@@ -504,7 +504,7 @@ export const SECURITY_TESTING_GUIDANCE: QEGuidance = {
  * Visual Testing Domain Guidance
  */
 export const VISUAL_TESTING_GUIDANCE: QEGuidance = {
-  domain: 'visual-testing',
+  domain: 'visual-accessibility',
   bestPractices: [
     'Capture screenshots at consistent viewport sizes',
     'Use baseline images for comparison',
@@ -559,7 +559,7 @@ export const VISUAL_TESTING_GUIDANCE: QEGuidance = {
  * Accessibility Testing Domain Guidance
  */
 export const ACCESSIBILITY_GUIDANCE: QEGuidance = {
-  domain: 'accessibility',
+  domain: 'visual-accessibility',
   bestPractices: [
     'Follow WCAG 2.1 AA guidelines as minimum',
     'Test with screen readers (NVDA, VoiceOver)',
@@ -614,7 +614,7 @@ export const ACCESSIBILITY_GUIDANCE: QEGuidance = {
  * Performance Testing Domain Guidance
  */
 export const PERFORMANCE_GUIDANCE: QEGuidance = {
-  domain: 'performance',
+  domain: 'chaos-resilience',
   bestPractices: [
     'Define clear SLAs and performance budgets',
     'Test under realistic load patterns',
@@ -674,13 +674,17 @@ export const PERFORMANCE_GUIDANCE: QEGuidance = {
  */
 export const QE_GUIDANCE_REGISTRY: Record<QEDomain, QEGuidance> = {
   'test-generation': TEST_GENERATION_GUIDANCE,
+  'test-execution': TEST_GENERATION_GUIDANCE, // Reuse test generation guidance
   'coverage-analysis': COVERAGE_ANALYSIS_GUIDANCE,
-  'mutation-testing': MUTATION_TESTING_GUIDANCE,
-  'api-testing': API_TESTING_GUIDANCE,
-  'security-testing': SECURITY_TESTING_GUIDANCE,
-  'visual-testing': VISUAL_TESTING_GUIDANCE,
-  'accessibility': ACCESSIBILITY_GUIDANCE,
-  'performance': PERFORMANCE_GUIDANCE,
+  'quality-assessment': TEST_GENERATION_GUIDANCE, // Quality gate guidance
+  'defect-intelligence': TEST_GENERATION_GUIDANCE, // Defect tracking guidance
+  'requirements-validation': TEST_GENERATION_GUIDANCE, // BDD guidance
+  'code-intelligence': COVERAGE_ANALYSIS_GUIDANCE, // Code analysis guidance
+  'security-compliance': SECURITY_TESTING_GUIDANCE,
+  'contract-testing': API_TESTING_GUIDANCE,
+  'visual-accessibility': VISUAL_TESTING_GUIDANCE, // Combined visual + a11y
+  'chaos-resilience': PERFORMANCE_GUIDANCE,
+  'learning-optimization': TEST_GENERATION_GUIDANCE, // ML optimization guidance
 };
 
 // ============================================================================

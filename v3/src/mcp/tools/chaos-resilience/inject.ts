@@ -10,7 +10,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base.js';
 import { ToolResult } from '../../types.js';
-import { MemoryBackend } from '../../../kernel/interfaces.js';
+import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { ChaosEngineerService } from '../../../domains/chaos-resilience/services/chaos-engineer.js';
 import {
   ChaosExperiment,
@@ -84,12 +84,18 @@ function createMinimalMemoryBackend(): MemoryBackend {
   const store = new Map<string, { value: unknown; ttl?: number; created: number }>();
 
   return {
-    async get<T>(key: string): Promise<T | null> {
+    async initialize(): Promise<void> {
+      // Minimal implementation - no initialization needed
+    },
+    async dispose(): Promise<void> {
+      store.clear();
+    },
+    async get<T>(key: string): Promise<T | undefined> {
       const entry = store.get(key);
-      if (!entry) return null;
+      if (!entry) return undefined;
       if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
         store.delete(key);
-        return null;
+        return undefined;
       }
       return entry.value as T;
     },
@@ -98,6 +104,15 @@ function createMinimalMemoryBackend(): MemoryBackend {
     },
     async delete(key: string): Promise<boolean> {
       return store.delete(key);
+    },
+    async has(key: string): Promise<boolean> {
+      const entry = store.get(key);
+      if (!entry) return false;
+      if (entry.ttl && Date.now() - entry.created > entry.ttl * 1000) {
+        store.delete(key);
+        return false;
+      }
+      return true;
     },
     async search(pattern: string, limit = 100): Promise<string[]> {
       const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
@@ -110,7 +125,7 @@ function createMinimalMemoryBackend(): MemoryBackend {
       }
       return matches;
     },
-    async vectorSearch(_embedding: number[], _limit = 10): Promise<Array<{ key: string; similarity: number }>> {
+    async vectorSearch(_embedding: number[], _k = 10): Promise<VectorSearchResult[]> {
       return [];
     },
     async storeVector(_key: string, _embedding: number[], _metadata?: Record<string, unknown>): Promise<void> {
@@ -137,7 +152,7 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
 
   private getService(context: MCPToolContext): ChaosEngineerService {
     if (!this.chaosEngineer) {
-      const memory = (context as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
+      const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || createMinimalMemoryBackend();
       this.chaosEngineer = new ChaosEngineerService(memory, {
         enableDryRun: true,
         autoRollbackOnFailure: true,
@@ -342,11 +357,13 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
 
     // Build steady state definition with basic probe
     const steadyState: SteadyStateDefinition = {
+      description: `Steady state for ${target}`,
       probes: [
         {
           name: 'target-health',
           type: target.startsWith('http') ? 'http' : 'command',
           target: target.startsWith('http') ? target : `echo "checking ${target}"`,
+          expected: target.startsWith('http') ? 200 : 'OK',
           timeout: 5000,
         },
       ],
@@ -360,11 +377,11 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
       name: `${faultType}-experiment-${Date.now()}`,
       description: `Chaos experiment: ${faultType} on ${target}`,
       hypothesis: {
-        description: experimentHypothesis,
+        statement: experimentHypothesis,
         metrics: [
           {
             metric: faultType === 'latency' ? 'response_time' : 'error_rate',
-            operator: faultType === 'latency' ? 'lt' : 'lt',
+            operator: 'lt' as const,
             value: faultType === 'latency' ? 5000 : 50,
           },
         ],
@@ -379,13 +396,18 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
       steadyState,
       faults: [fault],
       blastRadius: {
-        maxTargets: 1,
-        maxDuration: duration,
+        scope: 'single',
+        maxAffected: 1,
         excludeProduction: true,
-        allowedServices: [target],
       },
       rollbackPlan: {
         automatic: rollbackOnFailure,
+        triggerConditions: [
+          {
+            type: 'error-rate',
+            condition: 'error_rate > 50%',
+          },
+        ],
         steps: [
           {
             order: 1,
@@ -394,14 +416,9 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
             timeout: 10000,
           },
         ],
-        maxRecoveryTime: 60000,
       },
       schedule: {
-        runOnce: true,
-      },
-      metadata: {
-        createdBy: 'mcp-tool',
-        tags: ['mcp', faultType],
+        type: 'once',
       },
     };
   }
