@@ -240,9 +240,11 @@ export class PlaywrightPlugin extends BasePlugin implements TestFrameworkPlugin 
     env?: Record<string, string>
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
+      // Note: shell: false (default) to prevent command injection (CWE-78)
+      // Arguments are passed as array to avoid shell interpretation
       const child = spawn(command, args, {
         env: { ...process.env, ...env },
-        shell: true,
+        shell: false,
         cwd: process.cwd(),
       });
 

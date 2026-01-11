@@ -684,14 +684,51 @@ export class HookExecutor {
   }
 
   /**
-   * Escape shell argument to prevent injection
+   * Escape shell argument to prevent command injection (CWE-78)
+   *
+   * This function sanitizes user input before passing to shell commands.
+   * It handles all dangerous shell metacharacters including:
+   * - Backticks and $() for command substitution
+   * - Semicolons, pipes, and ampersands for command chaining
+   * - Quotes and backslashes for escaping
+   * - Newlines and other control characters
    *
    * @param arg - Argument to escape
-   * @returns Escaped argument
+   * @returns Escaped argument safe for shell use
    */
   private escapeShellArg(arg: string): string {
-    // Replace double quotes with escaped quotes, and escape backslashes
-    return arg.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    if (!arg || typeof arg !== 'string') {
+      return '';
+    }
+
+    // Remove null bytes which can bypass validation
+    let sanitized = arg.replace(/\0/g, '');
+
+    // Escape all shell metacharacters
+    // Order matters: escape backslashes first, then other characters
+    sanitized = sanitized
+      .replace(/\\/g, '\\\\')     // Backslashes
+      .replace(/"/g, '\\"')       // Double quotes
+      .replace(/'/g, "\\'")       // Single quotes (escape for safety)
+      .replace(/`/g, '\\`')       // Backticks (command substitution)
+      .replace(/\$/g, '\\$')      // Dollar sign (variable expansion, $())
+      .replace(/!/g, '\\!')       // Exclamation (history expansion in bash)
+      .replace(/;/g, '\\;')       // Semicolon (command separator)
+      .replace(/&/g, '\\&')       // Ampersand (background/chaining)
+      .replace(/\|/g, '\\|')      // Pipe (command chaining)
+      .replace(/>/g, '\\>')       // Redirect out
+      .replace(/</g, '\\<')       // Redirect in
+      .replace(/\(/g, '\\(')      // Open paren (subshell)
+      .replace(/\)/g, '\\)')      // Close paren (subshell)
+      .replace(/\[/g, '\\[')      // Open bracket (glob)
+      .replace(/\]/g, '\\]')      // Close bracket (glob)
+      .replace(/\{/g, '\\{')      // Open brace (brace expansion)
+      .replace(/\}/g, '\\}')      // Close brace (brace expansion)
+      .replace(/\n/g, '\\n')      // Newline
+      .replace(/\r/g, '\\r')      // Carriage return
+      .replace(/\t/g, '\\t');     // Tab
+
+    return sanitized;
   }
 
   /**
