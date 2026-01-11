@@ -39,7 +39,7 @@ jobs:
           cache-dependency-path: v3/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Type check
         run: npm run typecheck
@@ -72,7 +72,7 @@ jobs:
           cache-dependency-path: v3/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         run: npm run build
