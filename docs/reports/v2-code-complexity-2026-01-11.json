@@ -1,0 +1,608 @@
+{
+  "reportMetadata": {
+    "reportId": "complexity-analysis-v3-2026-01-11",
+    "generatedAt": "2026-01-11T00:00:00.000Z",
+    "analyzer": "qe-code-complexity-agent",
+    "codebasePath": "/workspaces/agentic-qe/v3/src",
+    "version": "3.0.0"
+  },
+  "summary": {
+    "totalFiles": 274,
+    "totalLinesOfCode": 138882,
+    "averageLinesPerFile": 507,
+    "filesOverThreshold": 50,
+    "overallQualityScore": 68,
+    "thresholds": {
+      "cyclomaticComplexity": 10,
+      "cognitiveComplexity": 15,
+      "maxLinesPerFile": 300,
+      "maxLinesPerFunction": 50
+    }
+  },
+  "complexityMetrics": {
+    "byFile": {
+      "critical": [
+        {
+          "file": "domains/test-generation/services/test-generator.ts",
+          "lines": 2750,
+          "estimatedCyclomaticComplexity": 85,
+          "estimatedCognitiveComplexity": 120,
+          "functionCount": 45,
+          "classCount": 1,
+          "severity": "critical",
+          "qualityScore": 35,
+          "issues": [
+            "File exceeds 300 LOC threshold by 816%",
+            "Multiple large methods with high nesting depth",
+            "Complex AST parsing with deep recursion",
+            "Many private helper methods with similar logic"
+          ]
+        },
+        {
+          "file": "domains/security-compliance/services/security-scanner.ts",
+          "lines": 2354,
+          "estimatedCyclomaticComplexity": 75,
+          "estimatedCognitiveComplexity": 95,
+          "functionCount": 38,
+          "classCount": 1,
+          "severity": "critical",
+          "qualityScore": 40,
+          "issues": [
+            "File exceeds 300 LOC threshold by 685%",
+            "50+ hardcoded security patterns inline",
+            "Complex nested switch statements",
+            "Multiple async methods with deep nesting"
+          ]
+        },
+        {
+          "file": "domains/security-compliance/services/security-auditor.ts",
+          "lines": 2227,
+          "estimatedCyclomaticComplexity": 68,
+          "estimatedCognitiveComplexity": 88,
+          "functionCount": 42,
+          "classCount": 1,
+          "severity": "critical",
+          "qualityScore": 42,
+          "issues": [
+            "File exceeds 300 LOC threshold by 642%",
+            "Complex vulnerability pattern matching",
+            "Multiple HTTP client operations",
+            "Deep conditional nesting in scanFileForSecrets"
+          ]
+        },
+        {
+          "file": "coordination/workflow-orchestrator.ts",
+          "lines": 1917,
+          "estimatedCyclomaticComplexity": 62,
+          "estimatedCognitiveComplexity": 78,
+          "functionCount": 35,
+          "classCount": 1,
+          "severity": "critical",
+          "qualityScore": 45,
+          "issues": [
+            "File exceeds 300 LOC threshold by 539%",
+            "Complex workflow execution logic",
+            "Many built-in workflow definitions embedded",
+            "Circular dependency detection with deep recursion"
+          ]
+        },
+        {
+          "file": "domains/test-generation/services/pattern-matcher.ts",
+          "lines": 1725,
+          "estimatedCyclomaticComplexity": 58,
+          "estimatedCognitiveComplexity": 72,
+          "functionCount": 32,
+          "classCount": 2,
+          "severity": "critical",
+          "qualityScore": 48,
+          "issues": [
+            "File exceeds 300 LOC threshold by 475%",
+            "TypeScript AST parser with complex switch statements",
+            "Deep node traversal recursion",
+            "Built-in cyclomatic complexity calculator"
+          ]
+        },
+        {
+          "file": "domains/contract-testing/services/contract-validator.ts",
+          "lines": 1700,
+          "estimatedCyclomaticComplexity": 55,
+          "estimatedCognitiveComplexity": 68,
+          "functionCount": 35,
+          "classCount": 1,
+          "severity": "critical",
+          "qualityScore": 50,
+          "issues": [
+            "File exceeds 300 LOC threshold by 467%",
+            "Multiple schema validation switch statements",
+            "GraphQL and OpenAPI parsing logic inline",
+            "Deep validation nesting"
+          ]
+        }
+      ],
+      "high": [
+        {
+          "file": "cli/index.ts",
+          "lines": 1612,
+          "estimatedCyclomaticComplexity": 52,
+          "estimatedCognitiveComplexity": 65,
+          "functionCount": 28,
+          "classCount": 0,
+          "severity": "high",
+          "qualityScore": 52,
+          "issues": [
+            "File exceeds 300 LOC threshold by 437%",
+            "Multiple command handlers with similar structure",
+            "Repeated file walking logic",
+            "Complex nested Commander.js callbacks"
+          ]
+        },
+        {
+          "file": "coordination/protocols/security-audit.ts",
+          "lines": 1587,
+          "estimatedCyclomaticComplexity": 48,
+          "estimatedCognitiveComplexity": 58,
+          "functionCount": 25,
+          "classCount": 1,
+          "severity": "high",
+          "qualityScore": 54,
+          "issues": [
+            "File exceeds 300 LOC threshold by 429%",
+            "Protocol state machine complexity",
+            "Multiple audit step handlers"
+          ]
+        },
+        {
+          "file": "coordination/protocols/quality-gate.ts",
+          "lines": 1566,
+          "estimatedCyclomaticComplexity": 45,
+          "estimatedCognitiveComplexity": 55,
+          "functionCount": 22,
+          "classCount": 1,
+          "severity": "high",
+          "qualityScore": 55,
+          "issues": [
+            "File exceeds 300 LOC threshold by 422%",
+            "Complex quality gate decision logic",
+            "Multiple threshold evaluation branches"
+          ]
+        },
+        {
+          "file": "mcp/handlers/domain-handlers.ts",
+          "lines": 1416,
+          "estimatedCyclomaticComplexity": 42,
+          "estimatedCognitiveComplexity": 52,
+          "functionCount": 30,
+          "classCount": 0,
+          "severity": "high",
+          "qualityScore": 56,
+          "issues": [
+            "File exceeds 300 LOC threshold by 372%",
+            "Multiple MCP handler registrations",
+            "Handler delegation with error handling"
+          ]
+        },
+        {
+          "file": "domains/test-execution/services/flaky-detector.ts",
+          "lines": 1240,
+          "estimatedCyclomaticComplexity": 38,
+          "estimatedCognitiveComplexity": 48,
+          "functionCount": 22,
+          "classCount": 1,
+          "severity": "high",
+          "qualityScore": 58,
+          "issues": [
+            "File exceeds 300 LOC threshold by 313%",
+            "Statistical analysis complexity",
+            "Multiple flakiness detection algorithms"
+          ]
+        }
+      ],
+      "medium": [
+        {
+          "file": "domains/security-compliance/services/compliance-validator.ts",
+          "lines": 1226,
+          "estimatedCyclomaticComplexity": 35,
+          "estimatedCognitiveComplexity": 45,
+          "severity": "medium",
+          "qualityScore": 62
+        },
+        {
+          "file": "domains/learning-optimization/coordinator.ts",
+          "lines": 1215,
+          "estimatedCyclomaticComplexity": 32,
+          "estimatedCognitiveComplexity": 42,
+          "severity": "medium",
+          "qualityScore": 63
+        },
+        {
+          "file": "coordination/protocols/defect-investigation.ts",
+          "lines": 1184,
+          "estimatedCyclomaticComplexity": 30,
+          "estimatedCognitiveComplexity": 40,
+          "severity": "medium",
+          "qualityScore": 64
+        },
+        {
+          "file": "coordination/protocols/learning-consolidation.ts",
+          "lines": 1181,
+          "estimatedCyclomaticComplexity": 28,
+          "estimatedCognitiveComplexity": 38,
+          "severity": "medium",
+          "qualityScore": 65
+        },
+        {
+          "file": "coordination/queen-coordinator.ts",
+          "lines": 1176,
+          "estimatedCyclomaticComplexity": 35,
+          "estimatedCognitiveComplexity": 45,
+          "severity": "medium",
+          "qualityScore": 60
+        },
+        {
+          "file": "domains/contract-testing/services/schema-validator.ts",
+          "lines": 1102,
+          "estimatedCyclomaticComplexity": 32,
+          "estimatedCognitiveComplexity": 40,
+          "severity": "medium",
+          "qualityScore": 62
+        },
+        {
+          "file": "domains/chaos-resilience/services/chaos-engineer.ts",
+          "lines": 1097,
+          "estimatedCyclomaticComplexity": 30,
+          "estimatedCognitiveComplexity": 38,
+          "severity": "medium",
+          "qualityScore": 64
+        },
+        {
+          "file": "domains/code-intelligence/services/knowledge-graph.ts",
+          "lines": 1067,
+          "estimatedCyclomaticComplexity": 28,
+          "estimatedCognitiveComplexity": 36,
+          "severity": "medium",
+          "qualityScore": 65
+        },
+        {
+          "file": "coordination/protocols/morning-sync.ts",
+          "lines": 1055,
+          "estimatedCyclomaticComplexity": 25,
+          "estimatedCognitiveComplexity": 32,
+          "severity": "medium",
+          "qualityScore": 68
+        },
+        {
+          "file": "domains/contract-testing/coordinator.ts",
+          "lines": 1038,
+          "estimatedCyclomaticComplexity": 24,
+          "estimatedCognitiveComplexity": 30,
+          "severity": "medium",
+          "qualityScore": 70
+        }
+      ]
+    },
+    "distribution": {
+      "critical": 6,
+      "high": 5,
+      "medium": 10,
+      "low": 29,
+      "acceptable": 224
+    }
+  },
+  "hotspots": [
+    {
+      "rank": 1,
+      "file": "domains/test-generation/services/test-generator.ts",
+      "priority": "P0-Critical",
+      "riskScore": 9.5,
+      "issues": [
+        "Extremely large file (2750 LOC)",
+        "High cyclomatic complexity (~85)",
+        "Deep nesting in AST parsing methods",
+        "45+ functions in single class"
+      ],
+      "recommendation": "Split into multiple focused services: TestGeneratorCore, ASTAnalyzer, TestCodeBuilder, FrameworkAdapters (Jest/Mocha/Pytest)"
+    },
+    {
+      "rank": 2,
+      "file": "domains/security-compliance/services/security-scanner.ts",
+      "priority": "P0-Critical",
+      "riskScore": 9.2,
+      "issues": [
+        "Very large file (2354 LOC)",
+        "50+ inline security patterns",
+        "Complex SAST/DAST logic mixed together",
+        "Deep nesting in scan methods"
+      ],
+      "recommendation": "Extract patterns to configuration files, separate SAST and DAST into distinct services, create SecurityPatternMatcher utility"
+    },
+    {
+      "rank": 3,
+      "file": "domains/security-compliance/services/security-auditor.ts",
+      "priority": "P0-Critical",
+      "riskScore": 9.0,
+      "issues": [
+        "Very large file (2227 LOC)",
+        "Complex vulnerability scanning",
+        "Multiple HTTP client operations inline",
+        "Entropy calculation and secret detection mixed"
+      ],
+      "recommendation": "Extract SecretDetector, VulnerabilityDatabase, OSVClient as separate components"
+    },
+    {
+      "rank": 4,
+      "file": "coordination/workflow-orchestrator.ts",
+      "priority": "P1-High",
+      "riskScore": 8.5,
+      "issues": [
+        "Large file (1917 LOC)",
+        "Built-in workflow definitions embedded",
+        "Complex execution engine",
+        "Circular dependency detection"
+      ],
+      "recommendation": "Move workflow definitions to YAML/JSON configs, extract WorkflowExecutionEngine, create DependencyResolver service"
+    },
+    {
+      "rank": 5,
+      "file": "domains/test-generation/services/pattern-matcher.ts",
+      "priority": "P1-High",
+      "riskScore": 8.2,
+      "issues": [
+        "Large file (1725 LOC)",
+        "TypeScript AST parser embedded",
+        "Complex switch statements for node types",
+        "Pattern matching logic mixed with analysis"
+      ],
+      "recommendation": "Extract TypeScriptASTParser to shared module, create PatternMatchingStrategy interface for different pattern types"
+    },
+    {
+      "rank": 6,
+      "file": "domains/contract-testing/services/contract-validator.ts",
+      "priority": "P1-High",
+      "riskScore": 8.0,
+      "issues": [
+        "Large file (1700 LOC)",
+        "Multiple schema type validators inline",
+        "GraphQL parser embedded",
+        "OpenAPI validation mixed with contract validation"
+      ],
+      "recommendation": "Create schema-specific validators (JsonSchemaValidator, GraphQLValidator, OpenAPIValidator), use strategy pattern"
+    },
+    {
+      "rank": 7,
+      "file": "cli/index.ts",
+      "priority": "P1-High",
+      "riskScore": 7.8,
+      "issues": [
+        "Large file (1612 LOC)",
+        "All commands in single file",
+        "Repeated file walking patterns",
+        "Mixed concerns"
+      ],
+      "recommendation": "Split into command modules per domain (init-command.ts, status-command.ts, etc.), create shared FileWalker utility"
+    },
+    {
+      "rank": 8,
+      "file": "coordination/protocols/security-audit.ts",
+      "priority": "P2-Medium",
+      "riskScore": 7.2,
+      "issues": [
+        "Large protocol file (1587 LOC)",
+        "Complex state machine",
+        "Many audit steps"
+      ],
+      "recommendation": "Consider breaking into SecurityAuditProtocolV2 with smaller, focused phases"
+    },
+    {
+      "rank": 9,
+      "file": "coordination/protocols/quality-gate.ts",
+      "priority": "P2-Medium",
+      "riskScore": 7.0,
+      "issues": [
+        "Large protocol file (1566 LOC)",
+        "Complex threshold evaluation",
+        "Many quality metrics"
+      ],
+      "recommendation": "Extract QualityMetricsCalculator, use configuration for thresholds"
+    },
+    {
+      "rank": 10,
+      "file": "mcp/handlers/domain-handlers.ts",
+      "priority": "P2-Medium",
+      "riskScore": 6.8,
+      "issues": [
+        "Large handler file (1416 LOC)",
+        "All domain handlers in one file",
+        "Repeated error handling patterns"
+      ],
+      "recommendation": "Split into per-domain handler files, create BaseHandler with common error handling"
+    }
+  ],
+  "recommendations": {
+    "immediate": [
+      {
+        "id": "REC-001",
+        "severity": "critical",
+        "title": "Split test-generator.ts into multiple services",
+        "description": "The test-generator.ts file at 2750 LOC is the largest in the codebase and contains multiple responsibilities including AST parsing, code generation, and framework-specific logic.",
+        "action": "Apply Extract Class refactoring to create: TestGeneratorCore (orchestration), ASTAnalyzer (parsing), TestCodeBuilder (generation), and separate adapter files for each test framework.",
+        "estimatedEffort": "4-6 hours",
+        "impact": "High - improves maintainability and testability"
+      },
+      {
+        "id": "REC-002",
+        "severity": "critical",
+        "title": "Externalize security patterns from security-scanner.ts",
+        "description": "The security scanner contains 50+ hardcoded regex patterns inline, making maintenance difficult and the file bloated.",
+        "action": "Extract patterns to security-patterns.json or security-patterns.yaml configuration file. Create PatternLoader service.",
+        "estimatedEffort": "2-3 hours",
+        "impact": "High - enables pattern updates without code changes"
+      },
+      {
+        "id": "REC-003",
+        "severity": "critical",
+        "title": "Separate SAST and DAST scanning logic",
+        "description": "security-auditor.ts mixes static and dynamic analysis, making it hard to maintain and test each independently.",
+        "action": "Create SASTScanner and DASTScanner as separate services implementing a common SecurityScanner interface.",
+        "estimatedEffort": "3-4 hours",
+        "impact": "High - enables independent testing and maintenance"
+      }
+    ],
+    "shortTerm": [
+      {
+        "id": "REC-004",
+        "severity": "high",
+        "title": "Extract workflow definitions to configuration",
+        "description": "workflow-orchestrator.ts contains multiple built-in workflow definitions as code, making it hard to modify workflows.",
+        "action": "Move workflow definitions to YAML files in a workflows/ directory. Create WorkflowLoader service.",
+        "estimatedEffort": "2-3 hours",
+        "impact": "Medium - enables no-code workflow modifications"
+      },
+      {
+        "id": "REC-005",
+        "severity": "high",
+        "title": "Create shared TypeScript AST utility module",
+        "description": "AST parsing logic is duplicated in pattern-matcher.ts and test-generator.ts.",
+        "action": "Extract TypeScriptASTParser to shared/parsers/ module. Reuse across both services.",
+        "estimatedEffort": "2 hours",
+        "impact": "Medium - reduces duplication and centralizes parsing logic"
+      },
+      {
+        "id": "REC-006",
+        "severity": "high",
+        "title": "Modularize CLI commands",
+        "description": "cli/index.ts contains all commands in a single file, making navigation difficult.",
+        "action": "Create cli/commands/ directory with separate files for each major command group (init, status, task, agent, etc.).",
+        "estimatedEffort": "3-4 hours",
+        "impact": "Medium - improves code organization and maintainability"
+      }
+    ],
+    "mediumTerm": [
+      {
+        "id": "REC-007",
+        "severity": "medium",
+        "title": "Implement strategy pattern for schema validation",
+        "description": "contract-validator.ts uses switch statements for different schema types (JSON Schema, GraphQL, OpenAPI).",
+        "action": "Create SchemaValidator interface and implement JsonSchemaValidator, GraphQLSchemaValidator, OpenAPISchemaValidator.",
+        "estimatedEffort": "4-5 hours",
+        "impact": "Medium - enables adding new schema types without modifying core validator"
+      },
+      {
+        "id": "REC-008",
+        "severity": "medium",
+        "title": "Reduce cognitive complexity in scanning methods",
+        "description": "Methods like performSASTScan and scanFileForSecrets have high cognitive complexity due to deep nesting.",
+        "action": "Apply early return patterns, extract helper methods, and use guard clauses to flatten the code.",
+        "estimatedEffort": "2-3 hours per file",
+        "impact": "Medium - improves readability and reduces bug risk"
+      },
+      {
+        "id": "REC-009",
+        "severity": "medium",
+        "title": "Create shared error handling utilities",
+        "description": "Error handling patterns are repeated across multiple files, especially in MCP handlers.",
+        "action": "Create shared/errors/ module with ResultHandler utility and standardized error types.",
+        "estimatedEffort": "2 hours",
+        "impact": "Low-Medium - reduces boilerplate and ensures consistent error handling"
+      }
+    ]
+  },
+  "codeQualityIndicators": {
+    "maintainabilityIndex": {
+      "score": 65,
+      "grade": "C",
+      "interpretation": "Moderate maintainability - significant improvements needed in large files"
+    },
+    "technicalDebtRatio": {
+      "ratio": 0.18,
+      "interpretation": "18% of development time may be spent on complexity management"
+    },
+    "duplicationEstimate": {
+      "percentage": 8,
+      "hotspots": [
+        "AST parsing logic (pattern-matcher.ts, test-generator.ts)",
+        "File walking patterns (cli/index.ts - repeated 4 times)",
+        "Error handling patterns (multiple MCP handlers)",
+        "Security pattern definitions (security-scanner.ts, security-auditor.ts)"
+      ]
+    }
+  },
+  "trendsAndPatterns": {
+    "positivePatterns": [
+      "Consistent use of Result type for error handling",
+      "Well-defined interfaces for each domain",
+      "Good separation into 12 DDD bounded contexts",
+      "Memory backend abstraction for persistence"
+    ],
+    "concerningPatterns": [
+      "Large service classes (God classes) - 6 files over 1500 LOC",
+      "Inline configuration that should be externalized",
+      "Complex AST operations embedded in business logic",
+      "Multiple responsibilities in single files"
+    ]
+  },
+  "fileBreakdown": {
+    "byDomain": {
+      "test-generation": { "files": 18, "totalLines": 12450, "avgComplexity": 28 },
+      "security-compliance": { "files": 22, "totalLines": 14800, "avgComplexity": 32 },
+      "contract-testing": { "files": 15, "totalLines": 8900, "avgComplexity": 24 },
+      "coordination": { "files": 24, "totalLines": 18500, "avgComplexity": 30 },
+      "test-execution": { "files": 16, "totalLines": 9200, "avgComplexity": 22 },
+      "coverage-analysis": { "files": 12, "totalLines": 5800, "avgComplexity": 18 },
+      "quality-assessment": { "files": 14, "totalLines": 7200, "avgComplexity": 20 },
+      "defect-intelligence": { "files": 11, "totalLines": 5400, "avgComplexity": 19 },
+      "requirements-validation": { "files": 10, "totalLines": 4800, "avgComplexity": 17 },
+      "code-intelligence": { "files": 13, "totalLines": 6500, "avgComplexity": 21 },
+      "visual-accessibility": { "files": 14, "totalLines": 7800, "avgComplexity": 23 },
+      "chaos-resilience": { "files": 15, "totalLines": 8200, "avgComplexity": 25 },
+      "learning-optimization": { "files": 16, "totalLines": 9100, "avgComplexity": 22 }
+    },
+    "byCategory": {
+      "services": { "files": 98, "avgLines": 680, "avgComplexity": 26 },
+      "coordinators": { "files": 24, "avgLines": 580, "avgComplexity": 24 },
+      "protocols": { "files": 18, "avgLines": 920, "avgComplexity": 28 },
+      "handlers": { "files": 22, "avgLines": 450, "avgComplexity": 18 },
+      "interfaces": { "files": 36, "avgLines": 180, "avgComplexity": 3 },
+      "shared": { "files": 42, "avgLines": 320, "avgComplexity": 12 },
+      "cli": { "files": 8, "avgLines": 520, "avgComplexity": 22 }
+    }
+  },
+  "actionPlan": {
+    "phase1": {
+      "name": "Critical Hotspot Remediation",
+      "duration": "1-2 weeks",
+      "tasks": [
+        "Split test-generator.ts (REC-001)",
+        "Externalize security patterns (REC-002)",
+        "Separate SAST/DAST services (REC-003)"
+      ],
+      "expectedImpact": "Reduce critical files from 6 to 3"
+    },
+    "phase2": {
+      "name": "Architecture Improvements",
+      "duration": "2-3 weeks",
+      "tasks": [
+        "Extract workflow definitions (REC-004)",
+        "Create shared AST utility (REC-005)",
+        "Modularize CLI (REC-006)"
+      ],
+      "expectedImpact": "Reduce average file complexity by 20%"
+    },
+    "phase3": {
+      "name": "Pattern Application",
+      "duration": "2-3 weeks",
+      "tasks": [
+        "Implement strategy pattern for validators (REC-007)",
+        "Reduce cognitive complexity (REC-008)",
+        "Create shared utilities (REC-009)"
+      ],
+      "expectedImpact": "Improve maintainability index to 75+"
+    }
+  },
+  "nextSteps": [
+    "Review this report with the development team",
+    "Prioritize P0-Critical hotspots for immediate action",
+    "Create JIRA tickets for each recommendation",
+    "Set up complexity monitoring in CI/CD pipeline",
+    "Schedule bi-weekly complexity reviews"
+  ]
+}
