@@ -1,6 +1,6 @@
 #!/bin/bash
 # Agentic QE v3 Development Status Line
-# Shows DDD architecture progress, coverage analysis, and learning metrics
+# Shows DDD architecture progress, coverage analysis, learning metrics, security, and performance
 
 # Read Claude Code JSON input from stdin (if available)
 CLAUDE_INPUT=$(cat 2>/dev/null || echo "{}")
@@ -38,10 +38,11 @@ BRIGHT_CYAN='\033[1;36m'
 
 # v3 Development Targets (12 DDD Domains, V3-QE agent fleet)
 DOMAINS_TOTAL=12
-V3_QE_TARGET=80   # V3-QE specific agents target
+V3_QE_TARGET=50   # V3-QE specific agents target (47 after cleanup)
 COVERAGE_TARGET=90
 LEARNING_TARGET=15  # % improvement per sprint
 QE_HOOKS_TOTAL=13  # Total QE hook events
+FLASH_ATTENTION_TARGET="2.49x-7.47x"  # Performance target
 
 # Default values
 DOMAINS_COMPLETED=0
@@ -50,11 +51,16 @@ COVERAGE_CURRENT=0
 LEARNING_PROGRESS=0
 DDD_PROGRESS=0
 PATTERNS_COUNT=0
+SYNTHESIZED_COUNT=0
 LEARNING_EXP=0
 LEARNING_MODE="off"
 TRANSFER_COUNT=0
 UNIT_TESTS=0
 INT_TESTS=0
+CVE_FIXED=0
+CVE_TOTAL=0
+SUB_AGENTS=0
+INTELLIGENCE_PCT=0
 
 # Get current git branch
 GIT_BRANCH=""
@@ -72,8 +78,6 @@ if [ -z "$GH_USER" ]; then
 fi
 
 # Check v3 domain implementation progress
-# A domain is "implemented" if it has at least 3 TypeScript files (not just scaffolding)
-# Scaffolding = 0-1 files, In Progress = 2 files, Implemented = 3+ files
 DOMAINS_COMPLETED=0
 DOMAINS_IN_PROGRESS=0
 V3_DOMAINS="test-generation test-execution coverage-analysis quality-assessment defect-intelligence requirements-validation code-intelligence security-compliance contract-testing visual-accessibility chaos-resilience learning-optimization"
@@ -90,34 +94,72 @@ for domain in $V3_DOMAINS; do
   fi
 done
 
-# Get v3 test breakdown by type (more actionable than total count)
+# Get v3 test breakdown by type
 UNIT_TESTS=0
 INT_TESTS=0
 if [ -d "${PROJECT_DIR}/v3/tests" ]; then
-  # Count unit test files
   UNIT_TESTS=$(find "${PROJECT_DIR}/v3/tests/unit" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
-  # Count integration test files
   INT_TESTS=$(find "${PROJECT_DIR}/v3/tests/integration" -name "*.test.ts" 2>/dev/null | wc -l | tr -d ' ')
 fi
 
-# Get REAL test coverage from coverage reports (dynamic, not hardcoded)
+# Get REAL test coverage from coverage reports
 COVERAGE_FILE="${PROJECT_DIR}/coverage/coverage-summary.json"
 if [ -f "$COVERAGE_FILE" ]; then
-  # Read actual line coverage percentage from Jest/Istanbul reports
   COVERAGE_CURRENT=$(jq -r '.total.lines.pct // 0' "$COVERAGE_FILE" 2>/dev/null | awk '{printf "%.0f", $1}')
   COVERAGE_CURRENT=${COVERAGE_CURRENT:-0}
 else
-  # No coverage data - will hide metric
   COVERAGE_CURRENT=-1
 fi
 
 # Get pattern count and learning metrics from memory database
+# Include BOTH patterns and synthesized_patterns for accurate count
 if [ -f "$MEMORY_DB" ] && command -v sqlite3 &>/dev/null; then
   PATTERNS_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM patterns" 2>/dev/null || echo "0")
+  SYNTHESIZED_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM synthesized_patterns" 2>/dev/null || echo "0")
   LEARNING_EXP=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM learning_experiences" 2>/dev/null || echo "0")
   TRANSFER_COUNT=$(sqlite3 "$MEMORY_DB" "SELECT COUNT(*) FROM transfer_registry" 2>/dev/null || echo "0")
-  # Get success rate from patterns if available
   PATTERN_SUCCESS=$(sqlite3 "$MEMORY_DB" "SELECT ROUND(AVG(success_rate)*100) FROM patterns WHERE success_rate > 0" 2>/dev/null || echo "0")
+
+  # Calculate intelligence % based on learning experiences and patterns
+  # Target: 1000 experiences = 100% intelligence
+  if [ "$LEARNING_EXP" -gt 0 ]; then
+    INTELLIGENCE_PCT=$((LEARNING_EXP * 100 / 1000))
+    [ "$INTELLIGENCE_PCT" -gt 100 ] && INTELLIGENCE_PCT=100
+  fi
+fi
+# Total patterns = patterns + synthesized
+TOTAL_PATTERNS=$((PATTERNS_COUNT + SYNTHESIZED_COUNT))
+
+# Get CVE status from claude-flow security (cached for performance)
+CVE_CACHE="${PROJECT_DIR}/.agentic-qe/.cve-cache"
+CVE_CACHE_AGE=3600  # Refresh every hour
+if [ -f "$CVE_CACHE" ]; then
+  CACHE_TIME=$(stat -c %Y "$CVE_CACHE" 2>/dev/null || stat -f %m "$CVE_CACHE" 2>/dev/null || echo "0")
+  CURRENT_TIME=$(date +%s)
+  if [ $((CURRENT_TIME - CACHE_TIME)) -lt $CVE_CACHE_AGE ]; then
+    CVE_DATA=$(cat "$CVE_CACHE")
+    CVE_TOTAL=$(echo "$CVE_DATA" | jq -r '.total // 0' 2>/dev/null || echo "0")
+    CVE_FIXED=$(echo "$CVE_DATA" | jq -r '.fixed // 0' 2>/dev/null || echo "0")
+  fi
+fi
+# If no cache or expired, try to get fresh data (but don't block on it)
+if [ "$CVE_TOTAL" -eq 0 ]; then
+  # Quick check - parse from npx output if available
+  CVE_OUTPUT=$(timeout 2 npx @claude-flow/cli@latest security cve --list 2>/dev/null || echo "")
+  if [ -n "$CVE_OUTPUT" ]; then
+    CVE_TOTAL=$(echo "$CVE_OUTPUT" | grep -c "CVE-" || echo "0")
+    CVE_FIXED=$(echo "$CVE_OUTPUT" | grep -c "Fixed" || echo "0")
+    # Cache the result
+    mkdir -p "${PROJECT_DIR}/.agentic-qe"
+    echo "{\"total\": $CVE_TOTAL, \"fixed\": $CVE_FIXED, \"updated\": \"$(date -Iseconds)\"}" > "$CVE_CACHE" 2>/dev/null
+  fi
+fi
+CVE_UNFIXED=$((CVE_TOTAL - CVE_FIXED))
+
+# Get sub-agents count from Claude Code JSON
+if [ "$CLAUDE_INPUT" != "{}" ]; then
+  SUB_AGENTS=$(echo "$CLAUDE_INPUT" | jq -r '.agents.active_count // 0' 2>/dev/null || echo "0")
+  [ "$SUB_AGENTS" = "null" ] && SUB_AGENTS=0
 fi
 
 # Get learning mode from config
@@ -135,11 +177,9 @@ if [ -f "$LEARNING_METRICS" ]; then
   LEARNING_PROGRESS=$(jq -r '.improvement // 0' "$LEARNING_METRICS" 2>/dev/null || echo "0")
 fi
 
-# Count V3-QE agent definitions only (v3-qe-* agents in v3/ directory)
-# This shows V3-specific QE agents, not legacy or generic agents
+# Count V3-QE agent definitions only
 AGENTS_DIR="${PROJECT_DIR}/.claude/agents"
 if [ -d "$AGENTS_DIR/v3" ]; then
-  # Count V3-QE agent files only
   V3_QE_AGENTS=$(find "$AGENTS_DIR/v3" -name "v3-qe-*.md" 2>/dev/null | wc -l | tr -d ' ')
 else
   V3_QE_AGENTS=0
@@ -150,19 +190,16 @@ AGENTS_ACTIVE=${V3_QE_AGENTS:-0}
 CONTEXT_PCT=0
 CONTEXT_COLOR="${DIM}"
 if [ "$CLAUDE_INPUT" != "{}" ]; then
-  # Get token counts from Claude Code JSON
   INPUT_TOKENS=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.input_tokens // 0' 2>/dev/null)
   CACHE_CREATE=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0' 2>/dev/null)
   CACHE_READ=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0' 2>/dev/null)
   WINDOW_SIZE=$(echo "$CLAUDE_INPUT" | jq -r '.context_window.context_window_size // 0' 2>/dev/null)
 
-  # Calculate percentage: (current_tokens / window_size) * 100
   if [ "$WINDOW_SIZE" -gt 0 ] 2>/dev/null; then
     CURRENT_TOKENS=$((INPUT_TOKENS + CACHE_CREATE + CACHE_READ))
     CONTEXT_PCT=$((CURRENT_TOKENS * 100 / WINDOW_SIZE))
   fi
 
-  # Color based on usage
   if [ "$CONTEXT_PCT" -lt 50 ]; then
     CONTEXT_COLOR="${BRIGHT_GREEN}"
   elif [ "$CONTEXT_PCT" -lt 75 ]; then
@@ -172,26 +209,44 @@ if [ "$CLAUDE_INPUT" != "{}" ]; then
   fi
 fi
 
-# Domain status indicators (3 states: completed, in-progress, empty)
+# Domain status indicators
 COMPLETED_DOMAIN="${BRIGHT_GREEN}●${RESET}"
 IN_PROGRESS_DOMAIN="${YELLOW}◐${RESET}"
 PENDING_DOMAIN="${DIM}○${RESET}"
 DOMAIN_STATUS=""
-# Show completed domains (green)
 for i in $(seq 1 $DOMAINS_COMPLETED); do
   DOMAIN_STATUS="${DOMAIN_STATUS}${COMPLETED_DOMAIN}"
 done
-# Show in-progress domains (yellow)
 for i in $(seq 1 $DOMAINS_IN_PROGRESS); do
   DOMAIN_STATUS="${DOMAIN_STATUS}${IN_PROGRESS_DOMAIN}"
 done
-# Show empty/pending domains (dim)
 DOMAINS_EMPTY=$((DOMAINS_TOTAL - DOMAINS_COMPLETED - DOMAINS_IN_PROGRESS))
 for i in $(seq 1 $DOMAINS_EMPTY); do
   DOMAIN_STATUS="${DOMAIN_STATUS}${PENDING_DOMAIN}"
 done
 
-# Coverage status color (handle -1 = no data)
+# CVE status color
+CVE_COLOR="${BRIGHT_GREEN}"
+CVE_ICON="🟢"
+if [ "$CVE_UNFIXED" -gt 0 ]; then
+  CVE_COLOR="${BRIGHT_RED}"
+  CVE_ICON="🔴"
+elif [ "$CVE_TOTAL" -eq 0 ]; then
+  CVE_COLOR="${DIM}"
+  CVE_ICON="⚪"
+fi
+
+# Intelligence status color
+INTEL_COLOR="${DIM}"
+if [ "$INTELLIGENCE_PCT" -ge 50 ]; then
+  INTEL_COLOR="${BRIGHT_GREEN}"
+elif [ "$INTELLIGENCE_PCT" -ge 25 ]; then
+  INTEL_COLOR="${BRIGHT_YELLOW}"
+elif [ "$INTELLIGENCE_PCT" -gt 0 ]; then
+  INTEL_COLOR="${YELLOW}"
+fi
+
+# Coverage status color
 COVERAGE_COLOR="${BRIGHT_RED}"
 COVERAGE_HIDDEN=false
 if [ "$COVERAGE_CURRENT" -lt 0 ]; then
@@ -222,8 +277,9 @@ fi
 # Format values with padding
 COVERAGE_DISPLAY=$(printf "%3d" "$COVERAGE_CURRENT")
 CONTEXT_DISPLAY=$(printf "%3d" "$CONTEXT_PCT")
-PATTERNS_DISPLAY=$(printf "%5d" "$PATTERNS_COUNT")
+PATTERNS_DISPLAY=$(printf "%4d" "$TOTAL_PATTERNS")
 AGENTS_DISPLAY=$(printf "%2d" "$AGENTS_ACTIVE")
+INTEL_DISPLAY=$(printf "%3d" "$INTELLIGENCE_PCT")
 
 # Get model name
 MODEL_NAME=""
@@ -245,31 +301,30 @@ if [ -n "$MODEL_NAME" ]; then
 fi
 
 # Separator
-OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────${RESET}"
+OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────────────────${RESET}"
 
-# Line 1: DDD Domain Progress (show completed/in-progress/total)
+# Line 1: DDD Domain Progress + Flash Attention target
 OUTPUT="${OUTPUT}\n${BRIGHT_CYAN}🏗️  DDD Domains${RESET}    [${DOMAIN_STATUS}]  ${BRIGHT_GREEN}${DOMAINS_COMPLETED}${RESET}"
 if [ "$DOMAINS_IN_PROGRESS" -gt 0 ]; then
   OUTPUT="${OUTPUT}+${YELLOW}${DOMAINS_IN_PROGRESS}${RESET}"
 fi
 OUTPUT="${OUTPUT}/${BRIGHT_WHITE}${DOMAINS_TOTAL}${RESET}"
-# Show test type breakdown (more actionable than total count)
-if [ "$UNIT_TESTS" -gt 0 ] || [ "$INT_TESTS" -gt 0 ]; then
-  OUTPUT="${OUTPUT}    ${BRIGHT_GREEN}📊 Unit${RESET} ${WHITE}${UNIT_TESTS}${RESET}"
-  OUTPUT="${OUTPUT} ${DIM}│${RESET} ${BRIGHT_CYAN}Int${RESET} ${WHITE}${INT_TESTS}${RESET}"
-fi
+# Flash Attention speedup indicator
+OUTPUT="${OUTPUT}    ${BRIGHT_YELLOW}⚡ 1.0x${RESET} ${DIM}→${RESET} ${BRIGHT_YELLOW}${FLASH_ATTENTION_TARGET}${RESET}"
 
-# Line 2: Agent Fleet Status (V3-QE agents only)
+# Line 2: Agent Fleet Status + Security
 ACTIVITY_INDICATOR="${DIM}○${RESET}"
 if [ "$AGENTS_ACTIVE" -gt 0 ]; then
   ACTIVITY_INDICATOR="${BRIGHT_GREEN}◉${RESET}"
 fi
 
 OUTPUT="${OUTPUT}\n${BRIGHT_YELLOW}🤖 V3-QE Fleet${RESET}  ${ACTIVITY_INDICATOR}[${AGENTS_COLOR}${AGENTS_DISPLAY}${RESET}/${BRIGHT_WHITE}${V3_QE_TARGET}${RESET}]"
-OUTPUT="${OUTPUT}    ${LEARNING_COLOR}🧠 Patterns ${PATTERNS_DISPLAY}${RESET}"
-OUTPUT="${OUTPUT}    ${CONTEXT_COLOR}📂 Context ${CONTEXT_DISPLAY}%${RESET}"
+OUTPUT="${OUTPUT}  ${BRIGHT_PURPLE}👥${RESET}${WHITE}${SUB_AGENTS}${RESET}"
+OUTPUT="${OUTPUT}    ${CVE_COLOR}${CVE_ICON} CVE ${CVE_FIXED}/${CVE_TOTAL}${RESET}"
+OUTPUT="${OUTPUT}    ${INTEL_COLOR}🧠 ${INTEL_DISPLAY}%${RESET}"
+OUTPUT="${OUTPUT}    ${CONTEXT_COLOR}📂 ${CONTEXT_DISPLAY}%${RESET}"
 
-# Line 3: Learning Status
+# Line 3: Learning Status (patterns now include synthesized)
 LEARNING_MODE_COLOR="${DIM}"
 LEARNING_MODE_INDICATOR="○"
 if [ "$LEARNING_MODE" = "continuous" ]; then
@@ -291,21 +346,18 @@ elif [ "$TRANSFER_COUNT" -gt 0 ]; then
 fi
 
 EXP_DISPLAY=$(printf "%4d" "$LEARNING_EXP")
-OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🎓 Learning${RESET}     ${CYAN}Exp${RESET} ${WHITE}${EXP_DISPLAY}${RESET}"
+OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🎓 Learning${RESET}     ${CYAN}Patterns${RESET} ${WHITE}${PATTERNS_DISPLAY}${RESET}"
+OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Exp${RESET} ${WHITE}${EXP_DISPLAY}${RESET}"
 OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Mode${RESET} ${LEARNING_MODE_COLOR}${LEARNING_MODE_INDICATOR}${LEARNING_MODE}${RESET}"
 OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Transfer${RESET} ${TRANSFER_COLOR}${TRANSFER_INDICATOR}${TRANSFER_COUNT}${RESET}"
 
-# Line 4: Architecture Status (dynamically check real implementation)
-# ADRs: count embedded sections + standalone ADR files (deduplicated)
+# Line 4: Architecture Status
 ADR_DIR="${PROJECT_DIR}/v3/implementation/adrs"
 ADR_FILE="${ADR_DIR}/v3-adrs.md"
 ADR_COUNT=0
 if [ -d "$ADR_DIR" ]; then
-  # Count embedded ADRs in v3-adrs.md
   EMBEDDED_ADRS=$(grep -c "^## ADR-" "$ADR_FILE" 2>/dev/null || echo "0")
-  # Count standalone ADR files (ADR-0XX-*.md)
   STANDALONE_ADRS=$(find "$ADR_DIR" -maxdepth 1 -name "ADR-0*.md" 2>/dev/null | wc -l | tr -d ' ')
-  # Total (standalone files are typically newer, not in v3-adrs.md yet)
   ADR_COUNT=$((EMBEDDED_ADRS + STANDALONE_ADRS))
 fi
 if [ "$ADR_COUNT" -ge 20 ]; then
@@ -316,7 +368,6 @@ else
   ADR_STATUS="${DIM}○${ADR_COUNT}${RESET}"
 fi
 
-# QE Hooks: count hook files in .claude/hooks
 HOOKS_DIR="${PROJECT_DIR}/.claude/hooks"
 HOOKS_COUNT=0
 if [ -d "$HOOKS_DIR" ]; then
@@ -330,7 +381,6 @@ else
   HOOKS_STATUS="${DIM}○${RESET}"
 fi
 
-# Domains: count implemented domains
 if [ "$DOMAINS_COMPLETED" -ge 10 ]; then
   DOMAINS_STATUS="${BRIGHT_GREEN}●${DOMAINS_COMPLETED}${RESET}"
 elif [ "$DOMAINS_COMPLETED" -ge 5 ]; then
@@ -339,10 +389,8 @@ else
   DOMAINS_STATUS="${DIM}○${DOMAINS_COMPLETED}${RESET}"
 fi
 
-# AgentDB: green if memory.db exists and has data
 AGENTDB_SIZE=""
 if [ -f "${PROJECT_DIR}/.agentic-qe/memory.db" ]; then
-  # Get size in MB
   DB_SIZE_KB=$(du -k "${PROJECT_DIR}/.agentic-qe/memory.db" 2>/dev/null | cut -f1)
   if [ "$DB_SIZE_KB" -gt 1024 ]; then
     DB_SIZE_MB=$((DB_SIZE_KB / 1024))
@@ -355,10 +403,16 @@ else
   AGENTDB_STATUS="${DIM}○${RESET}"
 fi
 
+# Show test counts on architecture line
+TEST_STATUS=""
+if [ "$UNIT_TESTS" -gt 0 ] || [ "$INT_TESTS" -gt 0 ]; then
+  TEST_STATUS="  ${DIM}│${RESET}  ${CYAN}Tests${RESET} ${BRIGHT_GREEN}U${WHITE}${UNIT_TESTS}${RESET}/${BRIGHT_CYAN}I${WHITE}${INT_TESTS}${RESET}"
+fi
+
 OUTPUT="${OUTPUT}\n${BRIGHT_PURPLE}🔧 Architecture${RESET}    ${CYAN}ADR${RESET} ${ADR_STATUS}  ${DIM}│${RESET}  ${CYAN}Hooks${RESET} ${HOOKS_STATUS}"
-OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Domains${RESET} ${DOMAINS_STATUS}  ${DIM}│${RESET}  ${CYAN}AgentDB${RESET} ${AGENTDB_STATUS}"
+OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}AgentDB${RESET} ${AGENTDB_STATUS}${TEST_STATUS}"
 
 # Footer
-OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────${RESET}"
+OUTPUT="${OUTPUT}\n${DIM}─────────────────────────────────────────────────────────────────${RESET}"
 
 printf "%b\n" "$OUTPUT"
