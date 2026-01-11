@@ -21,3 +21,14 @@ export {
   type DeploymentAdvisorConfig,
   type DeploymentAccuracy,
 } from './deployment-advisor';
+
+// ============================================================================
+// Coherence-Gated Quality Gates (ADR-030)
+// ============================================================================
+
+export {
+  CoherenceGateService,
+  createCoherenceGateService,
+  type CoherenceGateResult,
+  type CoherenceGateServiceConfig,
+} from './coherence-gate';

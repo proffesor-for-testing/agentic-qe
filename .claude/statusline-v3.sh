@@ -355,17 +355,46 @@ OUTPUT="${OUTPUT}  ${DIM}│${RESET}  ${CYAN}Transfer${RESET} ${TRANSFER_COLOR}$
 ADR_DIR="${PROJECT_DIR}/v3/implementation/adrs"
 ADR_FILE="${ADR_DIR}/v3-adrs.md"
 ADR_COUNT=0
+ADR_ACCEPTED=0
+ADR_PROPOSED=0
 if [ -d "$ADR_DIR" ]; then
-  EMBEDDED_ADRS=$(grep -c "^## ADR-" "$ADR_FILE" 2>/dev/null || echo "0")
-  STANDALONE_ADRS=$(find "$ADR_DIR" -maxdepth 1 -name "ADR-0*.md" 2>/dev/null | wc -l | tr -d ' ')
-  ADR_COUNT=$((EMBEDDED_ADRS + STANDALONE_ADRS))
+  # Get unique ADR numbers from embedded file
+  EMBEDDED_NUMS=$(grep -oE "^## ADR-[0-9]+" "$ADR_FILE" 2>/dev/null | grep -oE "[0-9]+" | sort -u)
+  # Get unique ADR numbers from standalone files
+  STANDALONE_NUMS=$(find "$ADR_DIR" -maxdepth 1 -name "ADR-0*.md" 2>/dev/null | grep -oE "ADR-[0-9]+" | grep -oE "[0-9]+" | sort -u)
+  # Combine and deduplicate
+  ALL_ADRS=$(echo -e "${EMBEDDED_NUMS}\n${STANDALONE_NUMS}" | sort -u | grep -v "^$")
+  ADR_COUNT=$(echo "$ALL_ADRS" | grep -c "." 2>/dev/null || echo "0")
+
+  # Count statuses from embedded ADRs (primary source)
+  ADR_ACCEPTED=$(grep -E "^\*\*Status:\*\* Accepted" "$ADR_FILE" 2>/dev/null | wc -l | tr -d ' ')
+  ADR_PROPOSED=$(grep -E "^\*\*Status:\*\* Proposed" "$ADR_FILE" 2>/dev/null | wc -l | tr -d ' ')
+
+  # Also check standalone files for status
+  for adr_file in "$ADR_DIR"/ADR-0*.md; do
+    if [ -f "$adr_file" ]; then
+      # Only count if not already in embedded (check by ADR number)
+      ADR_NUM=$(basename "$adr_file" | grep -oE "[0-9]+")
+      if ! echo "$EMBEDDED_NUMS" | grep -q "^${ADR_NUM}$"; then
+        if grep -qE "^\*\*Status:\*\* Accepted" "$adr_file" 2>/dev/null; then
+          ((ADR_ACCEPTED++))
+        elif grep -qE "^\*\*Status:\*\* Proposed" "$adr_file" 2>/dev/null; then
+          ((ADR_PROPOSED++))
+        fi
+      fi
+    fi
+  done
 fi
-if [ "$ADR_COUNT" -ge 20 ]; then
+
+# Color based on status: green=all accepted, yellow=some proposed, dim=none
+if [ "$ADR_COUNT" -eq 0 ]; then
+  ADR_STATUS="${DIM}○0${RESET}"
+elif [ "$ADR_PROPOSED" -eq 0 ]; then
   ADR_STATUS="${BRIGHT_GREEN}●${ADR_COUNT}${RESET}"
-elif [ "$ADR_COUNT" -ge 10 ]; then
-  ADR_STATUS="${YELLOW}◐${ADR_COUNT}${RESET}"
+elif [ "$ADR_ACCEPTED" -gt "$ADR_PROPOSED" ]; then
+  ADR_STATUS="${YELLOW}◐${ADR_COUNT}${RESET} ${DIM}(${ADR_PROPOSED}P)${RESET}"
 else
-  ADR_STATUS="${DIM}○${ADR_COUNT}${RESET}"
+  ADR_STATUS="${YELLOW}○${ADR_COUNT}${RESET} ${DIM}(${ADR_PROPOSED}P)${RESET}"
 fi
 
 HOOKS_DIR="${PROJECT_DIR}/.claude/hooks"

@@ -11,6 +11,7 @@ import {
   AgentMetricsParams,
 } from '../types';
 import { DomainName } from '../../shared/types';
+import { MetricsCollector } from '../metrics';
 
 // ============================================================================
 // Agent List Handler
@@ -185,11 +186,12 @@ export async function handleAgentMetrics(
       };
     }
 
-    // Add resource stats if requested (simulated for now)
+    // Add resource stats if requested (using real metrics)
     if (!params.metric || params.metric === 'all' || params.metric === 'cpu' || params.metric === 'memory') {
+      const resourceStats = MetricsCollector.getResourceStats(params.agentId);
       result.resourceStats = {
-        cpu: Math.random() * 50 + 10, // Simulated 10-60%
-        memory: Math.random() * 40 + 20, // Simulated 20-60%
+        cpu: resourceStats.cpu,
+        memory: resourceStats.memory,
       };
     }
 
@@ -253,6 +255,9 @@ export async function handleAgentStatus(
       };
     }
 
+    // Get real performance metrics for this agent
+    const taskStats = MetricsCollector.getAgentTaskStats(agent.id);
+
     const result: AgentStatusResult = {
       agentId: agent.id,
       domain: agent.domain,
@@ -261,9 +266,9 @@ export async function handleAgentStatus(
       startedAt: agent.startedAt?.toISOString(),
       capabilities: [], // Would need to track in agent info
       performance: {
-        tasksCompleted: Math.floor(Math.random() * 100), // Would need to track this
-        averageTime: Math.floor(Math.random() * 5000) + 1000,
-        successRate: 0.95 + Math.random() * 0.05,
+        tasksCompleted: taskStats.tasksCompleted,
+        averageTime: taskStats.averageTime,
+        successRate: taskStats.successRate,
       },
     };
 

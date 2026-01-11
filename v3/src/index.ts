@@ -135,6 +135,69 @@ export type {
   InitOrchestratorOptions,
 } from './init';
 
+// Strange Loop Self-Awareness Module (ADR-031)
+export {
+  // Observer
+  SwarmObserver,
+  createSwarmObserver,
+  createInMemorySwarmObserver,
+  InMemoryAgentProvider,
+  // Topology Analyzer
+  TopologyAnalyzer,
+  createTopologyAnalyzer,
+  // Self-Model
+  SwarmSelfModel,
+  createSwarmSelfModel,
+  // Self-Healing Controller
+  SelfHealingController,
+  createSelfHealingController,
+  NoOpActionExecutor,
+  // Strange Loop Orchestrator
+  StrangeLoopOrchestrator,
+  createStrangeLoopOrchestrator,
+  createInMemoryStrangeLoop,
+  // Config
+  DEFAULT_STRANGE_LOOP_CONFIG,
+} from './strange-loop';
+export type {
+  // Topology types
+  TopologyType,
+  AgentNode,
+  CommunicationEdge,
+  SwarmTopology,
+  // Health metrics
+  AgentHealthMetrics as StrangeLoopAgentHealthMetrics,
+  ConnectivityMetrics,
+  SwarmVulnerability,
+  // Observation
+  SwarmHealthObservation,
+  // Self-modeling
+  TrendDirection,
+  TrendAnalysis,
+  BottleneckInfo,
+  BottleneckAnalysis,
+  PredictedVulnerability,
+  SwarmModelDelta,
+  // Self-healing
+  SelfHealingActionType,
+  ActionPriority,
+  SelfHealingAction,
+  ActionResult,
+  ExecutedAction,
+  // Self-diagnosis
+  SelfDiagnosis,
+  // Config and stats
+  StrangeLoopConfig,
+  StrangeLoopStats,
+  // Events
+  StrangeLoopEventType,
+  StrangeLoopEvent,
+  StrangeLoopEventListener,
+  // Interfaces
+  AgentProvider,
+  ActionExecutor,
+} from './strange-loop';
+
 // Version info
 export const VERSION = '3.0.0-alpha';
 export const ARCHITECTURE = 'DDD with 12 Bounded Contexts';

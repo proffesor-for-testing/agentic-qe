@@ -73,24 +73,26 @@ calculate_module_progress() {
 # Check security CVE status
 check_security_status() {
     local cves_fixed=0
-    local security_dir="$V3_DIR/@claude-flow/security/src"
 
-    # CVE-1: Input validation - check for input-validator.ts
-    if [ -f "$security_dir/input-validator.ts" ]; then
-        lines=$(wc -l < "$security_dir/input-validator.ts" 2>/dev/null || echo 0)
-        [ "$lines" -gt 100 ] && ((cves_fixed++))
+    # CVE-1 (HIGH-001): Command injection in git-analyzer.ts - check for sanitizeGitArg
+    local git_analyzer="$V3_DIR/src/shared/git/git-analyzer.ts"
+    if [ -f "$git_analyzer" ] && grep -q "sanitizeGitArg" "$git_analyzer" 2>/dev/null; then
+        ((cves_fixed++))
     fi
 
-    # CVE-2: Path traversal - check for path-validator.ts
-    if [ -f "$security_dir/path-validator.ts" ]; then
-        lines=$(wc -l < "$security_dir/path-validator.ts" 2>/dev/null || echo 0)
-        [ "$lines" -gt 100 ] && ((cves_fixed++))
+    # CVE-2 (HIGH-002): Command injection in chaos-engineer.ts - check for validateCommand
+    local chaos_engineer="$V3_DIR/src/domains/chaos-resilience/services/chaos-engineer.ts"
+    if [ -f "$chaos_engineer" ] && grep -q "validateCommand" "$chaos_engineer" 2>/dev/null; then
+        ((cves_fixed++))
     fi
 
-    # CVE-3: Command injection - check for safe-executor.ts
-    if [ -f "$security_dir/safe-executor.ts" ]; then
-        lines=$(wc -l < "$security_dir/safe-executor.ts" 2>/dev/null || echo 0)
-        [ "$lines" -gt 100 ] && ((cves_fixed++))
+    # CVE-3 (HIGH-003): Shell injection in test-executor.ts - check shell:true is removed
+    local test_executor="$V3_DIR/src/domains/test-execution/services/test-executor.ts"
+    if [ -f "$test_executor" ]; then
+        # Fixed if file exists and does NOT have shell: true
+        if ! grep -q "shell:\s*true" "$test_executor" 2>/dev/null; then
+            ((cves_fixed++))
+        fi
     fi
 
     echo "$cves_fixed"

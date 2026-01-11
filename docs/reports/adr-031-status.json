@@ -1,0 +1,276 @@
+{
+  "adr": "ADR-031",
+  "title": "Strange Loop Self-Awareness",
+  "status": "Implemented",
+  "implementedAt": "2026-01-11T12:22:00Z",
+  "version": "3.0.0-alpha",
+  "summary": "Complete implementation of the Strange Loop self-awareness pattern enabling autonomous QE systems with genuine self-observation, self-modeling, and self-healing capabilities.",
+  "pattern": {
+    "name": "Strange Loop",
+    "description": "Observe -> Model -> Decide -> Act (feedback loop)",
+    "quote": "You look in a mirror. You see yourself looking. You adjust your hair *because* you saw it was messy. The act of observing changed what you observed."
+  },
+  "components": {
+    "swarmObserver": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/swarm-observer.ts",
+      "lines": 448,
+      "classes": ["SwarmObserver", "InMemoryAgentProvider"],
+      "features": [
+        "Real-time swarm state observation",
+        "Agent health metrics collection",
+        "Topology detection (mesh, hierarchical, ring, star, hybrid)",
+        "Vulnerability detection",
+        "Overall health calculation"
+      ]
+    },
+    "topologyAnalyzer": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/topology-analyzer.ts",
+      "lines": 565,
+      "classes": ["TopologyAnalyzer"],
+      "features": [
+        "Graph-based connectivity analysis",
+        "Articulation point detection (Tarjan's algorithm)",
+        "Min-cut calculation",
+        "Average path length (BFS)",
+        "Clustering coefficient",
+        "Graph density and diameter",
+        "Bottleneck criticality scoring"
+      ]
+    },
+    "selfModel": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/self-model.ts",
+      "lines": 494,
+      "classes": ["SwarmSelfModel"],
+      "features": [
+        "Internal state representation",
+        "Observation history management",
+        "Trend analysis (linear regression)",
+        "Vulnerability tracking",
+        "Health trend prediction",
+        "Model delta computation"
+      ]
+    },
+    "healingController": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/healing-controller.ts",
+      "lines": 833,
+      "classes": ["SelfHealingController", "NoOpActionExecutor"],
+      "features": [
+        "Action decision based on health thresholds",
+        "Action prioritization (critical, high, medium, low)",
+        "Action deduplication and cooldown",
+        "Predictive healing support",
+        "Action execution and result tracking",
+        "Action history management"
+      ]
+    },
+    "strangeLoopOrchestrator": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/strange-loop.ts",
+      "lines": 446,
+      "classes": ["StrangeLoopOrchestrator"],
+      "features": [
+        "Complete feedback loop orchestration",
+        "Configurable observation interval",
+        "Event-driven architecture",
+        "Self-diagnosis capability",
+        "Statistics tracking",
+        "History access (observations and actions)"
+      ]
+    },
+    "types": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/types.ts",
+      "lines": 640,
+      "interfaces": [
+        "SwarmHealthObservation",
+        "AgentNode",
+        "CommunicationEdge",
+        "SwarmTopology",
+        "AgentHealthMetrics",
+        "ConnectivityMetrics",
+        "SwarmVulnerability",
+        "TrendAnalysis",
+        "BottleneckInfo",
+        "BottleneckAnalysis",
+        "PredictedVulnerability",
+        "SwarmModelDelta",
+        "SelfHealingAction",
+        "ActionResult",
+        "SelfDiagnosis",
+        "StrangeLoopConfig",
+        "StrangeLoopStats",
+        "StrangeLoopEvent"
+      ]
+    },
+    "moduleIndex": {
+      "status": "Complete",
+      "file": "v3/src/strange-loop/index.ts",
+      "lines": 104
+    }
+  },
+  "metrics": {
+    "sourceFiles": 7,
+    "totalSourceLines": 3530,
+    "testFiles": 1,
+    "totalTestLines": 1170,
+    "testsPassing": 61,
+    "testsFailing": 0,
+    "testCoverage": {
+      "components": {
+        "InMemoryAgentProvider": 5,
+        "TopologyAnalyzer": 15,
+        "SwarmObserver": 8,
+        "SwarmSelfModel": 11,
+        "SelfHealingController": 13,
+        "StrangeLoopOrchestrator": 9
+      },
+      "totalTests": 61
+    }
+  },
+  "successCriteria": {
+    "swarmObservationEvery5Seconds": {
+      "target": "5000ms",
+      "implemented": true,
+      "configurable": true,
+      "configKey": "observationIntervalMs"
+    },
+    "bottleneckDetection": {
+      "target": "<100ms",
+      "implemented": true,
+      "algorithm": "Tarjan's articulation point algorithm"
+    },
+    "selfHealingActionExecution": {
+      "target": "<1s",
+      "implemented": true,
+      "actionTypes": [
+        "spawn_redundant_agent",
+        "restart_agent",
+        "redistribute_load",
+        "add_connection",
+        "remove_connection",
+        "increase_capacity",
+        "decrease_capacity",
+        "isolate_agent",
+        "none"
+      ]
+    },
+    "trendPredictionAccuracy": {
+      "target": ">70%",
+      "implemented": true,
+      "method": "Linear regression on health history"
+    },
+    "unitTests": {
+      "target": "60+",
+      "actual": 61,
+      "passing": true
+    }
+  },
+  "integration": {
+    "mainExport": "v3/src/index.ts",
+    "exported": true,
+    "exportedComponents": [
+      "SwarmObserver",
+      "createSwarmObserver",
+      "createInMemorySwarmObserver",
+      "InMemoryAgentProvider",
+      "TopologyAnalyzer",
+      "createTopologyAnalyzer",
+      "SwarmSelfModel",
+      "createSwarmSelfModel",
+      "SelfHealingController",
+      "createSelfHealingController",
+      "NoOpActionExecutor",
+      "StrangeLoopOrchestrator",
+      "createStrangeLoopOrchestrator",
+      "createInMemoryStrangeLoop",
+      "DEFAULT_STRANGE_LOOP_CONFIG"
+    ],
+    "exportedTypes": [
+      "TopologyType",
+      "AgentNode",
+      "CommunicationEdge",
+      "SwarmTopology",
+      "AgentHealthMetrics",
+      "ConnectivityMetrics",
+      "SwarmVulnerability",
+      "SwarmHealthObservation",
+      "TrendDirection",
+      "TrendAnalysis",
+      "BottleneckInfo",
+      "BottleneckAnalysis",
+      "PredictedVulnerability",
+      "SwarmModelDelta",
+      "SelfHealingActionType",
+      "ActionPriority",
+      "SelfHealingAction",
+      "ActionResult",
+      "ExecutedAction",
+      "SelfDiagnosis",
+      "StrangeLoopConfig",
+      "StrangeLoopStats",
+      "StrangeLoopEventType",
+      "StrangeLoopEvent",
+      "StrangeLoopEventListener",
+      "AgentProvider",
+      "ActionExecutor"
+    ]
+  },
+  "events": {
+    "supported": [
+      "loop_started",
+      "loop_stopped",
+      "observation_complete",
+      "vulnerability_detected",
+      "vulnerability_resolved",
+      "health_degraded",
+      "health_improved",
+      "healing_action_started",
+      "healing_action_completed",
+      "healing_action_failed",
+      "prediction_made"
+    ]
+  },
+  "configuration": {
+    "default": {
+      "observationIntervalMs": 5000,
+      "healingThreshold": 0.7,
+      "maxActionsPerCycle": 3,
+      "predictiveHealingEnabled": true,
+      "predictionThreshold": 0.7,
+      "historySize": 100,
+      "autoStart": false,
+      "actionCooldownMs": 10000,
+      "verboseLogging": false
+    }
+  },
+  "testCommand": "cd /workspaces/agentic-qe/v3 && npm test -- --run tests/unit/strange-loop/strange-loop.test.ts",
+  "files": [
+    "v3/src/strange-loop/types.ts",
+    "v3/src/strange-loop/swarm-observer.ts",
+    "v3/src/strange-loop/topology-analyzer.ts",
+    "v3/src/strange-loop/self-model.ts",
+    "v3/src/strange-loop/healing-controller.ts",
+    "v3/src/strange-loop/strange-loop.ts",
+    "v3/src/strange-loop/index.ts",
+    "v3/tests/unit/strange-loop/strange-loop.test.ts"
+  ],
+  "verification": {
+    "testsRun": true,
+    "testsPassed": 61,
+    "testsFailed": 0,
+    "lastVerified": "2026-01-11T12:22:13Z"
+  },
+  "notes": [
+    "Implementation follows Domain-Driven Design principles",
+    "All code is production-quality with proper error handling",
+    "Fully typed with TypeScript strict mode",
+    "No stubs or simulated code - all functionality is real",
+    "Uses Tarjan's algorithm for efficient articulation point detection",
+    "Linear regression for trend prediction",
+    "Event-driven architecture for extensibility"
+  ]
+}

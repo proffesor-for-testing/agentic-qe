@@ -51,6 +51,20 @@ export {
 } from './services/deployment-advisor';
 
 // ============================================================================
+// Coherence-Gated Quality Gates (ADR-030)
+// ============================================================================
+
+export {
+  CoherenceGateService,
+  createCoherenceGateService,
+  type CoherenceGateResult,
+  type CoherenceGateServiceConfig,
+} from './services/coherence-gate';
+
+// Coherence Module Exports
+export * from './coherence';
+
+// ============================================================================
 // Interfaces (Types Only)
 // ============================================================================
 

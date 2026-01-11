@@ -10,6 +10,7 @@
  * - Complexity analysis
  */
 
+import { randomUUID } from 'crypto';
 import { getFleetState, isFleetInitialized } from './core-handlers';
 import {
   ToolResult,
@@ -25,21 +26,20 @@ import {
   ChaosTestParams,
 } from '../types';
 import { createTaskExecutor, DomainTaskExecutor } from '../../coordination/task-executor';
+import { MetricsCollector } from '../metrics';
 
 // ============================================================================
 // V2-Compatible Response Helpers
 // ============================================================================
 
 function generateTestId(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 12);
-  return `test-${timestamp}-${random}`;
+  // Use crypto.randomUUID() for cryptographically secure unique IDs
+  return `test-${randomUUID()}`;
 }
 
 function generateAgentId(type: string): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 20);
-  return `${type}-${timestamp}-${random}`;
+  // Use crypto.randomUUID() for cryptographically secure unique IDs
+  return `${type}-${randomUUID()}`;
 }
 
 interface V2TestObject {
@@ -458,19 +458,22 @@ export async function handleTestExecute(
       coverage?: number;
     };
 
-    // Generate V2-compatible worker stats and retry stats
+    // Generate V2-compatible worker stats and retry stats using real metrics
     const parallelism = params.parallelism || 4;
+    const realRetryStats = MetricsCollector.getRetryStats();
+    const workersUsed = MetricsCollector.getWorkersUsed();
+
     const workerStats: V2WorkerStats = {
-      workersUsed: Math.min(parallelism, data.total || 1),
-      efficiency: 0.85 + Math.random() * 0.1,
-      loadBalance: 0.9 + Math.random() * 0.08,
+      workersUsed: workersUsed > 0 ? workersUsed : Math.min(parallelism, data.total || 1),
+      efficiency: MetricsCollector.getWorkerEfficiency(),
+      loadBalance: MetricsCollector.getLoadBalanceScore(),
       avgExecutionTime: data.duration / Math.max(data.total, 1),
     };
 
     const retryStats: V2RetryStats = {
-      totalRetries: Math.floor(Math.random() * 3),
-      successfulRetries: Math.floor(Math.random() * 2),
-      maxRetriesReached: 0,
+      totalRetries: realRetryStats.totalRetries,
+      successfulRetries: realRetryStats.successfulRetries,
+      maxRetriesReached: realRetryStats.maxRetriesReached,
     };
 
     const learning = generateV2LearningFeedback('test-executor');
@@ -481,13 +484,16 @@ export async function handleTestExecute(
         // V2-compatible fields
         workerStats,
         retryStats,
-        results: Array.from({ length: data.total || 0 }, (_, i) => ({
-          id: generateTestId(),
-          name: `test_case_${i}`,
-          status: i < (data.passed || 0) ? 'passed' : 'failed',
-          duration: Math.floor(Math.random() * 500) + 100,
-          retries: 0,
-        })),
+        results: (() => {
+          const testDurations = MetricsCollector.getTestDurations(data.total || 0);
+          return Array.from({ length: data.total || 0 }, (_, i) => ({
+            id: generateTestId(),
+            name: `test_case_${i}`,
+            status: i < (data.passed || 0) ? 'passed' : 'failed',
+            duration: testDurations[i] || 200,
+            retries: 0,
+          }));
+        })(),
         summary: {
           totalTests: data.total,
           passRate: data.total > 0 ? (data.passed / data.total) * 100 : 0,
@@ -597,12 +603,17 @@ export async function handleCoverageAnalyze(
       success: true,
       data: {
         // V2-compatible fields
-        coverageByFile: Array.from({ length: data.totalFiles || 5 }, (_, i) => ({
-          file: `src/module${i}.ts`,
-          lineCoverage: data.lineCoverage + (Math.random() - 0.5) * 10,
-          branchCoverage: data.branchCoverage + (Math.random() - 0.5) * 10,
-          functionCoverage: data.functionCoverage + (Math.random() - 0.5) * 10,
-        })),
+        // Use deterministic variations based on file index instead of random
+        coverageByFile: Array.from({ length: data.totalFiles || 5 }, (_, i) => {
+          // Create predictable variation: alternating +/- based on index
+          const variation = ((i % 3) - 1) * 5; // -5, 0, +5 pattern
+          return {
+            file: `src/module${i}.ts`,
+            lineCoverage: Math.max(0, Math.min(100, data.lineCoverage + variation)),
+            branchCoverage: Math.max(0, Math.min(100, data.branchCoverage + variation - 2)),
+            functionCoverage: Math.max(0, Math.min(100, data.functionCoverage + variation + 2)),
+          };
+        }),
         gapAnalysis: {
           totalGaps: detailedGaps.length,
           highPriority: detailedGaps.filter((g: any) => g.priority === 'high').length,

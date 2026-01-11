@@ -332,23 +332,35 @@ function getContextUsage(claudeInput) {
 }
 
 function getArchitectureMetrics(projectDir) {
-  // ADR count
+  // ADR count - deduplicated across embedded and standalone files
   let adrCount = 0;
   const adrDir = path.join(projectDir, 'v3/implementation/adrs');
   const adrFile = path.join(adrDir, 'v3-adrs.md');
+  const uniqueAdrNums = new Set();
+
   if (fileExists(adrDir)) {
-    // Embedded ADRs
+    // Embedded ADRs - extract ADR numbers (normalize by parsing as int)
     if (fileExists(adrFile)) {
       const content = fs.readFileSync(adrFile, 'utf-8');
-      adrCount = (content.match(/^## ADR-/gm) || []).length;
+      const matches = content.match(/^## ADR-(\d+)/gm) || [];
+      matches.forEach(m => {
+        const num = m.match(/\d+/)?.[0];
+        if (num) uniqueAdrNums.add(parseInt(num, 10)); // Normalize: "036" -> 36
+      });
     }
-    // Standalone ADR files
+    // Standalone ADR files - extract ADR numbers (normalize by parsing as int)
     try {
-      const standalone = parseInt(execQuiet(`find "${adrDir}" -maxdepth 1 -name "ADR-0*.md" 2>/dev/null | wc -l`)) || 0;
-      adrCount += standalone;
+      const standaloneFiles = execQuiet(`find "${adrDir}" -maxdepth 1 -name "ADR-0*.md" -exec basename {} \\; 2>/dev/null`);
+      if (standaloneFiles) {
+        standaloneFiles.split('\n').forEach(f => {
+          const num = f.match(/ADR-0*(\d+)/)?.[1];
+          if (num) uniqueAdrNums.add(parseInt(num, 10)); // Normalize: "36" -> 36
+        });
+      }
     } catch {
       // Ignore
     }
+    adrCount = uniqueAdrNums.size;
   }
 
   // Hooks count
