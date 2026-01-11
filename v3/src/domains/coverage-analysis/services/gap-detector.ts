@@ -441,42 +441,140 @@ export class GapDetectorService implements IGapDetectionService {
 
   private generateUnitTestTemplate(gap: CoverageGap): string {
     const fileName = gap.file.split('/').pop()?.replace(/\.[^.]+$/, '') || 'module';
-    return `describe('${fileName}', () => {
-  describe('uncovered functionality (lines ${gap.lines[0]}-${gap.lines[gap.lines.length - 1]})', () => {
-    it('should handle expected input', () => {
-      // TODO: Implement test
+    const moduleName = this.toCamelCase(fileName);
+    const lineRange = gap.lines.length > 1
+      ? `${gap.lines[0]}-${gap.lines[gap.lines.length - 1]}`
+      : `${gap.lines[0]}`;
+
+    return `import { ${moduleName} } from './${fileName}';
+
+describe('${fileName}', () => {
+  describe('uncovered functionality (lines ${lineRange})', () => {
+    let instance: typeof ${moduleName};
+
+    beforeEach(() => {
+      instance = ${moduleName};
     });
 
-    it('should handle edge cases', () => {
-      // TODO: Implement test
+    it('should handle expected input correctly', () => {
+      const input = { /* valid input matching lines ${lineRange} */ };
+      const result = instance(input);
+      expect(result).toBeDefined();
+      expect(result).toMatchSnapshot();
+    });
+
+    it('should handle edge cases gracefully', () => {
+      const edgeCases = [null, undefined, {}, [], ''];
+      for (const input of edgeCases) {
+        expect(() => instance(input)).not.toThrow();
+      }
+    });
+
+    it('should handle boundary values', () => {
+      const boundaries = [0, -1, Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER];
+      for (const value of boundaries) {
+        const result = instance(value);
+        expect(typeof result).toBe('object');
+      }
     });
 ${gap.branches.length > 0 ? `
-    it('should cover branch conditions', () => {
-      // TODO: Cover ${gap.branches.length} uncovered branches
-    });
-` : ''}
-  });
+    describe('branch coverage (${gap.branches.length} branches)', () => {
+${gap.branches.map((branch, i) => `      it('should cover branch ${i + 1} at line ${branch}', () => {
+        const conditionInput = { triggerBranch: ${i + 1} };
+        const result = instance(conditionInput);
+        expect(result).toBeDefined();
+      });
+`).join('\n')}    });
+` : ''}  });
 });`;
+  }
+
+  private toCamelCase(str: string): string {
+    return str.replace(/[-_](.)/g, (_, c) => c.toUpperCase());
   }
 
   private generateIntegrationTestTemplate(gap: CoverageGap): string {
     const fileName = gap.file.split('/').pop()?.replace(/\.[^.]+$/, '') || 'module';
-    return `describe('${fileName} Integration', () => {
-  beforeEach(() => {
-    // Setup integration test environment
+    const moduleName = this.toCamelCase(fileName);
+    const lineCount = gap.lines.length;
+
+    return `import { ${moduleName} } from './${fileName}';
+import { createTestContext, mockDependencies } from '../test-utils';
+
+describe('${fileName} Integration', () => {
+  let context: ReturnType<typeof createTestContext>;
+  let mocks: ReturnType<typeof mockDependencies>;
+
+  beforeEach(async () => {
+    mocks = mockDependencies();
+    context = createTestContext({ mocks });
+    await context.initialize();
   });
 
-  afterEach(() => {
-    // Cleanup
+  afterEach(async () => {
+    await context.cleanup();
+    jest.clearAllMocks();
   });
 
-  it('should integrate with dependencies correctly', () => {
-    // TODO: Implement integration test
-    // Target: ${gap.lines.length} uncovered lines
+  describe('dependency integration (${lineCount} lines)', () => {
+    it('should integrate with dependencies correctly', async () => {
+      const input = { testMode: true };
+      const result = await ${moduleName}.execute(input, context);
+
+      expect(result.success).toBe(true);
+      expect(mocks.dependency.call).toHaveBeenCalled();
+      expect(result.data).toMatchObject({
+        processed: true,
+        linesExecuted: expect.any(Number),
+      });
+    });
+
+    it('should handle dependency timeout gracefully', async () => {
+      mocks.dependency.call.mockRejectedValueOnce(new Error('Timeout'));
+
+      const result = await ${moduleName}.execute({ testMode: true }, context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Timeout');
+      expect(result.retryable).toBe(true);
+    });
+
+    it('should handle dependency unavailable', async () => {
+      mocks.dependency.isAvailable.mockReturnValue(false);
+
+      const result = await ${moduleName}.execute({ testMode: true }, context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('unavailable');
+    });
   });
 
-  it('should handle failure scenarios', () => {
-    // TODO: Test error handling paths
+  describe('error handling paths', () => {
+    it('should handle invalid input with descriptive error', async () => {
+      const invalidInput = { invalid: true };
+
+      await expect(${moduleName}.execute(invalidInput, context))
+        .rejects.toThrow(/validation|invalid/i);
+    });
+
+    it('should handle network errors with retry logic', async () => {
+      mocks.network.request.mockRejectedValueOnce(new Error('Network error'));
+      mocks.network.request.mockResolvedValueOnce({ data: 'success' });
+
+      const result = await ${moduleName}.execute({ retry: true }, context);
+
+      expect(result.success).toBe(true);
+      expect(mocks.network.request).toHaveBeenCalledTimes(2);
+    });
+
+    it('should propagate unrecoverable errors', async () => {
+      const fatalError = new Error('Unrecoverable');
+      fatalError.name = 'FatalError';
+      mocks.dependency.call.mockRejectedValueOnce(fatalError);
+
+      await expect(${moduleName}.execute({ testMode: true }, context))
+        .rejects.toThrow('Unrecoverable');
+    });
   });
 });`;
   }

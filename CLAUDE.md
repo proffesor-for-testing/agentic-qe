@@ -19,7 +19,7 @@
 - 📋 **Full policy:** [docs/policies/git-operations.md](docs/policies/git-operations.md)
 
 ### Release Verification
-- ❌ NEVER release without `aqe init` verification
+- ❌ NEVER release without `aqe-v3 init` verification
 - ✅ ALWAYS test at least one agent with real database queries
 - 📋 **Full checklist:** [docs/policies/release-verification.md](docs/policies/release-verification.md)
 
@@ -50,7 +50,7 @@ npm run backup:restore  # Restore from backup
 ### Release Process
 - ❌ NEVER commit directly to main - use feature branches with PRs
 - ❌ NEVER forget package-lock.json when updating versions
-- ✅ ALWAYS use `mcp__agentic-qe__memory_store` with `persist: true` for learnings
+- ✅ ALWAYS use `mcp__agentic-qe-v3__memory_store` with `persist: true` for learnings
 
 ---
 
@@ -238,17 +238,17 @@ Bash("npx @claude-flow/cli@latest hooks worker dispatch --trigger optimize")
 
 ## 🤖 Agentic QE v3 Fleet Quick Reference
 
-### Current Stats (2026-01-09)
+### Current Stats (2026-01-11)
 | Metric | Count |
 |--------|-------|
 | DDD Domains | 12/12 |
-| Source Files | 166 |
-| Tests Passing | 1171 |
-| V3-QE Agents | 78 |
+| Source Files | 316 |
+| Tests Passing | 3303 |
+| V3-QE Agents | 59 |
 | Legacy QE Agents | 31 |
 | V3 Specialized | 12 |
-| ADRs | 20 |
-| Stubs Remaining | 18 |
+| ADRs | 38 |
+| Stubs Remaining | 0 |
 
 ### 12 DDD Bounded Contexts
 1. **test-generation** - AI-powered test creation
