@@ -179,5 +179,8 @@ tmp/*
 #v3 database files
 v3/agentdb.*
 
+# AQE data directories (local, not for git)
 .agentic-qe/results/*
-v3/.agentic-qe/results/*.agentic-qe/.cve-cache
+.agentic-qe/.cve-cache
+.agentic-qe/*-scans/
+v3/.agentic-qe/

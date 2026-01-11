@@ -66,6 +66,7 @@ function getUserInfo() {
 // Get learning stats from memory database
 function getLearningStats() {
   const memoryPaths = [
+    path.join(process.cwd(), '.agentic-qe', 'memory.db'),  // AQE v3 primary location
     path.join(process.cwd(), '.swarm', 'memory.db'),
     path.join(process.cwd(), '.claude', 'memory.db'),
     path.join(process.cwd(), 'data', 'memory.db'),
