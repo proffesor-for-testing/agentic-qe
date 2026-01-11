@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.2",
+  "version": "3.0.0-alpha.3",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,13 +14,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ruvnet/agentic-qe.git",
+    "url": "git+https://github.com/proffesor-for-testing/agentic-qe.git",
     "directory": "v3"
   },
   "bugs": {
-    "url": "https://github.com/ruvnet/agentic-qe/issues"
+    "url": "https://github.com/proffesor-for-testing/agentic-qe/issues"
   },
-  "homepage": "https://github.com/ruvnet/agentic-qe/tree/main/v3#readme",
+  "homepage": "https://github.com/proffesor-for-testing/agentic-qe/tree/main/v3#readme",
   "exports": {
     ".": {
       "import": "./dist/index.js",
