@@ -58,7 +58,7 @@ jobs:
       run:
         working-directory: v3
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
