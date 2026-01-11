@@ -53,6 +53,7 @@
 | ADR-039 | V3 QE MCP Optimization | **Proposed** | 2026-01-11 | ⏳ Connection pooling + O(1) lookup |
 | ADR-040 | V3 QE Agentic-Flow Integration | **Proposed** | 2026-01-11 | ⏳ SONA + Flash Attention + 9 RL algorithms |
 | ADR-041 | V3 QE CLI Enhancement | **Proposed** | 2026-01-11 | ⏳ Interactive wizards + workflows |
+| ADR-042 | V3 QE Token Tracking Integration | **Proposed** | 2026-01-11 | ⏳ Token tracking + -25% reduction via pattern reuse |
 
 ---
 
@@ -2642,8 +2643,31 @@ Enhance `v3-qe-cli` with:
 
 ---
 
+## ADR-042: V3 QE Token Tracking Integration
+
+**Status:** Proposed
+**Date:** 2026-01-11
+**Decision Makers:** Architecture Team
+**Source:** Analysis of [agentic-flow](https://github.com/ruvnet/agentic-flow) token tracking capabilities
+
+### Context
+
+V3 QE agents lack token consumption tracking and optimization. Analysis of agentic-flow revealed proven mechanisms for -25% token reduction via pattern reuse, caching, and early-exit optimizations.
+
+### Decision
+
+Implement comprehensive token tracking and consumption reduction:
+- Token tracking per task/agent/domain
+- Pattern reuse for -25% token reduction
+- MCP tool `token_usage` for analysis
+- Early-exit optimizer for high-confidence patterns
+
+**Full ADR:** [ADR-042-v3-qe-token-tracking-integration.md](./ADR-042-v3-qe-token-tracking-integration.md)
+
+---
+
 **Document Maintained By:** Architecture Team
-**Last Updated:** 2026-01-11 (ADR-037 to ADR-041 V3 Skills Improvement)
+**Last Updated:** 2026-01-11 (ADR-042 Token Tracking Integration)
 **Next Review:** After V3 Skills Implementation Complete
 
 ### Current Implementation Stats (2026-01-11)
@@ -2653,10 +2677,10 @@ Enhance `v3-qe-cli` with:
 | Source Files | 182+ |
 | Test Files | 91 |
 | Tests Passing | 2,335 |
-| ADRs Complete | 35/41 (ADR-020 ongoing, ADR-037-041 proposed) |
+| ADRs Complete | 35/42 (ADR-020 ongoing, ADR-037-042 proposed) |
 | RuVector MinCut ADRs | 6 (ADR-030 to ADR-035) |
 | Result Persistence ADR | 1 (ADR-036) |
-| V3 Skills Improvement ADRs | 5 (ADR-037 to ADR-041) |
+| V3 Skills Improvement ADRs | 6 (ADR-037 to ADR-042) |
 | V3 QE Skills | 24 (21 existing + 3 new enhanced) |
 | Init Module Tests | 73 |
 | Feedback Module Tests | 101 |
