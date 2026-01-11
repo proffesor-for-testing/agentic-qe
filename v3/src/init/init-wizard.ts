@@ -584,7 +584,7 @@ export class InitOrchestrator {
     const servers = mcpConfig.mcpServers as Record<string, unknown>;
     servers['agentic-qe-v3'] = {
       command: 'npx',
-      args: ['@agentic-qe/v3', 'mcp'],
+      args: ['-y', '@agentic-qe/v3@alpha', 'aqe-v3-mcp'],
       env: {
         AQE_PROJECT_ROOT: this.projectRoot,
         NODE_ENV: 'production',
@@ -727,7 +727,7 @@ Task("Find coverage gaps", "v3-qe-coverage-specialist")
 If MCP tools aren't working:
 \`\`\`bash
 # Verify MCP server
-npx @agentic-qe/v3 mcp --help
+npx -y @agentic-qe/v3@alpha aqe-v3-mcp --help
 
 # Check configuration
 cat .claude/mcp.json
