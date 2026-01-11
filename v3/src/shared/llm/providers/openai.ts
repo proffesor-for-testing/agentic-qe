@@ -232,11 +232,11 @@ export class OpenAIProvider implements LLMProvider {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
           error: { message: 'Unknown error', type: 'unknown', code: null },
-        }));
+        })) as OpenAIErrorResponse;
         throw this.handleApiError(response.status, errorData, model);
       }
 
-      const data: OpenAICompletionResponse = await response.json();
+      const data = await response.json() as OpenAICompletionResponse;
 
       const usage: TokenUsage = {
         promptTokens: data.usage.prompt_tokens,
@@ -307,11 +307,11 @@ export class OpenAIProvider implements LLMProvider {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
           error: { message: 'Unknown error', type: 'unknown', code: null },
-        }));
+        })) as OpenAIErrorResponse;
         throw this.handleApiError(response.status, errorData, model);
       }
 
-      const data: OpenAIEmbeddingResponse = await response.json();
+      const data = await response.json() as OpenAIEmbeddingResponse;
 
       return {
         embedding: data.data[0].embedding,

@@ -223,7 +223,7 @@ export class OSVClient {
         return [];
       }
 
-      const response: OSVQueryResponse = await result.value.json();
+      const response = await result.value.json() as OSVQueryResponse;
 
       // Cache successful response
       if (this.config.enableCache && response.vulns) {
@@ -276,7 +276,7 @@ export class OSVClient {
         return results;
       }
 
-      const response: OSVBatchQueryResponse = await result.value.json();
+      const response = await result.value.json() as OSVBatchQueryResponse;
 
       // Map results back to packages
       for (let i = 0; i < packages.length; i++) {
@@ -311,7 +311,7 @@ export class OSVClient {
         return [];
       }
 
-      const vuln: OSVVulnerability = await result.value.json();
+      const vuln = await result.value.json() as OSVVulnerability;
       return this.parseVulnerabilities([vuln]);
     } catch (error) {
       console.error(`OSV CVE query failed for ${cveId}:`, error);

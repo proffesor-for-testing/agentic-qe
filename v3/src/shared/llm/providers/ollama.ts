@@ -147,7 +147,7 @@ export class OllamaProvider implements LLMProvider {
         };
       }
 
-      const data: OllamaTagsResponse = await response.json();
+      const data = await response.json() as OllamaTagsResponse;
 
       // Extract available model names
       this.availableModels =
@@ -239,7 +239,7 @@ export class OllamaProvider implements LLMProvider {
           throw await this.handleApiError(response, model);
         }
 
-        const data: OllamaChatResponse = await response.json();
+        const data = await response.json() as OllamaChatResponse;
         content = data.message.content;
         promptTokens = data.prompt_eval_count ?? this.estimateTokens(JSON.stringify(messages));
         completionTokens = data.eval_count ?? this.estimateTokens(content);
@@ -271,7 +271,7 @@ export class OllamaProvider implements LLMProvider {
           throw await this.handleApiError(response, model);
         }
 
-        const data: OllamaGenerateResponse = await response.json();
+        const data = await response.json() as OllamaGenerateResponse;
         content = data.response;
         promptTokens = data.prompt_eval_count ?? this.estimateTokens(prompt);
         completionTokens = data.eval_count ?? this.estimateTokens(content);
@@ -338,7 +338,7 @@ export class OllamaProvider implements LLMProvider {
         throw await this.handleApiError(response, model);
       }
 
-      const data: OllamaEmbeddingResponse = await response.json();
+      const data = await response.json() as OllamaEmbeddingResponse;
 
       return {
         embedding: data.embedding,

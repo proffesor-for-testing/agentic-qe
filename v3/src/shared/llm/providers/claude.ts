@@ -208,11 +208,11 @@ export class ClaudeProvider implements LLMProvider {
       const latencyMs = Date.now() - start;
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+        const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } })) as ClaudeErrorResponse;
         throw this.handleApiError(response.status, errorData, model);
       }
 
-      const data: ClaudeMessageResponse = await response.json();
+      const data = await response.json() as ClaudeMessageResponse;
 
       const usage: TokenUsage = {
         promptTokens: data.usage.input_tokens,

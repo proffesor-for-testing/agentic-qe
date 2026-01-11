@@ -49,7 +49,7 @@ export class OllamaClient {
         return false;
       }
 
-      const data: OllamaHealthResponse = await response.json();
+      const data = await response.json() as OllamaHealthResponse;
 
       // Check if nomic-embed-text model is available
       // Model names may include tags like ":latest", so use startsWith for matching
@@ -95,7 +95,7 @@ export class OllamaClient {
           throw new Error(`Ollama API error (${response.status}): ${errorText}`);
         }
 
-        const data: OllamaEmbeddingResponse = await response.json();
+        const data = await response.json() as OllamaEmbeddingResponse;
 
         // Validate embedding dimensions
         if (data.embedding.length !== EMBEDDING_CONFIG.DIMENSIONS) {
@@ -173,7 +173,7 @@ export class OllamaClient {
         return null;
       }
 
-      return await response.json();
+      return await response.json() as OllamaHealthResponse;
     } catch {
       return null;
     }
