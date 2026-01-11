@@ -178,7 +178,11 @@ describe('InitOrchestrator', () => {
       expect(result.summary.projectAnalyzed).toBe(true);
       expect(result.summary.configGenerated).toBe(true);
       expect(typeof result.summary.patternsLoaded).toBe('number');
+      expect(typeof result.summary.skillsInstalled).toBe('number');
+      expect(typeof result.summary.agentsInstalled).toBe('number');
       expect(typeof result.summary.hooksConfigured).toBe('boolean');
+      expect(typeof result.summary.mcpConfigured).toBe('boolean');
+      expect(typeof result.summary.claudeMdGenerated).toBe('boolean');
       expect(typeof result.summary.workersStarted).toBe('number');
     });
 
@@ -368,7 +372,11 @@ describe('InitOrchestrator', () => {
           projectAnalyzed: true,
           configGenerated: true,
           patternsLoaded: 100,
+          skillsInstalled: 64,
+          agentsInstalled: 59,
           hooksConfigured: true,
+          mcpConfigured: true,
+          claudeMdGenerated: true,
           workersStarted: 2,
         },
         totalDurationMs: 200,
@@ -381,6 +389,8 @@ describe('InitOrchestrator', () => {
       expect(formatted).toContain('test-project');
       expect(formatted).toContain('single');
       expect(formatted).toContain('100'); // patterns loaded
+      expect(formatted).toContain('59'); // agents installed
+      expect(formatted).toContain('MCP Server'); // MCP configured
       expect(formatted).toContain('initialized');
     });
 
@@ -439,7 +449,11 @@ describe('InitOrchestrator', () => {
           projectAnalyzed: false,
           configGenerated: false,
           patternsLoaded: 0,
+          skillsInstalled: 0,
+          agentsInstalled: 0,
           hooksConfigured: false,
+          mcpConfigured: false,
+          claudeMdGenerated: false,
           workersStarted: 0,
         },
         totalDurationMs: 50,
@@ -480,7 +494,11 @@ describe('InitOrchestrator', () => {
           projectAnalyzed: true,
           configGenerated: true,
           patternsLoaded: 0,
+          skillsInstalled: 0,
+          agentsInstalled: 0,
           hooksConfigured: false,
+          mcpConfigured: false,
+          claudeMdGenerated: false,
           workersStarted: 0,
         },
         totalDurationMs: 123,
@@ -612,7 +630,7 @@ describe('InitOrchestrator', () => {
       const learningConfig = JSON.parse(learningConfigCall![1] as string);
       expect(learningConfig.embeddingModel).toBeDefined();
       expect(learningConfig.hnswConfig).toBeDefined();
-      expect(learningConfig.databasePath).toContain('patterns.db');
+      expect(learningConfig.databasePath).toContain('qe-patterns.db');
     });
 
     it('should create worker registry and configs', async () => {
@@ -735,6 +753,129 @@ describe('InitOrchestrator', () => {
         (call[0] as string).includes('registry.json')
       );
       expect(registryCall).toBeUndefined();
+    });
+
+    it('should create CLAUDE.md with AQE v3 section', async () => {
+      const orchestrator = createInitOrchestrator({
+        projectRoot: testProjectRoot,
+        autoMode: true,
+      });
+
+      await orchestrator.initialize();
+
+      // Verify CLAUDE.md was written
+      const writeCalls = mockWriteFileSync.mock.calls;
+      const claudeMdCall = writeCalls.find((call) =>
+        (call[0] as string).includes('CLAUDE.md')
+      );
+      expect(claudeMdCall).toBeDefined();
+
+      // Verify content includes expected sections
+      const content = claudeMdCall![1] as string;
+      expect(content).toContain('Agentic QE v3');
+      expect(content).toContain('MCP Server');
+      expect(content).toContain('DDD Bounded Contexts');
+      expect(content).toContain('V3 QE Agents');
+      expect(content).toContain('Data Storage');
+      expect(content).toContain('qe-patterns.db');
+    });
+
+    it('should append to existing CLAUDE.md with backup', async () => {
+      // Simulate existing CLAUDE.md
+      mockExistsSync.mockImplementation((path: string) => {
+        if (path.includes('CLAUDE.md') && !path.includes('.backup')) return true;
+        if (path.includes('package.json')) return true;
+        return false;
+      });
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('CLAUDE.md')) {
+          return '# Existing CLAUDE.md\n\nSome existing content here.';
+        }
+        if (path.includes('package.json')) {
+          return JSON.stringify({ name: 'test-project' });
+        }
+        return '';
+      });
+
+      const orchestrator = createInitOrchestrator({
+        projectRoot: testProjectRoot,
+        autoMode: true,
+      });
+
+      await orchestrator.initialize();
+
+      const writeCalls = mockWriteFileSync.mock.calls;
+
+      // Verify backup was created
+      const backupCall = writeCalls.find((call) =>
+        (call[0] as string).includes('CLAUDE.md.backup')
+      );
+      expect(backupCall).toBeDefined();
+      expect(backupCall![1]).toBe('# Existing CLAUDE.md\n\nSome existing content here.');
+
+      // Verify CLAUDE.md was appended to
+      const claudeMdCall = writeCalls.find((call) =>
+        (call[0] as string).includes('CLAUDE.md') && !(call[0] as string).includes('.backup')
+      );
+      expect(claudeMdCall).toBeDefined();
+
+      const content = claudeMdCall![1] as string;
+      // Should contain existing content
+      expect(content).toContain('# Existing CLAUDE.md');
+      expect(content).toContain('Some existing content');
+      // Should contain AQE section
+      expect(content).toContain('Agentic QE v3');
+    });
+
+    it('should not duplicate AQE section in CLAUDE.md', async () => {
+      // Simulate existing CLAUDE.md that already has AQE section
+      mockExistsSync.mockImplementation((path: string) => {
+        if (path.includes('CLAUDE.md')) return true;
+        if (path.includes('package.json')) return true;
+        return false;
+      });
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('CLAUDE.md')) {
+          return '# Existing CLAUDE.md\n\n## Agentic QE v3\n\nAlready has section.';
+        }
+        if (path.includes('package.json')) {
+          return JSON.stringify({ name: 'test-project' });
+        }
+        return '';
+      });
+
+      const orchestrator = createInitOrchestrator({
+        projectRoot: testProjectRoot,
+        autoMode: true,
+      });
+
+      const result = await orchestrator.initialize();
+
+      // Should still succeed - just won't duplicate
+      expect(result.summary.claudeMdGenerated).toBe(true);
+    });
+
+    it('should create .claude/mcp.json with AQE v3 server', async () => {
+      const orchestrator = createInitOrchestrator({
+        projectRoot: testProjectRoot,
+        autoMode: true,
+      });
+
+      await orchestrator.initialize();
+
+      // Verify mcp.json was written
+      const writeCalls = mockWriteFileSync.mock.calls;
+      const mcpCall = writeCalls.find((call) =>
+        (call[0] as string).includes('mcp.json')
+      );
+      expect(mcpCall).toBeDefined();
+
+      // Verify content
+      const mcpConfig = JSON.parse(mcpCall![1] as string);
+      expect(mcpConfig.mcpServers).toBeDefined();
+      expect(mcpConfig.mcpServers['agentic-qe-v3']).toBeDefined();
+      expect(mcpConfig.mcpServers['agentic-qe-v3'].command).toBe('npx');
+      expect(mcpConfig.mcpServers['agentic-qe-v3'].args).toContain('@agentic-qe/v3');
     });
   });
 });

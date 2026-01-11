@@ -380,7 +380,7 @@ console.log(`Quality gate: ${gate.value.passed ? 'PASSED' : 'FAILED'}`);
 | Module System | CommonJS | ESM |
 | Memory | SQLite only | HNSW + SQLite hybrid |
 | Learning | Basic patterns | ReasoningBank + SONA |
-| Agents | 31 | 78 specialized |
+| Agents | 31 | 47 QE agents |
 | CLI | `aqe` | `aqe-v3` |
 | Package | `agentic-qe` | `@agentic-qe/v3` |
 

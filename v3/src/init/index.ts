@@ -62,3 +62,19 @@ export {
   quickInit,
   formatInitResult,
 } from './init-wizard.js';
+
+// Skills Installer
+export type { SkillsInstallerOptions, SkillsInstallResult, SkillInfo } from './skills-installer.js';
+export {
+  SkillsInstaller,
+  createSkillsInstaller,
+  installSkills,
+} from './skills-installer.js';
+
+// Agents Installer
+export type { AgentsInstallerOptions, AgentsInstallResult, AgentInfo } from './agents-installer.js';
+export {
+  AgentsInstaller,
+  createAgentsInstaller,
+  installAgents,
+} from './agents-installer.js';

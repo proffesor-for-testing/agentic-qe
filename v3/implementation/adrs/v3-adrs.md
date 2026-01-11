@@ -2307,6 +2307,102 @@ const appliedRules = configurator.getApplicableRules(analysis);
 - [ ] <30 seconds init time (needs runtime measurement)
 - [ ] Migration from v2 automated (deferred)
 
+### ADR-025 Addendum: V2 Component Migration Analysis (2026-01-11)
+
+**Status:** ✅ IMPLEMENTED (2026-01-11)
+
+**Purpose:** Document which V2 init components are needed in V3 vs obsolete.
+
+#### V2 Components NOT Needed in V3
+
+1. **Slash Commands (`.claude/commands/`)** - OBSOLETE
+   - V2: 9 slash commands (`/aqe-execute`, `/aqe-generate`, etc.)
+   - V3: Replaced by MCP tools (`mcp__agentic-qe-v3__*`)
+   - **Decision:** Do NOT create `.claude/commands/` directory
+
+2. **V2 Agent Definitions (`.claude/agents/` flat)** - OBSOLETE
+   - V2: 24 flat agent markdown files
+   - V3: Replaced by V3 QE agents with DDD domain structure
+   - **Decision:** Do NOT copy V2 agents
+
+3. **Claude-Flow Core Agents** - NOT COPIED
+   - Agents like `adr-architect`, `memory-specialist`, `security-architect`, etc.
+   - These are **claude-flow** agents, not AQE agents (use `mcp__claude-flow__*` tools)
+   - **Decision:** Do NOT copy - available via claude-flow separately
+
+4. **Helper Scripts (`.claude/helpers/`)** - MOSTLY OBSOLETE
+   - V2: 38 helper scripts
+   - V3: Background workers + MCP tools replace most functionality
+   - **Decision:** Keep only `statusline.js` and git hooks (optional)
+
+5. **Reference Docs (`.agentic-qe/docs/`)** - OBSOLETE
+   - V2: Copied documentation files
+   - V3: Skills contain embedded documentation
+   - **Decision:** Do NOT create `.agentic-qe/docs/` directory
+
+6. **Flat Agent Definitions (`.agentic-qe/agents/`)** - OBSOLETE
+   - V2: Agent configuration in separate directory
+   - V3: DDD domains + MCP tools replace
+   - **Decision:** Do NOT create `.agentic-qe/agents/` directory
+
+#### V3 Components REQUIRED (Implemented)
+
+1. **V3 QE Agents (`.claude/agents/v3/`)** - ✅ IMPLEMENTED
+   - 40 V3 QE domain agents (v3-qe-*) mapped to 12 DDD contexts
+   - 7 V3 QE subagents for TDD and code review
+   - **Total:** 47 QE agents installed via `AgentsInstaller`
+
+2. **Pattern Database (`.agentic-qe/data/patterns.db`)** - PLANNED
+   - Required for: Learning system, pattern storage, HNSW indexing
+   - **Action:** Add database initialization to init
+
+3. **Project Configuration (`CLAUDE.md`)** - PLANNED
+   - Required for: Project-specific V3 configuration, quick reference
+   - **Action:** Add V3-specific CLAUDE.md generation
+
+4. **MCP Configuration (`.claude/mcp.json`)** - ✅ IMPLEMENTED
+   - Required for: MCP server definition, tool endpoint configuration
+   - Configures `agentic-qe-v3` MCP server with `npx @agentic-qe/v3 mcp`
+
+#### V3 Init Comparison
+
+| Metric | V2 | V3 | Reason |
+|--------|----|----|--------|
+| Files created | ~100+ | ~60 | MCP tools replace commands |
+| Directories | 8 | 6 | DDD consolidates structure |
+| Helper scripts | 38 | 2-3 | Workers replace helpers |
+| V2 Agent defs | 24 | 0 | Replaced by V3 QE agents |
+| V3 QE Agents | 0 | 47 | v3-qe-* agents for Task tool |
+| Commands | 9 | 0 | MCP tools replace |
+
+#### V3 Init File Structure (Final)
+
+```
+Project Root
+├── CLAUDE.md                    # V3 project configuration [PLANNED]
+├── .agentic-qe/
+│   ├── config.yaml              # ✅ Implemented
+│   ├── data/
+│   │   ├── patterns.db          # [PLANNED] Pattern database
+│   │   ├── learning-config.json # ✅ Implemented
+│   │   └── hnsw/                # ✅ Implemented
+│   └── workers/
+│       ├── registry.json        # ✅ Implemented
+│       ├── *.json               # ✅ Implemented
+│       └── start-daemon.sh      # ✅ Implemented
+└── .claude/
+    ├── settings.json            # ✅ Implemented
+    ├── mcp.json                 # ✅ Implemented (MCP server config)
+    ├── skills/                  # ✅ Implemented (SkillsInstaller)
+    │   ├── README.md
+    │   └── [skill-dirs]/
+    └── agents/v3/               # ✅ Implemented (AgentsInstaller)
+        ├── README.md            # Agent index
+        ├── v3-qe-*.md           # 40 QE domain agents
+        └── subagents/           # 7 QE subagents
+            └── v3-qe-*.md
+```
+
 ---
 
 ## ADR-036: Language-Aware Result Persistence

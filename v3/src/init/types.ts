@@ -233,7 +233,10 @@ export interface InitResult {
     configGenerated: boolean;
     patternsLoaded: number;
     skillsInstalled: number;
+    agentsInstalled: number;
     hooksConfigured: boolean;
+    mcpConfigured: boolean;
+    claudeMdGenerated: boolean;
     workersStarted: number;
   };
 
