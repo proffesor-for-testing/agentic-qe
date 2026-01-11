@@ -1,6 +1,6 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.5",
+  "version": "3.0.0-alpha.6",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -68,7 +68,6 @@
     "@vitest/coverage-v8": "^4.0.16",
     "esbuild": "^0.27.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "dependencies": {
@@ -82,6 +81,7 @@
     "hnswlib-node": "^3.0.0",
     "lcov-parse": "^1.0.0",
     "playwright": "^1.40.0",
+    "typescript": "^5.9.3",
     "uuid": "^9.0.0"
   },
   "engines": {
