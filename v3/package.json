@@ -1,13 +1,26 @@
 {
   "name": "@agentic-qe/v3",
   "version": "3.0.0-alpha.1",
-  "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts",
+  "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, 3178 tests, O(log n) coverage analysis, ReasoningBank learning, 78 specialized agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
     "aqe-v3": "./dist/cli/index.js"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruvnet/agentic-qe.git",
+    "directory": "v3"
+  },
+  "bugs": {
+    "url": "https://github.com/ruvnet/agentic-qe/issues"
+  },
+  "homepage": "https://github.com/ruvnet/agentic-qe/tree/main/v3#readme",
   "exports": {
     ".": {
       "import": "./dist/index.js",
