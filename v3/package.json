@@ -50,10 +50,10 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.10.0",
-    "@vitest/coverage-v8": "^1.0.0",
+    "@vitest/coverage-v8": "^4.0.16",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^1.0.0"
+    "vitest": "^4.0.16"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.8.0",
