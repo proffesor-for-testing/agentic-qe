@@ -875,7 +875,8 @@ describe('InitOrchestrator', () => {
       expect(mcpConfig.mcpServers).toBeDefined();
       expect(mcpConfig.mcpServers['agentic-qe-v3']).toBeDefined();
       expect(mcpConfig.mcpServers['agentic-qe-v3'].command).toBe('npx');
-      expect(mcpConfig.mcpServers['agentic-qe-v3'].args).toContain('@agentic-qe/v3');
+      expect(mcpConfig.mcpServers['agentic-qe-v3'].args).toContain('@agentic-qe/v3@alpha');
+      expect(mcpConfig.mcpServers['agentic-qe-v3'].args).toContain('aqe-v3-mcp');
     });
   });
 });
