@@ -1,12 +1,12 @@
 {
   "name": "@agentic-qe/v3",
-  "version": "3.0.0-alpha.4",
+  "version": "3.0.0-alpha.5",
   "description": "Agentic QE v3 - Domain-Driven Design Architecture with 12 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 47 specialized QE agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "aqe-v3": "./dist/cli/index.js"
+    "aqe-v3": "./dist/cli/bundle.js"
   },
   "publishConfig": {
     "access": "public",
@@ -39,7 +39,8 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:cli",
+    "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/cli/bundle.js",
     "cli": "tsx src/cli/index.ts",
     "aqe": "tsx src/cli/index.ts",
     "mcp": "tsx src/mcp/entry.ts",
@@ -65,6 +66,7 @@
     "@types/node": "^20.10.0",
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^4.0.16",
+    "esbuild": "^0.27.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
