@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Agentic QE v3 - MCP Server Entry Point
  *
