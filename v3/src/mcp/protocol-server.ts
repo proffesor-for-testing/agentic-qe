@@ -189,8 +189,8 @@ export class MCPProtocolServer {
     pool: import('./connection-pool').PoolStats;
     loadBalancer: ReturnType<import('./load-balancer').LoadBalancerImpl['getStats']>;
     monitor: {
-      percentiles: import('./performance-monitor').LatencyPercentiles;
-      toolMetrics: import('./performance-monitor').ToolMetric[];
+      percentiles: ReturnType<typeof import('./performance-monitor').PerformanceMonitorImpl.prototype.getLatencyPercentiles>;
+      toolMetrics: import('./performance-monitor').ToolExecutionMetric[];
     };
   } {
     const poolStats = this.pool.getStats();

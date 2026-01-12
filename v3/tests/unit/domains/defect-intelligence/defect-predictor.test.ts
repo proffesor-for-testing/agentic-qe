@@ -8,6 +8,9 @@ import {
   PredictionFeedback,
 } from '../../../../src/domains/defect-intelligence/services/defect-predictor';
 import { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../../src/kernel/interfaces';
+import { GitAnalyzer } from '../../../../src/shared/git';
+import { FileReader } from '../../../../src/shared/io';
+import { TypeScriptParser } from '../../../../src/shared/parsers';
 
 /**
  * Mock MemoryBackend implementation for testing
@@ -43,13 +46,108 @@ function createMockMemoryBackend(): MemoryBackend {
   };
 }
 
+/**
+ * Mock GitAnalyzer for testing
+ */
+function createMockGitAnalyzer(): Partial<GitAnalyzer> {
+  return {
+    getBlameInfo: vi.fn().mockResolvedValue({
+      'file.ts': [
+        {
+          commitHash: 'abc123',
+          author: 'test@example.com',
+          timestamp: Date.now(),
+          lineCount: 10,
+        },
+      ],
+    }),
+    getFileHistory: vi.fn().mockResolvedValue({
+      filePath: 'file.ts',
+      totalCommits: 5,
+      uniqueAuthors: 2,
+      firstCommit: new Date(Date.now() - 86400000),
+      lastCommit: new Date(),
+      changeFrequency: 5,
+      isRecentlyModified: true,
+      bugFixCommits: 1,
+    }),
+    getChangeFrequency: vi.fn().mockResolvedValue(0.5),
+    getDeveloperExperience: vi.fn().mockResolvedValue(0.5),
+    getCodeAge: vi.fn().mockResolvedValue(0.4),
+    getBugHistory: vi.fn().mockResolvedValue(0.2),
+  };
+}
+
+/**
+ * Mock FileReader for testing
+ */
+function createMockFileReader(): Partial<FileReader> {
+  return {
+    readFile: vi.fn().mockResolvedValue({
+      success: true,
+      value: `
+        export class TestClass {
+          private value: number;
+
+          constructor() {
+            this.value = 0;
+          }
+
+          public method(): void {
+            this.value++;
+          }
+        }
+      `,
+    }),
+    fileExists: vi.fn().mockResolvedValue(true),
+    getFileStats: vi.fn().mockResolvedValue({
+      size: 1000,
+      lines: 50,
+      functions: 2,
+      classes: 1,
+    }),
+  };
+}
+
+/**
+ * Mock TypeScriptParser for testing
+ */
+function createMockTypeScriptParser(): Partial<TypeScriptParser> {
+  const mockAst = {} as unknown; // Empty mock AST
+
+  return {
+    parseFile: vi.fn().mockReturnValue(mockAst),
+    extractFunctions: vi.fn().mockReturnValue([
+      { name: 'method', isAsync: false },
+    ]),
+    extractClasses: vi.fn().mockReturnValue([
+      { name: 'TestClass', methods: [{ name: 'method' }] },
+    ]),
+    extractImports: vi.fn().mockReturnValue([]),
+    getComplexity: vi.fn().mockResolvedValue(5),
+    getDependencies: vi.fn().mockResolvedValue([]),
+  };
+}
+
 describe('DefectPredictorService', () => {
   let service: DefectPredictorService;
   let mockMemory: MemoryBackend;
+  let mockGit: Partial<GitAnalyzer>;
+  let mockReader: Partial<FileReader>;
+  let mockParser: Partial<TypeScriptParser>;
 
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
-    service = new DefectPredictorService(mockMemory);
+    mockGit = createMockGitAnalyzer();
+    mockReader = createMockFileReader();
+    mockParser = createMockTypeScriptParser();
+    service = new DefectPredictorService(
+      mockMemory,
+      {},
+      mockGit as GitAnalyzer,
+      mockReader as FileReader,
+      mockParser as TypeScriptParser
+    );
   });
 
   describe('predictDefects', () => {

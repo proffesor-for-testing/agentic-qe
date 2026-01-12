@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err, DomainName, AgentId } from '../../../shared/types/index.js';
+import { Result, ok, err, DomainName, AgentId, ALL_DOMAINS } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import {
   Knowledge,
@@ -621,6 +621,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         'quality-assessment',
         'defect-intelligence',
       ],
+      'coordination': ALL_DOMAINS.filter((d) => d !== 'coordination'),
     };
 
     if (source === target) return 1.0;

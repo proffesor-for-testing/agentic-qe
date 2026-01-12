@@ -111,12 +111,15 @@ export class DefectPredictorService implements IDefectPredictorService {
 
   constructor(
     private readonly memory: MemoryBackend,
-    config: Partial<DefectPredictorConfig> = {}
+    config: Partial<DefectPredictorConfig> = {},
+    gitAnalyzer?: GitAnalyzer,
+    fileReader?: FileReader,
+    tsParser?: TypeScriptParser
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.gitAnalyzer = new GitAnalyzer({ enableCache: true });
-    this.fileReader = new FileReader();
-    this.tsParser = new TypeScriptParser();
+    this.gitAnalyzer = gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
+    this.fileReader = fileReader ?? new FileReader();
+    this.tsParser = tsParser ?? new TypeScriptParser();
   }
 
   /**

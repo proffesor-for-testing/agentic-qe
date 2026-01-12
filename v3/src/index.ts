@@ -159,6 +159,58 @@ export {
   // Config
   DEFAULT_STRANGE_LOOP_CONFIG,
 } from './strange-loop';
+
+// Integrations Module - Unified Embedding Infrastructure (ADR-040)
+// Shared between QE and claude-flow with QE-specific extensions
+export {
+  // Base classes
+  EmbeddingGenerator,
+  EmbeddingCache,
+  HNSWEmbeddingIndex,
+  HNSWIndexFactory,
+  // QE-specific extensions
+  TestEmbeddingGenerator,
+  CoverageEmbeddingGenerator,
+  DefectEmbeddingGenerator,
+  // Factory
+  EmbeddingFactory,
+  // Constants
+  PERFORMANCE_TARGETS,
+} from './integrations/embeddings';
+export type {
+  // Base types
+  EmbeddingDimension,
+  EmbeddingNamespace,
+  QuantizationType,
+  IEmbedding,
+  IEmbeddingModelConfig,
+  IEmbeddingOptions,
+  IBatchEmbeddingResult,
+  ISimilarityResult,
+  ISearchOptions,
+  EmbeddingModelType,
+  IHNSWConfig,
+  ICacheConfig,
+  IEmbeddingStats,
+  // Test embedding types
+  TestCaseMetadata,
+  ITestCaseEmbedding,
+  ISimilarTestResult,
+  ITestEmbeddingOptions,
+  // Coverage embedding types
+  ICoverageData,
+  ICoverageGap,
+  ICoverageEmbedding,
+  ICoverageEmbeddingOptions,
+  // Defect embedding types
+  DefectSeverity,
+  DefectType,
+  IDefectMetadata,
+  IDefectEmbedding,
+  ISimilarDefectResult,
+  IDefectPrediction,
+  IDefectEmbeddingOptions,
+} from './integrations/embeddings';
 export type {
   // Topology types
   TopologyType,

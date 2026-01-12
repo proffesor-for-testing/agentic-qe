@@ -87,6 +87,10 @@ const DOMAIN_KEYWORDS: Record<DomainName, string[]> = {
     'learning', 'optimize', 'ml', 'pattern', 'improve', 'recommendation',
     'adaptive', 'experience', 'reinforcement',
   ],
+  'coordination': [
+    'coordinate', 'orchestrate', 'swarm', 'fleet', 'distributed', 'consensus',
+    'agent', 'multi-agent', 'queen', 'worker', 'byzantine', 'raft',
+  ],
 };
 
 // ============================================================================

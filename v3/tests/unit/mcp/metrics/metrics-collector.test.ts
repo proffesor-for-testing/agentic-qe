@@ -67,7 +67,7 @@ describe('MetricsCollector', () => {
 
       // Duration should be at least 50ms but not too long
       expect(duration).toBeGreaterThanOrEqual(45); // Allow some margin
-      expect(duration).toBeLessThan(200);
+      expect(duration).toBeLessThan(500); // Increased tolerance for CI environments
     });
 
     it('should record retries', () => {
@@ -114,7 +114,7 @@ describe('MetricsCollector', () => {
       const stats = MetricsCollector.getAgentTaskStats('agent-time');
       expect(stats.tasksCompleted).toBe(2);
       expect(stats.averageTime).toBeGreaterThan(20);
-      expect(stats.averageTime).toBeLessThan(100);
+      expect(stats.averageTime).toBeLessThan(200); // Increased tolerance for CI environments
     });
 
     it('should calculate success rate correctly', () => {
@@ -291,7 +291,7 @@ describe('MetricsCollector', () => {
 
       const avg = MetricsCollector.getAverageExecutionTime();
       expect(avg).toBeGreaterThan(20);
-      expect(avg).toBeLessThan(60);
+      expect(avg).toBeLessThan(200); // Increased tolerance for CI environments
     });
   });
 

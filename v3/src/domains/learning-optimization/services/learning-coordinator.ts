@@ -331,6 +331,7 @@ export class LearningCoordinatorService
         'visual-accessibility': 0,
         'chaos-resilience': 0,
         'learning-optimization': 0,
+        'coordination': 0,
       };
 
       let totalConfidence = 0;

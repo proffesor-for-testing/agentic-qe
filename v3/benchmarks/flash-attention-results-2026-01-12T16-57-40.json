@@ -1,0 +1,112 @@
+{
+  "timestamp": "2026-01-12T16:57:40.808Z",
+  "summary": {
+    "totalWorkloads": 5,
+    "passCount": 0,
+    "failCount": 5,
+    "avgSpeedup": 1.297646862302546,
+    "allPass": false
+  },
+  "results": {
+    "test-similarity": {
+      "workload": "test-similarity",
+      "baseline": {
+        "timeMs": 2715.492376,
+        "memoryMB": 0.5534660339355468,
+        "speedup": 1,
+        "throughput": 96536.45221650218,
+        "peakMemoryMB": 1.09771728515625
+      },
+      "flash": {
+        "timeMs": 1501.470874999999,
+        "memoryMB": 0.3854087829589844,
+        "speedup": 1,
+        "throughput": 174591.46518576337,
+        "peakMemoryMB": 0.8500747680664062
+      },
+      "speedup": 1.8085548119606394,
+      "memoryReduction": 0.3036451031720102,
+      "meetsTarget": false
+    },
+    "code-embedding": {
+      "workload": "code-embedding",
+      "baseline": {
+        "timeMs": 12036.414422000002,
+        "memoryMB": 0.17446823120117189,
+        "speedup": 1,
+        "throughput": 87116.97381268514,
+        "peakMemoryMB": 0.8309860229492188
+      },
+      "flash": {
+        "timeMs": 8745.191713000007,
+        "memoryMB": 0.8807075500488282,
+        "speedup": 1,
+        "throughput": 119903.14614158294,
+        "peakMemoryMB": 1.9629745483398438
+      },
+      "speedup": 1.3763465475671033,
+      "memoryReduction": -4.047953681798504,
+      "meetsTarget": false
+    },
+    "defect-matching": {
+      "workload": "defect-matching",
+      "baseline": {
+        "timeMs": 309.94754100000137,
+        "memoryMB": 0.2680229187011719,
+        "speedup": 1,
+        "throughput": 211442.2324131286,
+        "peakMemoryMB": 0.98846435546875
+      },
+      "flash": {
+        "timeMs": 298.3919590000005,
+        "memoryMB": 0.8834999084472657,
+        "speedup": 1,
+        "throughput": 219630.58327587135,
+        "peakMemoryMB": 1.10101318359375
+      },
+      "speedup": 1.0387261843071343,
+      "memoryReduction": -2.296359552864621,
+      "meetsTarget": false
+    },
+    "coverage-analysis": {
+      "workload": "coverage-analysis",
+      "baseline": {
+        "timeMs": 300.55308300000615,
+        "memoryMB": 0.022536468505859376,
+        "speedup": 1,
+        "throughput": 218051.33171766085,
+        "peakMemoryMB": 0.38042449951171875
+      },
+      "flash": {
+        "timeMs": 290.3354169999948,
+        "memoryMB": 0.6843658447265625,
+        "speedup": 1,
+        "throughput": 225725.1308750981,
+        "peakMemoryMB": 1.193634033203125
+      },
+      "speedup": 1.0351926268782137,
+      "memoryReduction": -29.367040184163308,
+      "meetsTarget": false
+    },
+    "pattern-adaptation": {
+      "workload": "pattern-adaptation",
+      "baseline": {
+        "timeMs": 549.5378750000091,
+        "memoryMB": -0.39964752197265624,
+        "speedup": 1,
+        "throughput": 29814.141563945395,
+        "peakMemoryMB": 0.31943511962890625
+      },
+      "flash": {
+        "timeMs": 446.99166600001627,
+        "memoryMB": -0.40233840942382815,
+        "speedup": 1,
+        "throughput": 36653.92723451673,
+        "peakMemoryMB": 0.497650146484375
+      },
+      "speedup": 1.2294141407996386,
+      "memoryReduction": -0.0067331518481328345,
+      "meetsTarget": false
+    }
+  }
+}
