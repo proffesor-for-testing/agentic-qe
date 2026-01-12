@@ -1,35 +1,72 @@
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "enabled": true,
-  "rebuildMode": true,
-  "rebuildModeNote": "ACCELERATED CONFIG - Set rebuildMode to false after learning data is rebuilt",
+  "ruvector": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 5432,
+    "database": "ruvector_db",
+    "embeddingDimension": 768,
+    "poolSize": 10
+  },
+  "selfLearning": {
+    "gnn": {
+      "enabled": true,
+      "description": "Graph Neural Network for pattern relationship optimization",
+      "reranking": true,
+      "graphOptimization": true,
+      "updateFrequency": "hourly"
+    },
+    "lora": {
+      "enabled": true,
+      "description": "Low-Rank Adaptation for memory-efficient fine-tuning",
+      "rank": 8,
+      "alpha": 16,
+      "maxMemoryMB": 300,
+      "targetModules": ["embedding", "attention"]
+    },
+    "ewc": {
+      "enabled": true,
+      "description": "Elastic Weight Consolidation++ for catastrophic forgetting prevention",
+      "lambda": 5000,
+      "retentionTarget": 0.98,
+      "consolidationFrequency": "daily"
+    }
+  },
   "scheduler": {
-    "mode": "continuous",
+    "mode": "hybrid",
     "schedule": {
-      "startHour": 0,
-      "durationMinutes": 1440,
+      "startHour": 2,
+      "durationMinutes": 60,
       "daysOfWeek": [0, 1, 2, 3, 4, 5, 6]
     },
     "learningBudget": {
-      "maxPatternsPerCycle": 200,
+      "maxPatternsPerCycle": 100,
       "maxAgentsPerCycle": 10,
-      "maxDurationMs": 7200000
+      "maxDurationMs": 3600000
     }
   },
   "capture": {
-    "bufferSize": 500,
-    "flushInterval": 10000,
-    "immediateFlush": true
+    "bufferSize": 200,
+    "flushInterval": 30000,
+    "minConfidenceForCapture": 0.7
   },
   "metrics": {
-    "retentionDays": 90,
+    "retentionDays": 30,
     "alertThresholds": {
       "successRateDrop": 15,
       "completionTimeIncrease": 20,
-      "coverageDrop": 15
+      "coverageDrop": 15,
+      "cacheHitRateTarget": 50,
+      "searchLatencyTargetMs": 1
     }
   },
-  "createdAt": "2025-12-29T13:03:38.969Z",
-  "updatedAt": "2025-12-29T19:15:00.000Z",
-  "rebuildStartedAt": "2025-12-29T19:15:00.000Z"
+  "goapTargets": {
+    "cacheHitRate": 0.50,
+    "searchLatencyMs": 1,
+    "patternRetention": 0.98,
+    "loraMemoryMB": 300
+  },
+  "createdAt": "2026-01-12T13:14:47.679Z",
+  "updatedAt": "2026-01-12T18:00:00.000Z"
 }

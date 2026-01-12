@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: AY-E001 Celebrity Collections Discovery & Engagement Hub</title>
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    .meta-info { display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-human { background: #f3e8ff; color: #7c3aed; font-weight: 600; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-accessibility { background: #ecfeff; color: #0e7490; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-data { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .bar-interfaces { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-platform { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-operations { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-time { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .toc { background: var(--bg-white); padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    .cat-structure { border-left-color: #3b82f6; }
+    .cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .cat-structure .category-content { background: #f8faff; }
+    .cat-structure .badge { background: #3b82f6; color: white; }
+    .cat-function { border-left-color: #10b981; }
+    .cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .cat-function .category-content { background: #f8fdfb; }
+    .cat-function .badge { background: #10b981; color: white; }
+    .cat-data { border-left-color: #f59e0b; }
+    .cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .cat-data .category-content { background: #fffdf8; }
+    .cat-data .badge { background: #f59e0b; color: white; }
+    .cat-interfaces { border-left-color: #8b5cf6; }
+    .cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .cat-interfaces .category-content { background: #faf9ff; }
+    .cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .cat-platform { border-left-color: #14b8a6; }
+    .cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .cat-platform .category-content { background: #f8fefd; }
+    .cat-platform .badge { background: #14b8a6; color: white; }
+    .cat-operations { border-left-color: #6366f1; }
+    .cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .cat-operations .category-content { background: #f8f9ff; }
+    .cat-operations .badge { background: #6366f1; color: white; }
+    .cat-time { border-left-color: #ec4899; }
+    .cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .cat-time .category-content { background: #fefafc; }
+    .cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .info-section { background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px; }
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .collapse-icon { transition: transform 0.2s; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+  </style>
+  <script>
+    function filterTable(tableId) {
+      var table = document.getElementById(tableId);
+      var filters = table.querySelectorAll('.filter-input, .filter-select');
+      var rows = table.querySelectorAll('tbody tr');
+      rows.forEach(function(row) {
+        var show = true;
+        filters.forEach(function(filter) {
+          var col = parseInt(filter.dataset.col);
+          var cell = row.cells[col];
+          if (cell) {
+            var text = cell.textContent.toLowerCase();
+            var val = filter.value.toLowerCase();
+            if (val && text.indexOf(val) === -1) { show = false; }
+          }
+        });
+        row.style.display = show ? '' : 'none';
+      });
+    }
+    function toggleAllSections() {
+      var sections = document.querySelectorAll('.category-section');
+      var btn = document.getElementById('toggle-all-btn');
+      var shouldCollapse = btn.textContent === 'Collapse All';
+      sections.forEach(function(s) {
+        if (shouldCollapse) { s.classList.add('collapsed'); }
+        else { s.classList.remove('collapsed'); }
+      });
+      btn.textContent = shouldCollapse ? 'Expand All' : 'Collapse All';
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors assessment of: AY-E001 Celebrity Collections Discovery & Engagement Hub</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2026-01-12</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>127</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px;">
+        <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
+        <div class="toc-nav">
+          <a href="#risk">Prioritization</a>
+          <a href="#charts">Overview</a>
+          <span class="toc-divider">|</span>
+          <span style="color: var(--text-muted); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#structure">Structure <span class="count">18</span></a>
+          <a href="#function">Function <span class="count">32</span></a>
+          <a href="#data">Data <span class="count">19</span></a>
+          <a href="#interfaces">Interfaces <span class="count">24</span></a>
+          <a href="#platform">Platform <span class="count">12</span></a>
+          <a href="#operations">Operations <span class="count">12</span></a>
+          <a href="#time">Time <span class="count">10</span></a>
+        </div>
+      </nav>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#9660;</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#9660;</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#9660;</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">&#9744; <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">&#9744; <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>&#9744; <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> considering:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>Revenue from celebrity collections (2-3x higher margin), brand differentiation vs. Zalando, creator relationship damage</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Social media API rate limits, push notification delivery, countdown timer accuracy, real-time inventory sync</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>Homepage prominence (above fold), high-value fashion shoppers, influencer followers expecting exclusive access</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Security and Compliance</strong><br>GDPR for German market, creator content licensing, Instagram/TikTok API terms, push notification consent</div>
+      </div>
+      <h3 style="font-size: 1rem; margin: 20px 0 12px 0;">Priority Legend</h3>
+      <table>
+        <thead><tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr></thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Security vulnerabilities, privacy violations, complete feature failure blocking launch</td><td>Push notifications without consent, creator content displayed without rights, inventory showing sold-out items as available</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core celebrity hub functionality, major user journey failures, brand reputation impact</td><td>Carousel not loading, follow button not working, countdown timer incorrect, drop notifications not sent</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Secondary features, degraded experience with workarounds available</td><td>BTS content not loading, calendar integration issues, carousel animation glitches</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, cosmetic issues, rarely used features</td><td>Minor styling inconsistencies, rare browser combinations, edge timezone scenarios</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            <div class="bar-row"><div class="bar-label">Structure</div><div class="bar-track"><div class="bar-fill bar-structure" style="width: 56.3%"></div></div><div class="bar-value">18</div></div>
+            <div class="bar-row"><div class="bar-label">Function</div><div class="bar-track"><div class="bar-fill bar-function" style="width: 100.0%"></div></div><div class="bar-value">32</div></div>
+            <div class="bar-row"><div class="bar-label">Data</div><div class="bar-track"><div class="bar-fill bar-data" style="width: 59.4%"></div></div><div class="bar-value">19</div></div>
+            <div class="bar-row"><div class="bar-label">Interfaces</div><div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 75.0%"></div></div><div class="bar-value">24</div></div>
+            <div class="bar-row"><div class="bar-label">Platform</div><div class="bar-track"><div class="bar-fill bar-platform" style="width: 37.5%"></div></div><div class="bar-value">12</div></div>
+            <div class="bar-row"><div class="bar-label">Operations</div><div class="bar-track"><div class="bar-fill bar-operations" style="width: 37.5%"></div></div><div class="bar-value">12</div></div>
+            <div class="bar-row"><div class="bar-label">Time</div><div class="bar-track"><div class="bar-fill bar-time" style="width: 31.3%"></div></div><div class="bar-value">10</div></div>
+          </div>
+          <div class="chart-total"><span>Product Factors: 7/7</span><span style="font-weight: 700; color: var(--primary);">127 Test Ideas</span></div>
+        </div>
+        <div class="chart-panel">
+          <h3>Test Ideas by Priority</h3>
+          <div class="bar-chart">
+            <div class="bar-row"><div class="bar-label">P0 - Critical</div><div class="bar-track"><div class="bar-fill bar-p0" style="width: 17.4%"></div></div><div class="bar-value">11</div></div>
+            <div class="bar-row"><div class="bar-label">P1 - High</div><div class="bar-track"><div class="bar-fill bar-p1" style="width: 100.0%"></div></div><div class="bar-value">63</div></div>
+            <div class="bar-row"><div class="bar-label">P2 - Medium</div><div class="bar-track"><div class="bar-fill bar-p2" style="width: 65.1%"></div></div><div class="bar-value">41</div></div>
+            <div class="bar-row"><div class="bar-label">P3 - Low</div><div class="bar-track"><div class="bar-fill bar-p3" style="width: 19.0%"></div></div><div class="bar-value">12</div></div>
+          </div>
+          <h4 style="font-size: 0.85rem; color: var(--text-dark); margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px solid var(--border);">Test Ideas by Automation Fitness</h4>
+          <div class="bar-chart" style="font-size: 0.85rem;">
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">API level</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 56.9%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">29</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">E2E level</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 100.0%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">51</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Integration</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 58.8%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">30</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Human</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 9.8%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">5</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Performance</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 11.8%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">6</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Security</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 5.9%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">3</div></div>
+            <div class="bar-row"><div class="bar-label" style="min-width: 100px;">Accessibility</div><div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 5.9%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div><div class="bar-value" style="font-size: 0.8rem;">3</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="test-ideas">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary);">
+        <h2 style="margin: 0; border: none; padding: 0;">Test Ideas by Product Factor</h2>
+        <button onclick="toggleAllSections()" id="toggle-all-btn" style="background: var(--bg-light); border: 1px solid var(--border); padding: 6px 14px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">Collapse All</button>
+      </div>
+
+      <!-- STRUCTURE -->
+      <div class="category-section cat-structure" id="structure">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>STRUCTURE: Test ideas for everything that comprises the physical product <span class="badge">18</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-structure">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-structure')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-structure')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-STRU-A1B2C3D4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Verify CelebrityCarousel.tsx component renders correctly with celebrity collection data</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-B2C3D4E5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Verify FollowCreatorButton.tsx integrates with user authentication state</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-C3D4E5F6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Verify BTSContentModule.tsx loads behind-the-scenes video content</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-D4E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Verify AddToCalendarButton.tsx generates correct ICS/Google Calendar links</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Code</span></td><td>Verify ShoppableMedia.tsx displays quick-add overlay on product hover</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Service</span></td><td>Verify Celebrity Collection API service starts and passes health checks</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-G7H8I9J0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Service</span></td><td>Verify CreatorNotificationService.ts correctly queues push notifications</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-H8I9J0K1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Service</span></td><td>Verify Content Scheduling System activates drops at correct times</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-I9J0K1L2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Dependencies</span></td><td>Verify Instagram Graph API client handles authentication and token refresh</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-J0K1L2M3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Dependencies</span></td><td>Verify TikTok Display API integration embeds videos correctly</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-K1L2M3N4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Dependencies</span></td><td>Verify Firebase/OneSignal push notification SDK initialization</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-L2M3N4O5</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Verify animation framework respects prefers-reduced-motion media query</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-M3N4O5P6</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Verify lazy-loaded video backgrounds do not block initial page render</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-STRU-N4O5P6Q7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Code</span></td><td>Verify React component library maintains consistent branding per creator</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-O5P6Q7R8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Service</span></td><td>Verify real-time inventory API returns accurate stock for featured items</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-P6Q7R8S9</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Dependencies</span></td><td>Verify fallback behavior when Instagram Graph API rate limit exceeded</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-Q7R8S9T0</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Dependencies</span></td><td>Verify TikTok Display API graceful degradation on embed failure</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-STRU-R8S9T0U1</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Collateral</span></td><td>Verify API documentation covers all celebrity collection endpoints</td><td><span class="automation automation-human">Human testers must explore</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>celebrity carousel, follow functionality, and social media integration</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Hardware]</h5>
+              <p class="rationale"><em>Rationale: Video-heavy content may have device requirements not specified.</em></p>
+              <ul>
+                <li>What are the minimum device specifications for smooth video playback in hero sections?</li>
+                <li>Should video backgrounds be disabled on low-memory devices?</li>
+                <li>Are there CDN edge locations optimized for German/European users?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[NonExecutable]</h5>
+              <p class="rationale"><em>Rationale: Feature flags and configuration for gradual rollout are not detailed.</em></p>
+              <ul>
+                <li>Are there feature flags to enable/disable specific celebrity collections?</li>
+                <li>What configuration controls the carousel order and featured creators?</li>
+                <li>How is the "NEW" badge duration configured (48 hours mentioned)?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FUNCTION -->
+      <div class="category-section cat-function" id="function">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>FUNCTION: Test ideas for everything that the product does <span class="badge">32</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-function">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-function')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-function')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-FUNC-A1B2C3D4</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">SecurityRelated</span></td><td>Verify push notifications require explicit user consent before sending</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-B2C3D4E5</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">SecurityRelated</span></td><td>Verify creator content syndication respects licensing agreements</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-C3D4E5F6</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">SecurityRelated</span></td><td>Verify GDPR-compliant data handling for follow/notification preferences</td><td><span class="automation automation-security">Security testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-D4E5F6G7</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">BusinessRules</span></td><td>Verify inventory shows accurate stock levels for featured drop items</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">BusinessRules</span></td><td>Verify Celebrity Collections carousel appears within first 2 scroll depths on mobile</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">BusinessRules</span></td><td>Verify upcoming drop within 7 days shows countdown timer on collection card</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-G7H8I9J0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">BusinessRules</span></td><td>Verify logged-in user following Lena Gercke sees LeGer collection first in carousel</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-H8I9J0K1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">BusinessRules</span></td><td>Verify non-logged-in users see collections sorted by popularity/recency</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-I9J0K1L2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">BusinessRules</span></td><td>Verify collection launched within 48 hours displays "NEW" badge</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-J0K1L2M3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify Follow button appears on celebrity collection page and carousel card</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-K1L2M3N4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify clicking Follow shows visual confirmation and button changes to "Following"</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-L2M3N4O5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify email notification sent 24h before followed creator's drop</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-M3N4O5P6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify push notification sent 1h before drop (if enabled by user)</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-N4O5P6Q7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify "My Creators" page shows all followed creators with next drop dates</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-O5P6Q7R8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify followed creator content is prioritized in homepage sections</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-P6Q7R8S9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify Add to Calendar offers Google, Apple, and Outlook options</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-Q7R8S9T0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify calendar event includes collection name, launch time, and direct link</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-R8S9T0U1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify Behind the Collection section displays when BTS content exists</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-S9T0U1V2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Features</span></td><td>Verify quick-add to basket appears on hover/tap for visible items in BTS content</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-T0U1V2W3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ErrorHandling</span></td><td>Verify graceful degradation when Instagram API is unavailable</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-U1V2W3X4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ErrorHandling</span></td><td>Verify carousel displays fallback content when celebrity API fails</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-V2W3X4Y5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ErrorHandling</span></td><td>Verify follow action retry logic on network failure</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-W3X4Y5Z6</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Features</span></td><td>Verify Instagram Reels appear in BTS section when syndication rights exist</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-X4Y5Z6A7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Features</span></td><td>Verify watching >50% of BTS video shows related products from that collection</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-Y5Z6A7B8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Features</span></td><td>Verify "Read More" shows editorial-style article with shoppable looks</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-Z6A7B8C9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Features</span></td><td>Verify banner reminder appears for logged-in users around drop launch time</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-A7B8C9D0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Features</span></td><td>Verify sold-out collection link still works and shows available items with restock notification</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-B8C9D0E1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Features</span></td><td>Verify each celebrity collection maintains distinct visual identity</td><td><span class="automation automation-human">Human testers must explore</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-C9D0E1F2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">ErrorHandling</span></td><td>Verify push notification failure does not block email notification</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-D0E1F2G3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">ErrorHandling</span></td><td>Verify TikTok embed failure shows placeholder with link to TikTok</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-E1F2G3H4</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Features</span></td><td>Verify unfollow functionality removes creator from "My Creators" page</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-FUNC-F2G3H4I5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Features</span></td><td>Verify cross-linking to creator's Instagram from collection page</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>carousel display, follow/notification system, and BTS content</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Calculations]</h5>
+              <p class="rationale"><em>Rationale: Sorting algorithms for carousel and popularity metrics are not specified.</em></p>
+              <ul>
+                <li>How is "popularity" calculated for sorting non-logged-in user carousel?</li>
+                <li>What algorithm determines "recency" - launch date or last update?</li>
+                <li>How are followed creators prioritized when user follows multiple?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Testability]</h5>
+              <p class="rationale"><em>Rationale: Notification timing and social media integration are difficult to verify.</em></p>
+              <ul>
+                <li>How can QA test 24h and 1h notification timing without waiting?</li>
+                <li>Is there a test mode for Firebase/OneSignal push notifications?</li>
+                <li>Can Instagram/TikTok API responses be mocked for testing?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA -->
+      <div class="category-section cat-data" id="data">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>DATA: Test ideas for everything that the product processes <span class="badge">19</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-data">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-data')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-data')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-data')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-DATA-A1B2C3D4</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Input</span></td><td>Verify API sanitizes creator IDs to prevent injection attacks</td><td><span class="automation automation-security">Security testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-DATA-B2C3D4E5</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">Persistence</span></td><td>Verify user follow preferences are stored securely and encrypted</td><td><span class="automation automation-security">Security testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-DATA-C3D4E5F6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Input</span></td><td>Verify GET /api/v2/collections/celebrity?featured=true&limit=8 returns correct data</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-D4E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Input</span></td><td>Verify POST /api/v2/user/follows/creator/{creatorId} validates creatorId format</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Input</span></td><td>Verify DELETE /api/v2/user/follows/creator/{creatorId} handles non-existent follows</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Input</span></td><td>Verify GET /api/v2/user/follows/creators returns all followed creators</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-G7H8I9J0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Output</span></td><td>Verify celebrity collection API returns creator name, collection status, launch date</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-H8I9J0K1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Output</span></td><td>Verify carousel card data includes image URL, countdown, and follow status</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-I9J0K1L2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Output</span></td><td>Verify calendar event ICS format is valid and includes all required fields</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-J0K1L2M3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Persistence</span></td><td>Verify follow relationships persist across user sessions</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-K1L2M3N4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Persistence</span></td><td>Verify notification preferences sync with user account settings</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-L2M3N4O5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Persistence</span></td><td>Verify scheduled drop dates are stored with correct timezone (CET/CEST)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-M3N4O5P6</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Boundaries</span></td><td>Verify carousel handles 0 celebrity collections gracefully</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-N4O5P6Q7</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Boundaries</span></td><td>Verify carousel pagination when more than 8 collections exist</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-O5P6Q7R8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Boundaries</span></td><td>Verify user can follow maximum allowed creators (what is limit?)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-P6Q7R8S9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Boundaries</span></td><td>Verify countdown timer handles exact 7-day boundary correctly</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-Q7R8S9T0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Output</span></td><td>Verify BTS content metadata includes video duration and product tags</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-R8S9T0U1</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Boundaries</span></td><td>Verify very long creator names display correctly without overflow</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-DATA-S9T0U1V2</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Input</span></td><td>Verify API handles unicode characters in collection names (German umlauts)</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>follow API endpoints, calendar integration, and collection data</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[GDPR/Privacy]</h5>
+              <p class="rationale"><em>Rationale: German market requires strict GDPR compliance for user tracking.</em></p>
+              <ul>
+                <li>How long is follow/notification preference data retained?</li>
+                <li>Can users export their followed creators data (GDPR right to portability)?</li>
+                <li>What happens to follow data when a user deletes their account?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[DataQuality]</h5>
+              <p class="rationale"><em>Rationale: Creator content from social media may have quality/freshness issues.</em></p>
+              <ul>
+                <li>How often is Instagram/TikTok content refreshed in the BTS section?</li>
+                <li>What happens if a creator's social media account is suspended?</li>
+                <li>How are broken links to creator content handled?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INTERFACES -->
+      <div class="category-section cat-interfaces" id="interfaces">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>INTERFACES: Test ideas for how the product connects to other things <span class="badge">24</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-interfaces">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-interfaces')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-interfaces')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-INTF-A1B2C3D4</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify carousel is keyboard navigable with arrow keys (accessibility requirement)</td><td><span class="automation automation-accessibility">Accessibility testing required</span></td></tr>
+              <tr><td class="test-id">TC-INTF-B2C3D4E5</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify each card has aria-label with creator name and collection status</td><td><span class="automation automation-accessibility">Accessibility testing required</span></td></tr>
+              <tr><td class="test-id">TC-INTF-C3D4E5F6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify Celebrity Collections module appears above fold on desktop</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-D4E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify carousel swipe/scroll interaction on mobile</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify countdown timer updates in real-time without page refresh</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify Follow button is visually distinct and follows ABOUT YOU design system</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-G7H8I9J0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify BTS video player has standard controls (play, pause, mute, fullscreen)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-H8I9J0K1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify collection launch reveal animation is smooth (60fps)</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-INTF-I9J0K1L2</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Verify Instagram Graph API authentication with OAuth 2.0</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-J0K1L2M3</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Verify TikTok Display API oEmbed endpoint returns valid embed HTML</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-K1L2M3N4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Verify Firebase Cloud Messaging delivers notifications to registered devices</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-L2M3N4O5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">APIs</span></td><td>Verify Google Calendar API creates events with correct timezone</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-M3N4O5P6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">IntegrationPoints</span></td><td>Verify analytics events fire: celebrity_carousel_view, celebrity_carousel_scroll, celebrity_card_click</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-N4O5P6Q7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">IntegrationPoints</span></td><td>Verify follow events tracked for conversion attribution</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-O5P6Q7R8</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify loading skeletons display while carousel data fetches</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-P6Q7R8S9</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify carousel navigation dots/arrows for non-touch devices</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-Q7R8S9T0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify each creator's visual identity is maintained (brand colors, fonts)</td><td><span class="automation automation-human">Human testers must explore</span></td></tr>
+              <tr><td class="test-id">TC-INTF-R8S9T0U1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">APIs</span></td><td>Verify Apple Calendar ICS file download works correctly</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-S9T0U1V2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">APIs</span></td><td>Verify Outlook calendar link opens with pre-filled event details</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-T0U1V2W3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">IntegrationPoints</span></td><td>Verify push notification click navigates to correct collection page</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-U1V2W3X4</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">IntegrationPoints</span></td><td>Verify email notification link tracks UTM parameters</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-V2W3X4Y5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify hover states on carousel cards match design specs</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-INTF-W3X4Y5Z6</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">UserInterface</span></td><td>Verify focus indicators visible for keyboard navigation</td><td><span class="automation automation-accessibility">Accessibility testing required</span></td></tr>
+              <tr><td class="test-id">TC-INTF-X4Y5Z6A7</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">APIs</span></td><td>Verify OneSignal backup works when Firebase unavailable</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>carousel UI, social media APIs, and push notifications</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Accessibility]</h5>
+              <p class="rationale"><em>Rationale: Carousel and video content have specific accessibility requirements.</em></p>
+              <ul>
+                <li>Are video backgrounds required to have captions/transcripts?</li>
+                <li>How do screen readers announce countdown timer updates?</li>
+                <li>Is there an alternative view for users who cannot see carousels?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Internationalization]</h5>
+              <p class="rationale"><em>Rationale: German market primary but expansion may be planned.</em></p>
+              <ul>
+                <li>Are push notification messages localized for German users?</li>
+                <li>How do countdown timers handle different timezone displays?</li>
+                <li>Are Instagram/TikTok content captions translated?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PLATFORM -->
+      <div class="category-section cat-platform" id="platform">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>PLATFORM: Test ideas for what the product depends upon <span class="badge">12</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-platform">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-platform')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-platform')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-platform')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-PLAT-A1B2C3D4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Browser</span></td><td>Verify carousel works on Chrome, Firefox, Safari, Edge (latest versions)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-B2C3D4E5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Browser</span></td><td>Verify video backgrounds play correctly across browsers</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-C3D4E5F6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Device</span></td><td>Verify carousel touch interactions on iOS Safari</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-D4E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Device</span></td><td>Verify carousel touch interactions on Android Chrome</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Device</span></td><td>Verify push notifications on iOS (requires user permission)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Device</span></td><td>Verify push notifications on Android devices</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-G7H8I9J0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ExternalSystems</span></td><td>Verify Instagram Graph API handles rate limiting (200 calls/user/hour)</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-H8I9J0K1</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ExternalSystems</span></td><td>Verify TikTok API compliance with display guidelines</td><td><span class="automation automation-human">Human testers must explore</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-I9J0K1L2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Browser</span></td><td>Verify carousel functions on Safari iOS WebView (ABOUT YOU app)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-J0K1L2M3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Device</span></td><td>Verify responsive layout on tablet devices (iPad, Galaxy Tab)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-K1L2M3N4</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Browser</span></td><td>Verify graceful degradation on older browsers (IE11 not supported message)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-PLAT-L2M3N4O5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">ExternalSystems</span></td><td>Verify calendar integration with less common clients (Thunderbird, ProtonCalendar)</td><td><span class="automation automation-human">Human testers must explore</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>cross-browser compatibility and social media APIs</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Infrastructure]</h5>
+              <p class="rationale"><em>Rationale: Video content and real-time updates have infrastructure requirements.</em></p>
+              <ul>
+                <li>What CDN is used for video backgrounds and what are cache TTLs?</li>
+                <li>How is the notification scheduling service scaled for drop events?</li>
+                <li>What happens if Instagram/TikTok APIs have extended outages?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Network]</h5>
+              <p class="rationale"><em>Rationale: Mobile users may have varying network conditions.</em></p>
+              <ul>
+                <li>How does the carousel perform on slow 3G connections?</li>
+                <li>Are video backgrounds disabled on metered connections?</li>
+                <li>What is the fallback when BTS content cannot be loaded?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPERATIONS -->
+      <div class="category-section cat-operations" id="operations">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>OPERATIONS: Test ideas for how the product is used <span class="badge">12</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-operations">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-operations')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-operations')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-operations')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-OPER-A1B2C3D4</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">CommonUse</span></td><td>Verify Lena (persona) discovers LeGer collection and follows creator from homepage</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-B2C3D4E5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">CommonUse</span></td><td>Verify Martina (persona) follows Guido Maria Kretschmer and sets notification</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-C3D4E5F6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">CommonUse</span></td><td>Verify Sophie (persona) explores BTS content and adds items to cart</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-D4E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">CommonUse</span></td><td>Verify Jan (persona) adds collection drop to Google Calendar</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ExtremeUse</span></td><td>Verify system handles traffic spike at exact drop launch time</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-OPER-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">ExtremeUse</span></td><td>Verify notification delivery when 10,000+ users follow same creator</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-OPER-G7H8I9J0</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Users</span></td><td>Verify new user without follows sees popular/recent collections</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-H8I9J0K1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Users</span></td><td>Verify user following multiple creators sees balanced prioritization</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-I9J0K1L2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Disruptive</span></td><td>Verify hub displays gracefully when no active celebrity collections exist</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-J0K1L2M3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Disruptive</span></td><td>Verify system recovery after notification service outage</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-K1L2M3N4</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">CommonUse</span></td><td>Verify user journey from notification click to purchase completion</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-OPER-L2M3N4O5</td><td><span class="priority priority-p3">P3</span></td><td><span class="subcategory">Users</span></td><td>Verify creator exclusivity conflicts are handled (staggered rollout)</td><td><span class="automation automation-human">Human testers must explore</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>follower journeys and drop events</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Analytics]</h5>
+              <p class="rationale"><em>Rationale: Success metrics defined but tracking implementation not specified.</em></p>
+              <ul>
+                <li>How do we track the 40% increase in collection page visits target?</li>
+                <li>How is the 15% creator follow rate measured (within 3 months)?</li>
+                <li>What defines "purchase within 48h" for drop notification conversion?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[ContentFreshness]</h5>
+              <p class="rationale"><em>Rationale: Risk of hub feeling stale between drops identified.</em></p>
+              <ul>
+                <li>What content fills the hub between major collection launches?</li>
+                <li>How are styling tips and archive looks curated and scheduled?</li>
+                <li>What is the minimum content update frequency?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIME -->
+      <div class="category-section cat-time" id="time">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>TIME: Test ideas for when things happen <span class="badge">10</span></h3>
+          <span class="collapse-icon">-</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-time">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-time')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-time')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-time')"><option value="">All</option><option value="API">API level</option><option value="E2E">E2E level</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="test-id">TC-TIME-A1B2C3D4</td><td><span class="priority priority-p0">P0</span></td><td><span class="subcategory">ResponseTime</span></td><td>Verify carousel loads within 2 seconds on 4G connection</td><td><span class="automation automation-performance">Performance testing recommended</span></td></tr>
+              <tr><td class="test-id">TC-TIME-B2C3D4E5</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Scheduling</span></td><td>Verify countdown timer shows exact 7-day window for upcoming drops</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-C3D4E5F6</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Scheduling</span></td><td>Verify email notification sent exactly 24 hours before drop</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-D4E5F6G7</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Scheduling</span></td><td>Verify push notification sent exactly 1 hour before drop</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-E5F6G7H8</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Realtime</span></td><td>Verify countdown timer updates in real-time (not stale)</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-F6G7H8I9</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Realtime</span></td><td>Verify collection goes live at exact scheduled launch time</td><td><span class="automation automation-integration">Automate on Integration level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-G7H8I9J0</td><td><span class="priority priority-p1">P1</span></td><td><span class="subcategory">Realtime</span></td><td>Verify "NEW" badge disappears after 48 hours post-launch</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-H8I9J0K1</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Timezone</span></td><td>Verify countdown displays correct time for CET/CEST timezone users</td><td><span class="automation automation-e2e">Automate on E2E level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-I9J0K1L2</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Timezone</span></td><td>Verify calendar events created in user's local timezone</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+              <tr><td class="test-id">TC-TIME-J0K1L2M3</td><td><span class="priority priority-p2">P2</span></td><td><span class="subcategory">Concurrency</span></td><td>Verify simultaneous follow/unfollow actions do not corrupt user state</td><td><span class="automation automation-api">Automate on API level</span></td></tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>countdown timers, notification scheduling, and drop timing</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[DST/Timezone]</h5>
+              <p class="rationale"><em>Rationale: German market uses CET/CEST with daylight saving transitions.</em></p>
+              <ul>
+                <li>How do countdown timers handle the CET/CEST transition dates?</li>
+                <li>Are drop times stored in UTC and converted for display?</li>
+                <li>What happens if a drop is scheduled during DST transition hour?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Latency]</h5>
+              <p class="rationale"><em>Rationale: Real-time updates and notifications have timing requirements.</em></p>
+              <ul>
+                <li>What is the acceptable latency for countdown timer updates?</li>
+                <li>What is the SLA for push notification delivery time?</li>
+                <li>How quickly must the collection page be available after launch time?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

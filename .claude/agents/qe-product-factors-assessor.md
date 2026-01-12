@@ -36,6 +36,7 @@ Mission: Analyze requirements using James Bach's HTSM Product Factors (SFDIPOT) 
 - Use vertical TOC instead of horizontal
 - Skip the bar charts section
 - Skip the Risk-Based Prioritization section
+- **TRUNCATE OR SUMMARIZE the 3 info sections** (How can this report help you?, When to generate?, How to use?) - these are HARDCODED and must be copied VERBATIM including all paragraphs, styling, and content
 
 **The reference file IS your template. Copy it. Replace only the data.**
 
@@ -43,6 +44,9 @@ Mission: Analyze requirements using James Bach's HTSM Product Factors (SFDIPOT) 
 - [ ] Header has `background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)`
 - [ ] Header text is WHITE
 - [ ] Info sections are INSIDE `<header>` tag with `rgba(255,255,255,0.1)` background
+- [ ] **"How can this report help you?" has 3 FULL paragraphs** (Weinberg quote + QCSD explanation + benefits + "doing things right")
+- [ ] **"When to generate?" mentions stakeholders** (programmers, Product Owners, Designers, Architects)
+- [ ] **"How to use?" has intro + 3 checkbox items + summary + italicized reminder**
 - [ ] TOC is HORIZONTAL with `.toc-nav` class and count badges
 - [ ] Risk-Based Prioritization section with 4 grid cards exists
 - [ ] Charts section has TWO columns with bar charts
@@ -213,32 +217,46 @@ Batch memory operations for storing assessment results and patterns.
   </nav>
 
   <!-- INFO SECTIONS - INSIDE HEADER with semi-transparent background -->
+  <!-- CRITICAL: Copy these sections EXACTLY - do NOT truncate or summarize -->
   <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
-    <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')">
-      <h3>How can this report help you?</h3>
-      <span class="collapse-icon">▼</span>
+    <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+      <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
     </div>
-    <div class="info-content">
-      <blockquote>"Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." — Jerry Weinberg</blockquote>
-      <p>In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions... using SFDIPOT from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd;">Heuristic Test Strategy Model</a> by James Bach...</p>
-      <p>Benefits: uncover hidden risks, assess completeness, create development plan, identify gaps, improve estimation, avoid rework.</p>
-    </div>
-  </div>
-
-  <div class="info-section collapsed" style="background: rgba(255,255,255,0.1);">
-    <div class="info-header" onclick="..."><h3>When to generate this report?</h3>...</div>
-    <div class="info-content">
-      <p>The sooner the better! As soon as testers can access Epic/User Stories... organize Product Coverage Session with stakeholders.</p>
+    <div class="info-content" style="padding: 0 20px 20px 20px;">
+      <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+        "Requirements are not an end in themselves, but a means to an end—the end of providing value to some person(s)." <span style="opacity: 0.7;">— Jerry Weinberg</span>
+      </blockquote>
+      <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+      <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+      <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
     </div>
   </div>
 
-  <div class="info-section collapsed" style="background: rgba(255,255,255,0.1);">
-    <div class="info-header" onclick="..."><h3>How to use this report?</h3>...</div>
-    <div class="info-content">
-      <div>☐ <strong>The Test Ideas</strong> - Review for context relevance...</div>
-      <div>☐ <strong>Automation Fitness</strong> - recommendations for automation strategy...</div>
-      <div>☐ <strong>The Clarifying Questions</strong> - surface "unknown unknowns"...</div>
-      <p><strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+  <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+    <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+      <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+    </div>
+    <div class="info-content" style="padding: 0 20px 20px 20px;">
+      <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+    </div>
+  </div>
+
+  <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+    <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+      <span class="collapse-icon" style="transition: transform 0.2s;">▼</span>
+    </div>
+    <div class="info-content" style="padding: 0 20px 20px 20px;">
+      <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+      <div style="margin-left: 5px; line-height: 1.8;">
+        <div style="margin-bottom: 8px;">☐ <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+        <div style="margin-bottom: 8px;">☐ <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+        <div>☐ <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+      </div>
+      <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+      <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
     </div>
   </div>
 </header>
