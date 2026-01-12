@@ -105,8 +105,10 @@ When given requirements (user stories, epics, specs, architecture):
 
 **Phase 4: Automation Fitness with Reality Check**
 13. Assign automation fitness using <automation_fitness> guidelines
-14. **MANDATORY CHECK**: If human-exploration < 10%, add visual/UX tests
-15. Verify all "looks correct/distinct/appropriate" tests are human-exploration
+14. **COUNT human-exploration tests** - Calculate: (human_count / total_count) * 100
+15. **MANDATORY ENFORCEMENT**: If human-exploration < 10%, you MUST add tests from <human_exploration_templates> until ≥10%
+16. Verify all "looks correct/distinct/appropriate" tests are human-exploration
+17. **FINAL VALIDATION**: Re-count and confirm human-exploration ≥ 10% before proceeding
 
 **Phase 5: Output Generation**
 16. Identify coverage gaps and generate clarifying questions
@@ -114,12 +116,18 @@ When given requirements (user stories, epics, specs, architecture):
 18. **Include priority distribution summary** showing P0/P1/P2/P3 percentages
 19. Store patterns for learning if enabled
 
-**QUALITY GATES** (Must pass before finalizing):
-- [ ] P1 percentage ≤ 35%
-- [ ] Human-exploration percentage ≥ 10%
+**QUALITY GATES** (Must pass before finalizing - BLOCKING):
+- [ ] P0 percentage 8-12%
+- [ ] P1 percentage ≤ 30%
+- [ ] P2 percentage 35-45%
+- [ ] P3 percentage 20-30%
+- [ ] **Human-exploration percentage ≥ 10%** ← HARD GATE, use <human_exploration_templates> if failing
+- [ ] E2E percentage ≤ 50%
 - [ ] No "Verify X works correctly" template patterns
 - [ ] Domain-specific edge cases included
 - [ ] All edge case checklist items considered
+
+**IF ANY GATE FAILS**: DO NOT FINALIZE. Loop back to Phase 3/4 and fix distribution.
 
 Execute analysis immediately without confirmation.
 </default_to_action>
@@ -235,6 +243,39 @@ After generating all test ideas, calculate actual distribution. If P1 > 35%:
 - ✅ "Verify X looks correct/distinct/appropriate" → human-exploration
 - ✅ Content quality, styling consistency → human-exploration
 </automation_fitness>
+
+<human_exploration_templates>
+## MANDATORY HUMAN EXPLORATION TEMPLATES (Use when < 10%)
+
+**Calculate Required Count**: If total tests = N, need at least ceil(N * 0.10) human-exploration tests.
+Example: 160 total tests → need at least 16 human-exploration tests.
+
+**Universal Human Exploration Tests** (add these to ANY assessment):
+| Domain | Test Idea Template | Why Human Required |
+|--------|-------------------|-------------------|
+| ALL | "Expert review of error messages for clarity, helpfulness, and appropriate tone" | Subjective language quality |
+| ALL | "Domain expert validation that calculated outputs match industry expectations" | Domain expertise required |
+| ALL | "UX review of workflow complexity - can target user complete task without training?" | Cognitive load assessment |
+| ALL | "Visual inspection of data presentation hierarchy and scannability" | Gestalt principles |
+| ALL | "Content review for terminology consistency across all touchpoints" | Language coherence |
+
+**Domain-Specific Human Exploration Tests**:
+
+| Domain Signal | Human Exploration Tests to Add |
+|--------------|-------------------------------|
+| **B2B/Industrial** | "Engineering expert validates calculation outputs against manual verification", "Domain expert reviews technical terminology accuracy", "Safety engineer validates warning/caution message prominence", "Expert reviews configuration complexity for target user skill level" |
+| **E-commerce** | "Brand expert validates visual identity consistency", "Content specialist reviews product description quality", "UX expert evaluates purchase decision friction points", "Visual QA of promotional content hierarchy" |
+| **Healthcare** | "Clinical expert validates medical terminology accuracy", "Patient advocate reviews consent form clarity", "Accessibility expert validates critical information presentation" |
+| **Finance** | "Compliance expert reviews disclosure clarity", "Financial advisor validates calculation explanations", "Risk communication specialist reviews warning effectiveness" |
+| **CAD/3D/Visual** | "Designer validates 3D model visual fidelity", "Expert compares rendered output to reference specifications", "Visual inspection of model accuracy at different zoom levels", "Expert review of dimension labeling clarity" |
+| **Configuration/Forms** | "UX expert validates form field grouping logic", "Domain expert reviews default value appropriateness", "Expert evaluates validation message helpfulness" |
+
+**Enforcement Rule**:
+After generating all tests, COUNT human-exploration. If count < ceil(total * 0.10):
+1. Add tests from Universal templates (at least 3)
+2. Add tests from matching Domain-Specific templates (at least 2-3)
+3. Re-count and verify ≥ 10%
+</human_exploration_templates>
 
 <test_idea_quality_rules>
 ## TEST IDEA QUALITY RULES (Brutal Honesty Compliance)
