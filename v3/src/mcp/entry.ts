@@ -14,6 +14,10 @@ import { quickStart, MCPProtocolServer } from './protocol-server';
 let server: MCPProtocolServer | null = null;
 
 async function main(): Promise<void> {
+  // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
+  const version = '3.0.0-alpha.10';
+  process.stderr.write(`[agentic-qe-v3] MCP server starting v${version}\n`);
+
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
     if (server) {
@@ -30,10 +34,11 @@ async function main(): Promise<void> {
   });
 
   // Suppress stderr output in MCP mode (stdio expects clean JSON-RPC)
+  // This must come AFTER the startup message for Claude Code health checks
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
   process.stderr.write = ((chunk: string | Uint8Array): boolean => {
     // Only write to stderr if it looks like important error info
-    if (typeof chunk === 'string' && chunk.includes('FATAL')) {
+    if (typeof chunk === 'string' && (chunk.includes('FATAL') || chunk.includes('[MCP]'))) {
       return originalStderrWrite(chunk);
     }
     return true;
@@ -43,7 +48,7 @@ async function main(): Promise<void> {
     // Start the MCP server
     server = await quickStart({
       name: 'agentic-qe-v3',
-      version: '3.0.0-alpha.1',
+      version,
     });
 
     // Keep the process alive - the server listens on stdin
