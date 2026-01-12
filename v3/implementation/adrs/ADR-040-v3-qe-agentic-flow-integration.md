@@ -1,6 +1,6 @@
 # ADR-040: V3 QE Agentic-Flow Deep Integration
 
-**Status**: Implemented
+**Status**: Implemented (with integration tests)
 **Date**: 2026-01-11 (Updated: 2026-01-12)
 **Author**: Claude Code
 
@@ -180,22 +180,45 @@ const QE_FLASH_ATTENTION_CONFIG = {
 
 ### New @ruvector Package Wrappers (2026-01-12)
 
-| Component | Path | Description |
-|-----------|------|-------------|
-| SONA Wrapper | `ruvector/sona-wrapper.ts` | QESONA class wrapping @ruvector/sona |
-| Attention Wrapper | `ruvector/attention-wrapper.ts` | QEFlashAttention wrapping @ruvector/attention |
-| GNN Wrapper | `ruvector/gnn-wrapper.ts` | QEGNNEmbeddingIndex wrapping @ruvector/gnn |
-| Wrappers Export | `ruvector/wrappers.ts` | Unified export of all @ruvector wrappers |
+| Component | Path | Lines | Tests | Description |
+|-----------|------|-------|-------|-------------|
+| SONA Wrapper | `ruvector/sona-wrapper.ts` | 890 | 37 | QESONA class wrapping @ruvector/sona |
+| Attention Wrapper | `ruvector/attention-wrapper.ts` | 620 | 31 | QEFlashAttention wrapping @ruvector/attention |
+| GNN Wrapper | `ruvector/gnn-wrapper.ts` | 310 | 13 | QEGNNEmbeddingIndex wrapping @ruvector/gnn |
+| Wrappers Export | `ruvector/wrappers.ts` | 50 | - | Unified export of all @ruvector wrappers |
+| **Total** | - | **1,870** | **81** | **Real integration tests** |
 
 ### Existing QE Implementations (Preserved)
 
-| Component | Path | Description |
-|-----------|------|-------------|
-| Custom SONA | `rl-suite/sona.ts` | Pattern learning with HNSW index (1,261 LOC) |
-| Flash Attention | `flash-attention/` | Memory-efficient attention (WASM-SIMD) |
-| RL Algorithms | `rl-suite/algorithms/` | 9 RL algorithms (Q-Learning, SARSA, etc.) |
-| Embeddings | `embeddings/` | HNSW-indexed embeddings for code/test patterns |
-| Neural Networks | `rl-suite/neural/` | Replay buffer, neural network utilities |
+| Component | Path | Lines | Tests | Description |
+|-----------|------|-------|-------|-------------|
+| Custom SONA | `rl-suite/sona.ts` | 1,261 | 83 | Pattern learning with HNSW index |
+| Flash Attention | `flash-attention/` | 650 | 20 | Memory-efficient attention (WASM-SIMD) |
+| RL Algorithms | `rl-suite/algorithms/` | 900+ | - | 9 RL algorithms (Q-Learning, SARSA, etc.) |
+| Embeddings | `embeddings/` | 800+ | 8 | HNSW-indexed embeddings for code/test patterns |
+| Neural Networks | `rl-suite/neural/` | 400+ | - | Replay buffer, neural network utilities |
+
+### Integration Tests (2026-01-12)
+
+Real integration tests verify actual @ruvector package functionality (no mocks):
+
+| Test Suite | File | Tests | Coverage |
+|-----------|------|-------|----------|
+| GNN Wrapper | `tests/integrations/ruvector/wrappers.test.ts` | 13 (+1 skip) | HNSW indexing, search, compression |
+| Attention Wrapper | `tests/integrations/ruvector/attention-wrapper.test.ts` | 31 | 7 strategies, 5 workloads, batch ops |
+| SONA Wrapper | `tests/integrations/ruvector/sona-wrapper.test.ts` | 37 | Pattern lifecycle, LoRA, learning |
+| **Total** | - | **81 (+1)** | **Conditional execution** |
+
+**Test Features:**
+- `describe.runIf()` - runs only when ARM64 binaries available
+- Helpful skip when binaries missing (references TESTING_LIMITATIONS.md)
+- Tests real native Rust/NAPI functionality
+- Performance verification for <0.05ms pattern adaptation target
+
+**Known Limitations:**
+- `hierarchicalForward` test skipped - native binding JSON serialization issue
+- Binaries must be built from source on ARM64 Linux
+- See `src/integrations/ruvector/TESTING_LIMITATIONS.md` for build instructions
 
 ### Usage Examples
 
@@ -293,8 +316,9 @@ const similarity = await fa.computeSimilarity(queryEmbedding, patterns);
 - **SONA pattern adaptation EXCEEDS targets**: 0.0099ms cached (5x faster than 0.05ms target), 0.0595ms cold search
 - 9 RL algorithms implemented for intelligent QE decisions
 - Unified embedding infrastructure with HNSW indexing
-- 3,487 passing tests (including 83 SONA integration tests)
+- **3,569 passing tests** (including 81 @ruvector integration tests)
 - Coverage-analysis workload shows 11x speedup (though below 50x-100x target)
+- **Real integration tests** verify native @ruvector functionality (not mocks)
 
 ### Negative
 
