@@ -1,6 +1,8 @@
 /**
  * Agentic QE v3 - Agent MCP Handlers
  * Agent listing, spawning, and management handlers
+ *
+ * ADR-039: Integrated with load balancer for intelligent agent selection
  */
 
 import { getFleetState, isFleetInitialized } from './core-handlers';
@@ -12,6 +14,7 @@ import {
 } from '../types';
 import { DomainName } from '../../shared/types';
 import { MetricsCollector } from '../metrics';
+import { getLoadBalancer } from '../load-balancer.js';
 
 // ============================================================================
 // Agent List Handler
@@ -111,6 +114,10 @@ export async function handleAgentSpawn(
         error: result.error.message,
       };
     }
+
+    // ADR-039: Register spawned agent with load balancer
+    const balancer = getLoadBalancer();
+    balancer.registerAgent(result.value);
 
     return {
       success: true,

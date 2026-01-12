@@ -2,6 +2,8 @@
  * Agentic QE v3 - MCP Protocol Server
  * Full MCP 2025-11-25 protocol implementation with stdio transport
  * Based on claude-flow MCP implementation
+ *
+ * ADR-039: Integrated with connection pooling, load balancing, and performance monitoring
  */
 
 import {
@@ -45,6 +47,22 @@ import {
   handleMemoryShare,
 } from './handlers';
 
+// ADR-039: Performance optimization imports
+import {
+  getConnectionPool,
+  initializeConnectionPool,
+  shutdownConnectionPool,
+  type PoolStats,
+} from './connection-pool';
+import {
+  getLoadBalancer,
+  type LoadBalancingStrategy,
+} from './load-balancer';
+import {
+  getPerformanceMonitor,
+  type PerformanceReport,
+} from './performance-monitor';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -86,6 +104,11 @@ export class MCPProtocolServer {
   private initialized = false;
   private clientInfo: { name: string; version: string } | null = null;
 
+  // ADR-039: Performance optimization components
+  private readonly pool = getConnectionPool();
+  private readonly balancer = getLoadBalancer();
+  private readonly monitor = getPerformanceMonitor();
+
   constructor(config: MCPServerConfig = {}) {
     this.config = {
       name: config.name ?? 'agentic-qe-v3',
@@ -108,6 +131,9 @@ export class MCPProtocolServer {
    * Start the MCP server
    */
   async start(): Promise<void> {
+    // Initialize ADR-039 components
+    await initializeConnectionPool();
+
     // Set up request handler
     this.transport.onRequest(async (request) => {
       return this.handleRequest(request);
@@ -131,6 +157,7 @@ export class MCPProtocolServer {
   async stop(): Promise<void> {
     this.transport.stop();
     await disposeFleet();
+    await shutdownConnectionPool();
     console.error('[MCP] Server stopped');
   }
 
@@ -152,6 +179,31 @@ export class MCPProtocolServer {
       name: this.config.name,
       version: this.config.version,
       protocolVersion: '2024-11-05', // MCP protocol version
+    };
+  }
+
+  /**
+   * Get performance stats (ADR-039)
+   */
+  getPerformanceStats(): {
+    pool: import('./connection-pool').PoolStats;
+    loadBalancer: ReturnType<import('./load-balancer').LoadBalancerImpl['getStats']>;
+    monitor: {
+      percentiles: import('./performance-monitor').LatencyPercentiles;
+      toolMetrics: import('./performance-monitor').ToolMetric[];
+    };
+  } {
+    const poolStats = this.pool.getStats();
+    const balancerStats = this.balancer.getStats();
+    const monitorPercentiles = this.monitor.getLatencyPercentiles();
+
+    return {
+      pool: poolStats,
+      loadBalancer: balancerStats,
+      monitor: {
+        percentiles: monitorPercentiles,
+        toolMetrics: Array.from(this.monitor.getAllToolMetrics().values()),
+      },
     };
   }
 
@@ -272,8 +324,14 @@ export class MCPProtocolServer {
       };
     }
 
+    // ADR-039: Track tool invocation with performance monitoring
+    const startTime = performance.now();
+    let success = false;
+
     try {
       const result = await tool.handler(args);
+      success = true;
+
       return {
         content: [
           {
@@ -292,6 +350,10 @@ export class MCPProtocolServer {
           },
         ],
       };
+    } finally {
+      // Record actual MCP tool execution latency
+      const latency = performance.now() - startTime;
+      this.monitor.recordLatency(name, latency, success);
     }
   }
 
