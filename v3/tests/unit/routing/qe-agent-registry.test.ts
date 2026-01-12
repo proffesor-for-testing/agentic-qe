@@ -18,14 +18,15 @@ import type { QEDomain } from '../../../src/learning/qe-patterns.js';
 
 describe('QE Agent Registry', () => {
   describe('Registry Contents', () => {
-    it('should have 80 agents total', () => {
-      expect(QE_AGENT_REGISTRY.length).toBe(80);
+    it('should have 92 agents total', () => {
+      expect(QE_AGENT_REGISTRY.length).toBe(92);
     });
 
     it('should have correct agent counts by category', () => {
       const counts = getAgentCounts();
-      expect(counts.total).toBe(80);
-      expect(counts.v3QE).toBeGreaterThan(30);
+      expect(counts.total).toBe(92);
+      expect(counts.v3QE).toBeGreaterThanOrEqual(40);
+      expect(counts.v3QESubagents).toBe(7);
       expect(counts.n8n).toBeGreaterThan(10);
       expect(counts.general).toBeGreaterThan(5);
     });
@@ -65,9 +66,9 @@ describe('QE Agent Registry', () => {
 
   describe('getAgentById', () => {
     it('should find agent by ID', () => {
-      const agent = getAgentById('qe-test-generator');
+      const agent = getAgentById('v3-qe-tdd-specialist');
       expect(agent).toBeDefined();
-      expect(agent?.name).toBe('QE Test Generator');
+      expect(agent?.name).toBe('V3 QE TDD Specialist');
     });
 
     it('should return undefined for unknown ID', () => {
@@ -163,12 +164,12 @@ describe('QE Agent Registry', () => {
 
     it('should find agents for medium complexity', () => {
       const agents = getAgentsByComplexity('medium');
-      expect(agents.length).toBeGreaterThan(30);
+      expect(agents.length).toBeGreaterThan(40);
     });
 
     it('should find agents for complex tasks', () => {
       const agents = getAgentsByComplexity('complex');
-      expect(agents.length).toBeGreaterThan(40);
+      expect(agents.length).toBeGreaterThan(50);
     });
 
     it('should have progressively fewer agents for simple vs complex', () => {

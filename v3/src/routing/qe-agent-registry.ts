@@ -1,17 +1,25 @@
 /**
  * QE Agent Registry
  * ADR-022: Adaptive QE Agent Routing
+ * ADR-037: V3 QE Agent Naming Standardization
  *
- * Registry of all 80 QE agents with their capabilities, domains, and performance metrics.
+ * Registry of all 90+ QE agents with their capabilities, domains, and performance metrics.
  * This registry is used by the QETaskRouter to select the optimal agent for each task.
  *
  * Agent Categories:
- * - V3 QE Agents (35): Core quality engineering agents
+ * - V3 QE Agents (47): Core quality engineering agents with v3-qe-* prefix
+ * - V3 QE Subagents (7): Specialized QE subagents with v3-qe-* prefix
  * - n8n Agents (15): n8n workflow testing agents
  * - General Agents (7): Versatile general-purpose agents
- * - V3 Specialized (11): Advanced v3-specific agents
+ * - V3 Specialized (12): Advanced v3-specific agents (no v3-qe prefix)
  * - Swarm Agents (8): Multi-agent coordination
  * - Consensus Agents (4): Distributed consensus protocols
+ *
+ * Naming Convention:
+ * - V3 QE Domain Agents: v3-qe-{domain}-{specialty} (e.g., v3-qe-test-architect)
+ * - V3 QE Subagents: v3-qe-{domain}-{subagent-type} (e.g., v3-qe-tdd-red)
+ * - V3 Specialized: {name} (cross-cutting, no v3-qe prefix, e.g., memory-specialist)
+ * - Legacy/V2 Compatibility: qe-* (deprecated, use v3-qe-* instead)
  */
 
 import type {
@@ -44,53 +52,21 @@ function createAgentProfile(
 
 // ============================================================================
 // V3 QE Agents (Core Quality Engineering)
+// ADR-037: All V3 QE domain agents use v3-qe-* prefix
 // ============================================================================
 
 const v3QEAgents: QEAgentProfile[] = [
   // Test Generation Domain
   createAgentProfile({
-    id: 'qe-test-generator',
-    name: 'QE Test Generator',
-    description: 'AI-powered test generation with sublinear optimization and multi-framework support',
+    id: 'v3-qe-tdd-specialist',
+    name: 'V3 QE TDD Specialist',
+    description: 'V3 QE TDD specialist covering RED, GREEN, REFACTOR phases with comprehensive test-driven development support',
     domains: ['test-generation'],
-    capabilities: ['test-generation', 'unit-test', 'integration-test', 'e2e-test', 'tdd', 'bdd'],
-    languages: ['typescript', 'javascript', 'python', 'java', 'go'],
-    frameworks: ['jest', 'vitest', 'pytest', 'junit', 'go-test'],
+    capabilities: ['test-generation', 'tdd', 'unit-test', 'test-quality'],
+    languages: ['typescript', 'javascript', 'python'],
+    frameworks: ['jest', 'vitest', 'pytest'],
     complexity: { min: 'simple', max: 'complex' },
-    tags: ['ai-powered', 'multi-framework'],
-  }),
-  createAgentProfile({
-    id: 'qe-test-writer',
-    name: 'TDD RED Phase Specialist',
-    description: 'TDD RED phase specialist - writes failing tests that define expected behavior before implementation',
-    domains: ['test-generation'],
-    capabilities: ['test-generation', 'tdd', 'unit-test'],
-    languages: ['typescript', 'javascript', 'python'],
-    frameworks: ['jest', 'vitest', 'pytest'],
-    complexity: { min: 'simple', max: 'medium' },
-    tags: ['tdd', 'red-phase'],
-  }),
-  createAgentProfile({
-    id: 'qe-test-implementer',
-    name: 'TDD GREEN Phase Specialist',
-    description: 'TDD GREEN phase specialist - implements minimal code to make failing tests pass',
-    domains: ['test-generation'],
-    capabilities: ['test-generation', 'tdd', 'unit-test'],
-    languages: ['typescript', 'javascript', 'python'],
-    frameworks: ['jest', 'vitest', 'pytest'],
-    complexity: { min: 'simple', max: 'medium' },
-    tags: ['tdd', 'green-phase'],
-  }),
-  createAgentProfile({
-    id: 'qe-test-refactorer',
-    name: 'TDD REFACTOR Phase Specialist',
-    description: 'TDD REFACTOR phase specialist - improves code quality while keeping all tests passing',
-    domains: ['test-generation'],
-    capabilities: ['test-generation', 'tdd', 'test-quality'],
-    languages: ['typescript', 'javascript', 'python'],
-    frameworks: ['jest', 'vitest', 'pytest'],
-    complexity: { min: 'medium', max: 'complex' },
-    tags: ['tdd', 'refactor-phase'],
+    tags: ['v3', 'tdd', 'red-green-refactor'],
   }),
   createAgentProfile({
     id: 'v3-qe-test-architect',
@@ -106,58 +82,38 @@ const v3QEAgents: QEAgentProfile[] = [
 
   // Test Execution Domain
   createAgentProfile({
-    id: 'qe-test-executor',
-    name: 'QE Test Executor',
-    description: 'Multi-framework test executor with parallel execution, retry logic, and real-time reporting',
+    id: 'v3-qe-parallel-executor',
+    name: 'V3 QE Parallel Executor',
+    description: 'V3 QE Parallel test executor with intelligent sharding, worker pool management, retry logic, and real-time reporting',
     domains: ['test-execution'],
     capabilities: ['test-orchestration', 'retry', 'flaky-detection'],
     languages: ['typescript', 'javascript', 'python', 'java', 'go'],
     frameworks: ['jest', 'vitest', 'pytest', 'junit', 'go-test', 'playwright', 'cypress'],
-    complexity: { min: 'simple', max: 'complex' },
-    tags: ['parallel', 'retry', 'reporting'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'parallel', 'retry', 'sharding'],
   }),
   createAgentProfile({
-    id: 'qe-flaky-test-hunter',
-    name: 'QE Flaky Test Hunter',
-    description: 'Detects, analyzes, and stabilizes flaky tests through pattern recognition and auto-remediation',
+    id: 'v3-qe-flaky-hunter',
+    name: 'V3 QE Flaky Hunter',
+    description: 'V3 QE Flaky test detection and stabilization through pattern recognition, auto-remediation, and retry orchestration',
     domains: ['test-execution'],
     capabilities: ['flaky-detection', 'test-stability', 'retry'],
     frameworks: ['jest', 'vitest', 'pytest', 'playwright', 'cypress'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['flaky', 'stability', 'remediation'],
+    tags: ['v3', 'flaky', 'stability', 'remediation'],
   }),
   createAgentProfile({
-    id: 'qe-flaky-investigator',
-    name: 'QE Flaky Investigator',
-    description: 'Detects flaky tests, analyzes root causes, and suggests stabilization fixes',
+    id: 'v3-qe-retry-handler',
+    name: 'V3 QE Retry Handler',
+    description: 'V3 QE Intelligent retry handler with adaptive backoff, circuit breakers, and failure classification',
     domains: ['test-execution'],
-    capabilities: ['flaky-detection', 'test-stability'],
+    capabilities: ['retry', 'test-stability'],
     frameworks: ['jest', 'vitest', 'pytest', 'playwright', 'cypress'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['investigation', 'root-cause'],
+    tags: ['v3', 'retry', 'adaptive-backoff'],
   }),
 
   // Coverage Analysis Domain
-  createAgentProfile({
-    id: 'qe-coverage-analyzer',
-    name: 'QE Coverage Analyzer',
-    description: 'Coverage gap detection with sublinear algorithms (O(log n) analysis)',
-    domains: ['coverage-analysis'],
-    capabilities: ['coverage-analysis', 'gap-detection', 'sublinear-analysis', 'risk-scoring'],
-    languages: ['typescript', 'javascript', 'python', 'java', 'go'],
-    complexity: { min: 'simple', max: 'complex' },
-    tags: ['sublinear', 'gap-detection'],
-  }),
-  createAgentProfile({
-    id: 'qe-coverage-gap-analyzer',
-    name: 'QE Coverage Gap Analyzer',
-    description: 'Identifies coverage gaps, risk-scores untested code, and recommends tests',
-    domains: ['coverage-analysis'],
-    capabilities: ['coverage-analysis', 'gap-detection', 'risk-scoring'],
-    languages: ['typescript', 'javascript', 'python', 'java'],
-    complexity: { min: 'simple', max: 'medium' },
-    tags: ['gap-analysis', 'recommendations'],
-  }),
   createAgentProfile({
     id: 'v3-qe-coverage-specialist',
     name: 'V3 QE Coverage Specialist',
@@ -168,237 +124,317 @@ const v3QEAgents: QEAgentProfile[] = [
     complexity: { min: 'medium', max: 'complex' },
     tags: ['v3', 'sublinear', 'prioritization'],
   }),
+  createAgentProfile({
+    id: 'v3-qe-gap-detector',
+    name: 'V3 QE Gap Detector',
+    description: 'V3 QE Coverage gap detection with sublinear algorithms (O(log n) analysis), risk scoring, and intelligent test recommendations',
+    domains: ['coverage-analysis'],
+    capabilities: ['coverage-analysis', 'gap-detection', 'sublinear-analysis', 'risk-scoring'],
+    languages: ['typescript', 'javascript', 'python', 'java', 'go'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'sublinear', 'gap-detection'],
+  }),
 
   // Quality Assessment Domain
   createAgentProfile({
-    id: 'qe-quality-gate',
-    name: 'QE Quality Gate',
-    description: 'Quality gate decisions with risk assessment and policy validation',
+    id: 'v3-qe-quality-gate',
+    name: 'V3 QE Quality Gate',
+    description: 'V3 QE Quality gate enforcement with risk assessment, policy validation, and deployment readiness evaluation',
     domains: ['quality-assessment'],
     capabilities: ['quality-gate', 'deployment-readiness', 'risk-scoring'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['gate', 'deployment', 'policy'],
+    tags: ['v3', 'gate', 'deployment', 'policy'],
   }),
   createAgentProfile({
-    id: 'qe-quality-analyzer',
-    name: 'QE Quality Analyzer',
-    description: 'Comprehensive quality metrics analysis with trend detection, predictive analytics, and actionable insights',
-    domains: ['quality-assessment'],
-    capabilities: ['quality-gate', 'risk-scoring'],
-    complexity: { min: 'simple', max: 'complex' },
-    tags: ['metrics', 'trends', 'analytics'],
-  }),
-  createAgentProfile({
-    id: 'qe-deployment-readiness',
-    name: 'QE Deployment Readiness',
-    description: 'Aggregates quality signals for deployment risk assessment and go/no-go decisions',
+    id: 'v3-qe-deployment-advisor',
+    name: 'V3 QE Deployment Advisor',
+    description: 'V3 QE Aggregates quality signals for deployment risk assessment and go/no-go decisions with predictive analytics',
     domains: ['quality-assessment'],
     capabilities: ['deployment-readiness', 'quality-gate', 'risk-scoring'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['deployment', 'go-no-go'],
+    tags: ['v3', 'deployment', 'go-no-go', 'analytics'],
   }),
   createAgentProfile({
-    id: 'qe-code-reviewer',
-    name: 'QE Code Reviewer',
-    description: 'Enforce quality standards, linting, complexity, and security',
-    domains: ['quality-assessment'],
-    capabilities: ['quality-gate', 'security-scanning'],
-    languages: ['typescript', 'javascript', 'python', 'java', 'go'],
-    complexity: { min: 'simple', max: 'complex' },
-    tags: ['code-review', 'standards'],
-  }),
-  createAgentProfile({
-    id: 'qe-code-complexity',
-    name: 'QE Code Complexity',
-    description: 'AI-powered code complexity analysis with refactoring recommendations',
+    id: 'v3-qe-code-complexity',
+    name: 'V3 QE Code Complexity',
+    description: 'V3 QE AI-powered code complexity analysis with refactoring recommendations and technical debt tracking',
     domains: ['quality-assessment'],
     capabilities: ['quality-gate', 'risk-scoring'],
     languages: ['typescript', 'javascript', 'python', 'java', 'go'],
     complexity: { min: 'simple', max: 'complex' },
-    tags: ['complexity', 'refactoring'],
+    tags: ['v3', 'complexity', 'refactoring', 'debt'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-qx-partner',
+    name: 'V3 QE QX Partner',
+    description: 'V3 QE Quality Experience (QX) analysis combining QA advocacy and UX perspectives to co-create quality for all stakeholders',
+    domains: ['quality-assessment'],
+    capabilities: ['quality-gate'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'qx', 'ux', 'advocacy'],
   }),
 
   // Security & Compliance Domain
   createAgentProfile({
-    id: 'qe-security-scanner',
-    name: 'QE Security Scanner',
-    description: 'Security scanning with SAST/DAST, vulnerability detection, and compliance validation',
+    id: 'v3-qe-security-scanner',
+    name: 'V3 QE Security Scanner',
+    description: 'V3 QE Security scanning with SAST/DAST, vulnerability detection, OWASP compliance, and threat modeling',
     domains: ['security-compliance'],
     capabilities: ['sast', 'dast', 'vulnerability', 'owasp', 'security-scanning'],
     languages: ['typescript', 'javascript', 'python', 'java', 'go'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['sast', 'dast', 'owasp'],
+    tags: ['v3', 'sast', 'dast', 'owasp'],
   }),
   createAgentProfile({
-    id: 'qe-security-auditor',
-    name: 'QE Security Auditor',
-    description: 'Audits code for security vulnerabilities and compliance',
+    id: 'v3-qe-security-auditor',
+    name: 'V3 QE Security Auditor',
+    description: 'V3 QE Security audits for vulnerabilities, compliance validation, and security best practices enforcement',
     domains: ['security-compliance'],
     capabilities: ['sast', 'vulnerability', 'owasp', 'security-scanning'],
     languages: ['typescript', 'javascript', 'python', 'java'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['audit', 'compliance'],
+    tags: ['v3', 'audit', 'compliance'],
   }),
 
   // API & Contract Testing Domain
   createAgentProfile({
-    id: 'qe-api-contract-validator',
-    name: 'QE API Contract Validator',
-    description: 'Validates API contracts, detects breaking changes, and ensures backward compatibility with consumer-driven contract testing',
+    id: 'v3-qe-contract-validator',
+    name: 'V3 QE Contract Validator',
+    description: 'V3 QE API contract validation, breaking change detection, and backward compatibility with consumer-driven contract testing',
     domains: ['contract-testing'],
     capabilities: ['api-testing', 'contract-testing', 'pact', 'openapi'],
     languages: ['typescript', 'javascript', 'python', 'java', 'go'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['contract', 'api', 'pact'],
+    tags: ['v3', 'contract', 'api', 'pact'],
   }),
   createAgentProfile({
-    id: 'qe-integration-tester',
-    name: 'QE Integration Tester',
-    description: 'Validates component interactions and system integration',
+    id: 'v3-qe-integration-tester',
+    name: 'V3 QE Integration Tester',
+    description: 'V3 QE Validates component interactions and system integration with comprehensive test scenarios',
     domains: ['contract-testing'],
     capabilities: ['integration-test', 'api-testing', 'contract-testing'],
     languages: ['typescript', 'javascript', 'python', 'java'],
     frameworks: ['jest', 'vitest', 'pytest', 'junit'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['integration', 'component'],
+    tags: ['v3', 'integration', 'component'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-graphql-tester',
+    name: 'V3 QE GraphQL Tester',
+    description: 'V3 QE GraphQL API testing with schema validation, query/mutation testing, and security analysis',
+    domains: ['contract-testing'],
+    capabilities: ['api-testing', 'contract-testing', 'graphql'],
+    languages: ['typescript', 'javascript', 'python'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'graphql', 'api'],
   }),
 
   // Visual & Accessibility Domain
   createAgentProfile({
-    id: 'qe-visual-tester',
-    name: 'QE Visual Tester',
-    description: 'Visual regression testing with AI-powered screenshot comparison and accessibility validation',
+    id: 'v3-qe-visual-tester',
+    name: 'V3 QE Visual Tester',
+    description: 'V3 QE Visual regression testing with AI-powered screenshot comparison and accessibility validation',
     domains: ['visual-accessibility'],
     capabilities: ['visual-regression', 'screenshot', 'percy', 'chromatic', 'wcag', 'aria'],
     frameworks: ['playwright', 'cypress'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['visual', 'regression', 'screenshots'],
+    tags: ['v3', 'visual', 'regression', 'screenshots'],
   }),
   createAgentProfile({
-    id: 'qe-a11y-ally',
-    name: 'QE Accessibility Ally',
-    description: 'Developer-focused accessibility agent delivering copy-paste ready fixes, WCAG 2.2 compliance, and AI-powered video caption generation',
+    id: 'v3-qe-accessibility-auditor',
+    name: 'V3 QE Accessibility Auditor',
+    description: 'V3 QE Accessibility testing with WCAG 2.2 compliance, screen reader validation, and copy-paste ready fixes',
     domains: ['visual-accessibility'],
     capabilities: ['wcag', 'aria', 'screen-reader', 'contrast'],
     frameworks: ['playwright', 'cypress'],
     complexity: { min: 'simple', max: 'complex' },
-    tags: ['wcag', 'a11y', 'accessibility'],
+    tags: ['v3', 'wcag', 'a11y', 'accessibility'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-responsive-tester',
+    name: 'V3 QE Responsive Tester',
+    description: 'V3 QE Responsive design testing across viewports, devices, and breakpoints with layout regression detection',
+    domains: ['visual-accessibility'],
+    capabilities: ['visual-regression'],
+    frameworks: ['playwright', 'cypress'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'responsive', 'viewport', 'breakpoints'],
   }),
 
-  // Performance Domain
+  // Performance & Chaos Domain
   createAgentProfile({
-    id: 'qe-performance-tester',
-    name: 'QE Performance Tester',
-    description: 'Performance testing with load orchestration and bottleneck detection',
+    id: 'v3-qe-performance-tester',
+    name: 'V3 QE Performance Tester',
+    description: 'V3 QE Performance testing with load orchestration, bottleneck detection, and SLA validation',
     domains: ['chaos-resilience'],
     capabilities: ['load-testing', 'stress-testing', 'k6', 'artillery', 'benchmark'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['load', 'stress', 'performance'],
+    tags: ['v3', 'load', 'stress', 'performance'],
   }),
   createAgentProfile({
-    id: 'qe-performance-validator',
-    name: 'QE Performance Validator',
-    description: 'Validates performance metrics against SLAs and benchmarks',
+    id: 'v3-qe-load-tester',
+    name: 'V3 QE Load Tester',
+    description: 'V3 QE Load and stress testing with execution time analysis, rate limit testing, and bottleneck detection',
     domains: ['chaos-resilience'],
-    capabilities: ['benchmark', 'load-testing'],
+    capabilities: ['load-testing', 'stress-testing', 'k6', 'artillery'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['sla', 'validation', 'benchmark'],
+    tags: ['v3', 'load', 'stress', 'k6'],
   }),
-
-  // Chaos & Resilience Domain
   createAgentProfile({
-    id: 'qe-chaos-engineer',
-    name: 'QE Chaos Engineer',
-    description: 'Resilience testing with controlled fault injection and blast radius management',
+    id: 'v3-qe-chaos-engineer',
+    name: 'V3 QE Chaos Engineer',
+    description: 'V3 QE Resilience testing with controlled fault injection, blast radius management, and recovery validation',
     domains: ['chaos-resilience'],
     capabilities: ['chaos-testing', 'resilience', 'fault-injection'],
     complexity: { min: 'complex', max: 'complex' },
-    tags: ['chaos', 'fault-injection', 'resilience'],
-  }),
-
-  // Test Data Domain
-  createAgentProfile({
-    id: 'qe-test-data-architect',
-    name: 'QE Test Data Architect',
-    description: 'Generates realistic, schema-aware test data at 10k+ records/sec with referential integrity and GDPR compliance',
-    domains: ['test-generation'],
-    capabilities: ['test-data'],
-    languages: ['typescript', 'javascript', 'python'],
-    complexity: { min: 'medium', max: 'complex' },
-    tags: ['data', 'generation', 'gdpr'],
-  }),
-  createAgentProfile({
-    id: 'qe-test-data-architect-sub',
-    name: 'QE Test Data Architect Sub',
-    description: 'Designs and generates high-volume test datasets with relationship preservation',
-    domains: ['test-generation'],
-    capabilities: ['test-data'],
-    languages: ['typescript', 'javascript', 'python'],
-    complexity: { min: 'medium', max: 'complex' },
-    tags: ['data', 'relationships'],
-  }),
-  createAgentProfile({
-    id: 'qe-data-generator',
-    name: 'QE Data Generator',
-    description: 'Generates realistic test data for various scenarios',
-    domains: ['test-generation'],
-    capabilities: ['test-data'],
-    languages: ['typescript', 'javascript', 'python'],
-    complexity: { min: 'simple', max: 'medium' },
-    tags: ['data', 'generation'],
+    tags: ['v3', 'chaos', 'fault-injection', 'resilience'],
   }),
 
   // Code Intelligence Domain
   createAgentProfile({
-    id: 'qe-code-intelligence',
-    name: 'QE Code Intelligence',
-    description: 'Knowledge graph-based code understanding with 80% token reduction via semantic search and AST analysis',
+    id: 'v3-qe-code-intelligence',
+    name: 'V3 QE Code Intelligence',
+    description: 'V3 QE Knowledge graph-based code understanding with semantic search and AST analysis',
     domains: ['code-intelligence'],
     capabilities: ['coverage-analysis', 'gap-detection'],
     languages: ['typescript', 'javascript', 'python', 'java', 'go'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['knowledge-graph', 'ast', 'semantic'],
+    tags: ['v3', 'knowledge-graph', 'ast', 'semantic'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-dependency-mapper',
+    name: 'V3 QE Dependency Mapper',
+    description: 'V3 QE Dependency graph analysis with coupling metrics and security advisories',
+    domains: ['code-intelligence'],
+    capabilities: ['coverage-analysis', 'gap-detection'],
+    languages: ['typescript', 'javascript', 'python', 'java'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'dependency', 'graph'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-kg-builder',
+    name: 'V3 QE Knowledge Graph Builder',
+    description: 'V3 QE Knowledge graph construction with entity extraction and relationship inference',
+    domains: ['code-intelligence'],
+    capabilities: ['coverage-analysis', 'gap-detection'],
+    languages: ['typescript', 'javascript', 'python'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'knowledge-graph', 'entity-extraction'],
   }),
 
-  // Requirements & Defect Domain
+  // Requirements & Defect Intelligence Domain
   createAgentProfile({
-    id: 'qe-requirements-validator',
-    name: 'QE Requirements Validator',
-    description: 'Validates requirements testability and generates BDD scenarios before development begins',
+    id: 'v3-qe-requirements-validator',
+    name: 'V3 QE Requirements Validator',
+    description: 'V3 QE Validates requirements testability and generates BDD scenarios with testability scoring',
     domains: ['requirements-validation'],
     capabilities: ['bdd', 'test-generation'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['requirements', 'bdd', 'testability'],
+    tags: ['v3', 'requirements', 'bdd', 'testability'],
   }),
   createAgentProfile({
-    id: 'qe-production-intelligence',
-    name: 'QE Production Intelligence',
-    description: 'Converts production data into test scenarios through incident replay and RUM analysis',
+    id: 'v3-qe-bdd-generator',
+    name: 'V3 QE BDD Generator',
+    description: 'V3 QE BDD scenario generation with Gherkin syntax, example discovery, and step definition mapping',
+    domains: ['requirements-validation'],
+    capabilities: ['bdd', 'test-generation'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'bdd', 'gherkin', 'cucumber'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-defect-predictor',
+    name: 'V3 QE Defect Predictor',
+    description: 'V3 QE AI-powered defect prediction using historical data and code metrics',
     domains: ['defect-intelligence'],
-    capabilities: ['test-generation'],
+    capabilities: ['risk-scoring', 'coverage-analysis'],
+    languages: ['typescript', 'javascript', 'python', 'java'],
     complexity: { min: 'complex', max: 'complex' },
-    tags: ['production', 'incidents', 'rum'],
+    tags: ['v3', 'defect', 'prediction', 'ml'],
   }),
   createAgentProfile({
-    id: 'qe-regression-risk-analyzer',
-    name: 'QE Regression Risk Analyzer',
-    description: 'Analyzes code changes to predict regression risk and intelligently select minimal test suites',
+    id: 'v3-qe-root-cause-analyzer',
+    name: 'V3 QE Root Cause Analyzer',
+    description: 'V3 QE Systematic root cause analysis for test failures with prevention recommendations',
+    domains: ['defect-intelligence'],
+    capabilities: ['risk-scoring'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'root-cause', 'failure-analysis'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-regression-analyzer',
+    name: 'V3 QE Regression Analyzer',
+    description: 'V3 QE Analyzes code changes to predict regression risk and intelligently select minimal test suites',
     domains: ['defect-intelligence'],
     capabilities: ['risk-scoring', 'coverage-analysis'],
     languages: ['typescript', 'javascript', 'python', 'java', 'go'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['regression', 'risk', 'selection'],
+    tags: ['v3', 'regression', 'risk', 'selection'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-impact-analyzer',
+    name: 'V3 QE Impact Analyzer',
+    description: 'V3 QE Change impact analysis with blast radius calculation and test selection',
+    domains: ['defect-intelligence'],
+    capabilities: ['risk-scoring', 'coverage-analysis'],
+    languages: ['typescript', 'javascript', 'python', 'java'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'impact', 'blast-radius'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-risk-assessor',
+    name: 'V3 QE Risk Assessor',
+    description: 'V3 QE Quality risk assessment with multi-factor scoring and mitigation recommendations',
+    domains: ['defect-intelligence'],
+    capabilities: ['risk-scoring'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'risk', 'assessment'],
   }),
 
-  // Fleet & Orchestration Domain
+  // Learning & Optimization Domain
   createAgentProfile({
-    id: 'qe-fleet-commander',
-    name: 'QE Fleet Commander',
-    description: 'Hierarchical fleet coordinator for 50+ agent orchestration with dynamic topology management and resource optimization',
+    id: 'v3-qe-learning-coordinator',
+    name: 'V3 QE Learning Coordinator',
+    description: 'V3 QE Fleet-wide learning coordination with pattern recognition and knowledge synthesis',
     domains: ['learning-optimization'],
     capabilities: ['test-orchestration'],
     complexity: { min: 'complex', max: 'complex' },
-    tags: ['fleet', 'orchestration', 'coordination'],
+    tags: ['v3', 'learning', 'coordination', 'patterns'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-pattern-learner',
+    name: 'V3 QE Pattern Learner',
+    description: 'V3 QE Pattern discovery and learning from QE activities for test generation and defect prediction',
+    domains: ['learning-optimization'],
+    capabilities: ['test-generation', 'risk-scoring'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'pattern', 'learning', 'ml'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-transfer-specialist',
+    name: 'V3 QE Transfer Specialist',
+    description: 'V3 QE Knowledge transfer learning with domain adaptation and knowledge distillation',
+    domains: ['learning-optimization'],
+    capabilities: ['test-generation'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'transfer', 'learning', 'adaptation'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-metrics-optimizer',
+    name: 'V3 QE Metrics Optimizer',
+    description: 'V3 QE Learning metrics optimization with hyperparameter tuning and A/B testing',
+    domains: ['learning-optimization'],
+    capabilities: ['quality-gate'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'metrics', 'optimization', 'tuning'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-fleet-commander',
+    name: 'V3 QE Fleet Commander',
+    description: 'V3 QE Hierarchical fleet coordinator for 50+ agent orchestration with dynamic topology management and resource optimization',
+    domains: ['learning-optimization'],
+    capabilities: ['test-orchestration'],
+    complexity: { min: 'complex', max: 'complex' },
+    tags: ['v3', 'fleet', 'orchestration', 'coordination'],
   }),
   createAgentProfile({
     id: 'v3-qe-queen-coordinator',
@@ -409,14 +445,113 @@ const v3QEAgents: QEAgentProfile[] = [
     complexity: { min: 'complex', max: 'complex' },
     tags: ['v3', 'queen', 'swarm'],
   }),
+
+  // Property-Based & Mutation Testing
   createAgentProfile({
-    id: 'qx-partner',
-    name: 'QX Partner',
-    description: 'Quality Experience (QX) analysis combining QA advocacy and UX perspectives to co-create quality for all stakeholders',
-    domains: ['quality-assessment'],
-    capabilities: ['quality-gate'],
+    id: 'v3-qe-property-tester',
+    name: 'V3 QE Property Tester',
+    description: 'V3 QE Property-based testing with fast-check for edge case discovery through randomized input generation',
+    domains: ['test-generation'],
+    capabilities: ['test-generation', 'unit-test'],
+    languages: ['typescript', 'javascript', 'python'],
+    frameworks: ['jest', 'vitest', 'mocha'],
     complexity: { min: 'medium', max: 'complex' },
-    tags: ['qx', 'ux', 'advocacy'],
+    tags: ['v3', 'property', 'pbt', 'edge-cases'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-mutation-tester',
+    name: 'V3 QE Mutation Tester',
+    description: 'V3 QE Mutation testing for test suite effectiveness evaluation with mutation score analysis',
+    domains: ['test-generation'],
+    capabilities: ['test-quality', 'coverage-analysis'],
+    languages: ['typescript', 'javascript', 'python'],
+    frameworks: ['jest', 'vitest'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'mutation', 'test-quality'],
+  }),
+];
+
+// ============================================================================
+// V3 QE Subagents (Specialized QE Subagents)
+// ADR-037: V3 QE subagents use v3-qe-* prefix for consistency
+// ============================================================================
+
+const v3QESubagents: QEAgentProfile[] = [
+  // TDD Phase Subagents
+  createAgentProfile({
+    id: 'v3-qe-tdd-red',
+    name: 'V3 QE TDD RED Phase',
+    description: 'V3 QE TDD RED phase specialist - writes failing tests that define expected behavior before implementation',
+    domains: ['test-generation'],
+    capabilities: ['test-generation', 'tdd', 'unit-test'],
+    languages: ['typescript', 'javascript', 'python'],
+    frameworks: ['jest', 'vitest', 'pytest'],
+    complexity: { min: 'simple', max: 'medium' },
+    tags: ['v3', 'tdd', 'red-phase', 'subagent'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-tdd-green',
+    name: 'V3 QE TDD GREEN Phase',
+    description: 'V3 QE TDD GREEN phase specialist - implements minimal code to make failing tests pass',
+    domains: ['test-generation'],
+    capabilities: ['test-generation', 'tdd', 'unit-test'],
+    languages: ['typescript', 'javascript', 'python'],
+    frameworks: ['jest', 'vitest', 'pytest'],
+    complexity: { min: 'simple', max: 'medium' },
+    tags: ['v3', 'tdd', 'green-phase', 'subagent'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-tdd-refactor',
+    name: 'V3 QE TDD REFACTOR Phase',
+    description: 'V3 QE TDD REFACTOR phase specialist - improves code quality while keeping all tests passing',
+    domains: ['test-generation'],
+    capabilities: ['test-generation', 'tdd', 'test-quality'],
+    languages: ['typescript', 'javascript', 'python'],
+    frameworks: ['jest', 'vitest', 'pytest'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'tdd', 'refactor-phase', 'subagent'],
+  }),
+
+  // Review Subagents
+  createAgentProfile({
+    id: 'v3-qe-code-reviewer',
+    name: 'V3 QE Code Reviewer',
+    description: 'V3 QE Code review specialist enforcing quality standards, linting, complexity, and security',
+    domains: ['quality-assessment'],
+    capabilities: ['quality-gate', 'security-scanning'],
+    languages: ['typescript', 'javascript', 'python', 'java', 'go'],
+    complexity: { min: 'simple', max: 'complex' },
+    tags: ['v3', 'code-review', 'standards', 'subagent'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-integration-reviewer',
+    name: 'V3 QE Integration Reviewer',
+    description: 'V3 QE Integration review specialist for API compatibility and cross-service interactions',
+    domains: ['contract-testing'],
+    capabilities: ['integration-test', 'api-testing'],
+    languages: ['typescript', 'javascript', 'python', 'java'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'integration', 'review', 'subagent'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-performance-reviewer',
+    name: 'V3 QE Performance Reviewer',
+    description: 'V3 QE Performance review specialist for algorithmic complexity and resource usage',
+    domains: ['chaos-resilience'],
+    capabilities: ['load-testing', 'benchmark'],
+    languages: ['typescript', 'javascript', 'python', 'go'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'performance', 'review', 'subagent'],
+  }),
+  createAgentProfile({
+    id: 'v3-qe-security-reviewer',
+    name: 'V3 QE Security Reviewer',
+    description: 'V3 QE Security review specialist for vulnerability detection and secure coding practices',
+    domains: ['security-compliance'],
+    capabilities: ['sast', 'vulnerability', 'security-scanning'],
+    languages: ['typescript', 'javascript', 'python', 'java', 'go'],
+    complexity: { min: 'medium', max: 'complex' },
+    tags: ['v3', 'security', 'review', 'subagent'],
   }),
 ];
 
@@ -879,6 +1014,7 @@ const consensusAgents: QEAgentProfile[] = [
  */
 export const QE_AGENT_REGISTRY: readonly QEAgentProfile[] = Object.freeze([
   ...v3QEAgents,
+  ...v3QESubagents,
   ...n8nAgents,
   ...generalAgents,
   ...v3SpecializedAgents,
@@ -944,6 +1080,7 @@ export function getAgentById(id: string): QEAgentProfile | undefined {
  */
 export function getAgentCounts(): {
   v3QE: number;
+  v3QESubagents: number;
   n8n: number;
   general: number;
   v3Specialized: number;
@@ -953,6 +1090,7 @@ export function getAgentCounts(): {
 } {
   return {
     v3QE: v3QEAgents.length,
+    v3QESubagents: v3QESubagents.length,
     n8n: n8nAgents.length,
     general: generalAgents.length,
     v3Specialized: v3SpecializedAgents.length,

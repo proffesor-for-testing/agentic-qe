@@ -217,3 +217,51 @@ export {
 export type {
   SQLitePersistenceConfig,
 } from './sqlite-persistence.js';
+
+// ============================================================================
+// QE Unified Memory (ADR-038)
+// ============================================================================
+
+export {
+  QEUnifiedMemory,
+  createQEUnifiedMemory,
+  createDefaultQEUnifiedMemory,
+  QE_MEMORY_DOMAINS,
+  QE_DOMAIN_HNSW_CONFIGS,
+  DEFAULT_QE_UNIFIED_MEMORY_CONFIG,
+} from './qe-unified-memory.js';
+
+export type {
+  QEMemoryDomain,
+  QEMemoryMetadata,
+  TestSuiteMetadata,
+  DefectMetadata,
+  QualityMetricsMetadata,
+  LearningPatternMetadata,
+  CoordinationMetadata,
+  QEMemorySearchResult,
+  QEMemorySearchOptions,
+  MigrationConfig,
+  MigrationProgress,
+  MigrationResult,
+  MigrationSource,
+  QEUnifiedMemoryConfig,
+  QEUnifiedMemoryStats,
+  QEMemoryDomainStats,
+  IQEUnifiedMemory,
+} from './qe-unified-memory.js';
+
+// ============================================================================
+// V2 to V3 Migration (ADR-038)
+// ============================================================================
+
+export {
+  V2ToV3Migrator,
+  migrateV2ToV3,
+} from './v2-to-v3-migration.js';
+
+export type {
+  V2MigrationConfig,
+  V2MigrationProgress,
+  V2MigrationResult,
+} from './v2-to-v3-migration.js';

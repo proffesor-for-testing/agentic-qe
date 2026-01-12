@@ -28,7 +28,8 @@ describe('QE Task Router', () => {
     it('should initialize successfully', () => {
       const stats = router.getStats();
       expect(stats.initialized).toBe(true);
-      expect(stats.agentCount).toBe(80);
+      // Agent count updated to match current QE_AGENT_REGISTRY size
+      expect(stats.agentCount).toBe(92);
     });
 
     it('should be idempotent', async () => {
@@ -54,8 +55,8 @@ describe('QE Task Router', () => {
       expect(decision.reasoning).toBeTruthy();
       expect(decision.latencyMs).toBeGreaterThan(0);
 
-      // Should recommend a test generation agent
-      const testGenAgents = ['qe-test-generator', 'qe-test-writer', 'v3-qe-test-architect', 'tester'];
+      // Should recommend a test generation agent (using actual agent IDs from registry)
+      const testGenAgents = ['v3-qe-test-architect', 'v3-qe-tdd-specialist', 'tester'];
       expect(testGenAgents).toContain(decision.recommended);
     });
 
@@ -66,8 +67,11 @@ describe('QE Task Router', () => {
 
       const decision = await router.route(task);
 
-      // Should recommend a coverage agent
-      const coverageAgents = ['qe-coverage-analyzer', 'qe-coverage-gap-analyzer', 'v3-qe-coverage-specialist'];
+      // Should recommend a coverage agent (using actual agent IDs from registry)
+      const coverageAgents = [
+        'v3-qe-gap-detector',
+        'v3-qe-coverage-specialist',
+      ];
       expect(coverageAgents).toContain(decision.recommended);
     });
 
@@ -78,10 +82,16 @@ describe('QE Task Router', () => {
 
       const decision = await router.route(task);
 
-      // Should recommend a security-related agent
+      // Should recommend a security-related agent (using actual agent IDs from registry)
       const securityAgents = [
-        'qe-security-scanner', 'qe-security-auditor', 'security-auditor', 'security-architect',
-        'n8n-security-auditor', 'n8n-compliance-validator', 'claims-authorizer',
+        'v3-qe-security-scanner',
+        'v3-qe-security-auditor',
+        'v3-qe-security-reviewer',
+        'security-auditor',
+        'security-architect',
+        'n8n-security-auditor',
+        'n8n-compliance-validator',
+        'claims-authorizer',
       ];
       expect(securityAgents).toContain(decision.recommended);
     });
@@ -94,8 +104,11 @@ describe('QE Task Router', () => {
 
       const decision = await router.route(task);
 
-      // Should recommend visual testing agent or test generator (which handles e2e)
-      const visualAgents = ['qe-visual-tester', 'qe-a11y-ally', 'qe-test-generator', 'tester'];
+      // Should recommend visual testing agent (using actual agent IDs from registry)
+      const visualAgents = [
+        'v3-qe-visual-tester',
+        'v3-qe-accessibility-auditor',
+      ];
       expect(visualAgents).toContain(decision.recommended);
     });
 
@@ -106,8 +119,8 @@ describe('QE Task Router', () => {
 
       const decision = await router.route(task);
 
-      // Should recommend chaos agent
-      const chaosAgents = ['qe-chaos-engineer', 'n8n-chaos-tester'];
+      // Should recommend chaos agent (using actual agent IDs from registry)
+      const chaosAgents = ['v3-qe-chaos-engineer', 'n8n-chaos-tester'];
       expect(chaosAgents).toContain(decision.recommended);
     });
 
@@ -244,9 +257,10 @@ describe('QE Task Router', () => {
 
   describe('Performance Updates', () => {
     it('should update agent performance', () => {
-      router.updateAgentPerformance('qe-test-generator', true, 0.9, 5000);
-      router.updateAgentPerformance('qe-test-generator', true, 0.85, 4500);
-      router.updateAgentPerformance('qe-test-generator', false, 0.3, 6000);
+      // Use actual v3 agent ID from registry
+      router.updateAgentPerformance('v3-qe-test-architect', true, 0.9, 5000);
+      router.updateAgentPerformance('v3-qe-test-architect', true, 0.85, 4500);
+      router.updateAgentPerformance('v3-qe-test-architect', false, 0.3, 6000);
 
       // Verify stats reflect update
       const stats = router.getStats();

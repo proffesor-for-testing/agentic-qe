@@ -298,10 +298,20 @@ export class RealQEReasoningBank {
    */
   private async initializeHNSW(): Promise<void> {
     try {
+      // Import hnswlib-node
+      // Note: Dynamic import returns { default: { HierarchicalNSW, ... } } structure
       const hnswModule = await import('hnswlib-node');
-      const HierarchicalNSW = hnswModule.HierarchicalNSW || hnswModule.default;
+      // Access through default due to ES module interop
+      const HierarchicalNSW = (hnswModule.default as any)?.HierarchicalNSW || hnswModule.HierarchicalNSW;
+
+      if (typeof HierarchicalNSW !== 'function') {
+        throw new Error('HierarchicalNSW not found in hnswlib-node module');
+      }
+
       const dimension = getEmbeddingDimension();
 
+      // Create HNSW index with metric and dimensions (2 arguments)
+      // metric: 'cosine' | 'l2' | 'ip'
       this.hnswIndex = new HierarchicalNSW('cosine', dimension) as unknown as HierarchicalNSW;
       this.hnswIndex!.initIndex(
         100000, // max elements

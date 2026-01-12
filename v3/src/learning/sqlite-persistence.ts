@@ -515,6 +515,28 @@ export class SQLitePatternStore {
   }
 
   /**
+   * Store embedding for an existing pattern
+   */
+  storePatternEmbedding(patternId: string, embedding: number[]): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const insertEmbedding = this.prepared.get('insertEmbedding');
+    if (!insertEmbedding) {
+      throw new Error('Prepared statements not ready');
+    }
+
+    // Convert embedding to Buffer for storage
+    const buffer = Buffer.from(new Float32Array(embedding).buffer);
+
+    insertEmbedding.run(
+      patternId,
+      buffer,
+      embedding.length,
+      'all-MiniLM-L6-v2'
+    );
+  }
+
+  /**
    * Close the database
    */
   close(): void {
