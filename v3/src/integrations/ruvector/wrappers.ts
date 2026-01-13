@@ -148,10 +148,13 @@ export function checkRuvectorPackagesAvailable(): {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const gnn = require('@ruvector/gnn');
 
+    // Initialize GNN first
+    gnn.init();
+
     // Test an actual native operation to verify bindings work
-    // Simple differentiable search with minimal data
-    const testQuery = [0.1, 0.2, 0.3];
-    const testCandidates = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]];
+    // Use Float32Array as required by the native bindings
+    const testQuery = new Float32Array([0.1, 0.2, 0.3]);
+    const testCandidates = [new Float32Array([0.1, 0.2, 0.3]), new Float32Array([0.4, 0.5, 0.6])];
     const result = gnn.differentiableSearch(testQuery, testCandidates, 1, 1.0);
 
     // Verify the result structure
