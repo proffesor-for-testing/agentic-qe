@@ -52,7 +52,7 @@
     "build": "tsc && npm run build:cli && npm run build:mcp",
     "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/cli/bundle.js",
     "build:mcp": "esbuild src/mcp/entry.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp/bundle.js --banner:js='#!/usr/bin/env node'",
-    "prepublishOnly": "bash scripts/prepare-assets.sh",
+    "prepublishOnly": "npm run sync:agents && bash scripts/prepare-assets.sh",
     "cli": "tsx src/cli/index.ts",
     "aqe": "tsx src/cli/index.ts",
     "mcp": "tsx src/mcp/entry.ts",
@@ -61,7 +61,9 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src tests --ext .ts",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "sync:agents": "cp ../.claude/agents/v3/*.md ./assets/agents/v3/ && echo '✓ Synced agents from .claude/agents/v3/ to assets/agents/v3/'",
+    "sync:agents:check": "for f in ../.claude/agents/v3/*.md; do diff -q \"$f\" \"./assets/agents/v3/$(basename $f)\" 2>/dev/null || echo \"⚠ Out of sync: $(basename $f)\"; done"
   },
   "keywords": [
     "agentic",
@@ -83,22 +85,19 @@
     "vitest": "^4.0.16"
   },
   "dependencies": {
-    "@axe-core/playwright": "^4.8.0",
     "@faker-js/faker": "^10.2.0",
     "@ruvector/attention": "^0.1.4",
     "@ruvector/gnn": "^0.1.22",
     "@ruvector/sona": "^0.1.5",
     "@xenova/transformers": "^2.17.2",
-    "agentdb": "^2.0.0-alpha.3.3",
+    "axe-core": "^4.11.1",
     "better-sqlite3": "^12.5.0",
     "chalk": "^5.6.2",
-    "claude-flow": "^2.7.47",
     "commander": "^12.1.0",
     "hnswlib-node": "^3.0.0",
-    "lcov-parse": "^1.0.0",
-    "playwright": "^1.40.0",
     "typescript": "^5.9.3",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "vibium": "^0.1.2"
   },
   "engines": {
     "node": ">=18.0.0"

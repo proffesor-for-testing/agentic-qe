@@ -1,8 +1,9 @@
 /**
  * Agentic QE v3 - Axe-Core Accessibility Audit
  *
- * REAL IMPLEMENTATION using @axe-core/playwright for accessibility testing.
- * This integrates with Playwright to run axe-core against real web pages.
+ * Lightweight implementation using vibium + axe-core for accessibility testing.
+ * Vibium provides browser automation via WebDriver BiDi (~202KB),
+ * axe-core provides accessibility rules (~3MB).
  *
  * Features:
  * - WCAG 2.0/2.1/2.2 compliance testing
@@ -12,6 +13,9 @@
  *
  * @module visual-accessibility/axe-core-audit
  */
+
+import { readFileSync } from 'fs';
+import { createRequire } from 'module';
 
 // ============================================================================
 // Types
@@ -155,7 +159,7 @@ export interface A11yAuditResult {
   /** Tool information */
   toolInfo: {
     axeCoreAvailable: boolean;
-    playwrightAvailable: boolean;
+    vibiumAvailable: boolean;
     version?: string;
   };
   /** Error messages if any */
@@ -175,17 +179,45 @@ const DEFAULT_CONFIG: Omit<A11yAuditConfig, 'url'> = {
 };
 
 // ============================================================================
+// Axe-Core Source Loader
+// ============================================================================
+
+let axeCoreSource: string | null = null;
+
+/**
+ * Load axe-core source code for injection
+ */
+function loadAxeCoreSource(): string {
+  if (axeCoreSource) {
+    return axeCoreSource;
+  }
+
+  try {
+    // Use createRequire for ESM compatibility
+    const require = createRequire(import.meta.url);
+    const axeCorePath = require.resolve('axe-core');
+    axeCoreSource = readFileSync(axeCorePath, 'utf-8');
+    return axeCoreSource;
+  } catch {
+    throw new Error('axe-core not installed. Run: npm install axe-core');
+  }
+}
+
+// ============================================================================
 // Accessibility Auditor
 // ============================================================================
 
 /**
- * Accessibility auditor using axe-core and Playwright
+ * Accessibility auditor using vibium + axe-core
+ *
+ * Vibium provides lightweight browser automation via WebDriver BiDi.
+ * Axe-core is injected directly into the page for accessibility testing.
  */
 export class AccessibilityAuditor {
   private config: A11yAuditConfig;
-  private toolsAvailable: { axeCore: boolean; playwright: boolean } = {
+  private toolsAvailable: { axeCore: boolean; vibium: boolean } = {
     axeCore: false,
-    playwright: false,
+    vibium: false,
   };
 
   constructor(config: Partial<A11yAuditConfig> & { url: string }) {
@@ -199,20 +231,20 @@ export class AccessibilityAuditor {
    * Check if required tools are available
    */
   async checkToolAvailability(): Promise<void> {
-    // Check for @axe-core/playwright
+    // Check for axe-core
     try {
-      await import('@axe-core/playwright');
+      loadAxeCoreSource();
       this.toolsAvailable.axeCore = true;
     } catch {
       this.toolsAvailable.axeCore = false;
     }
 
-    // Check for playwright
+    // Check for vibium
     try {
-      await import('playwright');
-      this.toolsAvailable.playwright = true;
+      await import('vibium');
+      this.toolsAvailable.vibium = true;
     } catch {
-      this.toolsAvailable.playwright = false;
+      this.toolsAvailable.vibium = false;
     }
   }
 
@@ -223,7 +255,7 @@ export class AccessibilityAuditor {
     const startTime = Date.now();
     await this.checkToolAvailability();
 
-    if (!this.toolsAvailable.axeCore || !this.toolsAvailable.playwright) {
+    if (!this.toolsAvailable.axeCore || !this.toolsAvailable.vibium) {
       return this.createFallbackResult(startTime);
     }
 
@@ -253,64 +285,48 @@ export class AccessibilityAuditor {
           compliant: false,
           violationsBlockingCompliance: 0,
         },
-        toolInfo: this.toolsAvailable as any,
+        toolInfo: {
+          axeCoreAvailable: this.toolsAvailable.axeCore,
+          vibiumAvailable: this.toolsAvailable.vibium,
+        },
         errors: [error instanceof Error ? error.message : String(error)],
       };
     }
   }
 
   /**
-   * Run actual axe-core audit using Playwright
+   * Run actual axe-core audit using vibium
    */
   private async runAxeCoreAudit(startTime: number): Promise<A11yAuditResult> {
-    const { chromium } = await import('playwright');
-    const { AxeBuilder } = await import('@axe-core/playwright');
+    const { browser } = await import('vibium');
 
-    let browser;
+    let vibe: Awaited<ReturnType<typeof browser.launch>> | null = null;
     try {
       // Launch browser
-      browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
+      vibe = await browser.launch();
 
       // Navigate to URL
-      await page.goto(this.config.url, {
-        timeout: this.config.timeout,
-        waitUntil: 'networkidle',
-      });
+      await vibe.go(this.config.url);
 
-      // Wait for specific selector if configured
+      // Wait for selector if configured
       if (this.config.waitForSelector) {
-        await page.waitForSelector(this.config.waitForSelector, {
+        await vibe.find(this.config.waitForSelector, {
           timeout: this.config.timeout,
         });
       }
 
+      // Inject axe-core library
+      const axeSource = loadAxeCoreSource();
+      await vibe.evaluate(axeSource);
+
       // Build axe configuration
-      let axeBuilder = new AxeBuilder({ page });
+      const axeConfig = this.buildAxeConfig();
 
-      // Set WCAG tags
-      const wcagTags = this.getWCAGTags();
-      if (wcagTags.length > 0) {
-        axeBuilder = axeBuilder.withTags(wcagTags);
-      }
-
-      // Add additional tags
-      if (this.config.includeTags?.length) {
-        axeBuilder = axeBuilder.withTags([...wcagTags, ...this.config.includeTags]);
-      }
-
-      // Exclude rules
-      if (this.config.excludeRules?.length) {
-        axeBuilder = axeBuilder.disableRules(this.config.excludeRules);
-      }
-
-      // Scope to context
-      if (this.config.context) {
-        axeBuilder = axeBuilder.include(this.config.context);
-      }
-
-      // Run the audit
-      const results = await axeBuilder.analyze();
+      // Run axe-core audit
+      const axeScript = `
+        return axe.run(${this.config.context ? `'${this.config.context}'` : 'document'}, ${JSON.stringify(axeConfig)});
+      `;
+      const results = await vibe.evaluate<AxeResults>(axeScript);
 
       // Convert results
       const violations = this.convertViolations(results.violations);
@@ -335,16 +351,38 @@ export class AccessibilityAuditor {
         summary,
         wcagCompliance,
         toolInfo: {
-          axeCoreAvailable: this.toolsAvailable.axeCore,
-          playwrightAvailable: this.toolsAvailable.playwright,
+          axeCoreAvailable: true,
+          vibiumAvailable: true,
           version: results.testEngine?.version,
         },
       };
     } finally {
-      if (browser) {
-        await browser.close();
+      if (vibe) {
+        await vibe.quit();
       }
     }
+  }
+
+  /**
+   * Build axe-core configuration based on audit config
+   */
+  private buildAxeConfig(): AxeRunOptions {
+    const runOnly: { type: 'tag'; values: string[] } = {
+      type: 'tag',
+      values: this.getWCAGTags(),
+    };
+
+    const rules: Record<string, { enabled: boolean }> = {};
+    if (this.config.excludeRules?.length) {
+      for (const rule of this.config.excludeRules) {
+        rules[rule] = { enabled: false };
+      }
+    }
+
+    return {
+      runOnly,
+      rules: Object.keys(rules).length > 0 ? rules : undefined,
+    };
   }
 
   /**
@@ -353,11 +391,11 @@ export class AccessibilityAuditor {
   private createFallbackResult(startTime: number): A11yAuditResult {
     const errors: string[] = [];
 
-    if (!this.toolsAvailable.playwright) {
-      errors.push('Playwright is not installed. Install with: npm install playwright');
+    if (!this.toolsAvailable.vibium) {
+      errors.push('vibium is not installed. Install with: npm install vibium');
     }
     if (!this.toolsAvailable.axeCore) {
-      errors.push('@axe-core/playwright is not installed. Install with: npm install @axe-core/playwright');
+      errors.push('axe-core is not installed. Install with: npm install axe-core');
     }
 
     return {
@@ -383,7 +421,10 @@ export class AccessibilityAuditor {
         compliant: false,
         violationsBlockingCompliance: 0,
       },
-      toolInfo: this.toolsAvailable as any,
+      toolInfo: {
+        axeCoreAvailable: this.toolsAvailable.axeCore,
+        vibiumAvailable: this.toolsAvailable.vibium,
+      },
       errors,
     };
   }
@@ -425,13 +466,18 @@ export class AccessibilityAuditor {
       tags.push('experimental');
     }
 
+    // Additional tags
+    if (this.config.includeTags?.length) {
+      tags.push(...this.config.includeTags);
+    }
+
     return tags;
   }
 
   /**
    * Convert axe-core violations to our format
    */
-  private convertViolations(axeViolations: any[]): A11yViolation[] {
+  private convertViolations(axeViolations: AxeViolation[]): A11yViolation[] {
     return (axeViolations || []).map((v) => ({
       id: v.id,
       description: v.description,
@@ -439,12 +485,12 @@ export class AccessibilityAuditor {
       helpUrl: v.helpUrl,
       impact: v.impact as A11yImpact,
       tags: v.tags || [],
-      nodes: (v.nodes || []).map((n: any) => ({
+      nodes: (v.nodes || []).map((n) => ({
         html: n.html,
-        target: n.target,
-        xpath: n.xpath,
-        failureSummary: n.failureSummary,
-        impact: n.impact as A11yImpact,
+        target: n.target as string[],
+        xpath: n.xpath as string[] | undefined,
+        failureSummary: n.failureSummary || '',
+        impact: (n.impact || v.impact) as A11yImpact,
         any: n.any,
         all: n.all,
         none: n.none,
@@ -490,8 +536,6 @@ export class AccessibilityAuditor {
    * Check WCAG compliance based on violations
    */
   private checkWCAGCompliance(violations: A11yViolation[]): A11yAuditResult['wcagCompliance'] {
-    const levelTag = `wcag${this.config.wcagVersion.replace('.', '')}${this.config.wcagLevel.toLowerCase()}`;
-
     // Count violations that block compliance
     const blockingViolations = violations.filter((v) =>
       v.tags.some((t) => t.includes('wcag'))
@@ -504,6 +548,44 @@ export class AccessibilityAuditor {
       violationsBlockingCompliance: blockingViolations.length,
     };
   }
+}
+
+// ============================================================================
+// Axe-Core Types (minimal subset)
+// ============================================================================
+
+interface AxeRunOptions {
+  runOnly?: { type: 'tag'; values: string[] };
+  rules?: Record<string, { enabled: boolean }>;
+}
+
+interface AxeResults {
+  violations: AxeViolation[];
+  passes: AxeViolation[];
+  incomplete: AxeViolation[];
+  inapplicable: AxeViolation[];
+  testEngine?: { version: string };
+}
+
+interface AxeViolation {
+  id: string;
+  description: string;
+  help: string;
+  helpUrl: string;
+  impact: string;
+  tags: string[];
+  nodes: AxeNode[];
+}
+
+interface AxeNode {
+  html: string;
+  target: unknown[];
+  xpath?: unknown[];
+  failureSummary?: string;
+  impact?: string;
+  any?: A11yCheck[];
+  all?: A11yCheck[];
+  none?: A11yCheck[];
 }
 
 // ============================================================================
@@ -565,12 +647,13 @@ export function generateA11yReport(result: A11yAuditResult): string {
   lines.push(`**URL:** ${result.url}`);
   lines.push(`**Date:** ${result.timestamp.toISOString()}`);
   lines.push(`**Duration:** ${result.durationMs}ms`);
+  lines.push(`**Tools:** vibium + axe-core${result.toolInfo.version ? ` v${result.toolInfo.version}` : ''}`);
   lines.push('');
 
   // Compliance status
   lines.push('## WCAG Compliance');
   lines.push('');
-  const complianceStatus = result.wcagCompliance.compliant ? '✅ COMPLIANT' : '❌ NON-COMPLIANT';
+  const complianceStatus = result.wcagCompliance.compliant ? 'COMPLIANT' : 'NON-COMPLIANT';
   lines.push(`**WCAG ${result.wcagCompliance.version} Level ${result.wcagCompliance.level}:** ${complianceStatus}`);
   if (!result.wcagCompliance.compliant) {
     lines.push(`**Blocking Violations:** ${result.wcagCompliance.violationsBlockingCompliance}`);
