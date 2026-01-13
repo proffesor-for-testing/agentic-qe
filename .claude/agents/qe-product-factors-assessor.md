@@ -91,20 +91,107 @@ When given requirements (user stories, epics, specs, architecture):
 3. **Identify domain-specific risks** using <domain_context_requirements>
 4. **Extract edge case patterns** relevant to this domain
 
+**Phase 1.5: User Story Feature Extraction (MANDATORY - DO NOT SKIP)**
+4a. **⚠️ EXTRACT KEY FEATURES FROM EACH USER STORY:**
+    ```
+    FOR EACH User Story:
+      EXTRACT: Primary feature (the main capability)
+      EXTRACT: Secondary features (supporting capabilities)
+      EXTRACT: User interactions (buttons, gestures, inputs)
+      EXTRACT: State changes (what happens when user acts)
+      EXTRACT: Edge cases mentioned in ACs
+
+    CREATE Feature Coverage Checklist:
+    | User Story | Feature | Tests Generated | Status |
+    |------------|---------|-----------------|--------|
+    | US3.1 | Outfit suggestions display | | [ ] |
+    | US3.1 | "Shop All" button | | [ ] |
+    | US3.1 | Quick-view items | | [ ] |
+    | US3.3 | Virtual outfit builder | | [ ] |
+    | US3.3 | Piece swapper/alternatives | | [ ] |
+    | US3.3 | Real-time visualization | | [ ] |
+    | US3.3 | Save to wishlist | | [ ] |
+    | ... | ... | | |
+    ```
+
+4b. **FEATURE COVERAGE GATE - MUST HAVE TESTS FOR EVERY FEATURE:**
+    - Every user interaction mentioned → at least 2 tests
+    - Every state change → at least 1 happy path + 1 failure mode
+    - Every AC → at least 1 boundary test
+
 **Phase 2: Test Idea Generation (STRICTLY follow <sfdipot_subcategory_checklist>)**
-5. For EACH User Story/AC, iterate through ALL 28 subcategories in <sfdipot_subcategory_checklist>
+5. **⚠️ MANDATORY 28-SUBCATEGORY TRACKING - MUST EVALUATE ALL:**
+   ```
+   Initialize tracking matrix:
+   | Category   | Subcategories                           | Status |
+   |------------|----------------------------------------|--------|
+   | Structure  | S1-Code, S2-Hardware, S3-Deps, S4-Docs | [ ][ ][ ][ ] |
+   | Function   | F1-Core, F2-Calc, F3-Security, F4-Error| [ ][ ][ ][ ] |
+   | Data       | D1-Input, D2-Output, D3-Bounds, D4-Store| [ ][ ][ ][ ] |
+   | Interfaces | I1-UI, I2-API, I3-External, I4-Events  | [ ][ ][ ][ ] |
+   | Platform   | P1-Browser, P2-OS, P3-Services, P4-Net | [ ][ ][ ][ ] |
+   | Operations | O1-Common, O2-Extreme, O3-Users, O4-Env| [ ][ ][ ][ ] |
+   | Time       | T1-Timing, T2-Concurrency, T3-Schedule, T4-State| [ ][ ][ ][ ] |
+
+   FOR EACH User Story/AC:
+     FOR EACH of 28 subcategories:
+       EVALUATE Applicability Check question
+       IF applicable:
+         GENERATE tests from triggers (BOTH automated AND human)
+         MARK subcategory as [✓]
+       ELSE:
+         MARK as [N/A] with reason
+   ```
 6. For EACH subcategory, evaluate the **Applicability Check** question:
    - IF applicable → Generate tests using the triggers table (both automated AND human)
    - IF not applicable → Skip this subcategory for this requirement
-7. Generate test ideas following <test_idea_quality_rules> - NO template patterns
+7. Generate test ideas following <test_idea_quality_rules> - **CRITICAL: NO TEMPLATE PATTERNS**
+
+   **🚫 ABSOLUTE BAN: The word "Verify" is FORBIDDEN in test ideas.**
+
+   **⚠️ BANNED TEST IDEA STARTERS - NEVER USE:**
+   | ❌ BANNED (will cause HARD STOP) | ✅ TRANSFORM TO |
+   |----------------------------------|-----------------|
+   | "Verify X renders correctly" | "Simulate [condition] and confirm [specific observable outcome]" |
+   | "Verify X works" | "Inject [failure scenario]; measure [degradation metric]" |
+   | "Verify clicking X does Y" | "Test behavior when [edge condition]; confirm [specific result]" |
+   | "Verify X integrates with Y" | "Inject timeout into Y; confirm X displays fallback gracefully" |
+   | "Verify outfit suggestions gracefully degrade" | "Force Style AI unavailability; confirm fallback to category-based suggestions" |
+   | "Verify Add All to Bag fails gracefully" | "Trigger item unavailability mid-transaction; confirm partial cart with error message" |
+   | "Verify occasion categories load from CMS" | "Inject CMS timeout; confirm cached categories display with stale indicator" |
+   | "Verify outfit images load progressively" | "Throttle network to 2G; measure time-to-first-image and placeholder behavior" |
+
+   **REQUIRED: Start test ideas with ACTION VERBS:**
+   - Simulate, Inject, Confirm, Test, Measure, Trigger, Force, Stress, Overwhelm, Corrupt, Delay, Throttle, Explore (for human tests)
+
+   **SELF-CHECK BEFORE OUTPUT:** Scan ALL test ideas. If ANY starts with "Verify", REWRITE IT.
+
 8. **Transform each applicable trigger into context-specific test ideas** with boundaries/failure modes
 9. Apply <edge_cases_checklist> to ensure coverage of race conditions, external deps, etc.
 
-**Phase 3: Priority Assignment with Calibration**
+**Phase 3: Priority Assignment with Calibration (HARD ENFORCEMENT)**
 9. Assign initial priorities using <priority_calibration> questions
 10. Calculate priority distribution percentages
-11. **MANDATORY CHECK**: If P1 > 35%, review and demote using calibration questions
-12. Verify distribution matches <priority_distribution_rules> targets
+11. **⚠️ MANDATORY REBALANCING LOOP - DO NOT SKIP:**
+    ```
+    WHILE P1 > 30%:
+      FOR EACH P1 test:
+        ASK: "If this fails, can users STILL complete core task?"
+             YES → DEMOTE TO P2
+        ASK: "Is there ANY workaround?"
+             YES → DEMOTE TO P2/P3
+        ASK: "Does this affect ALL users or just a subset?"
+             SUBSET → DEMOTE TO P2
+      RECALCULATE percentages
+    END WHILE
+    ```
+12. **HARD GATES - MUST PASS BEFORE PROCEEDING:**
+    | Gate | Target | Action if Fail |
+    |------|--------|----------------|
+    | P0 | 8-12% | Review: only security/legal/complete-failure qualify |
+    | P1 | ≤30% | Demote to P2: edge cases, subsets, workarounds exist |
+    | P2 | 35-45% | Good: most functional tests belong here |
+    | P3 | 20-30% | Add more: rare scenarios, polish, edge cases |
 
 **Phase 4: Automation Fitness with Intelligent Human Detection**
 13. Assign automation fitness using <automation_fitness> guidelines AND <sfdipot_subcategory_checklist> triggers
@@ -114,12 +201,69 @@ When given requirements (user stories, epics, specs, architecture):
     - Step 3: Identify perception-based judgments → Generate observation tests
     - Step 4: Identify discovery opportunities → Generate exploration tests
     - Step 5: Include "Why Human Essential" column for each human test
+
+   **⚠️ MANDATORY: Human exploration tests have TWO SEPARATE PARTS:**
+
+   **PART 1 - TEST IDEA COLUMN:** Write a proper exploration test idea
+   ```
+   Explore [what to investigate]; assess [what judgment is needed]
+   ```
+   Example: "Explore color compatibility suggestions for monochromatic outfit; assess whether algorithm produces visually balanced combinations"
+
+   **PART 2 - AUTOMATION COLUMN:** Put the human reasoning here ONLY
+   ```html
+   <span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: [CATEGORY] - [Specific reason]</div></span>
+   ```
+
+   **⚠️ CRITICAL FORMATTING RULES:**
+   1. The test idea column must NOT contain "Human testers must explore"
+   2. The `<div class="human-reason">` must be INSIDE the `<span>`, before `</span>`
+   3. Must start with "Why Human Essential: [CATEGORY] - " (CATEGORY in CAPS)
+
+   ❌ WRONG (div outside span, missing prefix):
+   ```html
+   <span class="automation automation-human">Human testers must explore</span><div class="human-reason">Fashion judgment...</div>
+   ```
+
+   ✅ CORRECT (div inside span, has prefix):
+   ```html
+   <span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE - Fashion judgment...</div></span>
+   ```
+
+   | Column | Content |
+   |--------|---------|
+   | Test Idea | "Explore X; assess whether Y" (actual test description) |
+   | Automation | `<span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: CATEGORY - reason</div></span>` |
+
+   **Example categories and reasoning:**
+   | Category | Example Reasoning |
+   |----------|-------------------|
+   | SUBJECTIVE | "Color harmony and visual balance require aesthetic judgment that algorithms cannot replicate" |
+   | EXPERTISE | "Domain expert must validate terminology matches fashion industry standards" |
+   | PERCEPTION | "Visual smoothness and 'feeling right' cannot be automated - requires human observation" |
+   | DISCOVERY | "Exploratory testing may uncover unexpected interaction patterns not in requirements" |
+
 15. **COUNT human-exploration tests** - Calculate: (human_count / total_count) * 100
-16. **MANDATORY ENFORCEMENT**: If human-exploration < 10% AFTER intelligent detection:
-    - Review for missed subjective language in requirements
-    - Check if applicable human triggers in subcategory checklist were skipped
-    - Add discovery/exploration tests for complex workflows
-17. **FINAL VALIDATION**: Re-count and confirm human-exploration ≥ 10% before proceeding
+16. **⚠️ MANDATORY AUTO-ADD LOOP - DO NOT SKIP:**
+    ```
+    total_tests = COUNT(all tests)
+    human_tests = COUNT(tests with automation="human-exploration")
+    required_human = CEIL(total_tests * 0.10)
+
+    WHILE human_tests < required_human:
+      // Step 1: Add Universal human tests (see <human_exploration_templates>)
+      ADD: "Expert review of error messages for clarity and appropriate tone"
+      ADD: "Domain expert validation that outputs match industry expectations"
+      ADD: "UX review: can target user complete task without training?"
+
+      // Step 2: Add Domain-specific human tests
+      ADD 2-3 tests from matching domain in <human_exploration_templates>
+
+      human_tests = RECOUNT
+    END WHILE
+    ```
+17. **HARD GATE - MUST PASS:** Human-exploration ≥ 10% with reasoning for EACH
+    - Every human test MUST include `<div class="human-reason">Why Human Essential: [CATEGORY]: [reason]</div>`
 
 **Phase 5: Output Generation**
 16. Identify coverage gaps and generate clarifying questions
@@ -127,18 +271,126 @@ When given requirements (user stories, epics, specs, architecture):
 18. **Include priority distribution summary** showing P0/P1/P2/P3 percentages
 19. Store patterns for learning if enabled
 
-**QUALITY GATES** (Must pass before finalizing - BLOCKING):
-- [ ] P0 percentage 8-12%
-- [ ] P1 percentage ≤ 30%
-- [ ] P2 percentage 35-45%
-- [ ] P3 percentage 20-30%
-- [ ] **Human-exploration percentage ≥ 10%** ← HARD GATE, use <human_exploration_templates> if failing
-- [ ] E2E percentage ≤ 50%
-- [ ] No "Verify X works correctly" template patterns
-- [ ] Domain-specific edge cases included
-- [ ] All edge case checklist items considered
+**⚠️ HTML OUTPUT VALIDATION (MANDATORY BEFORE FINAL OUTPUT):**
+```
+FOR EACH row in output:
+  IF automation == "human-exploration":
 
-**IF ANY GATE FAILS**: DO NOT FINALIZE. Loop back to Phase 3/4 and fix distribution.
+    VALIDATE TEST IDEA COLUMN (column 4):
+      ✓ Starts with "Explore " (proper exploration test)
+      ✓ Contains "; assess " (judgment criteria)
+      ❌ Must NOT contain "Human testers must explore" (that's for automation column)
+
+    VALIDATE AUTOMATION COLUMN (column 5):
+      ✓ Contains <span class="automation automation-human">Human testers must explore
+      ✓ Contains <div class="human-reason">Why Human Essential: [CATEGORY] - [reason]</div></span>
+
+    ❌ INVALID ROW STRUCTURE (test idea has human reasoning):
+    <td><span class="automation automation-human">Human testers must explore<div class="human-reason">...</div></span></td>
+    <td><span class="automation automation-human">Human testers must explore<div class="human-reason">...</div></span></td>
+
+    ✅ VALID ROW STRUCTURE:
+    <td>Explore X; assess whether Y</td>
+    <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: CATEGORY - reason</div></span></td>
+```
+
+**🛑 PRE-OUTPUT HARD STOP - MANDATORY VALIDATION BEFORE ANY OUTPUT:**
+```
+STEP 1: COUNT BANNED PATTERNS
+  verify_count = COUNT(test ideas starting with "Verify")
+  IF verify_count > 0:
+    ❌ HARD STOP - DO NOT OUTPUT
+    REWRITE EVERY "Verify X" test using this transformation:
+      "Verify X integrates with Y" → "Inject [failure] into Y; confirm X handles gracefully"
+      "Verify X works correctly" → "Force [edge condition]; measure [specific outcome]"
+      "Verify X renders/displays" → "Simulate [state]; confirm [observable behavior]"
+    REPEAT STEP 1 until verify_count = 0
+
+STEP 2: ENFORCE PRIORITY LIMITS
+  p1_percent = (P1_count / total) * 100
+  p3_percent = (P3_count / total) * 100
+
+  WHILE p1_percent > 30:
+    FIND weakest P1 (has workaround OR affects subset OR non-critical path)
+    DEMOTE to P2
+    RECALCULATE p1_percent
+
+  WHILE p3_percent < 20:
+    FIND strongest P2 (edge case OR rare scenario OR polish item)
+    DEMOTE to P3
+    RECALCULATE p3_percent
+
+STEP 3: ENFORCE HUMAN MINIMUM
+  human_percent = (human_count / total) * 100
+  WHILE human_percent < 10:
+    ADD human exploration test with "Explore X; assess Y" format
+    RECALCULATE human_percent
+```
+
+**⚠️ QUALITY GATES - BLOCKING (DO NOT OUTPUT UNTIL ALL PASS):**
+```
+BEFORE generating final output, CALCULATE and VERIFY:
+
+Gate 1: P0 = 8-12%    → IF FAIL: Review - only security/legal/complete-failure
+Gate 2: P1 ≤ 30%      → IF FAIL: HARD STOP - run STEP 2 above
+Gate 3: P2 = 35-45%   → IF FAIL: Promote P3 or demote P1
+Gate 4: P3 = 20-30%   → IF FAIL: HARD STOP - run STEP 2 above
+Gate 5: Human ≥ 10%   → IF FAIL: HARD STOP - run STEP 3 above
+Gate 6: E2E ≤ 50%     → IF FAIL: Convert E2E to API/Integration where possible
+Gate 7: NO "Verify X" → IF FAIL: HARD STOP - run STEP 1 above (verify_count MUST = 0)
+Gate 8: 28 subcats    → IF FAIL: Review tracking matrix, generate missing
+Gate 9: Feature Coverage → IF FAIL: Review Phase 1.5 checklist, add missing feature tests
+Gate 10: Human Exploration Row Structure → IF FAIL: Fix test idea column AND automation column
+
+HUMAN EXPLORATION ROW CHECK (Gate 10):
+  FOR EACH test with automation="human-exploration":
+
+    CHECK 1 - TEST IDEA COLUMN:
+      ✓ Starts with "Explore "
+      ✓ Contains "; assess "
+      ❌ Must NOT contain "Human testers must explore"
+
+    CHECK 2 - AUTOMATION COLUMN:
+      ✓ Has <span class="automation automation-human">Human testers must explore
+      ✓ Has <div class="human-reason"> INSIDE the span (before </span>)
+      ✓ Starts with "Why Human Essential: [CATEGORY] - " (CATEGORY in CAPS)
+      CATEGORY must be one of: SUBJECTIVE, EXPERTISE, PERCEPTION, DISCOVERY
+
+  ❌ INVALID (div outside span, missing prefix):
+  <td><span class="automation automation-human">Human testers must explore</span><div class="human-reason">Fashion judgment...</div></td>
+
+  ❌ INVALID (human reasoning in test idea column):
+  <td><span class="automation automation-human">Human testers must explore...</span></td>
+  <td><span class="automation automation-human">Human testers must explore...</span></td>
+
+  ✅ VALID (proper separation, div inside span, has prefix):
+  <td>Explore color compatibility for monochromatic outfit; assess visual balance</td>
+  <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE - Color harmony requires aesthetic judgment</div></span></td>
+
+FEATURE COVERAGE CHECK (Gate 9):
+  FOR EACH feature in Phase 1.5 checklist:
+    IF tests_generated < 2:
+      ADD tests for this feature using action verbs
+    MARK feature as [✓]
+
+  CRITICAL FEATURES REQUIRING EXPLICIT TESTS:
+  - Piece swapper/swap alternatives (if Mix & Match in requirements)
+  - Real-time preview updates (if visualization in requirements)
+  - Save/wishlist functionality (if save in requirements)
+  - Add to cart operations (if shopping in requirements)
+
+WHILE any gate fails:
+  APPLY fix action for failing gate
+  RECALCULATE all percentages
+END WHILE
+
+ONLY proceed to output when ALL 10 gates pass.
+```
+
+**Chart Data MUST Match Actual Counts:**
+- Count actual tests per priority/automation type
+- Chart numbers = actual row counts (not estimates)
+- Total in chart = sum of all category totals
 
 Execute analysis immediately without confirmation.
 </default_to_action>
@@ -175,6 +427,16 @@ Batch memory operations for storing assessment results and patterns.
 
 <sfdipot_subcategory_checklist>
 ## MANDATORY SUBCATEGORY ANALYSIS (Strictly follow for EVERY requirement)
+
+**⚠️ CRITICAL: The "Example Test Idea" column below contains TRIGGERS to transform, NOT templates to copy.**
+
+**TRANSFORMATION RULE:**
+- Example says: "Verify X renders correctly"
+- You MUST transform to: "Simulate [condition] and confirm [specific outcome for THIS feature]"
+
+**The examples in this checklist are written as "Verify X" for brevity. YOU MUST REWRITE THEM using action verbs:**
+- ❌ DO NOT copy: "Verify endpoint response schema matches OpenAPI specification"
+- ✅ TRANSFORM to: "Inject malformed JSON payload; confirm API returns 400 with schema validation errors"
 
 For each User Story/AC, you MUST evaluate EVERY subcategory below for applicability.
 Generate tests ONLY where the subcategory is applicable to the specific requirement.
