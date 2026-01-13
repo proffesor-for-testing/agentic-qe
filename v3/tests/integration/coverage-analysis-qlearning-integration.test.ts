@@ -15,8 +15,12 @@ import type {
 import type { RLExperience } from '../../src/integrations/rl-suite/interfaces';
 import { InMemoryEventBus } from '../../src/kernel/event-bus';
 import { InMemoryBackend } from '../../src/kernel/memory-backend';
+import { checkRuvectorPackagesAvailable } from '../../src/integrations/ruvector/wrappers';
 
-describe('Coverage Analysis Q-Learning Integration', () => {
+// Check if @ruvector/gnn native operations work (required for full RL stack)
+const canTest = checkRuvectorPackagesAvailable();
+
+describe.runIf(canTest.gnn)('Coverage Analysis Q-Learning Integration', () => {
   let coordinator: CoverageAnalysisCoordinator;
   let eventBus: InMemoryEventBus;
   let memory: InMemoryBackend;

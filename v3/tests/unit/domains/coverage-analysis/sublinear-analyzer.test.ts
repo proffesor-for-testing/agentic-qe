@@ -24,8 +24,12 @@ import type {
   FileCoverage,
   CoverageGap,
 } from '../../../../src/domains/coverage-analysis/interfaces';
+import { checkRuvectorPackagesAvailable } from '../../../../src/integrations/ruvector/wrappers';
 
-describe('SublinearCoverageAnalyzer', () => {
+// Check if @ruvector/gnn native operations work (required for HNSW)
+const canTest = checkRuvectorPackagesAvailable();
+
+describe.runIf(canTest.gnn)('SublinearCoverageAnalyzer', () => {
   let memory: AgentDBBackend;
   let analyzer: SublinearCoverageAnalyzer;
 

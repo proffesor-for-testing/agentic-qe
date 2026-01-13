@@ -29,8 +29,12 @@ import {
 } from '../../../src/learning/qe-guidance';
 import { createMockMemory } from '../../mocks';
 import type { MemoryBackend } from '../../../src/kernel/interfaces';
+import { checkRuvectorPackagesAvailable } from '../../../src/integrations/ruvector/wrappers';
 
-describe('QE ReasoningBank', () => {
+// Check if @ruvector/gnn native operations work (required for semantic search)
+const canTest = checkRuvectorPackagesAvailable();
+
+describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
   let memory: MemoryBackend;
   let reasoningBank: QEReasoningBank;
 
