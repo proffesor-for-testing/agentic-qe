@@ -10,12 +10,16 @@
  */
 
 import { quickStart, MCPProtocolServer } from './protocol-server';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../../package.json') as { version: string };
 
 let server: MCPProtocolServer | null = null;
 
 async function main(): Promise<void> {
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
-  const version = '3.0.0-alpha.10';
+  const version = pkg.version;
   process.stderr.write(`[agentic-qe-v3] MCP server starting v${version}\n`);
 
   // Handle graceful shutdown
