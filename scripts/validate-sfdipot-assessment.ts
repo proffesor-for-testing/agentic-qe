@@ -2,8 +2,10 @@
 /**
  * SFDIPOT Assessment Validator
  *
- * Validates that Product Factors assessment HTML output passes all quality gates.
- * This is ACTUAL enforcement, not just prompt text.
+ * Validates that Product Factors assessment HTML output passes quality gates.
+ *
+ * PHILOSOPHY: Priority percentages are INFORMATIONAL, not gates.
+ * Domain experts should determine priorities, not arbitrary percentages.
  *
  * Usage:
  *   npx tsx scripts/validate-sfdipot-assessment.ts <path-to-html>
@@ -23,6 +25,7 @@ interface ValidationResult {
   expected: string;
   actual: string;
   details?: string;
+  isHard: boolean; // Hard gates fail validation; soft gates are informational
 }
 
 interface AssessmentMetrics {
@@ -80,6 +83,10 @@ function validateAssessment(filePath: string): { passed: boolean; results: Valid
   const metrics = extractMetrics(content);
   const results: ValidationResult[] = [];
 
+  // ============================================
+  // HARD GATES - These actually fail validation
+  // ============================================
+
   // Gate 7: NO "Verify X" patterns (HARD REQUIREMENT)
   const gate7 = metrics.verifyCount === 0;
   results.push({
@@ -88,55 +95,12 @@ function validateAssessment(filePath: string): { passed: boolean; results: Valid
     expected: '0',
     actual: String(metrics.verifyCount),
     details: gate7 ? undefined : `Found ${metrics.verifyCount} test ideas starting with "Verify"`,
-  });
-
-  // Calculate percentages
-  const total = metrics.totalTests || 1; // Avoid division by zero
-  const p0Pct = (metrics.p0Count / total) * 100;
-  const p1Pct = (metrics.p1Count / total) * 100;
-  const p2Pct = (metrics.p2Count / total) * 100;
-  const p3Pct = (metrics.p3Count / total) * 100;
-  const humanPct = (metrics.humanCount / total) * 100;
-
-  // Gate 1: P0 = 8-12%
-  const gate1 = p0Pct >= 5 && p0Pct <= 15; // Allowing some tolerance
-  results.push({
-    gate: 'Gate 1: P0 = 8-12%',
-    passed: gate1,
-    expected: '8-12%',
-    actual: `${p0Pct.toFixed(1)}% (${metrics.p0Count}/${total})`,
-  });
-
-  // Gate 2: P1 <= 30% (HARD REQUIREMENT)
-  const gate2 = p1Pct <= 30;
-  results.push({
-    gate: 'Gate 2: P1 <= 30%',
-    passed: gate2,
-    expected: '≤30%',
-    actual: `${p1Pct.toFixed(1)}% (${metrics.p1Count}/${total})`,
-    details: gate2 ? undefined : `P1 is ${(p1Pct - 30).toFixed(1)}% over limit`,
-  });
-
-  // Gate 3: P2 = 35-45%
-  const gate3 = p2Pct >= 30 && p2Pct <= 50; // Allowing some tolerance
-  results.push({
-    gate: 'Gate 3: P2 = 35-45%',
-    passed: gate3,
-    expected: '35-45%',
-    actual: `${p2Pct.toFixed(1)}% (${metrics.p2Count}/${total})`,
-  });
-
-  // Gate 4: P3 = 20-30% (HARD REQUIREMENT)
-  const gate4 = p3Pct >= 18 && p3Pct <= 35; // Allowing some tolerance
-  results.push({
-    gate: 'Gate 4: P3 = 20-30%',
-    passed: gate4,
-    expected: '20-30%',
-    actual: `${p3Pct.toFixed(1)}% (${metrics.p3Count}/${total})`,
-    details: gate4 ? undefined : p3Pct < 18 ? `P3 is ${(18 - p3Pct).toFixed(1)}% under minimum` : `P3 is ${(p3Pct - 35).toFixed(1)}% over limit`,
+    isHard: true,
   });
 
   // Gate 5: Human >= 10% (HARD REQUIREMENT)
+  const total = metrics.totalTests || 1;
+  const humanPct = (metrics.humanCount / total) * 100;
   const gate5 = humanPct >= 10;
   results.push({
     gate: 'Gate 5: Human >= 10%',
@@ -144,10 +108,10 @@ function validateAssessment(filePath: string): { passed: boolean; results: Valid
     expected: '≥10%',
     actual: `${humanPct.toFixed(1)}% (${metrics.humanCount}/${total})`,
     details: gate5 ? undefined : `Human tests are ${(10 - humanPct).toFixed(1)}% under minimum`,
+    isHard: true,
   });
 
-  // Gate 10: Human exploration row structure
-  // Every human test should have "Why Human Essential" reasoning
+  // Gate 10a: Human tests have reasoning (HARD)
   const gate10a = metrics.humanCount === 0 || metrics.humanWithReason >= metrics.humanCount * 0.9;
   results.push({
     gate: 'Gate 10a: Human tests have "Why Human Essential" reasoning',
@@ -155,9 +119,10 @@ function validateAssessment(filePath: string): { passed: boolean; results: Valid
     expected: `${metrics.humanCount} (all human tests)`,
     actual: `${metrics.humanWithReason}`,
     details: gate10a ? undefined : `${metrics.humanCount - metrics.humanWithReason} human tests missing reasoning`,
+    isHard: true,
   });
 
-  // Human tests should have "Explore X; assess Y" format in test idea column
+  // Gate 10b: Human tests use "Explore X; assess Y" format (HARD)
   const gate10b = metrics.humanCount === 0 || metrics.humanWithExplore >= metrics.humanCount * 0.8;
   results.push({
     gate: 'Gate 10b: Human test ideas use "Explore X; assess Y" format',
@@ -165,9 +130,72 @@ function validateAssessment(filePath: string): { passed: boolean; results: Valid
     expected: `≥${Math.floor(metrics.humanCount * 0.8)} (80% of human tests)`,
     actual: `${metrics.humanWithExplore}`,
     details: gate10b ? undefined : `Only ${metrics.humanWithExplore} of ${metrics.humanCount} human tests use proper format`,
+    isHard: true,
   });
 
-  const allPassed = results.every(r => r.passed);
+  // Gate 6: Minimum test count (HARD)
+  const gate6 = metrics.totalTests >= 50;
+  results.push({
+    gate: 'Gate 6: Minimum 50 test ideas',
+    passed: gate6,
+    expected: '≥50',
+    actual: `${metrics.totalTests}`,
+    details: gate6 ? undefined : `Only ${metrics.totalTests} tests generated`,
+    isHard: true,
+  });
+
+  // ============================================
+  // SOFT GATES - Informational only, for SME review
+  // Priority distribution is domain-specific, not a universal rule
+  // ============================================
+
+  const p0Pct = (metrics.p0Count / total) * 100;
+  const p1Pct = (metrics.p1Count / total) * 100;
+  const p2Pct = (metrics.p2Count / total) * 100;
+  const p3Pct = (metrics.p3Count / total) * 100;
+
+  // Info: P0 distribution (NOT a hard gate)
+  results.push({
+    gate: 'Info: P0 (Critical) distribution',
+    passed: true, // Always passes - informational only
+    expected: 'SME to review',
+    actual: `${p0Pct.toFixed(1)}% (${metrics.p0Count}/${total})`,
+    details: 'Domain expert should validate P0 assignments based on business context',
+    isHard: false,
+  });
+
+  // Info: P1 distribution (NOT a hard gate)
+  results.push({
+    gate: 'Info: P1 (High) distribution',
+    passed: true,
+    expected: 'SME to review',
+    actual: `${p1Pct.toFixed(1)}% (${metrics.p1Count}/${total})`,
+    details: 'Domain expert should validate P1 assignments based on business context',
+    isHard: false,
+  });
+
+  // Info: P2 distribution (NOT a hard gate)
+  results.push({
+    gate: 'Info: P2 (Medium) distribution',
+    passed: true,
+    expected: 'SME to review',
+    actual: `${p2Pct.toFixed(1)}% (${metrics.p2Count}/${total})`,
+    details: 'Domain expert should validate P2 assignments based on business context',
+    isHard: false,
+  });
+
+  // Info: P3 distribution (NOT a hard gate)
+  results.push({
+    gate: 'Info: P3 (Low) distribution',
+    passed: true,
+    expected: 'SME to review',
+    actual: `${p3Pct.toFixed(1)}% (${metrics.p3Count}/${total})`,
+    details: 'Domain expert should validate P3 assignments based on business context',
+    isHard: false,
+  });
+
+  // Only hard gates determine pass/fail
+  const allPassed = results.filter(r => r.isHard).every(r => r.passed);
   return { passed: allPassed, results };
 }
 
@@ -178,25 +206,37 @@ function printResults(filePath: string, validation: { passed: boolean; results: 
   console.log(`SFDIPOT Assessment Validation: ${fileName}`);
   console.log('='.repeat(70));
 
-  for (const result of validation.results) {
+  // Print hard gates first
+  console.log('\n--- HARD GATES (Must Pass) ---');
+  for (const result of validation.results.filter(r => r.isHard)) {
     const status = result.passed ? '✅ PASS' : '❌ FAIL';
     console.log(`\n${status} | ${result.gate}`);
     console.log(`       Expected: ${result.expected}`);
     console.log(`       Actual:   ${result.actual}`);
-    if (result.details) {
+    if (result.details && !result.passed) {
       console.log(`       Details:  ${result.details}`);
     }
   }
 
+  // Print soft gates (informational)
+  console.log('\n--- PRIORITY DISTRIBUTION (For SME Review) ---');
+  for (const result of validation.results.filter(r => !r.isHard)) {
+    console.log(`\n📊 INFO | ${result.gate}`);
+    console.log(`       Value:    ${result.actual}`);
+    console.log(`       Note:     ${result.details}`);
+  }
+
   console.log('\n' + '-'.repeat(70));
-  const passCount = validation.results.filter(r => r.passed).length;
-  const totalGates = validation.results.length;
+  const hardGates = validation.results.filter(r => r.isHard);
+  const passCount = hardGates.filter(r => r.passed).length;
+  const totalGates = hardGates.length;
 
   if (validation.passed) {
-    console.log(`✅ ALL GATES PASSED (${passCount}/${totalGates})`);
+    console.log(`✅ ALL HARD GATES PASSED (${passCount}/${totalGates})`);
+    console.log(`⚠️  Priority distribution requires Domain Expert/SME review`);
   } else {
-    console.log(`❌ VALIDATION FAILED (${passCount}/${totalGates} gates passed)`);
-    const failedGates = validation.results.filter(r => !r.passed).map(r => r.gate);
+    console.log(`❌ VALIDATION FAILED (${passCount}/${totalGates} hard gates passed)`);
+    const failedGates = hardGates.filter(r => !r.passed).map(r => r.gate);
     console.log(`   Failed gates: ${failedGates.join(', ')}`);
   }
   console.log('-'.repeat(70));

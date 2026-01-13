@@ -169,29 +169,26 @@ When given requirements (user stories, epics, specs, architecture):
 8. **Transform each applicable trigger into context-specific test ideas** with boundaries/failure modes
 9. Apply <edge_cases_checklist> to ensure coverage of race conditions, external deps, etc.
 
-**Phase 3: Priority Assignment with Calibration (HARD ENFORCEMENT)**
+**Phase 3: Priority Assignment (Domain-Context Driven)**
 9. Assign initial priorities using <priority_calibration> questions
-10. Calculate priority distribution percentages
-11. **⚠️ MANDATORY REBALANCING LOOP - DO NOT SKIP:**
+10. Calculate priority distribution percentages (for reporting only)
+11. **Priority Guidelines (NOT hard percentages):**
     ```
-    WHILE P1 > 30%:
-      FOR EACH P1 test:
-        ASK: "If this fails, can users STILL complete core task?"
-             YES → DEMOTE TO P2
-        ASK: "Is there ANY workaround?"
-             YES → DEMOTE TO P2/P3
-        ASK: "Does this affect ALL users or just a subset?"
-             SUBSET → DEMOTE TO P2
-      RECALCULATE percentages
-    END WHILE
+    FOR EACH test idea:
+      P0 (Critical): Security vulnerabilities, legal compliance, complete system failure
+      P1 (High):     Core user journey blockers, significant revenue impact
+      P2 (Medium):   Important functionality, degraded experience but workarounds exist
+      P3 (Low):      Edge cases, polish, rare scenarios, nice-to-have
     ```
-12. **HARD GATES - MUST PASS BEFORE PROCEEDING:**
-    | Gate | Target | Action if Fail |
-    |------|--------|----------------|
-    | P0 | 8-12% | Review: only security/legal/complete-failure qualify |
-    | P1 | ≤30% | Demote to P2: edge cases, subsets, workarounds exist |
-    | P2 | 35-45% | Good: most functional tests belong here |
-    | P3 | 20-30% | Add more: rare scenarios, polish, edge cases |
+12. **Priority is DOMAIN-SPECIFIC - Include SME Review Warning:**
+    | Priority | Guideline | Examples |
+    |----------|-----------|----------|
+    | P0 | Only if: security breach, legal liability, or complete feature failure | Payment data exposure, WCAG legal violation |
+    | P1 | Only if: core journey blocked AND no workaround exists | Can't complete purchase, can't view content |
+    | P2 | Default for most functional tests | Feature works but degraded, edge case failures |
+    | P3 | Edge cases, rare scenarios, polish | Unusual inputs, cosmetic issues |
+
+    **⚠️ IMPORTANT:** Priority percentages are for reporting, NOT gates. Domain Expert/SME must review priorities based on actual business context.
 
 **Phase 4: Automation Fitness with Intelligent Human Detection**
 13. Assign automation fitness using <automation_fitness> guidelines AND <sfdipot_subcategory_checklist> triggers
@@ -327,20 +324,23 @@ STEP 3: ENFORCE HUMAN MINIMUM
     RECALCULATE human_percent
 ```
 
-**⚠️ QUALITY GATES - BLOCKING (DO NOT OUTPUT UNTIL ALL PASS):**
+**⚠️ QUALITY GATES - HARD GATES (Must Pass) vs SOFT GATES (For SME Review):**
 ```
-BEFORE generating final output, CALCULATE and VERIFY:
+BEFORE generating final output, VERIFY HARD GATES:
 
-Gate 1: P0 = 8-12%    → IF FAIL: Review - only security/legal/complete-failure
-Gate 2: P1 ≤ 30%      → IF FAIL: HARD STOP - run STEP 2 above
-Gate 3: P2 = 35-45%   → IF FAIL: Promote P3 or demote P1
-Gate 4: P3 = 20-30%   → IF FAIL: HARD STOP - run STEP 2 above
-Gate 5: Human ≥ 10%   → IF FAIL: HARD STOP - run STEP 3 above
-Gate 6: E2E ≤ 50%     → IF FAIL: Convert E2E to API/Integration where possible
-Gate 7: NO "Verify X" → IF FAIL: HARD STOP - run STEP 1 above (verify_count MUST = 0)
+--- HARD GATES (Blocking - Must Pass) ---
+Gate 5: Human ≥ 10%   → IF FAIL: Add more human exploration tests
+Gate 7: NO "Verify X" → IF FAIL: Rewrite test ideas with action verbs (verify_count MUST = 0)
 Gate 8: 28 subcats    → IF FAIL: Review tracking matrix, generate missing
 Gate 9: Feature Coverage → IF FAIL: Review Phase 1.5 checklist, add missing feature tests
 Gate 10: Human Exploration Row Structure → IF FAIL: Fix test idea column AND automation column
+
+--- SOFT GATES (Informational - For Domain Expert/SME Review) ---
+Info: P0 distribution → Report % for SME review (domain context determines appropriate level)
+Info: P1 distribution → Report % for SME review (business impact determines priority)
+Info: P2 distribution → Report % for SME review
+Info: P3 distribution → Report % for SME review
+Info: E2E % → Report for test pyramid review
 
 HUMAN EXPLORATION ROW CHECK (Gate 10):
   FOR EACH test with automation="human-exploration":
@@ -860,30 +860,37 @@ Generated Human Tests:
 ```
 </human_judgment_detector>
 
-<priority_distribution_rules>
-## MANDATORY PRIORITY DISTRIBUTION (Brutal Honesty Compliance)
+<priority_distribution_guidelines>
+## PRIORITY ASSIGNMENT GUIDELINES (Domain-Context Driven)
 
-**Target Distribution** (MUST be within these ranges):
-| Priority | Target % | Hard Limits | Acceptable Range |
-|----------|----------|-------------|------------------|
-| P0 | 8-12% | Min 5%, Max 15% | Security, legal, complete failure |
-| P1 | 20-30% | Min 15%, Max 35% | Core user journeys only |
-| P2 | 35-45% | Min 30%, Max 50% | Secondary features, most edge cases |
-| P3 | 20-30% | Min 15%, Max 35% | Edge cases, polish, rare scenarios |
+**⚠️ IMPORTANT: Priorities are Domain-Specific - SME Review Required**
 
-**Priority Inflation Check** (MANDATORY before finalizing):
-After generating all test ideas, calculate actual distribution. If P1 > 35%:
-1. STOP and review each P1 test idea
-2. Ask: "If this fails, can users still complete their core task?" → Yes = demote to P2
-3. Ask: "Is there a workaround?" → Yes = demote to P2/P3
-4. Ask: "Does this affect all users or a subset?" → Subset = consider P2
+Priority percentages are for REPORTING, not hard gates. The correct priority distribution
+depends entirely on business context, which only Domain Experts/SMEs can determine.
 
-**Red Flags for Priority Inflation:**
-- ❌ More than 35% P1 → You're not prioritizing, you're labeling
-- ❌ P1 test ideas that are really "nice to have" polish
-- ❌ Edge cases marked P1 (edge cases are P2/P3 by definition)
-- ❌ "Verify X works" without specific failure mode → needs P2/P3 review
-</priority_distribution_rules>
+| Priority | Definition | Examples |
+|----------|------------|----------|
+| P0 (Critical) | Security breach, legal liability, complete feature failure | Payment data exposure, WCAG violation, system crash |
+| P1 (High) | Core user journey blocked, significant revenue impact, no workaround | Can't checkout, can't view content, core feature broken |
+| P2 (Medium) | Important functionality, degraded experience but workarounds exist | Feature works but slow, edge case failure, minor UX issue |
+| P3 (Low) | Edge cases, polish, rare scenarios, nice-to-have | Unusual inputs, cosmetic issues, rare user paths |
+
+**Priority Decision Questions** (Guidelines, NOT hard rules):
+When assigning priority, consider:
+1. "What's the blast radius if this fails?" → All users = higher priority
+2. "Is there a workaround?" → Yes = consider lower priority
+3. "What's the regulatory/legal impact?" → Compliance issues = P0/P1
+4. "What's the revenue impact?" → Direct revenue loss = higher priority
+
+**Do NOT mechanically target percentages.**
+A security-critical feature might legitimately have 25% P0 tests.
+A UI polish feature might have 80% P3 tests. Context determines distribution.
+
+**Common Priority Smells** (review if you see these):
+- P1 test ideas that are really "nice to have" polish → consider P2/P3
+- Edge cases marked P1 (edge cases are typically P2/P3)
+- Many tests starting with "Verify X works" → clarify specific failure mode
+</priority_distribution_guidelines>
 
 <priority_calibration>
 ## Priority Calibration Questions (Ask for EACH test idea)

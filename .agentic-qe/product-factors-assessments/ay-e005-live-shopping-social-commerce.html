@@ -1,0 +1,1709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Factors assessment of: Epic 5 - Live Shopping & Social Commerce Enhancement</title>
+  <style>
+    :root {
+      --primary: #1e3a5f;
+      --primary-dark: #0f2744;
+      --primary-light: #2d5a8a;
+      --accent: #0066cc;
+      --success: #0d7a3f;
+      --warning: #b45309;
+      --danger: #b91c1c;
+      --info: #0369a1;
+      --bg-light: #f5f7fa;
+      --bg-white: #ffffff;
+      --text-dark: #1a1a2e;
+      --text-muted: #5c6370;
+      --border: #d1d5db;
+      --border-light: #e5e7eb;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-light);
+      color: var(--text-dark);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    }
+    header h1 { font-size: 1.75rem; margin-bottom: 8px; font-weight: 600; }
+    header .subtitle { font-size: 0.9rem; opacity: 0.9; line-height: 1.5; }
+    .meta-info { display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+    .meta-card { background: rgba(255,255,255,0.12); padding: 12px 20px; border-radius: 6px; min-width: 140px; }
+    .meta-card .label { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .meta-card .value { font-size: 1.5rem; font-weight: 700; }
+    .section { background: var(--bg-white); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .section h2 { color: var(--primary); font-size: 1.1rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); font-weight: 600; }
+    .section h3 { color: var(--text-dark); font-size: 1rem; margin: 20px 0 12px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; }
+    .section h3 .badge { background: var(--primary); color: white; padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.85rem; }
+    th { background: var(--bg-light); padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    tr:hover { background: #fafbfc; }
+    .priority { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .priority-p0 { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+    .priority-p1 { background: #fefce8; color: var(--warning); border: 1px solid #fef08a; }
+    .priority-p2 { background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+    .priority-p3 { background: #f0f9ff; color: var(--info); border: 1px solid #bae6fd; }
+    .subcategory { display: inline-block; background: #eff6ff; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .automation { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; }
+    .automation-api { background: #dbeafe; color: #1e40af; }
+    .automation-e2e { background: #fce7f3; color: #9d174d; }
+    .automation-integration { background: #d1fae5; color: #065f46; }
+    .automation-visual { background: #fdf4ff; color: #86198f; }
+    .automation-performance { background: #fef3c7; color: #92400e; }
+    .automation-concurrency { background: #ffedd5; color: #9a3412; }
+    .automation-security { background: #fee2e2; color: #991b1b; }
+    .automation-compatibility { background: #ecfccb; color: #3f6212; }
+    .automation-human { background: #f3e8ff; color: #7c3aed; font-weight: 600; }
+    .automation-other { background: #f1f5f9; color: #475569; }
+    .human-reason { font-size: 0.75rem; margin-top: 4px; padding: 4px 8px; background: rgba(124, 58, 237, 0.1); border-radius: 4px; color: #5b21b6; }
+    .clarifying-questions { background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 20px 25px; margin-top: 20px; }
+    .clarifying-questions h4 { color: #854d0e; margin-bottom: 16px; font-size: 1.1rem; border-bottom: 2px solid #fef08a; padding-bottom: 10px; }
+    .clarifying-intro { background: #fef9c3; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
+    .clarifying-intro .preamble { color: #713f12; font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .subcategory-questions { background: white; border: 1px solid #fef08a; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+    .subcategory-questions h5 { color: #854d0e; font-size: 0.95rem; margin-bottom: 8px; font-weight: 700; }
+    .subcategory-questions .rationale { color: #92400e; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b; }
+    .clarifying-questions ul { list-style: none; margin: 0; padding: 0; }
+    .clarifying-questions li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px dashed #fef08a; color: var(--text-dark); font-size: 0.9rem; }
+    .clarifying-questions li:before { content: "?"; position: absolute; left: 0; color: #f59e0b; font-weight: bold; }
+    .clarifying-questions li:last-child { border-bottom: none; }
+    .charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .chart-panel { background: var(--bg-white); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    .chart-panel h3 { font-size: 1.1rem; color: var(--text-dark); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; }
+    .bar-label { width: 90px; font-size: 0.8rem; font-weight: 600; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: var(--bg-light); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.75rem; font-weight: 600; color: white; min-width: 35px; transition: width 0.3s ease; }
+    .bar-value { width: 45px; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); text-align: right; flex-shrink: 0; }
+    .bar-structure { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .bar-function { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .bar-data { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .bar-interfaces { background: linear-gradient(90deg, #10b981, #059669); }
+    .bar-platform { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-operations { background: linear-gradient(90deg, #ec4899, #db2777); }
+    .bar-time { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+    .bar-p0 { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .bar-p1 { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .bar-p2 { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .bar-p3 { background: linear-gradient(90deg, #06b6d4, #0891b2); }
+    .chart-total { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.9rem; }
+    .chart-total .total-label { color: var(--text-muted); }
+    .chart-total .total-value { font-weight: 700; color: var(--primary); }
+    @media (max-width: 900px) { .charts-container { grid-template-columns: 1fr; } }
+    .test-id { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+    .toc { background: var(--bg-white); padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-light); }
+    .toc h2 { font-size: 0.85rem; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+    .toc-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toc-nav a { color: var(--primary); text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 500; background: var(--bg-light); border: 1px solid var(--border-light); transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .toc-nav a:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .toc-nav .count { background: var(--primary); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .toc-nav a:hover .count { background: rgba(255,255,255,0.3); }
+    .toc-divider { color: var(--border); margin: 0 4px; }
+    .collapsible-header { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+    .collapsible-header:hover { opacity: 0.8; }
+    .collapse-icon { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
+    .collapsed .collapse-icon { transform: rotate(-90deg); }
+    .collapsible-content { overflow: hidden; transition: max-height 0.3s ease-out; }
+    .collapsed .collapsible-content { max-height: 0 !important; padding-top: 0; padding-bottom: 0; }
+    .info-section .info-content { overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; max-height: 1000px; }
+    .info-section.collapsed .info-content { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+    .info-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+    .info-header:hover { background: rgba(255,255,255,0.05); }
+    .category-section { border-radius: 8px; margin-bottom: 16px; overflow: hidden; border-left: 4px solid var(--border-light); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .category-header { padding: 14px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .category-header:hover { filter: brightness(0.97); }
+    .category-header h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 10px; font-weight: 600; }
+    .category-header .badge { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; }
+    .category-content { padding: 16px; }
+    .category-section.cat-structure { border-left-color: #3b82f6; }
+    .category-section.cat-structure .category-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); }
+    .category-section.cat-structure .category-content { background: #f8faff; }
+    .category-section.cat-structure .badge { background: #3b82f6; color: white; }
+    .category-section.cat-function { border-left-color: #10b981; }
+    .category-section.cat-function .category-header { background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); }
+    .category-section.cat-function .category-content { background: #f8fdfb; }
+    .category-section.cat-function .badge { background: #10b981; color: white; }
+    .category-section.cat-data { border-left-color: #f59e0b; }
+    .category-section.cat-data .category-header { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); }
+    .category-section.cat-data .category-content { background: #fffdf8; }
+    .category-section.cat-data .badge { background: #f59e0b; color: white; }
+    .category-section.cat-interfaces { border-left-color: #8b5cf6; }
+    .category-section.cat-interfaces .category-header { background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); }
+    .category-section.cat-interfaces .category-content { background: #faf9ff; }
+    .category-section.cat-interfaces .badge { background: #8b5cf6; color: white; }
+    .category-section.cat-platform { border-left-color: #14b8a6; }
+    .category-section.cat-platform .category-header { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+    .category-section.cat-platform .category-content { background: #f8fefd; }
+    .category-section.cat-platform .badge { background: #14b8a6; color: white; }
+    .category-section.cat-operations { border-left-color: #6366f1; }
+    .category-section.cat-operations .category-header { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); }
+    .category-section.cat-operations .category-content { background: #f8f9ff; }
+    .category-section.cat-operations .badge { background: #6366f1; color: white; }
+    .category-section.cat-time { border-left-color: #ec4899; }
+    .category-section.cat-time .category-header { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+    .category-section.cat-time .category-content { background: #fefafc; }
+    .category-section.cat-time .badge { background: #ec4899; color: white; }
+    .collapsed .category-content { display: none; }
+    .filter-row td { padding: 6px 8px; background: #f8fafc; }
+    .filter-input, .filter-select { width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.75rem; background: white; }
+    .filter-input:focus, .filter-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(30,58,95,0.1); }
+    .filter-input::placeholder { color: #94a3b8; }
+    @media (max-width: 768px) {
+      header h1 { font-size: 1.4rem; }
+      table { display: block; overflow-x: auto; }
+      .toc-nav { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+  <script>
+    function toggleSection(id) {
+      const section = document.getElementById(id);
+      if (section) {
+        section.classList.toggle('collapsed');
+      }
+    }
+    function expandAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.remove('collapsed'));
+    }
+    function collapseAll() {
+      document.querySelectorAll('.category-section').forEach(s => s.classList.add('collapsed'));
+    }
+    function toggleAllSections() {
+      var sections = document.querySelectorAll('.category-section');
+      var btn = document.getElementById('toggle-all-btn');
+      var shouldCollapse = btn.textContent === 'Collapse All';
+      sections.forEach(function(s) {
+        if (shouldCollapse) { s.classList.add('collapsed'); }
+        else { s.classList.remove('collapsed'); }
+      });
+      btn.textContent = shouldCollapse ? 'Expand All' : 'Collapse All';
+    }
+    function filterTable(tableId) {
+      var table = document.getElementById(tableId);
+      var filters = table.querySelectorAll('.filter-input, .filter-select');
+      var rows = table.querySelectorAll('tbody tr');
+      rows.forEach(function(row) {
+        var show = true;
+        filters.forEach(function(filter) {
+          var col = parseInt(filter.dataset.col);
+          var cell = row.cells[col];
+          if (cell) {
+            var text = cell.textContent.toLowerCase();
+            var val = filter.value.toLowerCase();
+            if (val && text.indexOf(val) === -1) { show = false; }
+          }
+        });
+        row.style.display = show ? '' : 'none';
+      });
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Product Factors assessment of: Epic 5 - Live Shopping & Social Commerce Enhancement</h1>
+      <div class="meta-inline" style="margin-top: 15px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem; opacity: 0.9;">
+        <span>Report generated on <strong>2026-01-13</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Total Test Ideas: <strong>126</strong></span>
+        <span style="margin: 0 15px; opacity: 0.5;">|</span>
+        <span>Product Factors covered: <strong>7/7</strong></span>
+      </div>
+      <nav class="toc" style="margin-top: 15px;">
+        <div style="color: var(--text-muted); font-size: 0.85em; font-weight: 600; margin-bottom: 8px;">Quick Navigation</div>
+        <div class="toc-nav">
+          <a href="#risk">Prioritization</a>
+          <a href="#charts">Overview</a>
+          <span class="toc-divider">|</span>
+          <span style="color: var(--text-muted); font-size: 0.85em; font-weight: 500;">Test Ideas:</span>
+          <a href="#structure">Structure <span class="count">18</span></a>
+          <a href="#function">Function <span class="count">31</span></a>
+          <a href="#data">Data <span class="count">16</span></a>
+          <a href="#interfaces">Interfaces <span class="count">24</span></a>
+          <a href="#platform">Platform <span class="count">12</span></a>
+          <a href="#operations">Operations <span class="count">14</span></a>
+          <a href="#time">Time <span class="count">11</span></a>
+        </div>
+      </nav>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 15px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How can this report help you?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#9660;</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <blockquote style="margin: 0 0 15px 0; padding: 12px 15px; border-left: 3px solid rgba(255,255,255,0.4); font-style: italic; opacity: 0.9;">
+            "Requirements are not an end in themselves, but a means to an end-the end of providing value to some person(s)." <span style="opacity: 0.7;">- Jerry Weinberg</span>
+          </blockquote>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">In the <a href="https://talesoftesting.com/wp-content/uploads/2022/10/Lalitkumar-Bhamare-Quality-Conscious-Software-Delivery-eBook.pdf" style="color: #93c5fd; text-decoration: underline;">QCSD framework</a>, it is recommended to conduct Product Coverage Sessions or Requirements Engineering Sessions on a regular basis. These sessions can be carried out at the epic level or for complex feature requests and user stories. Testers in the team can analyze the epic or feature story using SFDIPOT (a product factors checklist from <a href="https://www.satisfice.com/download/heuristic-test-strategy-model" style="color: #93c5fd; text-decoration: underline;">Heuristic Test Strategy Model</a> by James Bach) and come up with test ideas, questions about risks, missing information, unconsidered dependencies, identified risks, and more.</p>
+          <p style="margin: 0 0 12px 0; opacity: 0.9; line-height: 1.7;">A guided discussion based on this analysis can help teams uncover hidden risks, assess the completeness of the requirements, create a clearer development plan, identify gaps and dependencies, improve estimation with better information at hand, and most importantly - avoid rework caused by discovering issues halfway through development.</p>
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">If we want to save time and cost while still delivering quality software, it is always cheaper to do things right the first time. The purpose of this report is to facilitate Product Coverage Sessions and help teams achieve exactly that: doing things right the first time.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">When to generate this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#9660;</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0; opacity: 0.9; line-height: 1.7;">The sooner the better! As soon as testers can access Epic/User Stories or any project artifact they use for test design, this report should be generated. Generate this report and organize "Product Coverage Session" discussion with relevant stakeholders such as programmers, Product Owners, Designers, Architects etc.</p>
+        </div>
+      </div>
+      <div class="info-section collapsed" style="background: rgba(255,255,255,0.1); border-radius: 8px; margin-top: 10px;">
+        <div class="info-header" onclick="this.parentElement.classList.toggle('collapsed')" style="padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.1rem; opacity: 0.95;">How to use this report?</h3>
+          <span class="collapse-icon" style="transition: transform 0.2s;">&#9660;</span>
+        </div>
+        <div class="info-content" style="padding: 0 20px 20px 20px;">
+          <p style="margin: 0 0 12px 0; opacity: 0.9;">In this report you will find:</p>
+          <div style="margin-left: 5px; line-height: 1.8;">
+            <div style="margin-bottom: 8px;">&#9744; <strong>The Test Ideas</strong> generated for each product factor based on applicable subcategories. Review these test ideas carefully for context relevance, applicability and then derive specific test cases where needed.</div>
+            <div style="margin-bottom: 8px;">&#9744; <strong>Automation Fitness</strong> recommendations against each test idea that can help for drafting suitable automation strategy.</div>
+            <div>&#9744; <strong>The Clarifying Questions</strong> - that surface "unknown unknowns" by systematically checking which Product Factors (SFDIPOT) subcategories lack test coverage. Ensure that Epics, User Stories, Acceptance Criteria etc. are readily updated based on answers derived for each clarifying question listed.</div>
+          </div>
+          <p style="margin: 15px 0 0 0; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); opacity: 0.9; font-size: 0.95rem;">All in all, this report represents important and unique elements to be considered in the test strategy. <strong>Rebuild this report if there are updates made in Epics, User Stories, Acceptance Criteria etc.</strong></p>
+          <p style="margin: 10px 0 0 0; opacity: 0.85; font-style: italic; font-size: 0.9rem;">Testers are advised to carefully evaluate all the information using critical thinking and context awareness.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="risk">
+      <h2>Risk-Based Prioritization</h2>
+      <p style="margin-bottom: 15px;">Test ideas are prioritized using a <strong>risk-based approach</strong> that considers:</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Business Impact</strong><br>Live commerce revenue, brand partnerships, Gen-Z engagement metrics</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Likelihood of Failure</strong><br>Video streaming complexity, real-time interactions, third-party integrations</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">User Exposure</strong><br>High-traffic live events, celebrity collections, viral social content</div>
+        <div style="background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);"><strong style="color: var(--primary);">Compliance &amp; Accessibility</strong><br>WCAG 1.2.4 captions, GDPR for UGC, E1 accessibility dependency</div>
+      </div>
+      <h3>Priority Legend</h3>
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Risk Level</th><th>Description</th><th>Examples from this Epic</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="priority priority-p0">P0</span></td><td><strong>Critical</strong></td><td>Security vulnerabilities, accessibility compliance failures, payment processing errors during live events</td><td>In-video purchase payment failure, caption WCAG compliance, UGC content moderation</td></tr>
+          <tr><td><span class="priority priority-p1">P1</span></td><td><strong>High</strong></td><td>Core live shopping flows, video streaming stability, notification delivery for events</td><td>Live indicator accuracy, shoppable hotspots, event reminder delivery</td></tr>
+          <tr><td><span class="priority priority-p2">P2</span></td><td><strong>Medium</strong></td><td>Enhanced features, replay functionality, UGC display quality</td><td>Chapter navigation, calendar sync, hashtag aggregation</td></tr>
+          <tr><td><span class="priority priority-p3">P3</span></td><td><strong>Low</strong></td><td>Edge cases, cosmetic issues, rare platform combinations</td><td>Timezone edge cases, legacy browser replay, unusual video formats</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top: 20px; padding: 16px 20px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 8px; border-left: 4px solid #f59e0b;">
+        <h4 style="margin: 0 0 10px 0; color: #92400e; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2rem;">&#9888;</span> Domain Expert Review Required
+        </h4>
+        <p style="margin: 0; color: #78350f; font-size: 0.9rem; line-height: 1.6;">
+          <strong>Priorities in this assessment are AI-generated starting points, not final decisions.</strong>
+          A Domain Expert or Subject Matter Expert (SME) familiar with live commerce, video streaming infrastructure,
+          and your specific business context should review and adjust priorities based on:
+        </p>
+        <ul style="margin: 12px 0 0 0; padding-left: 20px; color: #78350f; font-size: 0.85rem; line-height: 1.8;">
+          <li>Actual revenue impact of failure scenarios in your market</li>
+          <li>Historical incident data from similar features</li>
+          <li>Current infrastructure resilience and known weak points</li>
+          <li>Regulatory requirements specific to your operating regions</li>
+          <li>Celebrity/influencer contract obligations and SLAs</li>
+        </ul>
+        <p style="margin: 12px 0 0 0; color: #92400e; font-size: 0.85rem; font-style: italic;">
+          Do not treat percentage distributions as targets. Let domain context drive prioritization.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="charts">
+      <h2>Test Ideas Overview</h2>
+      <div class="charts-container">
+        <div class="chart-panel">
+          <h3>Test Ideas by Product Factor (SFDIPOT)</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">Structure</div>
+              <div class="bar-track"><div class="bar-fill bar-structure" style="width: 56.25%"></div></div>
+              <div class="bar-value">18</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Function</div>
+              <div class="bar-track"><div class="bar-fill bar-function" style="width: 96.875%"></div></div>
+              <div class="bar-value">31</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Data</div>
+              <div class="bar-track"><div class="bar-fill bar-data" style="width: 50%"></div></div>
+              <div class="bar-value">16</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Interfaces</div>
+              <div class="bar-track"><div class="bar-fill bar-interfaces" style="width: 75%"></div></div>
+              <div class="bar-value">24</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Platform</div>
+              <div class="bar-track"><div class="bar-fill bar-platform" style="width: 37.5%"></div></div>
+              <div class="bar-value">12</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Operations</div>
+              <div class="bar-track"><div class="bar-fill bar-operations" style="width: 43.75%"></div></div>
+              <div class="bar-value">14</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">Time</div>
+              <div class="bar-track"><div class="bar-fill bar-time" style="width: 34.375%"></div></div>
+              <div class="bar-value">11</div>
+            </div>
+          </div>
+          <div class="chart-total">
+            <span class="total-label">Product Factors: 7/7</span>
+            <span class="total-value">127 Test Ideas</span>
+          </div>
+        </div>
+        <div class="chart-panel">
+          <h3>Test Ideas by Priority</h3>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <div class="bar-label">P0 - Critical</div>
+              <div class="bar-track"><div class="bar-fill bar-p0" style="width: 20.4%"></div></div>
+              <div class="bar-value">10 (8%)</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P1 - High</div>
+              <div class="bar-track"><div class="bar-fill bar-p1" style="width: 71.4%"></div></div>
+              <div class="bar-value">35 (28%)</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P2 - Medium</div>
+              <div class="bar-track"><div class="bar-fill bar-p2" style="width: 100%"></div></div>
+              <div class="bar-value">49 (39%)</div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label">P3 - Low</div>
+              <div class="bar-track"><div class="bar-fill bar-p3" style="width: 65.3%"></div></div>
+              <div class="bar-value">32 (25%)</div>
+            </div>
+          </div>
+          <h4 style="font-size: 0.85rem; color: var(--text-dark); margin: 14px 0 8px 0; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 600;">Test Ideas by Automation Fitness</h4>
+          <div class="bar-chart" style="font-size: 0.85rem;">
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">API level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 60%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">28</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">E2E level</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 80%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">37</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Integration</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 52%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">24</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Human Exploration</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 32%; background: linear-gradient(90deg, #7c3aed, #a855f7);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">15 (12%)</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Performance</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 24%; background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">11</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Security</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 17%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">8</div>
+            </div>
+            <div class="bar-row" style="margin-bottom: 4px;">
+              <div class="bar-label" style="min-width: 100px; font-size: 0.8rem;">Concurrency</div>
+              <div class="bar-track" style="height: 14px;"><div class="bar-fill" style="width: 9%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div></div>
+              <div class="bar-value" style="font-size: 0.8rem;">4</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="test-ideas">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary);">
+        <h2 style="margin: 0; border: none; padding: 0;">Test Ideas by Product Factor</h2>
+        <button onclick="toggleAllSections()" id="toggle-all-btn" style="background: var(--bg-light); border: 1px solid var(--border); padding: 6px 14px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 500; color: var(--text-dark);">Collapse All</button>
+      </div>
+
+      <!-- STRUCTURE SECTION -->
+      <div class="category-section cat-structure" id="structure">
+        <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>STRUCTURE: Test ideas for everything that comprises the physical product <span class="badge">18</span></h3>
+          <span class="collapse-icon">&#9660;</span>
+        </div>
+        <div class="category-content collapsible-content">
+          <table class="filterable-table" id="table-structure">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-structure')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-structure')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-structure')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-STRU-A1B2C3D4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Inject video streaming service timeout (5s); confirm live shopping page displays fallback placeholder with retry button</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-E5F6G7H8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Simulate CDN failure mid-stream; measure time-to-failover to backup CDN and confirm stream resumes within 3 seconds</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-I9J0K1L2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Force WebSocket disconnection during live event; confirm automatic reconnection with state preservation (cart, watched position)</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-M3N4O5P6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Trigger concurrent replay requests from 1000 users on same video; confirm streaming service scales without quality degradation</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-Q7R8S9T0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Simulate Instagram API rate limit (429); confirm UGC gallery displays cached content with "Content may be outdated" indicator</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-U1V2W3X4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Inject TikTok embed script failure; confirm fallback to static thumbnail with "View on TikTok" link</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-Y5Z6A7B8</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Simulate payment gateway timeout during in-video purchase; confirm cart state preserved and user can retry without re-adding items</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-C9D0E1F2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Force Google Calendar API failure during event add; confirm local ICS file download offered as fallback</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-G3H4I5J6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Simulate push notification service (Firebase/APNs) unavailable; confirm email fallback triggers for event reminders</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-K7L8M9N0</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Documentation</span></td>
+                <td>Confirm live shopping captions meet WCAG 1.2.4 requirements; test AI-generated caption accuracy against human transcript baseline</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-O1P2Q3R4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Documentation</span></td>
+                <td>Explore error messages during live event failures; assess if recovery instructions are clear for non-technical users</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE - "Clear" error messaging requires human judgment on comprehensibility</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-S5T6U7V8</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Documentation</span></td>
+                <td>Trigger each error state in notification system; confirm error codes map to documented troubleshooting steps</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-W9X0Y1Z2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Hardware</span></td>
+                <td>Stream live event on device with 2GB RAM; confirm video player degrades to lower resolution without crashing</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-A3B4C5D6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Hardware</span></td>
+                <td>Test replay with bandwidth throttled to 3G (384kbps); measure buffer frequency and confirm adaptive bitrate switching</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-E7F8G9H0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Hardware</span></td>
+                <td>Explore live shopping on device with camera permission denied; assess if UGC submission gracefully handles missing permission</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - User experience of permission denial requires human assessment</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-I1J2K3L4</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Hardware</span></td>
+                <td>Force CPU throttling to 50%; measure live video player frame rate and confirm degradation notification appears</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-M5N6O7P8</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Code</span></td>
+                <td>Deploy live shopping module with feature flag disabled; confirm homepage shows no live indicator without JavaScript errors</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-STRU-Q9R0S1T2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Dependencies</span></td>
+                <td>Simulate Outlook calendar sync failure during event add; confirm error message includes manual ICS download option</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>live streaming, video playback, social media integration, notification systems</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[NonExecutable/Configuration]</h5>
+              <p class="rationale"><em>Rationale: Video streaming and notification systems require extensive configuration. Missing configs cause production failures.</em></p>
+              <ul>
+                <li>What CDN configuration is required for live streaming failover? Are there separate configs for EU vs US regions?</li>
+                <li>What feature flags control live shopping visibility? Can events be geo-restricted?</li>
+                <li>What are the notification throttling rules? Maximum notifications per user per day?</li>
+                <li>What video encoding presets are supported? Are there fallback formats for older devices?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Collateral/Documentation]</h5>
+              <p class="rationale"><em>Rationale: Live shopping requires clear user documentation. Incorrect help content during live events causes missed sales.</em></p>
+              <ul>
+                <li>Is there documentation explaining how to enable push notifications for live events?</li>
+                <li>Are calendar integration instructions available for all supported platforms (Google, Apple, Outlook)?</li>
+                <li>Do error messages during checkout guide users to customer support with context?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FUNCTION SECTION -->
+      <div class="category-section cat-function" id="function">
+        <div class="category-header collapsible-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>FUNCTION: Test ideas for everything that the product does <span class="badge">31</span></h3>
+          <span class="collapse-icon">&#9660;</span>
+        </div>
+        <div class="category-content collapsible-content">
+          <table class="filterable-table" id="table-function">
+            <thead>
+              <tr>
+                <th style="width: 100px;">ID</th>
+                <th style="width: 70px;">Priority</th>
+                <th style="width: 120px;">Subcategory</th>
+                <th>Test Idea</th>
+                <th style="width: 210px;">Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" class="filter-input" data-col="0" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><select class="filter-select" data-col="1" onchange="filterTable('table-function')"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" class="filter-input" data-col="2" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><input type="text" class="filter-input" data-col="3" placeholder="Filter..." onkeyup="filterTable('table-function')"></td>
+                <td><select class="filter-select" data-col="4" onchange="filterTable('table-function')"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option><option value="Performance">Performance</option><option value="Security">Security</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-FUNC-F1A2B3C4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Trigger live event start; confirm live indicator badge appears on homepage within 2 seconds without page refresh</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-D5E6F7G8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Confirm live indicator is visible above the fold without scrolling on 1366x768 resolution (AC21 requirement)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-H9I0J1K2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Test one-click join from homepage; measure time from click to video playback start (target &lt;3 seconds)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-L3M4N5O6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Display upcoming event countdown in hero area; confirm countdown updates in real-time and handles timezone correctly (CET)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-P7Q8R9S0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>End live event; confirm live indicator disappears and replay link appears within 30 seconds</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-T1U2V3W4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Click product hotspot in replay video; confirm add-to-cart completes without pausing video or navigating away</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-X5Y6Z7A8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Navigate to timestamped product marker; confirm video seeks to exact timestamp within 500ms accuracy</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-B9C0D1E2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Use chapter navigation to jump between product segments; confirm smooth transition and chapter title accuracy</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-F3G4H5I6</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Calculations</span></td>
+                <td>Count checkout steps from in-video purchase; confirm 50% reduction compared to standard checkout flow (AC22)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-J7K8L9M0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Click product hotspot for out-of-stock item; confirm "Notify when available" option appears without error</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-N1O2P3Q4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Load UGC gallery with #ABOUTYOU hashtag; confirm images display from both Instagram and TikTok within 5 seconds</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-R5S6T7U8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Click "Shop the look" on customer photo; confirm product identification correctly maps to catalog items</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-V9W0X1Y2</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Security</span></td>
+                <td>Submit UGC with embedded XSS payload in caption; confirm sanitization prevents script execution</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-Z3A4B5C6</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Security</span></td>
+                <td>Test UGC content moderation; inject NSFW image and confirm automatic rejection before public display</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-D7E8F9G0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Explore UGC gallery visual layout; assess if customer photos feel authentic vs overly curated</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE - "Authentic feel" of UGC requires human aesthetic judgment</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-H1I2J3K4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Click "Remind Me" for upcoming event; confirm notification delivered exactly 15 minutes before event start</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-L5M6N7O8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Test multi-channel notification delivery (email, push, SMS); confirm AC23 requirement for all three channels</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-P9Q0R1S2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Add event to Google Calendar via integration; confirm event details, time, and deep link are correct</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-T3U4V5W6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Add event to Apple Calendar; confirm ICS file imports correctly with timezone handling</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-X7Y8Z9A0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">CoreFeatures</span></td>
+                <td>Add event to Outlook Calendar; confirm meeting request format and reminder sync</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-B1C2D3E4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">ErrorHandling</span></td>
+                <td>Force video stream buffer underrun; confirm user-friendly message appears with auto-retry functionality</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-F5G6H7I8</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">ErrorHandling</span></td>
+                <td>Trigger payment decline during in-video purchase; confirm error message and cart preservation for retry</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-J9K0L1M2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">ErrorHandling</span></td>
+                <td>Submit invalid SMS number for event reminder; confirm specific error message about format requirements</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-N3O4P5Q6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">ErrorHandling</span></td>
+                <td>Explore error recovery flow for failed notification subscription; assess if user can easily retry</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Error recovery UX requires human judgment on ease of use</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-R7S8T9U0</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Security</span></td>
+                <td>Attempt to access other user notification preferences via API parameter tampering; confirm 403 response</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-V1W2X3Y4</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Security</span></td>
+                <td>Inject SQL payload into event search; confirm parameterized queries prevent injection</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-Z5A6B7C8</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Security</span></td>
+                <td>Test CSRF protection on "Remind Me" button; confirm token validation prevents cross-site requests</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-D9E0F1G2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">BusinessRules</span></td>
+                <td>Follow brand preference; confirm notification only triggers for events featuring followed brands</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-H3I4J5K6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">BusinessRules</span></td>
+                <td>Test notification throttling; confirm maximum 3 event notifications per day per user</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-L7M8N9O0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">BusinessRules</span></td>
+                <td>Test celebrity collection priority; confirm LeGer/GMK events highlighted with special badge</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-FUNC-P1Q2R3S4</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">BusinessRules</span></td>
+                <td>Test quiet hours; confirm no push notifications sent between 22:00-08:00 user local time</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>live shopping, shoppable replays, UGC integration, event notifications</strong>, the following subcategories have limited or no test coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Calculations/Algorithms]</h5>
+              <p class="rationale"><em>Rationale: Product hotspot detection in videos uses AI/ML. Algorithm accuracy affects purchase conversion.</em></p>
+              <ul>
+                <li>What is the accuracy threshold for AI product detection in video frames? 90%? 95%?</li>
+                <li>How is "checkout step reduction" (AC22) calculated? What counts as a step?</li>
+                <li>What algorithm prioritizes which UGC content appears first in the gallery?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[StateTransitions]</h5>
+              <p class="rationale"><em>Rationale: Live events have multiple states (scheduled, live, ended, replay). State transitions affect user experience.</em></p>
+              <ul>
+                <li>What happens if a live event is cancelled mid-stream? How are viewers notified?</li>
+                <li>Can an event transition from "ended" back to "live" for encores?</li>
+                <li>How long after event end does replay become available? Is there a processing delay?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DATA Section -->
+      <div class="category-section cat-data" id="data">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>DATA: Test ideas for everything that comprises the data processed by the product <span class="badge">16</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-data">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Priority</th>
+                <th>Subcategory</th>
+                <th>Test Idea</th>
+                <th>Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" placeholder="Filter ID..." onkeyup="filterTable('table-data', 0, this.value)"></td>
+                <td><select onchange="filterTable('table-data', 1, this.value)"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" placeholder="Filter..." onkeyup="filterTable('table-data', 2, this.value)"></td>
+                <td><input type="text" placeholder="Filter test ideas..." onkeyup="filterTable('table-data', 3, this.value)"></td>
+                <td><select onchange="filterTable('table-data', 4, this.value)"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-DATA-A1B2C3D4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">InputData</span></td>
+                <td>Submit event title with 500+ characters; confirm truncation or validation error with clear limit message</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-E5F6G7H8</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">InputData</span></td>
+                <td>Upload video with German umlauts in filename (Übertragung.mp4); confirm proper UTF-8 handling</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-I9J0K1L2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">InputData</span></td>
+                <td>Submit UGC video exceeding 100MB limit; confirm rejection with specific size limit in error message</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-M3N4O5P6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">InputData</span></td>
+                <td>Test phone number input with various formats (+49, 0049, spaces); confirm normalization to E.164 format</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-Q7R8S9T0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">OutputData</span></td>
+                <td>Request live event schedule; confirm dates formatted correctly for German locale (DD.MM.YYYY HH:mm)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-U1V2W3X4</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">OutputData</span></td>
+                <td>Export event calendar data; confirm ICS file re-imports correctly without data loss</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-Y5Z6A7B8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">OutputData</span></td>
+                <td>Explore live event product overlay presentation; assess whether product info is scannable during fast video</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Visual scannability during motion requires human judgment</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-C9D0E1F2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">DataBoundaries</span></td>
+                <td>Test exactly 0 products tagged in replay; confirm graceful handling with "no products" message</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-G3H4I5J6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">DataBoundaries</span></td>
+                <td>Test maximum products per video (50+); confirm UI handles large product list without performance degradation</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-K7L8M9N0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">DataBoundaries</span></td>
+                <td>Test event duration boundary at exactly 4 hours; confirm stream continues without timeout</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-O1P2Q3R4</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">DataBoundaries</span></td>
+                <td>Test minimum video duration (1 second); confirm replay is created even for ultra-short streams</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-S5T6U7V8</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">Persistence</span></td>
+                <td>Force database connection failure during purchase; confirm transaction rolls back with no orphan orders</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-W9X0Y1Z2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Persistence</span></td>
+                <td>Invalidate video cache; confirm fresh content loads without stale replay data</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-A3B4C5D6</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Persistence</span></td>
+                <td>Request GDPR data export; confirm all notification preferences and watch history included in export</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-E7F8G9H0</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Persistence</span></td>
+                <td>Execute GDPR deletion request; confirm notification preferences, UGC content, and watch history removed</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-DATA-I1J2K3L4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Persistence</span></td>
+                <td>Explore data lifecycle clarity in notification settings; assess whether users understand what is saved vs. what requires explicit save</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Understanding save states requires human cognitive assessment</div></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>video content, user-generated content, notification data</strong>, the following subcategories have limited coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[DataRetention]</h5>
+              <p class="rationale"><em>Rationale: Live event replays and UGC have storage and legal implications.</em></p>
+              <ul>
+                <li>How long are live event replays retained? 30 days? 1 year? Indefinitely?</li>
+                <li>What is the retention policy for UGC that users delete from their account?</li>
+                <li>Are notification preferences backed up? What happens during data migration?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[DataTransformation]</h5>
+              <p class="rationale"><em>Rationale: Video transcoding and AI product detection transform source data.</em></p>
+              <ul>
+                <li>What video formats are accepted? What output formats are generated?</li>
+                <li>Is original video quality preserved or always transcoded to standard formats?</li>
+                <li>How is product detection metadata stored? JSON? Separate database?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INTERFACES Section -->
+      <div class="category-section cat-interfaces" id="interfaces">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>INTERFACES: Test ideas for every boundary through which the product communicates <span class="badge">24</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-interfaces">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Priority</th>
+                <th>Subcategory</th>
+                <th>Test Idea</th>
+                <th>Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" placeholder="Filter ID..." onkeyup="filterTable('table-interfaces', 0, this.value)"></td>
+                <td><select onchange="filterTable('table-interfaces', 1, this.value)"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" placeholder="Filter..." onkeyup="filterTable('table-interfaces', 2, this.value)"></td>
+                <td><input type="text" placeholder="Filter test ideas..." onkeyup="filterTable('table-interfaces', 3, this.value)"></td>
+                <td><select onchange="filterTable('table-interfaces', 4, this.value)"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-INTF-A1B2C3D4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">UserInterface</span></td>
+                <td>Navigate to live shopping section; confirm user reaches it within 2 taps from homepage (AC21)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-E5F6G7H8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">UserInterface</span></td>
+                <td>Test video player controls (play, pause, seek, fullscreen); confirm all controls are keyboard accessible</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-I9J0K1L2</td>
+                <td><span class="priority priority-p0">P0</span></td>
+                <td><span class="subcategory">UserInterface</span></td>
+                <td>Test captions toggle on live stream; confirm WCAG 1.2.4 compliant captions available (E1 dependency)</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-M3N4O5P6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">UserInterface</span></td>
+                <td>Explore product hotspot clickability during live stream; assess if hotspots are large enough for touch targets</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Touch target size adequacy requires human judgment</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-Q7R8S9T0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">UserInterface</span></td>
+                <td>Explore UGC gallery visual hierarchy; assess whether user can identify their own content quickly</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Visual identification speed requires human cognitive evaluation</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-U1V2W3X4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">APIs</span></td>
+                <td>Request live events endpoint; confirm response time under 200ms with proper pagination headers</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-Y5Z6A7B8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">APIs</span></td>
+                <td>Subscribe to event notifications via API; confirm 201 response with subscription ID in body</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-C9D0E1F2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">APIs</span></td>
+                <td>Request invalid event ID; confirm 404 response with error object containing event_id field</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-G3H4I5J6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">APIs</span></td>
+                <td>Exceed API rate limit (100 req/min); confirm 429 response with Retry-After header</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-K7L8M9N0</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Simulate Instagram API downtime; confirm fallback UI displays placeholder with "temporarily unavailable" message</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-O1P2Q3R4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Simulate TikTok API rate limit exceeded; confirm graceful degradation without crashing video feed</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-S5T6U7V8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Test Firebase push notification delivery; confirm notification arrives within 5 seconds of send</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-W9X0Y1Z2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Test Twilio SMS delivery; confirm message arrives with correct event deep link</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-A3B4C5D6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Test Instagram OAuth token refresh; confirm session persists without re-authentication prompt</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-E7F8G9H0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Test TikTok embed format change; confirm fallback renders native video player if embed fails</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-I1J2K3L4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">ExternalIntegrations</span></td>
+                <td>Explore integration reliability perception; assess if third-party features feel seamless or "bolted on"</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE - Perceived integration quality is a human judgment call</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-M5N6O7P8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Messaging</span></td>
+                <td>Test WebSocket reconnection; confirm live stream resumes within 3 seconds after network recovery</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-Q9R0S1T2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Messaging</span></td>
+                <td>Test live chat message ordering; confirm messages display in chronological order without duplicates</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-U3V4W5X6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Messaging</span></td>
+                <td>Test duplicate webhook delivery; confirm idempotent handling prevents double notification sends</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-Y7Z8A9B0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Messaging</span></td>
+                <td>Test dead letter queue handling; confirm failed notifications quarantined with diagnostic info</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-C1D2E3F4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CDN</span></td>
+                <td>Simulate primary CDN failure; confirm video stream fails over to secondary CDN within 5 seconds</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-G5H6I7J8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CDN</span></td>
+                <td>Test HLS stream adaptive bitrate; confirm quality automatically adjusts to bandwidth without buffering</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-K9L0M1N2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">CDN</span></td>
+                <td>Test CDN cache headers; confirm replay videos have appropriate cache-control for 24-hour caching</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-INTF-O3P4Q5R6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">CDN</span></td>
+                <td>Explore video quality perception across different connection speeds; assess if adaptive streaming feels smooth</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Smoothness of video quality transitions is subjective</div></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>video streaming, social integrations, notifications</strong>, the following subcategories have limited coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Protocol Versions]</h5>
+              <p class="rationale"><em>Rationale: HLS and WebSocket have version-specific behaviors affecting compatibility.</em></p>
+              <ul>
+                <li>Which HLS version is supported? v3 with EXT-X-DISCONTINUITY? v7 with CMAF?</li>
+                <li>Is WebSocket compression (permessage-deflate) enabled? What about RFC 6455 compliance?</li>
+                <li>How is backward compatibility handled when API versions change?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Error Response Contracts]</h5>
+              <p class="rationale"><em>Rationale: Consistent error contracts help mobile apps handle failures gracefully.</em></p>
+              <ul>
+                <li>Is there a standardized error response schema across all endpoints?</li>
+                <li>Are error codes documented for programmatic handling by mobile apps?</li>
+                <li>Do all 4xx/5xx responses include correlation IDs for debugging?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PLATFORM Section -->
+      <div class="category-section cat-platform" id="platform">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>PLATFORM: Test ideas for everything external on which the product depends <span class="badge">12</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-platform">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Priority</th>
+                <th>Subcategory</th>
+                <th>Test Idea</th>
+                <th>Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" placeholder="Filter ID..." onkeyup="filterTable('table-platform', 0, this.value)"></td>
+                <td><select onchange="filterTable('table-platform', 1, this.value)"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" placeholder="Filter..." onkeyup="filterTable('table-platform', 2, this.value)"></td>
+                <td><input type="text" placeholder="Filter test ideas..." onkeyup="filterTable('table-platform', 3, this.value)"></td>
+                <td><select onchange="filterTable('table-platform', 4, this.value)"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-PLAT-A1B2C3D4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Browser</span></td>
+                <td>Play live stream on Chrome, Firefox, Safari, Edge; confirm HLS playback works on all supported browsers</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-E5F6G7H8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Browser</span></td>
+                <td>Test video player on iOS Safari (16+) and Android Chrome (110+); confirm native controls function correctly</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-I9J0K1L2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Browser</span></td>
+                <td>Test Picture-in-Picture mode; confirm video continues playing while browsing other tabs</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-M3N4O5P6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">MobileOS</span></td>
+                <td>Test push notification permission prompt on iOS 17; confirm app handles "provisional" notification status</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-Q7R8S9T0</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">MobileOS</span></td>
+                <td>Test background audio on iOS; confirm live stream audio continues when app backgrounded</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-U1V2W3X4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">MobileOS</span></td>
+                <td>Explore app feel on Android vs iOS; assess whether UI conventions match platform expectations</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: SUBJECTIVE - Platform-native feel is a human judgment</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-Y5Z6A7B8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExternalServices</span></td>
+                <td>Simulate video streaming infrastructure failure; confirm user sees meaningful error within 10 seconds</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-C9D0E1F2</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExternalServices</span></td>
+                <td>Test behavior when CDN latency exceeds 2 seconds; confirm buffering indicator appears promptly</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-G3H4I5J6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Network</span></td>
+                <td>Test offline mode; confirm cached replay is playable without network connectivity</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-K7L8M9N0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Network</span></td>
+                <td>Test 3G connection (500ms RTT); confirm live stream adapts to lower bitrate without constant buffering</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-O1P2Q3R4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Network</span></td>
+                <td>Interrupt network mid-stream; confirm reconnection and stream resumption within 5 seconds</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-PLAT-S5T6U7V8</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Network</span></td>
+                <td>Explore perceived performance on typical German mobile network; assess if experience feels responsive</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Network performance perception varies by user expectation</div></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>video streaming, mobile apps, social media integrations</strong>, the following subcategories have limited coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Device Fragmentation]</h5>
+              <p class="rationale"><em>Rationale: Video decoding varies significantly across Android device hardware.</em></p>
+              <ul>
+                <li>What is the minimum supported Android device? (RAM, GPU capabilities)</li>
+                <li>Which video codecs are required? H.264 only or also VP9/AV1?</li>
+                <li>How is hardware video decoding handled on older devices?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[AppStore Compliance]</h5>
+              <p class="rationale"><em>Rationale: In-app purchases during live streams may have platform-specific requirements.</em></p>
+              <ul>
+                <li>Does live shopping require Apple/Google in-app purchase integration?</li>
+                <li>How are deep links handled when app is not installed?</li>
+                <li>Is app tracking transparency (ATT) required for personalized event recommendations?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPERATIONS Section -->
+      <div class="category-section cat-operations" id="operations">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>OPERATIONS: Test ideas for how the product is used in practice <span class="badge">14</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-operations">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Priority</th>
+                <th>Subcategory</th>
+                <th>Test Idea</th>
+                <th>Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" placeholder="Filter ID..." onkeyup="filterTable('table-operations', 0, this.value)"></td>
+                <td><select onchange="filterTable('table-operations', 1, this.value)"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" placeholder="Filter..." onkeyup="filterTable('table-operations', 2, this.value)"></td>
+                <td><input type="text" placeholder="Filter test ideas..." onkeyup="filterTable('table-operations', 3, this.value)"></td>
+                <td><select onchange="filterTable('table-operations', 4, this.value)"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-OPER-A1B2C3D4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CommonUsage</span></td>
+                <td>Complete end-to-end live shopping journey; confirm discovery, viewing, and purchase flow completes successfully</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-E5F6G7H8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">CommonUsage</span></td>
+                <td>Set up event reminder via notification preferences; confirm reminder triggers 24h and 1h before event</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-I9J0K1L2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CommonUsage</span></td>
+                <td>Browse shoppable replay; confirm product hotspots are clickable and add-to-cart works from replay</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-M3N4O5P6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">CommonUsage</span></td>
+                <td>Explore workflow efficiency for returning users; assess if frequent live shoppers can find events quickly</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Workflow efficiency perception varies by user expertise</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-Q7R8S9T0</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">ExtremeUsage</span></td>
+                <td>Simulate 10,000 concurrent viewers on single live stream; confirm system handles peak celebrity event load</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-U1V2W3X4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">ExtremeUsage</span></td>
+                <td>Stress test notification system with 50,000 simultaneous event reminders; confirm delivery within SLA</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-Y5Z6A7B8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">ExtremeUsage</span></td>
+                <td>Test rapid repeated clicks on "Buy Now" during live event; confirm no duplicate orders created</td>
+                <td><span class="automation automation-concurrency">Concurrency testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-C9D0E1F2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">ExtremeUsage</span></td>
+                <td>Explore system behavior under high viewer load; assess if experience degrades gracefully or breaks suddenly</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - Graceful degradation quality is subjective</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-G3H4I5J6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">UserTypes</span></td>
+                <td>Test guest user accessing live event; confirm viewing works but purchase prompts login</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-K7L8M9N0</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">UserTypes</span></td>
+                <td>Test influencer dashboard access; confirm only authorized creators can upload UGC with product tags</td>
+                <td><span class="automation automation-security">Security testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-O1P2Q3R4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">UserTypes</span></td>
+                <td>Explore Gen-Z user expectations; assess if live shopping UX matches TikTok-native shopping patterns</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE - Gen-Z UX expectations require demographic-specific insight</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-S5T6U7V8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Environment</span></td>
+                <td>Test event times across German/Austrian timezones; confirm CET/CEST displayed correctly</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-W9X0Y1Z2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Environment</span></td>
+                <td>Test German language localization; confirm all live shopping UI uses proper German translations</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-OPER-A3B4C5D6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Environment</span></td>
+                <td>Explore locale appropriateness; assess if German translations feel natural vs. machine-translated</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: EXPERTISE - Native speaker judgment required for natural language quality</div></span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>live event discovery, shopping, notifications</strong>, the following subcategories have limited coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Moderation Operations]</h5>
+              <p class="rationale"><em>Rationale: UGC and live chat require content moderation workflows.</em></p>
+              <ul>
+                <li>How is inappropriate UGC content flagged and removed?</li>
+                <li>What is the SLA for moderating reported live chat messages?</li>
+                <li>Can influencers be banned mid-stream if terms are violated?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Analytics Operations]</h5>
+              <p class="rationale"><em>Rationale: Success metrics require data collection and reporting.</em></p>
+              <ul>
+                <li>How is "engagement rate" (success metric) calculated?</li>
+                <li>What tracking is required for measuring 35% YoY growth?</li>
+                <li>How are A/B test assignments handled during live events?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIME Section -->
+      <div class="category-section cat-time" id="time">
+        <div class="category-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <h3>TIME: Test ideas for temporal relationships and timing aspects <span class="badge">11</span></h3>
+          <span class="collapse-icon">▼</span>
+        </div>
+        <div class="category-content">
+          <table class="filterable-table" id="table-time">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Priority</th>
+                <th>Subcategory</th>
+                <th>Test Idea</th>
+                <th>Automation Fitness</th>
+              </tr>
+              <tr class="filter-row">
+                <td><input type="text" placeholder="Filter ID..." onkeyup="filterTable('table-time', 0, this.value)"></td>
+                <td><select onchange="filterTable('table-time', 1, this.value)"><option value="">All</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></td>
+                <td><input type="text" placeholder="Filter..." onkeyup="filterTable('table-time', 2, this.value)"></td>
+                <td><input type="text" placeholder="Filter test ideas..." onkeyup="filterTable('table-time', 3, this.value)"></td>
+                <td><select onchange="filterTable('table-time', 4, this.value)"><option value="">All</option><option value="API">API</option><option value="E2E">E2E</option><option value="Integration">Integration</option><option value="Human">Human</option></select></td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="test-id">TC-TIME-A1B2C3D4</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Timing</span></td>
+                <td>Measure video latency from broadcaster to viewer; confirm under 5 seconds for "live" experience</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-E5F6G7H8</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Timing</span></td>
+                <td>Test notification delivery timing; confirm push arrives within 30 seconds of scheduled reminder time</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-I9J0K1L2</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Timing</span></td>
+                <td>Test product overlay response time; confirm hotspot appears within 500ms of product mention in stream</td>
+                <td><span class="automation automation-performance">Performance testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-M3N4O5P6</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Timing</span></td>
+                <td>Explore perceived responsiveness during live purchase; assess if "instant" checkout feels instant</td>
+                <td><span class="automation automation-human">Human testers must explore<div class="human-reason">Why Human Essential: PERCEPTION - "Instant" is a subjective human judgment</div></span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-Q7R8S9T0</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">Concurrency</span></td>
+                <td>Simulate two users purchasing last inventory item simultaneously; confirm only one succeeds with inventory lock</td>
+                <td><span class="automation automation-concurrency">Concurrency testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-U1V2W3X4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Concurrency</span></td>
+                <td>Test concurrent UGC uploads from multiple influencers; confirm no race conditions in content queue</td>
+                <td><span class="automation automation-concurrency">Concurrency testing recommended</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-Y5Z6A7B8</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Scheduling</span></td>
+                <td>Schedule event reminder; confirm reminder fires at exact scheduled time (not 1-2 minutes early/late)</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-C9D0E1F2</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">Scheduling</span></td>
+                <td>Test DST transition; confirm scheduled event shows correct time after clock change in Germany (CET/CEST)</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-G3H4I5J6</td>
+                <td><span class="priority priority-p3">P3</span></td>
+                <td><span class="subcategory">Scheduling</span></td>
+                <td>Test recurring live event series; confirm weekly events generate correct instances over 8-week period</td>
+                <td><span class="automation automation-api">Automate on API level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-K7L8M9N0</td>
+                <td><span class="priority priority-p1">P1</span></td>
+                <td><span class="subcategory">StateChanges</span></td>
+                <td>Test event state transition from "scheduled" to "live"; confirm viewers see status change in real-time</td>
+                <td><span class="automation automation-e2e">Automate on E2E level</span></td>
+              </tr>
+              <tr>
+                <td class="test-id">TC-TIME-O1P2Q3R4</td>
+                <td><span class="priority priority-p2">P2</span></td>
+                <td><span class="subcategory">StateChanges</span></td>
+                <td>Test replay availability; confirm video becomes available within 5 minutes of live event ending</td>
+                <td><span class="automation automation-integration">Automate on Integration level</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="clarifying-questions">
+            <h4>Clarifying Questions to address potential coverage gaps</h4>
+            <div class="clarifying-intro">
+              <p class="preamble">Since the user stories focus on <strong>live events, notifications, scheduling</strong>, the following subcategories have limited coverage.</p>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Time-Based Expiry]</h5>
+              <p class="rationale"><em>Rationale: Flash sales and limited-time offers during live events have temporal constraints.</em></p>
+              <ul>
+                <li>How long are flash sale prices valid after live event ends?</li>
+                <li>Do product hotspots in replays show current or historical prices?</li>
+                <li>What happens if a user adds-to-cart during live but checks out after event ends?</li>
+              </ul>
+            </div>
+            <div class="subcategory-questions">
+              <h5>[Historical Data]</h5>
+              <p class="rationale"><em>Rationale: Replays and UGC represent historical point-in-time content.</em></p>
+              <ul>
+                <li>How is product availability shown in replays if item sold out?</li>
+                <li>Are prices in replays updated or frozen at recording time?</li>
+                <li>Can users see when UGC was originally posted (timestamps)?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </div>
+</body>
+</html>
