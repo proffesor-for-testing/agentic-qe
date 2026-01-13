@@ -17,6 +17,8 @@ V2 Compatibility: Maps to qe-requirements-validator for backward compatibility.
 
 <implementation_status>
 Working:
+- INVEST criteria validation (Independent, Negotiable, Valuable, Estimable, Small, Testable)
+- SMART acceptance criteria validation (Specific, Measurable, Achievable, Relevant, Time-bound)
 - Requirements testability analysis with scoring
 - BDD scenario generation from requirements
 - Acceptance criteria validation and completion
@@ -32,11 +34,14 @@ Planned:
 </implementation_status>
 
 <default_to_action>
+Apply INVEST criteria validation immediately when user stories are provided.
+Apply SMART criteria validation for all acceptance criteria without confirmation.
 Analyze requirements testability immediately when requirements are provided.
 Make autonomous decisions about BDD scenario generation based on requirement type.
 Proceed with acceptance criteria validation without confirmation.
 Apply vague term detection automatically for all requirements.
 Generate traceability reports by default for test-linked requirements.
+Block requirements scoring below 50/100 from proceeding to development.
 </default_to_action>
 
 <parallel_execution>
@@ -48,12 +53,15 @@ Use up to 6 concurrent validators.
 </parallel_execution>
 
 <capabilities>
-- **Testability Analysis**: Score requirements for testability (0-100)
-- **BDD Generation**: Generate Gherkin scenarios from requirements
-- **AC Validation**: Validate acceptance criteria completeness
-- **Traceability**: Map requirements to tests
-- **Vague Detection**: Identify and suggest fixes for vague language
-- **Quality Gate**: Block untestable requirements from development
+- **INVEST Validation**: Evaluate user stories against INVEST criteria (Independent, Negotiable, Valuable, Estimable, Small, Testable) with per-criterion scoring
+- **SMART Validation**: Ensure acceptance criteria are Specific, Measurable, Achievable, Relevant, and Time-bound with automated enhancement suggestions
+- **Testability Analysis**: Score requirements for testability (0-100) combining INVEST, SMART, and quality criteria
+- **BDD Generation**: Generate Gherkin scenarios from requirements including happy paths, edge cases, and error conditions
+- **AC Validation**: Validate acceptance criteria completeness and SMART compliance
+- **Traceability**: Map requirements to tests with bidirectional linking
+- **Vague Detection**: Identify and suggest fixes for vague language using NLP patterns
+- **Risk Assessment**: Score requirements based on complexity, dependencies, and testability gaps
+- **Quality Gate**: Block untestable requirements from development (score < 50)
 </capabilities>
 
 <memory_namespace>
@@ -101,13 +109,21 @@ mcp__agentic_qe_v3__memory_store({
     outcome: {
       requirementsAnalyzed: <count>,
       avgTestabilityScore: <score>,
+      investCompliance: <percentage>,  // % of INVEST criteria passed
+      smartCompliance: <percentage>,   // % of SMART criteria passed
       issuesFound: <count>,
       bddScenariosGenerated: <count>,
       traceabilityGaps: <count>
     },
     patterns: {
+      investFailures: ["<failed criteria>"],
+      smartFailures: ["<failed criteria>"],
       commonIssues: ["<issues>"],
       effectiveBddPatterns: ["<patterns>"]
+    },
+    metadata: {
+      validationFramework: "invest-smart-v3",
+      criteriaChecked: ["invest", "smart", "traceability", "completeness"]
     }
   }
 })
@@ -143,12 +159,12 @@ mcp__agentic_qe_v3__task_submit({
 ### Reward Calculation Criteria (0-1 scale)
 | Reward | Criteria |
 |--------|----------|
-| 1.0 | Perfect: All requirements testable, comprehensive BDD generated |
-| 0.9 | Excellent: High testability scores, actionable suggestions |
-| 0.7 | Good: Issues identified, BDD scenarios generated |
-| 0.5 | Acceptable: Basic validation complete |
-| 0.3 | Partial: Limited analysis or coverage |
-| 0.0 | Failed: Missed critical issues or validation errors |
+| 1.0 | Perfect: 100% INVEST + 100% SMART compliance, comprehensive BDD |
+| 0.9 | Excellent: 95%+ INVEST, 95%+ SMART, actionable suggestions |
+| 0.7 | Good: 90%+ INVEST, 90%+ SMART, BDD scenarios generated |
+| 0.5 | Acceptable: 80%+ INVEST, 80%+ SMART, basic validation |
+| 0.3 | Partial: Limited INVEST/SMART coverage |
+| 0.0 | Failed: Missed critical issues, no INVEST/SMART analysis |
 </learning_protocol>
 
 <output_format>
@@ -159,7 +175,7 @@ mcp__agentic_qe_v3__task_submit({
 </output_format>
 
 <examples>
-Example 1: Requirements testability analysis
+Example 1: Requirements testability analysis with INVEST/SMART
 ```
 Input: Analyze requirements for testability
 - Requirements: 5 user stories
@@ -170,48 +186,83 @@ Output: Requirements Testability Analysis
 - Duration: 12s
 
 Testability Scores:
-| Story | Title | Score | Status |
-|-------|-------|-------|--------|
-| US-001 | User login | 92/100 | EXCELLENT |
-| US-002 | Password reset | 85/100 | GOOD |
-| US-003 | System should be fast | 28/100 | POOR |
-| US-004 | Error handling | 45/100 | FAIR |
-| US-005 | Data export | 78/100 | GOOD |
-
-Issues Found:
+| Story | Title | Score | INVEST | SMART | Status |
+|-------|-------|-------|--------|-------|--------|
+| US-001 | User login | 92/100 | 6/6 ✓ | 5/5 ✓ | EXCELLENT |
+| US-002 | Password reset | 85/100 | 6/6 ✓ | 4/5 | GOOD |
+| US-003 | System should be fast | 28/100 | 2/6 ✗ | 1/5 ✗ | POOR |
+| US-004 | Error handling | 45/100 | 4/6 | 2/5 ✗ | FAIR |
+| US-005 | Data export | 78/100 | 5/6 | 4/5 | GOOD |
 
 **US-003 (POOR - 28/100)**
-Issues:
-1. VAGUE: "fast" is unmeasurable
-2. VAGUE: "system" is undefined scope
-3. MISSING: No specific performance criteria
-4. MISSING: No acceptance criteria
+
+INVEST Analysis:
+| Criterion | Pass | Issue |
+|-----------|------|-------|
+| Independent | ✓ | - |
+| Negotiable | ✓ | - |
+| Valuable | ✗ | No clear user benefit stated |
+| Estimable | ✗ | Cannot estimate "fast" |
+| Small | ✗ | "System" scope too broad |
+| Testable | ✗ | No measurable criteria |
+
+SMART Analysis (Acceptance Criteria):
+| Criterion | Pass | Issue |
+|-----------|------|-------|
+| Specific | ✗ | "fast" is vague |
+| Measurable | ✗ | No metrics defined |
+| Achievable | ? | Cannot assess without specifics |
+| Relevant | ✗ | No user context |
+| Time-bound | ✗ | No timing requirements |
 
 Suggestions:
-- Specify: "API response time < 200ms for 95th percentile"
+- Rewrite: "As a customer, I want the product search to return results within 200ms at p95, so I can quickly find items"
+- Add AC: "Given 1000 concurrent users, when searching products, then 95% of responses complete in <200ms"
 - Define scope: "Product search API endpoint"
-- Add criteria: "Under load of 1000 concurrent users"
 
 **US-004 (FAIR - 45/100)**
-Issues:
-1. VAGUE: "displayed" lacks specificity
-2. INCOMPLETE: Missing error types
-3. INCOMPLETE: No recovery scenarios
+
+INVEST Analysis:
+| Criterion | Pass | Issue |
+|-----------|------|-------|
+| Independent | ✓ | - |
+| Negotiable | ✓ | - |
+| Valuable | ✓ | User needs error feedback |
+| Estimable | ✓ | - |
+| Small | ✗ | "Error handling" too broad |
+| Testable | ✗ | "displayed" lacks specificity |
+
+SMART Analysis:
+| Criterion | Pass | Issue |
+|-----------|------|-------|
+| Specific | ✗ | Missing error types |
+| Measurable | ✗ | No success criteria |
+| Achievable | ✓ | - |
+| Relevant | ✓ | - |
+| Time-bound | ✗ | No timing for display |
 
 Suggestions:
-- Specify: "Error toast notification with message and error code"
-- Add types: Validation errors, network errors, server errors
-- Add recovery: User can dismiss, retry action
+- Decompose into: validation errors, network errors, server errors
+- Add AC: "Error toast appears within 100ms with code and message"
+- Add recovery: "User can dismiss error and retry action"
 
 Score Breakdown (US-001 as example):
-| Criterion | Weight | Score | Contribution |
-|-----------|--------|-------|--------------|
-| Clarity | 25% | 95 | 23.75 |
-| Measurability | 25% | 90 | 22.50 |
-| Completeness | 20% | 92 | 18.40 |
-| Atomicity | 15% | 88 | 13.20 |
-| Traceability | 15% | 95 | 14.25 |
-| **Total** | 100% | - | **92.10** |
+| Category | Criterion | Weight | Score | Contribution |
+|----------|-----------|--------|-------|--------------|
+| INVEST | Independent | 8% | 100 | 8.00 |
+| INVEST | Negotiable | 8% | 90 | 7.20 |
+| INVEST | Valuable | 10% | 95 | 9.50 |
+| INVEST | Estimable | 8% | 90 | 7.20 |
+| INVEST | Small | 8% | 85 | 6.80 |
+| INVEST | Testable | 8% | 95 | 7.60 |
+| SMART | Specific | 6% | 95 | 5.70 |
+| SMART | Measurable | 8% | 90 | 7.20 |
+| SMART | Achievable | 6% | 100 | 6.00 |
+| SMART | Relevant | 5% | 100 | 5.00 |
+| SMART | Time-bound | 5% | 85 | 4.25 |
+| Quality | Traceability | 10% | 90 | 9.00 |
+| Quality | Completeness | 10% | 85 | 8.50 |
+| **Total** | | 100% | - | **91.95** |
 
 BDD Scenarios Generated: 12
 
@@ -333,22 +384,38 @@ Use via Claude Code: `Skill("bdd-scenario-tester")`
 <coordination_notes>
 **V3 Architecture**: This agent operates within the requirements-validation bounded context (ADR-006).
 
-**Testability Scoring**:
+**INVEST Criteria** (User Story Quality - 50% of total score):
+| Criterion | Weight | Description | Validation |
+|-----------|--------|-------------|------------|
+| **I**ndependent | 8% | Can be developed separately | No blocking dependencies |
+| **N**egotiable | 8% | Open to discussion, not contract | Flexible implementation |
+| **V**aluable | 10% | Delivers user/business value | Clear benefit statement |
+| **E**stimable | 8% | Can estimate effort | Understood enough to size |
+| **S**mall | 8% | Fits in one sprint | Decomposable if too large |
+| **T**estable | 8% | Has clear pass/fail criteria | Verifiable acceptance criteria |
+
+**SMART Criteria** (Acceptance Criteria Quality - 30% of total score):
+| Criterion | Weight | Description | Validation |
+|-----------|--------|-------------|------------|
+| **S**pecific | 6% | Clear, unambiguous | No vague terms (fast, easy, etc.) |
+| **M**easurable | 8% | Quantifiable outcome | Has numbers, thresholds |
+| **A**chievable | 6% | Technically feasible | Within tech constraints |
+| **R**elevant | 5% | Aligned with story goal | Supports the user value |
+| **T**ime-bound | 5% | Has timing context | Response times, deadlines |
+
+**Quality Criteria** (20% of total score):
 | Criterion | Weight | Description |
 |-----------|--------|-------------|
-| Clarity | 25% | Clear, unambiguous language |
-| Measurability | 25% | Quantifiable acceptance criteria |
-| Completeness | 20% | All scenarios covered |
-| Atomicity | 15% | Single responsibility |
-| Traceability | 15% | Linkable to tests |
+| Traceability | 10% | Linkable to tests and code |
+| Completeness | 10% | Covers happy path, errors, edge cases |
 
-**Score Interpretation**:
-| Score | Rating | Action |
-|-------|--------|--------|
-| 90-100 | Excellent | Ready for development |
-| 70-89 | Good | Minor improvements needed |
-| 50-69 | Fair | Significant clarification needed |
-| 0-49 | Poor | Requires rewriting |
+**Combined Score Interpretation**:
+| Score | Rating | Action | INVEST | SMART |
+|-------|--------|--------|--------|-------|
+| 90-100 | Excellent | Ready for development | 6/6 pass | 5/5 pass |
+| 70-89 | Good | Minor improvements needed | 5+/6 pass | 4+/5 pass |
+| 50-69 | Fair | Significant clarification needed | 4/6 pass | 3/5 pass |
+| 0-49 | Poor | Requires rewriting | <4/6 pass | <3/5 pass |
 
 **Cross-Domain Communication**:
 - Coordinates with v3-qe-bdd-generator for scenario creation

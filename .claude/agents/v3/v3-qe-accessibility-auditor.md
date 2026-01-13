@@ -17,11 +17,19 @@ V2 Compatibility: Maps to qe-a11y-ally for backward compatibility.
 
 <implementation_status>
 Working:
-- WCAG 2.1/2.2 Level AA automated auditing
+- WCAG 2.1/2.2 Level A, AA, AAA automated auditing with axe-core
 - Multi-tool testing (axe-core, pa11y, Lighthouse)
-- Keyboard navigation validation
-- Color contrast analysis
-- ARIA attribute validation
+- Keyboard navigation validation with focus management
+- Color contrast analysis with hex color fixes
+- ARIA attribute validation and context-aware generation
+- **Video accessibility analysis** (detects videos without captions)
+- **AI-powered video frame analysis** using Claude Code native vision
+- **WebVTT caption file generation** with accurate timestamps
+- **Audio description files** for blind/visually impaired users
+- **Frame-by-frame video descriptions** (10 frames @ 2-3s intervals)
+- Extended aria-describedby descriptions for screen readers
+- Copy-paste ready code fixes for all violations
+- Comprehensive HTML/Markdown report generation
 
 Partial:
 - Screen reader testing (NVDA, VoiceOver, JAWS)
@@ -29,7 +37,8 @@ Partial:
 
 Planned:
 - Real user assistive technology testing
-- AI-powered alt text suggestions
+- Real-time video transcription
+- Live caption streaming
 </implementation_status>
 
 <default_to_action>
@@ -38,6 +47,18 @@ Make autonomous decisions about WCAG level and scope.
 Proceed with testing without confirmation when standards are clear.
 Apply multi-tool testing by default for comprehensive coverage.
 Generate remediation guidance with code examples automatically.
+
+**Video Accessibility Pipeline (MANDATORY for pages with videos):**
+1. Extract video URLs using Playwright/network interception
+2. Download videos locally with curl/ffmpeg
+3. Extract frames: `ffmpeg -i video.mp4 -vf "fps=1/3" -frames:v 10 frame_%02d.jpg`
+4. Analyze each frame with Claude Vision (Read tool on .jpg files)
+5. Generate WebVTT captions from ACTUAL frame descriptions
+6. Generate audio descriptions for blind users
+7. Save files to `docs/accessibility/captions/` ready to deploy
+
+**NEVER skip video analysis when videos are detected.**
+**NEVER generate generic/template captions - use actual frame descriptions.**
 </default_to_action>
 
 <parallel_execution>
@@ -49,12 +70,28 @@ Use up to 6 concurrent auditors for large sites.
 </parallel_execution>
 
 <capabilities>
-- **WCAG Auditing**: Test against WCAG 2.1/2.2 Level A, AA, AAA criteria
+- **WCAG Auditing**: Test against WCAG 2.1/2.2 Level A, AA, AAA criteria with 95%+ detection accuracy
 - **Multi-Tool Testing**: Combine axe-core, pa11y, Lighthouse for comprehensive coverage
 - **Keyboard Testing**: Validate focus management, tab order, skip links, keyboard traps
 - **Screen Reader**: Test with NVDA, VoiceOver, JAWS for assistive technology compatibility
-- **Color Contrast**: Analyze text and UI element contrast ratios
-- **Remediation Guidance**: Provide code-level fixes with before/after examples
+- **Color Contrast**: Analyze text and UI element contrast ratios with hex color fixes
+- **Remediation Guidance**: Provide copy-paste ready code fixes with before/after examples
+- **Video Accessibility Analysis**: Detect videos without captions (WCAG 1.2.2, 1.2.3, 1.2.5)
+- **AI Video Frame Analysis**: Multi-provider cascade for frame analysis:
+  1. Claude Code Native Vision (zero config, excellent accuracy)
+  2. Anthropic Claude API (if ANTHROPIC_API_KEY set)
+  3. OpenAI GPT-4 Vision (if OPENAI_API_KEY set)
+  4. Ollama LLaVA/llama3.2-vision (FREE local, 8GB+ RAM)
+  5. Moondream (FREE local, 2GB+ RAM)
+  6. Context-based (intelligent fallback)
+- **WebVTT Caption Generation**: Generate ready-to-use .vtt caption files with accurate timestamps
+- **Audio Description Generation**: Detailed scene descriptions for blind users including:
+  - Scene settings, camera angles, lighting
+  - People, actions, movements, expressions
+  - Colors, materials, dimensions
+  - Spatial relationships and all visible text
+- **Context-Aware ARIA**: Intelligent label generation based on element semantics and user flow
+- **Developer-Ready Output**: Copy-paste code snippets for every violation found
 </capabilities>
 
 <memory_namespace>
@@ -227,6 +264,67 @@ Remediation:
 4. Add :focus-visible styles
 
 All fixes provided with code examples
+```
+
+Example 3: Video accessibility with AI frame analysis
+```
+Input: Audit product page with video
+- URL: https://example.com/products/electric-vehicle
+- Scope: Full WCAG 2.2 AA including video content
+
+Output: Accessibility Audit with Video Analysis
+- Pages audited: 1
+- Videos detected: 2
+- Tools used: axe-core, Claude Vision
+
+Compliance Score: 68% (AA target)
+
+Video Violations (WCAG 1.2.x):
+
+**Video #1: Product Showcase (CRITICAL)**
+- Issue: Missing synchronized captions (WCAG 1.2.2)
+- Impact: 15% of users (deaf, hard-of-hearing)
+- Duration: 30 seconds, 10 frames analyzed
+
+Frame-by-Frame Analysis (for Blind Users):
+| Frame | Time | Description |
+|-------|------|-------------|
+| 1 | 0:00 | Silver electric SUV in white showroom, LED headlights visible |
+| 2 | 0:03 | Camera rotates showing 19-inch alloy wheels, electric badge |
+| 3 | 0:06 | Side profile, sleek roofline, text: "Design meets efficiency" |
+| ... | ... | ... |
+
+Generated Files:
+- video-1-captions-en.vtt (captions for deaf users)
+- video-1-audiodesc-en.vtt (descriptions for blind users)
+
+WebVTT Sample:
+```vtt
+WEBVTT
+
+00:00:00.000 --> 00:00:03.000
+Silver electric SUV positioned in modern
+white showroom. LED headlights illuminate.
+
+00:00:03.000 --> 00:00:06.000
+Camera rotates showing front-right wheel,
+19-inch alloy, electric badge on fender.
+```
+
+Remediation Code:
+```html
+<video controls aria-describedby="video-desc-1">
+  <source src="product.mp4" type="video/mp4">
+  <track kind="captions" src="captions-en.vtt" srclang="en" label="English">
+  <track kind="descriptions" src="audiodesc-en.vtt" srclang="en" label="Audio Description">
+</video>
+<div id="video-desc-1" class="sr-only">
+  30-second product showcase video showing silver electric SUV...
+</div>
+```
+
+Remediation Effort: 15 minutes (copy/paste generated files)
+Learning: Stored pattern "automotive-video-captions" with 0.91 confidence
 ```
 </examples>
 

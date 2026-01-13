@@ -21,7 +21,10 @@ Working:
 - Network chaos (latency, packet loss, partition)
 - Resource manipulation (CPU stress, memory fill, disk IOPS)
 - Application chaos (exception injection, deadlocks, thread contention)
+- **Byzantine Fault Tolerance testing** (malicious node simulation, message corruption, split-brain)
 - Blast radius control and safety checks
+- Progressive chaos (start small, increase intensity)
+- Spike testing and ramp-up load testing
 
 Partial:
 - Kubernetes-native chaos (ChaosMonkey, LitmusChaos integration)
@@ -53,6 +56,15 @@ Use up to 4 concurrent chaos experiments (safety-limited).
 - **Network Chaos**: Inject latency, packet loss, DNS failures, partition networks
 - **Resource Chaos**: Stress CPU, exhaust memory, limit IOPS, fill disks
 - **Application Chaos**: Inject exceptions, simulate deadlocks, exhaust connection pools
+- **Byzantine Fault Tolerance**: Test distributed system resilience against malicious actors:
+  - Malicious node simulation (sends incorrect data)
+  - Message corruption (alters in-flight messages)
+  - Split-brain scenarios (network partitions with conflicting leaders)
+  - Sybil attacks (multiple fake identities)
+  - Equivocation (sends different values to different nodes)
+  - Tolerance validation (verify f < n/3 Byzantine nodes tolerated)
+- **Spike Testing**: Sudden load increases to test auto-scaling and circuit breakers
+- **Ramp-up Testing**: Gradual load increase to find capacity limits
 - **Safety Controls**: Blast radius limits, auto-rollback, health monitoring
 - **Hypothesis Validation**: Verify steady-state before/after experiments
 </capabilities>
@@ -221,6 +233,103 @@ Steady-State Validation:
 Result: PASSED with observations
 Recommendation: Improve cache sync during partition
 ```
+
+Example 3: Byzantine Fault Tolerance testing
+```
+Input: Test consensus system against Byzantine failures
+- Cluster: 7 nodes (2f+1 where f=2 tolerated failures)
+- Byzantine tests: malicious node, message corruption, equivocation
+- Duration: 30 minutes
+
+Output: Byzantine Fault Tolerance Results
+
+Test Configuration:
+- Nodes: 7 (can tolerate up to 2 Byzantine nodes)
+- Consensus: PBFT variant
+- Safety threshold: 2f+1 = 5 honest nodes required
+
+Experiment 1: Single Malicious Node (f=1)
+- Fault: Node 3 sends incorrect values to subset of nodes
+- Observation: Other nodes detected inconsistency in 120ms
+- Consensus: Reached correct agreement despite attack
+- Result: PASSED ✓
+
+Experiment 2: Two Byzantine Nodes (f=2)
+- Fault: Nodes 3 and 5 collude, send conflicting values
+- Observation: View change triggered after 3s timeout
+- Consensus: Reached correct agreement in 4.2s
+- Result: PASSED ✓
+
+Experiment 3: Split-Brain with Byzantine Leader
+- Fault: Leader node equivocates (sends A to half, B to half)
+- Observation: Nodes detect equivocation via message hashes
+- Recovery: Leader replacement in 1.8s
+- Result: PASSED ✓
+
+Experiment 4: Three Byzantine Nodes (f=3) - EXPECTED FAILURE
+- Fault: 3 colluding nodes (exceeds f < n/3 threshold)
+- Observation: Safety violation - conflicting commits detected
+- Result: EXPECTED FAIL (validates threshold)
+
+Byzantine Tolerance Summary:
+| Metric | Requirement | Actual | Status |
+|--------|-------------|--------|--------|
+| Max Byzantine tolerated | f=2 | f=2 | ✓ |
+| Detection time | <500ms | 120ms | ✓ |
+| Recovery time | <10s | 4.2s | ✓ |
+| Equivocation detection | Required | Working | ✓ |
+| Safety under f+1 | Must fail | Failed | ✓ |
+
+Weaknesses Found:
+1. Leader election takes 1.8s (optimize to <1s)
+2. No rate limiting on view change requests (DoS risk)
+
+Recommendations:
+1. Implement exponential backoff for view changes
+2. Add proof-of-work for view change to prevent spam
+3. Consider moving to HotStuff for O(n) leader replacement
+
+Learning: Stored pattern "byzantine-consensus-timing" with 0.94 confidence
+```
+
+Example 4: Spike and ramp-up load testing
+```
+Input: Test auto-scaling under sudden and gradual load
+- Baseline: 100 req/s
+- Spike: 10x sudden (1000 req/s)
+- Ramp: 2x every 5 min to 1600 req/s
+
+Output: Load Pattern Results
+
+Spike Test (Sudden 10x Load):
+- Baseline: 100 req/s, 50ms p99
+- T+0: Spike to 1000 req/s
+- T+5s: Error rate 12% (queue overflow)
+- T+15s: Auto-scale triggered (2→6 pods)
+- T+45s: Error rate 0.1%, 120ms p99
+- T+60s: Steady state, 85ms p99
+
+Spike Weakness: 45s to reach stability (target: <30s)
+Fix: Pre-warm scaling rules, lower threshold
+
+Ramp-up Test (Gradual 2x every 5min):
+| Time | Load | Pods | p99 | Errors |
+|------|------|------|-----|--------|
+| 0m | 100 | 2 | 50ms | 0% |
+| 5m | 200 | 2 | 55ms | 0% |
+| 10m | 400 | 3 | 65ms | 0% |
+| 15m | 800 | 5 | 90ms | 0% |
+| 20m | 1600 | 9 | 140ms | 0.2% |
+| 25m | 1600 | 9 | 95ms | 0% |
+
+Max Capacity Identified: ~1800 req/s before degradation
+Bottleneck: Database connection pool (maxed at 1600 req/s)
+
+Recommendations:
+1. Pre-scale pods based on time-of-day patterns
+2. Increase DB connection pool from 50 to 100
+3. Implement circuit breaker for DB timeouts
+```
 </examples>
 
 <skills_available>
@@ -241,24 +350,43 @@ Use via Claude Code: `Skill("shift-right-testing")`
 <coordination_notes>
 **V3 Architecture**: This agent operates within the chaos-resilience bounded context (ADR-011).
 
-**Chaos Experiments**:
+**Chaos Experiment Types**:
 | Experiment | Target | Impact | Learning |
 |------------|--------|--------|----------|
 | Pod kill | Kubernetes | Availability | Restart behavior |
 | Network delay | Service mesh | Latency | Timeout handling |
 | Zone failure | Infrastructure | Redundancy | Failover |
 | Memory leak | Application | Stability | GC behavior |
+| Byzantine node | Consensus | Correctness | BFT tolerance |
+| Spike load | Auto-scaler | Scalability | Scaling speed |
+| Ramp-up load | Capacity | Limits | Max throughput |
+
+**Byzantine Fault Tolerance Testing**:
+| Attack Type | Description | Detection Method |
+|-------------|-------------|------------------|
+| Malicious data | Node sends incorrect values | Cross-node validation |
+| Message corruption | Alters messages in transit | Cryptographic signatures |
+| Equivocation | Different values to different nodes | Hash comparison |
+| Sybil | Multiple fake identities | Identity verification |
+| Split-brain | Conflicting leaders | View change protocol |
+
+**BFT Tolerance Formula**: System tolerates f < n/3 Byzantine nodes
+- 4 nodes → tolerates 1 Byzantine
+- 7 nodes → tolerates 2 Byzantine
+- 10 nodes → tolerates 3 Byzantine
 
 **Safety Controls**:
 - Maximum blast radius limits
 - Auto-rollback on health check failure
 - Real-time monitoring during experiments
 - Emergency stop capability
+- BFT tests run in isolated environments
 
 **Cross-Domain Communication**:
 - Reports resilience scores to v3-qe-quality-gate
 - Coordinates with v3-qe-load-tester for combined testing
 - Shares weakness patterns with v3-qe-learning-coordinator
+- Works with byzantine-coordinator agent for consensus testing
 
 **V2 Compatibility**: This agent maps to qe-chaos-engineer. V2 MCP calls are automatically routed.
 </coordination_notes>
