@@ -24,6 +24,12 @@ import {
   IExperienceMiningService,
   OptimizationObjective,
 } from '../interfaces.js';
+import {
+  QEFlashAttention,
+  createQEFlashAttention,
+  type QEFlashAttentionConfig,
+  type QEFlashAttentionMetrics,
+} from '../../../integrations/ruvector/wrappers.js';
 
 /**
  * Configuration for the learning coordinator
@@ -53,11 +59,166 @@ export class LearningCoordinatorService
 {
   private readonly config: LearningCoordinatorConfig;
 
+  /**
+   * QEFlashAttention for high-performance similarity computations
+   * Provides 2.49x-7.47x speedup via @ruvector/attention SIMD implementation
+   */
+  private flashAttention: QEFlashAttention | null = null;
+
   constructor(
     private readonly memory: MemoryBackend,
     config: Partial<LearningCoordinatorConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  // ============================================================================
+  // FlashAttention Integration Methods (via @ruvector/attention)
+  // ============================================================================
+
+  /**
+   * Initialize FlashAttention for high-performance similarity computations.
+   * This enables 2.49x-7.47x speedup for pattern matching and clustering.
+   *
+   * @param customConfig - Optional custom FlashAttention configuration
+   * @returns The initialized FlashAttention instance
+   * @throws Error if @ruvector/attention is not available
+   */
+  async initializeFlashAttention(
+    customConfig?: Partial<QEFlashAttentionConfig>
+  ): Promise<QEFlashAttention> {
+    this.flashAttention = await createQEFlashAttention(
+      'pattern-adaptation',
+      customConfig
+    );
+    console.log('[LearningCoordinatorService] FlashAttention initialized for pattern adaptation');
+    return this.flashAttention;
+  }
+
+  /**
+   * Inject an existing FlashAttention instance
+   * Use this when sharing FlashAttention across services
+   *
+   * @param flashAttention - Pre-initialized FlashAttention instance
+   */
+  injectFlashAttention(flashAttention: QEFlashAttention): void {
+    this.flashAttention = flashAttention;
+  }
+
+  /**
+   * Check if FlashAttention is available
+   *
+   * @returns True if FlashAttention is initialized
+   */
+  isFlashAttentionAvailable(): boolean {
+    return this.flashAttention !== null;
+  }
+
+  /**
+   * Get FlashAttention performance metrics
+   *
+   * @returns Array of performance metrics or empty array if unavailable
+   */
+  getFlashAttentionMetrics(): QEFlashAttentionMetrics[] {
+    if (!this.flashAttention) {
+      return [];
+    }
+    return this.flashAttention.getMetrics();
+  }
+
+  /**
+   * Compute similarity between patterns using FlashAttention.
+   *
+   * @param embedding1 - First embedding vector
+   * @param embedding2 - Second embedding vector
+   * @returns Similarity score (0-1)
+   * @throws Error if FlashAttention is not initialized
+   */
+  async computeSimilarityWithFlashAttention(
+    embedding1: number[],
+    embedding2: number[]
+  ): Promise<number> {
+    if (!this.flashAttention) {
+      throw new Error(
+        '[LearningCoordinatorService] FlashAttention not initialized. ' +
+        'Call initializeFlashAttention() first.'
+      );
+    }
+
+    const dim = Math.min(embedding1.length, embedding2.length);
+    const Q = new Float32Array(dim);
+    const K = new Float32Array(dim);
+    const V = new Float32Array(dim);
+
+    for (let i = 0; i < dim; i++) {
+      Q[i] = embedding1[i];
+      K[i] = embedding2[i];
+      V[i] = 1.0; // Dummy values for similarity computation
+    }
+
+    const result = await this.flashAttention.computeFlashAttention(Q, K, V, 1, dim);
+    // Normalize result to [0, 1]
+    const similarity = Math.abs(result[0]);
+    return Math.min(1, similarity);
+  }
+
+  /**
+   * Batch compute similarities using FlashAttention.
+   * Efficiently computes similarities for multiple embedding pairs.
+   *
+   * @param queryEmbedding - Query embedding to compare against
+   * @param corpusEmbeddings - Array of corpus embeddings
+   * @param topK - Number of top results to return (default: 5)
+   * @returns Array of index-similarity pairs, sorted by similarity descending
+   * @throws Error if FlashAttention is not initialized
+   */
+  async batchComputeSimilarities(
+    queryEmbedding: number[],
+    corpusEmbeddings: number[][],
+    topK: number = 5
+  ): Promise<Array<{ index: number; similarity: number }>> {
+    if (!this.flashAttention) {
+      throw new Error(
+        '[LearningCoordinatorService] FlashAttention not initialized. ' +
+        'Call initializeFlashAttention() first.'
+      );
+    }
+
+    const query = new Float32Array(queryEmbedding);
+    const corpus = corpusEmbeddings.map((e) => new Float32Array(e));
+
+    return this.flashAttention.computeTestSimilarity(query, corpus, topK);
+  }
+
+  /**
+   * Dispose FlashAttention resources
+   */
+  disposeFlashAttention(): void {
+    if (this.flashAttention) {
+      this.flashAttention.dispose();
+      this.flashAttention = null;
+    }
+  }
+
+  /**
+   * Standard cosine similarity for internal pattern matching.
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    const len = Math.min(a.length, b.length);
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < len; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denominator === 0) return 0;
+
+    return (dotProduct / denominator + 1) / 2; // Normalize to [0, 1]
   }
 
   // ============================================================================

@@ -1,6 +1,7 @@
 /**
  * Agentic QE v3 - Coverage Analysis Coordinator
  * Orchestrates coverage analysis workflow and domain events
+ * Integrates Q-Learning for intelligent test prioritization
  */
 
 import { Result, ok, err, DomainName, Severity } from '../../shared/types';
@@ -25,12 +26,26 @@ import {
   SimilarPatterns,
   CoverageGap,
   TrendPoint,
+  CoverageQLState,
+  CoverageQLAction,
+  CoverageQLPrediction,
+  QLPrioritizedTests,
+  PrioritizedTest,
+  FileCoverage,
 } from './interfaces';
 import {
   CoverageAnalyzerService,
   GapDetectorService,
   RiskScorerService,
 } from './services';
+import { QLearningAlgorithm } from '../../integrations/rl-suite/algorithms/q-learning';
+import type {
+  RLState,
+  RLAction,
+  RLExperience,
+  RewardContext,
+} from '../../integrations/rl-suite/interfaces';
+import { COVERAGE_REWARDS } from '../../integrations/rl-suite/interfaces';
 
 // ============================================================================
 // Coordinator Interface
@@ -45,6 +60,15 @@ export interface ICoverageAnalysisCoordinator extends CoverageAnalysisAPI {
 
   /** Check if coordinator is ready */
   isReady(): boolean;
+
+  /** Get Q-Learning recommendations for test prioritization */
+  getQLRecommendations(gaps: CoverageGap[], limit?: number): Promise<Result<QLPrioritizedTests, Error>>;
+
+  /** Train Q-Learning with execution results */
+  trainQL(experience: RLExperience): Promise<void>;
+
+  /** Get Q-Learning prediction for specific coverage gap */
+  predictQL(gap: CoverageGap): Promise<CoverageQLPrediction>;
 }
 
 // ============================================================================
@@ -55,7 +79,16 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
   private readonly coverageAnalyzer: CoverageAnalyzerService;
   private readonly gapDetector: GapDetectorService;
   private readonly riskScorer: RiskScorerService;
+  private readonly qLearning: QLearningAlgorithm;
   private _initialized = false;
+  private readonly qlConfig = {
+    stateSize: 12,
+    actionSize: 4,
+    hiddenLayers: [128, 64],
+    targetUpdateFreq: 50,
+    minReplaySize: 50,
+    doubleDQN: true,
+  };
 
   constructor(
     private readonly eventBus: EventBus,
@@ -64,6 +97,9 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
     this.coverageAnalyzer = new CoverageAnalyzerService(memory);
     this.gapDetector = new GapDetectorService(memory);
     this.riskScorer = new RiskScorerService(memory);
+
+    // Initialize Q-Learning with coverage-specific configuration
+    this.qLearning = new QLearningAlgorithm(this.qlConfig, COVERAGE_REWARDS);
   }
 
   /**
@@ -81,6 +117,306 @@ export class CoverageAnalysisCoordinator implements ICoverageAnalysisCoordinator
    */
   async dispose(): Promise<void> {
     this._initialized = false;
+  }
+
+  // ============================================================================
+  // Q-Learning Integration Methods
+  // ============================================================================
+
+  /**
+   * Get Q-Learning recommendations for test prioritization
+   */
+  async getQLRecommendations(gaps: CoverageGap[], limit = 10): Promise<Result<QLPrioritizedTests, Error>> {
+    try {
+      const prioritized: PrioritizedTest[] = [];
+
+      // Get Q-Learning predictions for each gap
+      for (const gap of gaps.slice(0, limit)) {
+        const prediction = await this.predictQL(gap);
+        const testType = this.actionToTestType(prediction.action);
+        const estimatedCoverageGain = this.estimateCoverageGain(gap, prediction.action);
+        const estimatedDuration = this.estimateTestDuration(gap, testType);
+
+        prioritized.push({
+          filePath: gap.file,
+          testType,
+          priority: prediction.value,
+          estimatedCoverageGain,
+          estimatedDuration,
+          action: prediction.action,
+          confidence: prediction.confidence,
+        });
+      }
+
+      // Sort by priority (Q-value) descending
+      prioritized.sort((a, b) => b.priority - a.priority);
+
+      const totalEstimatedCoverageGain = prioritized.reduce(
+        (sum, t) => sum + t.estimatedCoverageGain,
+        0
+      );
+      const totalEstimatedDuration = prioritized.reduce(
+        (sum, t) => sum + t.estimatedDuration,
+        0
+      );
+
+      return ok({
+        tests: prioritized,
+        totalEstimatedCoverageGain,
+        totalEstimatedDuration,
+        reasoning: `Q-Learning prioritized ${prioritized.length} tests based on coverage optimization potential`,
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Get Q-Learning prediction for specific coverage gap
+   */
+  async predictQL(gap: CoverageGap): Promise<CoverageQLPrediction> {
+    try {
+      const state = this.gapToQLState(gap);
+      const prediction = await this.qLearning.predict(state);
+
+      const estimatedCoverageGain = this.estimateCoverageGain(gap, prediction.action);
+      const estimatedTestCount = this.actionToTestCount(prediction.action);
+
+      return {
+        action: prediction.action as CoverageQLAction,
+        confidence: prediction.confidence,
+        value: prediction.value || 0,
+        reasoning: prediction.reasoning || '',
+        estimatedCoverageGain,
+        estimatedTestCount,
+      };
+    } catch (error) {
+      // Return fallback prediction on error
+      return {
+        action: { type: 'generate-unit', value: 'standard' },
+        confidence: 0.3,
+        value: 0,
+        reasoning: `Fallback prediction due to error: ${(error as Error).message}`,
+        estimatedCoverageGain: 0.1,
+        estimatedTestCount: 1,
+      };
+    }
+  }
+
+  /**
+   * Train Q-Learning with execution results
+   */
+  async trainQL(experience: RLExperience): Promise<void> {
+    try {
+      await this.qLearning.trainBatch([experience]);
+
+      // Persist training state periodically
+      const stats = this.qLearning.getStats();
+      if (stats.episode % 10 === 0) {
+        await this.memory.set(
+          `coverage:ql:model:latest`,
+          {
+            stats,
+            exportedAt: new Date().toISOString(),
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Failed to train Q-Learning model:', error);
+    }
+  }
+
+  // ============================================================================
+  // Q-Learning Helper Methods
+  // ============================================================================
+
+  /**
+   * Convert coverage gap to Q-Learning state
+   */
+  private gapToQLState(gap: CoverageGap): RLState {
+    // Create feature vector for Q-Learning
+    const features = [
+      gap.riskScore / 10, // Normalized risk score
+      Math.min(1, gap.lines.length / 50), // Number of uncovered lines
+      Math.min(1, gap.branches.length / 10), // Number of uncovered branches
+      this.severityToNumber(gap.severity) / 4, // Severity level
+      this.complexityFromPath(gap.file), // Estimated complexity
+      this.changeFrequencyFromPath(gap.file), // Estimated change frequency
+      this.businessCriticalityFromPath(gap.file), // Business criticality
+      gap.lines.length / Math.max(1, gap.branches.length), // Line to branch ratio
+      this.calculateCoveragePotential(gap), // Potential coverage gain
+      this.calculateFileComplexityScore(gap), // File complexity score
+      this.calculateTestComplexity(gap), // Test complexity
+      this.calculateExecutionCost(gap), // Execution cost
+    ];
+
+    return {
+      id: gap.id,
+      features,
+      metadata: {
+        filePath: gap.file,
+        lines: gap.lines,
+        branches: gap.branches,
+        riskScore: gap.riskScore,
+        severity: gap.severity,
+      },
+      timestamp: new Date(),
+    };
+  }
+
+  /**
+   * Estimate coverage gain for a given action
+   */
+  private estimateCoverageGain(gap: CoverageGap, action: RLAction): number {
+    const baseGain = (gap.lines.length + gap.branches.length * 2) / 1000;
+
+    switch (action.type) {
+      case 'generate-unit':
+        return baseGain * 0.3;
+      case 'generate-integration':
+        return baseGain * 0.5;
+      case 'prioritize':
+        return baseGain * 0.7;
+      case 'skip':
+        return 0;
+      default:
+        return baseGain * 0.2;
+    }
+  }
+
+  /**
+   * Estimate test duration based on gap and test type
+   */
+  private estimateTestDuration(gap: CoverageGap, testType: 'unit' | 'integration' | 'e2e'): number {
+    const baseDuration = gap.lines.length * 0.5; // 0.5s per line
+
+    switch (testType) {
+      case 'unit':
+        return baseDuration;
+      case 'integration':
+        return baseDuration * 2;
+      case 'e2e':
+        return baseDuration * 5;
+      default:
+        return baseDuration;
+    }
+  }
+
+  /**
+   * Convert action to test type
+   */
+  private actionToTestType(action: RLAction): 'unit' | 'integration' | 'e2e' {
+    switch (action.type) {
+      case 'generate-unit':
+        return 'unit';
+      case 'generate-integration':
+        return 'integration';
+      case 'prioritize':
+        return 'integration'; // Prioritize usually means integration tests
+      default:
+        return 'unit';
+    }
+  }
+
+  /**
+   * Estimate number of tests for an action
+   */
+  private actionToTestCount(action: RLAction): number {
+    switch (action.type) {
+      case 'generate-unit':
+        return 3;
+      case 'generate-integration':
+        return 2;
+      case 'prioritize':
+        return 5;
+      case 'skip':
+        return 0;
+      default:
+        return 1;
+    }
+  }
+
+  /**
+   * Calculate coverage potential for a gap
+   */
+  private calculateCoveragePotential(gap: CoverageGap): number {
+    // Higher potential for high-risk gaps with many uncovered lines
+    const linePotential = Math.min(1, gap.lines.length / 50);
+    const branchPotential = Math.min(1, gap.branches.length / 10);
+    const riskPotential = gap.riskScore / 10;
+
+    return (linePotential + branchPotential + riskPotential) / 3;
+  }
+
+  /**
+   * Calculate file complexity score
+   */
+  private calculateFileComplexityScore(gap: CoverageGap): number {
+    // Simple heuristic based on file path
+    const pathParts = gap.file.split('/');
+    const depth = pathParts.length;
+    const hasComplexName = /service|controller|provider|manager/i.test(gap.file);
+
+    return Math.min(1, (depth + (hasComplexName ? 2 : 0)) / 10);
+  }
+
+  /**
+   * Calculate test complexity
+   */
+  private calculateTestComplexity(gap: CoverageGap): number {
+    // Based on number of uncovered branches and lines
+    const branchComplexity = gap.branches.length * 0.6;
+    const lineComplexity = gap.lines.length * 0.1;
+
+    return Math.min(1, (branchComplexity + lineComplexity) / 20);
+  }
+
+  /**
+   * Calculate execution cost
+   */
+  private calculateExecutionCost(gap: CoverageGap): number {
+    // Cost based on file size and complexity
+    const sizeCost = Math.min(1, gap.lines.length / 100);
+    const riskCost = gap.riskScore / 10;
+
+    return (sizeCost + riskCost) / 2;
+  }
+
+  /**
+   * Estimate complexity from file path
+   */
+  private complexityFromPath(filePath: string): number {
+    // Simple heuristic based on file path
+    const complexityIndicators = ['service', 'controller', 'provider', 'manager', 'handler'];
+    const hasComplexName = complexityIndicators.some((indicator) =>
+      filePath.toLowerCase().includes(indicator)
+    );
+
+    return hasComplexName ? 0.7 : 0.3;
+  }
+
+  /**
+   * Estimate change frequency from file path
+   */
+  private changeFrequencyFromPath(filePath: string): number {
+    // Files in certain directories change more frequently
+    const highFrequencyDirs = ['src', 'lib', 'services', 'controllers'];
+    const isHighFrequency = highFrequencyDirs.some((dir) => filePath.includes(dir));
+
+    return isHighFrequency ? 0.6 : 0.2;
+  }
+
+  /**
+   * Estimate business criticality from file path
+   */
+  private businessCriticalityFromPath(filePath: string): number {
+    // Auth, payment, core files are more critical
+    const criticalIndicators = ['auth', 'payment', 'user', 'core', 'api'];
+    const isCritical = criticalIndicators.some((indicator) =>
+      filePath.toLowerCase().includes(indicator)
+    );
+
+    return isCritical ? 0.8 : 0.4;
   }
 
   /**

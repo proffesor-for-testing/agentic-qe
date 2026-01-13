@@ -43,6 +43,7 @@ export {
   PatternLearnerService,
   type IPatternLearnerService,
   type PatternLearnerConfig,
+  type FlashAttentionStatus,
 } from './services/pattern-learner';
 
 export {

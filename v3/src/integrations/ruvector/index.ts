@@ -361,3 +361,40 @@ export async function getRuVectorStatus(
     await client.dispose();
   }
 }
+
+// ============================================================================
+// @ruvector Package Wrappers (SONA, Flash Attention, GNN)
+// ============================================================================
+
+// QE Wrappers for @ruvector packages
+export * from './wrappers';
+
+// ============================================================================
+// Service Provider (Dependency Injection)
+// ============================================================================
+
+export {
+  RuVectorServiceProvider,
+  getDomainRuVectorServices,
+  getRuVectorProvider,
+  getRuVectorServiceAvailability,
+  type RuVectorServiceConfig,
+} from './provider';
+
+// ============================================================================
+// Feature Flags
+// ============================================================================
+
+export {
+  getRuVectorFeatureFlags,
+  setRuVectorFeatureFlags,
+  resetRuVectorFeatureFlags,
+  isSONAEnabled,
+  isFlashAttentionEnabled,
+  isGNNIndexEnabled,
+  shouldLogMigrationMetrics,
+  shouldFallbackOnError,
+  initFeatureFlagsFromEnv,
+  DEFAULT_FEATURE_FLAGS,
+  type RuVectorFeatureFlags,
+} from './feature-flags';

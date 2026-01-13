@@ -27,6 +27,7 @@ import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutorService, TestExecutorConfig } from './services/test-executor';
 import { FlakyDetectorService, FlakyDetectorConfig } from './services/flaky-detector';
 import { RetryHandlerService, RetryHandlerConfig } from './services/retry-handler';
+import { TestPrioritizerService, TestPrioritizerConfig, type TestMetadata, type TestPrioritizationContext } from './services/test-prioritizer';
 
 // ============================================================================
 // Coordinator Configuration
@@ -53,10 +54,20 @@ export interface TestExecutionCoordinatorConfig {
    * Optional retry handler-specific config overrides
    */
   retryHandlerConfig?: Partial<RetryHandlerConfig>;
+  /**
+   * Optional test prioritizer config overrides
+   */
+  prioritizerConfig?: Partial<TestPrioritizerConfig>;
+  /**
+   * Enable intelligent test prioritization using Decision Transformer
+   * @default true
+   */
+  enablePrioritization?: boolean;
 }
 
 const DEFAULT_COORDINATOR_CONFIG: TestExecutionCoordinatorConfig = {
   simulateForTesting: false,
+  enablePrioritization: true,
 };
 
 // ============================================================================
@@ -85,7 +96,9 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   private readonly executor: TestExecutorService;
   private readonly flakyDetector: FlakyDetectorService;
   private readonly retryHandler: RetryHandlerService;
+  private readonly prioritizer: TestPrioritizerService;
   private readonly activeRuns = new Set<string>();
+  private readonly config: TestExecutionCoordinatorConfig;
   private initialized = false;
 
   constructor(
@@ -93,7 +106,11 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     memory: MemoryBackend,
     config: Partial<TestExecutionCoordinatorConfig> = {}
   ) {
-    const fullConfig = { ...DEFAULT_COORDINATOR_CONFIG, ...config };
+    const fullConfig: TestExecutionCoordinatorConfig = {
+      ...DEFAULT_COORDINATOR_CONFIG,
+      ...config,
+    };
+    this.config = fullConfig;
 
     // Create services with appropriate configuration
     this.executor = new TestExecutorService(memory, {
@@ -108,6 +125,7 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
       simulateForTesting: fullConfig.simulateForTesting,
       ...fullConfig.retryHandlerConfig,
     });
+    this.prioritizer = new TestPrioritizerService(memory, fullConfig.prioritizerConfig);
   }
 
   /**
@@ -116,6 +134,11 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   async initialize(): Promise<void> {
     if (this.initialized) {
       return;
+    }
+
+    // Initialize test prioritizer
+    if (this.config.enablePrioritization) {
+      await this.prioritizer.initialize();
     }
 
     // Subscribe to relevant events from other domains
@@ -176,24 +199,51 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     this.activeRuns.add(runId);
 
     try {
+      // Prioritize tests if enabled
+      let orderedTestFiles = request.testFiles;
+      let prioritizationResult = null;
+
+      if (this.config.enablePrioritization && request.testFiles.length > 1) {
+        const priorityResult = await this.prioritizeTests(
+          request.testFiles,
+          runId,
+          false,
+          1
+        );
+
+        if (priorityResult.success) {
+          orderedTestFiles = priorityResult.value.orderedFiles;
+          prioritizationResult = priorityResult.value.prioritizationInfo;
+        }
+      }
+
       // Publish start event
       await this.publishEvent<TestRunStartedPayload>(
         TestExecutionEvents.TestRunStarted,
         {
           runId,
-          testCount: request.testFiles.length,
+          testCount: orderedTestFiles.length,
           parallel: false,
           workers: 1,
         }
       );
 
-      // Execute tests
-      const result = await this.executor.execute(request);
+      // Execute tests with prioritized order
+      const orderedRequest: ExecuteTestsRequest = {
+        ...request,
+        testFiles: orderedTestFiles,
+      };
+      const result = await this.executor.execute(orderedRequest);
 
       // Remove from active runs
       this.activeRuns.delete(runId);
 
       if (result.success) {
+        // Record execution results for learning
+        if (this.config.enablePrioritization && prioritizationResult) {
+          await this.recordExecutionResults(runId, orderedTestFiles, result.value, prioritizationResult);
+        }
+
         // Publish completion event
         await this.publishEvent<TestRunCompletedPayload>(
           TestExecutionEvents.TestRunCompleted,
@@ -233,24 +283,51 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
     this.activeRuns.add(runId);
 
     try {
+      // Prioritize tests if enabled
+      let orderedTestFiles = request.testFiles;
+      let prioritizationResult = null;
+
+      if (this.config.enablePrioritization && request.testFiles.length > 1) {
+        const priorityResult = await this.prioritizeTests(
+          request.testFiles,
+          runId,
+          true,
+          request.workers
+        );
+
+        if (priorityResult.success) {
+          orderedTestFiles = priorityResult.value.orderedFiles;
+          prioritizationResult = priorityResult.value.prioritizationInfo;
+        }
+      }
+
       // Publish start event
       await this.publishEvent<TestRunStartedPayload>(
         TestExecutionEvents.TestRunStarted,
         {
           runId,
-          testCount: request.testFiles.length,
+          testCount: orderedTestFiles.length,
           parallel: true,
           workers: request.workers,
         }
       );
 
-      // Execute tests in parallel
-      const result = await this.executor.executeParallel(request);
+      // Execute tests in parallel with prioritized order
+      const orderedRequest: ParallelExecutionRequest = {
+        ...request,
+        testFiles: orderedTestFiles,
+      };
+      const result = await this.executor.executeParallel(orderedRequest);
 
       // Remove from active runs
       this.activeRuns.delete(runId);
 
       if (result.success) {
+        // Record execution results for learning
+        if (this.config.enablePrioritization && prioritizationResult) {
+          await this.recordExecutionResults(runId, orderedTestFiles, result.value, prioritizationResult);
+        }
+
         // Publish completion event
         await this.publishEvent<TestRunCompletedPayload>(
           TestExecutionEvents.TestRunCompleted,
@@ -410,6 +487,134 @@ export class TestExecutionCoordinator implements ITestExecutionCoordinator {
   private async publishEvent<T>(type: string, payload: T): Promise<void> {
     const event = createEvent(type, 'test-execution', payload);
     await this.eventBus.publish(event);
+  }
+
+  /**
+   * Prioritize tests using Decision Transformer
+   */
+  private async prioritizeTests(
+    testFiles: string[],
+    runId: string,
+    parallel: boolean,
+    workers: number
+  ): Promise<Result<{
+    orderedFiles: string[];
+    prioritizationInfo: unknown;
+  }, Error>> {
+    try {
+      // Create test metadata from file paths
+      const testMetadata: TestMetadata[] = testFiles.map((filePath) => ({
+        testId: this.generateTestId(filePath),
+        filePath,
+        testName: this.extractTestName(filePath),
+        testType: 'unit',
+        priority: 'p2',
+        complexity: 0.5,
+        domain: 'test-execution',
+        estimatedDuration: 5000,
+        coverage: 0,
+        failureHistory: [],
+        flakinessScore: 0,
+        executionCount: 0,
+      }));
+
+      // Create prioritization context
+      const context: TestPrioritizationContext = {
+        runId,
+        totalTests: testFiles.length,
+        availableTime: 60000, // 1 minute default
+        workers,
+        mode: parallel ? 'parallel' : 'sequential',
+        phase: 'ci',
+      };
+
+      // Get prioritization from DT
+      const result = await this.prioritizer.prioritize(testMetadata, context);
+
+      if (!result.success) {
+        return err(result.error);
+      }
+
+      // Extract ordered file paths
+      const orderedFiles = result.value.tests.map(t => t.filePath);
+
+      return ok({
+        orderedFiles,
+        prioritizationInfo: {
+          method: result.value.method,
+          averageConfidence: result.value.averageConfidence,
+          learningStatus: result.value.learningStatus,
+        },
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Record execution results for DT learning
+   */
+  private async recordExecutionResults(
+    runId: string,
+    testFiles: string[],
+    result: TestRunResult,
+    prioritizationInfo: unknown
+  ): Promise<void> {
+    // Record each test execution for learning
+    for (let i = 0; i < testFiles.length; i++) {
+      const testId = this.generateTestId(testFiles[i]);
+      const info = prioritizationInfo as {
+        method: string;
+        averageConfidence: number;
+      } | undefined;
+
+      // Find if this test failed (check if it's in failed tests)
+      const failedTest = result.failedTests.find(t => t.file === testFiles[i]);
+      const passed = !failedTest;
+      const duration = failedTest?.duration ?? result.duration / testFiles.length;
+
+      // Determine priority based on position
+      const priority = i < Math.ceil(testFiles.length * 0.2) ? 'critical' :
+                      i < Math.ceil(testFiles.length * 0.5) ? 'high' :
+                      i < Math.ceil(testFiles.length * 0.8) ? 'standard' : 'low';
+
+      const context: TestPrioritizationContext = {
+        runId,
+        totalTests: testFiles.length,
+        availableTime: 60000,
+        workers: 1,
+        mode: 'sequential',
+        phase: 'ci',
+      };
+
+      await this.prioritizer.recordExecution(
+        testId,
+        {
+          passed,
+          duration,
+          priority,
+          failedEarly: failedTest !== undefined && i < Math.ceil(testFiles.length * 0.3),
+          coverageImproved: false, // Would need coverage data
+          flakyDetected: false, // Checked separately
+        },
+        context
+      );
+    }
+  }
+
+  /**
+   * Generate test ID from file path
+   */
+  private generateTestId(filePath: string): string {
+    return `test-${filePath.replace(/[^a-zA-Z0-9]/g, '-')}`;
+  }
+
+  /**
+   * Extract test name from file path
+   */
+  private extractTestName(filePath: string): string {
+    const parts = filePath.split('/');
+    return parts[parts.length - 1] || filePath;
   }
 }
 

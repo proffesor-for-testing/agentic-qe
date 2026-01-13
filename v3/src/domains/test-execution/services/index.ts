@@ -6,3 +6,4 @@
 export * from './test-executor';
 export * from './flaky-detector';
 export * from './retry-handler';
+export * from './test-prioritizer';

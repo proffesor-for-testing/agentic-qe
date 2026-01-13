@@ -1,6 +1,10 @@
 /**
  * Agentic QE v3 - Requirements Validation Coordinator
  * Orchestrates the requirements validation workflow across services
+ *
+ * V3 Integration:
+ * - PPO Algorithm: Optimizes BDD scenario generation and ordering
+ * - QESONA: Learns and adapts requirement patterns for improved validation
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -30,6 +34,18 @@ import { RequirementsValidatorService } from './services/requirements-validator.
 import { BDDScenarioWriterService } from './services/bdd-scenario-writer.js';
 import { TestabilityScorerService } from './services/testability-scorer.js';
 
+// V3 Integration: RL Suite
+import { PPOAlgorithm } from '../../integrations/rl-suite/algorithms/ppo.js';
+import type { RLState, RLAction, RLExperience, RLPrediction } from '../../integrations/rl-suite/interfaces.js';
+
+// V3 Integration: @ruvector wrappers
+import {
+  QESONA,
+  createQESONA,
+  type QESONAPattern,
+  type QEPatternType,
+} from '../../integrations/ruvector/wrappers.js';
+
 // ============================================================================
 // Domain Events
 // ============================================================================
@@ -51,6 +67,9 @@ export interface CoordinatorConfig {
   defaultTimeout: number;
   publishEvents: boolean;
   minTestabilityThreshold: number;
+  // V3: Enable RL and SONA integrations
+  enablePPO: boolean;
+  enableSONA: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -58,6 +77,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   defaultTimeout: 60000,
   publishEvents: true,
   minTestabilityThreshold: 60,
+  enablePPO: true,
+  enableSONA: true,
 };
 
 // ============================================================================
@@ -135,6 +156,11 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private initialized = false;
 
+  // V3: RL and SONA integrations
+  private ppoAlgorithm?: PPOAlgorithm;
+  private sonaEngine?: QESONA;
+  private rlInitialized = false;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -157,7 +183,48 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
     this.subscribeToEvents();
     await this.loadWorkflowState();
 
+    // V3: Initialize RL and SONA integrations
+    if (this.config.enablePPO || this.config.enableSONA) {
+      await this.initializeRLIntegrations();
+    }
+
     this.initialized = true;
+  }
+
+  /**
+   * Initialize V3 RL and SONA integrations
+   */
+  private async initializeRLIntegrations(): Promise<void> {
+    try {
+      // Initialize PPO for BDD scenario optimization
+      if (this.config.enablePPO) {
+        this.ppoAlgorithm = new PPOAlgorithm({
+          stateSize: 10,
+          actionSize: 5,
+          actorHiddenLayers: [64, 64],
+          criticHiddenLayers: [64, 64],
+          learningRate: 0.001,
+          discountFactor: 0.99,
+          explorationRate: 0.1,
+        });
+        await this.ppoAlgorithm.initialize();
+      }
+
+      // Initialize SONA for requirement pattern learning
+      if (this.config.enableSONA) {
+        this.sonaEngine = createQESONA({
+          hiddenDim: 256,
+          embeddingDim: 384,
+          patternClusters: 50,
+          maxPatterns: 5000,
+        });
+      }
+
+      this.rlInitialized = true;
+    } catch (error) {
+      console.error('Failed to initialize RL integrations:', error);
+      throw error;
+    }
   }
 
   /**
@@ -195,6 +262,14 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       const requirement = await this.repository.findById(requirementId);
       if (!requirement) {
         return err(new Error(`Requirement not found: ${requirementId}`));
+      }
+
+      // V3: Use SONA to adapt patterns from similar requirements
+      if (this.config.enableSONA && this.sonaEngine) {
+        const pattern = await this.adaptRequirementPattern(requirement);
+        if (pattern.success && pattern.pattern) {
+          console.log(`[SONA] Adapted pattern with ${pattern.similarity.toFixed(3)} similarity`);
+        }
       }
 
       // Spawn analysis agent
@@ -246,6 +321,11 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
         suggestedImprovements: suggestionsResult.success ? suggestionsResult.value : [],
       };
 
+      // V3: Store pattern in SONA for future learning
+      if (this.config.enableSONA && this.sonaEngine) {
+        await this.storeRequirementPattern(requirement, testabilityResult.value.value, analysis);
+      }
+
       // Stop agent and complete workflow
       await this.agentCoordinator.stop(agentResult.value);
       this.completeWorkflow(workflowId);
@@ -291,10 +371,20 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       this.addAgentToWorkflow(workflowId, agentResult.value);
       this.updateWorkflowProgress(workflowId, 20);
 
-      // Generate BDD scenarios with examples
+      // V3: Use PPO to optimize BDD scenario generation
+      let optimizedScenarioCount = 3;
+      if (this.config.enablePPO && this.ppoAlgorithm) {
+        const prediction = await this.optimizeScenarioGeneration(requirement);
+        if (prediction.success && prediction.prediction) {
+          optimizedScenarioCount = this.extractScenarioCount(prediction.prediction);
+          console.log(`[PPO] Optimized scenario count to ${optimizedScenarioCount}`);
+        }
+      }
+
+      // Generate BDD scenarios with optimized count
       const scenariosResult = await this.bddWriter.generateScenariosWithExamples(
         requirement,
-        3
+        optimizedScenarioCount
       );
 
       if (!scenariosResult.success) {
@@ -303,28 +393,39 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       }
       this.updateWorkflowProgress(workflowId, 50);
 
+      // V3: Use PPO to optimize scenario ordering
+      let scenarios = scenariosResult.value;
+      if (this.config.enablePPO && this.ppoAlgorithm) {
+        scenarios = await this.optimizeScenarioOrdering(requirement, scenarios);
+      }
+
       // Generate Gherkin files
-      const gherkinContent = this.bddWriter.toGherkin(scenariosResult.value);
+      const gherkinContent = this.bddWriter.toGherkin(scenarios);
       const gherkinFile: GherkinFile = {
         path: `features/${this.sanitizeFilename(requirement.title)}.feature`,
         content: gherkinContent,
-        scenarioCount: scenariosResult.value.length,
+        scenarioCount: scenarios.length,
       };
       this.updateWorkflowProgress(workflowId, 70);
 
       // Generate test case outlines
       const testCaseOutlines = this.generateTestCaseOutlines(
         requirement,
-        scenariosResult.value
+        scenarios
       );
       this.updateWorkflowProgress(workflowId, 90);
 
       const artifacts: TestArtifacts = {
         requirementId,
-        bddScenarios: scenariosResult.value,
+        bddScenarios: scenarios,
         gherkinFiles: [gherkinFile],
         testCaseOutlines,
       };
+
+      // V3: Train PPO with feedback from scenario generation
+      if (this.config.enablePPO && this.ppoAlgorithm) {
+        await this.trainPPOWithScenarioFeedback(requirement, scenarios, artifacts);
+      }
 
       // Stop agent and complete workflow
       await this.agentCoordinator.stop(agentResult.value);
@@ -332,7 +433,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
 
       // Publish event
       if (this.config.publishEvents) {
-        await this.publishBDDScenariosGenerated(requirementId, scenariosResult.value);
+        await this.publishBDDScenariosGenerated(requirementId, scenarios);
       }
 
       return ok(artifacts);
@@ -453,6 +554,259 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       const err = error instanceof Error ? error : new Error(String(error));
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
+    }
+  }
+
+  // ============================================================================
+  // V3: PPO Integration for BDD Scenario Optimization
+  // ============================================================================
+
+  /**
+   * Use PPO to optimize scenario generation parameters
+   */
+  private async optimizeScenarioGeneration(
+    requirement: Requirement
+  ): Promise<Result<RLPrediction>> {
+    if (!this.ppoAlgorithm || !this.rlInitialized) {
+      return err(new Error('PPO not initialized'));
+    }
+
+    try {
+      // Create state from requirement features
+      const state: RLState = {
+        id: `req-${requirement.id}`,
+        features: this.extractRequirementFeatures(requirement),
+      };
+
+      const prediction = await this.ppoAlgorithm.predict(state);
+      return ok(prediction);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Use PPO to optimize scenario ordering for maximum coverage
+   */
+  private async optimizeScenarioOrdering(
+    requirement: Requirement,
+    scenarios: BDDScenario[]
+  ): Promise<BDDScenario[]> {
+    if (!this.ppoAlgorithm || !this.rlInitialized) {
+      return scenarios;
+    }
+
+    try {
+      // Score each scenario based on PPO predictions
+      const scored = await Promise.all(
+        scenarios.map(async (scenario) => {
+          const state: RLState = {
+            id: `scenario-${scenario.scenario}`,
+            features: [
+              ...this.extractRequirementFeatures(requirement),
+              scenario.steps.length,
+              scenario.examples?.rows.length || 0,
+            ],
+          };
+
+          const prediction = await this.ppoAlgorithm!.predict(state);
+          return {
+            scenario,
+            score: prediction.value || 0,
+          };
+        })
+      );
+
+      // Sort by score (descending)
+      scored.sort((a, b) => b.score - a.score);
+      return scored.map((s) => s.scenario);
+    } catch (error) {
+      console.error('Failed to optimize scenario ordering:', error);
+      return scenarios;
+    }
+  }
+
+  /**
+   * Train PPO with feedback from scenario generation
+   */
+  private async trainPPOWithScenarioFeedback(
+    requirement: Requirement,
+    scenarios: BDDScenario[],
+    artifacts: TestArtifacts
+  ): Promise<void> {
+    if (!this.ppoAlgorithm || !this.rlInitialized) {
+      return;
+    }
+
+    try {
+      // Create experience from the generation outcome
+      const state: RLState = {
+        id: `req-${requirement.id}`,
+        features: this.extractRequirementFeatures(requirement),
+      };
+
+      const action: RLAction = {
+        type: 'generate-scenarios',
+        value: scenarios.length,
+      };
+
+      // Reward based on scenario quality
+      const reward = this.calculateScenarioReward(scenarios, artifacts);
+
+      const experience: RLExperience = {
+        state,
+        action,
+        reward,
+        nextState: state,
+        done: true,
+      };
+
+      await this.ppoAlgorithm.train([experience]);
+      console.log(`[PPO] Trained with reward: ${reward.toFixed(3)}`);
+    } catch (error) {
+      console.error('Failed to train PPO:', error);
+    }
+  }
+
+  /**
+   * Calculate reward for scenario generation
+   */
+  private calculateScenarioReward(
+    scenarios: BDDScenario[],
+    artifacts: TestArtifacts
+  ): number {
+    let reward = 0.5;
+
+    // Reward scenario count (3-5 is optimal)
+    const count = scenarios.length;
+    if (count >= 3 && count <= 5) {
+      reward += 0.2;
+    } else if (count > 5) {
+      reward -= 0.1;
+    }
+
+    // Reward test case outline coverage
+    const outlineCount = artifacts.testCaseOutlines.length;
+    reward += Math.min(0.3, outlineCount * 0.05);
+
+    // Reward examples in scenarios
+    const scenariosWithExamples = scenarios.filter((s) => s.examples && s.examples.rows.length > 0).length;
+    reward += (scenariosWithExamples / scenarios.length) * 0.2;
+
+    return Math.max(0, Math.min(1, reward));
+  }
+
+  /**
+   * Extract scenario count from PPO prediction
+   */
+  private extractScenarioCount(prediction: RLPrediction): number {
+    if (prediction.action.type === 'generate-scenarios' && typeof prediction.action.value === 'number') {
+      return Math.max(1, Math.min(10, Math.round(prediction.action.value)));
+    }
+    return 3; // Default
+  }
+
+  /**
+   * Extract features from requirement for RL state
+   */
+  private extractRequirementFeatures(requirement: Requirement): number[] {
+    return [
+      requirement.title.length,
+      requirement.description.length,
+      requirement.acceptanceCriteria.length,
+      requirement.priority === 'critical' ? 1 : requirement.priority === 'high' ? 0.5 : 0,
+      requirement.type === 'functional' ? 1 : 0,
+      requirement.type === 'non-functional' ? 1 : 0,
+      requirement.dependencies?.length || 0,
+      requirement.tags.length,
+      requirement.estimatedComplexity || 0.5,
+      requirement.status === 'approved' ? 1 : 0,
+    ];
+  }
+
+  // ============================================================================
+  // V3: SONA Integration for Requirement Pattern Learning
+  // ============================================================================
+
+  /**
+   * Adapt requirement pattern using SONA
+   */
+  private async adaptRequirementPattern(
+    requirement: Requirement
+  ): Promise<{ success: boolean; pattern: QESONAPattern | null; similarity: number }> {
+    if (!this.sonaEngine || !this.rlInitialized) {
+      return { success: false, pattern: null, similarity: 0 };
+    }
+
+    try {
+      const state: RLState = {
+        id: `req-${requirement.id}`,
+        features: this.extractRequirementFeatures(requirement),
+      };
+
+      const result = await this.sonaEngine.adaptPattern(
+        state,
+        'test-generation' as QEPatternType,
+        'requirements-validation'
+      );
+
+      return {
+        success: result.success,
+        pattern: result.pattern,
+        similarity: result.similarity,
+      };
+    } catch (error) {
+      console.error('Failed to adapt requirement pattern:', error);
+      return { success: false, pattern: null, similarity: 0 };
+    }
+  }
+
+  /**
+   * Store requirement pattern in SONA for future learning
+   */
+  private async storeRequirementPattern(
+    requirement: Requirement,
+    testabilityScore: number,
+    analysis: RequirementAnalysis
+  ): Promise<void> {
+    if (!this.sonaEngine || !this.rlInitialized) {
+      return;
+    }
+
+    try {
+      const state: RLState = {
+        id: `req-${requirement.id}`,
+        features: this.extractRequirementFeatures(requirement),
+      };
+
+      const action: RLAction = {
+        type: 'validate',
+        value: testabilityScore,
+      };
+
+      const outcome = {
+        reward: testabilityScore / 100,
+        success: testabilityScore >= this.config.minTestabilityThreshold,
+        quality: testabilityScore / 100,
+      };
+
+      const pattern = this.sonaEngine.createPattern(
+        state,
+        action,
+        outcome,
+        'test-generation' as QEPatternType,
+        'requirements-validation',
+        {
+          requirementId: requirement.id,
+          requirementType: requirement.type,
+          validationErrorCount: analysis.validationErrors.length,
+          ambiguityScore: analysis.ambiguityReport.overallScore,
+        }
+      );
+
+      console.log(`[SONA] Stored pattern ${pattern.id} for requirement ${requirement.id}`);
+    } catch (error) {
+      console.error('Failed to store requirement pattern:', error);
     }
   }
 

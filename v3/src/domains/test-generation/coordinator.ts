@@ -1,6 +1,11 @@
 /**
  * Agentic QE v3 - Test Generation Coordinator
  * Orchestrates the test generation workflow across services
+ *
+ * Enhanced with @ruvector integration per ADR-040:
+ * - QESONA for pattern learning (test generation patterns)
+ * - QEFlashAttention for test similarity detection
+ * - DecisionTransformer for test case selection
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -44,6 +49,38 @@ import {
   IPatternMatchingService,
 } from './services/pattern-matcher';
 
+// ============================================================================
+// @ruvector Wrapper Imports (ADR-040)
+// ============================================================================
+
+import {
+  QESONA,
+  createQESONA,
+  createDomainQESONA,
+  type QESONAPattern,
+  type QEPatternType,
+  type QESONAAdaptationResult,
+  type QESONAStats,
+} from '../../integrations/ruvector/wrappers.js';
+
+import {
+  QEFlashAttention,
+  createQEFlashAttention,
+  type QEWorkloadType,
+  type QEFlashAttentionMetrics,
+} from '../../integrations/ruvector/wrappers.js';
+
+import {
+  DecisionTransformerAlgorithm,
+} from '../../integrations/rl-suite/algorithms/decision-transformer.js';
+
+import type {
+  RLState,
+  RLAction,
+  RLPrediction,
+  RLExperience,
+} from '../../integrations/rl-suite/interfaces.js';
+
 /**
  * Interface for the test generation coordinator
  */
@@ -51,6 +88,9 @@ export interface ITestGenerationCoordinator extends TestGenerationAPI {
   initialize(): Promise<void>;
   dispose(): Promise<void>;
   getActiveWorkflows(): WorkflowStatus[];
+  // @ruvector integration methods (ADR-040)
+  getQESONAStats(): QESONAStats | null;
+  getFlashAttentionMetrics(): QEFlashAttentionMetrics[] | null;
 }
 
 /**
@@ -75,6 +115,12 @@ export interface CoordinatorConfig {
   defaultTimeout: number;
   enablePatternLearning: boolean;
   publishEvents: boolean;
+  // @ruvector integration configs (ADR-040)
+  enableQESONA: boolean;
+  enableFlashAttention: boolean;
+  enableDecisionTransformer: boolean;
+  sonaPatternType: QEPatternType;
+  flashAttentionWorkload: QEWorkloadType;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -82,11 +128,22 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   defaultTimeout: 60000, // 60 seconds
   enablePatternLearning: true,
   publishEvents: true,
+  // @ruvector integration defaults (ADR-040)
+  enableQESONA: true,
+  enableFlashAttention: true,
+  enableDecisionTransformer: true,
+  sonaPatternType: 'test-generation',
+  flashAttentionWorkload: 'test-similarity',
 };
 
 /**
  * Test Generation Coordinator
  * Orchestrates test generation workflows and coordinates with agents
+ *
+ * Enhanced with @ruvector integration per ADR-040:
+ * - QESONA for pattern learning (test generation patterns)
+ * - QEFlashAttention for test similarity detection
+ * - DecisionTransformer for test case selection
  */
 export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private readonly config: CoordinatorConfig;
@@ -94,6 +151,12 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   private readonly patternMatcher: IPatternMatchingService;
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private initialized = false;
+
+  // @ruvector integrations (ADR-040)
+  private qesona: QESONA | null = null;
+  private flashAttention: QEFlashAttention | null = null;
+  private decisionTransformer: DecisionTransformerAlgorithm | null = null;
+  private testEmbeddings: Map<string, Float32Array> = new Map();
 
   constructor(
     private readonly eventBus: EventBus,
@@ -107,10 +170,53 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
   }
 
   /**
-   * Initialize the coordinator
+   * Initialize the coordinator with @ruvector integrations
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    // Initialize QESONA for pattern learning
+    if (this.config.enableQESONA) {
+      try {
+        this.qesona = createDomainQESONA('test-generation', {
+          patternClusters: 50,
+          minConfidence: 0.5,
+        });
+        console.log('[TestGenerationCoordinator] QESONA initialized for test-generation domain');
+      } catch (error) {
+        console.error('[TestGenerationCoordinator] Failed to initialize QESONA:', error);
+        throw new Error(`QESONA initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Initialize Flash Attention for test similarity detection
+    if (this.config.enableFlashAttention) {
+      try {
+        this.flashAttention = await createQEFlashAttention(
+          this.config.flashAttentionWorkload,
+          { dim: 384, strategy: 'flash', blockSize: 64 }
+        );
+        console.log('[TestGenerationCoordinator] QEFlashAttention initialized for test-similarity');
+      } catch (error) {
+        console.error('[TestGenerationCoordinator] Failed to initialize QEFlashAttention:', error);
+        throw new Error(`QEFlashAttention initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Initialize Decision Transformer for test case selection
+    if (this.config.enableDecisionTransformer) {
+      try {
+        this.decisionTransformer = new DecisionTransformerAlgorithm({
+          contextLength: 10,
+          embeddingDim: 128,
+        });
+        // Note: DecisionTransformer will auto-initialize on first predict() call
+        console.log('[TestGenerationCoordinator] DecisionTransformer created for test case selection');
+      } catch (error) {
+        console.error('[TestGenerationCoordinator] Failed to create DecisionTransformer:', error);
+        throw new Error(`DecisionTransformer creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
 
     // Subscribe to relevant events
     this.subscribeToEvents();
@@ -128,8 +234,22 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
     // Save workflow state
     await this.saveWorkflowState();
 
+    // Dispose @ruvector integrations
+    if (this.flashAttention) {
+      this.flashAttention.dispose();
+      this.flashAttention = null;
+    }
+
+    if (this.decisionTransformer) {
+      await this.decisionTransformer.reset();
+      this.decisionTransformer = null;
+    }
+
     // Clear active workflows
     this.workflows.clear();
+
+    // Clear embeddings cache
+    this.testEmbeddings.clear();
 
     this.initialized = false;
   }
@@ -149,6 +269,10 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
 
   /**
    * Generate tests for source files
+   * Enhanced with @ruvector integration per ADR-040:
+   * - Uses QESONA to adapt test generation patterns based on context
+   * - Uses QEFlashAttention to detect similar existing tests
+   * - Uses DecisionTransformer to prioritize test cases
    */
   async generateTests(
     request: GenerateTestsRequest
@@ -173,8 +297,18 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
 
       this.addAgentToWorkflow(workflowId, agentResult.value);
 
+      // Use QESONA to adapt test generation patterns based on context
+      let adaptedPatterns: string[] = request.patterns || [];
+      if (this.config.enableQESONA && this.qesona) {
+        const sonaPatterns = await this.adaptTestGenerationPatterns(request);
+        if (sonaPatterns.length > 0) {
+          adaptedPatterns = sonaPatterns;
+          console.log(`[TestGenerationCoordinator] Adapted ${sonaPatterns.length} patterns using QESONA`);
+        }
+      }
+
       // Find matching patterns if pattern learning is enabled
-      let patterns = request.patterns || [];
+      let patterns = adaptedPatterns;
       if (this.config.enablePatternLearning && patterns.length === 0) {
         const matchResult = await this.patternMatcher.findMatchingPatterns({
           testType: request.testType,
@@ -195,6 +329,20 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
       if (result.success) {
         this.completeWorkflow(workflowId);
 
+        // Check for similar tests using Flash Attention
+        if (this.config.enableFlashAttention && this.flashAttention) {
+          const similarTests = await this.findSimilarTests(result.value.tests);
+          if (similarTests.length > 0) {
+            console.log(`[TestGenerationCoordinator] Found ${similarTests.length} similar tests using Flash Attention`);
+          }
+        }
+
+        // Use DecisionTransformer to prioritize generated tests
+        if (this.config.enableDecisionTransformer && this.decisionTransformer) {
+          const prioritizedTests = await this.prioritizeTestCases(result.value.tests, request);
+          console.log(`[TestGenerationCoordinator] Prioritized ${prioritizedTests.length} tests using DecisionTransformer`);
+        }
+
         // Publish events
         if (this.config.publishEvents) {
           await this.publishTestSuiteCreated(result.value, request);
@@ -202,6 +350,11 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
           for (const test of result.value.tests) {
             await this.publishTestGenerated(test, request.framework);
           }
+        }
+
+        // Learn from successful generation using QESONA
+        if (this.config.enableQESONA && this.qesona) {
+          await this.storeTestGenerationPattern(result.value, request);
         }
 
         // Learn from successful generation
@@ -620,6 +773,345 @@ export class TestGenerationCoordinator implements ITestGenerationCoordinator {
         // This is handled internally by recordPatternUsage
       }
     }
+  }
+
+  // ============================================================================
+  // @ruvector Integration Methods (ADR-040)
+  // ============================================================================
+
+  /**
+   * Adapt test generation patterns using QESONA
+   * Per ADR-040: QESONA for pattern learning (test generation patterns)
+   */
+  private async adaptTestGenerationPatterns(
+    request: GenerateTestsRequest
+  ): Promise<string[]> {
+    if (!this.qesona) {
+      return [];
+    }
+
+    try {
+      // Create state representation for SONA
+      const state: RLState = {
+        id: `test-gen-${Date.now()}`,
+        features: this.encodeRequestAsFeatures(request),
+        metadata: {
+          testType: request.testType,
+          framework: request.framework,
+          sourceFileCount: request.sourceFiles.length,
+        },
+      };
+
+      // Adapt pattern using QESONA
+      const adaptationResult: QESONAAdaptationResult = await this.qesona.adaptPattern(
+        state,
+        this.config.sonaPatternType,
+        'test-generation'
+      );
+
+      if (adaptationResult.success && adaptationResult.pattern) {
+        console.log(`[TestGenerationCoordinator] QESONA adapted pattern with ${adaptationResult.similarity.toFixed(3)} similarity in ${adaptationResult.adaptationTimeMs.toFixed(2)}ms`);
+        // Return pattern IDs from SONA adaptation
+        return [adaptationResult.pattern.id];
+      }
+
+      return [];
+    } catch (error) {
+      console.error('[TestGenerationCoordinator] QESONA pattern adaptation failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store test generation pattern in QESONA
+   * Per ADR-040: Store test generation patterns in SONA
+   */
+  private async storeTestGenerationPattern(
+    tests: GeneratedTests,
+    request: GenerateTestsRequest
+  ): Promise<void> {
+    if (!this.qesona) {
+      return;
+    }
+
+    try {
+      // Create state from the successful generation
+      const state: RLState = {
+        id: `test-gen-${Date.now()}`,
+        features: this.encodeRequestAsFeatures(request),
+        metadata: {
+          testCount: tests.tests.length,
+          coverageEstimate: tests.coverageEstimate,
+          success: true,
+        },
+      };
+
+      // Create action representing what was done
+      const action: RLAction = {
+        type: 'generate-tests',
+        value: {
+          testType: request.testType,
+          framework: request.framework,
+          patternsUsed: tests.patternsUsed,
+        },
+      };
+
+      // Create pattern in QESONA
+      const pattern = this.qesona.createPattern(
+        state,
+        action,
+        {
+          reward: tests.coverageEstimate / 100,
+          success: true,
+          quality: tests.coverageEstimate / 100,
+        },
+        this.config.sonaPatternType,
+        'test-generation',
+        {
+          testCount: tests.tests.length,
+          framework: request.framework,
+          testType: request.testType,
+        }
+      );
+
+      console.log(`[TestGenerationCoordinator] Stored test generation pattern ${pattern.id} in QESONA`);
+    } catch (error) {
+      console.error('[TestGenerationCoordinator] Failed to store pattern in QESONA:', error);
+    }
+  }
+
+  /**
+   * Find similar tests using Flash Attention
+   * Per ADR-040: QEFlashAttention for test similarity detection
+   */
+  private async findSimilarTests(
+    tests: GeneratedTest[]
+  ): Promise<Array<{ test: GeneratedTest; similarTests: Array<{ testId: string; similarity: number }> }>> {
+    if (!this.flashAttention) {
+      return [];
+    }
+
+    const results: Array<{ test: GeneratedTest; similarTests: Array<{ testId: string; similarity: number }> }> = [];
+
+    try {
+      // Generate embeddings for new tests
+      for (const test of tests) {
+        const embedding = this.generateTestEmbedding(test);
+        this.testEmbeddings.set(test.id, embedding);
+      }
+
+      // Get all existing test embeddings from memory
+      const existingEmbeddings = await this.loadExistingTestEmbeddings();
+
+      if (existingEmbeddings.length === 0) {
+        // No existing tests to compare against
+        return [];
+      }
+
+      // Use Flash Attention to find similar tests
+      for (const test of tests) {
+        const testEmbedding = this.testEmbeddings.get(test.id);
+        if (!testEmbedding) continue;
+
+        const similarities = await this.flashAttention.computeTestSimilarity(
+          testEmbedding,
+          existingEmbeddings.map(e => e.embedding),
+          5 // Top-5 similar tests
+        );
+
+        const similarTests = similarities
+          .filter(s => s.similarity > 0.7) // Only include highly similar tests
+          .map(s => ({
+            testId: existingEmbeddings[s.index].testId,
+            similarity: s.similarity,
+          }));
+
+        if (similarTests.length > 0) {
+          results.push({ test, similarTests });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('[TestGenerationCoordinator] Flash Attention similarity detection failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Prioritize test cases using Decision Transformer
+   * Per ADR-040: Decision Transformer for test case selection
+   */
+  private async prioritizeTestCases(
+    tests: GeneratedTest[],
+    request: GenerateTestsRequest
+  ): Promise<GeneratedTest[]> {
+    if (!this.decisionTransformer) {
+      return tests;
+    }
+
+    try {
+      // Create state for Decision Transformer
+      const state: RLState = {
+        id: `prioritize-${Date.now()}`,
+        features: [
+          tests.length / 100, // Normalize test count
+          (request.coverageTarget || 80) / 100, // Coverage target
+          request.testType === 'unit' ? 0.2 : request.testType === 'integration' ? 0.5 : 0.8,
+          request.framework === 'jest' ? 0.3 : request.framework === 'vitest' ? 0.4 : 0.5,
+        ],
+        metadata: {
+          testCount: tests.length,
+          framework: request.framework,
+          testType: request.testType,
+        },
+      };
+
+      // Get prediction from Decision Transformer
+      const prediction: RLPrediction = await this.decisionTransformer.predict(state);
+
+      console.log(`[TestGenerationCoordinator] DecisionTransformer prediction: ${prediction.reasoning}`);
+
+      // Prioritize tests based on prediction confidence
+      // High confidence = prioritize tests based on action type
+      if (prediction.confidence > 0.7) {
+        // Sort tests by assertions count (simple prioritization heuristic)
+        return tests.sort((a, b) => b.assertions - a.assertions);
+      }
+
+      return tests;
+    } catch (error) {
+      console.error('[TestGenerationCoordinator] DecisionTransformer prioritization failed:', error);
+      return tests;
+    }
+  }
+
+  /**
+   * Get QESONA statistics
+   * Per ADR-040: Monitor SONA pattern learning
+   */
+  getQESONAStats(): QESONAStats | null {
+    if (!this.qesona) {
+      return null;
+    }
+    return this.qesona.getStats();
+  }
+
+  /**
+   * Get Flash Attention metrics
+   * Per ADR-040: Monitor Flash Attention performance
+   */
+  getFlashAttentionMetrics(): QEFlashAttentionMetrics[] | null {
+    if (!this.flashAttention) {
+      return null;
+    }
+    return this.flashAttention.getMetrics();
+  }
+
+  // ============================================================================
+  // Helper Methods for @ruvector Integration
+  // ============================================================================
+
+  /**
+   * Encode test generation request as feature vector for SONA
+   */
+  private encodeRequestAsFeatures(request: GenerateTestsRequest): number[] {
+    const features: number[] = [];
+
+    // Encode test type
+    features.push(
+      request.testType === 'unit' ? 0.2 :
+      request.testType === 'integration' ? 0.5 :
+      0.8 // e2e
+    );
+
+    // Encode framework
+    features.push(
+      request.framework === 'jest' ? 0.25 :
+      request.framework === 'vitest' ? 0.5 :
+      request.framework === 'mocha' ? 0.75 :
+      0.9 // pytest
+    );
+
+    // Encode source file count (normalized)
+    features.push(Math.min(1, request.sourceFiles.length / 50));
+
+    // Encode coverage target (normalized)
+    features.push((request.coverageTarget || 80) / 100);
+
+    // Pad to consistent size if needed
+    while (features.length < 384) {
+      features.push(0);
+    }
+
+    return features.slice(0, 384);
+  }
+
+  /**
+   * Generate test embedding for Flash Attention
+   */
+  private generateTestEmbedding(test: GeneratedTest): Float32Array {
+    const embedding: number[] = [];
+
+    // Encode test name (simple hash-based embedding)
+    const nameHash = this.simpleHash(test.name);
+    for (let i = 0; i < 64; i++) {
+      embedding.push(((nameHash >> (i % 32)) & 1) * 2 - 1);
+    }
+
+    // Encode test type
+    embedding.push(
+      test.type === 'unit' ? 0.2 :
+      test.type === 'integration' ? 0.5 :
+      0.8 // e2e
+    );
+
+    // Encode assertions count (normalized)
+    embedding.push(Math.min(1, test.assertions / 20));
+
+    // Pad to 384 dimensions
+    while (embedding.length < 384) {
+      embedding.push(0);
+    }
+
+    return new Float32Array(embedding.slice(0, 384));
+  }
+
+  /**
+   * Load existing test embeddings from memory
+   */
+  private async loadExistingTestEmbeddings(): Promise<Array<{ testId: string; embedding: Float32Array }>> {
+    try {
+      const keys = await this.memory.search('test-embedding:*', 1000);
+      const embeddings: Array<{ testId: string; embedding: Float32Array }> = [];
+
+      for (const key of keys) {
+        const stored = await this.memory.get<{ testId: string; embedding: number[] }>(key);
+        if (stored) {
+          embeddings.push({
+            testId: stored.testId,
+            embedding: new Float32Array(stored.embedding),
+          });
+        }
+      }
+
+      return embeddings;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Simple hash function for embeddings
+   */
+  private simpleHash(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash | 0;
+    }
+    return Math.abs(hash);
   }
 
   // ============================================================================

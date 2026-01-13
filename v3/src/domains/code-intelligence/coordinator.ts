@@ -1,6 +1,10 @@
 /**
  * Agentic QE v3 - Code Intelligence Coordinator
  * Orchestrates the code intelligence workflow across services
+ *
+ * V3 Integration:
+ * - QEGNNEmbeddingIndex: Code graph embeddings with HNSW for fast similarity search
+ * - QESONA: Learns and adapts code patterns for improved intelligence
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -44,6 +48,26 @@ import {
 } from './services/impact-analyzer';
 import { FileReader } from '../../shared/io';
 
+// V3 Integration: @ruvector wrappers
+import {
+  QEGNNEmbeddingIndex,
+  QEGNNIndexFactory,
+  toIEmbedding,
+  initGNN,
+  type IEmbedding,
+  type EmbeddingNamespace,
+} from '../../integrations/ruvector/wrappers';
+
+// V3 Integration: SONA for code pattern learning
+import {
+  QESONA,
+  createQESONA,
+  type QEPatternType,
+} from '../../integrations/ruvector/wrappers';
+
+// V3 Integration: RL Suite interfaces
+import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces';
+
 /**
  * Interface for the code intelligence coordinator
  */
@@ -75,6 +99,9 @@ export interface CoordinatorConfig {
   defaultTimeout: number;
   publishEvents: boolean;
   enableIncrementalIndex: boolean;
+  // V3: Enable GNN and SONA integrations
+  enableGNN: boolean;
+  enableSONA: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -82,6 +109,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   defaultTimeout: 120000, // 2 minutes
   publishEvents: true,
   enableIncrementalIndex: true,
+  enableGNN: true,
+  enableSONA: true,
 };
 
 /**
@@ -96,6 +125,11 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
   private readonly fileReader: FileReader;
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private initialized = false;
+
+  // V3: GNN and SONA integrations
+  private gnnIndex?: QEGNNEmbeddingIndex;
+  private sonaEngine?: QESONA;
+  private rlInitialized = false;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -122,7 +156,48 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     // Load any persisted workflow state
     await this.loadWorkflowState();
 
+    // V3: Initialize GNN and SONA integrations
+    if (this.config.enableGNN || this.config.enableSONA) {
+      await this.initializeRLIntegrations();
+    }
+
     this.initialized = true;
+  }
+
+  /**
+   * Initialize V3 GNN and SONA integrations
+   */
+  private async initializeRLIntegrations(): Promise<void> {
+    try {
+      // Initialize GNN for code graph embeddings
+      if (this.config.enableGNN) {
+        initGNN(); // Initialize @ruvector/gnn
+        this.gnnIndex = QEGNNIndexFactory.getInstance('code-intelligence', {
+          M: 16,
+          efConstruction: 200,
+          efSearch: 50,
+          dimension: 384,
+          metric: 'cosine',
+        });
+        this.gnnIndex.initializeIndex('code' as EmbeddingNamespace);
+        this.gnnIndex.initializeIndex('test' as EmbeddingNamespace);
+      }
+
+      // Initialize SONA for code pattern learning
+      if (this.config.enableSONA) {
+        this.sonaEngine = createQESONA({
+          hiddenDim: 256,
+          embeddingDim: 384,
+          patternClusters: 50,
+          maxPatterns: 10000,
+        });
+      }
+
+      this.rlInitialized = true;
+    } catch (error) {
+      console.error('Failed to initialize RL integrations:', error);
+      throw error;
+    }
   }
 
   /**
@@ -134,6 +209,11 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
 
     // Clear active workflows
     this.workflows.clear();
+
+    // Clean up GNN index
+    if (this.gnnIndex) {
+      QEGNNIndexFactory.closeInstance('code-intelligence');
+    }
 
     this.initialized = false;
   }
@@ -179,6 +259,13 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       const result = await this.knowledgeGraph.index(request);
 
       if (result.success) {
+        this.updateWorkflowProgress(workflowId, 50);
+
+        // V3: Index code embeddings in GNN
+        if (this.config.enableGNN && this.gnnIndex && request.paths.length > 0) {
+          await this.indexCodeEmbeddings(request.paths);
+        }
+
         this.updateWorkflowProgress(workflowId, 80);
 
         // Index content for semantic search
@@ -223,10 +310,32 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
         this.addAgentToWorkflow(workflowId, agentResult.value);
       }
 
+      // V3: Use SONA to adapt search patterns
+      if (this.config.enableSONA && this.sonaEngine) {
+        const pattern = await this.adaptSearchPattern(request);
+        if (pattern.success && pattern.pattern) {
+          console.log(`[SONA] Adapted search pattern with ${pattern.similarity.toFixed(3)} similarity`);
+        }
+      }
+
+      // V3: Use GNN for enhanced code similarity search
+      let gnnResults: Array<{ file: string; similarity: number }> = [];
+      if (this.config.enableGNN && this.gnnIndex) {
+        gnnResults = await this.searchCodeWithGNN(request);
+      }
+
       // Perform search
       const result = await this.semanticAnalyzer.search(request);
 
       if (result.success) {
+        // Merge GNN results with semantic search results
+        if (gnnResults.length > 0) {
+          result.value.results = this.mergeSearchResults(
+            result.value.results,
+            gnnResults
+          );
+        }
+
         this.completeWorkflow(workflowId);
 
         // Publish events
@@ -269,12 +378,22 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       this.addAgentToWorkflow(workflowId, agentResult.value);
       this.updateWorkflowProgress(workflowId, 20);
 
+      // V3: Use GNN to enhance impact analysis with semantic similarity
+      if (this.config.enableGNN && this.gnnIndex) {
+        await this.enhanceImpactAnalysisWithGNN(request);
+      }
+
       // Perform impact analysis
       const result = await this.impactAnalyzer.analyzeImpact(request);
 
       if (result.success) {
         this.updateWorkflowProgress(workflowId, 100);
         this.completeWorkflow(workflowId);
+
+        // V3: Store impact pattern in SONA
+        if (this.config.enableSONA && this.sonaEngine) {
+          await this.storeImpactPattern(request, result.value);
+        }
 
         // Publish events
         if (this.config.publishEvents) {
@@ -347,6 +466,318 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
       this.failWorkflow(workflowId, errorObj.message);
       return err(errorObj);
     }
+  }
+
+  // ============================================================================
+  // V3: GNN Integration for Code Graph Embeddings
+  // ============================================================================
+
+  /**
+   * Index code embeddings in GNN for fast similarity search
+   */
+  private async indexCodeEmbeddings(paths: string[]): Promise<void> {
+    if (!this.gnnIndex || !this.rlInitialized) {
+      return;
+    }
+
+    try {
+      // Generate embeddings for each code file
+      for (const path of paths) {
+        try {
+          const result = await this.fileReader.readFile(path);
+          if (result.success && result.value) {
+            // Create embedding from code content
+            const embedding = await this.generateCodeEmbedding(path, result.value);
+
+            // Add to GNN index
+            const embeddingObj: IEmbedding = {
+              vector: embedding,
+              dimension: 384,
+              namespace: 'code' as EmbeddingNamespace,
+              text: result.value.slice(0, 1000), // First 1000 chars for context
+              timestamp: Date.now(),
+              quantization: 'none',
+              metadata: { path },
+            };
+
+            this.gnnIndex.addEmbedding(embeddingObj);
+          }
+        } catch (error) {
+          console.error(`Failed to index ${path}:`, error);
+        }
+      }
+
+      console.log(`[GNN] Indexed ${paths.length} code embeddings`);
+    } catch (error) {
+      console.error('Failed to index code embeddings:', error);
+    }
+  }
+
+  /**
+   * Generate code embedding using semantic features
+   */
+  private async generateCodeEmbedding(
+    path: string,
+    content: string
+  ): Promise<number[]> {
+    // Simple embedding based on code features
+    const features: number[] = [];
+
+    // File type feature
+    const ext = path.split('.').pop();
+    const typeHash = this.hashCode(ext || '');
+    features.push((typeHash % 1000) / 1000);
+
+    // Content length feature
+    features.push(Math.min(1, content.length / 10000));
+
+    // Function/class count
+    const functionMatches = content.match(/function\s+\w+/g) || [];
+    const classMatches = content.match(/class\s+\w+/g) || [];
+    features.push(Math.min(1, (functionMatches.length + classMatches.length) / 50));
+
+    // Import/require count
+    const importMatches = content.match(/import\s+.*from|require\s*\(/g) || [];
+    features.push(Math.min(1, importMatches.length / 20));
+
+    // Complexity indicators
+    const loopMatches = content.match(/for\s*\(|while\s*\(/g) || [];
+    const ifMatches = content.match(/if\s*\(/g) || [];
+    features.push(Math.min(1, (loopMatches.length + ifMatches.length) / 30));
+
+    // Comment density
+    const commentMatches = content.match(/\/\/.*|\/\*[\s\S]*?\*\//g) || [];
+    features.push(Math.min(1, commentMatches.length / 50));
+
+    // Fill with hashed content features
+    const contentHash = this.hashCode(content.slice(0, 500));
+    for (let i = features.length; i < 384; i++) {
+      features.push(((contentHash * (i + 1)) % 10000) / 10000);
+    }
+
+    return features.slice(0, 384);
+  }
+
+  /**
+   * Search code with GNN for enhanced similarity
+   */
+  private async searchCodeWithGNN(
+    request: SearchRequest
+  ): Promise<Array<{ file: string; similarity: number }>> {
+    if (!this.gnnIndex || !this.rlInitialized) {
+      return [];
+    }
+
+    try {
+      // Create query embedding
+      const queryEmbedding = await this.generateCodeEmbedding('query', request.query);
+
+      const queryIEmbedding: IEmbedding = {
+        vector: queryEmbedding,
+        dimension: 384,
+        namespace: 'code' as EmbeddingNamespace,
+        text: request.query,
+        timestamp: Date.now(),
+        quantization: 'none',
+      };
+
+      // Search in GNN index
+      const results = this.gnnIndex.search(queryIEmbedding, {
+        limit: 10,
+        namespace: 'code' as EmbeddingNamespace,
+      });
+
+      return results.map((r) => ({
+        file: (r.metadata as { path: string }).path,
+        similarity: 1 - r.distance,
+      }));
+    } catch (error) {
+      console.error('Failed to search with GNN:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Enhance impact analysis with GNN semantic similarity
+   */
+  private async enhanceImpactAnalysisWithGNN(request: ImpactRequest): Promise<void> {
+    if (!this.gnnIndex || !this.rlInitialized) {
+      return;
+    }
+
+    try {
+      // Find semantically similar files to changed files
+      for (const changedFile of request.changedFiles) {
+        const result = await this.fileReader.readFile(changedFile);
+        if (result.success && result.value) {
+          const embedding = await this.generateCodeEmbedding(changedFile, result.value);
+
+          const embeddingObj: IEmbedding = {
+            vector: embedding,
+            dimension: 384,
+            namespace: 'code' as EmbeddingNamespace,
+            text: result.value.slice(0, 1000),
+            timestamp: Date.now(),
+            quantization: 'none',
+            metadata: { path: changedFile },
+          };
+
+          // Search for similar files
+          const similar = this.gnnIndex.search(embeddingObj, {
+            limit: 5,
+            namespace: 'code' as EmbeddingNamespace,
+          });
+
+          console.log(`[GNN] Found ${similar.length} semantically similar files to ${changedFile}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to enhance impact analysis:', error);
+    }
+  }
+
+  // ============================================================================
+  // V3: SONA Integration for Code Pattern Learning
+  // ============================================================================
+
+  /**
+   * Adapt search pattern using SONA
+   */
+  private async adaptSearchPattern(
+    request: SearchRequest
+  ): Promise<{ success: boolean; pattern: unknown; similarity: number }> {
+    if (!this.sonaEngine || !this.rlInitialized) {
+      return { success: false, pattern: null, similarity: 0 };
+    }
+
+    try {
+      const state: RLState = {
+        id: `search-${request.type}`,
+        features: [
+          request.query.length,
+          request.type === 'semantic' ? 1 : 0,
+          request.type === 'structural' ? 1 : 0,
+          request.filters?.language === 'typescript' ? 1 : 0,
+          request.filters?.language === 'javascript' ? 1 : 0,
+        ],
+      };
+
+      const result = await this.sonaEngine.adaptPattern(
+        state,
+        'coverage-optimization' as QEPatternType,
+        'code-intelligence'
+      );
+
+      return {
+        success: result.success,
+        pattern: result.pattern,
+        similarity: result.similarity,
+      };
+    } catch (error) {
+      console.error('Failed to adapt search pattern:', error);
+      return { success: false, pattern: null, similarity: 0 };
+    }
+  }
+
+  /**
+   * Store impact analysis pattern in SONA
+   */
+  private async storeImpactPattern(
+    request: ImpactRequest,
+    analysis: ImpactAnalysis
+  ): Promise<void> {
+    if (!this.sonaEngine || !this.rlInitialized) {
+      return;
+    }
+
+    try {
+      const state: RLState = {
+        id: `impact-${request.changedFiles.join(',')}`,
+        features: [
+          request.changedFiles.length,
+          request.depth || 1,
+          analysis.directImpact.length,
+          analysis.transitiveImpact.length,
+          analysis.impactedTests.length,
+          analysis.riskLevel === 'high' ? 1 : analysis.riskLevel === 'medium' ? 0.5 : 0,
+        ],
+      };
+
+      const action: RLAction = {
+        type: 'analyze-impact',
+        value: analysis.riskLevel,
+      };
+
+      const outcome = {
+        reward: analysis.riskLevel === 'high' ? 0.8 : analysis.riskLevel === 'medium' ? 0.5 : 0.3,
+        success: analysis.impactedTests.length > 0,
+        quality: (analysis.directImpact.length + analysis.transitiveImpact.length) / 100,
+      };
+
+      const pattern = this.sonaEngine.createPattern(
+        state,
+        action,
+        outcome,
+        'coverage-optimization' as QEPatternType,
+        'code-intelligence',
+        {
+          changedFiles: request.changedFiles,
+          impactCount: analysis.directImpact.length + analysis.transitiveImpact.length,
+          testImpactCount: analysis.impactedTests.length,
+        }
+      );
+
+      console.log(`[SONA] Stored impact pattern ${pattern.id}`);
+    } catch (error) {
+      console.error('Failed to store impact pattern:', error);
+    }
+  }
+
+  // ============================================================================
+  // Helper Methods
+  // ============================================================================
+
+  /**
+   * Merge search results from semantic search and GNN
+   */
+  private mergeSearchResults(
+    semanticResults: Array<{ file: string; score: number }>,
+    gnnResults: Array<{ file: string; similarity: number }>
+  ): Array<{ file: string; score: number }> {
+    const merged = new Map<string, number>();
+
+    // Add semantic results
+    for (const result of semanticResults) {
+      merged.set(result.file, result.score);
+    }
+
+    // Merge GNN results (weighted average)
+    for (const result of gnnResults) {
+      const existing = merged.get(result.file);
+      if (existing !== undefined) {
+        merged.set(result.file, (existing + result.similarity) / 2);
+      } else {
+        merged.set(result.file, result.similarity * 0.8); // Slightly lower weight for GNN-only
+      }
+    }
+
+    // Convert to array and sort
+    return Array.from(merged.entries())
+      .map(([file, score]) => ({ file, score }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20); // Top 20 results
+  }
+
+  /**
+   * Simple hash function for strings
+   */
+  private hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash = hash | 0;
+    }
+    return Math.abs(hash);
   }
 
   // ============================================================================

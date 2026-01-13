@@ -94,11 +94,53 @@ export interface BlockConfig {
   kvChunkSize: number;
 }
 
+/**
+ * Performance metrics for Flash Attention
+ * Backward compatible with flash-attention/types.ts
+ */
+export interface FlashAttentionMetrics {
+  /** Execution time in milliseconds */
+  timeMs: number;
+  /** Memory usage in MB */
+  memoryMB: number;
+  /** Achieved speedup over baseline */
+  speedup: number;
+  /** Throughput (tokens/second) */
+  throughput: number;
+  /** Peak memory usage in MB */
+  peakMemoryMB: number;
+  /** Cache hit rate */
+  cacheHitRate?: number;
+}
+
+/**
+ * Benchmark comparison results
+ * Backward compatible with flash-attention/types.ts
+ */
+export interface BenchmarkResult {
+  /** Workload type */
+  workload: QEWorkloadType;
+  /** Baseline metrics (without Flash Attention) */
+  baseline: FlashAttentionMetrics;
+  /** Flash Attention metrics */
+  flash: FlashAttentionMetrics;
+  /** Achieved speedup */
+  speedup: number;
+  /** Memory reduction percentage */
+  memoryReduction: number;
+  /** Meets target (2.49x-7.47x) */
+  meetsTarget: boolean;
+}
+
 // ============================================================================
 // Default Configurations by Workload
 // ============================================================================
 
-const QE_FLASH_ATTENTION_CONFIG: Record<QEWorkloadType, QEFlashAttentionConfig> = {
+/**
+ * QE-specific Flash Attention configurations (exported for test compatibility)
+ * Per ADR-040 requirements for optimal QE workload performance
+ */
+export const QE_FLASH_ATTENTION_CONFIG: Record<QEWorkloadType, QEFlashAttentionConfig> = {
   'test-similarity': {
     dim: 384,
     strategy: 'flash',
@@ -125,6 +167,108 @@ const QE_FLASH_ATTENTION_CONFIG: Record<QEWorkloadType, QEFlashAttentionConfig> 
     blockSize: 32,
   },
 };
+
+/**
+ * SONA integration configuration for QE workloads
+ * Backward compatible with flash-attention/config.ts
+ */
+export interface SONAIntegration {
+  /** Enable SONA for adaptive learning */
+  enabled: boolean;
+  /** Micro-LoRA rank for fast adaptation */
+  microLoRARank: number;
+  /** Target adaptation time (ms) */
+  targetAdaptationMs: number;
+  /** Pattern cache size */
+  patternCacheSize: number;
+}
+
+export const QE_SONA_CONFIG: Record<QEWorkloadType, SONAIntegration> = {
+  'test-similarity': {
+    enabled: true,
+    microLoRARank: 4,
+    targetAdaptationMs: 0.05,
+    patternCacheSize: 1000
+  },
+  'code-embedding': {
+    enabled: true,
+    microLoRARank: 2,
+    targetAdaptationMs: 0.03,
+    patternCacheSize: 5000
+  },
+  'defect-matching': {
+    enabled: true,
+    microLoRARank: 8,
+    targetAdaptationMs: 0.05,
+    patternCacheSize: 2000
+  },
+  'coverage-analysis': {
+    enabled: false,
+    microLoRARank: 2,
+    targetAdaptationMs: 0.01,
+    patternCacheSize: 100
+  },
+  'pattern-adaptation': {
+    enabled: true,
+    microLoRARank: 2,
+    targetAdaptationMs: 0.05,
+    patternCacheSize: 10000
+  }
+};
+
+/**
+ * Performance targets for QE workloads
+ * Backward compatible with flash-attention/config.ts
+ */
+export const QE_PERFORMANCE_TARGETS: Record<QEWorkloadType, {
+  latency: { before: number; after: number };
+  memory: { before: number; after: number };
+  throughput: { min: number };
+}> = {
+  'test-similarity': {
+    latency: { before: 50, after: 15 },
+    memory: { before: 200, after: 80 },
+    throughput: { min: 1000 }
+  },
+  'code-embedding': {
+    latency: { before: 50, after: 15 },
+    memory: { before: 200, after: 80 },
+    throughput: { min: 2000 }
+  },
+  'defect-matching': {
+    latency: { before: 20, after: 5 },
+    memory: { before: 150, after: 50 },
+    throughput: { min: 500 }
+  },
+  'coverage-analysis': {
+    latency: { before: 100, after: 1 },
+    memory: { before: 100, after: 30 },
+    throughput: { min: 10000 }
+  },
+  'pattern-adaptation': {
+    latency: { before: 2, after: 0.05 },
+    memory: { before: 50, after: 20 },
+    throughput: { min: 20000 }
+  }
+};
+
+/**
+ * Get optimal block configuration for sequence length
+ * Backward compatible with flash-attention/config.ts
+ */
+export function getOptimalBlockConfig(seqLength: number): BlockConfig {
+  if (seqLength <= 128) {
+    return { queryChunkSize: 128, kvChunkSize: 128 };
+  } else if (seqLength <= 256) {
+    return { queryChunkSize: 256, kvChunkSize: 256 };
+  } else if (seqLength <= 512) {
+    return { queryChunkSize: 512, kvChunkSize: 512 };
+  } else if (seqLength <= 1024) {
+    return { queryChunkSize: 1024, kvChunkSize: 1024 };
+  } else {
+    return { queryChunkSize: 1024, kvChunkSize: 2048 };
+  }
+}
 
 // ============================================================================
 // Attention Factory - Creates @ruvector/attention instances

@@ -29,6 +29,10 @@ import {
   VisualTestingStatus,
   VisualDiff,
   TopAccessibilityIssue,
+  VisualTestItem,
+  VisualTestPrioritizationContext,
+  VisualTestPrioritizationResult,
+  PrioritizedVisualTest,
 } from './interfaces.js';
 import {
   VisualTesterService,
@@ -42,6 +46,9 @@ import {
   ResponsiveTesterService,
   ResponsiveTestConfig,
 } from './services/responsive-tester.js';
+import { A2CAlgorithm } from '../../integrations/rl-suite/algorithms/a2c.js';
+import { QEFlashAttention, createQEFlashAttention } from '../../integrations/ruvector/wrappers.js';
+import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 /**
  * Workflow status tracking
@@ -65,6 +72,8 @@ export interface CoordinatorConfig {
   defaultTimeout: number;
   publishEvents: boolean;
   enableParallelViewportTesting: boolean;
+  enableA2C: boolean;
+  enableFlashAttention: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -72,6 +81,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   defaultTimeout: 120000, // 2 minutes
   publishEvents: true,
   enableParallelViewportTesting: true,
+  enableA2C: true,
+  enableFlashAttention: true,
 };
 
 /**
@@ -94,6 +105,13 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   // Used for responsive design testing workflows
   public readonly responsiveTester: ResponsiveTesterService;
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
+
+  // RL Integration: A2C for visual test prioritization
+  private a2cAlgorithm?: A2CAlgorithm;
+
+  // Flash Attention Integration: QEFlashAttention for image similarity
+  private flashAttention?: QEFlashAttention;
+
   private initialized = false;
 
   constructor(
@@ -117,6 +135,35 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Initialize A2C algorithm if enabled
+    if (this.config.enableA2C) {
+      try {
+        this.a2cAlgorithm = new A2CAlgorithm({
+          stateSize: 10,
+          actionSize: 5,
+          actorHiddenLayers: [64, 64],
+          criticHiddenLayers: [64, 64],
+          numWorkers: 4,
+        });
+        // First call to predict will initialize the algorithm
+        console.log('[visual-accessibility] A2C algorithm created successfully');
+      } catch (error) {
+        console.error('[visual-accessibility] Failed to create A2C:', error);
+        throw new Error(`A2C creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Initialize Flash Attention if enabled
+    if (this.config.enableFlashAttention) {
+      try {
+        this.flashAttention = await createQEFlashAttention('test-similarity');
+        console.log('[visual-accessibility] QEFlashAttention initialized successfully');
+      } catch (error) {
+        console.error('[visual-accessibility] Failed to initialize Flash Attention:', error);
+        throw new Error(`Flash Attention initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
     this.subscribeToEvents();
     await this.loadWorkflowState();
 
@@ -128,6 +175,16 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
    */
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
+
+    // Dispose Flash Attention
+    if (this.flashAttention) {
+      this.flashAttention.dispose();
+      this.flashAttention = undefined;
+    }
+
+    // Clear A2C (no explicit dispose method exists)
+    this.a2cAlgorithm = undefined;
+
     this.workflows.clear();
     this.initialized = false;
   }
@@ -176,12 +233,45 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
       let failed = 0;
       let newBaselines = 0;
 
-      const totalTests = urls.length * viewports.length;
-      let completedTests = 0;
-
-      // Test each URL at each viewport
+      // ================================================================
+      // A2C Integration: Create and prioritize test list
+      // ================================================================
+      let testList: Array<{ url: string; viewport: Viewport }> = [];
       for (const url of urls) {
         for (const viewport of viewports) {
+          testList.push({ url, viewport });
+        }
+      }
+
+      // Prioritize tests if A2C is enabled and we have multiple tests
+      if (this.config.enableA2C && testList.length > 1) {
+        const prioritizationContext: VisualTestPrioritizationContext = {
+          urgency: 5, // Default medium urgency
+          availableResources: 80, // Assume good resource availability
+          historicalFailureRate: 0.1, // Assume 10% historical failure rate
+        };
+
+        const prioritizationResult = await this.prioritizeVisualTests(
+          testList.map((t) => ({ ...t, priority: 5 })),
+          prioritizationContext
+        );
+
+        if (prioritizationResult.success) {
+          testList = prioritizationResult.value.orderedTests.map((t) => ({
+            url: t.url,
+            viewport: t.viewport,
+          }));
+          console.log(
+            `[visual-accessibility] Using ${prioritizationResult.value.strategy} strategy for visual test order (confidence: ${prioritizationResult.value.confidence.toFixed(2)})`
+          );
+        }
+      }
+
+      const totalTests = testList.length;
+      let completedTests = 0;
+
+      // Test each URL at each viewport in prioritized order
+      for (const { url, viewport } of testList) {
           const screenshotResult = await this.visualTester.captureScreenshot(url, { viewport });
 
           if (!screenshotResult.success) {
@@ -255,7 +345,6 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
           completedTests++;
           this.updateWorkflowProgress(workflowId, (completedTests / totalTests) * 100);
-        }
       }
 
       const startTime = this.workflows.get(workflowId)?.startedAt.getTime() ?? Date.now();
@@ -800,6 +889,366 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     if (totalPoints <= 15) return 'minor';
     if (totalPoints <= 40) return 'moderate';
     return 'major';
+  }
+
+  // ============================================================================
+  // A2C Integration: Visual Test Prioritization
+  // ============================================================================
+
+  /**
+   * Prioritize visual tests using A2C
+   * Uses multi-worker actor-critic to determine optimal test order
+   */
+  async prioritizeVisualTests(
+    tests: VisualTestItem[],
+    context: VisualTestPrioritizationContext
+  ): Promise<Result<VisualTestPrioritizationResult, Error>> {
+    if (!this.a2cAlgorithm || !this.config.enableA2C) {
+      // Return tests with default priority if A2C is disabled
+      return ok({
+        orderedTests: tests.map((t) => ({ ...t, priority: t.priority ?? 5, reason: 'default' })),
+        strategy: 'default',
+        confidence: 1.0,
+      });
+    }
+
+    if (tests.length === 0) {
+      return ok({
+        orderedTests: [],
+        strategy: 'empty',
+        confidence: 1.0,
+      });
+    }
+
+    try {
+      // Create state from context
+      const state: RLState = {
+        id: `visual-priority-${Date.now()}`,
+        features: [
+          context.urgency / 10,
+          context.availableResources / 100,
+          context.historicalFailureRate,
+          tests.length / 100,
+          tests.filter((t) => t.viewport.width <= 480).length / Math.max(1, tests.length),
+          tests.filter((t) => t.viewport.width > 1024).length / Math.max(1, tests.length),
+          tests.filter((t) => (t.priority ?? 5) > 7).length / Math.max(1, tests.length),
+          tests.filter((t) => t.url.includes('dashboard')).length / Math.max(1, tests.length),
+          tests.filter((t) => t.url.includes('checkout')).length / Math.max(1, tests.length),
+          tests.filter((t) => t.url.includes('login')).length / Math.max(1, tests.length),
+        ],
+      };
+
+      // Get A2C prediction for prioritization strategy
+      const prediction = await this.a2cAlgorithm.predict(state);
+
+      let prioritized: PrioritizedVisualTest[] = tests.map((t) => ({
+        ...t,
+        priority: t.priority ?? 5,
+        reason: 'default' as string,
+      }));
+      let strategy = 'default';
+
+      // Apply the suggested prioritization strategy
+      switch (prediction.action.type) {
+        case 'coordinate':
+          if (prediction.action.value === 'parallel') {
+            // Prioritize by viewport size (test smallest first)
+            prioritized.sort((a, b) => a.viewport.width - b.viewport.width);
+            prioritized = prioritized.map((t) => ({
+              ...t,
+              priority: 10 - Math.floor(t.viewport.width / 200),
+              reason: 'parallel-viewport-order',
+            }));
+            strategy = 'parallel-viewport-order';
+          } else if (prediction.action.value === 'sequential') {
+            // Prioritize by URL criticality
+            const criticalUrls = ['checkout', 'payment', 'login'];
+            prioritized.sort((a, b) => {
+              const aCritical = criticalUrls.some((url) => a.url.includes(url)) ? 1 : 0;
+              const bCritical = criticalUrls.some((url) => b.url.includes(url)) ? 1 : 0;
+              return bCritical - aCritical;
+            });
+            prioritized = prioritized.map((t) => ({
+              ...t,
+              priority: criticalUrls.some((url) => t.url.includes(url)) ? 9 : 5,
+              reason: 'sequential-critical-url',
+            }));
+            strategy = 'sequential-critical-url';
+          }
+          break;
+
+        case 'allocate':
+          // Allocate based on resource availability
+          const agentCount = typeof prediction.action.value === 'object' ? prediction.action.value.agents : 2;
+          const testsPerAgent = Math.ceil(prioritized.length / agentCount);
+          prioritized = prioritized.map((t, i) => ({
+            ...t,
+            priority: 10 - Math.floor(i / testsPerAgent),
+            reason: `allocate-agent-${Math.floor(i / testsPerAgent)}`,
+          }));
+          strategy = 'allocate-by-agent';
+          break;
+
+        case 'rebalance':
+          // Rebalance based on viewport coverage
+          const viewportCounts = new Map<number, number>();
+          for (const t of prioritized) {
+            viewportCounts.set(t.viewport.width, (viewportCounts.get(t.viewport.width) || 0) + 1);
+          }
+          prioritized.sort((a, b) => (viewportCounts.get(a.viewport.width) || 0) - (viewportCounts.get(b.viewport.width) || 0));
+          prioritized = prioritized.map((t) => ({
+            ...t,
+            priority: 10 - (viewportCounts.get(t.viewport.width) || 0),
+            reason: 'rebalance-viewport-coverage',
+          }));
+          strategy = 'rebalance-viewport-coverage';
+          break;
+
+        default:
+          break;
+      }
+
+      // Train A2C with feedback
+      const reward = await this.calculatePrioritizationReward(prioritized, context);
+      const action: RLAction = prediction.action;
+
+      await this.a2cAlgorithm.train({
+        state,
+        action,
+        reward,
+        nextState: state,
+        done: true,
+      });
+
+      console.log(
+        `[visual-accessibility] A2C prioritized ${tests.length} visual tests using ${strategy} strategy (confidence: ${prediction.confidence.toFixed(2)})`
+      );
+
+      return ok({
+        orderedTests: prioritized,
+        strategy,
+        confidence: prediction.confidence,
+      });
+    } catch (error) {
+      console.error('[visual-accessibility] A2C prioritization failed:', error);
+      // Return original tests on error (graceful degradation)
+      return ok({
+        orderedTests: tests.map((t) => ({ ...t, priority: t.priority ?? 5, reason: 'fallback' })),
+        strategy: 'fallback',
+        confidence: 0.5,
+      });
+    }
+  }
+
+  /**
+   * Calculate reward for visual test prioritization
+   */
+  private async calculatePrioritizationReward(
+    tests: PrioritizedVisualTest[],
+    context: { urgency: number; availableResources: number }
+  ): Promise<number> {
+    let reward = 0.5;
+
+    // Reward for prioritizing critical URLs
+    const topPriority = tests.slice(0, Math.ceil(tests.length / 4));
+    const criticalUrlCount = topPriority.filter((t) =>
+      ['checkout', 'payment', 'login', 'dashboard'].some((url) => t.url.includes(url))
+    ).length;
+    reward += Math.min(0.3, criticalUrlCount / topPriority.length);
+
+    // Reward for viewport diversity
+    const viewports = new Set(tests.map((t) => `${t.viewport.width}x${t.viewport.height}`));
+    reward += Math.min(0.2, viewports.size / 10);
+
+    // Penalty for poor resource utilization
+    if (context.availableResources < 30 && tests.length > 50) {
+      reward -= 0.1;
+    }
+
+    return Math.max(0, Math.min(1, reward));
+  }
+
+  // ============================================================================
+  // Flash Attention Integration: Image Similarity
+  // ============================================================================
+
+  /**
+   * Find similar images using Flash Attention
+   * Uses SIMD-accelerated attention mechanism for fast similarity search
+   */
+  async findSimilarImages(
+    targetImageEmbedding: Float32Array,
+    imageEmbeddings: Float32Array[],
+    topK: number = 5
+  ): Promise<Array<{ index: number; similarity: number; imagePath: string }>> {
+    if (!this.flashAttention || !this.config.enableFlashAttention) {
+      // Fall back to cosine similarity if Flash Attention is disabled
+      return this.cosineSimilarityFallback(targetImageEmbedding, imageEmbeddings, topK);
+    }
+
+    try {
+      const similarities = await this.flashAttention.computeTestSimilarity(
+        targetImageEmbedding,
+        imageEmbeddings,
+        topK
+      );
+
+      return similarities.map((s) => ({
+        index: s.index,
+        similarity: s.similarity,
+        imagePath: `image-${s.index}.png`,
+      }));
+    } catch (error) {
+      console.error('[visual-accessibility] Flash Attention similarity search failed:', error);
+      return this.cosineSimilarityFallback(targetImageEmbedding, imageEmbeddings, topK);
+    }
+  }
+
+  /**
+   * Fallback to cosine similarity when Flash Attention is disabled
+   */
+  private cosineSimilarityFallback(
+    target: Float32Array,
+    embeddings: Float32Array[],
+    topK: number
+  ): Array<{ index: number; similarity: number; imagePath: string }> {
+    const similarities: Array<{ index: number; similarity: number; imagePath: string }> = [];
+
+    for (let i = 0; i < embeddings.length; i++) {
+      let dotProduct = 0;
+      let normA = 0;
+      let normB = 0;
+
+      const len = Math.min(target.length, embeddings[i].length);
+      for (let j = 0; j < len; j++) {
+        dotProduct += target[j] * embeddings[i][j];
+        normA += target[j] * target[j];
+        normB += embeddings[i][j] * embeddings[i][j];
+      }
+
+      const similarity = (dotProduct / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-10) + 1) / 2;
+      similarities.push({ index: i, similarity, imagePath: `image-${i}.png` });
+    }
+
+    similarities.sort((a, b) => b.similarity - a.similarity);
+    return similarities.slice(0, topK);
+  }
+
+  /**
+   * Store visual pattern for learning
+   * Creates embeddings of visual test outcomes for pattern recognition
+   */
+  async storeVisualPattern(
+    url: string,
+    viewport: Viewport,
+    diffScore: number,
+    passed: boolean
+  ): Promise<void> {
+    if (!this.flashAttention || !this.config.enableFlashAttention) {
+      return;
+    }
+
+    try {
+      // Create embedding from visual test context
+      const embedding = this.createVisualEmbedding(url, viewport, diffScore, passed);
+
+      // Store in memory for future similarity searches
+      await this.memory.set(
+        `visual-accessibility:embedding:${url}:${viewport.width}x${viewport.height}`,
+        { embedding, url, viewport, diffScore, passed, timestamp: new Date() },
+        { namespace: 'visual-accessibility', persist: true }
+      );
+
+      console.log(`[visual-accessibility] Stored visual pattern for ${url} at ${viewport.width}x${viewport.height}`);
+    } catch (error) {
+      console.error('[visual-accessibility] Failed to store visual pattern:', error);
+    }
+  }
+
+  /**
+   * Create embedding from visual test context
+   */
+  private createVisualEmbedding(
+    url: string,
+    viewport: Viewport,
+    diffScore: number,
+    passed: boolean
+  ): Float32Array {
+    // Create a feature vector from the visual test context
+    const features: number[] = [];
+
+    // URL hash (first 100 dimensions)
+    const urlHash = this.hashString(url);
+    for (let i = 0; i < 100; i++) {
+      features.push(((urlHash >> (i % 32)) & 1) === 1 ? 1 : 0);
+    }
+
+    // Viewport features (10 dimensions)
+    features.push(viewport.width / 2000);
+    features.push(viewport.height / 2000);
+    features.push(viewport.deviceScaleFactor / 3);
+    features.push(viewport.isMobile ? 1 : 0);
+    features.push(viewport.hasTouch ? 1 : 0);
+    features.push(viewport.width <= 480 ? 1 : 0);
+    features.push(viewport.width <= 1024 && viewport.width > 480 ? 1 : 0);
+    features.push(viewport.width > 1024 ? 1 : 0);
+    features.push(viewport.orientation === 'portrait' ? 1 : 0);
+    features.push(viewport.orientation === 'landscape' ? 1 : 0);
+
+    // Test outcome features (remaining dimensions to reach 384)
+    features.push(diffScore / 100);
+    features.push(passed ? 1 : 0);
+    features.push(diffScore > 10 ? 1 : 0);
+    features.push(diffScore > 50 ? 1 : 0);
+
+    // URL path features (last 270 dimensions)
+    const pathFeatures = this.extractPathFeatures(url);
+    features.push(...pathFeatures.slice(0, 270));
+
+    return new Float32Array(features.slice(0, 384));
+  }
+
+  /**
+   * Hash a string to a number
+   */
+  private hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash = hash | 0;
+    }
+    return Math.abs(hash);
+  }
+
+  /**
+   * Extract features from URL path
+   */
+  private extractPathFeatures(url: string): number[] {
+    const features: number[] = [];
+    const path = new URL(url).pathname;
+
+    // Common paths
+    const commonPaths = ['dashboard', 'checkout', 'login', 'profile', 'settings', 'api', 'admin', 'search'];
+    for (const cp of commonPaths) {
+      features.push(path.includes(cp) ? 1 : 0);
+    }
+
+    // Path depth
+    const depth = path.split('/').filter(Boolean).length;
+    features.push(depth / 10);
+
+    // Has query params
+    features.push(url.includes('?') ? 1 : 0);
+
+    // Is HTTPS
+    features.push(url.startsWith('https://') ? 1 : 0);
+
+    // Fill remaining features
+    while (features.length < 270) {
+      features.push(0);
+    }
+
+    return features;
   }
 
   // ============================================================================

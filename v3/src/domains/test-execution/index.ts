@@ -55,6 +55,31 @@ export {
   type RetryHandlerConfig,
 } from './services/retry-handler';
 
+export {
+  TestPrioritizerService,
+  type TestMetadata,
+  type TestPrioritizationContext,
+  type TestPrioritizationAction,
+  type PrioritizedTest,
+  type PrioritizationResult,
+  type TestPrioritizerConfig,
+} from './services/test-prioritizer';
+
+// ============================================================================
+// Test Prioritization Types
+// ============================================================================
+
+export {
+  type TestPrioritizationState,
+  type TestPrioritizationFeatures,
+  type TestExecutionHistory,
+  type TestPrioritizationReward,
+  mapToFeatures,
+  featuresToArray,
+  createTestPrioritizationState,
+  calculatePrioritizationReward,
+} from './test-prioritization-types';
+
 // ============================================================================
 // Coordinator
 // ============================================================================

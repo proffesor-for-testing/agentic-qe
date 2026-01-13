@@ -42,6 +42,11 @@ export type {
   TrendPoint,
   SimilarityRequest,
   SimilarPatterns,
+  CoverageQLState,
+  CoverageQLAction,
+  CoverageQLPrediction,
+  QLPrioritizedTests,
+  PrioritizedTest,
 } from './interfaces';
 
 // Services

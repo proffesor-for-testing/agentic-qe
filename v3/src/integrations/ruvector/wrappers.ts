@@ -38,11 +38,20 @@ export {
   batchComputeAttention,
   toFloat32Array,
   toNumberArray as toNumberArrayAttn,
+  getOptimalBlockConfig,
   type QEWorkloadType,
   type AttentionStrategy,
   type QEFlashAttentionMetrics,
   type QEFlashAttentionConfig,
   type BlockConfig,
+  type FlashAttentionMetrics,
+  type BenchmarkResult,
+  type SONAIntegration,
+
+  // Config exports (backward compatible with flash-attention/config.ts)
+  QE_FLASH_ATTENTION_CONFIG,
+  QE_SONA_CONFIG,
+  QE_PERFORMANCE_TARGETS,
 
   // Re-exports from @ruvector/attention
   RuvectorFlashAttention,
@@ -99,7 +108,15 @@ export function getRuvectorPackageVersions(): Record<string, string> {
 }
 
 /**
- * Check if @ruvector packages are available
+ * Check if @ruvector packages are available.
+ *
+ * NOTE: This function exists ONLY for test infrastructure - to skip integration
+ * tests in CI environments where native ARM64 binaries may not be built.
+ *
+ * In production code, do NOT use this for defensive programming. The packages
+ * are dependencies - they should work. If they don't, that's a real error.
+ *
+ * @internal Used by test files to conditionally skip tests
  */
 export function checkRuvectorPackagesAvailable(): {
   sona: boolean;
@@ -112,17 +129,23 @@ export function checkRuvectorPackagesAvailable(): {
   try {
     require('@ruvector/sona');
     results.sona = true;
-  } catch {}
+  } catch {
+    // Package not available - native binary not built for this platform
+  }
 
   try {
     require('@ruvector/attention');
     results.attention = true;
-  } catch {}
+  } catch {
+    // Package not available - native binary not built for this platform
+  }
 
   try {
     require('@ruvector/gnn');
     results.gnn = true;
-  } catch {}
+  } catch {
+    // Package not available - native binary not built for this platform
+  }
 
   results.all = results.sona && results.attention && results.gnn;
   return results;
@@ -132,19 +155,11 @@ export function checkRuvectorPackagesAvailable(): {
  * Initialize all @ruvector packages
  */
 export async function initAllRuvectorPackages(): Promise<string[]> {
-  const results: string[] = [];
+  const { initGNN } = await import('./gnn-wrapper.js');
 
-  // Initialize GNN
-  try {
-    const { initGNN } = await import('./gnn-wrapper.js');
-    results.push(initGNN());
-  } catch (error) {
-    results.push(`Failed to initialize GNN: ${(error as Error).message}`);
-  }
-
-  // SONA and attention don't require explicit initialization
-  results.push('SONA: Ready (no initialization required)');
-  results.push('Attention: Ready (no initialization required)');
-
-  return results;
+  return [
+    initGNN(),
+    'SONA: Ready (no initialization required)',
+    'Attention: Ready (no initialization required)',
+  ];
 }

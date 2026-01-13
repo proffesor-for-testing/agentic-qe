@@ -54,6 +54,7 @@
 | ADR-040 | V3 QE Agentic-Flow Integration | **Proposed** | 2026-01-11 | ⏳ SONA + Flash Attention + 9 RL algorithms |
 | ADR-041 | V3 QE CLI Enhancement | **Proposed** | 2026-01-11 | ⏳ Interactive wizards + workflows |
 | ADR-042 | V3 QE Token Tracking Integration | **Proposed** | 2026-01-11 | ⏳ Token tracking + -25% reduction via pattern reuse |
+| [ADR-043](./ADR-043-vendor-independent-llm.md) | Vendor-Independent LLM Support | **Proposed** | 2026-01-13 | ⏳ [HybridRouter + 7 providers + smart routing](../plans/GOAP-ADR-043-VENDOR-INDEPENDENT-LLM.md) |
 
 ---
 

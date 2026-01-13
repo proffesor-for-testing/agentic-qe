@@ -27,11 +27,16 @@ import {
   ServiceDependency,
   PerformanceBottleneck,
   IChaosResilienceCoordinator,
+  ChaosStrategyContext,
+  ChaosStrategyResult,
 } from './interfaces';
 import { ChaosEngineerService } from './services/chaos-engineer';
 import { LoadTesterService } from './services/load-tester';
 import { PerformanceProfilerService } from './services/performance-profiler';
 import { RiskScore } from '../../shared/value-objects';
+import { PolicyGradientAlgorithm } from '../../integrations/rl-suite/algorithms/policy-gradient.js';
+import { QESONA, createQESONA } from '../../integrations/ruvector/wrappers.js';
+import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 /**
  * Interface for the chaos resilience coordinator
@@ -64,6 +69,8 @@ export interface CoordinatorConfig {
   defaultTimeout: number;
   enableAutomatedExperiments: boolean;
   publishEvents: boolean;
+  enablePolicyGradient: boolean;
+  enableQESONA: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -71,6 +78,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   defaultTimeout: 300000, // 5 minutes
   enableAutomatedExperiments: false,
   publishEvents: true,
+  enablePolicyGradient: true,
+  enableQESONA: true,
 };
 
 /**
@@ -83,6 +92,13 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   private readonly loadTester: LoadTesterService;
   private readonly performanceProfiler: PerformanceProfilerService;
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
+
+  // RL Integration: PolicyGradient for chaos engineering strategy
+  private policyGradient?: PolicyGradientAlgorithm;
+
+  // SONA Integration: QESONA for resilience pattern learning
+  private qesona?: QESONA;
+
   private initialized = false;
 
   constructor(
@@ -103,6 +119,36 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Initialize PolicyGradient if enabled
+    if (this.config.enablePolicyGradient) {
+      try {
+        this.policyGradient = new PolicyGradientAlgorithm({
+          stateSize: 10,
+          actionSize: 5,
+          hiddenLayers: [64, 64],
+        });
+        // First call to predict will initialize the algorithm
+        console.log('[chaos-resilience] PolicyGradient algorithm created successfully');
+      } catch (error) {
+        console.error('[chaos-resilience] Failed to create PolicyGradient:', error);
+        throw new Error(`PolicyGradient creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Initialize QESONA if enabled
+    if (this.config.enableQESONA) {
+      try {
+        this.qesona = createQESONA({
+          maxPatterns: 5000,
+          minConfidence: 0.6,
+        });
+        console.log('[chaos-resilience] QESONA initialized successfully');
+      } catch (error) {
+        console.error('[chaos-resilience] Failed to initialize QESONA:', error);
+        throw new Error(`QESONA initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
     // Subscribe to relevant events
     this.subscribeToEvents();
 
@@ -117,6 +163,16 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
    */
   async dispose(): Promise<void> {
     await this.saveWorkflowState();
+
+    // Dispose QESONA
+    if (this.qesona) {
+      this.qesona.clear();
+      this.qesona = undefined;
+    }
+
+    // Clear PolicyGradient (no explicit dispose method exists)
+    this.policyGradient = undefined;
+
     this.workflows.clear();
     this.initialized = false;
   }
@@ -467,6 +523,134 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       this.completeWorkflow(workflowId);
 
       return ok(experiments);
+    } catch (error) {
+      this.failWorkflow(workflowId, String(error));
+      return err(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Run strategic chaos suite using PolicyGradient RL
+   * Uses selectChaosStrategy to determine optimal experiments, then runs them
+   */
+  async runStrategicChaosSuite(
+    services: ServiceDefinition[],
+    context: ChaosStrategyContext
+  ): Promise<Result<ChaosSuiteReport>> {
+    const workflowId = uuidv4();
+
+    try {
+      this.startWorkflow(workflowId, 'chaos-suite');
+
+      if (!this.agentCoordinator.canSpawn()) {
+        return err(new Error('Agent limit reached, cannot spawn chaos agents'));
+      }
+
+      // Use PolicyGradient RL to select optimal chaos strategy and experiments
+      const strategyResult = await this.selectChaosStrategy(services, context);
+
+      if (!strategyResult.success) {
+        this.failWorkflow(workflowId, strategyResult.error.message);
+        return err(strategyResult.error);
+      }
+
+      const selectedExperiments = strategyResult.value.selectedExperiments;
+      console.log(
+        `[chaos-resilience] Using ${strategyResult.value.strategy} strategy with ${selectedExperiments.length} experiments (confidence: ${strategyResult.value.confidence.toFixed(2)})`
+      );
+
+      if (selectedExperiments.length === 0) {
+        this.completeWorkflow(workflowId);
+        return ok({
+          totalExperiments: 0,
+          passed: 0,
+          failed: 0,
+          results: [],
+          recommendations: [{
+            priority: 'low',
+            category: 'strategy',
+            recommendation: 'No experiments selected - consider adjusting strategy context',
+            effort: 'trivial',
+          }],
+        });
+      }
+
+      // Spawn chaos coordinator agent
+      const agentResult = await this.spawnChaosAgent(workflowId, 'coordinator');
+      if (!agentResult.success) {
+        this.failWorkflow(workflowId, agentResult.error.message);
+        return err(agentResult.error);
+      }
+
+      this.addAgentToWorkflow(workflowId, agentResult.value);
+
+      const results: ExperimentResult[] = [];
+      const recommendations: ResilienceRecommendation[] = [];
+      let passed = 0;
+      let failed = 0;
+
+      // First, create the experiments in the chaos engineer service
+      for (const experiment of selectedExperiments) {
+        await this.chaosEngineer.createExperiment(experiment);
+      }
+
+      // Run each selected experiment
+      for (let i = 0; i < selectedExperiments.length; i++) {
+        const experiment = selectedExperiments[i];
+        this.updateWorkflowProgress(
+          workflowId,
+          Math.round(((i + 1) / selectedExperiments.length) * 100)
+        );
+
+        const result = await this.chaosEngineer.runExperiment(experiment.id);
+
+        if (result.success) {
+          results.push(result.value);
+
+          if (result.value.hypothesisValidated) {
+            passed++;
+          } else {
+            failed++;
+            // Generate recommendations for failed experiments
+            const recs = this.generateRecommendationsFromExperiment(result.value);
+            recommendations.push(...recs);
+          }
+
+          // Store pattern for QESONA learning
+          const quality = result.value.hypothesisValidated ? 0.8 : 0.2;
+          await this.storeResiliencePattern(experiment, result.value, quality);
+
+          // Publish event
+          if (this.config.publishEvents) {
+            await this.publishExperimentCompleted(result.value);
+          }
+        } else {
+          failed++;
+          recommendations.push({
+            priority: 'high',
+            category: 'experiment-failure',
+            recommendation: `Failed to run experiment ${experiment.name}: ${result.error.message}`,
+            effort: 'moderate',
+          });
+        }
+      }
+
+      // Stop agent
+      await this.agentCoordinator.stop(agentResult.value);
+      this.completeWorkflow(workflowId);
+
+      const report: ChaosSuiteReport = {
+        totalExperiments: selectedExperiments.length,
+        passed,
+        failed,
+        results,
+        recommendations,
+      };
+
+      // Store report
+      await this.storeReport('strategic-chaos-suite', workflowId, report);
+
+      return ok(report);
     } catch (error) {
       this.failWorkflow(workflowId, String(error));
       return err(error instanceof Error ? error : new Error(String(error)));
@@ -951,6 +1135,349 @@ export class ChaosResilienceCoordinator implements IChaosResilienceCoordinatorEx
       report,
       { namespace: 'chaos-resilience', persist: true }
     );
+  }
+
+  // ============================================================================
+  // PolicyGradient Integration: Chaos Engineering Strategy
+  // ============================================================================
+
+  /**
+   * Select chaos strategy using PolicyGradient
+   * Uses learned policy to choose optimal chaos experiments
+   */
+  async selectChaosStrategy(
+    services: ServiceDefinition[],
+    context: ChaosStrategyContext
+  ): Promise<Result<ChaosStrategyResult>> {
+    if (!this.policyGradient || !this.config.enablePolicyGradient) {
+      // Return default strategy if PolicyGradient is disabled
+      return ok({
+        strategy: 'default',
+        selectedExperiments: this.getDefaultExperiments(services.slice(0, 3)),
+        confidence: 1.0,
+        reasoning: 'Default strategy (PolicyGradient disabled)',
+      });
+    }
+
+    if (services.length === 0) {
+      return ok({
+        strategy: 'empty',
+        selectedExperiments: [],
+        confidence: 1.0,
+        reasoning: 'No services provided',
+      });
+    }
+
+    try {
+      // Create state from context
+      const state: RLState = {
+        id: `chaos-strategy-${Date.now()}`,
+        features: [
+          context.riskTolerance,
+          context.availableCapacity / 100,
+          services.length / 50,
+          services.filter((s) => !s.hasFailover).length / Math.max(1, services.length),
+          services.filter((s) => s.type === 'database').length / Math.max(1, services.length),
+          context.environment === 'production' ? 0 : 1,
+          context.environment === 'staging' ? 1 : 0,
+          services.filter((s) => s.type === 'cache').length / Math.max(1, services.length),
+          services.filter((s) => s.type === 'queue').length / Math.max(1, services.length),
+          services.reduce((sum, s) => sum + s.replicas, 0) / Math.max(1, services.length * 5),
+        ],
+      };
+
+      // Get PolicyGradient prediction for strategy
+      const prediction = await this.policyGradient.predict(state);
+
+      // Generate experiments based on selected action
+      let selectedExperiments: ChaosExperiment[] = [];
+      let strategy = 'default';
+
+      switch (prediction.action.type) {
+        case 'allocate':
+          const allocValue = typeof prediction.action.value === 'object' ? prediction.action.value : null;
+          if (allocValue && 'agentType' in allocValue && allocValue.agentType === 'tester') {
+            // Allocate more tests to high-risk services (no failover, databases)
+            const criticalServices = services.filter((s) => !s.hasFailover || s.type === 'database').slice(0, 3);
+            selectedExperiments = this.generateExperimentsForServices(criticalServices, ['latency', 'error']);
+            strategy = 'allocate-critical';
+          }
+          break;
+
+        case 'reallocate':
+          const reallocValue = typeof prediction.action.value === 'object' ? prediction.action.value : null;
+          if (reallocValue && 'domain' in reallocValue && reallocValue.domain === 'test-execution') {
+            // Reallocate to test different fault types
+            selectedExperiments = this.generateExperimentsForServices(services.slice(0, 5), ['cpu-stress', 'memory-stress']);
+            strategy = 'reallocate-resource-stress';
+          }
+          break;
+
+        case 'scale-up':
+          // Scale up experiment count
+          selectedExperiments = this.generateExperimentsForServices(services, ['latency', 'error', 'timeout']);
+          strategy = 'scale-up-comprehensive';
+          break;
+
+        case 'scale-down':
+          // Scale down to minimal experiments
+          selectedExperiments = this.generateExperimentsForServices(services.slice(0, 2), ['latency']);
+          strategy = 'scale-down-minimal';
+          break;
+
+        default:
+          selectedExperiments = this.getDefaultExperiments(services.slice(0, 3));
+          strategy = 'default';
+          break;
+      }
+
+      // Train PolicyGradient with feedback
+      const reward = await this.calculateStrategyReward(selectedExperiments, context);
+      const action: RLAction = prediction.action;
+
+      await this.policyGradient.train({
+        state,
+        action,
+        reward,
+        nextState: state,
+        done: true,
+      });
+
+      console.log(
+        `[chaos-resilience] PolicyGradient selected ${strategy} strategy for ${services.length} services (confidence: ${prediction.confidence.toFixed(2)})`
+      );
+
+      return ok({
+        strategy,
+        selectedExperiments,
+        confidence: prediction.confidence,
+        reasoning: prediction.reasoning || `PolicyGradient selected: ${strategy}`,
+      });
+    } catch (error) {
+      console.error('[chaos-resilience] PolicyGradient strategy selection failed:', error);
+      // Return default strategy on error (graceful degradation)
+      return ok({
+        strategy: 'fallback',
+        selectedExperiments: this.getDefaultExperiments(services.slice(0, 3)),
+        confidence: 0.5,
+        reasoning: 'Fallback to default (PolicyGradient error)',
+      });
+    }
+  }
+
+  /**
+   * Generate experiments for specific services
+   */
+  private generateExperimentsForServices(
+    services: ServiceDefinition[],
+    faultTypes: FaultType[]
+  ): ChaosExperiment[] {
+    const experiments: ChaosExperiment[] = [];
+
+    for (const service of services) {
+      for (const faultType of faultTypes) {
+        experiments.push(this.createExperiment(
+          `${service.name}-${faultType}-${Date.now()}`,
+          `Test ${service.name} with ${faultType} fault`,
+          faultType,
+          service.name
+        ));
+      }
+    }
+
+    return experiments;
+  }
+
+  /**
+   * Get default experiments
+   */
+  private getDefaultExperiments(services: ServiceDefinition[]): ChaosExperiment[] {
+    return this.generateExperimentsForServices(services, ['latency', 'error']);
+  }
+
+  /**
+   * Calculate reward for chaos strategy
+   */
+  private async calculateStrategyReward(
+    experiments: ChaosExperiment[],
+    context: { riskTolerance: number; availableCapacity: number }
+  ): Promise<number> {
+    let reward = 0.5;
+
+    // Reward for matching risk tolerance
+    const experimentCount = experiments.length;
+    if (context.riskTolerance > 0.7 && experimentCount > 5) {
+      reward += 0.2;
+    } else if (context.riskTolerance < 0.3 && experimentCount <= 3) {
+      reward += 0.2;
+    }
+
+    // Reward for capacity utilization
+    if (context.availableCapacity > 70 && experimentCount > 5) {
+      reward += 0.1;
+    } else if (context.availableCapacity < 30 && experimentCount <= 3) {
+      reward += 0.1;
+    }
+
+    // Reward for fault type diversity
+    const faultTypes = new Set(experiments.map((e) => e.faults[0]?.type));
+    reward += Math.min(0.1, faultTypes.size / 5);
+
+    return Math.max(0, Math.min(1, reward));
+  }
+
+  // ============================================================================
+  // QESONA Integration: Resilience Pattern Learning
+  // ============================================================================
+
+  /**
+   * Store resilience pattern for learning
+   */
+  async storeResiliencePattern(
+    experiment: ChaosExperiment,
+    result: ExperimentResult,
+    quality: number
+  ): Promise<void> {
+    if (!this.qesona || !this.config.enableQESONA) {
+      return;
+    }
+
+    try {
+      const state: RLState = {
+        id: `chaos-${experiment.id}`,
+        features: [
+          experiment.faults.length / 10,
+          experiment.faults[0]?.duration ? experiment.faults[0].duration / 60000 : 0,
+          experiment.steadyState.probes.length / 20,
+          experiment.blastRadius.excludeProduction ? 1 : 0,
+          (experiment.blastRadius.percentage ?? 0) / 100,
+          result.hypothesisValidated ? 1 : 0,
+          result.steadyStateVerified ? 1 : 0,
+          result.incidents.length / 10,
+          result.incidents.filter((i) => i.severity === 'critical').length / 5,
+          quality,
+        ],
+      };
+
+      const action: RLAction = {
+        type: result.hypothesisValidated ? 'validate' : 'reject',
+        value: quality,
+      };
+
+      this.qesona.createPattern(
+        state,
+        action,
+        {
+          reward: result.hypothesisValidated ? quality : -quality,
+          success: result.hypothesisValidated,
+          quality,
+        },
+        'defect-prediction',
+        'chaos-resilience',
+        {
+          experimentId: experiment.id,
+          experimentName: experiment.name,
+          faultType: experiment.faults[0]?.type,
+          hypothesisValidated: result.hypothesisValidated,
+        }
+      );
+
+      console.log(`[chaos-resilience] Stored resilience pattern for ${experiment.id} (validated: ${result.hypothesisValidated}, quality: ${quality.toFixed(2)})`);
+    } catch (error) {
+      console.error('[chaos-resilience] Failed to store resilience pattern:', error);
+    }
+  }
+
+  /**
+   * Adapt resilience strategies using learned patterns
+   */
+  async adaptStrategies(
+    service: ServiceDefinition,
+    context: { environment: string; riskTolerance: number }
+  ): Promise<{
+    shouldRunChaos: boolean;
+    recommendedFaults: FaultType[];
+    confidence: number;
+  }> {
+    if (!this.qesona || !this.config.enableQESONA) {
+      return {
+        shouldRunChaos: context.environment !== 'production',
+        recommendedFaults: ['latency', 'error'],
+        confidence: 0.5,
+      };
+    }
+
+    try {
+      const state: RLState = {
+        id: `chaos-adapt-${service.name}-${Date.now()}`,
+        features: [
+          !service.hasFailover ? 1 : 0,
+          context.riskTolerance,
+          service.type === 'api' ? 1 : 0,
+          service.type === 'database' ? 1 : 0,
+          service.type === 'cache' ? 1 : 0,
+          context.environment === 'production' ? 1 : 0,
+          context.environment === 'staging' ? 1 : 0,
+          service.replicas / 10,
+          service.type === 'worker' ? 1 : 0,
+          service.type === 'queue' ? 1 : 0,
+        ],
+      };
+
+      const adaptation = await this.qesona.adaptPattern(
+        state,
+        'defect-prediction',
+        'chaos-resilience'
+      );
+
+      if (adaptation.success && adaptation.pattern) {
+        const shouldRunChaos = adaptation.pattern.outcome.success;
+        const recommendedFaults = this.getRecommendedFaults(adaptation.pattern.action.type);
+
+        console.log(
+          `[chaos-resilience] QESONA adapted strategy for ${service.name}: shouldRun=${shouldRunChaos}, faults=${recommendedFaults.join(',')}, confidence=${adaptation.similarity.toFixed(2)}`
+        );
+
+        return {
+          shouldRunChaos,
+          recommendedFaults,
+          confidence: adaptation.similarity,
+        };
+      }
+
+      return {
+        shouldRunChaos: context.environment !== 'production',
+        recommendedFaults: ['latency', 'error'],
+        confidence: 0.5,
+      };
+    } catch (error) {
+      console.error('[chaos-resilience] QESONA strategy adaptation failed:', error);
+      return {
+        shouldRunChaos: context.environment !== 'production',
+        recommendedFaults: ['latency', 'error'],
+        confidence: 0.5,
+      };
+    }
+  }
+
+  /**
+   * Get recommended fault types from action
+   */
+  private getRecommendedFaults(actionType: string): FaultType[] {
+    switch (actionType) {
+      case 'validate':
+        return ['latency', 'error', 'timeout'];
+      case 'reject':
+        return ['latency'];
+      case 'allocate':
+        return ['latency', 'cpu-stress'];
+      case 'scale-up':
+        return ['latency', 'error', 'timeout', 'packet-loss'];
+      case 'scale-down':
+        return ['latency'];
+      default:
+        return ['latency', 'error'];
+    }
   }
 
   // ============================================================================

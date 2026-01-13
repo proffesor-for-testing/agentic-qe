@@ -140,3 +140,70 @@ export interface SimilarPatterns {
   patterns: { gap: CoverageGap; similarity: number }[];
   searchTime: number;
 }
+
+// ============================================================================
+// Q-Learning Integration Types
+// ============================================================================
+
+/**
+ * Coverage state for Q-Learning
+ */
+export interface CoverageQLState {
+  id: string;
+  features: number[];
+  filePath: string;
+  currentCoverage: number;
+  targetCoverage: number;
+  complexity: number;
+  changeFrequency: number;
+  businessCriticality: number;
+  uncoveredLines: number;
+  branchPoints: number;
+  riskScore: number;
+  metadata?: Record<string, unknown>;
+  timestamp?: Date;
+}
+
+/**
+ * Q-Learning action for coverage optimization
+ */
+export interface CoverageQLAction {
+  type: 'generate-unit' | 'generate-integration' | 'prioritize' | 'skip';
+  value: number | string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Q-Learning prediction result for coverage
+ */
+export interface CoverageQLPrediction {
+  action: CoverageQLAction;
+  confidence: number;
+  value: number;
+  reasoning: string;
+  estimatedCoverageGain: number;
+  estimatedTestCount: number;
+}
+
+/**
+ * Test prioritization with Q-Learning
+ */
+export type QLPrioritizedTests = {
+  tests: PrioritizedTest[];
+  totalEstimatedCoverageGain: number;
+  totalEstimatedDuration: number;
+  reasoning: string;
+};
+
+/**
+ * Single prioritized test
+ */
+export interface PrioritizedTest {
+  filePath: string;
+  testType: 'unit' | 'integration' | 'e2e';
+  priority: number;
+  estimatedCoverageGain: number;
+  estimatedDuration: number;
+  action: CoverageQLAction;
+  confidence: number;
+}

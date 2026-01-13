@@ -553,6 +553,25 @@ export interface ILoadTestResultRepository {
 // Coordinator Interface
 // ============================================================================
 
+/**
+ * Context for chaos strategy selection
+ */
+export interface ChaosStrategyContext {
+  readonly environment: string;
+  readonly riskTolerance: number;
+  readonly availableCapacity: number;
+}
+
+/**
+ * Result of chaos strategy selection
+ */
+export interface ChaosStrategyResult {
+  readonly strategy: string;
+  readonly selectedExperiments: ChaosExperiment[];
+  readonly confidence: number;
+  readonly reasoning: string;
+}
+
 export interface IChaosResilienceCoordinator {
   /**
    * Run chaos experiment suite
@@ -580,6 +599,24 @@ export interface IChaosResilienceCoordinator {
    * Get resilience dashboard data
    */
   getResilienceDashboard(): Promise<Result<ResilienceDashboard>>;
+
+  /**
+   * Select chaos strategy using PolicyGradient RL
+   * Uses learned policy to choose optimal chaos experiments
+   */
+  selectChaosStrategy(
+    services: ServiceDefinition[],
+    context: ChaosStrategyContext
+  ): Promise<Result<ChaosStrategyResult>>;
+
+  /**
+   * Run strategic chaos suite using PolicyGradient RL
+   * Uses selectChaosStrategy to determine optimal experiments, then runs them
+   */
+  runStrategicChaosSuite(
+    services: ServiceDefinition[],
+    context: ChaosStrategyContext
+  ): Promise<Result<ChaosSuiteReport>>;
 }
 
 export interface ServiceArchitecture {

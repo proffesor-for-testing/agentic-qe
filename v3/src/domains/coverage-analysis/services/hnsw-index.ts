@@ -1,8 +1,12 @@
 /**
  * Agentic QE v3 - HNSW Index for O(log n) Coverage Gap Detection
  *
- * REAL IMPLEMENTATION using hnswlib-node for actual O(log n) approximate
- * nearest neighbor search. This is NOT a simulation.
+ * Uses @ruvector/gnn's QEGNNEmbeddingIndex for HNSW operations.
+ * This provides:
+ * - Differentiable search for RL gradient flow
+ * - GNN-based hierarchical feature extraction
+ * - Adaptive tensor compression (hot/warm/cold data)
+ * - O(log n) approximate nearest neighbor search
  *
  * Performance characteristics (measured, not theoretical):
  * | Codebase Size | Brute Force O(n) | HNSW O(log n) | Improvement |
@@ -14,30 +18,35 @@
  * @module coverage-analysis/hnsw-index
  */
 
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
+import { MemoryBackend } from '../../../kernel/interfaces';
+import type { IEmbedding, EmbeddingNamespace } from '../../../integrations/embeddings/base/types';
 
 // ============================================================================
-// HNSW Library Import
+// @ruvector/gnn Integration
 // ============================================================================
 
-// Dynamic import for hnswlib-node (may not be available in all environments)
-let HierarchicalNSW: any = null;
+/**
+ * Type for the QEGNNEmbeddingIndex from @ruvector wrappers.
+ */
+type QEGNNEmbeddingIndexType = import('../../../integrations/ruvector/wrappers.js').QEGNNEmbeddingIndex;
 
-async function loadHNSWLib(): Promise<boolean> {
-  if (HierarchicalNSW !== null) return true;
+let QEGNNEmbeddingIndexClass: (new (config?: any) => QEGNNEmbeddingIndexType) | null = null;
+let ruvectorLoaded = false;
 
-  try {
-    const hnswlib = await import('hnswlib-node');
-    HierarchicalNSW = (hnswlib as any).HierarchicalNSW || (hnswlib.default as any)?.HierarchicalNSW;
-    if (!HierarchicalNSW) {
-      console.warn('[HNSWIndex] hnswlib-node loaded but HierarchicalNSW not found');
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.warn('[HNSWIndex] hnswlib-node not available, falling back to brute-force search');
-    return false;
+/**
+ * Load QEGNNEmbeddingIndex from @ruvector/gnn.
+ *
+ * The package is a dependency - if it fails to load, that's a real error.
+ */
+async function loadRuvectorGnn(): Promise<void> {
+  if (ruvectorLoaded) {
+    return;
   }
+
+  const wrappers = await import('../../../integrations/ruvector/wrappers.js');
+  QEGNNEmbeddingIndexClass = wrappers.QEGNNEmbeddingIndex;
+  ruvectorLoaded = true;
+  console.log('[HNSWIndex] Using @ruvector/gnn for HNSW operations (differentiable search enabled)');
 }
 
 // ============================================================================
@@ -160,11 +169,22 @@ export interface HNSWSearchResult {
 }
 
 /**
+ * Backend type for HNSW index.
+ * - 'ruvector-gnn': Using @ruvector/gnn with differentiable search
+ */
+export type HNSWBackendType = 'ruvector-gnn';
+
+/**
  * HNSW index statistics
  */
 export interface HNSWIndexStats {
   /** Whether native HNSW is being used */
   nativeHNSW: boolean;
+  /**
+   * The backend type being used.
+   * @see HNSWBackendType
+   */
+  backendType: HNSWBackendType;
   /** Total number of vectors in index */
   vectorCount: number;
   /** Index size in bytes (approximate) */
@@ -186,10 +206,10 @@ export interface HNSWIndexStats {
 // ============================================================================
 
 /**
- * HNSW Index implementation using hnswlib-node
+ * HNSW Index implementation using @ruvector/gnn.
  *
  * This provides REAL O(log n) approximate nearest neighbor search for coverage
- * gap detection. Falls back to brute-force if hnswlib-node is not available.
+ * gap detection using @ruvector/gnn's QEGNNEmbeddingIndex.
  *
  * @example
  * ```typescript
@@ -204,16 +224,18 @@ export class HNSWIndex implements IHNSWIndex {
   private readonly stats: MutableStats;
   private searchLatencies: number[] = [];
 
-  // Native HNSW index (when available)
-  private nativeIndex: any = null;
-  private nativeAvailable = false;
+  // Backend type tracking
+  private readonly backendType: HNSWBackendType = 'ruvector-gnn';
+
+  // @ruvector/gnn index
+  private ruvectorIndex: QEGNNEmbeddingIndexType | null = null;
   private initialized = false;
 
-  // ID mappings (hnswlib uses numeric labels)
+  // ID mappings
   private keyToLabel: Map<string, number> = new Map();
   private labelToKey: Map<number, string> = new Map();
   private metadataStore: Map<string, CoverageVectorMetadata> = new Map();
-  private vectorStore: Map<string, number[]> = new Map(); // For fallback
+  private vectorStore: Map<string, number[]> = new Map(); // For accurate similarity computation
   private nextLabel = 0;
 
   constructor(
@@ -229,52 +251,72 @@ export class HNSWIndex implements IHNSWIndex {
   }
 
   /**
-   * Initialize the HNSW index
-   * Must be called before insert/search operations
+   * Initialize the HNSW index using @ruvector/gnn.
+   *
+   * Must be called before insert/search operations.
+   * Throws if @ruvector/gnn is not available.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    this.nativeAvailable = await loadHNSWLib();
+    // Load and verify @ruvector/gnn is available
+    await loadRuvectorGnn();
 
-    if (this.nativeAvailable && HierarchicalNSW) {
-      try {
-        // Create native HNSW index
-        this.nativeIndex = new HierarchicalNSW(this.config.metric, this.config.dimensions);
-        this.nativeIndex.initIndex(
-          this.config.maxElements,
-          this.config.M,
-          this.config.efConstruction
-        );
-        this.nativeIndex.setEf(this.config.efSearch);
-
-        console.log(
-          `[HNSWIndex] ✅ Native HNSW initialized: dimension=${this.config.dimensions}, ` +
-            `metric=${this.config.metric}, M=${this.config.M}, efConstruction=${this.config.efConstruction}`
-        );
-      } catch (error) {
-        console.warn('[HNSWIndex] Failed to initialize native HNSW, using fallback:', error);
-        this.nativeAvailable = false;
-        this.nativeIndex = null;
-      }
-    } else {
-      console.log('[HNSWIndex] Using brute-force fallback (O(n) instead of O(log n))');
+    if (!QEGNNEmbeddingIndexClass) {
+      throw new Error(
+        '[HNSWIndex] QEGNNEmbeddingIndex class not loaded. ' +
+        'This indicates a bug in the @ruvector/gnn integration.'
+      );
     }
 
+    // Create @ruvector/gnn index with matching configuration
+    this.ruvectorIndex = new QEGNNEmbeddingIndexClass({
+      M: this.config.M,
+      efConstruction: this.config.efConstruction,
+      efSearch: this.config.efSearch,
+      dimension: this.config.dimensions,
+      metric: this.config.metric,
+    });
+
+    // Initialize the coverage namespace
+    this.ruvectorIndex.initializeIndex(this.config.namespace as EmbeddingNamespace);
+
+    console.log(
+      `[HNSWIndex] @ruvector/gnn initialized: dimension=${this.config.dimensions}, ` +
+        `metric=${this.config.metric}, M=${this.config.M} (differentiable search enabled)`
+    );
     this.initialized = true;
   }
 
   /**
-   * Check if native HNSW library is available
+   * Check if native HNSW library is available.
+   * Returns true if the index has been initialized.
    */
   isNativeAvailable(): boolean {
-    return this.nativeAvailable;
+    return this.initialized && this.ruvectorIndex !== null;
   }
 
   /**
-   * Insert a vector into the HNSW index
+   * Get the backend type currently in use.
    *
-   * Time complexity: O(log n) for native HNSW, O(1) for fallback storage
+   * @returns The backend type: 'ruvector-gnn'
+   */
+  getBackendType(): HNSWBackendType {
+    return this.backendType;
+  }
+
+  /**
+   * Check if @ruvector/gnn backend is available.
+   * Returns true if the index has been initialized.
+   */
+  isRuvectorAvailable(): boolean {
+    return this.initialized && this.ruvectorIndex !== null;
+  }
+
+  /**
+   * Insert a vector into the HNSW index.
+   *
+   * Time complexity: O(log n)
    *
    * @param key - Unique identifier for the vector
    * @param vector - The embedding vector (must match configured dimensions)
@@ -308,13 +350,11 @@ export class HNSWIndex implements IHNSWIndex {
       this.metadataStore.set(key, metadata);
     }
 
-    if (this.nativeAvailable && this.nativeIndex) {
-      // Add to native HNSW index
-      this.nativeIndex.addPoint(vector, label);
-    } else {
-      // Fallback: store vector for brute-force search
-      this.vectorStore.set(key, vector);
-    }
+    // Add to @ruvector/gnn index
+    const embedding = this.vectorToEmbedding(vector, key, metadata);
+    this.ruvectorIndex!.addEmbedding(embedding, label);
+    // Also store vector locally for accurate similarity computation
+    this.vectorStore.set(key, vector);
 
     // Also store in memory backend for persistence
     const fullKey = this.buildKey(key);
@@ -325,9 +365,9 @@ export class HNSWIndex implements IHNSWIndex {
   }
 
   /**
-   * Search for k nearest neighbors using HNSW
+   * Search for k nearest neighbors using HNSW.
    *
-   * Time complexity: O(log n) for native HNSW, O(n) for brute-force fallback
+   * Time complexity: O(log n)
    *
    * @param query - Query vector to find similar vectors for
    * @param k - Number of nearest neighbors to return
@@ -342,15 +382,10 @@ export class HNSWIndex implements IHNSWIndex {
 
     const startTime = performance.now();
 
-    let results: HNSWSearchResult[];
-
-    if (this.nativeAvailable && this.nativeIndex && this.stats.vectorCount > 0) {
-      // Use native HNSW O(log n) search
-      results = this.searchNative(query, k);
-    } else {
-      // Fallback to brute-force O(n) search
-      results = await this.searchBruteForce(query, k);
-    }
+    // Use @ruvector/gnn differentiable search
+    const results = this.stats.vectorCount > 0
+      ? this.searchRuvector(query, k)
+      : [];
 
     const endTime = performance.now();
     const latency = endTime - startTime;
@@ -361,78 +396,53 @@ export class HNSWIndex implements IHNSWIndex {
   }
 
   /**
-   * Native HNSW search - O(log n)
+   * Search using @ruvector/gnn differentiable search.
+   *
+   * This provides soft weights instead of hard distances, which is
+   * useful for RL gradient flow and attention mechanisms.
+   *
+   * Note: We compute actual cosine similarity for the score to maintain
+   * backward compatibility with tests expecting similarity scores in [0, 1].
    */
-  private searchNative(query: number[], k: number): HNSWSearchResult[] {
-    const result = this.nativeIndex.searchKnn(query, Math.min(k, this.stats.vectorCount));
+  private searchRuvector(query: number[], k: number): HNSWSearchResult[] {
+    const queryEmbedding = this.vectorToEmbedding(query, 'query');
 
-    const results: HNSWSearchResult[] = [];
+    const searchResults = this.ruvectorIndex!.search(queryEmbedding, {
+      namespace: this.config.namespace as EmbeddingNamespace,
+      limit: k,
+    });
 
-    for (let i = 0; i < result.neighbors.length; i++) {
-      const label = result.neighbors[i];
-      const distance = result.distances[i];
+    return searchResults.map(({ id, distance }) => {
+      const key = this.labelToKey.get(id);
+      if (!key) {
+        return {
+          key: `unknown-${id}`,
+          score: 1 - distance,
+          distance,
+          metadata: undefined,
+        };
+      }
 
-      const key = this.labelToKey.get(label);
-      if (!key) continue;
+      // Get stored vector to compute actual similarity
+      const storedVector = this.vectorStore.get(key);
+      let score: number;
 
-      const similarity = this.distanceToSimilarity(distance);
+      if (storedVector) {
+        // Compute actual cosine similarity for backward compatibility
+        score = this.cosineSimilarity(query, storedVector);
+      } else {
+        // Fall back to differentiable search weight conversion
+        // distance = 1 - weight, so score = weight = 1 - distance
+        score = 1 - distance;
+      }
 
-      results.push({
+      return {
         key,
-        score: similarity,
-        distance,
+        score,
+        distance: 1 - score,
         metadata: this.metadataStore.get(key),
-      });
-    }
-
-    return results;
-  }
-
-  /**
-   * Brute-force search fallback - O(n)
-   */
-  private async searchBruteForce(query: number[], k: number): Promise<HNSWSearchResult[]> {
-    // Try memory backend first
-    const memoryResults = await this.memory.vectorSearch(query, k);
-
-    if (memoryResults.length > 0) {
-      return memoryResults.map((result) => this.toHNSWResult(result));
-    }
-
-    // Fall back to local vector store
-    const distances: Array<{ key: string; distance: number }> = [];
-
-    for (const [key, vector] of this.vectorStore.entries()) {
-      const distance = this.computeDistance(query, vector);
-      distances.push({ key, distance });
-    }
-
-    // Sort by distance (ascending)
-    distances.sort((a, b) => a.distance - b.distance);
-
-    // Take top k
-    return distances.slice(0, k).map(({ key, distance }) => ({
-      key,
-      score: this.distanceToSimilarity(distance),
-      distance,
-      metadata: this.metadataStore.get(key),
-    }));
-  }
-
-  /**
-   * Compute distance between two vectors based on metric
-   */
-  private computeDistance(a: number[], b: number[]): number {
-    switch (this.config.metric) {
-      case 'cosine':
-        return 1 - this.cosineSimilarity(a, b);
-      case 'l2':
-        return this.euclideanDistance(a, b);
-      case 'ip':
-        return -this.dotProduct(a, b);
-      default:
-        return 1 - this.cosineSimilarity(a, b);
-    }
+      };
+    });
   }
 
   private cosineSimilarity(a: number[], b: number[]): number {
@@ -448,23 +458,6 @@ export class HNSWIndex implements IHNSWIndex {
 
     const denominator = Math.sqrt(normA) * Math.sqrt(normB);
     return denominator === 0 ? 0 : dotProduct / denominator;
-  }
-
-  private euclideanDistance(a: number[], b: number[]): number {
-    let sum = 0;
-    for (let i = 0; i < a.length; i++) {
-      const diff = a[i] - b[i];
-      sum += diff * diff;
-    }
-    return Math.sqrt(sum);
-  }
-
-  private dotProduct(a: number[], b: number[]): number {
-    let sum = 0;
-    for (let i = 0; i < a.length; i++) {
-      sum += a[i] * b[i];
-    }
-    return sum;
   }
 
   /**
@@ -492,7 +485,8 @@ export class HNSWIndex implements IHNSWIndex {
   /**
    * Delete a vector from the index
    *
-   * Note: hnswlib-node doesn't support true deletion, so we mark as deleted
+   * Note: HNSW doesn't support true deletion, so we mark as deleted
+   * and the entry remains in the index until rebuild.
    *
    * @param key - Key of the vector to delete
    * @returns true if vector was found and deleted
@@ -515,20 +509,18 @@ export class HNSWIndex implements IHNSWIndex {
 
     this.stats.vectorCount = Math.max(0, this.stats.vectorCount - 1);
 
-    // Note: Native HNSW index would need rebuild for true deletion
-    // For now, we accept that deleted vectors remain until rebuild
-
     return true;
   }
 
   /**
-   * Get HNSW index statistics
+   * Get HNSW index statistics.
    *
    * @returns Current statistics for the index
    */
   async getStats(): Promise<HNSWIndexStats> {
     return {
-      nativeHNSW: this.nativeAvailable,
+      nativeHNSW: this.initialized && this.ruvectorIndex !== null,
+      backendType: this.backendType,
       vectorCount: this.stats.vectorCount,
       indexSizeBytes: this.stats.vectorCount * this.config.dimensions * 4,
       avgSearchLatencyMs: this.calculateAvgLatency(),
@@ -540,7 +532,7 @@ export class HNSWIndex implements IHNSWIndex {
   }
 
   /**
-   * Clear all entries in the index
+   * Clear all entries in the index.
    */
   async clear(): Promise<void> {
     this.keyToLabel.clear();
@@ -549,19 +541,9 @@ export class HNSWIndex implements IHNSWIndex {
     this.vectorStore.clear();
     this.nextLabel = 0;
 
-    // Reinitialize native index if available
-    if (this.nativeAvailable && HierarchicalNSW) {
-      try {
-        this.nativeIndex = new HierarchicalNSW(this.config.metric, this.config.dimensions);
-        this.nativeIndex.initIndex(
-          this.config.maxElements,
-          this.config.M,
-          this.config.efConstruction
-        );
-        this.nativeIndex.setEf(this.config.efSearch);
-      } catch (error) {
-        console.warn('[HNSWIndex] Failed to reinitialize native index:', error);
-      }
+    // Clear @ruvector/gnn index
+    if (this.ruvectorIndex) {
+      this.ruvectorIndex.clearIndex(this.config.namespace as EmbeddingNamespace);
     }
 
     this.stats.vectorCount = 0;
@@ -590,19 +572,28 @@ export class HNSWIndex implements IHNSWIndex {
     return `${this.config.namespace}:${key}`;
   }
 
-  private toHNSWResult(result: VectorSearchResult): HNSWSearchResult {
-    const key = this.extractKey(result.key);
+  /**
+   * Convert a plain vector to IEmbedding format for @ruvector/gnn.
+   *
+   * @param vector - The embedding vector
+   * @param key - Key for the embedding (used as text)
+   * @param metadata - Optional metadata to attach
+   * @returns IEmbedding-compatible object
+   */
+  private vectorToEmbedding(
+    vector: number[],
+    key: string,
+    metadata?: CoverageVectorMetadata
+  ): IEmbedding {
     return {
-      key,
-      score: result.score,
-      distance: 1 - result.score,
-      metadata: (result.metadata as CoverageVectorMetadata) || this.metadataStore.get(key),
+      vector,
+      dimension: this.config.dimensions as 256 | 384 | 512 | 768 | 1024 | 1536,
+      namespace: this.config.namespace as EmbeddingNamespace,
+      text: key,
+      timestamp: Date.now(),
+      quantization: 'none',
+      metadata: metadata as Record<string, unknown> | undefined,
     };
-  }
-
-  private extractKey(fullKey: string): string {
-    const prefix = `${this.config.namespace}:`;
-    return fullKey.startsWith(prefix) ? fullKey.slice(prefix.length) : fullKey;
   }
 
   private distanceToSimilarity(distance: number): number {
@@ -642,11 +633,11 @@ export class HNSWIndex implements IHNSWIndex {
   }
 
   /**
-   * Update efSearch parameter for search quality/speed tradeoff
+   * Update efSearch parameter for search quality/speed tradeoff.
    */
   setEfSearch(ef: number): void {
-    if (this.nativeIndex) {
-      this.nativeIndex.setEf(ef);
+    if (this.ruvectorIndex) {
+      this.ruvectorIndex.setEfSearch(ef);
     }
     this.config.efSearch = ef;
   }
@@ -667,11 +658,20 @@ interface MutableStats {
 // ============================================================================
 
 /**
- * Create a new HNSW index instance
+ * Create a new HNSW index instance using @ruvector/gnn.
  *
  * @param memory - Memory backend for storage
  * @param config - Optional configuration overrides
  * @returns Configured HNSW index
+ *
+ * @example
+ * ```typescript
+ * const index = createHNSWIndex(memoryBackend);
+ * await index.initialize();
+ *
+ * // Backend is always ruvector-gnn
+ * console.log(`Backend: ${index.getBackendType()}`); // => 'ruvector-gnn'
+ * ```
  */
 export function createHNSWIndex(
   memory: MemoryBackend,
@@ -681,12 +681,12 @@ export function createHNSWIndex(
 }
 
 /**
- * Run HNSW performance benchmark
+ * Run HNSW performance benchmark.
  *
  * @param index - HNSW index to benchmark
  * @param vectorCount - Number of vectors to insert
  * @param searchCount - Number of searches to perform
- * @returns Benchmark results
+ * @returns Benchmark results including backend type
  */
 export async function benchmarkHNSW(
   index: HNSWIndex,
@@ -697,6 +697,7 @@ export async function benchmarkHNSW(
   searchTimeMs: number;
   avgSearchLatencyMs: number;
   isNative: boolean;
+  backendType: HNSWBackendType;
 }> {
   const dimensions = 128;
   const startInsert = performance.now();
@@ -724,5 +725,6 @@ export async function benchmarkHNSW(
     searchTimeMs,
     avgSearchLatencyMs: searchTimeMs / searchCount,
     isNative: index.isNativeAvailable(),
+    backendType: index.getBackendType(),
   };
 }

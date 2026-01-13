@@ -17,6 +17,18 @@ import {
   DefectCluster,
 } from '../interfaces';
 import { NomicEmbedder, IEmbeddingProvider, EMBEDDING_CONFIG } from '../../../shared/embeddings';
+import type { QEFlashAttention, QEFlashAttentionConfig } from '../../../integrations/ruvector/wrappers.js';
+
+/**
+ * Flash Attention status for pattern learning
+ */
+export interface FlashAttentionStatus {
+  enabled: boolean;
+  available: boolean;
+  workload: string | null;
+  metricsCount: number;
+  averageSpeedup: number | null;
+}
 
 /**
  * Interface for the pattern learner service
@@ -27,6 +39,10 @@ export interface IPatternLearnerService {
   findSimilarDefects(defect: DefectInfo, limit?: number): Promise<Result<DefectInfo[], Error>>;
   getPatternById(patternId: string): Promise<DefectPattern | undefined>;
   listPatterns(limit?: number): Promise<DefectPattern[]>;
+  /** Get Flash Attention status and availability */
+  getFlashAttentionStatus(): FlashAttentionStatus;
+  /** Batch compute similarities using Flash Attention if available */
+  batchComputeSimilarities(query: number[], corpus: number[][]): Promise<number[]>;
 }
 
 /**
@@ -41,6 +57,10 @@ export interface PatternLearnerConfig {
   enableSemanticClustering: boolean;
   /** Optional embedder instance (defaults to NomicEmbedder with fallback) */
   embedder?: IEmbeddingProvider;
+  /** Enable Flash Attention for faster similarity computations (if @ruvector/attention is available) */
+  enableFlashAttention?: boolean;
+  /** Custom Flash Attention configuration */
+  flashAttentionConfig?: Partial<QEFlashAttentionConfig>;
 }
 
 const DEFAULT_CONFIG: PatternLearnerConfig = {
@@ -50,6 +70,7 @@ const DEFAULT_CONFIG: PatternLearnerConfig = {
   embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS,
   patternNamespace: 'defect-intelligence:patterns',
   enableSemanticClustering: true,
+  enableFlashAttention: true, // Enabled by default, will gracefully fallback if unavailable
 };
 
 /**
@@ -98,6 +119,8 @@ export class PatternLearnerService implements IPatternLearnerService {
   private readonly config: PatternLearnerConfig;
   private readonly patternCache: Map<string, DefectPattern> = new Map();
   private readonly embedder: IEmbeddingProvider;
+  private flashAttention: QEFlashAttention | null = null;
+  private flashAttentionAvailable: boolean = false;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -106,6 +129,34 @@ export class PatternLearnerService implements IPatternLearnerService {
     this.config = { ...DEFAULT_CONFIG, ...config };
     // Use provided embedder or create NomicEmbedder with fallback enabled
     this.embedder = config.embedder ?? new NomicEmbedder({ enableFallback: true });
+
+    // Initialize Flash Attention if enabled
+    if (this.config.enableFlashAttention) {
+      this.initializeFlashAttention();
+    }
+  }
+
+  /**
+   * Initialize Flash Attention for faster similarity computations.
+   * Throws if @ruvector/attention is not available.
+   */
+  private async initializeFlashAttention(): Promise<void> {
+    const { createQEFlashAttention } = await import('../../../integrations/ruvector/wrappers.js');
+    this.flashAttention = await createQEFlashAttention(
+      'defect-matching',
+      this.config.flashAttentionConfig
+    );
+    this.flashAttentionAvailable = true;
+    console.log('[PatternLearnerService] Flash Attention initialized for defect matching');
+  }
+
+  /**
+   * Ensure Flash Attention is initialized before use.
+   */
+  private async ensureFlashAttentionInitialized(): Promise<void> {
+    if (this.config.enableFlashAttention && !this.flashAttention) {
+      await this.initializeFlashAttention();
+    }
   }
 
   /**
@@ -281,6 +332,31 @@ export class PatternLearnerService implements IPatternLearnerService {
     return patterns.sort((a, b) => b.frequency - a.frequency);
   }
 
+  /**
+   * Get Flash Attention status and availability
+   * Useful for diagnostics and performance monitoring
+   */
+  getFlashAttentionStatus(): FlashAttentionStatus {
+    let metricsCount = 0;
+    let averageSpeedup: number | null = null;
+    let workload: string | null = null;
+
+    if (this.flashAttention) {
+      const metrics = this.flashAttention.getMetrics();
+      metricsCount = metrics.length;
+      averageSpeedup = this.flashAttention.getAverageSpeedup();
+      workload = this.flashAttention.getWorkload();
+    }
+
+    return {
+      enabled: this.config.enableFlashAttention ?? false,
+      available: this.flashAttentionAvailable,
+      workload,
+      metricsCount,
+      averageSpeedup,
+    };
+  }
+
   // ============================================================================
   // Private Helper Methods
   // ============================================================================
@@ -446,6 +522,9 @@ export class PatternLearnerService implements IPatternLearnerService {
   ): Promise<DefectCluster[]> {
     const clusters: Map<string, DefectCluster> = new Map();
 
+    // Ensure Flash Attention is initialized if enabled
+    await this.ensureFlashAttentionInitialized();
+
     // Generate embeddings for all defects
     const embeddings: { defect: DefectInfo; embedding: number[] }[] = [];
     for (const defect of defects) {
@@ -469,11 +548,11 @@ export class PatternLearnerService implements IPatternLearnerService {
       const clusterMembers: string[] = [defect.id];
       assigned.add(defect.id);
 
-      // Find similar defects
+      // Find similar defects using Flash Attention or cosine similarity fallback
       for (const other of embeddings) {
         if (other.defect.id === defect.id || assigned.has(other.defect.id)) continue;
 
-        const similarity = this.cosineSimilarity(embedding, other.embedding);
+        const similarity = await this.computeSimilarity(embedding, other.embedding);
         if (similarity >= this.config.clusterThreshold) {
           clusterMembers.push(other.defect.id);
           assigned.add(other.defect.id);
@@ -499,6 +578,93 @@ export class PatternLearnerService implements IPatternLearnerService {
     }
 
     return Array.from(clusters.values());
+  }
+
+  /**
+   * Compute similarity between two embeddings using Flash Attention.
+   *
+   * @param a First embedding vector
+   * @param b Second embedding vector
+   * @returns Similarity score between 0 and 1
+   */
+  private async computeSimilarity(a: number[], b: number[]): Promise<number> {
+    if (!this.flashAttention) {
+      throw new Error(
+        '[PatternLearnerService] Flash Attention not initialized. ' +
+        'Call ensureFlashAttentionInitialized() first.'
+      );
+    }
+    return this.computeFlashAttentionSimilarity(a, b);
+  }
+
+  /**
+   * Compute similarity using Flash Attention.
+   * Uses the defect-matching workload configuration for optimal performance.
+   */
+  private async computeFlashAttentionSimilarity(a: number[], b: number[]): Promise<number> {
+    const dim = a.length;
+
+    // Prepare embeddings as Float32Arrays
+    const Q = new Float32Array(dim);
+    const K = new Float32Array(dim);
+    const V = new Float32Array(dim);
+
+    for (let i = 0; i < dim; i++) {
+      Q[i] = a[i];
+      K[i] = b[i];
+      V[i] = b[i];
+    }
+
+    // Compute attention-based similarity
+    const output = await this.flashAttention!.computeFlashAttention(Q, K, V, 1, dim);
+
+    // Compute dot product as similarity score
+    let similarity = 0;
+    for (let i = 0; i < dim; i++) {
+      similarity += output[i] * a[i];
+    }
+
+    // Normalize to 0-1 range
+    return Math.max(0, Math.min(1, (similarity + 1) / 2));
+  }
+
+  /**
+   * Batch compute similarities for multiple embedding pairs using Flash Attention.
+   * More efficient for large-scale pattern matching.
+   *
+   * @param query Query embedding
+   * @param corpus Array of corpus embeddings to compare against
+   * @returns Array of similarity scores
+   */
+  async batchComputeSimilarities(
+    query: number[],
+    corpus: number[][]
+  ): Promise<number[]> {
+    // Ensure Flash Attention is initialized
+    await this.ensureFlashAttentionInitialized();
+
+    if (!this.flashAttention) {
+      throw new Error(
+        '[PatternLearnerService] Flash Attention not initialized. ' +
+        'Ensure @ruvector/attention is installed as a dependency.'
+      );
+    }
+
+    // Use Flash Attention's matchDefectPattern for batch processing
+    const queryF32 = new Float32Array(query);
+    const patternLibrary = corpus.map(e => new Float32Array(e));
+
+    const matches = await this.flashAttention.matchDefectPattern(queryF32, patternLibrary);
+
+    // Convert to similarity array maintaining original order
+    const similarities = new Array<number>(corpus.length).fill(0);
+    for (const match of matches) {
+      if (match.pattern < similarities.length) {
+        // Normalize score to 0-1 range
+        similarities[match.pattern] = Math.max(0, Math.min(1, (match.score + 1) / 2));
+      }
+    }
+    return similarities;
   }
 
   private async clusterByBehavior(
@@ -717,22 +883,5 @@ export class PatternLearnerService implements IPatternLearnerService {
     ].filter(Boolean);
 
     return parts.join('\n');
-  }
-
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    return denominator === 0 ? 0 : dotProduct / denominator;
   }
 }

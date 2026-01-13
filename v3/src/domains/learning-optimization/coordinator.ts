@@ -47,6 +47,15 @@ import {
   MetricsOptimizerService,
   ProductionIntelService,
 } from './services/index.js';
+import {
+  QESONA,
+  createDomainQESONA,
+  type QESONAPattern,
+  type QEPatternType,
+  type QESONAStats,
+  type QESONAAdaptationResult,
+} from '../../integrations/ruvector/wrappers.js';
+import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 /**
  * Workflow status tracking
@@ -96,6 +105,12 @@ export class LearningOptimizationCoordinator
   private readonly productionIntel: ProductionIntelService;
   private initialized = false;
 
+  /**
+   * QESONA (Self-Optimizing Neural Architecture) for pattern learning
+   * Provides <0.05ms pattern adaptation via @ruvector/sona
+   */
+  private sona!: QESONA;
+
   constructor(
     private readonly eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -110,10 +125,15 @@ export class LearningOptimizationCoordinator
   }
 
   /**
-   * Initialize the coordinator
+   * Initialize the coordinator.
+   * Throws if QESONA fails to initialize.
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    // Initialize QESONA for neural pattern learning
+    this.sona = createDomainQESONA('learning-optimization');
+    console.log('[LearningOptimizationCoordinator] QESONA initialized for pattern learning');
 
     // Subscribe to relevant events
     this.subscribeToEvents();
@@ -133,6 +153,11 @@ export class LearningOptimizationCoordinator
 
     // Clear active workflows
     this.workflows.clear();
+
+    // Clear SONA
+    if (this.initialized && this.sona) {
+      this.sona.clear();
+    }
 
     this.initialized = false;
   }
@@ -521,6 +546,188 @@ export class LearningOptimizationCoordinator
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
+  }
+
+  // ============================================================================
+  // QESONA Pattern Learning Methods (via @ruvector/sona)
+  // ============================================================================
+
+  /**
+   * Learn a pattern using QESONA neural architecture.
+   * Creates patterns with <0.05ms adaptation time via @ruvector/sona.
+   *
+   * @param state - RL state representing the learning context
+   * @param action - Action taken in this state
+   * @param outcome - Outcome of the action (reward, success, quality)
+   * @param patternType - Type of pattern to create
+   * @param domain - Source domain for this pattern
+   * @param metadata - Optional additional metadata
+   * @returns The created QESONA pattern
+   * @throws Error if coordinator is not initialized
+   */
+  learnPattern(
+    state: RLState,
+    action: RLAction,
+    outcome: QESONAPattern['outcome'],
+    patternType: QEPatternType,
+    domain: DomainName,
+    metadata?: Record<string, unknown>
+  ): QESONAPattern {
+    this.ensureInitialized();
+    return this.sona.createPattern(state, action, outcome, patternType, domain, metadata);
+  }
+
+  /**
+   * Ensure the coordinator is initialized before use.
+   */
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new Error(
+        '[LearningOptimizationCoordinator] Not initialized. Call initialize() first.'
+      );
+    }
+  }
+
+  /**
+   * Adapt a pattern based on current context using QESONA.
+   * Leverages @ruvector/sona's HNSW-indexed pattern matching for <0.05ms adaptation.
+   *
+   * @param state - Current RL state to adapt pattern for
+   * @param patternType - Type of pattern to search for
+   * @param domain - Domain to search within
+   * @returns Adaptation result including matched pattern and similarity score
+   * @throws Error if coordinator is not initialized
+   */
+  async adaptPattern(
+    state: RLState,
+    patternType: QEPatternType,
+    domain: DomainName
+  ): Promise<QESONAAdaptationResult> {
+    this.ensureInitialized();
+    return this.sona.adaptPattern(state, patternType, domain);
+  }
+
+  /**
+   * Get QESONA statistics including pattern counts, adaptation times, and engine stats.
+   *
+   * @returns QESONA statistics
+   * @throws Error if coordinator is not initialized
+   */
+  getSONAStats(): QESONAStats {
+    this.ensureInitialized();
+    return this.sona.getStats();
+  }
+
+  /**
+   * Get all QESONA patterns.
+   *
+   * @returns Array of QESONA patterns
+   * @throws Error if coordinator is not initialized
+   */
+  getSONAPatterns(): QESONAPattern[] {
+    this.ensureInitialized();
+    return this.sona.getAllPatterns();
+  }
+
+  /**
+   * Get QESONA patterns by type.
+   *
+   * @param type - Pattern type to filter by
+   * @returns Array of matching QESONA patterns
+   * @throws Error if coordinator is not initialized
+   */
+  getSONAPatternsByType(type: QEPatternType): QESONAPattern[] {
+    this.ensureInitialized();
+    return this.sona.getPatternsByType(type);
+  }
+
+  /**
+   * Get QESONA patterns by domain.
+   *
+   * @param domain - Domain to filter by
+   * @returns Array of matching QESONA patterns
+   * @throws Error if coordinator is not initialized
+   */
+  getSONAPatternsByDomain(domain: DomainName): QESONAPattern[] {
+    this.ensureInitialized();
+    return this.sona.getPatternsByDomain(domain);
+  }
+
+  /**
+   * Update QESONA pattern with feedback.
+   * Uses reward signal to update pattern confidence via EWC++.
+   *
+   * @param patternId - ID of pattern to update
+   * @param success - Whether the pattern application was successful
+   * @param quality - Quality score (0-1)
+   * @returns True if update was successful
+   * @throws Error if coordinator is not initialized
+   */
+  updateSONAPattern(patternId: string, success: boolean, quality: number): boolean {
+    this.ensureInitialized();
+    return this.sona.updatePattern(patternId, success, quality);
+  }
+
+  /**
+   * Force QESONA learning cycle.
+   * Triggers background learning with EWC++ consolidation.
+   *
+   * @returns Learning result string
+   * @throws Error if coordinator is not initialized
+   */
+  forceSONALearning(): string {
+    this.ensureInitialized();
+    return this.sona.forceLearn();
+  }
+
+  /**
+   * Check if QESONA is available and initialized.
+   *
+   * @returns True if SONA is available
+   */
+  isSONAAvailable(): boolean {
+    return this.initialized;
+  }
+
+  /**
+   * Export all QESONA patterns for persistence or transfer.
+   *
+   * @returns Array of QESONA patterns
+   * @throws Error if coordinator is not initialized
+   */
+  exportSONAPatterns(): QESONAPattern[] {
+    this.ensureInitialized();
+    return this.sona.exportPatterns();
+  }
+
+  /**
+   * Import QESONA patterns from external source.
+   * Clears existing patterns and loads new ones.
+   *
+   * @param patterns - Array of patterns to import
+   * @throws Error if coordinator is not initialized
+   */
+  importSONAPatterns(patterns: QESONAPattern[]): void {
+    this.ensureInitialized();
+    this.sona.importPatterns(patterns);
+  }
+
+  /**
+   * Verify QESONA performance meets <0.05ms adaptation target.
+   *
+   * @param iterations - Number of iterations to test (default: 100)
+   * @returns Performance verification results
+   * @throws Error if coordinator is not initialized
+   */
+  async verifySONAPerformance(iterations: number = 100): Promise<{
+    targetMet: boolean;
+    avgTimeMs: number;
+    minTimeMs: number;
+    maxTimeMs: number;
+    details: Array<{ iteration: number; timeMs: number }>;
+  }> {
+    this.ensureInitialized();
+    return this.sona.verifyPerformance(iterations);
   }
 
   /**

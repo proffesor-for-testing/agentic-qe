@@ -21,18 +21,17 @@ import {
   computeRealEmbedding,
   computeBatchEmbeddings,
 } from '../../src/learning/real-embeddings';
+// Flash attention is now provided by @ruvector/attention via ruvector wrappers
 import {
   QE_FLASH_ATTENTION_CONFIG,
   QE_PERFORMANCE_TARGETS,
   QE_SONA_CONFIG,
   getOptimalBlockConfig,
   getQEFlashAttentionConfig,
-} from '../../src/integrations/flash-attention/config';
-import type {
-  QEWorkloadType,
-  FlashAttentionMetrics,
-  BenchmarkResult,
-} from '../../src/integrations/flash-attention/types';
+  type QEWorkloadType,
+  type FlashAttentionMetrics,
+  type BenchmarkResult,
+} from '../../src/integrations/ruvector/wrappers';
 
 describe('ADR-040 Agentic-Flow Integration Tests', () => {
   let server: MCPProtocolServer;

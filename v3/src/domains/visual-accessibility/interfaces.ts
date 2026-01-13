@@ -349,6 +349,43 @@ export interface IAccessibilityReportRepository {
 // Coordinator Interface
 // ============================================================================
 
+/**
+ * Visual test item for prioritization
+ */
+export interface VisualTestItem {
+  readonly url: string;
+  readonly viewport: Viewport;
+  readonly priority?: number;
+}
+
+/**
+ * Context for visual test prioritization
+ */
+export interface VisualTestPrioritizationContext {
+  readonly urgency: number;
+  readonly availableResources: number;
+  readonly historicalFailureRate: number;
+}
+
+/**
+ * Prioritized visual test with reasoning
+ */
+export interface PrioritizedVisualTest {
+  readonly url: string;
+  readonly viewport: Viewport;
+  readonly priority: number;
+  readonly reason: string;
+}
+
+/**
+ * Result of visual test prioritization
+ */
+export interface VisualTestPrioritizationResult {
+  readonly orderedTests: PrioritizedVisualTest[];
+  readonly strategy: string;
+  readonly confidence: number;
+}
+
 export interface IVisualAccessibilityCoordinator {
   /**
    * Run visual regression test suite
@@ -374,6 +411,15 @@ export interface IVisualAccessibilityCoordinator {
    * Get visual testing status
    */
   getVisualTestingStatus(): Promise<Result<VisualTestingStatus>>;
+
+  /**
+   * Prioritize visual tests using A2C RL
+   * Uses multi-worker actor-critic to determine optimal test order
+   */
+  prioritizeVisualTests(
+    tests: VisualTestItem[],
+    context: VisualTestPrioritizationContext
+  ): Promise<Result<VisualTestPrioritizationResult>>;
 }
 
 export interface VisualTestReport {

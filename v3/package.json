@@ -38,9 +38,9 @@
     "./cli": {
       "import": "./dist/cli/index.js"
     },
-    "./flash-attention": {
-      "import": "./dist/integrations/flash-attention/index.js",
-      "types": "./dist/integrations/flash-attention/index.d.ts"
+    "./ruvector": {
+      "import": "./dist/integrations/ruvector/wrappers.js",
+      "types": "./dist/integrations/ruvector/wrappers.d.ts"
     }
   },
   "files": [
@@ -61,9 +61,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src tests --ext .ts",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist",
-    "benchmark": "tsx src/integrations/flash-attention/benchmark.ts",
-    "benchmark:all": "tsx src/integrations/flash-attention/benchmark.ts --all"
+    "clean": "rm -rf dist"
   },
   "keywords": [
     "agentic",

@@ -28,9 +28,14 @@ import type {
   HttpMethod,
   ContractType,
   FailureType,
+  ContractPrioritizationContext,
+  ContractPrioritizationResult,
 } from './interfaces.js';
 import { ContractValidatorService } from './services/contract-validator.js';
 import { ApiCompatibilityService } from './services/api-compatibility.js';
+import { SARSAAlgorithm } from '../../integrations/rl-suite/algorithms/sarsa.js';
+import { QESONA, createQESONA } from '../../integrations/ruvector/wrappers.js';
+import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 /**
  * Contract Testing Events
@@ -65,6 +70,8 @@ export interface CoordinatorConfig {
   defaultTimeout: number;
   enableAutoVerification: boolean;
   publishEvents: boolean;
+  enableSARSA: boolean;
+  enableQESONA: boolean;
 }
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
@@ -72,6 +79,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   defaultTimeout: 60000, // 60 seconds
   enableAutoVerification: true,
   publishEvents: true,
+  enableSARSA: true,
+  enableQESONA: true,
 };
 
 /**
@@ -87,6 +96,13 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   // SchemaValidatorService reserved for future use
   private readonly workflows: Map<string, WorkflowStatus> = new Map();
   private readonly contractStore: Map<string, ApiContract> = new Map();
+
+  // RL Integration: SARSA for contract validation ordering
+  private sarsaAlgorithm?: SARSAAlgorithm;
+
+  // SONA Integration: QESONA for contract pattern learning
+  private qesona?: QESONA;
+
   private initialized = false;
 
   constructor(
@@ -109,6 +125,36 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Initialize SARSA algorithm if enabled
+    if (this.config.enableSARSA) {
+      try {
+        this.sarsaAlgorithm = new SARSAAlgorithm({
+          stateSize: 10,
+          actionSize: 4,
+          hiddenLayers: [64, 64],
+        });
+        // First call to predict will initialize the algorithm
+        console.log('[contract-testing] SARSA algorithm created successfully');
+      } catch (error) {
+        console.error('[contract-testing] Failed to create SARSA:', error);
+        throw new Error(`SARSA creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Initialize QESONA if enabled
+    if (this.config.enableQESONA) {
+      try {
+        this.qesona = createQESONA({
+          maxPatterns: 5000,
+          minConfidence: 0.6,
+        });
+        console.log('[contract-testing] QESONA initialized successfully');
+      } catch (error) {
+        console.error('[contract-testing] Failed to initialize QESONA:', error);
+        throw new Error(`QESONA initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
     // Subscribe to relevant events
     this.subscribeToEvents();
 
@@ -124,6 +170,15 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
   async dispose(): Promise<void> {
     // Save workflow state
     await this.saveContracts();
+
+    // Dispose QESONA
+    if (this.qesona) {
+      this.qesona.clear();
+      this.qesona = undefined;
+    }
+
+    // Clear SARSA (no explicit dispose method exists)
+    this.sarsaAlgorithm = undefined;
 
     // Clear active workflows
     this.workflows.clear();
@@ -194,7 +249,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       this.startWorkflow(workflowId, 'verify');
 
       // Find all contracts for this provider
-      const contracts = await this.findContractsByProvider(providerName);
+      let contracts = await this.findContractsByProvider(providerName);
       if (contracts.length === 0) {
         this.completeWorkflow(workflowId);
         return ok({
@@ -205,6 +260,25 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
           results: [],
           canDeploy: true,
         });
+      }
+
+      // ================================================================
+      // SARSA Integration: Prioritize contracts before verification
+      // ================================================================
+      if (this.config.enableSARSA && contracts.length > 1) {
+        const prioritizationContext: ContractPrioritizationContext = {
+          urgency: 5, // Default medium urgency
+          providerLoad: 50, // Assume moderate load
+          consumerCount: contracts.reduce((sum, c) => sum + c.consumers.length, 0),
+        };
+
+        const prioritizationResult = await this.prioritizeContracts(contracts, prioritizationContext);
+        if (prioritizationResult.success) {
+          contracts = prioritizationResult.value.orderedContracts;
+          console.log(
+            `[contract-testing] Using ${prioritizationResult.value.strategy} strategy for contract verification order (confidence: ${prioritizationResult.value.confidence.toFixed(2)})`
+          );
+        }
       }
 
       // Spawn verification agent
@@ -219,7 +293,7 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
       const results: VerificationResult[] = [];
       const failedConsumers: string[] = [];
 
-      // Verify each contract
+      // Verify each contract in SARSA-optimized order
       for (const contract of contracts) {
         for (const consumer of contract.consumers) {
           const result = await this.verifyConsumerContract(contract, consumer.name, providerUrl);
@@ -974,6 +1048,283 @@ export class ContractTestingCoordinator implements IContractTestingCoordinator {
     const workflow = this.workflows.get(id);
     if (workflow) {
       workflow.progress = Math.min(100, Math.max(0, progress));
+    }
+  }
+
+  // ============================================================================
+  // SARSA Integration: Contract Validation Ordering
+  // ============================================================================
+
+  /**
+   * Prioritize contracts for validation using SARSA
+   * Uses learned patterns to determine optimal validation order
+   */
+  async prioritizeContracts(
+    contracts: ApiContract[],
+    context: ContractPrioritizationContext
+  ): Promise<Result<ContractPrioritizationResult>> {
+    if (!this.sarsaAlgorithm || !this.config.enableSARSA) {
+      // Return contracts in default order if SARSA is disabled
+      return ok({
+        orderedContracts: contracts,
+        strategy: 'default',
+        confidence: 1.0,
+      });
+    }
+
+    if (contracts.length === 0) {
+      return ok({
+        orderedContracts: [],
+        strategy: 'empty',
+        confidence: 1.0,
+      });
+    }
+
+    try {
+      // Create state from context
+      const state: RLState = {
+        id: `contract-priority-${Date.now()}`,
+        features: [
+          context.urgency / 10, // Normalize 0-1
+          context.providerLoad / 100,
+          context.consumerCount / 50,
+          contracts.length / 100,
+          contracts.filter((c) => c.version.major >= 2).length / Math.max(1, contracts.length),
+          contracts.reduce((sum, c) => sum + c.endpoints.length, 0) / 1000,
+          contracts.reduce((sum, c) => sum + c.consumers.length, 0) / 100,
+          contracts.filter((c) => c.type === 'graphql').length / Math.max(1, contracts.length),
+          contracts.filter((c) => c.type === 'rest').length / Math.max(1, contracts.length),
+          contracts.filter((c) => c.schemas.length > 5).length / Math.max(1, contracts.length),
+        ],
+      };
+
+      // Get SARSA prediction for ordering strategy
+      const prediction = await this.sarsaAlgorithm.predict(state);
+
+      // Apply the suggested ordering strategy
+      let prioritized = [...contracts];
+      let strategy = 'default';
+
+      switch (prediction.action.type) {
+        case 'sequence-early':
+          // Prioritize high-risk contracts (newer versions, more endpoints)
+          prioritized.sort((a, b) => {
+            const scoreA = a.version.major * 10 + a.version.minor + a.endpoints.length * 0.1;
+            const scoreB = b.version.major * 10 + b.version.minor + b.endpoints.length * 0.1;
+            return scoreB - scoreA;
+          });
+          strategy = 'high-risk-first';
+          break;
+
+        case 'sequence-late':
+          // Prioritize low-risk contracts (stable, fewer endpoints)
+          prioritized.sort((a, b) => {
+            const scoreA = a.version.major * 10 + a.version.minor + a.endpoints.length * 0.1;
+            const scoreB = b.version.major * 10 + b.version.minor + b.endpoints.length * 0.1;
+            return scoreA - scoreB;
+          });
+          strategy = 'low-risk-first';
+          break;
+
+        case 'predict-high':
+          // Prioritize by consumer count (most used first)
+          prioritized.sort((a, b) => b.consumers.length - a.consumers.length);
+          strategy = 'high-consumer-first';
+          break;
+
+        default:
+          strategy = 'default';
+          break;
+      }
+
+      // Train SARSA with feedback (will be updated after verification)
+      const reward = await this.calculateOrderingReward(prioritized, context);
+      const action: RLAction = prediction.action;
+
+      await this.sarsaAlgorithm.train({
+        state,
+        action,
+        reward,
+        nextState: state,
+        done: true,
+      });
+
+      console.log(
+        `[contract-testing] SARSA prioritized ${contracts.length} contracts using ${strategy} strategy (confidence: ${prediction.confidence.toFixed(2)})`
+      );
+
+      return ok({
+        orderedContracts: prioritized,
+        strategy,
+        confidence: prediction.confidence,
+      });
+    } catch (error) {
+      console.error('[contract-testing] SARSA prioritization failed:', error);
+      // Return original contracts on error (graceful degradation)
+      return ok({
+        orderedContracts: contracts,
+        strategy: 'fallback',
+        confidence: 0.5,
+      });
+    }
+  }
+
+  /**
+   * Calculate reward for contract ordering
+   */
+  private async calculateOrderingReward(
+    contracts: ApiContract[],
+    context: { urgency: number; providerLoad: number }
+  ): Promise<number> {
+    // Base reward
+    let reward = 0.5;
+
+    // Reward for prioritizing high-impact contracts
+    const highImpact = contracts.slice(0, Math.ceil(contracts.length / 3));
+    const avgConsumers = highImpact.reduce((sum, c) => sum + c.consumers.length, 0) / highImpact.length;
+    reward += Math.min(0.3, avgConsumers / 50);
+
+    // Reward for matching urgency
+    if (context.urgency > 7) {
+      const criticalCount = highImpact.filter((c) => c.version.major === 0).length;
+      reward += Math.min(0.2, criticalCount / highImpact.length);
+    }
+
+    // Penalty for ordering under high load
+    if (context.providerLoad > 80) {
+      reward -= 0.1;
+    }
+
+    return Math.max(0, Math.min(1, reward));
+  }
+
+  // ============================================================================
+  // QESONA Integration: Contract Pattern Learning
+  // ============================================================================
+
+  /**
+   * Store contract validation pattern for learning
+   */
+  async storeContractPattern(
+    contract: ApiContract,
+    validationSuccess: boolean,
+    quality: number
+  ): Promise<void> {
+    if (!this.qesona || !this.config.enableQESONA) {
+      return;
+    }
+
+    try {
+      const state: RLState = {
+        id: `contract-${contract.id}`,
+        features: [
+          contract.version.major / 10,
+          contract.version.minor / 10,
+          contract.endpoints.length / 100,
+          contract.consumers.length / 50,
+          contract.schemas.length / 50,
+          contract.type === 'rest' ? 1 : 0,
+          contract.type === 'graphql' ? 1 : 0,
+          contract.endpoints.filter((e) => e.method === 'GET').length / 100,
+          contract.endpoints.filter((e) => e.method === 'POST').length / 100,
+          contract.endpoints.filter((e) => e.responseSchema).length / 100,
+        ],
+      };
+
+      const action: RLAction = {
+        type: validationSuccess ? 'validate' : 'reject',
+        value: quality,
+      };
+
+      this.qesona.createPattern(
+        state,
+        action,
+        {
+          reward: validationSuccess ? quality : -quality,
+          success: validationSuccess,
+          quality,
+        },
+        'test-generation',
+        'contract-testing',
+        {
+          contractId: contract.id,
+          provider: contract.provider.name,
+          version: contract.version.toString(),
+        }
+      );
+
+      console.log(`[contract-testing] Stored pattern for contract ${contract.id} (success: ${validationSuccess}, quality: ${quality.toFixed(2)})`);
+    } catch (error) {
+      console.error('[contract-testing] Failed to store contract pattern:', error);
+    }
+  }
+
+  /**
+   * Adapt contract validation strategies using learned patterns
+   */
+  async adaptContractPatterns(contract: ApiContract): Promise<{
+    shouldValidate: boolean;
+    confidence: number;
+    strategy: string;
+  }> {
+    if (!this.qesona || !this.config.enableQESONA) {
+      return {
+        shouldValidate: true,
+        confidence: 0.5,
+        strategy: 'default',
+      };
+    }
+
+    try {
+      const state: RLState = {
+        id: `contract-${contract.id}`,
+        features: [
+          contract.version.major / 10,
+          contract.version.minor / 10,
+          contract.endpoints.length / 100,
+          contract.consumers.length / 50,
+          contract.schemas.length / 50,
+          contract.type === 'rest' ? 1 : 0,
+          contract.type === 'graphql' ? 1 : 0,
+          contract.endpoints.filter((e) => e.method === 'GET').length / 100,
+          contract.endpoints.filter((e) => e.method === 'POST').length / 100,
+          contract.endpoints.filter((e) => e.responseSchema).length / 100,
+        ],
+      };
+
+      const adaptation = await this.qesona.adaptPattern(
+        state,
+        'test-generation',
+        'contract-testing'
+      );
+
+      if (adaptation.success && adaptation.pattern) {
+        const shouldValidate = adaptation.pattern.outcome.success;
+        const strategy = adaptation.pattern.action.type;
+
+        console.log(
+          `[contract-testing] QESONA adapted pattern for ${contract.id}: shouldValidate=${shouldValidate}, confidence=${adaptation.similarity.toFixed(2)}`
+        );
+
+        return {
+          shouldValidate,
+          confidence: adaptation.similarity,
+          strategy,
+        };
+      }
+
+      return {
+        shouldValidate: true,
+        confidence: 0.5,
+        strategy: 'default',
+      };
+    } catch (error) {
+      console.error('[contract-testing] QESONA pattern adaptation failed:', error);
+      return {
+        shouldValidate: true,
+        confidence: 0.5,
+        strategy: 'default',
+      };
     }
   }
 

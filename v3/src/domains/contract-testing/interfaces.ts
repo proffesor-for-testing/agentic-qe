@@ -404,6 +404,24 @@ export interface IVerificationResultRepository {
 // Coordinator Interface
 // ============================================================================
 
+/**
+ * Context for contract prioritization
+ */
+export interface ContractPrioritizationContext {
+  readonly urgency: number;
+  readonly providerLoad: number;
+  readonly consumerCount: number;
+}
+
+/**
+ * Result of contract prioritization
+ */
+export interface ContractPrioritizationResult {
+  readonly orderedContracts: ApiContract[];
+  readonly strategy: string;
+  readonly confidence: number;
+}
+
 export interface IContractTestingCoordinator {
   /**
    * Register new contract
@@ -432,6 +450,15 @@ export interface IContractTestingCoordinator {
    * Export contract to OpenAPI spec
    */
   exportToOpenAPI(contractId: string): Promise<Result<string>>;
+
+  /**
+   * Prioritize contracts for validation using SARSA RL
+   * Uses learned patterns to determine optimal validation order
+   */
+  prioritizeContracts(
+    contracts: ApiContract[],
+    context: ContractPrioritizationContext
+  ): Promise<Result<ContractPrioritizationResult>>;
 }
 
 export interface ProviderVerificationReport {
