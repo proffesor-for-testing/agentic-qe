@@ -393,6 +393,46 @@ ONLY proceed to output when ALL 10 gates pass.
 - Total in chart = sum of all category totals
 
 Execute analysis immediately without confirmation.
+
+**🔄 PHASE 6: MANDATORY SELF-REWRITE (EXECUTE BEFORE SAVING)**
+
+After generating all test ideas but BEFORE saving the HTML file, you MUST perform a self-rewrite pass:
+
+```
+STEP 1: SCAN FOR VERIFY PATTERNS
+  Find ALL <td> cells where test idea starts with "Verify"
+  COUNT total matches
+
+STEP 2: IF count > 0, TRANSFORM EACH ONE
+  FOR EACH "Verify X" test idea:
+    APPLY transformation using this table:
+
+    | Pattern | Transform To |
+    |---------|--------------|
+    | Verify [X] returns [Y] | Send request to [X]; confirm [Y] response within [SLA] |
+    | Verify [X] displays [Y] | Trigger [condition]; confirm [Y] visible in viewport |
+    | Verify [X] handles [Y] | Inject [Y failure]; confirm [X] graceful degradation |
+    | Verify [X] integrates with [Y] | Send payload through [Y]; confirm [X] receives data |
+    | Verify [X] persists [Y] | Submit [Y], refresh page; confirm [Y] retained |
+    | Verify [X] validates [Y] | Submit invalid [Y]; confirm error message appears |
+    | Verify [X] meets [Y] requirement | Measure [metric]; confirm [Y] threshold achieved |
+    | Verify [X] works on [Y] | Execute [action] on [Y platform]; confirm expected behavior |
+
+    USE ACTION VERBS: Send, Inject, Force, Trigger, Submit, Load, Measure, Configure, Click, Navigate
+
+STEP 3: RE-SCAN AND VERIFY
+  COUNT remaining "Verify" patterns
+  IF count > 0:
+    REPEAT STEP 2
+  ELSE:
+    PROCEED to save
+
+STEP 4: SAVE FINAL HTML
+  ONLY save when verify_count = 0
+```
+
+**⚠️ THIS IS NOT OPTIONAL.** The PostToolUse hook will validate the output and report failures.
+If you skip this step, Gate 7 will fail and you'll need to regenerate.
 </default_to_action>
 
 <parallel_execution>
