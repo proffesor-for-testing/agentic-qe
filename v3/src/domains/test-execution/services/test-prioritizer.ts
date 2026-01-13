@@ -5,7 +5,7 @@
  * Learns from historical execution data to order tests for optimal feedback speed.
  */
 
-import { Result, ok, err } from '../../../shared/types';
+import { Result, ok, err, type DomainName } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import type {
   RLState,
@@ -42,7 +42,7 @@ export interface TestMetadata {
   testType?: 'unit' | 'integration' | 'e2e' | 'performance' | 'security';
   priority?: 'p0' | 'p1' | 'p2' | 'p3';
   complexity?: number;
-  domain?: string;
+  domain?: DomainName;
   dependencies?: string[];
   estimatedDuration?: number;
   coverage?: number;
@@ -292,7 +292,7 @@ export class TestPrioritizerService {
       totalTests,
       totalExecutions,
       trajectoryCount: this.countTrajectories(),
-      dtStats: this.decisionTransformer.getStats(),
+      dtStats: this.decisionTransformer.getStats() as unknown as Record<string, unknown>,
     };
   }
 

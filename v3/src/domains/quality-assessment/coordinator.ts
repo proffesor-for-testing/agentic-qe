@@ -845,7 +845,7 @@ export class QualityAssessmentCoordinator implements IQualityAssessmentCoordinat
       return {
         thresholds: tunedThresholds,
         confidence: prediction.confidence,
-        reasoning: prediction.reasoning,
+        reasoning: prediction.reasoning ?? '',
       };
     } catch (error) {
       console.error('RL threshold tuning failed:', error);

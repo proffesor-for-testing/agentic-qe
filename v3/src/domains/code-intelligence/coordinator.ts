@@ -33,6 +33,7 @@ import {
   DependencyMap,
   KGQueryRequest,
   KGQueryResult,
+  SearchResult,
 } from './interfaces';
 import {
   KnowledgeGraphService,
@@ -54,9 +55,13 @@ import {
   QEGNNIndexFactory,
   toIEmbedding,
   initGNN,
-  type IEmbedding,
-  type EmbeddingNamespace,
 } from '../../integrations/ruvector/wrappers';
+
+// Embeddings types
+import type {
+  IEmbedding,
+  EmbeddingNamespace,
+} from '../../integrations/embeddings/base/types';
 
 // V3 Integration: SONA for code pattern learning
 import {
@@ -587,8 +592,8 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
         namespace: 'code' as EmbeddingNamespace,
       });
 
-      return results.map((r) => ({
-        file: (r.metadata as { path: string }).path,
+      return results.map((r: { id: number; distance: number; metadata?: { path?: string } }) => ({
+        file: r.metadata?.path ?? `file-${r.id}`,
         similarity: 1 - r.distance,
       }));
     } catch (error) {
@@ -651,14 +656,19 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
     }
 
     try {
+      // Get language filter from filters array if present (field='language', value=<lang>)
+      const languageFilter = Array.isArray(request.filters)
+        ? (request.filters.find(f => f.field === 'language')?.value as string | undefined)
+        : undefined;
+
       const state: RLState = {
         id: `search-${request.type}`,
         features: [
           request.query.length,
           request.type === 'semantic' ? 1 : 0,
-          request.type === 'structural' ? 1 : 0,
-          request.filters?.language === 'typescript' ? 1 : 0,
-          request.filters?.language === 'javascript' ? 1 : 0,
+          request.type === 'exact' ? 1 : 0, // Changed from 'structural' which doesn't exist
+          languageFilter === 'typescript' ? 1 : 0,
+          languageFilter === 'javascript' ? 1 : 0,
         ],
       };
 
@@ -741,29 +751,41 @@ export class CodeIntelligenceCoordinator implements ICodeIntelligenceCoordinator
    * Merge search results from semantic search and GNN
    */
   private mergeSearchResults(
-    semanticResults: Array<{ file: string; score: number }>,
+    semanticResults: SearchResult[],
     gnnResults: Array<{ file: string; similarity: number }>
-  ): Array<{ file: string; score: number }> {
-    const merged = new Map<string, number>();
+  ): SearchResult[] {
+    const scoreMap = new Map<string, number>();
+    const resultMap = new Map<string, SearchResult>();
 
     // Add semantic results
     for (const result of semanticResults) {
-      merged.set(result.file, result.score);
+      scoreMap.set(result.file, result.score);
+      resultMap.set(result.file, result);
     }
 
     // Merge GNN results (weighted average)
-    for (const result of gnnResults) {
-      const existing = merged.get(result.file);
-      if (existing !== undefined) {
-        merged.set(result.file, (existing + result.similarity) / 2);
+    for (const gnnResult of gnnResults) {
+      const existingScore = scoreMap.get(gnnResult.file);
+      if (existingScore !== undefined) {
+        scoreMap.set(gnnResult.file, (existingScore + gnnResult.similarity) / 2);
       } else {
-        merged.set(result.file, result.similarity * 0.8); // Slightly lower weight for GNN-only
+        // Create a new SearchResult for GNN-only results
+        scoreMap.set(gnnResult.file, gnnResult.similarity * 0.8);
+        resultMap.set(gnnResult.file, {
+          file: gnnResult.file,
+          snippet: '',
+          score: gnnResult.similarity * 0.8,
+          highlights: [],
+        });
       }
     }
 
-    // Convert to array and sort
-    return Array.from(merged.entries())
-      .map(([file, score]) => ({ file, score }))
+    // Update scores and sort
+    return Array.from(resultMap.values())
+      .map(result => ({
+        ...result,
+        score: scoreMap.get(result.file) ?? result.score,
+      }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 20); // Top 20 results
   }

@@ -59,7 +59,7 @@ import type { RLState, RLAction, RLExperience, RLPrediction } from '../../integr
 import {
   QEFlashAttention,
   createQEFlashAttention,
-  type QEAttentionResult,
+  type QEWorkloadType,
 } from '../../integrations/ruvector/wrappers.js';
 
 // ============================================================================
@@ -87,6 +87,10 @@ export interface IExtendedSecurityComplianceCoordinator
     standardId: string,
     context: ComplianceContext
   ): Promise<Result<ComplianceReport>>;
+
+  // ISecurityComplianceCoordinator implementation
+  runComplianceCheck(standardId: string): Promise<Result<ComplianceReport>>;
+  getSecurityPosture(): Promise<Result<SecurityPosture>>;
 }
 
 // ============================================================================
@@ -189,19 +193,20 @@ export class SecurityComplianceCoordinator
           stateSize: 8,
           actionSize: 5,
           hiddenLayers: [128, 128],
-          learningRate: 0.001,
-          discountFactor: 0.95,
-          explorationRate: 0.1,
+          targetUpdateFreq: 100,
+          minReplaySize: 100,
+          doubleDQN: true,
         });
-        await this.dqnAlgorithm.initialize();
+        // DQN initializes automatically in constructor
       }
 
       // Initialize Flash Attention for vulnerability similarity
       if (this.config.enableFlashAttention) {
-        this.flashAttention = createQEFlashAttention({
-          embeddingDim: 384,
+        const workloadType: QEWorkloadType = 'test-similarity';
+        this.flashAttention = await createQEFlashAttention(workloadType, {
+          dim: 384,
+          strategy: 'flash',
           numHeads: 8,
-          maxSequenceLength: 512,
         });
       }
 
@@ -256,12 +261,12 @@ export class SecurityComplianceCoordinator
       this.addAgentToWorkflow(workflowId, agentResult.value);
 
       // V3: Use DQN to optimize test prioritization
-      let prioritizedTests = options.tests || [];
+      let prioritizedTests = (options as { tests?: string[] }).tests || [];
       if (this.config.enableDQN && this.dqnAlgorithm && prioritizedTests.length > 0) {
         prioritizedTests = await this.prioritizeSecurityTests(options, prioritizedTests);
       }
 
-      const optimizedOptions = { ...options, tests: prioritizedTests };
+      const optimizedOptions = { ...options };
 
       // Run the audit
       const result = await this.securityAuditor.runAudit(optimizedOptions);
@@ -270,8 +275,9 @@ export class SecurityComplianceCoordinator
         this.completeWorkflow(workflowId);
 
         // V3: Use Flash Attention to find similar vulnerabilities
-        if (this.config.enableFlashAttention && this.flashAttention && result.value.vulnerabilities) {
-          await this.enhanceVulnerabilityAnalysis(result.value.vulnerabilities);
+        const vulnerabilities = this.extractVulnerabilitiesFromReport(result.value);
+        if (this.config.enableFlashAttention && this.flashAttention && vulnerabilities.length > 0) {
+          await this.enhanceVulnerabilityAnalysis(vulnerabilities);
         }
 
         // V3: Train DQN with audit feedback
@@ -310,8 +316,16 @@ export class SecurityComplianceCoordinator
     try {
       this.startWorkflow(workflowId, 'scan');
 
-      // Run scan
-      const result = await this.securityScanner.scan(files, { type: scanType });
+      // Run scan based on type
+      let result: Result<SASTResult | DASTResult>;
+      if (scanType === 'sast') {
+        result = await this.securityScanner.scanFiles(files);
+      } else if (scanType === 'dast') {
+        result = await this.securityScanner.scanUrl(files[0]?.value ?? '');
+      } else {
+        // Full scan
+        result = await this.securityScanner.scanFiles(files);
+      }
 
       if (result.success) {
         this.completeWorkflow(workflowId);
@@ -339,7 +353,13 @@ export class SecurityComplianceCoordinator
     try {
       this.startWorkflow(workflowId, 'compliance');
 
-      const result = await this.complianceValidator.validate(standardId, context);
+      // Get standard by ID and validate
+      const standards = await this.complianceValidator.getAvailableStandards();
+      const standard = standards.find(s => s.id === standardId);
+      if (!standard) {
+        return err(new Error(`Unknown compliance standard: ${standardId}`));
+      }
+      const result = await this.complianceValidator.validate(standard, context);
 
       if (result.success) {
         this.completeWorkflow(workflowId);
@@ -369,20 +389,48 @@ export class SecurityComplianceCoordinator
     try {
       this.startWorkflow(workflowId, 'posture');
 
-      const result = await this.securityAuditor.assessPosture();
+      const result = await this.securityAuditor.getSecurityPosture();
 
       if (result.success) {
         this.completeWorkflow(workflowId);
+        // Map to SecurityPosture interface
+        const posture: SecurityPosture = {
+          overallScore: result.value.overallScore,
+          trend: result.value.trend as 'improving' | 'stable' | 'declining',
+          criticalVulnerabilities: result.value.criticalIssues,
+          complianceStatus: new Map(),
+          lastAuditDate: result.value.lastAuditDate,
+        };
+        return ok(posture);
       } else {
         this.failWorkflow(workflowId, result.error.message);
+        return result as Result<SecurityPosture>;
       }
-
-      return result;
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.failWorkflow(workflowId, err.message);
       return { success: false, error: err };
     }
+  }
+
+  /**
+   * Run compliance check (ISecurityComplianceCoordinator implementation)
+   */
+  async runComplianceCheck(standardId: string): Promise<Result<ComplianceReport>> {
+    // Create default context
+    const context: ComplianceContext = {
+      projectRoot: FilePath.create('.'),
+      includePatterns: ['**/*.ts', '**/*.js'],
+      excludePatterns: ['node_modules/**'],
+    };
+    return this.runComplianceValidation(standardId, context);
+  }
+
+  /**
+   * Get security posture (ISecurityComplianceCoordinator implementation)
+   */
+  async getSecurityPosture(): Promise<Result<SecurityPosture>> {
+    return this.assessSecurityPosture();
   }
 
   // ==========================================================================
@@ -438,14 +486,15 @@ export class SecurityComplianceCoordinator
     }
 
     try {
+      const vulnerabilities = this.extractVulnerabilitiesFromReport(report);
       const state: RLState = {
-        id: `audit-${options.target}-${Date.now()}`,
+        id: `audit-${report.auditId}-${Date.now()}`,
         features: this.extractAuditFeatures(options),
       };
 
       const action: RLAction = {
         type: 'run-audit',
-        value: report.vulnerabilities.length,
+        value: vulnerabilities.length,
       };
 
       // Reward based on vulnerability findings
@@ -457,9 +506,10 @@ export class SecurityComplianceCoordinator
         reward,
         nextState: state,
         done: true,
+        timestamp: new Date(),
       };
 
-      await this.dqnAlgorithm.train([experience]);
+      await this.dqnAlgorithm.train(experience);
       console.log(`[DQN] Trained security audit with reward: ${reward.toFixed(3)}`);
     } catch (error) {
       console.error('Failed to train DQN:', error);
@@ -470,19 +520,23 @@ export class SecurityComplianceCoordinator
    * Calculate reward for security audit
    */
   private calculateAuditReward(report: SecurityAuditReport): number {
+    const vulnerabilities = this.extractVulnerabilitiesFromReport(report);
+    if (vulnerabilities.length === 0) {
+      return 0.5; // Neutral reward if no vulnerabilities found
+    }
+
     let reward = 0.5;
 
     // Reward finding critical vulnerabilities
-    const critical = report.vulnerabilities.filter((v) => v.severity === 'critical').length;
+    const critical = vulnerabilities.filter((v) => v.severity === 'critical').length;
     reward += Math.min(0.3, critical * 0.1);
 
     // Reward high severity findings
-    const high = report.vulnerabilities.filter((v) => v.severity === 'high').length;
+    const high = vulnerabilities.filter((v) => v.severity === 'high').length;
     reward += Math.min(0.2, high * 0.05);
 
-    // Penalty for false positives (low confidence)
-    const lowConfidence = report.vulnerabilities.filter((v) => v.confidence < 0.5).length;
-    reward -= (lowConfidence / report.vulnerabilities.length) * 0.2;
+    // Use risk score as additional factor
+    reward += (report.overallRiskScore?.value ?? 0) * 0.1;
 
     return Math.max(0, Math.min(1, reward));
   }
@@ -491,10 +545,11 @@ export class SecurityComplianceCoordinator
    * Extract features from security test for DQN state
    */
   private extractSecurityTestFeatures(options: SecurityAuditOptions, test: string): number[] {
+    const targetUrl = options.targetUrl ?? '';
     return [
-      options.target === 'api' ? 1 : 0,
-      options.target === 'web' ? 1 : 0,
-      options.target === 'mobile' ? 1 : 0,
+      targetUrl.includes('/api') ? 1 : 0,
+      targetUrl.startsWith('http') ? 1 : 0,
+      options.includeSAST ? 1 : 0,
       test.includes('auth') ? 1 : 0,
       test.includes('sql') ? 1 : 0,
       test.includes('xss') ? 1 : 0,
@@ -507,15 +562,17 @@ export class SecurityComplianceCoordinator
    * Extract features from audit options for DQN state
    */
   private extractAuditFeatures(options: SecurityAuditOptions): number[] {
+    const depth = options.depth ?? 'standard';
+    const depthScore = depth === 'deep' ? 1 : depth === 'standard' ? 0.5 : 0.25;
     return [
-      options.target === 'api' ? 1 : 0,
-      options.target === 'web' ? 1 : 0,
-      options.depth || 1,
-      (options.tests?.length || 0) / 50,
+      options.includeSAST ? 1 : 0,
+      options.includeDAST ? 1 : 0,
+      depthScore,
+      (options.scanTypes?.length ?? 0) / 4,
       options.includeDependencies ? 1 : 0,
-      options.checkCompliance ? 1 : 0,
-      options.severity === 'critical' ? 1 : 0,
-      options.severity === 'high' ? 1 : 0,
+      options.includeSecrets ? 1 : 0,
+      (options.complianceFrameworks?.length ?? 0) / 5,
+      options.targetUrl ? 1 : 0,
     ];
   }
 
@@ -534,25 +591,30 @@ export class SecurityComplianceCoordinator
     try {
       // Create embeddings for each vulnerability
       const embeddings = vulnerabilities.map((v) => this.createVulnerabilityEmbedding(v));
+      const seqLen = embeddings.length;
+      const dim = embeddings[0].length;
+
+      // Convert to Float32Arrays for Flash Attention
+      const Q = new Float32Array(seqLen * dim);
+      const K = new Float32Array(seqLen * dim);
+      const V = new Float32Array(seqLen * dim);
+
+      for (let i = 0; i < seqLen; i++) {
+        Q.set(embeddings[i], i * dim);
+        K.set(embeddings[i], i * dim);
+        V.set(embeddings[i], i * dim);
+      }
 
       // Use Flash Attention to compute similarities
-      const attentionResult = await this.flashAttention.computeAttention(
-        embeddings,
-        embeddings,
-        embeddings
-      );
+      const attentionResult = await this.flashAttention.computeFlashAttention(Q, K, V, seqLen, dim);
 
-      // Find similar vulnerabilities
+      // Find similar vulnerabilities based on attention output
       for (let i = 0; i < vulnerabilities.length; i++) {
-        const similarities = attentionResult.attentionWeights[i];
-        const similarIndices = similarities
-          .map((score, idx) => ({ score, idx }))
-          .filter((s) => s.idx !== i && s.score > 0.7)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 3);
+        const outputSlice = Array.from(attentionResult.slice(i * dim, (i + 1) * dim));
+        const selfSimilarity = embeddings[i].reduce((sum, val, idx) => sum + val * outputSlice[idx], 0);
 
-        if (similarIndices.length > 0) {
-          console.log(`[FlashAttention] Found ${similarIndices.length} similar vulnerabilities to ${vulnerabilities[i].id}`);
+        if (selfSimilarity > 0.7) {
+          console.log(`[FlashAttention] High self-attention for vulnerability ${vulnerabilities[i].id}`);
         }
       }
     } catch (error) {
@@ -567,9 +629,9 @@ export class SecurityComplianceCoordinator
     // Simple embedding based on vulnerability features
     const features: number[] = [];
 
-    // Type encoding
-    const typeHash = this.hashCode(vulnerability.type);
-    features.push((typeHash % 1000) / 1000);
+    // Category encoding (using category instead of type)
+    const categoryHash = this.hashCode(vulnerability.category);
+    features.push((categoryHash % 1000) / 1000);
 
     // Severity encoding
     const severityMap: Record<string, number> = {
@@ -577,18 +639,20 @@ export class SecurityComplianceCoordinator
       high: 0.75,
       medium: 0.5,
       low: 0.25,
+      informational: 0.1,
     };
     features.push(severityMap[vulnerability.severity] || 0.5);
 
-    // Confidence
-    features.push(vulnerability.confidence);
+    // Title hash as proxy for similarity
+    const titleHash = this.hashCode(vulnerability.title);
+    features.push((titleHash % 1000) / 1000);
 
     // Description length
     features.push(Math.min(1, vulnerability.description.length / 500));
 
-    // CWE/CVE encoding
-    const cweHash = vulnerability.cwe ? this.hashCode(vulnerability.cwe) : 0;
-    features.push((cweHash % 1000) / 1000);
+    // CVE encoding (using cveId instead of cwe)
+    const cveHash = vulnerability.cveId ? this.hashCode(vulnerability.cveId) : 0;
+    features.push((cveHash % 1000) / 1000);
 
     // Fill with hashed description features
     const descHash = this.hashCode(vulnerability.description.slice(0, 200));
@@ -626,7 +690,7 @@ export class SecurityComplianceCoordinator
       capabilities: ['security-audit', 'vulnerability-scanning', 'compliance-check'],
       config: {
         workflowId,
-        target: options.target,
+        targetUrl: options.targetUrl,
         depth: options.depth,
       },
     };
@@ -634,43 +698,64 @@ export class SecurityComplianceCoordinator
     return this.agentCoordinator.spawn(config);
   }
 
+  /**
+   * Extract all vulnerabilities from a SecurityAuditReport
+   */
+  private extractVulnerabilitiesFromReport(report: SecurityAuditReport): Vulnerability[] {
+    const vulnerabilities: Vulnerability[] = [];
+
+    if (report.sastResults?.vulnerabilities) {
+      vulnerabilities.push(...report.sastResults.vulnerabilities);
+    }
+    if (report.dastResults?.vulnerabilities) {
+      vulnerabilities.push(...report.dastResults.vulnerabilities);
+    }
+    if (report.dependencyResults?.vulnerabilities) {
+      vulnerabilities.push(...report.dependencyResults.vulnerabilities);
+    }
+
+    return vulnerabilities;
+  }
+
   // ==========================================================================
   // Event Publishing
   // ==========================================================================
 
   private async publishSecurityAuditCompleted(report: SecurityAuditReport): Promise<void> {
-    const payload: VulnerabilityPayload = {
-      auditId: report.id,
-      vulnerabilities: report.vulnerabilities.map((v) => ({
-        id: v.id,
-        type: v.type,
-        severity: v.severity,
-        confidence: v.confidence,
-      })),
-      riskScore: report.riskScore,
-      timestamp: new Date().toISOString(),
-    };
+    const vulnerabilities = this.extractVulnerabilitiesFromReport(report);
 
-    const event = createEvent(
-      SecurityComplianceEvents.SecurityAuditCompleted,
-      'security-compliance',
-      payload
-    );
+    // Publish events for each vulnerability
+    for (const vuln of vulnerabilities) {
+      const payload: VulnerabilityPayload = {
+        vulnId: vuln.id,
+        cve: vuln.cveId,
+        severity: vuln.severity as 'critical' | 'high' | 'medium' | 'low',
+        file: vuln.location.file,
+        line: vuln.location.line,
+        description: vuln.description,
+        remediation: vuln.remediation.description,
+      };
 
-    await this.eventBus.publish(event);
+      const event = createEvent(
+        SecurityComplianceEvents.SecurityAuditCompleted,
+        'security-compliance',
+        payload
+      );
+
+      await this.eventBus.publish(event);
+    }
   }
 
   private async publishComplianceValidationCompleted(report: ComplianceReport): Promise<void> {
     const payload: CompliancePayload = {
-      standardId: report.standardId,
-      compliant: report.compliant,
-      score: report.score,
-      violations: report.violations,
-      timestamp: new Date().toISOString(),
+      standard: report.standardId,
+      passed: report.complianceScore >= 0.8, // Consider 80%+ as compliant
+      violations: report.violations.length,
+      findings: report.violations.map(v => v.details).slice(0, 10),
     };
 
     const event = createEvent(
-      SecurityComplianceEvents.ComplianceValidationCompleted,
+      SecurityComplianceEvents.ComplianceValidated,
       'security-compliance',
       payload
     );

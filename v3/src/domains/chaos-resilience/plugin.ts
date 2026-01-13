@@ -161,6 +161,10 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
       testCircuitBreaker: this.testCircuitBreaker.bind(this),
       testRateLimiting: this.testRateLimiting.bind(this),
 
+      // RL-enhanced methods
+      selectChaosStrategy: this.coordinator!.selectChaosStrategy.bind(this.coordinator),
+      runStrategicChaosSuite: this.coordinator!.runStrategicChaosSuite.bind(this.coordinator),
+
       // Internal access methods
       getCoordinator: () => this.coordinator!,
       getChaosEngineer: () => this.chaosEngineer!,

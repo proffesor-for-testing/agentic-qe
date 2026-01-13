@@ -203,11 +203,13 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
           actionSize: 5,
           actorHiddenLayers: [64, 64],
           criticHiddenLayers: [64, 64],
-          learningRate: 0.001,
-          discountFactor: 0.99,
-          explorationRate: 0.1,
+          clipEpsilon: 0.2,
+          lambdaGAE: 0.95,
+          epochs: 10,
+          miniBatchSize: 32,
+          entropyCoeff: 0.01,
         });
-        await this.ppoAlgorithm.initialize();
+        // PPO is initialized via constructor, no separate initialize() call needed
       }
 
       // Initialize SONA for requirement pattern learning
@@ -375,8 +377,8 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       let optimizedScenarioCount = 3;
       if (this.config.enablePPO && this.ppoAlgorithm) {
         const prediction = await this.optimizeScenarioGeneration(requirement);
-        if (prediction.success && prediction.prediction) {
-          optimizedScenarioCount = this.extractScenarioCount(prediction.prediction);
+        if (prediction.success && prediction.value) {
+          optimizedScenarioCount = this.extractScenarioCount(prediction.value);
           console.log(`[PPO] Optimized scenario count to ${optimizedScenarioCount}`);
         }
       }
@@ -600,11 +602,13 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       // Score each scenario based on PPO predictions
       const scored = await Promise.all(
         scenarios.map(async (scenario) => {
+          // Calculate step count from given/when/then arrays
+          const stepCount = scenario.given.length + scenario.when.length + scenario.then.length;
           const state: RLState = {
             id: `scenario-${scenario.scenario}`,
             features: [
               ...this.extractRequirementFeatures(requirement),
-              scenario.steps.length,
+              stepCount,
               scenario.examples?.rows.length || 0,
             ],
           };
@@ -661,7 +665,7 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
         done: true,
       };
 
-      await this.ppoAlgorithm.train([experience]);
+      await this.ppoAlgorithm.train(experience);
       console.log(`[PPO] Trained with reward: ${reward.toFixed(3)}`);
     } catch (error) {
       console.error('Failed to train PPO:', error);
@@ -717,9 +721,9 @@ export class RequirementsValidationCoordinator implements IRequirementsValidatio
       requirement.priority === 'critical' ? 1 : requirement.priority === 'high' ? 0.5 : 0,
       requirement.type === 'functional' ? 1 : 0,
       requirement.type === 'non-functional' ? 1 : 0,
-      requirement.dependencies?.length || 0,
-      requirement.tags.length,
-      requirement.estimatedComplexity || 0.5,
+      (requirement as { dependencies?: string[] }).dependencies?.length || 0,
+      ((requirement as { tags?: string[] }).tags ?? []).length,
+      (requirement as { estimatedComplexity?: number }).estimatedComplexity || 0.5,
       requirement.status === 'approved' ? 1 : 0,
     ];
   }
