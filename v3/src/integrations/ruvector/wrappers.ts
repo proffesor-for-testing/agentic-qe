@@ -73,6 +73,7 @@ export {
   GNNLayerFactory,
   TensorCompressionFactory,
   initGNN,
+  toFloat32Array as toFloat32ArrayGNN,
   toNumberArray as toNumberArrayGNN,
   toIEmbedding,
   batchDifferentiableSearch,

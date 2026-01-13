@@ -208,9 +208,14 @@ export class QEGNNEmbeddingIndex {
     }
 
     // Use @ruvector/gnn's differentiable search
+    // IMPORTANT: Native bindings require Float32Array, not plain arrays
+    // Type assertions needed because TypeScript types say number[] but runtime requires Float32Array
+    const queryFloat32 = new Float32Array(query.vector);
+    const candidateFloat32s = candidates.map((c) => new Float32Array(c.vector));
+
     const result = differentiableSearch(
-      Array.from(query.vector),
-      candidates.map((c) => c.vector),
+      queryFloat32 as unknown as number[],
+      candidateFloat32s as unknown as number[][],
       Math.min(k, candidates.length),
       1.0 // temperature
     );
@@ -234,14 +239,16 @@ export class QEGNNEmbeddingIndex {
     k: number,
     temperature: number = 1.0
   ): QEDifferentiableResult {
-    const queryVector = Array.from(query.vector);
+    // IMPORTANT: Native bindings require Float32Array, not plain arrays
+    // Type assertions needed because TypeScript types say number[] but runtime requires Float32Array
+    const queryVector = new Float32Array(query.vector);
     const candidateVectors = candidates.map((c) =>
-      Array.from(c.embedding.vector)
+      new Float32Array(c.embedding.vector)
     );
 
     const result = differentiableSearch(
-      queryVector,
-      candidateVectors,
+      queryVector as unknown as number[],
+      candidateVectors as unknown as number[][],
       Math.min(k, candidates.length),
       temperature
     );
@@ -285,7 +292,18 @@ export class QEGNNEmbeddingIndex {
     // Convert to format expected by @ruvector/gnn
     const gnnLayerJson = layer.toJson();
 
-    return hierarchicalForward(query, layerEmbeddings, [gnnLayerJson]);
+    // IMPORTANT: Native bindings require Float32Array, not plain arrays
+    // Type assertions needed because TypeScript types say number[] but runtime requires Float32Array
+    const queryFloat32 = new Float32Array(query);
+    const layerEmbeddingsFloat32 = layerEmbeddings.map((layer) =>
+      layer.map((emb) => new Float32Array(emb))
+    );
+
+    return Array.from(hierarchicalForward(
+      queryFloat32 as unknown as number[],
+      layerEmbeddingsFloat32 as unknown as number[][][],
+      [gnnLayerJson]
+    ));
   }
 
   /**
@@ -311,8 +329,11 @@ export class QEGNNEmbeddingIndex {
     };
     const level = levelMap[rawLevel] ?? 'none';
 
+    // IMPORTANT: Native bindings require Float32Array, not plain arrays
+    // Type assertions needed because TypeScript types say number[] but runtime requires Float32Array
+    const vectorFloat32 = new Float32Array(embedding.vector);
     const compressed = this.compressor.compress(
-      Array.from(embedding.vector),
+      vectorFloat32 as unknown as number[],
       accessFreq
     );
 
@@ -587,7 +608,7 @@ export class TensorCompressionFactory {
    * Compress tensor with specific level
    */
   static compressWithLevel(
-    embedding: number[],
+    embedding: number[] | Float32Array,
     level: QECompressionLevel
   ): string {
     const config: CompressionLevelConfig = {
@@ -599,7 +620,13 @@ export class TensorCompressionFactory {
       threshold: level === 'binary' ? 0.0 : undefined,
     };
 
-    return this.compressor.compressWithLevel(embedding, config);
+    // IMPORTANT: Native bindings require Float32Array, not plain arrays
+    // Type assertions needed because TypeScript types say number[] but runtime requires Float32Array
+    const embeddingFloat32 = embedding instanceof Float32Array
+      ? embedding
+      : new Float32Array(embedding);
+
+    return this.compressor.compressWithLevel(embeddingFloat32 as unknown as number[], config);
   }
 
   /**
@@ -637,6 +664,29 @@ export {
 // ============================================================================
 
 /**
+ * Convert to Float32Array for @ruvector/gnn native bindings
+ *
+ * IMPORTANT: @ruvector/gnn native functions require Float32Array, not plain arrays.
+ * This helper ensures proper type conversion.
+ */
+export function toFloat32Array(
+  input: number[] | Float32Array | IEmbedding
+): Float32Array {
+  if (input instanceof Float32Array) {
+    return input;
+  }
+  if ('vector' in input) {
+    // IEmbedding
+    if (input.vector instanceof Float32Array) {
+      return input.vector;
+    }
+    return new Float32Array(input.vector);
+  }
+  // Plain number array
+  return new Float32Array(input);
+}
+
+/**
  * Convert embedding to plain number array for @ruvector/gnn
  */
 export function toNumberArray(
@@ -669,15 +719,28 @@ export function toIEmbedding(
  * Batch differentiable search for multiple queries
  */
 export function batchDifferentiableSearch(
-  queries: number[][],
-  candidateEmbeddings: number[][],
+  queries: Array<number[] | Float32Array>,
+  candidateEmbeddings: Array<number[] | Float32Array>,
   k: number,
   temperature: number = 1.0
 ): QEDifferentiableResult[] {
   const results: QEDifferentiableResult[] = [];
 
+  // IMPORTANT: Native bindings require Float32Array, not plain arrays
+  // Pre-convert candidates once for efficiency
+  // Type assertions needed because TypeScript types say number[] but runtime requires Float32Array
+  const candidatesFloat32 = candidateEmbeddings.map((c) =>
+    c instanceof Float32Array ? c : new Float32Array(c)
+  );
+
   for (const query of queries) {
-    const result = differentiableSearch(query, candidateEmbeddings, k, temperature);
+    const queryFloat32 = query instanceof Float32Array ? query : new Float32Array(query);
+    const result = differentiableSearch(
+      queryFloat32 as unknown as number[],
+      candidatesFloat32 as unknown as number[][],
+      k,
+      temperature
+    );
     results.push({
       indices: result.indices,
       weights: result.weights,
