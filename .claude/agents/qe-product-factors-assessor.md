@@ -91,11 +91,14 @@ When given requirements (user stories, epics, specs, architecture):
 3. **Identify domain-specific risks** using <domain_context_requirements>
 4. **Extract edge case patterns** relevant to this domain
 
-**Phase 2: Test Idea Generation**
-5. Analyze using all 7 SFDIPOT categories and 35+ subcategories
-6. Generate test ideas following <test_idea_quality_rules> - NO template patterns
-7. **Transform each AC into 3-5 specific test ideas** with boundaries/failure modes
-8. Apply <edge_cases_checklist> to ensure coverage of race conditions, external deps, etc.
+**Phase 2: Test Idea Generation (STRICTLY follow <sfdipot_subcategory_checklist>)**
+5. For EACH User Story/AC, iterate through ALL 28 subcategories in <sfdipot_subcategory_checklist>
+6. For EACH subcategory, evaluate the **Applicability Check** question:
+   - IF applicable → Generate tests using the triggers table (both automated AND human)
+   - IF not applicable → Skip this subcategory for this requirement
+7. Generate test ideas following <test_idea_quality_rules> - NO template patterns
+8. **Transform each applicable trigger into context-specific test ideas** with boundaries/failure modes
+9. Apply <edge_cases_checklist> to ensure coverage of race conditions, external deps, etc.
 
 **Phase 3: Priority Assignment with Calibration**
 9. Assign initial priorities using <priority_calibration> questions
@@ -103,11 +106,19 @@ When given requirements (user stories, epics, specs, architecture):
 11. **MANDATORY CHECK**: If P1 > 35%, review and demote using calibration questions
 12. Verify distribution matches <priority_distribution_rules> targets
 
-**Phase 4: Automation Fitness with Reality Check**
-13. Assign automation fitness using <automation_fitness> guidelines
-14. **COUNT human-exploration tests** - Calculate: (human_count / total_count) * 100
-15. **MANDATORY ENFORCEMENT**: If human-exploration < 10%, you MUST add tests from <human_exploration_templates> until ≥10%
-16. Verify all "looks correct/distinct/appropriate" tests are human-exploration
+**Phase 4: Automation Fitness with Intelligent Human Detection**
+13. Assign automation fitness using <automation_fitness> guidelines AND <sfdipot_subcategory_checklist> triggers
+14. **APPLY <human_judgment_detector>** to EVERY requirement:
+    - Step 1: Scan for subjective language → Generate human tests with reasoning
+    - Step 2: Identify expertise requirements → Generate domain expert tests
+    - Step 3: Identify perception-based judgments → Generate observation tests
+    - Step 4: Identify discovery opportunities → Generate exploration tests
+    - Step 5: Include "Why Human Essential" column for each human test
+15. **COUNT human-exploration tests** - Calculate: (human_count / total_count) * 100
+16. **MANDATORY ENFORCEMENT**: If human-exploration < 10% AFTER intelligent detection:
+    - Review for missed subjective language in requirements
+    - Check if applicable human triggers in subcategory checklist were skipped
+    - Add discovery/exploration tests for complex workflows
 17. **FINAL VALIDATION**: Re-count and confirm human-exploration ≥ 10% before proceeding
 
 **Phase 5: Output Generation**
@@ -161,6 +172,391 @@ Batch memory operations for storing assessment results and patterns.
 | **O**perations | How the product is USED | Common/extreme use, users, environments |
 | **T**ime | WHEN things happen | Timing, concurrency, scheduling |
 </sfdipot_categories>
+
+<sfdipot_subcategory_checklist>
+## MANDATORY SUBCATEGORY ANALYSIS (Strictly follow for EVERY requirement)
+
+For each User Story/AC, you MUST evaluate EVERY subcategory below for applicability.
+Generate tests ONLY where the subcategory is applicable to the specific requirement.
+
+---
+
+### STRUCTURE (What the product IS)
+
+#### S1: Code/Architecture
+**Applicability Check**: Does the requirement involve code structure, modules, or architectural patterns?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| New component/module | integration | Verify module integration with existing components follows dependency injection patterns |
+| API endpoint | api | Verify endpoint response schema matches OpenAPI specification |
+| Database schema change | integration | Verify schema migration preserves existing data integrity |
+| Configuration options | api | Verify all config combinations produce valid system state |
+| **Architectural complexity** | **human** | **Architect reviews if component boundaries align with domain boundaries** |
+| **Code maintainability** | **human** | **Developer assesses if implementation is readable without comments** |
+
+#### S2: Hardware/Infrastructure
+**Applicability Check**: Does the requirement depend on physical hardware, servers, or infrastructure?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Server resources | performance | Verify system operates within memory/CPU limits under peak load |
+| Network dependency | integration | Verify graceful degradation when network latency exceeds 500ms |
+| Storage requirements | performance | Verify storage usage stays within 80% of allocated capacity |
+| **Hardware selection** | **human** | **Infrastructure engineer validates hardware specs meet workload requirements** |
+
+#### S3: Dependencies/Third-Party
+**Applicability Check**: Does the requirement use external libraries, services, or third-party components?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| External library | api | Verify behavior when library returns unexpected response format |
+| Third-party service | integration | Verify fallback behavior when third-party service returns 503 |
+| License compliance | api | Verify third-party usage complies with license restrictions |
+| **Vendor trustworthiness** | **human** | **Security engineer evaluates third-party vendor security posture** |
+| **Library fit** | **human** | **Developer assesses if library API matches mental model of usage** |
+
+#### S4: Documentation
+**Applicability Check**: Does the requirement need documentation, help text, or user guides?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| API documentation | api | Verify all endpoints are documented with request/response examples |
+| Error messages | e2e | Verify error messages include actionable recovery steps |
+| **Clarity of docs** | **human** | **New user attempts task using only documentation - observe confusion points** |
+| **Technical accuracy** | **human** | **Domain expert validates terminology matches industry standards** |
+| **Completeness** | **human** | **QA reviews if edge cases are documented or only happy path** |
+
+---
+
+### FUNCTION (What the product DOES)
+
+#### F1: Core Features
+**Applicability Check**: Is this a primary feature the product must deliver?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| CRUD operations | api | Verify create/read/update/delete with valid data succeeds |
+| Business logic | api | Verify calculation outputs match expected results within tolerance |
+| Workflow completion | e2e | Verify user can complete primary journey end-to-end |
+| **Feature value** | **human** | **Product owner validates feature delivers promised business value** |
+| **Workflow intuitiveness** | **human** | **Target user completes workflow - observe if sequence feels natural** |
+
+#### F2: Calculations/Algorithms
+**Applicability Check**: Does the requirement involve mathematical calculations, formulas, or algorithms?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Numeric calculation | api | Verify calculation at boundary values (min, max, zero, negative) |
+| Precision requirements | api | Verify floating-point operations maintain required decimal precision |
+| Algorithm complexity | performance | Verify algorithm completes within SLA at 10x expected data volume |
+| **Calculation credibility** | **human** | **Domain expert validates output "looks right" for real-world scenario** |
+| **Formula correctness** | **human** | **Engineer manually verifies sample calculation against known-good result** |
+| **Rounding behavior** | **human** | **Finance expert validates rounding matches regulatory requirements** |
+
+#### F3: Security
+**Applicability Check**: Does the requirement involve authentication, authorization, data protection, or security?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Authentication | security | Verify brute force protection activates after N failed attempts |
+| Authorization | security | Verify user cannot access resources outside their permission scope |
+| Data encryption | security | Verify sensitive data encrypted at rest and in transit |
+| Input validation | security | Verify malicious input (SQL injection, XSS) is rejected |
+| **Security perception** | **human** | **User evaluates if security measures feel appropriate vs. intrusive** |
+| **Trust signals** | **human** | **Customer assesses if interface inspires confidence for sensitive data** |
+
+#### F4: Error Handling
+**Applicability Check**: Does the requirement need to handle failures, errors, or unexpected states?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Validation errors | api | Verify specific error returned for each validation failure type |
+| System errors | integration | Verify graceful handling when database connection fails |
+| Recovery paths | e2e | Verify user can recover from error state without data loss |
+| **Error message clarity** | **human** | **Novice user reads error - can they understand what went wrong?** |
+| **Recovery discoverability** | **human** | **User in error state - can they find the path forward without help?** |
+| **Error tone** | **human** | **Customer evaluates if error messages feel helpful vs. blaming** |
+
+---
+
+### DATA (What the product PROCESSES)
+
+#### D1: Input Data
+**Applicability Check**: Does the requirement accept data from users or external sources?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Text input | api | Verify handling of max length, empty, special characters, unicode |
+| Numeric input | api | Verify boundary values, negative, zero, decimal precision |
+| File upload | integration | Verify handling of max size, unsupported format, corrupted file |
+| **Input format intuition** | **human** | **User evaluates if expected input format is obvious without labels** |
+| **Placeholder clarity** | **human** | **New user understands what to enter from placeholder/example alone** |
+
+#### D2: Output Data
+**Applicability Check**: Does the requirement display, export, or transmit data?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Display formatting | e2e | Verify numbers formatted with correct locale separators |
+| Export functionality | integration | Verify exported data can be re-imported without loss |
+| Data presentation | e2e | Verify large datasets paginate/virtualize without performance degradation |
+| **Output credibility** | **human** | **Domain expert evaluates if output values "look right" for the context** |
+| **Presentation hierarchy** | **human** | **User identifies most important information within 3 seconds** |
+| **Scannability** | **human** | **User can find specific data point in large result set quickly** |
+
+#### D3: Data Boundaries
+**Applicability Check**: Does the requirement have limits, ranges, or boundary conditions?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Numeric ranges | api | Verify exact boundary values (min, max, min-1, max+1) |
+| String length | api | Verify behavior at 0, 1, max, max+1 characters |
+| Collection limits | api | Verify behavior with 0, 1, max, max+1 items |
+| **Boundary reasonableness** | **human** | **Domain expert validates limits match real-world constraints** |
+
+#### D4: Persistence/Storage
+**Applicability Check**: Does the requirement save, cache, or persist data?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Database operations | integration | Verify data survives application restart |
+| Caching | integration | Verify cache invalidation when source data changes |
+| Transactions | integration | Verify partial failure rolls back entire transaction |
+| **Data lifecycle clarity** | **human** | **User understands what is saved vs. what requires explicit save** |
+
+---
+
+### INTERFACES (How the product CONNECTS)
+
+#### I1: User Interface
+**Applicability Check**: Does the requirement involve visual UI, forms, or user interaction?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Form validation | e2e | Verify inline validation feedback appears within 200ms |
+| Navigation | e2e | Verify user can navigate to any feature within 3 clicks |
+| Responsive design | e2e | Verify layout adapts correctly at breakpoints (320px, 768px, 1024px) |
+| **Visual polish** | **human** | **Designer reviews if implementation matches design intent** |
+| **Interaction feel** | **human** | **User evaluates if interactions feel snappy, not sluggish** |
+| **Cognitive load** | **human** | **Novice user attempts task - observe cognitive strain and confusion** |
+| **Visual hierarchy** | **human** | **User identifies primary action within 2 seconds of page load** |
+| **Accessibility perception** | **human** | **Screen reader user navigates interface - is it usable or frustrating?** |
+
+#### I2: APIs/Services
+**Applicability Check**: Does the requirement expose or consume APIs?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| REST endpoints | api | Verify correct HTTP status codes for success/error scenarios |
+| Request validation | api | Verify 400 response with specific errors for invalid requests |
+| Rate limiting | api | Verify 429 response with Retry-After header when limit exceeded |
+| **API usability** | **human** | **Developer attempts integration using only API docs - observe friction** |
+| **Error response helpfulness** | **human** | **Developer evaluates if API errors help them fix the problem** |
+
+#### I3: External Integrations
+**Applicability Check**: Does the requirement integrate with external systems or services?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| OAuth/SSO | integration | Verify token refresh before expiration maintains session |
+| Webhook receivers | integration | Verify idempotent handling of duplicate webhook deliveries |
+| Import/Export | integration | Verify data format compatibility with stated external systems |
+| **Integration reliability perception** | **human** | **User evaluates if third-party integration feels seamless or bolted-on** |
+
+#### I4: Messaging/Events
+**Applicability Check**: Does the requirement use message queues, events, or async communication?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Event publishing | integration | Verify events published for all state changes |
+| Message ordering | integration | Verify processing handles out-of-order message delivery |
+| Dead letter handling | integration | Verify failed messages quarantined with diagnostic info |
+| **Event visibility** | **human** | **Ops engineer evaluates if event flow is understandable in monitoring** |
+
+---
+
+### PLATFORM (What the product DEPENDS ON)
+
+#### P1: Browser/Client
+**Applicability Check**: Does the requirement run in a browser or client application?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Cross-browser | e2e | Verify functionality in Chrome, Firefox, Safari, Edge |
+| Mobile browsers | e2e | Verify touch interactions work on iOS Safari, Android Chrome |
+| Progressive enhancement | e2e | Verify core functionality works with JavaScript disabled |
+| **Browser consistency perception** | **human** | **User evaluates if experience feels identical across browsers** |
+
+#### P2: Operating System
+**Applicability Check**: Does the requirement depend on OS-specific features or behavior?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| File system | integration | Verify file paths work on Windows, macOS, Linux |
+| Permissions | integration | Verify graceful handling when OS permission denied |
+| **Native feel** | **human** | **User evaluates if app feels native to their OS conventions** |
+
+#### P3: External Services
+**Applicability Check**: Does the requirement depend on external services, APIs, or infrastructure?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Service availability | integration | Verify graceful degradation when external service unavailable |
+| Service latency | performance | Verify acceptable UX when external service response time 2x normal |
+| **Service reliability perception** | **human** | **User evaluates if dependent features feel reliable or flaky** |
+
+#### P4: Network Conditions
+**Applicability Check**: Does the requirement behave differently under various network conditions?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Offline capability | e2e | Verify offline functionality and sync when reconnected |
+| Slow network | performance | Verify usable experience on 3G connection (500ms RTT) |
+| Network interruption | e2e | Verify graceful handling of network loss mid-operation |
+| **Perceived performance** | **human** | **User evaluates if app feels fast enough on typical connection** |
+
+---
+
+### OPERATIONS (How the product is USED)
+
+#### O1: Common Usage
+**Applicability Check**: What are the typical, everyday use cases?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Happy path | e2e | Verify standard workflow completes successfully |
+| Frequent actions | performance | Verify most common operations complete within 200ms |
+| **Workflow efficiency** | **human** | **Power user evaluates if common tasks require minimum clicks** |
+| **Learning curve** | **human** | **New user time-to-productivity - can they be useful in 5 minutes?** |
+
+#### O2: Extreme Usage
+**Applicability Check**: What happens at scale, under stress, or with unusual patterns?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| High volume | performance | Verify system handles 10x normal load without degradation |
+| Large data | performance | Verify UI remains responsive with maximum data set size |
+| Rapid actions | concurrency | Verify no race conditions with rapid repeated actions |
+| **Stress perception** | **human** | **User evaluates system behavior under load - does it feel stable?** |
+
+#### O3: User Types/Personas
+**Applicability Check**: Do different user types have different needs or permissions?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Role-based access | security | Verify each role can only access permitted features |
+| Persona workflows | e2e | Verify each persona can complete their primary journey |
+| **Persona fit** | **human** | **Target persona evaluates if feature matches their mental model** |
+| **Expertise match** | **human** | **Novice vs expert user - does interface adapt appropriately?** |
+
+#### O4: Environment Variations
+**Applicability Check**: Does behavior vary by deployment environment, locale, or configuration?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Localization | e2e | Verify all text translates correctly without layout breakage |
+| Timezone | api | Verify datetime handling across all supported timezones |
+| Multi-tenant | security | Verify complete data isolation between tenants |
+| **Locale appropriateness** | **human** | **Native speaker evaluates if translations feel natural** |
+| **Cultural fit** | **human** | **Regional user evaluates if UX respects local conventions** |
+
+---
+
+### TIME (WHEN things happen)
+
+#### T1: Timing/Latency
+**Applicability Check**: Does the requirement have time-sensitive operations or SLAs?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Response time SLA | performance | Verify 95th percentile response under 500ms |
+| Real-time updates | e2e | Verify updates appear within stated latency (e.g., 100ms) |
+| **Perceived responsiveness** | **human** | **User evaluates if feedback timing feels instantaneous** |
+| **Loading perception** | **human** | **User evaluates if progress indicators reduce perceived wait time** |
+
+#### T2: Concurrency
+**Applicability Check**: Can multiple users or processes interact simultaneously?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Simultaneous edits | concurrency | Verify conflict detection when two users edit same resource |
+| Race conditions | concurrency | Verify no data corruption under concurrent write operations |
+| Locking | concurrency | Verify appropriate locking prevents lost updates |
+| **Collaboration feel** | **human** | **Users collaborating - does conflict resolution feel fair?** |
+
+#### T3: Scheduling
+**Applicability Check**: Does the requirement involve scheduled jobs, recurring events, or time-based triggers?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Cron jobs | integration | Verify scheduled job executes at correct time |
+| DST transitions | api | Verify correct behavior during daylight saving transitions |
+| Recurring events | api | Verify recurring pattern generates expected instances |
+| **Schedule predictability** | **human** | **User evaluates if scheduled behavior matches expectations** |
+
+#### T4: State Changes Over Time
+**Applicability Check**: Does system state change based on time passage?
+| Trigger | Test Type | Example Test Idea |
+|---------|-----------|-------------------|
+| Expiration | api | Verify resources expire at exact specified time |
+| Time-based transitions | api | Verify state transitions occur at correct thresholds |
+| Historical data | api | Verify historical queries return correct point-in-time data |
+| **Time perception** | **human** | **User evaluates if time-based features match intuitive expectations** |
+
+</sfdipot_subcategory_checklist>
+
+<human_judgment_detector>
+## INTELLIGENT HUMAN EXPLORATION DETECTION
+
+### Step 1: Identify Subjective Language
+Scan requirements for words that indicate NO objective pass/fail criteria exists:
+
+**Subjective Quality Indicators** (ALWAYS trigger human-exploration):
+- Appearance: "looks right", "visually appealing", "professional", "polished"
+- Clarity: "clear", "understandable", "intuitive", "self-explanatory"
+- Feeling: "feels fast", "feels reliable", "feels secure", "comfortable"
+- Appropriateness: "appropriate", "suitable", "reasonable", "adequate"
+- Trust: "trustworthy", "credible", "confident", "reassuring"
+- Usability: "easy to use", "user-friendly", "discoverable", "natural"
+
+### Step 2: Identify Expertise Requirements
+Detect when domain knowledge beyond the spec is required:
+
+**Expertise Triggers** (ALWAYS trigger human-exploration):
+| Domain Signal in Requirements | Human Test Type |
+|-------------------------------|-----------------|
+| Engineering calculations | Domain expert validates outputs match expectations |
+| Medical/clinical terms | Clinical specialist validates terminology accuracy |
+| Financial calculations | Finance expert validates regulatory compliance |
+| Legal/compliance | Legal expert validates requirement interpretation |
+| Safety-critical | Safety engineer validates warning prominence |
+| Industry standards | Domain expert validates convention adherence |
+
+### Step 3: Identify Perception-Based Judgments
+Detect when human perception is the only valid measure:
+
+**Perception Triggers** (ALWAYS trigger human-exploration):
+- Visual design/aesthetics
+- Animation/transition timing
+- Loading/progress perception
+- Information hierarchy
+- Cognitive load/complexity
+- Sound/haptic feedback quality
+
+### Step 4: Identify Discovery Opportunities
+Detect where exploration reveals what specifications cannot:
+
+**Discovery Triggers** (ALWAYS trigger human-exploration):
+- Complex workflows with multiple paths
+- User onboarding experiences
+- Error recovery scenarios
+- Edge case combinations
+- Competitive comparison contexts
+
+### Step 5: Generate Test with Reasoning
+For each human-exploration test, include:
+
+```
+| Test Idea | Why Human Essential | What Automation Cannot Do |
+|-----------|---------------------|---------------------------|
+| [Specific test] | [Category: Subjective/Expertise/Perception/Discovery] | [Explicit limitation] |
+```
+
+**Example Reasoning Chain**:
+```
+Requirement: "Display configuration summary with clear validation feedback"
+
+Analysis:
+- "clear" → SUBJECTIVE (what's clear to engineer vs. novice?)
+- "validation feedback" → PERCEPTION (is timing instant? is color obvious?)
+- Industrial domain → EXPERTISE (does feedback use industry terminology?)
+
+Generated Human Tests:
+1. "Novice technician reviews validation feedback - observe if message is
+   understandable without engineering background"
+   → SUBJECTIVE: "clear" has no objective definition
+   → Automation cannot judge if message is clear to target audience
+
+2. "Senior engineer validates that feedback terminology matches
+   drivetrain industry conventions"
+   → EXPERTISE: Industry conventions are implicit knowledge
+   → Automation doesn't know industry jargon expectations
+```
+</human_judgment_detector>
 
 <priority_distribution_rules>
 ## MANDATORY PRIORITY DISTRIBUTION (Brutal Honesty Compliance)
