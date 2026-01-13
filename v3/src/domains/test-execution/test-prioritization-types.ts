@@ -5,7 +5,7 @@
  * Maps test metadata to RL state features and priority decisions to actions.
  */
 
-import type { TestExecutionState, TestExecutionAction } from '../../../integrations/rl-suite/interfaces';
+import type { TestExecutionState, TestExecutionAction } from '../../integrations/rl-suite/interfaces.js';
 import type { Priority, DomainName } from '../../shared/types';
 
 // ============================================================================
@@ -174,7 +174,7 @@ export function priorityActionToPriority(action: PriorityAction): Priority {
     high: 'p1',
     standard: 'p2',
     low: 'p3',
-    defer: 'p4',
+    defer: 'p3', // Map defer to lowest priority (p3)
   };
   return mapping[action];
 }
@@ -273,16 +273,36 @@ export function calculatePrioritizationReward(
 // ============================================================================
 
 /**
+ * Input metadata for creating test prioritization state
+ */
+export interface TestPrioritizationMetadata {
+  filePath: string;
+  testName: string;
+  testType?: 'unit' | 'integration' | 'e2e' | 'performance' | 'security';
+  priority?: Priority;
+  complexity?: number;
+  domain?: DomainName;
+  dependencies?: string[];
+  estimatedDuration?: number;
+  coverage?: number;
+  failureHistory?: number[];
+  failureRate?: number;
+  flakinessScore?: number;
+  executionCount?: number;
+  timeSinceModification?: number;
+  businessCriticality?: number;
+  dependencyCount?: number;
+  assignedPriority?: Priority;
+}
+
+/**
  * Create test prioritization state from test metadata
  */
 export function createTestPrioritizationState(
   testId: string,
-  metadata: Partial<TestPrioritizationState> & {
-    filePath: string;
-    testName: string;
-  }
+  metadata: TestPrioritizationMetadata
 ): TestPrioritizationState {
-  const features = mapToFeatures(metadata);
+  const features = mapToFeatures(metadata as Partial<TestPrioritizationState>);
 
   return {
     id: testId,
@@ -298,6 +318,7 @@ export function createTestPrioritizationState(
     failureHistory: metadata.failureHistory ?? [],
     filePath: metadata.filePath,
     testName: metadata.testName,
+    failureRate: metadata.failureRate ?? 0,
     flakinessScore: metadata.flakinessScore ?? 0,
     executionCount: metadata.executionCount ?? 0,
     timeSinceModification: metadata.timeSinceModification ?? 0,

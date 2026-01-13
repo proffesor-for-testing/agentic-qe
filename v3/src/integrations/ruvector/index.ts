@@ -393,7 +393,6 @@ export {
   isFlashAttentionEnabled,
   isGNNIndexEnabled,
   shouldLogMigrationMetrics,
-  shouldFallbackOnError,
   initFeatureFlagsFromEnv,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,

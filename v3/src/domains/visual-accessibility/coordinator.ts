@@ -979,7 +979,7 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
 
         case 'allocate':
           // Allocate based on resource availability
-          const agentCount = typeof prediction.action.value === 'object' ? prediction.action.value.agents : 2;
+          const agentCount = typeof prediction.action.value === 'object' ? (prediction.action.value as { agents?: number }).agents ?? 2 : 2;
           const testsPerAgent = Math.ceil(prioritized.length / agentCount);
           prioritized = prioritized.map((t, i) => ({
             ...t,
@@ -1192,8 +1192,10 @@ export class VisualAccessibilityCoordinator implements IVisualAccessibilityCoord
     features.push(viewport.width <= 480 ? 1 : 0);
     features.push(viewport.width <= 1024 && viewport.width > 480 ? 1 : 0);
     features.push(viewport.width > 1024 ? 1 : 0);
-    features.push(viewport.orientation === 'portrait' ? 1 : 0);
-    features.push(viewport.orientation === 'landscape' ? 1 : 0);
+    // Determine orientation from dimensions (portrait = height > width)
+    const isPortrait = viewport.height > viewport.width;
+    features.push(isPortrait ? 1 : 0);
+    features.push(!isPortrait ? 1 : 0);
 
     // Test outcome features (remaining dimensions to reach 384)
     features.push(diffScore / 100);

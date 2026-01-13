@@ -28,6 +28,9 @@ import {
   type PriorityAction,
 } from '../test-prioritization-types';
 
+// Re-export types for convenience
+export type { TestPrioritizationContext, TestPrioritizationAction };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -37,7 +40,7 @@ export interface TestMetadata {
   filePath: string;
   testName: string;
   testType?: 'unit' | 'integration' | 'e2e' | 'performance' | 'security';
-  priority?: 'p0' | 'p1' | 'p2' | 'p3' | 'p4';
+  priority?: 'p0' | 'p1' | 'p2' | 'p3';
   complexity?: number;
   domain?: string;
   dependencies?: string[];
@@ -279,7 +282,7 @@ export class TestPrioritizerService {
     totalTests: number;
     totalExecutions: number;
     trajectoryCount: number;
-    dtStats: ReturnType<typeof this.decisionTransformer.getStats>;
+    dtStats: Record<string, unknown>;
   } {
     const totalTests = this.executionHistory.size;
     const totalExecutions = Array.from(this.executionHistory.values())
