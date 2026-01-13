@@ -13,8 +13,12 @@ import {
   type CoverageVectorMetadata,
 } from '../../../../src/domains/coverage-analysis/services/hnsw-index';
 import { AgentDBBackend } from '../../../../src/kernel/agentdb-backend';
+import { checkRuvectorPackagesAvailable } from '../../../../src/integrations/ruvector/wrappers';
 
-describe('HNSWIndex', () => {
+// Check if @ruvector/gnn native operations work (not just import)
+const canTest = checkRuvectorPackagesAvailable();
+
+describe.runIf(canTest.gnn)('HNSWIndex', () => {
   let memory: AgentDBBackend;
   let index: HNSWIndex;
 

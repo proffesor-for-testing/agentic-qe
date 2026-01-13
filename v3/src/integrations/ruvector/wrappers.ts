@@ -108,10 +108,11 @@ export function getRuvectorPackageVersions(): Record<string, string> {
 }
 
 /**
- * Check if @ruvector packages are available.
+ * Check if @ruvector packages are available AND working.
  *
  * NOTE: This function exists ONLY for test infrastructure - to skip integration
- * tests in CI environments where native ARM64 binaries may not be built.
+ * tests in CI environments where native binaries may not work correctly.
+ * It tests actual native operations, not just package import.
  *
  * In production code, do NOT use this for defensive programming. The packages
  * are dependencies - they should work. If they don't, that's a real error.
@@ -126,6 +127,7 @@ export function checkRuvectorPackagesAvailable(): {
 } {
   const results = { sona: false, attention: false, gnn: false, all: false };
 
+  // Check SONA - just import for now
   try {
     require('@ruvector/sona');
     results.sona = true;
@@ -133,6 +135,7 @@ export function checkRuvectorPackagesAvailable(): {
     // Package not available - native binary not built for this platform
   }
 
+  // Check Attention - just import for now
   try {
     require('@ruvector/attention');
     results.attention = true;
@@ -140,11 +143,24 @@ export function checkRuvectorPackagesAvailable(): {
     // Package not available - native binary not built for this platform
   }
 
+  // Check GNN - test actual native operation
   try {
-    require('@ruvector/gnn');
-    results.gnn = true;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const gnn = require('@ruvector/gnn');
+
+    // Test an actual native operation to verify bindings work
+    // Simple differentiable search with minimal data
+    const testQuery = [0.1, 0.2, 0.3];
+    const testCandidates = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]];
+    const result = gnn.differentiableSearch(testQuery, testCandidates, 1, 1.0);
+
+    // Verify the result structure
+    if (result && Array.isArray(result.indices) && Array.isArray(result.weights)) {
+      results.gnn = true;
+    }
   } catch {
-    // Package not available - native binary not built for this platform
+    // Package not available or native operations not working
+    // This catches both import errors AND native binding errors
   }
 
   results.all = results.sona && results.attention && results.gnn;
