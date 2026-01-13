@@ -163,6 +163,16 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30000,
+            "command": "bash scripts/hooks/validate-sfdipot-on-write.sh \"$TOOL_INPUT_file_path\" 2>&1 || true"
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
@@ -326,6 +336,14 @@
             "command": "echo '📊 Session ended. Run: aqe learn status' 2>/dev/null || true"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '📊 Session ended. Run: npx aqe learn status' 2>/dev/null || true"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -420,81 +438,119 @@
     "triggers": {
       "ultralearn": {
         "priority": "high",
-        "agents": ["researcher", "coder"]
+        "agents": [
+          "researcher",
+          "coder"
+        ]
       },
       "optimize": {
         "priority": "high",
-        "agents": ["performance-analyzer"]
+        "agents": [
+          "performance-analyzer"
+        ]
       },
       "audit": {
         "priority": "critical",
-        "agents": ["security-analyst", "tester"]
+        "agents": [
+          "security-analyst",
+          "tester"
+        ]
       },
       "map": {
         "priority": "medium",
-        "agents": ["architect"]
+        "agents": [
+          "architect"
+        ]
       },
       "security": {
         "priority": "critical",
-        "agents": ["security-analyst"]
+        "agents": [
+          "security-analyst"
+        ]
       },
       "benchmark": {
         "priority": "low",
-        "agents": ["performance-analyzer"]
+        "agents": [
+          "performance-analyzer"
+        ]
       },
       "document": {
         "priority": "medium",
-        "agents": ["documenter"]
+        "agents": [
+          "documenter"
+        ]
       },
       "refactor": {
         "priority": "medium",
-        "agents": ["coder", "reviewer"]
+        "agents": [
+          "coder",
+          "reviewer"
+        ]
       },
       "testgaps": {
         "priority": "high",
-        "agents": ["tester"]
+        "agents": [
+          "tester"
+        ]
       },
       "deepdive": {
         "priority": "low",
-        "agents": ["researcher"]
+        "agents": [
+          "researcher"
+        ]
       },
       "predict": {
         "priority": "medium",
-        "agents": ["analyst"]
+        "agents": [
+          "analyst"
+        ]
       },
       "consolidate": {
         "priority": "low",
-        "agents": ["architect"]
+        "agents": [
+          "architect"
+        ]
       },
       "qe-sync": {
         "priority": "high",
         "description": "Sync AQE memory with RuVector intelligence",
         "command": "node scripts/workers/sync-intelligence.js",
-        "agents": ["qe-coordinator"]
+        "agents": [
+          "qe-coordinator"
+        ]
       },
       "qe-learn": {
         "priority": "medium",
         "description": "Run QE self-learning cycle",
         "command": "node scripts/workers/qe-self-learning.js full",
-        "agents": ["qe-test-generator", "qe-coverage-analyzer"]
+        "agents": [
+          "qe-test-generator",
+          "qe-coverage-analyzer"
+        ]
       },
       "qe-analyze": {
         "priority": "medium",
         "description": "Analyze agent performance patterns",
         "command": "node scripts/workers/qe-self-learning.js analyze",
-        "agents": ["qe-quality-analyzer"]
+        "agents": [
+          "qe-quality-analyzer"
+        ]
       },
       "qe-dream": {
         "priority": "low",
         "description": "Trigger dream synthesis for pattern discovery",
         "command": "node scripts/workers/qe-self-learning.js dream",
-        "agents": ["qe-dream-synthesizer"]
+        "agents": [
+          "qe-dream-synthesizer"
+        ]
       },
       "qe-replay": {
         "priority": "medium",
         "description": "Experience replay for Q-learning optimization",
         "command": "node scripts/workers/qe-self-learning.js replay",
-        "agents": ["qe-learning-agent"]
+        "agents": [
+          "qe-learning-agent"
+        ]
       }
     }
   },
@@ -505,13 +561,27 @@
       "ttlMinutes": 60
     },
     "benchmarkThresholds": {
-      "triggerDetection": { "p95": 5 },
-      "workerRegistry": { "p95": 10 },
-      "agentSelection": { "p95": 1 },
-      "memoryKeyGen": { "p95": 0.1 },
-      "concurrent10": { "p95": 1000 },
-      "singleEmbedding": { "p95": 500 },
-      "batchEmbedding16": { "p95": 8000 }
+      "triggerDetection": {
+        "p95": 5
+      },
+      "workerRegistry": {
+        "p95": 10
+      },
+      "agentSelection": {
+        "p95": 1
+      },
+      "memoryKeyGen": {
+        "p95": 0.1
+      },
+      "concurrent10": {
+        "p95": 1000
+      },
+      "singleEmbedding": {
+        "p95": 500
+      },
+      "batchEmbedding16": {
+        "p95": 8000
+      }
     },
     "optimizations": {
       "parallelDispatch": true,
@@ -523,11 +593,20 @@
   "agents": {
     "presets": {
       "quick-scan": {
-        "phases": ["file-discovery", "summarization"],
+        "phases": [
+          "file-discovery",
+          "summarization"
+        ],
         "timeout": 30000
       },
       "deep-analysis": {
-        "phases": ["file-discovery", "pattern-extraction", "embedding-generation", "complexity-analysis", "summarization"],
+        "phases": [
+          "file-discovery",
+          "pattern-extraction",
+          "embedding-generation",
+          "complexity-analysis",
+          "summarization"
+        ],
         "timeout": 120000,
         "capabilities": {
           "onnxEmbeddings": true,
@@ -535,11 +614,21 @@
         }
       },
       "security-scan": {
-        "phases": ["file-discovery", "security-scan", "summarization"],
+        "phases": [
+          "file-discovery",
+          "security-scan",
+          "summarization"
+        ],
         "timeout": 60000
       },
       "learning": {
-        "phases": ["file-discovery", "pattern-extraction", "embedding-generation", "vector-storage", "summarization"],
+        "phases": [
+          "file-discovery",
+          "pattern-extraction",
+          "embedding-generation",
+          "vector-storage",
+          "summarization"
+        ],
         "timeout": 180000,
         "capabilities": {
           "onnxEmbeddings": true,
