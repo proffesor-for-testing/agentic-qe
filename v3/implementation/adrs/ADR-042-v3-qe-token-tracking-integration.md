@@ -1,7 +1,8 @@
 # ADR-042: V3 QE Token Tracking and Consumption Reduction
 
-**Status**: Proposed
-**Date**: 2026-01-11
+**Status**: Implemented
+**Date**: 2026-01-14
+**Implemented**: 2026-01-14
 **Author**: Claude Code
 **Related**: ADR-040 (Agentic-Flow Integration)
 

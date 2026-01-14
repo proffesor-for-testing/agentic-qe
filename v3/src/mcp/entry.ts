@@ -11,6 +11,7 @@
 
 import { quickStart, MCPProtocolServer } from './protocol-server';
 import { createRequire } from 'module';
+import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version: string };
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
 
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
+    await shutdownTokenTracking();
     if (server) {
       await server.stop();
     }
@@ -31,6 +33,7 @@ async function main(): Promise<void> {
   });
 
   process.on('SIGTERM', async () => {
+    await shutdownTokenTracking();
     if (server) {
       await server.stop();
     }
@@ -49,6 +52,13 @@ async function main(): Promise<void> {
   }) as typeof process.stderr.write;
 
   try {
+    // ADR-042: Initialize token tracking and optimization
+    await bootstrapTokenTracking({
+      enableOptimization: true,
+      enablePersistence: true,
+      verbose: process.env.AQE_VERBOSE === 'true',
+    });
+
     // Start the MCP server
     server = await quickStart({
       name: 'agentic-qe-v3',

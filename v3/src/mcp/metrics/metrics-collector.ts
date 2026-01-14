@@ -12,6 +12,8 @@
  */
 
 // Types for metrics collection
+import type { TokenUsage } from '../../learning/token-tracker.js';
+
 export interface TaskMetric {
   taskId: string;
   agentId: string;
@@ -20,6 +22,14 @@ export interface TaskMetric {
   durationMs?: number;
   success: boolean;
   retries: number;
+  /** Token usage for this task (ADR-042) */
+  tokenUsage?: TokenUsage;
+  /** Whether a cached pattern was reused (ADR-042) */
+  patternReused?: boolean;
+  /** Tokens saved via pattern reuse/caching (ADR-042) */
+  tokensSaved?: number;
+  /** Domain this task belongs to */
+  domain?: string;
 }
 
 export interface AgentMetrics {

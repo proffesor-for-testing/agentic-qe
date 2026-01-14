@@ -53,7 +53,7 @@
 | ADR-039 | V3 QE MCP Optimization | **Implemented** | 2026-01-14 | ✅ Simplified MCP command (aqe-v3-mcp) |
 | ADR-040 | V3 QE Agentic-Flow Integration | **Implemented** | 2026-01-14 | ✅ WorkflowOrchestrator + YAML pipelines |
 | ADR-041 | V3 QE CLI Enhancement | **Implemented** | 2026-01-14 | ✅ 196 tests: wizards + progress + streaming + completions + workflows |
-| ADR-042 | V3 QE Token Tracking Integration | **Proposed** | 2026-01-11 | ⏳ Token tracking + -25% reduction via pattern reuse |
+| ADR-042 | V3 QE Token Tracking Integration | **Implemented** | 2026-01-14 | ✅ TokenMetricsCollector + TokenOptimizerService + CLI commands + persistence |
 | [ADR-043](./ADR-043-vendor-independent-llm.md) | Vendor-Independent LLM Support | **Proposed** | 2026-01-13 | ⏳ [HybridRouter + 7 providers + smart routing](../plans/GOAP-ADR-043-VENDOR-INDEPENDENT-LLM.md) |
 | [ADR-044](./ADR-044-domain-rl-integration-status.md) | Domain RL Integration Status | **Implemented** | 2026-01-14 | ✅ 6/6 domains with RL integration |
 | [ADR-045](./ADR-045-version-agnostic-naming.md) | Version-Agnostic Naming | **Implemented** | 2026-01-14 | ✅ qe-* naming convention, backward compat aliases |
@@ -2812,8 +2812,8 @@ src/cli/config/
 
 ## ADR-042: V3 QE Token Tracking Integration
 
-**Status:** Proposed
-**Date:** 2026-01-11
+**Status:** Implemented
+**Date:** 2026-01-14
 **Decision Makers:** Architecture Team
 **Source:** Analysis of [agentic-flow](https://github.com/ruvnet/agentic-flow) token tracking capabilities
 
@@ -2829,25 +2829,35 @@ Implement comprehensive token tracking and consumption reduction:
 - MCP tool `token_usage` for analysis
 - Early-exit optimizer for high-confidence patterns
 
+### Implementation (2026-01-14)
+
+- **TokenMetricsCollector**: Singleton for tracking token usage across agents/domains
+- **TokenOptimizerService**: Wires EarlyExitTokenOptimizer into execution flow
+- **token-bootstrap.ts**: Initializes optimization on MCP/CLI startup
+- **CLI commands**: `aqe token-usage --by-agent/--by-domain/--recommendations`
+- **Persistence**: JSON file persistence with auto-save
+- **Integration tests**: 29 tests covering real LLM provider flows
+- **LLM providers**: Claude, OpenAI, Ollama all report token usage
+
 **Full ADR:** [ADR-042-v3-qe-token-tracking-integration.md](./ADR-042-v3-qe-token-tracking-integration.md)
 
 ---
 
 **Document Maintained By:** Architecture Team
-**Last Updated:** 2026-01-14 (ADR-041 CLI Enhancement Implementation Status)
+**Last Updated:** 2026-01-14 (ADR-042 Token Tracking Implementation)
 **Next Review:** After V3 Skills Implementation Complete
 
 ### Current Implementation Stats (2026-01-14)
 
 | Metric | Count |
 |--------|-------|
-| Source Files | 316+ |
-| Test Files | 100+ |
-| Tests Passing | 4,032 |
-| ADRs Complete | 41/43 (ADR-001-041 Implemented, ADR-042-043 proposed) |
+| Source Files | 320+ |
+| Test Files | 146+ |
+| Tests Passing | 4,203 |
+| ADRs Complete | 42/43 (ADR-001-042 Implemented, ADR-043 proposed) |
 | RuVector MinCut ADRs | 6 (ADR-030 to ADR-035) |
 | Result Persistence ADR | 1 (ADR-036) |
-| V3 Skills Improvement ADRs | 5 implemented (ADR-037 to ADR-041), 2 proposed (ADR-042-043) |
+| V3 Skills Improvement ADRs | 6 implemented (ADR-037 to ADR-042), 1 proposed (ADR-043) |
 | V3 QE Skills | 24 (21 existing + 3 new enhanced) |
 | Init Module Tests | 73 |
 | Feedback Module Tests | 101 |

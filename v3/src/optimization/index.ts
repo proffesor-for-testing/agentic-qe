@@ -75,3 +75,32 @@ export type {
   FlakyTestDetectorDeps,
   RoutingAccuracyMonitorDeps,
 } from './qe-workers.js';
+
+// Early Exit Token Optimizer (ADR-042)
+export type {
+  EarlyExitConfig as TokenEarlyExitConfig,
+  EarlyExitResult as TokenEarlyExitResult,
+  EarlyExitReason as TokenEarlyExitReason,
+  EarlyExitTask,
+  ReuseStats,
+} from './early-exit-token-optimizer.js';
+
+export {
+  EarlyExitTokenOptimizer,
+  createEarlyExitTokenOptimizer,
+  createAggressiveTokenOptimizer,
+  createConservativeTokenOptimizer,
+  DEFAULT_EARLY_EXIT_CONFIG,
+  AGGRESSIVE_EARLY_EXIT_CONFIG,
+  CONSERVATIVE_EARLY_EXIT_CONFIG,
+} from './early-exit-token-optimizer.js';
+
+// Token Optimizer Service (ADR-042 - Wired Integration)
+export type {
+  TokenOptimizerServiceConfig,
+} from './token-optimizer-service.js';
+
+export {
+  TokenOptimizerService,
+  initializeTokenOptimizer,
+} from './token-optimizer-service.js';

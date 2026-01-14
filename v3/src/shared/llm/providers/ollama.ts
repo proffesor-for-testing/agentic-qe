@@ -22,6 +22,7 @@ import {
   createLLMError,
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
+import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 
 /**
  * Default Ollama configuration
@@ -287,6 +288,20 @@ export class OllamaProvider implements LLMProvider {
 
       // Ollama is local/free, but we track for consistency
       const cost = CostTracker.calculateCost(model, usage);
+
+      // ADR-042: Track token usage in TokenMetricsCollector
+      TokenMetricsCollector.recordTokenUsage(
+        requestId,
+        'ollama-provider',
+        'llm',
+        'generate',
+        {
+          inputTokens: promptTokens,
+          outputTokens: completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          estimatedCostUsd: cost.totalCost,
+        }
+      );
 
       return {
         content,

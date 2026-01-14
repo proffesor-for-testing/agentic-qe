@@ -7,21 +7,22 @@
  * Tool naming convention: qe/<domain>/<action>
  * Example: qe/tests/generate, qe/coverage/analyze
  *
- * 14 Tools across 12 DDD Domains:
- * 1. qe/tests/generate     - Test generation (AI-powered)
- * 2. qe/tests/execute      - Test execution (parallel, retry, flaky detection)
- * 3. qe/coverage/analyze   - Coverage analysis
- * 4. qe/coverage/gaps      - Coverage gap detection (O(log n) HNSW)
- * 5. qe/quality/evaluate   - Quality gate evaluation
- * 6. qe/defects/predict    - Defect prediction (ML)
+ * 15 Tools across 12 DDD Domains:
+ * 1. qe/tests/generate       - Test generation (AI-powered)
+ * 2. qe/tests/execute        - Test execution (parallel, retry, flaky detection)
+ * 3. qe/coverage/analyze     - Coverage analysis
+ * 4. qe/coverage/gaps        - Coverage gap detection (O(log n) HNSW)
+ * 5. qe/quality/evaluate     - Quality gate evaluation
+ * 6. qe/defects/predict      - Defect prediction (ML)
  * 7. qe/requirements/validate - Requirements validation
- * 8. qe/code/analyze       - Code intelligence (knowledge graph)
- * 9. qe/security/scan      - Security scanning (SAST/DAST)
- * 10. qe/contracts/validate - Contract testing
- * 11. qe/visual/compare    - Visual regression
- * 12. qe/a11y/audit        - Accessibility audit
- * 13. qe/chaos/inject      - Chaos engineering
- * 14. qe/learning/optimize - Learning optimization
+ * 8. qe/code/analyze         - Code intelligence (knowledge graph)
+ * 9. qe/security/scan        - Security scanning (SAST/DAST)
+ * 10. qe/contracts/validate  - Contract testing
+ * 11. qe/visual/compare      - Visual regression
+ * 12. qe/a11y/audit          - Accessibility audit
+ * 13. qe/chaos/inject        - Chaos engineering
+ * 14. qe/learning/optimize   - Learning optimization
+ * 15. qe/analysis/token_usage - Token consumption analysis (ADR-042)
  */
 
 // ============================================================================
@@ -198,6 +199,20 @@ export {
   type PatternResult,
   type DashboardResult,
 } from './learning-optimization/optimize';
+
+// ============================================================================
+// Analysis Tools (ADR-042)
+// ============================================================================
+
+export {
+  TokenUsageTool,
+  tokenUsageTool,
+  type TokenUsageParams,
+  type TokenUsageResult,
+  type AgentMetricsDetail,
+  type DomainMetricsDetail,
+  type TaskMetricsDetail,
+} from './analysis/token-usage';
 
 // ============================================================================
 // Registry and Registration

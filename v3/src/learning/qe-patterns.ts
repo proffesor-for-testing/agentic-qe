@@ -150,6 +150,34 @@ export interface QEPattern {
 
   /** Number of successful uses (for promotion) */
   readonly successfulUses: number;
+
+  // ============================================================================
+  // Token Tracking Fields (ADR-042)
+  // ============================================================================
+
+  /** Total tokens used when this pattern was created/last applied */
+  readonly tokensUsed?: number;
+
+  /** Input tokens consumed */
+  readonly inputTokens?: number;
+
+  /** Output tokens generated */
+  readonly outputTokens?: number;
+
+  /** Latency in milliseconds when pattern was applied */
+  readonly latencyMs?: number;
+
+  /** Whether this pattern can be reused to skip LLM calls */
+  readonly reusable?: boolean;
+
+  /** Number of times this pattern has been reused */
+  readonly reuseCount?: number;
+
+  /** Average tokens saved when this pattern is reused */
+  readonly averageTokenSavings?: number;
+
+  /** Total tokens saved across all reuses */
+  readonly totalTokensSaved?: number;
 }
 
 /**

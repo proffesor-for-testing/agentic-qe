@@ -265,3 +265,30 @@ export type {
   V2MigrationProgress,
   V2MigrationResult,
 } from './v2-to-v3-migration.js';
+
+// ============================================================================
+// Token Tracking (ADR-042)
+// ============================================================================
+
+export {
+  // Singleton instance
+  TokenMetricsCollector,
+
+  // Class for testing/custom instances
+  TokenMetricsCollectorImpl,
+
+  // Utility functions
+  formatCostUsd,
+  estimateTokens,
+} from './token-tracker.js';
+
+export type {
+  // Core types
+  TokenUsage,
+  TaskTokenMetric,
+  AgentTokenMetrics,
+  SessionTokenSummary,
+  TokenEfficiencyReport,
+  Timeframe,
+  TokenCostConfig,
+} from './token-tracker.js';

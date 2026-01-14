@@ -35,6 +35,7 @@ import {
   createTimedSpinner,
   withSpinner,
 } from './utils/progress';
+import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
 import {
   parsePipelineFile,
   validatePipeline,
@@ -1911,6 +1912,10 @@ function getColorForPercent(percent: number): (str: string) => string {
   return chalk.red;
 }
 
+// aqe token-usage (ADR-042)
+import { createTokenUsageCommand } from './commands/token-usage.js';
+program.addCommand(createTokenUsageCommand());
+
 // aqe quality
 program
   .command('quality')
@@ -3167,6 +3172,9 @@ fleetCmd
 process.on('SIGINT', async () => {
   console.log(chalk.yellow('\n\n Shutting down...'));
 
+  // ADR-042: Save token metrics before shutdown
+  await shutdownTokenTracking();
+
   if (context.queen) {
     await context.queen.dispose();
   }
@@ -3185,4 +3193,18 @@ process.on('SIGINT', async () => {
 // Main
 // ============================================================================
 
-program.parse();
+async function main(): Promise<void> {
+  // ADR-042: Initialize token tracking and optimization
+  await bootstrapTokenTracking({
+    enableOptimization: true,
+    enablePersistence: true,
+    verbose: process.env.AQE_VERBOSE === 'true',
+  });
+
+  program.parse();
+}
+
+main().catch((error) => {
+  console.error(chalk.red('Fatal error:'), error);
+  process.exit(1);
+});

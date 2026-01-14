@@ -23,6 +23,7 @@ import {
   createLLMError,
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
+import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 
 /**
  * Default Claude configuration
@@ -221,6 +222,20 @@ export class ClaudeProvider implements LLMProvider {
       };
 
       const cost = CostTracker.calculateCost(model, usage);
+
+      // ADR-042: Track token usage in TokenMetricsCollector
+      TokenMetricsCollector.recordTokenUsage(
+        requestId,
+        'claude-provider',
+        'llm',
+        'generate',
+        {
+          inputTokens: data.usage.input_tokens,
+          outputTokens: data.usage.output_tokens,
+          totalTokens: data.usage.input_tokens + data.usage.output_tokens,
+          estimatedCostUsd: cost.totalCost,
+        }
+      );
 
       const content = data.content
         .filter((c) => c.type === 'text')

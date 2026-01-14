@@ -22,6 +22,7 @@ import {
   createLLMError,
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
+import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 
 /**
  * Default OpenAI configuration
@@ -245,6 +246,20 @@ export class OpenAIProvider implements LLMProvider {
       };
 
       const cost = CostTracker.calculateCost(model, usage);
+
+      // ADR-042: Track token usage in TokenMetricsCollector
+      TokenMetricsCollector.recordTokenUsage(
+        requestId,
+        'openai-provider',
+        'llm',
+        'generate',
+        {
+          inputTokens: data.usage.prompt_tokens,
+          outputTokens: data.usage.completion_tokens,
+          totalTokens: data.usage.total_tokens,
+          estimatedCostUsd: cost.totalCost,
+        }
+      );
 
       const content = data.choices[0]?.message?.content ?? '';
 

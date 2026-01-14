@@ -15,9 +15,9 @@ import {
 
 describe('QE Tool Registry', () => {
   describe('QE_TOOL_NAMES', () => {
-    it('should have all 14 tool names', () => {
+    it('should have all 15 tool names', () => {
       const names = Object.values(QE_TOOL_NAMES);
-      expect(names.length).toBe(14);
+      expect(names.length).toBe(15);
     });
 
     it('should follow qe/* naming convention', () => {
@@ -78,17 +78,21 @@ describe('QE Tool Registry', () => {
     it('should have learning optimization tool', () => {
       expect(QE_TOOL_NAMES.LEARNING_OPTIMIZE).toBe('qe/learning/optimize');
     });
+
+    it('should have token usage analysis tool (ADR-042)', () => {
+      expect(QE_TOOL_NAMES.TOKEN_USAGE).toBe('qe/analysis/token_usage');
+    });
   });
 
   describe('QE_TOOLS', () => {
-    it('should have 14 tool instances', () => {
-      expect(QE_TOOLS.length).toBe(14);
+    it('should have 15 tool instances', () => {
+      expect(QE_TOOLS.length).toBe(15);
     });
 
     it('should have all unique names', () => {
       const names = QE_TOOLS.map(t => t.name);
       const uniqueNames = new Set(names);
-      expect(uniqueNames.size).toBe(14);
+      expect(uniqueNames.size).toBe(15);
     });
 
     it('should have descriptions for all tools', () => {
@@ -196,7 +200,7 @@ describe('QE Tool Registry', () => {
   describe('getAllToolDefinitions', () => {
     it('should return all tool definitions', () => {
       const definitions = getAllToolDefinitions();
-      expect(definitions.length).toBe(14);
+      expect(definitions.length).toBe(15);
     });
 
     it('should return MCP-compatible definitions', () => {
@@ -214,7 +218,7 @@ describe('QE Tool Registry', () => {
       const definitions = getAllToolDefinitions();
       const names = definitions.map(d => d.name);
       const uniqueNames = new Set(names);
-      expect(uniqueNames.size).toBe(14);
+      expect(uniqueNames.size).toBe(15);
     });
   });
 

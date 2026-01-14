@@ -21,6 +21,7 @@ import { ContractValidateTool } from './contract-testing/validate';
 import { VisualCompareTool, A11yAuditTool } from './visual-accessibility';
 import { ChaosInjectTool } from './chaos-resilience/inject';
 import { LearningOptimizeTool } from './learning-optimization/optimize';
+import { TokenUsageTool } from './analysis/token-usage';
 
 // ============================================================================
 // Tool Names (ADR-010 Naming Convention)
@@ -64,6 +65,9 @@ export const QE_TOOL_NAMES = {
 
   // Learning Optimization
   LEARNING_OPTIMIZE: 'qe/learning/optimize',
+
+  // Analysis Tools (ADR-042)
+  TOKEN_USAGE: 'qe/analysis/token_usage',
 } as const;
 
 // ============================================================================
@@ -111,6 +115,9 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Learning Optimization Domain
   new LearningOptimizeTool(),
+
+  // Analysis Tools (ADR-042)
+  new TokenUsageTool(),
 ];
 
 // ============================================================================
