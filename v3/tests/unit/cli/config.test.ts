@@ -107,12 +107,12 @@ describe('CLI Configuration', () => {
   describe('getConfigDir and getConfigPath', () => {
     it('should return path in home directory', () => {
       const configDir = getConfigDir();
-      expect(configDir).toBe('/mock/home/.aqe-v3');
+      expect(configDir).toBe('/mock/home/.aqe');
     });
 
     it('should return correct config file path', () => {
       const configPath = getConfigPath();
-      expect(configPath).toBe('/mock/home/.aqe-v3/cli-config.json');
+      expect(configPath).toBe('/mock/home/.aqe/cli-config.json');
     });
   });
 
@@ -358,7 +358,7 @@ describe('CLI Configuration', () => {
 
       saveCLIConfig(DEFAULT_CLI_CONFIG);
 
-      expect(mkdirSync).toHaveBeenCalledWith('/mock/home/.aqe-v3', { recursive: true });
+      expect(mkdirSync).toHaveBeenCalledWith('/mock/home/.aqe', { recursive: true });
     });
 
     it('should write config as formatted JSON', () => {
@@ -368,7 +368,7 @@ describe('CLI Configuration', () => {
       saveCLIConfig(DEFAULT_CLI_CONFIG);
 
       expect(writeFileSync).toHaveBeenCalledWith(
-        '/mock/home/.aqe-v3/cli-config.json',
+        '/mock/home/.aqe/cli-config.json',
         JSON.stringify(DEFAULT_CLI_CONFIG, null, 2),
         'utf-8'
       );
@@ -455,7 +455,7 @@ describe('CLI Configuration', () => {
 
       resetCLIConfig();
 
-      expect(unlinkSync).toHaveBeenCalledWith('/mock/home/.aqe-v3/cli-config.json');
+      expect(unlinkSync).toHaveBeenCalledWith('/mock/home/.aqe/cli-config.json');
     });
 
     it('should not throw if file does not exist', () => {
@@ -832,8 +832,8 @@ describe('CLI Configuration', () => {
       expect(DEFAULT_CLI_CONFIG.streaming.updateIntervalMs).toBeGreaterThan(0);
     });
 
-    it('should persist to ~/.aqe-v3/cli-config.json per ADR-041', () => {
-      expect(getConfigPath()).toContain('.aqe-v3');
+    it('should persist to ~/.aqe/cli-config.json per ADR-041', () => {
+      expect(getConfigPath()).toContain('.aqe');
       expect(getConfigPath()).toContain('cli-config.json');
     });
   });
