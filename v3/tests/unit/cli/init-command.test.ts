@@ -204,7 +204,7 @@ describe('Init Command', () => {
   describe('Init Success Output', () => {
     it('should define expected next steps', () => {
       const nextSteps = [
-        'Add MCP: claude mcp add aqe-v3 -- npx @agentic-qe/v3 mcp',
+        'Add MCP: claude mcp add aqe-v3 -- aqe-v3-mcp',
         'Run tests: aqe-v3 test <path>',
         'Check status: aqe-v3 status',
       ];

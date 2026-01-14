@@ -19,8 +19,8 @@ aqe-v3 init --wizard
 # Or with auto-configuration
 aqe-v3 init --auto
 
-# Add MCP server to Claude Code
-claude mcp add agentic-qe-v3 npx @agentic-qe/v3 mcp
+# Add MCP server to Claude Code (requires global install)
+claude mcp add aqe-v3 -- aqe-v3-mcp
 ```
 
 ## Architecture Overview
@@ -271,10 +271,14 @@ aqe-v3 agent spawn test-generation -t worker -c unit-test,integration-test
 
 ## MCP Integration
 
-Add the v3 MCP server to Claude Code:
+Add the v3 MCP server to Claude Code (requires global install):
 
 ```bash
-claude mcp add agentic-qe-v3 npx @agentic-qe/v3 mcp
+# First install globally
+npm install -g @agentic-qe/v3
+
+# Then add to Claude Code
+claude mcp add aqe-v3 -- aqe-v3-mcp
 ```
 
 ### Available MCP Tools

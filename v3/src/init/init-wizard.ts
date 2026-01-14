@@ -581,10 +581,11 @@ export class InitOrchestrator {
     }
 
     // Add AQE v3 MCP server configuration
+    // Uses the globally installed aqe-v3-mcp binary (npm install -g @agentic-qe/v3)
     const servers = mcpConfig.mcpServers as Record<string, unknown>;
-    servers['agentic-qe-v3'] = {
-      command: 'npx',
-      args: ['-y', '@agentic-qe/v3@alpha', 'aqe-v3-mcp'],
+    servers['aqe-v3'] = {
+      command: 'aqe-v3-mcp',
+      args: [],
       env: {
         AQE_PROJECT_ROOT: this.projectRoot,
         NODE_ENV: 'production',
@@ -726,14 +727,15 @@ Task("Find coverage gaps", "v3-qe-coverage-specialist")
 
 If MCP tools aren't working:
 \`\`\`bash
-# Verify MCP server
-npx -y @agentic-qe/v3@alpha aqe-v3-mcp --help
+# Verify MCP server is installed globally
+npm install -g @agentic-qe/v3
+aqe-v3-mcp --help
 
 # Check configuration
 cat .claude/mcp.json
 
 # Reinitialize if needed
-npx @agentic-qe/v3 init --auto
+aqe-v3 init --auto
 \`\`\`
 
 ---

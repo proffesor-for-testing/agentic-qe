@@ -324,7 +324,7 @@ describe('Migrate Command', () => {
     it('should provide next steps', () => {
       const nextSteps = [
         'Run `aqe-v3 status` to verify the system',
-        'Add v3 MCP: `claude mcp add aqe-v3 -- npx @agentic-qe/v3 mcp`',
+        'Add v3 MCP: `claude mcp add aqe-v3 -- aqe-v3-mcp`',
         'Test with: `aqe-v3 test <path>`',
       ];
 

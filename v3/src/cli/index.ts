@@ -232,7 +232,7 @@ program
           console.log(chalk.gray(`  • Total time: ${result.totalDurationMs}ms\n`));
 
           console.log(chalk.white('Next steps:'));
-          console.log(chalk.gray('  1. Add MCP: claude mcp add aqe-v3 -- npx -y @agentic-qe/v3@alpha aqe-v3-mcp'));
+          console.log(chalk.gray('  1. Add MCP: claude mcp add aqe-v3 -- aqe-v3-mcp'));
           console.log(chalk.gray('  2. Run tests: aqe-v3 test <path>'));
           console.log(chalk.gray('  3. Check status: aqe-v3 status\n'));
         } else {
@@ -1938,7 +1938,7 @@ program
 
     console.log(chalk.white('Next steps:'));
     console.log(chalk.gray('  1. Run `aqe-v3 status` to verify the system'));
-    console.log(chalk.gray('  2. Add v3 MCP: `claude mcp add aqe-v3 -- npx -y @agentic-qe/v3@alpha aqe-v3-mcp`'));
+    console.log(chalk.gray('  2. Add v3 MCP: `claude mcp add aqe-v3 -- aqe-v3-mcp`'));
     console.log(chalk.gray('  3. Test with: `aqe-v3 test <path>`\n'));
 
     console.log(chalk.yellow('Rollback:'));

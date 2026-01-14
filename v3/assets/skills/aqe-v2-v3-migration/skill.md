@@ -220,8 +220,8 @@ for (const pattern of v2Patterns) {
    # v2
    claude mcp add aqe -- npx aqe-mcp
 
-   # v3
-   claude mcp add aqe-v3 -- npx @agentic-qe/v3 mcp
+   # v3 (requires global install: npm install -g @agentic-qe/v3)
+   claude mcp add aqe-v3 -- aqe-v3-mcp
    ```
 
 ### Deprecated (Will Warn)
