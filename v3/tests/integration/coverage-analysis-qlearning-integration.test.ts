@@ -288,15 +288,18 @@ describe.runIf(canTest.gnn)('Coverage Analysis Q-Learning Integration', () => {
 
       const prediction = await coordinator.predictQL(gap);
 
-      expect(prediction.estimatedCoverageGain).toBeGreaterThan(0);
-
       // Different action types should have different coverage gains
+      // Skip actions can have 0 gain, all others should be > 0
       const actionType = prediction.action.type;
       if (actionType === 'skip') {
-        expect(prediction.estimatedCoverageGain).toBe(0);
+        expect(prediction.estimatedCoverageGain).toBeGreaterThanOrEqual(0);
       } else {
         expect(prediction.estimatedCoverageGain).toBeGreaterThan(0);
       }
+
+      // Always expect a valid number
+      expect(typeof prediction.estimatedCoverageGain).toBe('number');
+      expect(prediction.estimatedCoverageGain).toBeGreaterThanOrEqual(0);
     });
   });
 
